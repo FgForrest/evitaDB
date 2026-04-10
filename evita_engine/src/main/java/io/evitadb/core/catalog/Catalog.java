@@ -95,6 +95,7 @@ import io.evitadb.core.exception.StorageImplementationNotFoundException;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.expression.trigger.FacetExpressionTriggerFactory;
+import io.evitadb.core.expression.trigger.HistogramExpressionTriggerFactory;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -122,7 +123,7 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.mutation.ExpressionIndexTrigger;
+import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
@@ -1905,6 +1906,11 @@ public final class Catalog
 				collected.addAll(
 					FacetExpressionTriggerFactory.buildTriggersForReference(entityType, refSchema)
 				);
+				collected.addAll(
+					HistogramExpressionTriggerFactory.buildTriggersForReference(
+						entityType, refSchema, this.entitySchemaIndex::get
+					)
+				);
 			}
 			newTriggers = collected;
 		}
@@ -1926,12 +1932,12 @@ public final class Catalog
 	 */
 	private void buildInitialExpressionTriggerRegistry() {
 		final CatalogExpressionTriggerRegistry registry =
-			CatalogExpressionTriggerRegistryImpl.buildFromSchemas(this.entitySchemaIndex);
+			DefaultCatalogExpressionTriggerRegistry.buildFromSchemas(this.entitySchemaIndex);
 		this.expressionTriggerRegistry.set(registry);
-		if (registry instanceof CatalogExpressionTriggerRegistryImpl impl) {
+		if (registry instanceof DefaultCatalogExpressionTriggerRegistry impl) {
 			final int triggerCount = impl.getTriggerCount();
 			if (triggerCount > 0) {
-				log.info(
+				log.debug(
 					"Expression trigger registry initialized with {} triggers for catalog '{}'.",
 					triggerCount, this.getName()
 				);
@@ -2445,6 +2451,18 @@ public final class Catalog
 			return Catalog.this.dataStoreBuffer.getOrCreateIndexForModification(
 				catalogIndexKey,
 				cik -> Catalog.this.getCatalogIndex(cik.scope())
+			);
+		}
+
+		/**
+		 * Catalog indexes are not addressable by storage primary key — always returns null.
+		 */
+		@Nonnull
+		@Override
+		public CatalogIndex getOrCreateIndexByPrimaryKey(int indexPrimaryKey) {
+			return Catalog.this.dataStoreBuffer.getOrCreateIndexForModification(
+				indexPrimaryKey,
+				Catalog.this.catalogIndexMaintainer::getIndexByPrimaryKey
 			);
 		}
 

@@ -87,12 +87,14 @@ public enum EntityIndexType {
 	 * Index that contains record ids connected with a certain referenced group entity type and primary key.
 	 * Analogous to {@link #REFERENCED_ENTITY} but for group-based indexing. This index is used when query
 	 * contains {@link GroupHaving} constraint and contains copy of all indexed reference attributes and entity
-	 * attributes of the indexed (source) entity, partitioned by the group entity primary key.
+	 * attributes of the indexed (source) entity, partitioned by the **referenced entity** primary key.
 	 *
 	 * Discriminator is {@link RepresentativeReferenceKey} instance that combines information about the
-	 * {@link ReferenceSchemaContract#getName()}, group entity {@link EntityContract#getPrimaryKey()} and
+	 * {@link ReferenceSchemaContract#getName()}, referenced entity {@link EntityContract#getPrimaryKey()} and
 	 * set of representative attribute values that distinguish this reference from other references of the same type
-	 * and the same target group entity.
+	 * and the same target referenced entity. The group PK is resolved via the
+	 * {@link #REFERENCED_GROUP_ENTITY_TYPE} type-level index, which maps group PKs to storage PKs of individual
+	 * group indexes.
 	 */
 	REFERENCED_GROUP_ENTITY
 }

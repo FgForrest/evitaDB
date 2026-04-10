@@ -28,7 +28,7 @@ import io.evitadb.api.query.expression.utility.NestedOperator;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.utils.Assert;
+import io.evitadb.dataType.expression.UnaryExpressionNode;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -71,13 +71,7 @@ public class BooleanExpressionChecker implements ExpressionNodeVisitor {
 	@Override
 	public void visit(@Nonnull ExpressionNode node) {
 		if (node instanceof Expression || node instanceof NestedOperator) {
-			// unwrap wrapper nodes and check the inner node
-			final ExpressionNode[] children = node.getChildren();
-			Assert.isPremiseValid(
-				children != null && children.length == 1,
-				"Unsupported children length for node `" + node.getClass().getSimpleName() + "`."
-			);
-			children[0].accept(this);
+			((UnaryExpressionNode) node).getOperand().accept(this);
 		} else if (node instanceof BooleanOperator) {
 			this.booleanExpression = true;
 		}

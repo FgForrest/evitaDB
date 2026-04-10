@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -98,6 +100,21 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			CreateReflectedReferenceSchemaMutationDescriptor.FACETED_PARTIALLY_IN_SCOPES
 		);
 
+		// bucketed is not inheritable — coalesce null to EMPTY
+		final ScopedHistogramIndexDefinition[] parsedBucketed = parseBucketedHistogram(
+			input,
+			CreateReflectedReferenceSchemaMutationDescriptor.BUCKETED_IN_SCOPES
+		);
+		final ScopedHistogramIndexDefinition[] bucketedInScopes =
+			parsedBucketed != null ? parsedBucketed : ScopedHistogramIndexDefinition.EMPTY;
+
+		final ScopedBucketedPartially[] parsedBucketedPartially = parseBucketedPartially(
+			input,
+			CreateReflectedReferenceSchemaMutationDescriptor.BUCKETED_PARTIALLY_IN_SCOPES
+		);
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			parsedBucketedPartially != null ? parsedBucketedPartially : ScopedBucketedPartially.EMPTY;
+
 		return new CreateReflectedReferenceSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.DESCRIPTION),
@@ -109,6 +126,8 @@ public class CreateReflectedReferenceSchemaMutationConverter
 			indexedComponentsInScopes,
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.FACETED_IN_SCOPES),
 			facetedPartiallyInScopes,
+			bucketedInScopes,
+			bucketedPartiallyInScopes,
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTES_INHERITANCE_BEHAVIOR),
 			input.getProperty(CreateReflectedReferenceSchemaMutationDescriptor.ATTRIBUTE_INHERITANCE_FILTER)
 		);
@@ -120,6 +139,8 @@ public class CreateReflectedReferenceSchemaMutationConverter
 		@Nonnull Output output
 	) {
 		serializeFacetedPartially(mutation.getFacetedPartiallyInScopes(), output);
+		serializeBucketedHistogram(mutation.getBucketedInScopes(), output);
+		serializeBucketedPartially(mutation.getBucketedPartiallyInScopes(), output);
 		super.convertToOutput(mutation, output);
 	}
 }

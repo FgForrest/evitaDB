@@ -96,6 +96,8 @@ public abstract class AbstractMutationTest {
 				),
 				EnumSet.of(Scope.LIVE),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Map.of(
 					"categoryPriority",
 					AttributeSchema._internalBuild(

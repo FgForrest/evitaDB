@@ -198,6 +198,8 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), serializeReferenceIndexedComponents(referenceSchema));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED.name(), serializeFlagInScopes(referenceSchema::isFacetedInScope));
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), serializeFacetedPartially(referenceSchema));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.BUCKETED.name(), serializeBucketedHistogram(referenceSchema));
+		referenceSchemaNode.set(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), serializeBucketedPartially(referenceSchema));
 
 		referenceSchemaNode.set(ReferenceSchemaDescriptor.ATTRIBUTES.name(), serializeAttributeSchemas(referenceSchema));
 		referenceSchemaNode.set(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), serializeSortableAttributeCompoundSchemas(referenceSchema));

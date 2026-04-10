@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -108,6 +110,17 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * An empty map means all faceted entities participate.
 	 */
 	@Getter @Nonnull protected final Map<Scope, Expression> facetedPartiallyInScopes;
+	/**
+	 * Per-scope named bucketed histogram definitions. The presence of a scope key means the
+	 * reference is bucketed in that scope. The inner map keys are histogram index names.
+	 */
+	protected final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes;
+	/**
+	 * Per-scope expressions that narrow which entities participate in bucketed histogram
+	 * computation. Only meaningful for scopes where the reference is bucketed.
+	 * An empty map means all bucketed entities participate.
+	 */
+	@Getter @Nonnull protected final Map<Scope, Expression> bucketedPartiallyInScopes;
 	/**
 	 * Variants of the reference name in different naming conventions.
 	 */
@@ -351,6 +364,30 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
+	 * Wraps a nested scope-to-name-to-definition map in unmodifiable views for both
+	 * the outer and all inner maps. Returns {@link Collections#emptyMap()} when the
+	 * input is empty.
+	 *
+	 * @param map the mutable nested map
+	 * @return an unmodifiable copy of the nested map
+	 */
+	@Nonnull
+	private static Map<Scope, Map<String, HistogramIndexDefinition>> toUnmodifiableNestedMap(
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> map
+	) {
+		if (map.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		final EnumMap<Scope, Map<String, HistogramIndexDefinition>> result = new EnumMap<>(Scope.class);
+		for (final Entry<Scope, Map<String, HistogramIndexDefinition>> entry : map.entrySet()) {
+			if (!entry.getValue().isEmpty()) {
+				result.put(entry.getKey(), Collections.unmodifiableMap(entry.getValue()));
+			}
+		}
+		return Collections.unmodifiableMap(result);
+	}
+
+	/**
 	 * Validates that the entity type and optional group type
 	 * conform to the required classifier format.
 	 *
@@ -368,11 +405,63 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
-	 * This method is for internal purposes only. It could be used for reconstruction of ReferenceSchema from
-	 * different package than current, but still internal code of the Evita ecosystems.
+	 * Converts an array of {@link ScopedHistogramIndexDefinition} objects into a nested map
+	 * linking {@link Scope} to a map of histogram names to {@link HistogramIndexDefinition}.
+	 * Multiple entries with the same scope but different names produce multiple entries in the
+	 * inner map. If the input array is null or empty, an empty map is returned.
 	 *
-	 * Do not use this method from in the client code!
+	 * @param scopedBucketedHistograms an array of scoped bucketed histogram entries, may be null
+	 * @return a nested map: scope to (histogram name to definition)
 	 */
+	@Nonnull
+	public static Map<Scope, Map<String, HistogramIndexDefinition>> toBucketedHistogramMap(
+		@Nullable ScopedHistogramIndexDefinition[] scopedBucketedHistograms
+	) {
+		if (scopedBucketedHistograms == null || scopedBucketedHistograms.length == 0) {
+			return Collections.emptyMap();
+		}
+		final EnumMap<Scope, Map<String, HistogramIndexDefinition>> result = new EnumMap<>(Scope.class);
+		for (final ScopedHistogramIndexDefinition entry : scopedBucketedHistograms) {
+			final HistogramIndexDefinition previous = result
+				.computeIfAbsent(entry.scope(), k -> new LinkedHashMap<>())
+				.put(
+					entry.nameOfTheIndex(),
+					new HistogramIndexDefinition(entry.nameOfTheIndex(), entry.valueExpression())
+				);
+			if (previous != null) {
+				throw new InvalidSchemaMutationException(
+					"Duplicate histogram name `" + entry.nameOfTheIndex() +
+						"` in scope " + entry.scope() + "!"
+				);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Converts an array of {@link ScopedBucketedPartially} objects into a map linking
+	 * {@link Scope} to {@link Expression}. Entries with a null expression are skipped.
+	 * If the input array is null or empty, an empty map is returned.
+	 *
+	 * @param scopedBucketedPartially an array of scoped bucketed-partially entries, may be null
+	 * @return a map where each scope is associated with its corresponding expression
+	 */
+	@Nonnull
+	public static Map<Scope, Expression> toBucketedPartiallyMap(
+		@Nullable ScopedBucketedPartially[] scopedBucketedPartially
+	) {
+		if (scopedBucketedPartially == null || scopedBucketedPartially.length == 0) {
+			return Collections.emptyMap();
+		}
+		final EnumMap<Scope, Expression> result = new EnumMap<>(Scope.class);
+		for (ScopedBucketedPartially entry : scopedBucketedPartially) {
+			if (entry.expression() != null) {
+				result.put(entry.scope(), entry.expression());
+			}
+		}
+		return result.isEmpty() ? Collections.emptyMap() : result;
+	}
+
 	@Nonnull
 	public static ReferenceSchema _internalBuild(
 		@Nonnull String name,
@@ -402,6 +491,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			null,
 			facetedInScopes != null ? facetedInScopes : Scope.NO_SCOPE,
 			null,
+			null, null,
 			Collections.emptyMap(), Collections.emptyMap()
 		);
 	}
@@ -429,6 +519,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
+		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
@@ -445,6 +537,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			indexedComponentsInScopes,
 			facetedInScopes,
 			facetedPartiallyInScopes,
+			bucketedInScopes,
+			bucketedPartiallyInScopes,
 			attributes,
 			sortableAttributeCompounds
 		);
@@ -473,6 +567,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nonnull Scope[] facetedInScopes,
 		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
@@ -484,7 +580,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		);
 		final EnumSet<Scope> facetedScopes = ArrayUtils.toEnumSet(Scope.class, facetedInScopes);
 		final Map<Scope, Expression> facetedPartiallyMap = toFacetedPartiallyMap(facetedPartiallyInScopes);
-		validateScopeSettings(facetedScopes, indexedScopesMap, indexedComponentsMap);
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = toBucketedHistogramMap(bucketedInScopes);
+		final Map<Scope, Expression> bucketedPartiallyMap = toBucketedPartiallyMap(bucketedPartiallyInScopes);
+		validateScopeSettings(facetedScopes, bucketedMap, indexedScopesMap, indexedComponentsMap);
 
 		return new ReferenceSchema(
 			name, nameVariants,
@@ -499,6 +597,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			indexedComponentsMap,
 			facetedScopes,
 			facetedPartiallyMap,
+			bucketedMap,
+			bucketedPartiallyMap,
 			attributes,
 			sortableAttributeCompounds
 		);
@@ -534,6 +634,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			referenceSchema.getIndexedComponentsInScopes(),
 			referenceSchema.getFacetedInScopes(),
 			referenceSchema.getFacetedPartiallyInScopes(),
+			referenceSchema.getAllHistogramIndexDefinitions(),
+			referenceSchema.getBucketedPartiallyInScopes(),
 			referenceSchema.getAttributes(),
 			referenceSchema.getSortableAttributeCompounds()
 		);
@@ -559,6 +661,29 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes,
 		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes
 	) {
+		validateScopeSettings(facetedScopes, Collections.emptyMap(), indexedScopes, indexedComponentsInScopes);
+	}
+
+	/**
+	 * Validates the consistency between faceted scopes, bucketed scopes, indexed scopes and indexed
+	 * components. Ensures that:
+	 *
+	 * - any scope marked as faceted is also marked as indexed
+	 * - any scope marked as bucketed is also marked as indexed
+	 * - no indexed components exist for scopes where the index type is {@link ReferenceIndexType#NONE}
+	 *
+	 * @param facetedScopes the set of scopes where faceting is enabled
+	 * @param bucketedScopes the map of scopes where bucketed histogram indexing is enabled
+	 * @param indexedScopes the set of scopes where indexing is enabled
+	 * @param indexedComponentsInScopes the indexed components per scope, or null when inherited
+	 *                                 (component validation is skipped when null)
+	 */
+	static void validateScopeSettings(
+		@Nonnull Set<Scope> facetedScopes,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedScopes,
+		@Nonnull Map<Scope, ReferenceIndexType> indexedScopes,
+		@Nullable Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes
+	) {
 		final Scope[] scopes = Scope.values();
 		for (Scope scope : scopes) {
 			final boolean isNone = indexedScopes.getOrDefault(scope, ReferenceIndexType.NONE) == ReferenceIndexType.NONE;
@@ -567,6 +692,15 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 					!isNone,
 					() -> new InvalidSchemaMutationException(
 						"When reference is marked as faceted in scope `" + scope +
+							"`, it needs also to be indexed for the same scope."
+					)
+				);
+			}
+			if (bucketedScopes.containsKey(scope)) {
+				Assert.isTrue(
+					!isNone,
+					() -> new InvalidSchemaMutationException(
+						"When reference is marked as bucketed in scope `" + scope +
 							"`, it needs also to be indexed for the same scope."
 					)
 				);
@@ -587,6 +721,9 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 * - any scope marked as faceted is also marked as indexed
 	 * - no indexed components exist for scopes where the index type is {@link ReferenceIndexType#NONE}
 	 * - {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} is only used when a group type is defined
+	 *
+	 * This overload does **not** validate bucketed scopes — use the 4-parameter variant that accepts
+	 * a `bucketedScopes` map when bucketed validation is needed.
 	 *
 	 * @param facetedScopes the set of scopes where faceting is enabled
 	 * @param indexedScopes the set of scopes where indexing is enabled
@@ -649,6 +786,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		@Nonnull Map<Scope, Set<ReferenceIndexedComponents>> indexedComponentsInScopes,
 		@Nonnull Set<Scope> facetedInScopes,
 		@Nonnull Map<Scope, Expression> facetedPartiallyInScopes,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes,
+		@Nonnull Map<Scope, Expression> bucketedPartiallyInScopes,
 		@Nonnull Map<String, AttributeSchemaContract> attributes,
 		@Nonnull Map<String, SortableAttributeCompoundSchemaContract> sortableAttributeCompounds
 	) {
@@ -668,6 +807,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.indexedComponentsInScopes = CollectionUtils.toUnmodifiableMap(indexedComponentsInScopes);
 		this.facetedInScopes = CollectionUtils.toUnmodifiableSet(facetedInScopes);
 		this.facetedPartiallyInScopes = CollectionUtils.toUnmodifiableMap(facetedPartiallyInScopes);
+		this.bucketedInScopes = toUnmodifiableNestedMap(bucketedInScopes);
+		this.bucketedPartiallyInScopes = CollectionUtils.toUnmodifiableMap(bucketedPartiallyInScopes);
 		this.attributes = Collections.unmodifiableMap(
 			attributes.entrySet()
 				.stream()
@@ -812,6 +953,44 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	@Override
+	public boolean isBucketedInScope(@Nonnull Scope scope) {
+		return this.bucketedInScopes.containsKey(scope);
+	}
+
+	@Nonnull
+	@Override
+	public Set<Scope> getBucketedInScopes() {
+		return this.bucketedInScopes.isEmpty()
+			? Collections.emptySet()
+			: Collections.unmodifiableSet(EnumSet.copyOf(this.bucketedInScopes.keySet()));
+	}
+
+	@Nullable
+	@Override
+	public HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope, @Nonnull String name) {
+		final Map<String, HistogramIndexDefinition> scopeMap = this.bucketedInScopes.get(scope);
+		return scopeMap != null ? scopeMap.get(name) : null;
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, HistogramIndexDefinition> getHistogramIndexDefinitions(@Nonnull Scope scope) {
+		return this.bucketedInScopes.getOrDefault(scope, Collections.emptyMap());
+	}
+
+	@Nonnull
+	@Override
+	public Map<Scope, Map<String, HistogramIndexDefinition>> getAllHistogramIndexDefinitions() {
+		return this.bucketedInScopes;
+	}
+
+	@Nullable
+	@Override
+	public Expression getBucketedPartiallyInScope(@Nonnull Scope scope) {
+		return this.bucketedPartiallyInScopes.get(scope);
+	}
+
+	@Override
 	public void validate(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchema entitySchema) throws SchemaAlteringException {
 		final Optional<EntitySchemaContract> referencedEntityTypeSchema = catalogSchema.getEntitySchema(this.referencedEntityType);
 		Stream<String> referenceErrors = Stream.empty();
@@ -849,6 +1028,18 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 					Stream.of(
 						"FacetedPartially expression is defined for scope `" + scope +
 							"` but the reference is not faceted in that scope!"
+					)
+				);
+			}
+		}
+
+		for (Scope scope : this.bucketedPartiallyInScopes.keySet()) {
+			if (!this.bucketedInScopes.containsKey(scope)) {
+				referenceErrors = Stream.concat(
+					referenceErrors,
+					Stream.of(
+						"BucketedPartially expression is defined for scope `" + scope +
+							"` but the reference is not bucketed in that scope!"
 					)
 				);
 			}
@@ -952,6 +1143,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
 			this.facetedPartiallyInScopes,
+			this.bucketedInScopes,
+			this.bucketedPartiallyInScopes,
 			this.getAttributes(),
 			this.getSortableAttributeCompounds()
 		);
@@ -987,6 +1180,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.indexedComponentsInScopes,
 			this.facetedInScopes,
 			this.facetedPartiallyInScopes,
+			this.bucketedInScopes,
+			this.bucketedPartiallyInScopes,
 			this.getAttributes(),
 			this.getSortableAttributeCompounds()
 		);
@@ -1009,6 +1204,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		result = 31 * result + this.indexedComponentsInScopes.hashCode();
 		result = 31 * result + this.facetedInScopes.hashCode();
 		result = 31 * result + this.facetedPartiallyInScopes.hashCode();
+		result = 31 * result + this.bucketedInScopes.hashCode();
+		result = 31 * result + this.bucketedPartiallyInScopes.hashCode();
 		result = 31 * result + this.sortableAttributeCompounds.hashCode();
 		result = 31 * result + this.attributes.hashCode();
 		return result;
@@ -1026,6 +1223,8 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			this.indexedComponentsInScopes.equals(that.indexedComponentsInScopes) &&
 			this.facetedInScopes.equals(that.facetedInScopes) &&
 			this.facetedPartiallyInScopes.equals(that.facetedPartiallyInScopes) &&
+			this.bucketedInScopes.equals(that.bucketedInScopes) &&
+			this.bucketedPartiallyInScopes.equals(that.bucketedPartiallyInScopes) &&
 			this.name.equals(that.name) &&
 			this.nameVariants.equals(that.nameVariants) &&
 			Objects.equals(this.description, that.description) &&

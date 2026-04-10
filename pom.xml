@@ -421,7 +421,6 @@
 							<groups>functional</groups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>true</useUnlimitedThreads>
-							<argLine>-Xmx5g</argLine>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -436,7 +435,6 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<groups>documentation</groups>
-							<argLine>-Xmx5g</argLine>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -513,7 +511,7 @@
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<argLine>${surefireArgLine} -Xmx4g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<argLine>${surefireArgLine} -Xmx5g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>

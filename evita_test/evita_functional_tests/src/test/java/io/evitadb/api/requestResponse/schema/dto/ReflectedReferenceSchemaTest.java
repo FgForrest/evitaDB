@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
@@ -52,6 +54,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +75,7 @@ class ReflectedReferenceSchemaTest {
 	 *
 	 * @return a {@link ReferenceSchema} for entity type "Product" with LIVE scope indexed and faceted
 	 */
+	@Nonnull
 	private static ReferenceSchema createOriginalReference() {
 		return ReferenceSchema._internalBuild(
 			"productRef",
@@ -91,6 +95,44 @@ class ReflectedReferenceSchemaTest {
 			),
 			EnumSet.of(Scope.LIVE),
 			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap()
+		);
+	}
+
+	/**
+	 * Creates an original {@link ReferenceSchema} with bucketed histogram configured in LIVE scope
+	 * and a bucketedPartially expression to serve as the reflected reference target.
+	 *
+	 * @return a {@link ReferenceSchema} with bucketed LIVE and a bucketedPartially expression
+	 */
+	@Nonnull
+	private static ReferenceSchema createOriginalReferenceWithBucketed() {
+		final Expression bucketedPartiallyExpr = ExpressionFactory.parse("$active == 1");
+		final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+		bucketedMap.put(Scope.LIVE, Map.of("priceHist", new HistogramIndexDefinition("priceHist", ExpressionFactory.parse("$price"))));
+		return ReferenceSchema._internalBuild(
+			"productRef",
+			NamingConvention.generate("productRef"),
+			"Original description",
+			"Original deprecation",
+			Cardinality.ZERO_OR_MORE,
+			"Product",
+			Collections.emptyMap(),
+			true,
+			null,
+			Collections.emptyMap(),
+			false,
+			Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+			ReferenceSchema.defaultIndexedComponents(
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			),
+			EnumSet.of(Scope.LIVE),
+			Collections.emptyMap(),
+			bucketedMap,
+			Map.of(Scope.LIVE, bucketedPartiallyExpr),
 			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
@@ -122,6 +164,8 @@ class ReflectedReferenceSchemaTest {
 				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 			),
 			Collections.emptySet(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
 			Collections.emptyMap(),
 			attributes,
 			Collections.emptyMap()
@@ -181,6 +225,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				new Scope[]{Scope.LIVE},
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
@@ -263,6 +308,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -287,6 +333,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -310,6 +357,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -331,6 +379,7 @@ class ReflectedReferenceSchemaTest {
 				null,  // indexed null => inherited
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -354,6 +403,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				null,  // faceted null => inherited
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -376,6 +426,7 @@ class ReflectedReferenceSchemaTest {
 				null,  // indexed scopes null => inherited
 				null,  // indexed components null => inherited (because indexed scopes are also null)
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -471,6 +522,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
@@ -511,6 +563,7 @@ class ReflectedReferenceSchemaTest {
 				null,
 				null,
 				null,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -537,6 +590,7 @@ class ReflectedReferenceSchemaTest {
 				null,
 				null,
 				null,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -562,6 +616,7 @@ class ReflectedReferenceSchemaTest {
 				null,  // indexed inherited
 				null,
 				null,  // faceted inherited
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -591,6 +646,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -621,6 +677,7 @@ class ReflectedReferenceSchemaTest {
 				"Product",
 				"productRef",
 				Cardinality.ZERO_OR_ONE,
+				null, null, null,
 				null, null, null,
 				Map.of("ownAttr", ownAttr),
 				Collections.emptyMap(),
@@ -657,6 +714,7 @@ class ReflectedReferenceSchemaTest {
 				"productRef",
 				Cardinality.ZERO_OR_ONE,
 				null, null, null,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -686,6 +744,7 @@ class ReflectedReferenceSchemaTest {
 				"Product",
 				"productRef",
 				Cardinality.ZERO_OR_ONE,
+				null, null, null,
 				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -717,6 +776,7 @@ class ReflectedReferenceSchemaTest {
 				"productRef",
 				Cardinality.ZERO_OR_ONE,
 				null, null, null,
+				null, null, null,
 				Map.of("ownAttr", ownAttr),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
@@ -745,6 +805,7 @@ class ReflectedReferenceSchemaTest {
 				"productRef",
 				Cardinality.ZERO_OR_ONE,
 				null, null, null,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -771,6 +832,7 @@ class ReflectedReferenceSchemaTest {
 				"Product",
 				"productRef",
 				Cardinality.ZERO_OR_ONE,
+				null, null, null,
 				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -809,6 +871,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -852,6 +915,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -880,6 +944,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -908,6 +973,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				new Scope[]{Scope.LIVE},
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -970,6 +1036,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -989,6 +1056,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -1012,6 +1080,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -1028,6 +1097,7 @@ class ReflectedReferenceSchemaTest {
 				},
 				null,
 				Scope.NO_SCOPE,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
@@ -1084,6 +1154,7 @@ class ReflectedReferenceSchemaTest {
 				"productRef",
 				Cardinality.ZERO_OR_ONE,
 				null, null, null,
+				null, null, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -1114,7 +1185,7 @@ class ReflectedReferenceSchemaTest {
 		 * @param originalReference the original reference schema to include in Product
 		 * @return array of [CatalogSchema, ownerEntitySchema]
 		 */
-		private Object[] buildCatalogAndSchemas(
+		private static Object[] buildCatalogAndSchemas(
 			@Nonnull String ownerEntityType,
 			@Nonnull ReferenceSchemaContract originalReference
 		) {
@@ -1183,6 +1254,8 @@ class ReflectedReferenceSchemaTest {
 				EnumSet.of(Scope.LIVE),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1202,7 +1275,7 @@ class ReflectedReferenceSchemaTest {
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
 				null,
-				new Scope[0], // NOT faceted in any scope
+				Scope.NO_SCOPE, // NOT faceted in any scope
 				new ScopedFacetedPartially[]{
 					new ScopedFacetedPartially(Scope.LIVE, expression) // but facetedPartially set
 				},
@@ -1256,6 +1329,8 @@ class ReflectedReferenceSchemaTest {
 				),
 				EnumSet.of(Scope.LIVE),
 				Map.of(Scope.LIVE, originalExpr),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
@@ -1328,6 +1403,8 @@ class ReflectedReferenceSchemaTest {
 				EnumSet.of(Scope.LIVE),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1347,7 +1424,7 @@ class ReflectedReferenceSchemaTest {
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
 				},
 				null,
-				new Scope[0], // empty — differs from original's LIVE
+				Scope.NO_SCOPE, // empty — differs from original's LIVE
 				null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -1397,6 +1474,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptySet(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1417,7 +1496,7 @@ class ReflectedReferenceSchemaTest {
 					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)
 				},
 				null,
-				new Scope[0],
+				Scope.NO_SCOPE,
 				null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -1469,6 +1548,8 @@ class ReflectedReferenceSchemaTest {
 				Collections.emptySet(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Collections.emptyMap()
 			);
 
@@ -1494,7 +1575,7 @@ class ReflectedReferenceSchemaTest {
 						new ReferenceIndexedComponents[]{ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY}
 					)
 				},
-				new Scope[0],
+				Scope.NO_SCOPE,
 				null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -1517,6 +1598,247 @@ class ReflectedReferenceSchemaTest {
 			assertTrue(
 				ex.getMessage().contains("Indexed components differ from the original reference"),
 				"Expected error about differing indexed components, got: " + ex.getMessage()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucketed inheritance")
+	class BucketedInheritance {
+
+		/**
+		 * Verifies that a {@link ReflectedReferenceSchema} with null bucketed fields does NOT
+		 * inherit bucketed settings from the original reference — bucketed must be explicit.
+		 */
+		@Test
+		@DisplayName("should not inherit bucketed from original reference")
+		void shouldNotInheritBucketedFromOriginalReference() {
+			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
+				"reflected",
+				NamingConvention.generate("reflected"),
+				null, null,
+				"Product",
+				NamingConvention.generate("Product"),
+				null,
+				Collections.emptyMap(),
+				false,
+				"productRef",
+				null,
+				null,
+				null,
+				null,
+				null,
+				null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				true, true, true,
+				true, true,
+				true,
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+				null,
+				null
+			);
+
+			final ReferenceSchema original = createOriginalReferenceWithBucketed();
+			final ReflectedReferenceSchema bound = schema.withReferencedSchema(original);
+
+			// bucketed is always explicit — null means empty, not inherited
+			assertFalse(bound.isBucketedInScope(Scope.LIVE));
+			assertFalse(bound.isBucketedInScope(Scope.ARCHIVED));
+			assertTrue(bound.getAllHistogramIndexDefinitions().isEmpty());
+			assertNull(bound.getBucketedPartiallyInScope(Scope.LIVE));
+		}
+
+		/**
+		 * Verifies that a {@link ReflectedReferenceSchema} with explicit bucketed settings retains them
+		 * even when bound to an original with different bucketed settings.
+		 */
+		@Test
+		@DisplayName("should keep explicit bucketed when not inherited")
+		void shouldKeepExplicitBucketedWhenNotInherited() {
+			final ReflectedReferenceSchema schema = ReflectedReferenceSchema._internalBuild(
+				"reflected",
+				NamingConvention.generate("reflected"),
+				null, null,
+				"Product",
+				NamingConvention.generate("Product"),
+				null,
+				Collections.emptyMap(),
+				false,
+				"productRef",
+				null,
+				null,
+				null,
+				null,
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "myOwnHist", null)
+				},
+				null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				true, true, true,
+				true, true,
+				true,
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+				null,
+				null
+			);
+
+			final ReferenceSchema original = createOriginalReferenceWithBucketed();
+			final ReflectedReferenceSchema bound = schema.withReferencedSchema(original);
+
+			// should retain explicit bucketed definition, not the original's
+			assertTrue(bound.isBucketedInScope(Scope.LIVE));
+			assertEquals(
+				"myOwnHist",
+				bound.getHistogramIndexDefinition(Scope.LIVE, "myOwnHist").nameOfTheIndex()
+			);
+			assertNull(bound.getHistogramIndexDefinition(Scope.LIVE, "myOwnHist").valueExpression());
+		}
+
+		/**
+		 * Verifies that the first (simpler) constructor of {@link ReflectedReferenceSchema} does
+		 * not inherit bucketed settings from the original reference — bucketed defaults to empty.
+		 */
+		@Test
+		@DisplayName("should not inherit bucketed via first constructor")
+		void shouldNotInheritBucketedViaFirstConstructor() {
+			final ReferenceSchema original = createOriginalReferenceWithBucketed();
+
+			final ReflectedReferenceSchema schema = new ReflectedReferenceSchema(
+				"reflected",
+				NamingConvention.generate("reflected"),
+				null, null, null,
+				"Product",
+				"productRef",
+				null, null, null,
+				null, null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+				null,
+				original
+			);
+
+			// bucketed is always explicit — null means empty, not inherited
+			assertFalse(schema.isBucketedInScope(Scope.LIVE));
+			assertTrue(schema.getAllHistogramIndexDefinitions().isEmpty());
+			assertNull(schema.getBucketedPartiallyInScope(Scope.LIVE));
+		}
+	}
+
+	@Nested
+	@DisplayName("Bucketed-indexed consistency")
+	class BucketedIndexedConsistency {
+
+		/**
+		 * Verifies that `withReferencedSchema()` throws when the resolved bucketed scopes
+		 * are not a subset of the resolved indexed scopes. The reflected reference has explicit
+		 * bucketed in LIVE but inherits indexed from the original, which only indexes ARCHIVED.
+		 */
+		@Test
+		@DisplayName("should throw in withReferencedSchema when bucketed scope is not indexed")
+		void shouldThrowInWithReferencedSchemaWhenBucketedScopeNotIndexed() {
+			// Original reference: indexed in ARCHIVED only (not LIVE)
+			final ReferenceSchema original = ReferenceSchema._internalBuild(
+				"productRef",
+				NamingConvention.generate("productRef"),
+				null, null,
+				Cardinality.ZERO_OR_MORE,
+				"Product",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.ARCHIVED, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+
+			// Reflected reference: inherited indexed, explicit bucketed in LIVE
+			final ReflectedReferenceSchema reflected = ReflectedReferenceSchema._internalBuild(
+				"reflected",
+				NamingConvention.generate("reflected"),
+				null, null,
+				"Product",
+				NamingConvention.generate("Product"),
+				null,
+				Collections.emptyMap(),
+				false,
+				"productRef",
+				null,
+				null,    // indexed inherited
+				null,
+				null,    // faceted inherited
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHist", null)
+				},
+				null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				true, true, true,
+				true, true,       // indexed inherited
+				true,
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+				null,
+				null
+			);
+
+			// withReferencedSchema resolves indexed from original (ARCHIVED only)
+			// but bucketed stays as explicit LIVE — this is inconsistent and should throw
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> reflected.withReferencedSchema(original),
+				"Expected InvalidSchemaMutationException because bucketed LIVE scope is not indexed"
+			);
+		}
+
+		/**
+		 * Verifies that the Map-based `_internalBuild` overload (used by deserializers)
+		 * validates bucketed-vs-indexed consistency, rejecting bucketed in a scope that is
+		 * not indexed.
+		 */
+		@Test
+		@DisplayName("should throw in _internalBuild Map overload when bucketed scope is not indexed")
+		void shouldThrowInInternalBuildMapOverloadWhenBucketedScopeNotIndexed() {
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(
+				Scope.LIVE,
+				Map.of("priceHist", new HistogramIndexDefinition("priceHist", null))
+			);
+
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> ReflectedReferenceSchema._internalBuild(
+					"reflected",
+					NamingConvention.generate("reflected"),
+					null, null,
+					"Product",
+					"productRef",
+					Cardinality.ZERO_OR_ONE,
+					// indexed in LIVE with NONE — effectively not indexed
+					Map.of(Scope.LIVE, ReferenceIndexType.NONE),
+					Collections.emptyMap(),
+					EnumSet.noneOf(Scope.class),
+					Collections.emptyMap(),
+					bucketedMap,          // bucketed in LIVE
+					Collections.emptyMap(),
+					Collections.emptyMap(),
+					Collections.emptyMap(),
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				),
+				"Expected InvalidSchemaMutationException because bucketed LIVE scope has index type NONE"
 			);
 		}
 	}

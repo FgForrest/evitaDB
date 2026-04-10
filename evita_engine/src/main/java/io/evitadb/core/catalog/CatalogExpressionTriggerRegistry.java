@@ -24,15 +24,17 @@
 package io.evitadb.core.catalog;
 
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.mutation.DependencyType;
-import io.evitadb.index.mutation.ExpressionIndexTrigger;
-import io.evitadb.index.mutation.FacetExpressionTrigger;
+import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
+import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
+import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Catalog-level inverted index that maps mutated entity types to the {@link ExpressionIndexTrigger} instances that
@@ -80,7 +82,9 @@ public interface CatalogExpressionTriggerRegistry {
 	 * Empty registry singleton — the initial value before any schemas are loaded.
 	 */
 	CatalogExpressionTriggerRegistry EMPTY =
-		new CatalogExpressionTriggerRegistryImpl(Collections.emptyMap(), Collections.emptyMap());
+		new DefaultCatalogExpressionTriggerRegistry(
+			CrossEntityTriggerIndex.EMPTY, LocalTriggerIndex.EMPTY
+		);
 
 	/**
 	 * Finds all triggers that depend on the given entity type with the specified dependency relationship.
@@ -118,6 +122,42 @@ public interface CatalogExpressionTriggerRegistry {
 	);
 
 	/**
+	 * Returns `true` if any cross-entity trigger under an entity-attribute dependency type
+	 * ({@link DependencyType#isEntityAttributeDependency()}) references the given attribute name
+	 * for the specified mutated entity type. Used to skip pre-mutation value capture when no trigger
+	 * depends on the attribute being mutated.
+	 *
+	 * @param mutatedEntityType the entity type being mutated
+	 * @param attributeName     the attribute that changed
+	 * @return `true` if at least one entity-attribute trigger depends on this attribute
+	 */
+	boolean hasEntityAttributeTrigger(
+		@Nonnull String mutatedEntityType,
+		@Nonnull String attributeName
+	);
+
+	/**
+	 * Returns `true` if any cross-entity trigger under an entity-attribute dependency type exists
+	 * for the specified mutated entity type. Used to skip bulk pre-mutation value capture (e.g.,
+	 * during scope changes) when no trigger depends on any attribute of this entity type.
+	 *
+	 * @param mutatedEntityType the entity type being mutated
+	 * @return `true` if at least one entity-attribute trigger exists for this entity type
+	 */
+	boolean hasAnyEntityAttributeTriggers(@Nonnull String mutatedEntityType);
+
+	/**
+	 * Returns the set of entity-level attribute names referenced by cross-entity triggers under
+	 * entity-attribute dependency types for the specified mutated entity type. Used to capture only
+	 * the trigger-relevant attribute values during scope changes instead of all entity attributes.
+	 *
+	 * @param mutatedEntityType the entity type being mutated
+	 * @return unmodifiable set of attribute names, or empty set if no triggers exist
+	 */
+	@Nonnull
+	Set<String> getEntityAttributeNames(@Nonnull String mutatedEntityType);
+
+	/**
 	 * Returns the pre-built local {@link FacetExpressionTrigger} for inline expression evaluation within
 	 * `ReferenceIndexMutator`. The trigger is used to decide whether a facet should be indexed when a reference
 	 * is added, removed, or re-evaluated due to attribute changes on the owner entity.
@@ -134,6 +174,22 @@ public interface CatalogExpressionTriggerRegistry {
 	 */
 	@Nullable
 	FacetExpressionTrigger getLocalTrigger(
+		@Nonnull String ownerEntityType,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope
+	);
+
+	/**
+	 * Returns the local histogram triggers for the given owner entity type, reference name, and scope.
+	 * Each trigger carries its histogram name via {@link HistogramExpressionTrigger#getHistogramIndexName()}.
+	 *
+	 * @param ownerEntityType the entity type that owns the reference
+	 * @param referenceName   the reference name carrying the histogram definitions
+	 * @param scope           the scope the triggers apply to
+	 * @return histogram triggers (empty collection if none defined, never null)
+	 */
+	@Nonnull
+	Collection<HistogramExpressionTrigger> getLocalHistogramTriggers(
 		@Nonnull String ownerEntityType,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope

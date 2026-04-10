@@ -342,6 +342,13 @@ io.evitadb.index.facet.FacetIndex
 The `FacetIndex` provides O(1) access to bitmaps of entity primary keys that possess a given facet.
 It supports the `facetHaving` filtering constraint and drives `facetSummary` computation.
 
+When a reference schema uses `facetedPartially`, not every reference produces a facet entry. The
+expression-based condition is evaluated per reference instance — only references where the condition
+evaluates to `true` are inserted into the FacetIndex. See
+[schema-settings.md](schema-settings.md#conditional-facet-indexing) for the schema configuration and
+[mutation-flow.md](mutation-flow.md#expression-based-conditional-indexing-facetedpartially--bucketedpartially)
+for the trigger mechanics.
+
 ### Four-Level Nesting
 
 The facet index uses a four-level nesting hierarchy:
@@ -682,6 +689,107 @@ owning entity PK counts.
 
 ---
 
+## Histogram Indexes
+
+```
+io.evitadb.index.HistogramIndex
+io.evitadb.index.SimpleHistogramIndex
+io.evitadb.index.LocalizedHistogramIndex
+```
+
+Histogram indexes store bucketed numeric values from referenced entities (or reference attributes)
+for histogram computation. They are the data backbone of the `bucketedPartially` / `bucketed`
+schema feature — the histogram analogue of the FacetIndex for `facetedPartially`.
+
+### Where Histogram Data Lives
+
+| Reference Type     | Index Location              | Access Method                                      |
+|--------------------|-----------------------------|----------------------------------------------------|
+| Grouped reference  | `ReducedGroupEntityIndex`   | `getHistogramIndex(name)` / `getHistogramFilterIndex(name, locale)` |
+| Ungrouped reference| `ReferencedTypeEntityIndex` | `getHistogramIndex(name)` / `getHistogramFilterIndex(name, locale)` |
+
+Each named histogram definition (`HistogramIndexDefinition`) produces a `HistogramIndex` instance
+stored in a `TransactionalMap<String, HistogramIndex>` keyed by histogram name. The `HistogramIndex`
+wraps a `FilterIndex` (the actual bucketed data) paired with an `AttributeCardinalityIndex` that
+tracks how many references contribute a given histogram value for each owner entity.
+
+Two concrete implementations exist:
+
+- **`SimpleHistogramIndex`** — for non-localized histograms (single `FilterIndex` + cardinality).
+- **`LocalizedHistogramIndex`** — for localized histograms (per-locale maps of `FilterIndex` +
+  cardinality).
+
+### Internal Fields (ReducedGroupEntityIndex / ReferencedTypeEntityIndex)
+
+| Field                    | Type                                        | Purpose                                       |
+|--------------------------|---------------------------------------------|-----------------------------------------------|
+| `histogramIndexes`       | `TransactionalMap<String, HistogramIndex>`   | Histogram name → histogram index              |
+
+### Cardinality Tracking
+
+The `AttributeCardinalityIndex` inside each `HistogramIndex` tracks `(value, ownerPK)` pair
+counts. A value is added to the `FilterIndex` only on the 0→1 cardinality transition and removed
+only on the 1→0 transition. This prevents duplicate bitmap entries when multiple references from
+the same owner entity contribute the same histogram value.
+
+### FilterIndex Value Type
+
+Histogram values are stored in the attribute's **original numeric type** (`Byte`, `Short`,
+`Integer`, `Long`, or `BigDecimal`). `BigDecimal` values have `stripTrailingZeros()` applied for
+consistent equality semantics. Conversion to `BigDecimal` for `HistogramDataCruncher` is deferred
+to query time.
+
+### Lifecycle
+
+- **Creation:** Lazily on first histogram value insert for a given histogram name.
+- **Removal:** When the `AttributeCardinalityIndex` becomes empty, both the cardinality index and
+  the `FilterIndex` are removed from the `HistogramIndex`.
+- **Storage:** Reuses `FilterIndexStoragePart` with `AttributeIndexType.HISTOGRAM` discriminator
+  for distinct storage PKs. Cardinality data uses `AttributeCardinalityIndexStoragePart`.
+
+### Two Expression System
+
+Each histogram definition has two expressions evaluated per reference:
+
+1. **Condition expression** (`bucketedPartially`) — Boolean: whether the reference participates in
+   the histogram. Shared across all histogram definitions on the same reference in the same scope.
+2. **Value expression** (`bucketed`) — Identifies which attribute's value to store. Resolved via
+   `HistogramValueDescriptor` metadata at schema load time.
+
+### Trigger Infrastructure
+
+Histogram condition and value changes fire through `HistogramExpressionTrigger` instances
+registered in `CatalogExpressionTriggerRegistry`. Both local triggers (entity/reference attribute
+changes) and cross-entity triggers (group/referenced entity attribute changes) are supported.
+
+### Test Blueprint Hints -- Histogram Indexes
+
+1. **Cardinality gating.** Add the same histogram value for two different owning entity PKs via
+   two references to the same group. Both PKs must appear in the `FilterIndex` bucket. Remove
+   one reference — the remaining PK must still be present. Only after removing the second
+   reference should the bucket become empty.
+
+2. **BigDecimal normalization.** `BigDecimal("2.0")` and `BigDecimal("2.00")` must map to the
+   same histogram bucket. The `stripTrailingZeros()` normalization must be applied consistently
+   in both local triggers and cross-entity executors.
+
+3. **Null value handling.** When the value expression resolves to `null` (attribute not set and
+   no `??` default), no histogram entry should be created for the owning entity PK.
+
+4. **Condition flip true→false.** When the condition expression changes from true to false (e.g.,
+   group's `inputWidgetType` changes from `'INTERVAL'` to `'CHECKBOX'`), all histogram entries
+   for references in that group must be removed from the `FilterIndex`.
+
+5. **Persistence round-trip.** After Evita restart, the histogram `FilterIndex` state in
+   `ReducedGroupEntityIndex` and `ReferencedTypeEntityIndex` must survive Kryo serialization
+   and produce identical `getHistogramOfAllRecords()` results.
+
+6. **Group/degroup migration.** When `setGroup()` is called on an ungrouped reference, the
+   histogram entry must move from `ReferencedTypeEntityIndex` to the appropriate
+   `ReducedGroupEntityIndex`. When `removeGroup()` is called, the reverse must happen.
+
+---
+
 ## Summary: Sub-Indexes Per EntityIndex Type
 
 | Sub-index / Feature               | GlobalEntityIndex       | ReducedEntityIndex                             | ReducedGroupEntityIndex                                  | ReferencedTypeEntityIndex                         |
@@ -699,6 +807,7 @@ owning entity PK counts.
 | **ReferenceTypeCardinalityIndex** | no                      | no                                             | no                                                       | yes                                               |
 | **PK cardinality (inline map)**   | no                      | no                                             | yes (`Map<Integer, Integer>`)                            | no                                                |
 | **AttributeCardinalityIndex**     | no                      | no                                             | yes (per filter attribute)                               | yes (per attribute)                               |
+| **HistogramIndex**                | no                      | no                                             | yes (per histogram name, with cardinality)               | yes (per histogram name, with cardinality)        |
 
 **Legend:** "entity attrs" = entity-level attributes; "ref attrs" = reference-level attributes;
 "PART." = `ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING`.

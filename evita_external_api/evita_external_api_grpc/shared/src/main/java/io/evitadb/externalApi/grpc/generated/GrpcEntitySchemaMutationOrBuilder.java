@@ -1506,6 +1506,36 @@ public interface GrpcEntitySchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+   * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+   * @return Whether the setReferenceSchemaBucketedMutation field is set.
+   */
+  boolean hasSetReferenceSchemaBucketedMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+   * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+   * @return The setReferenceSchemaBucketedMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation getSetReferenceSchemaBucketedMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+   * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutationOrBuilder getSetReferenceSchemaBucketedMutationOrBuilder();
+
+  /**
+   * <pre>
    * Mutation is responsible for setting up a new `SortableAttributeCompoundSchema` in the `EntitySchema`.
    * Mutation can be used for altering also the existing `SortableAttributeCompoundSchema` alone.
    * </pre>

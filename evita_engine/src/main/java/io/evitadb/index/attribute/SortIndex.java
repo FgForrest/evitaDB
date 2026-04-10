@@ -56,7 +56,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStor
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -66,7 +65,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -229,8 +227,6 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	public static Optional<UnaryOperator<Serializable>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
 		if (String.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(text -> text == null ? null : Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD));
-		} else if (BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
-			return Optional.of(value -> value == null ? null : NumberUtils.normalize((BigDecimal) value));
 		} else if (Locale.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(value -> value == null ? null : new ComparableLocale((Locale) value));
 		} else if (Currency.class.isAssignableFrom(comparatorBase.type())) {

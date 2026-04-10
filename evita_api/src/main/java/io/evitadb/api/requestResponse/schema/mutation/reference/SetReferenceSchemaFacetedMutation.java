@@ -164,7 +164,9 @@ public class SetReferenceSchemaFacetedMutation
 						: createMutation.getFacetedInScopes(),
 					this.facetedPartiallyInScopes != null
 						? this.facetedPartiallyInScopes
-						: createMutation.getFacetedPartiallyInScopes()
+						: createMutation.getFacetedPartiallyInScopes(),
+					createMutation.getBucketedInScopes(),
+					createMutation.getBucketedPartiallyInScopes()
 				)
 			);
 		} else if (
@@ -189,6 +191,8 @@ public class SetReferenceSchemaFacetedMutation
 					this.facetedPartiallyInScopes != null
 						? this.facetedPartiallyInScopes
 						: createMutation.getFacetedPartiallyInScopes(),
+					createMutation.getBucketedInScopes(),
+					createMutation.getBucketedPartiallyInScopes(),
 					createMutation.getAttributeInheritanceBehavior(),
 					createMutation.getAttributeInheritanceFilter()
 				)
@@ -291,6 +295,8 @@ public class SetReferenceSchemaFacetedMutation
 				referenceSchema.getIndexedComponentsInScopes(),
 				facetedScopes,
 				newPartially,
+				referenceSchema.getAllHistogramIndexDefinitions(),
+				referenceSchema.getBucketedPartiallyInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()
 			);

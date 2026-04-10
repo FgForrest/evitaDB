@@ -30,7 +30,9 @@ import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
@@ -587,6 +589,20 @@ public final class EntitySchema implements EntitySchemaContract {
 					.stream()
 					.map(entry -> new ScopedFacetedPartially(entry.getKey(), entry.getValue()))
 					.toArray(ScopedFacetedPartially[]::new),
+				referenceSchemaContract.getAllHistogramIndexDefinitions()
+					.entrySet()
+					.stream()
+					.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+						.map(def -> new ScopedHistogramIndexDefinition(
+							scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+						))
+					)
+					.toArray(ScopedHistogramIndexDefinition[]::new),
+				referenceSchemaContract.getBucketedPartiallyInScopes()
+					.entrySet()
+					.stream()
+					.map(entry -> new ScopedBucketedPartially(entry.getKey(), entry.getValue()))
+					.toArray(ScopedBucketedPartially[]::new),
 				referenceSchemaContract.getAttributes(),
 				referenceSchemaContract.getSortableAttributeCompounds()
 			);

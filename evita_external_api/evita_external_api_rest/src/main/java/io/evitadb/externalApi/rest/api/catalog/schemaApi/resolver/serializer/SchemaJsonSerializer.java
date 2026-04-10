@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
@@ -43,6 +44,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
@@ -223,6 +226,65 @@ public abstract class SchemaJsonSerializer {
 			facetedPartiallyArray.add(facetedPartiallyNode);
 		}
 		return facetedPartiallyArray;
+	}
+
+	/**
+	 * Serializes the bucketed histogram definitions within the given {@link ReferenceSchemaContract} into a JSON array
+	 * structure. Each entry in the resulting array represents a scope and its corresponding histogram definition,
+	 * including the index name and optional value expression.
+	 *
+	 * @param referenceSchema the reference schema containing the bucketed histogram definitions to be serialized
+	 * @return an {@link ArrayNode} representing the serialized bucketed histogram definitions
+	 */
+	@Nonnull
+	protected ArrayNode serializeBucketedHistogram(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final ArrayNode bucketedHistogramArray = this.objectJsonSerializer.arrayNode();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramDefinitions =
+			referenceSchema.getAllHistogramIndexDefinitions();
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedHistogramDefinitions.entrySet()) {
+			for (final Map.Entry<String, HistogramIndexDefinition> entry : scopeEntry.getValue().entrySet()) {
+				final ObjectNode bucketedHistogramNode = this.objectJsonSerializer.objectNode();
+				bucketedHistogramNode.put(ScopedDataDescriptor.SCOPE.name(), scopeEntry.getKey().name());
+				bucketedHistogramNode.put(
+					ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
+					entry.getValue().nameOfTheIndex()
+				);
+				final Expression valueExpression = entry.getValue().valueExpression();
+				if (valueExpression != null) {
+					bucketedHistogramNode.put(
+						ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
+						valueExpression.toExpressionString()
+					);
+				} else {
+					bucketedHistogramNode.putNull(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name());
+				}
+				bucketedHistogramArray.add(bucketedHistogramNode);
+			}
+		}
+		return bucketedHistogramArray;
+	}
+
+	/**
+	 * Serializes the bucketed partially expressions within the given {@link ReferenceSchemaContract} into a JSON array
+	 * structure. Each entry in the resulting array represents a scope and its corresponding partial-bucketing expression.
+	 *
+	 * @param referenceSchema the reference schema containing the bucketed partially expressions to be serialized
+	 * @return an {@link ArrayNode} representing the serialized bucketed partially expressions
+	 */
+	@Nonnull
+	protected ArrayNode serializeBucketedPartially(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final ArrayNode bucketedPartiallyArray = this.objectJsonSerializer.arrayNode();
+		final Map<Scope, Expression> bucketedPartiallyInScopes = referenceSchema.getBucketedPartiallyInScopes();
+		for (final Map.Entry<Scope, Expression> entry : bucketedPartiallyInScopes.entrySet()) {
+			final ObjectNode bucketedPartiallyNode = this.objectJsonSerializer.objectNode();
+			bucketedPartiallyNode.put(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name());
+			bucketedPartiallyNode.put(
+				ScopedBucketedPartiallyDescriptor.EXPRESSION.name(),
+				entry.getValue().toExpressionString()
+			);
+			bucketedPartiallyArray.add(bucketedPartiallyNode);
+		}
+		return bucketedPartiallyArray;
 	}
 
 	/**

@@ -86,6 +86,18 @@ public class EntitySchemaObjectBuilder {
 		this.buildingContext.registerType(
 			ScopedReferenceIndexedComponentsDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
 		);
+		this.buildingContext.registerType(
+			ScopedHistogramIndexDefinitionDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedHistogramIndexDefinitionDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedBucketedPartiallyDescriptor.THIS.to(this.objectBuilderTransformer).build()
+		);
+		this.buildingContext.registerType(
+			ScopedBucketedPartiallyDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build()
+		);
 		this.buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(this.objectBuilderTransformer).build());

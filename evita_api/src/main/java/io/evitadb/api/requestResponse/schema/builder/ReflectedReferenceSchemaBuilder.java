@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
@@ -54,6 +55,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -535,6 +537,85 @@ public final class ReflectedReferenceSchemaBuilder
 			super.nonFacetedPartially(inScope);
 		}
 		return this;
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder bucketedInScope(
+		@Nonnull Scope scope,
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression
+	) {
+		// accumulate on top of current state
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
+			allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+		}
+		final Map<Scope, Expression> filteredPartially = new EnumMap<>(Scope.class);
+		allBucketed.computeIfAbsent(scope, k -> new LinkedHashMap<>(8))
+			.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+		// filter partially to retained scopes
+		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+		for (final Map.Entry<Scope, Expression> entry : currentPartially.entrySet()) {
+			if (allBucketed.containsKey(entry.getKey())) {
+				filteredPartially.put(entry.getKey(), entry.getValue());
+			}
+		}
+		final boolean allInformationPresent = isReflectedReferenceAvailable() || !isIndexedInherited();
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(allBucketed),
+			toScopedBucketedPartiallyArray(filteredPartially),
+			allInformationPresent
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder bucketedPartiallyInScope(
+		@Nonnull Scope scope,
+		@Nonnull Expression expression
+	) {
+		// accumulate on top of current state
+		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
+			allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+		}
+		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
+		final Map<Scope, Expression> allPartially = currentPartially.isEmpty()
+			? new EnumMap<>(Scope.class)
+			: new EnumMap<>(currentPartially);
+		allPartially.put(scope, expression);
+		final boolean allInformationPresent = isReflectedReferenceAvailable() || !isIndexedInherited();
+		return emitBucketedMutationWithAutoIndex(
+			scope,
+			toScopedHistogramIndexDefinitionArray(allBucketed),
+			toScopedBucketedPartiallyArray(allPartially),
+			allInformationPresent
+		);
+	}
+
+	@Nonnull
+	@Override
+	public ReflectedReferenceSchemaBuilder nonBucketed() {
+		if (isReflectedReferenceAvailable()) {
+			return nonBucketed(Scope.DEFAULT_SCOPE);
+		} else {
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaBucketedMutation(
+						getName(),
+						ScopedHistogramIndexDefinition.EMPTY,
+						ScopedBucketedPartially.EMPTY
+					)
+				)
+			);
+			return this;
+		}
 	}
 
 	@Nonnull

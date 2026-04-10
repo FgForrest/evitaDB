@@ -116,6 +116,8 @@ public class ModifyReferenceSchemaNameMutation
 				referenceSchema.getIndexedComponentsInScopes(),
 				referenceSchema.getFacetedInScopes(),
 				referenceSchema.getFacetedPartiallyInScopes(),
+				referenceSchema.getAllHistogramIndexDefinitions(),
+				referenceSchema.getBucketedPartiallyInScopes(),
 				referenceSchema.getAttributes(),
 				referenceSchema.getSortableAttributeCompounds()
 			);

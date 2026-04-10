@@ -197,6 +197,196 @@ COMP -->|REFERENCED_GROUP_ENTITY|G_RED["REF_GROUP_ENTITY index
 
 ---
 
+## Conditional Facet Indexing (facetedPartially)
+
+<a id="conditional-facet-indexing"></a>
+
+The `facetedPartially` schema flag enables **expression-based conditional faceting** on references.
+Instead of unconditionally indexing every reference as a facet (`isFaceted`), the engine evaluates
+a boolean expression per reference instance to decide whether it participates in the FacetIndex.
+
+This powers the business case where different references of the same type get different index
+treatment depending on attributes of the referenced entity, group entity, or the owner entity
+itself. For example, a Product→ParameterValue reference grouped by Parameter: when
+`Parameter.inputWidgetType == 'CHECKBOX'` the reference is a facet, when `'INTERVAL'` it becomes
+a histogram bucket (via `bucketedPartially`).
+
+### Schema Configuration
+
+```java
+// On a reference schema builder:
+.facetedPartially(
+    ExpressionFactory.parse(
+        "($reference.groupEntity?.attributes['inputWidgetType'] ?? '') == 'CHECKBOX'"
+    )
+)
+
+// Scope-specific:
+.facetedPartiallyInScope(Scope.LIVE, ExpressionFactory.parse("..."))
+```
+
+The expression is evaluated at reference mutation time (local triggers) and when cross-entity
+attribute changes occur (cross-entity triggers via `ReevaluateExpressionMutation`).
+
+### Supported Condition Expression Paths
+
+| Path | Example Expression | DependencyType | Trigger Fires When |
+|------|--------------------|----------------|-------------------|
+| Entity attribute | `$entity.attributes['isActive'] == true` | Local + `REFERENCED_ENTITY_ATTRIBUTE` | Owner entity's attribute changes |
+| Reference attribute | `($reference.attributes['priority'] ?? 0) > 0` | Local only | Reference attribute mutated |
+| Group entity attribute | `$reference.groupEntity?.attributes['widgetType'] == 'CHECKBOX'` | `GROUP_ENTITY_ATTRIBUTE` | Group entity's attribute changes |
+| Referenced entity attribute | `$reference.referencedEntity.attributes['status'] == 'ACTIVE'` | `REFERENCED_ENTITY_ATTRIBUTE` | Referenced entity's attribute changes |
+| Parent entity attribute | `$entity.parentEntity?.attributes['code'] == 'ROOT'` | `PARENT_ENTITY_ATTRIBUTE` | Parent entity's attribute changes |
+
+All paths support the null coalesce operator (`??`) for handling missing attributes.
+
+### Expression Trigger Infrastructure
+
+The condition expression is compiled into triggers at schema load time by
+`FacetExpressionTriggerFactory`. Each trigger extends `AbstractExpressionIndexTriggerImpl` and
+carries:
+
+- **Expression AST** — the compiled boolean expression (null for unconditional).
+- **Proxy descriptor** — metadata for instantiating Proxycian proxy objects that bind `$entity`
+  and `$reference` variables to entity storage parts during evaluation.
+- **FilterBy constraint** — the expression pre-translated to an EvitaQL `FilterBy` tree for
+  cross-entity evaluation (locating affected entities via index lookups rather than scanning).
+- **Dependency metadata** — `DependencyType`, mutated entity type, dependent attributes, and
+  local dependency sets (`localEntityAttributes`, `localReferenceAttributes`, `usesParent`).
+
+Triggers are stored in the `CatalogExpressionTriggerRegistry`:
+
+- **Cross-entity trigger index:** `mutatedEntityType → DependencyType → List<ExpressionIndexTrigger>`.
+  Consulted when an attribute mutation on entity type X might affect facet/histogram conditions on
+  entity type Y's references. An attribute-name reverse index enables O(1) filtering to avoid
+  unnecessary pre-mutation value capture.
+- **Local trigger index:** `(ownerEntityType, referenceName, scope) → FacetExpressionTrigger`.
+  Consulted inline during reference insert/remove/group-change operations.
+
+The registry is **immutable after construction** — schema changes produce a new registry instance
+via copy-on-write `rebuildForEntityType()`.
+
+### Local Trigger Evaluation
+
+During reference mutations in `ReferenceIndexMutator`:
+
+1. **Reference insert** (`addFacetToIndex`): Retrieves the local trigger, calls `evaluate()`.
+   Adds the facet only if the condition is true (or if no `facetedPartially` expression exists).
+2. **Reference group change** (`setFacetGroupInIndex`): Re-evaluates condition after group
+   assignment. If condition becomes false in the new group, the facet is removed.
+3. **Reference removal** (`removeFacetInIndex`): Removes the facet unconditionally (no condition
+   check needed — the reference no longer exists).
+
+### Cross-Entity Re-evaluation (ReevaluateExpressionMutation)
+
+When an attribute changes on a group entity, referenced entity, or parent entity, the mutation
+executor detects that expression triggers depend on the changed attribute and creates
+`ReevaluateExpressionMutation` instances. These are executed by `ReevaluateExpressionExecutor`
+which:
+
+1. **Resolves affected owner PKs** — uses index structures to find all entities holding references
+   that might be affected (dispatch by `DependencyType`).
+2. **Re-evaluates the condition** — for each affected (ownerPK, referencePK, groupPK) tuple, uses
+   the pre-translated `FilterBy` constraint to evaluate the expression.
+3. **Adds or removes facets** — based on whether the condition flipped from true→false or
+   false→true.
+
+This unified mutation (`ReevaluateExpressionMutation`) is shared between facet and histogram
+re-evaluation to avoid duplicate processing when the same attribute change affects both.
+
+### Interaction with isFaceted
+
+`isFaceted` and `facetedPartially` are complementary:
+
+- **`isFaceted` alone:** Every reference of this type is unconditionally a facet.
+- **`facetedPartially` alone:** References are faceted only when the expression evaluates to true.
+  `isFaceted` is automatically implied.
+- **Both:** `facetedPartially` overrides — the expression controls facet participation.
+
+### Test Blueprint Hints
+
+- **Invariant**: When `facetedPartially` condition evaluates to `false` for a reference, the
+  FacetIndex must not contain that reference's facet entry.
+- **Invariant**: When a cross-entity attribute change flips the condition from `true` to `false`,
+  all affected facet entries must be removed from both the GlobalEntityIndex FacetIndex and the
+  ReducedEntityIndex/ReducedGroupEntityIndex FacetIndex.
+- **Invariant**: The `ReevaluateExpressionMutation` must be deduplicated — the same
+  `(referenceName, mutatedEntityPK, dependencyType, scope)` tuple must not produce duplicate
+  mutations in the same transaction batch.
+- **Invariant**: Expression evaluation must be scope-aware — a LIVE-scope trigger must not
+  evaluate against ARCHIVED-scope entity data (and vice versa).
+
+---
+
+## Conditional Histogram Indexing (bucketedPartially / bucketed)
+
+<a id="histogram-indexing"></a>
+
+The `bucketedPartially` / `bucketed` schema flags control conditional histogram indexing on
+references. They are the histogram analogue of `facetedPartially` / `faceted` for facets.
+
+### Schema Configuration
+
+Histogram indexing is configured per reference schema with two expressions:
+
+| Method | Purpose | Example |
+|--------|---------|---------|
+| `bucketed(name, valueExpr)` | Defines a named histogram with a value source expression | `bucketed("valueHistogram", parse("$reference.referencedEntity?.attributes['basicUnitValue']"))` |
+| `bucketedPartially(condExpr)` | Sets the condition expression for all histograms on this reference | `bucketedPartially(parse("($reference.groupEntity?.attributes['inputWidgetType'] ?? '') == 'INTERVAL'"))` |
+| `bucketedInScope(scope, name, valueExpr)` | Scope-specific histogram definition | Used when LIVE and ARCHIVED need different expressions |
+| `bucketedPartiallyInScope(scope, condExpr)` | Scope-specific condition expression | Same |
+
+### Supported Value Expression Paths
+
+| Path | Example | Stored In |
+|------|---------|-----------|
+| Referenced entity attribute | `$reference.referencedEntity?.attributes['basicUnitValue']` | `ReducedGroupEntityIndex` (grouped) or `ReferencedTypeEntityIndex` (ungrouped) |
+| Reference attribute | `$reference.attributes['someValue']` | Same as above |
+
+**Rejected paths:** Entity-level attributes (`$entity.attributes[...]`), parent entity attributes,
+group entity attributes (as value source), arithmetic expressions, multi-attribute expressions.
+
+### Supported Condition Expression Paths
+
+| Path | Example |
+|------|---------|
+| Entity attribute | `($entity.attributes['isActive'] ?? false) == true` |
+| Reference attribute | `($reference.attributes['priority'] ?? 0) > 0` |
+| Group entity attribute | `($reference.groupEntity?.attributes['inputWidgetType'] ?? '') == 'INTERVAL'` |
+| Referenced entity attribute | `($reference.referencedEntity.attributes['status'] ?? '') == 'ACTIVE'` |
+
+**Not supported:** Parent entity attributes (`$entity.parentEntity.attributes[...]`) — explicitly
+excluded for histograms per specification.
+
+### Interaction with Reference Indexed Components
+
+Histogram data lives in `ReducedGroupEntityIndex` (when the reference has a group assigned) or
+`ReferencedTypeEntityIndex` (when ungrouped). The `REFERENCED_GROUP_ENTITY` component must be
+enabled for histogram data to appear in group-level indexes.
+
+When a reference schema declares both `facetedPartially` and `bucketedPartially`, the two
+conditions are expected to be **mutually exclusive per group** — the engine does not enforce this
+at schema time.
+
+### Source Attribute Requirements
+
+The attribute referenced by the value expression **must** be:
+- Declared as `filterable` (or `filterableInScope` for scope-aware configs) in the source entity's
+  schema — this guarantees a `FilterIndex` exists for cross-entity mass updates.
+- Of a supported numeric type: `Byte`, `Short`, `Integer`, `Long`, or `BigDecimal` (and their
+  array variants).
+
+### Test Blueprint Hints
+
+- **Invariant**: When `bucketedPartially` condition is null (unconditional bucketing), all
+  references participate in the histogram regardless of group entity state.
+- **Invariant**: When the source attribute is not `filterableInScope` for the target scope, the
+  schema mutation must be rejected with a clear error.
+- **Invariant**: Histogram data must be maintained independently per scope — LIVE and ARCHIVED
+  histogram indexes are completely separate.
+
+---
+
 ## Attribute and Entity Schema Flags
 
 <a id="attribute-entity-flags"></a>

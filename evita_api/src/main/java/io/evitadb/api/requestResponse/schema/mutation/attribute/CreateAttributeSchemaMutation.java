@@ -385,6 +385,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 					referenceSchema.getIndexedComponentsInScopes(),
 					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getFacetedPartiallyInScopes(),
+					referenceSchema.getAllHistogramIndexDefinitions(),
+					referenceSchema.getBucketedPartiallyInScopes(),
 					Stream.concat(
 							referenceSchema.getAttributes().values().stream(),
 							Stream.of(newAttributeSchema)

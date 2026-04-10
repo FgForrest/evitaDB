@@ -138,7 +138,7 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		kryo.register(HierarchyIndexStoragePart.class, new SerialVersionBasedSerializer<>(new HierarchyIndexStorgePartSerializer(), HierarchyIndexStoragePart.class), index++);
+		kryo.register(HierarchyIndexStoragePart.class, new SerialVersionBasedSerializer<>(new HierarchyIndexStoragePartSerializer(), HierarchyIndexStoragePart.class), index++);
 
 		kryo.register(FacetIndexStoragePart.class, new SerialVersionBasedSerializer<>(new FacetIndexStoragePartSerializer(), FacetIndexStoragePart.class), index++);
 		kryo.register(ComparableLocale.class, new SerialVersionBasedSerializer<>(new ComparableLocaleSerializer(), ComparableLocale.class), index++);
@@ -148,6 +148,11 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 
 		kryo.register(ReferenceTypeCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ReferenceTypeCardinalityIndexStoragePartSerializer(this.keyCompressor), ReferenceTypeCardinalityIndexStoragePart.class), index++);
 		kryo.register(GroupCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new GroupCardinalityIndexStoragePartSerializer(this.keyCompressor), GroupCardinalityIndexStoragePart.class), index++);
+		kryo.register(
+			HistogramIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new HistogramIndexStoragePartSerializer(this.keyCompressor), HistogramIndexStoragePart.class),
+			index++
+		);
 
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}

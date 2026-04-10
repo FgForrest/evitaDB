@@ -79,7 +79,7 @@ import static io.evitadb.dataType.Scope.NO_SCOPE;
 public class CreateReferenceSchemaMutation
 	extends AbstractReferenceDataSchemaMutation
 	implements ReferenceSchemaMutation, CombinableLocalEntitySchemaMutation, CreateMutation {
-	@Serial private static final long serialVersionUID = -4158068801437475007L;
+	@Serial private static final long serialVersionUID = -4158068801437475008L;
 
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
@@ -92,6 +92,8 @@ public class CreateReferenceSchemaMutation
 	@Getter @Nonnull private final ScopedReferenceIndexedComponents[] indexedComponentsInScopes;
 	@Getter @Nonnull private final Scope[] facetedInScopes;
 	@Getter @Nonnull private final ScopedFacetedPartially[] facetedPartiallyInScopes;
+	@Getter @Nonnull private final ScopedHistogramIndexDefinition[] bucketedInScopes;
+	@Getter @Nonnull private final ScopedBucketedPartially[] bucketedPartiallyInScopes;
 
 	/**
 	 * Creates mutation that sets up a new reference schema with the given properties using simple boolean
@@ -119,7 +121,8 @@ public class CreateReferenceSchemaMutation
 			indexed
 				? ScopedReferenceIndexedComponents.DEFAULT
 				: ScopedReferenceIndexedComponents.EMPTY,
-			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE
+			faceted ? Scope.DEFAULT_SCOPES : NO_SCOPE,
+			null, null, null
 		);
 	}
 
@@ -144,13 +147,13 @@ public class CreateReferenceSchemaMutation
 			referencedEntityType, referencedEntityTypeManaged,
 			referencedGroupType, referencedGroupTypeManaged,
 			indexedInScopes, indexedComponentsInScopes,
-			facetedInScopes, null
+			facetedInScopes, null, null, null
 		);
 	}
 
 	/**
 	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
-	 * including per-scope facetedPartially expressions.
+	 * including per-scope facetedPartially and bucketed histogram expressions.
 	 */
 	@SerializableCreator
 	public CreateReferenceSchemaMutation(
@@ -165,7 +168,9 @@ public class CreateReferenceSchemaMutation
 		@Nullable ScopedReferenceIndexType[] indexedInScopes,
 		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
 		@Nullable Scope[] facetedInScopes,
-		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes
+		@Nullable ScopedFacetedPartially[] facetedPartiallyInScopes,
+		@Nullable ScopedHistogramIndexDefinition[] bucketedInScopes,
+		@Nullable ScopedBucketedPartially[] bucketedPartiallyInScopes
 	) {
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
@@ -193,6 +198,10 @@ public class CreateReferenceSchemaMutation
 		this.facetedInScopes = facetedInScopes == null ? NO_SCOPE : facetedInScopes;
 		this.facetedPartiallyInScopes = facetedPartiallyInScopes == null
 			? ScopedFacetedPartially.EMPTY : facetedPartiallyInScopes;
+		this.bucketedInScopes = bucketedInScopes == null
+			? ScopedHistogramIndexDefinition.EMPTY : bucketedInScopes;
+		this.bucketedPartiallyInScopes = bucketedPartiallyInScopes == null
+			? ScopedBucketedPartially.EMPTY : bucketedPartiallyInScopes;
 	}
 
 	/**
@@ -305,7 +314,7 @@ public class CreateReferenceSchemaMutation
 											.toArray(ScopedReferenceIndexedComponents[]::new)
 									)
 								),
-								// emit a single mutation carrying both facetedInScopes and facetedPartially
+							// emit a single mutation carrying both facetedInScopes and facetedPartially
 							(createdVersion.getFacetedInScopes().equals(existingVersion.getFacetedInScopes()) &&
 								createdVersion.getFacetedPartiallyInScopes()
 									.equals(existingVersion.getFacetedPartiallyInScopes()))
@@ -318,6 +327,27 @@ public class CreateReferenceSchemaMutation
 									createdVersion.getFacetedPartiallyInScopes().entrySet().stream()
 										.map(e -> new ScopedFacetedPartially(e.getKey(), e.getValue()))
 										.toArray(ScopedFacetedPartially[]::new)
+								),
+							// emit a single mutation carrying both bucketedInScopes and bucketedPartially
+							(createdVersion.getAllHistogramIndexDefinitions()
+								.equals(existingVersion.getAllHistogramIndexDefinitions()) &&
+								createdVersion.getBucketedPartiallyInScopes()
+									.equals(existingVersion.getBucketedPartiallyInScopes()))
+								? null
+								: new SetReferenceSchemaBucketedMutation(
+									this.name,
+									createdVersion.getAllHistogramIndexDefinitions().entrySet().stream()
+										.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+											.map(def -> new ScopedHistogramIndexDefinition(
+												scopeEntry.getKey(),
+												def.nameOfTheIndex(),
+												def.valueExpression()
+											))
+										)
+										.toArray(ScopedHistogramIndexDefinition[]::new),
+									createdVersion.getBucketedPartiallyInScopes().entrySet().stream()
+										.map(e -> new ScopedBucketedPartially(e.getKey(), e.getValue()))
+										.toArray(ScopedBucketedPartially[]::new)
 								)
 							),
 							existingVersion.getAttributes()
@@ -374,6 +404,7 @@ public class CreateReferenceSchemaMutation
 			this.referencedGroupTypeManaged,
 			this.indexedInScopes, this.indexedComponentsInScopes,
 			this.facetedInScopes, this.facetedPartiallyInScopes,
+			this.bucketedInScopes, this.bucketedPartiallyInScopes,
 			Collections.emptyMap(),
 			Collections.emptyMap()
 		);
@@ -412,7 +443,9 @@ public class CreateReferenceSchemaMutation
 			", indexed=" + Arrays.toString(this.indexedInScopes) +
 			", indexedComponents=" + Arrays.toString(this.indexedComponentsInScopes) +
 			", faceted=" + Arrays.toString(this.facetedInScopes) +
-			", facetedPartially=" + Arrays.toString(this.facetedPartiallyInScopes);
+			", facetedPartially=" + Arrays.toString(this.facetedPartiallyInScopes) +
+			", bucketed=" + Arrays.toString(this.bucketedInScopes) +
+			", bucketedPartially=" + Arrays.toString(this.bucketedPartiallyInScopes);
 	}
 
 }

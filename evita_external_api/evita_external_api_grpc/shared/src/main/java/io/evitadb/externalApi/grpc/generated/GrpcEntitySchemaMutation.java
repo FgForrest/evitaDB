@@ -123,6 +123,7 @@ private static final long serialVersionUID = 0L;
     CREATEREFLECTEDREFERENCESCHEMAMUTATION(91),
     MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION(92),
     MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION(93),
+    SETREFERENCESCHEMABUCKETEDMUTATION(94),
     CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION(120),
     MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION(121),
     MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION(122),
@@ -197,6 +198,7 @@ private static final long serialVersionUID = 0L;
         case 91: return CREATEREFLECTEDREFERENCESCHEMAMUTATION;
         case 92: return MODIFYREFLECTEDREFERENCEATTRIBUTEINHERITANCESCHEMAMUTATION;
         case 93: return MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION;
+        case 94: return SETREFERENCESCHEMABUCKETEDMUTATION;
         case 120: return CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION;
         case 121: return MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADEPRECATIONNOTICEMUTATION;
         case 122: return MODIFYSORTABLEATTRIBUTECOMPOUNDSCHEMADESCRIPTIONMUTATION;
@@ -2507,6 +2509,52 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation.getDefaultInstance();
   }
 
+  public static final int SETREFERENCESCHEMABUCKETEDMUTATION_FIELD_NUMBER = 94;
+  /**
+   * <pre>
+   * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+   * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+   * @return Whether the setReferenceSchemaBucketedMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetReferenceSchemaBucketedMutation() {
+    return mutationCase_ == 94;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+   * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+   * @return The setReferenceSchemaBucketedMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation getSetReferenceSchemaBucketedMutation() {
+    if (mutationCase_ == 94) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+   * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutationOrBuilder getSetReferenceSchemaBucketedMutationOrBuilder() {
+    if (mutationCase_ == 94) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.getDefaultInstance();
+  }
+
   public static final int CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER = 120;
   /**
    * <pre>
@@ -2941,6 +2989,9 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 93) {
       output.writeMessage(93, (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_);
     }
+    if (mutationCase_ == 94) {
+      output.writeMessage(94, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation) mutation_);
+    }
     if (mutationCase_ == 120) {
       output.writeMessage(120, (io.evitadb.externalApi.grpc.generated.GrpcCreateSortableAttributeCompoundSchemaMutation) mutation_);
     }
@@ -3171,6 +3222,10 @@ private static final long serialVersionUID = 0L;
     if (mutationCase_ == 93) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(93, (io.evitadb.externalApi.grpc.generated.GrpcModifyReferenceSortableAttributeCompoundSchemaMutation) mutation_);
+    }
+    if (mutationCase_ == 94) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(94, (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation) mutation_);
     }
     if (mutationCase_ == 120) {
       size += com.google.protobuf.CodedOutputStream
@@ -3417,6 +3472,10 @@ private static final long serialVersionUID = 0L;
         if (!getModifyReferenceSortableAttributeCompoundSchemaMutation()
             .equals(other.getModifyReferenceSortableAttributeCompoundSchemaMutation())) return false;
         break;
+      case 94:
+        if (!getSetReferenceSchemaBucketedMutation()
+            .equals(other.getSetReferenceSchemaBucketedMutation())) return false;
+        break;
       case 120:
         if (!getCreateSortableAttributeCompoundSchemaMutation()
             .equals(other.getCreateSortableAttributeCompoundSchemaMutation())) return false;
@@ -3659,6 +3718,10 @@ private static final long serialVersionUID = 0L;
       case 93:
         hash = (37 * hash) + MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getModifyReferenceSortableAttributeCompoundSchemaMutation().hashCode();
+        break;
+      case 94:
+        hash = (37 * hash) + SETREFERENCESCHEMABUCKETEDMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetReferenceSchemaBucketedMutation().hashCode();
         break;
       case 120:
         hash = (37 * hash) + CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION_FIELD_NUMBER;
@@ -3976,6 +4039,9 @@ private static final long serialVersionUID = 0L;
       if (modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ != null) {
         modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.clear();
       }
+      if (setReferenceSchemaBucketedMutationBuilder_ != null) {
+        setReferenceSchemaBucketedMutationBuilder_.clear();
+      }
       if (createSortableAttributeCompoundSchemaMutationBuilder_ != null) {
         createSortableAttributeCompoundSchemaMutationBuilder_.clear();
       }
@@ -4243,6 +4309,10 @@ private static final long serialVersionUID = 0L;
       if (mutationCase_ == 93 &&
           modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_ != null) {
         result.mutation_ = modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_.build();
+      }
+      if (mutationCase_ == 94 &&
+          setReferenceSchemaBucketedMutationBuilder_ != null) {
+        result.mutation_ = setReferenceSchemaBucketedMutationBuilder_.build();
       }
       if (mutationCase_ == 120 &&
           createSortableAttributeCompoundSchemaMutationBuilder_ != null) {
@@ -4517,6 +4587,10 @@ private static final long serialVersionUID = 0L;
         }
         case MODIFYREFERENCESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION: {
           mergeModifyReferenceSortableAttributeCompoundSchemaMutation(other.getModifyReferenceSortableAttributeCompoundSchemaMutation());
+          break;
+        }
+        case SETREFERENCESCHEMABUCKETEDMUTATION: {
+          mergeSetReferenceSchemaBucketedMutation(other.getSetReferenceSchemaBucketedMutation());
           break;
         }
         case CREATESORTABLEATTRIBUTECOMPOUNDSCHEMAMUTATION: {
@@ -4930,6 +5004,13 @@ private static final long serialVersionUID = 0L;
               mutationCase_ = 93;
               break;
             } // case 746
+            case 754: {
+              input.readMessage(
+                  getSetReferenceSchemaBucketedMutationFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              mutationCase_ = 94;
+              break;
+            } // case 754
             case 962: {
               input.readMessage(
                   getCreateSortableAttributeCompoundSchemaMutationFieldBuilder().getBuilder(),
@@ -14369,6 +14450,193 @@ private static final long serialVersionUID = 0L;
       mutationCase_ = 93;
       onChanged();
       return modifyReferenceSortableAttributeCompoundSchemaMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutationOrBuilder> setReferenceSchemaBucketedMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     * @return Whether the setReferenceSchemaBucketedMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetReferenceSchemaBucketedMutation() {
+      return mutationCase_ == 94;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     * @return The setReferenceSchemaBucketedMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation getSetReferenceSchemaBucketedMutation() {
+      if (setReferenceSchemaBucketedMutationBuilder_ == null) {
+        if (mutationCase_ == 94) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 94) {
+          return setReferenceSchemaBucketedMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     */
+    public Builder setSetReferenceSchemaBucketedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation value) {
+      if (setReferenceSchemaBucketedMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setReferenceSchemaBucketedMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 94;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     */
+    public Builder setSetReferenceSchemaBucketedMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.Builder builderForValue) {
+      if (setReferenceSchemaBucketedMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setReferenceSchemaBucketedMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 94;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     */
+    public Builder mergeSetReferenceSchemaBucketedMutation(io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation value) {
+      if (setReferenceSchemaBucketedMutationBuilder_ == null) {
+        if (mutationCase_ == 94 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 94) {
+          setReferenceSchemaBucketedMutationBuilder_.mergeFrom(value);
+        } else {
+          setReferenceSchemaBucketedMutationBuilder_.setMessage(value);
+        }
+      }
+      mutationCase_ = 94;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     */
+    public Builder clearSetReferenceSchemaBucketedMutation() {
+      if (setReferenceSchemaBucketedMutationBuilder_ == null) {
+        if (mutationCase_ == 94) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 94) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setReferenceSchemaBucketedMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.Builder getSetReferenceSchemaBucketedMutationBuilder() {
+      return getSetReferenceSchemaBucketedMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutationOrBuilder getSetReferenceSchemaBucketedMutationOrBuilder() {
+      if ((mutationCase_ == 94) && (setReferenceSchemaBucketedMutationBuilder_ != null)) {
+        return setReferenceSchemaBucketedMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 94) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema`
+     * in `EntitySchema`. Mutation can be used for altering also the existing `ReferenceSchema` alone.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation setReferenceSchemaBucketedMutation = 94;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutationOrBuilder> 
+        getSetReferenceSchemaBucketedMutationFieldBuilder() {
+      if (setReferenceSchemaBucketedMutationBuilder_ == null) {
+        if (!(mutationCase_ == 94)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.getDefaultInstance();
+        }
+        setReferenceSchemaBucketedMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaBucketedMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 94;
+      onChanged();
+      return setReferenceSchemaBucketedMutationBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<

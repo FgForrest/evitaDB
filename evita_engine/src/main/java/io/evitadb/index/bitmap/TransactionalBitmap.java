@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -132,92 +132,182 @@ public class TransactionalBitmap
 
 	@Override
 	public boolean add(int recordId) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
-			final boolean added = this.roaringBitmap.checkedAdd(recordId);
-			final int newCardinality = added ? -1 : this.memoizedCardinality;
-			this.memoizedCardinality = newCardinality;
-			return added;
+		// avoid creating a transactional layer for a no-op (record already present)
+		if (this.contains(recordId)) {
+			return false;
 		} else {
-			return layer.addRecordId(recordId);
+			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+			if (layer == null) {
+				this.roaringBitmap.add(recordId);
+				this.memoizedCardinality = -1;
+				return true;
+			} else {
+				return layer.addRecordId(recordId);
+			}
 		}
 	}
 
 	@Override
 	public void addAll(int... recordId) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
+		if (!Transaction.isTransactionAvailable()) {
 			this.roaringBitmap.add(recordId);
 			this.memoizedCardinality = -1;
 		} else {
-			for (int recId : recordId) {
-				layer.addRecordId(recId);
+			BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+			if (layer != null) {
+				for (int recId : recordId) {
+					layer.addRecordId(recId);
+				}
+			} else {
+				// defer layer creation until first actual change
+				for (int recId : recordId) {
+					if (!this.roaringBitmap.contains(recId)) {
+						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+						if (layer == null) {
+							this.roaringBitmap.add(recordId);
+							this.memoizedCardinality = -1;
+						} else {
+							for (int r : recordId) {
+								layer.addRecordId(r);
+							}
+						}
+						return;
+					}
+				}
 			}
 		}
 	}
 
 	@Override
 	public void addAll(@Nonnull Bitmap recordIds) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
+		if (!Transaction.isTransactionAvailable()) {
 			this.roaringBitmap.add(recordIds.getArray());
 			this.memoizedCardinality = -1;
 		} else {
-			final OfInt it = recordIds.iterator();
-			while (it.hasNext()) {
-				final int recordId = it.nextInt();
-				layer.addRecordId(recordId);
+			BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+			if (layer != null) {
+				final OfInt it = recordIds.iterator();
+				while (it.hasNext()) {
+					layer.addRecordId(it.nextInt());
+				}
+			} else {
+				// defer layer creation until first actual change
+				final OfInt it = recordIds.iterator();
+				while (it.hasNext()) {
+					final int recordId = it.nextInt();
+					if (!this.roaringBitmap.contains(recordId)) {
+						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+						if (layer == null) {
+							this.roaringBitmap.add(recordId);
+							while (it.hasNext()) {
+								this.roaringBitmap.add(it.nextInt());
+							}
+							this.memoizedCardinality = -1;
+						} else {
+							layer.addRecordId(recordId);
+							while (it.hasNext()) {
+								layer.addRecordId(it.nextInt());
+							}
+						}
+						return;
+					}
+				}
 			}
 		}
 	}
 
 	@Override
 	public boolean remove(int recordId) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
-			final boolean removed = this.roaringBitmap.checkedRemove(recordId);
-			final int newCardinality = removed ? -1 : this.memoizedCardinality;
-			this.memoizedCardinality = newCardinality;
-			return removed;
+		// no layer yet — avoid creating one for a no-op (record already absent)
+		if (!this.contains(recordId)) {
+			return false;
 		} else {
-			return layer.removeRecordId(recordId);
+			final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+			if (layer == null) {
+				this.roaringBitmap.remove(recordId);
+				this.memoizedCardinality = -1;
+				return true;
+			} else {
+				return layer.removeRecordId(recordId);
+			}
 		}
 	}
 
 	@Override
 	public void removeAll(int... recordId) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
+		if (!Transaction.isTransactionAvailable()) {
 			for (int recId : recordId) {
 				this.roaringBitmap.remove(recId);
 			}
 			this.memoizedCardinality = -1;
 		} else {
-			for (int recId : recordId) {
-				layer.removeRecordId(recId);
+			BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+			if (layer != null) {
+				for (int recId : recordId) {
+					layer.removeRecordId(recId);
+				}
+			} else {
+				// defer layer creation until first actual change
+				for (int recId : recordId) {
+					if (this.roaringBitmap.contains(recId)) {
+						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+						if (layer == null) {
+							for (int r : recordId) {
+								this.roaringBitmap.remove(r);
+							}
+							this.memoizedCardinality = -1;
+						} else {
+							for (int r : recordId) {
+								layer.removeRecordId(r);
+							}
+						}
+						return;
+					}
+				}
 			}
 		}
 	}
 
 	@Override
 	public void removeAll(@Nonnull Bitmap recordIds) {
-		final BitmapChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
+		if (!Transaction.isTransactionAvailable()) {
 			if (recordIds instanceof RoaringBitmapBackedBitmap) {
 				this.roaringBitmap.andNot(((RoaringBitmapBackedBitmap) recordIds).getRoaringBitmap());
 			} else {
 				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
-					final int recordId = it.nextInt();
-					this.roaringBitmap.remove(recordId);
+					this.roaringBitmap.remove(it.nextInt());
 				}
 			}
 			this.memoizedCardinality = -1;
 		} else {
-			final OfInt it = recordIds.iterator();
-			while (it.hasNext()) {
-				final int recordId = it.nextInt();
-				layer.removeRecordId(recordId);
+			BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+			if (layer != null) {
+				final OfInt it = recordIds.iterator();
+				while (it.hasNext()) {
+					layer.removeRecordId(it.nextInt());
+				}
+			} else {
+				// defer layer creation until first actual change
+				final OfInt it = recordIds.iterator();
+				while (it.hasNext()) {
+					final int recordId = it.nextInt();
+					if (this.roaringBitmap.contains(recordId)) {
+						layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+						if (layer == null) {
+							this.roaringBitmap.remove(recordId);
+							while (it.hasNext()) {
+								this.roaringBitmap.remove(it.nextInt());
+							}
+						} else {
+							layer.removeRecordId(recordId);
+							while (it.hasNext()) {
+								layer.removeRecordId(it.nextInt());
+							}
+						}
+						return;
+					}
+				}
 			}
 		}
 	}

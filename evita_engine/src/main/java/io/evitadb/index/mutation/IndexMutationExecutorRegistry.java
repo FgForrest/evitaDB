@@ -45,12 +45,11 @@ import java.util.Map;
 public class IndexMutationExecutorRegistry {
 
 	/**
-	 * Singleton instance holding the immutable executor map. The `ReevaluateFacetExpressionMutation` entry will be
-	 * added when `ReevaluateFacetExpressionExecutor` is implemented in WBS-07.
+	 * Singleton instance holding the immutable executor map.
 	 */
 	public static final IndexMutationExecutorRegistry INSTANCE = new IndexMutationExecutorRegistry(
 		Map.of(
-			ReevaluateFacetExpressionMutation.class, new ReevaluateFacetExpressionExecutor()
+			ReevaluateExpressionMutation.class, new ReevaluateExpressionExecutor()
 		)
 	);
 
@@ -87,8 +86,7 @@ public class IndexMutationExecutorRegistry {
 		@Nonnull M mutation,
 		@Nonnull IndexMutationTarget target
 	) {
-		final IndexMutationExecutor<M> executor =
-			(IndexMutationExecutor<M>) this.executors.get(mutation.getClass());
+		final IndexMutationExecutor<M> executor = (IndexMutationExecutor<M>) this.executors.get(mutation.getClass());
 		Assert.notNull(
 			executor,
 			() -> "No executor registered for mutation type `" + mutation.getClass().getName() + "`."

@@ -27,6 +27,8 @@ import com.google.protobuf.BoolValue;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -98,6 +100,18 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			);
 		}
 
+		// Handle bucketed histogram definitions
+		final ScopedHistogramIndexDefinition[] parsedBucketed = EntitySchemaConverter.parseBucketedHistogram(
+			mutation.getBucketedInScopesList()
+		);
+		final ScopedHistogramIndexDefinition[] bucketedInScopes =
+			parsedBucketed != null ? parsedBucketed : ScopedHistogramIndexDefinition.EMPTY;
+		final ScopedBucketedPartially[] parsedPartially = EntitySchemaConverter.parseBucketedPartially(
+			mutation.getBucketedPartiallyInScopesList()
+		);
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			parsedPartially != null ? parsedPartially : ScopedBucketedPartially.EMPTY;
+
 		return new CreateReflectedReferenceSchemaMutation(
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
@@ -109,6 +123,8 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			indexedComponentsInScopes,
 			mutation.getFacetedInherited() ? null : facetedInScopes,
 			facetedPartiallyInScopes,
+			bucketedInScopes,
+			bucketedPartiallyInScopes,
 			toAttributeInheritanceBehavior(mutation.getAttributeInheritanceBehavior()),
 			mutation.getAttributeInheritanceFilterList().toArray(String[]::new)
 		);
@@ -170,6 +186,22 @@ public class CreateReflectedReferenceSchemaMutationConverter implements SchemaMu
 			}
 		} else {
 			builder.setFacetedInherited(true);
+		}
+		if (mutation.getBucketedInScopes() != null) {
+			builder.addAllBucketedInScopes(
+				SetReferenceSchemaBucketedMutationConverter.toGrpcScopedHistogramIndexDefinition(
+					mutation.getBucketedInScopes()
+				)
+			);
+		}
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			mutation.getBucketedPartiallyInScopes();
+		if (bucketedPartiallyInScopes != null) {
+			builder.addAllBucketedPartiallyInScopes(
+				SetReferenceSchemaBucketedMutationConverter.toGrpcScopedBucketedPartially(
+					bucketedPartiallyInScopes
+				)
+			);
 		}
 		for (String attribute : mutation.getAttributeInheritanceFilter()) {
 			builder.addAttributeInheritanceFilter(attribute);

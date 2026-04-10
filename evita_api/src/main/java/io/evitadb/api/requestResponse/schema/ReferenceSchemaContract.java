@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -403,6 +404,106 @@ public interface ReferenceSchemaContract extends
 	 */
 	@Nonnull
 	default Map<Scope, Expression> getFacetedPartiallyInScopes() {
+		return Collections.emptyMap();
+	}
+
+	/**
+	 * Returns TRUE if the bucketed histogram index in any scope for this reference should be created
+	 * and maintained.
+	 *
+	 * @return true if reference is bucketed in any scope
+	 */
+	default boolean isBucketedInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isBucketedInScope);
+	}
+
+	/**
+	 * Returns TRUE if the bucketed histogram index in {@link Scope#DEFAULT_SCOPE} for this reference
+	 * should be created and maintained.
+	 *
+	 * @return true if reference is bucketed in {@link Scope#DEFAULT_SCOPE}
+	 */
+	default boolean isBucketed() {
+		return isBucketedInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns TRUE if the bucketed histogram index in the particular {@link Scope} for this reference
+	 * should be created and maintained.
+	 *
+	 * @param scope the scope to check
+	 * @return true if reference is bucketed in the given scope
+	 */
+	boolean isBucketedInScope(@Nonnull Scope scope);
+
+	/**
+	 * Returns set of all scopes where bucketed histogram indexing is enabled for this reference.
+	 *
+	 * @return set of all scopes where the reference is bucketed
+	 */
+	@Nonnull
+	Set<Scope> getBucketedInScopes();
+
+	/**
+	 * Returns the bucketed histogram definition for the given scope and histogram name,
+	 * or null if no such histogram exists in that scope.
+	 *
+	 * @param scope the scope to get the definition for
+	 * @param name the name of the histogram index
+	 * @return the histogram definition, or null if not found
+	 */
+	@Nullable
+	HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope, @Nonnull String name);
+
+	/**
+	 * Returns all named histogram definitions for the given scope. If the reference is not
+	 * bucketed in that scope, an empty map is returned.
+	 *
+	 * @param scope the scope to get definitions for
+	 * @return map where keys are histogram names and values are the definitions
+	 */
+	@Nonnull
+	Map<String, HistogramIndexDefinition> getHistogramIndexDefinitions(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding named bucketed histogram definitions.
+	 * Only scopes where the reference is actually bucketed are included.
+	 *
+	 * @return map where keys are scopes and values are maps of histogram name to definition
+	 */
+	@Nonnull
+	Map<Scope, Map<String, HistogramIndexDefinition>> getAllHistogramIndexDefinitions();
+
+	/**
+	 * Returns the expression that narrows which entities participate in bucketed histogram
+	 * computation in the {@link Scope#DEFAULT_SCOPE}, or null if all bucketed entities participate.
+	 *
+	 * @return the expression narrowing bucketed participation, or null if not set
+	 */
+	@Nullable
+	default Expression getBucketedPartially() {
+		return getBucketedPartiallyInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns the expression that narrows which entities participate in bucketed histogram
+	 * computation in the given scope, or null if all bucketed entities participate in that scope.
+	 *
+	 * @param scope the scope to get the expression for
+	 * @return the expression narrowing bucketed participation, or null if not set
+	 */
+	@Nullable
+	Expression getBucketedPartiallyInScope(@Nonnull Scope scope);
+
+	/**
+	 * Returns a map of all scopes to their corresponding bucketedPartially expressions.
+	 * Only scopes where an expression is actually configured are included. An empty map
+	 * means no partial-bucketing expressions are defined.
+	 *
+	 * @return map where keys are scopes and values are the expressions
+	 */
+	@Nonnull
+	default Map<Scope, Expression> getBucketedPartiallyInScopes() {
 		return Collections.emptyMap();
 	}
 

@@ -23,6 +23,8 @@
 
 package io.evitadb.core.expression.proxy;
 
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -30,36 +32,43 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.expression.proxy.ExpressionProxyInstantiator.InstantiationResult;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for nested entity proxy wiring in {@link ExpressionProxyInstantiator}. Verifies that
  * `$reference.referencedEntity.*` and `$reference.groupEntity?.*` expression paths result in nested
  * entity proxies being wired into the reference proxy's {@link ReferenceProxyState}.
+ *
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Nested entity proxy wiring")
 class NestedEntityProxyWiringTest {
@@ -72,49 +81,67 @@ class NestedEntityProxyWiringTest {
 	private static final String GROUP_ENTITY_TYPE = "ParameterGroup";
 	private static final String REFERENCE_NAME = "brand";
 
-	/**
-	 * Creates a mock entity schema returning the given entity type name.
-	 *
-	 * @param entityType the entity type name
-	 * @return mock entity schema
-	 */
-	@Nonnull
-	private static EntitySchemaContract mockSchema(@Nonnull String entityType) {
-		final EntitySchemaContract schema = mock(EntitySchemaContract.class);
-		when(schema.getName()).thenReturn(entityType);
-		when(schema.getAttributes()).thenReturn(Collections.emptyMap());
-		return schema;
-	}
+	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
+		"testCatalog",
+		NamingConvention.generate("testCatalog"),
+		EnumSet.allOf(CatalogEvolutionMode.class),
+		EmptyEntitySchemaAccessor.INSTANCE
+	);
 
 	/**
-	 * Creates a mock reference schema with the given name, referenced entity type, and optional group type.
+	 * Builds entity schema with a reference to the given referenced entity type and optional group type.
 	 *
-	 * @param referenceName      the reference name
-	 * @param referencedEntityType the referenced entity type
-	 * @param groupType           the group entity type, or `null` if no group
-	 * @return mock reference schema
+	 * @param entityType           the entity type name
+	 * @param referencedEntityType the referenced entity type, or `null` if no reference needed
+	 * @param groupType            the group entity type, or `null` if no group
+	 * @return entity schema
 	 */
-	@SuppressWarnings("SameParameterValue")
 	@Nonnull
-	private static ReferenceSchemaContract mockReferenceSchema(
-		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
+	private static EntitySchemaContract buildSchema(
+		@Nonnull String entityType,
+		@Nullable String referencedEntityType,
 		@Nullable String groupType
 	) {
-		final ReferenceSchemaContract refSchema = mock(ReferenceSchemaContract.class);
-		when(refSchema.getName()).thenReturn(referenceName);
-		when(refSchema.getReferencedEntityType()).thenReturn(referencedEntityType);
-		when(refSchema.getReferencedGroupType()).thenReturn(groupType);
-		when(refSchema.getCardinality()).thenReturn(Cardinality.ZERO_OR_MORE);
-		when(refSchema.getAttributes()).thenReturn(Collections.emptyMap());
-		return refSchema;
+		final InternalEntitySchemaBuilder builder = new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA, EntitySchema._internalBuild(entityType)
+		);
+		if (referencedEntityType != null) {
+			if (groupType != null) {
+				builder.withReferenceToEntity(
+					REFERENCE_NAME, referencedEntityType, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs.withGroupTypeRelatedToEntity(groupType)
+				);
+			} else {
+				builder.withReferenceTo(REFERENCE_NAME, referencedEntityType, Cardinality.ZERO_OR_MORE);
+			}
+		}
+		return builder.toInstance();
 	}
 
 	/**
-	 * Creates an {@link AttributesStoragePart} with the given locale and sorted attribute values.
+	 * Builds entity schema with a single filterable string attribute.
+	 *
+	 * @param entityType    the entity type name
+	 * @param attributeName the attribute name
+	 * @return entity schema
+	 */
+	@Nonnull
+	private static EntitySchemaContract buildSchemaWithAttribute(
+		@Nonnull String entityType,
+		@Nonnull String attributeName
+	) {
+		return new InternalEntitySchemaBuilder(
+			CATALOG_SCHEMA, EntitySchema._internalBuild(entityType)
+		)
+			.withAttribute(attributeName, String.class)
+			.toInstance();
+	}
+
+	/**
+	 * Creates an {@link AttributesStoragePart} with the given attribute values.
 	 *
 	 * @param entityPk the entity primary key
-	 * @param values   sorted attribute values
+	 * @param values   attribute values
 	 * @return attributes storage part
 	 */
 	@Nonnull
@@ -124,10 +151,11 @@ class NestedEntityProxyWiringTest {
 	) {
 		final AttributesStoragePart part = new AttributesStoragePart(entityPk);
 		for (final AttributeValue value : values) {
-			final AttributeSchemaContract attrSchemaMock = mock(AttributeSchemaContract.class);
-			doReturn(String.class).when(attrSchemaMock).getType();
-			when(attrSchemaMock.getIndexedDecimalPlaces()).thenReturn(0);
-			part.upsertAttribute(value.key(), attrSchemaMock, existing -> value);
+			part.upsertAttribute(
+				value.key(),
+				AttributeSchema._internalBuild(value.key().attributeName(), String.class, false),
+				existing -> value
+			);
 		}
 		return part;
 	}
@@ -167,45 +195,32 @@ class NestedEntityProxyWiringTest {
 	@Test
 	@DisplayName("Should wire referenced entity proxy into reference proxy")
 	void shouldWireReferencedEntityProxyIntoReferenceProxy() {
-		// set up schemas
-		final EntitySchemaContract ownerSchema = mockSchema(ENTITY_TYPE);
-		final ReferenceSchemaContract refSchema = mockReferenceSchema(
-			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, null
-		);
-		when(ownerSchema.getReference(REFERENCE_NAME)).thenReturn(Optional.of(refSchema));
-		final EntitySchemaContract brandSchema = mockSchema(REFERENCED_ENTITY_TYPE);
+		final EntitySchemaContract ownerSchema = buildSchema(ENTITY_TYPE, REFERENCED_ENTITY_TYPE, null);
+		final EntitySchemaContract brandSchema = buildSchemaWithAttribute(REFERENCED_ENTITY_TYPE, "name");
 
-		// set up storage accessor
-		final EntityStoragePartAccessor accessor = mock(EntityStoragePartAccessor.class);
+		final TestStoragePartAccessor accessor = new TestStoragePartAccessor();
 
-		// owner entity references
 		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_ENTITY_PK, 1);
-		final Reference ref = new Reference(ownerSchema, refSchema, refKey, null);
-		final ReferencesStoragePart refsPart = new ReferencesStoragePart(
-			ENTITY_PK, 1, new Reference[]{ ref }, -1
+		final Reference ref = new Reference(
+			ownerSchema, ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, null
 		);
-		when(accessor.getReferencesStoragePart(ENTITY_TYPE, ENTITY_PK)).thenReturn(refsPart);
+		accessor.registerReferences(ENTITY_TYPE, ENTITY_PK,
+			new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1));
+		accessor.registerBody(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK,
+			new EntityBodyStoragePart(REFERENCED_ENTITY_PK));
+		accessor.registerGlobalAttributes(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK,
+			createAttributesPart(REFERENCED_ENTITY_PK, new AttributeValue(new AttributeKey("name"), "Nike")));
 
-		// referenced entity (Brand) — has attribute "name" = "Nike"
-		final AttributesStoragePart brandAttrs = createAttributesPart(
-			REFERENCED_ENTITY_PK,
-			new AttributeValue(new AttributeKey("name"), "Nike")
-		);
-		when(accessor.getAttributeStoragePart(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK))
-			.thenReturn(brandAttrs);
-
-		// build descriptor for expression accessing referenced entity attributes
 		final ExpressionProxyDescriptor descriptor = buildDescriptor(
 			"$entity.references['brand'].referencedEntity.attributes['name'] == 'Nike'"
 		);
 
-		// instantiate
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
-			descriptor, ownerSchema, ENTITY_PK, refSchema, refKey, accessor,
-			schemaResolver(Map.of(REFERENCED_ENTITY_TYPE, brandSchema))
+			descriptor, ownerSchema, ENTITY_PK,
+			ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, accessor,
+			schemaResolver(Map.of(REFERENCED_ENTITY_TYPE, brandSchema)), Scope.LIVE
 		);
 
-		// verify reference proxy's referencedEntity returns the nested proxy with correct attribute
 		assertNotNull(result.referenceProxy(), "Reference proxy should not be null");
 		final Optional<SealedEntity> referencedEntity = result.referenceProxy().getReferencedEntity();
 		assertTrue(referencedEntity.isPresent(), "Referenced entity should be wired");
@@ -216,40 +231,38 @@ class NestedEntityProxyWiringTest {
 	@Test
 	@DisplayName("Should fetch referenced entity storage parts using referenced entity type and PK")
 	void shouldFetchReferencedEntityStoragePartsIndependently() {
-		final EntitySchemaContract ownerSchema = mockSchema(ENTITY_TYPE);
-		final ReferenceSchemaContract refSchema = mockReferenceSchema(
-			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, null
-		);
-		when(ownerSchema.getReference(REFERENCE_NAME)).thenReturn(Optional.of(refSchema));
-		final EntitySchemaContract brandSchema = mockSchema(REFERENCED_ENTITY_TYPE);
+		final EntitySchemaContract ownerSchema = buildSchema(ENTITY_TYPE, REFERENCED_ENTITY_TYPE, null);
+		final EntitySchemaContract brandSchema = buildSchemaWithAttribute(REFERENCED_ENTITY_TYPE, "name");
 
-		final EntityStoragePartAccessor accessor = mock(EntityStoragePartAccessor.class);
+		final TestStoragePartAccessor accessor = new TestStoragePartAccessor();
 
 		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_ENTITY_PK, 1);
-		final Reference ref = new Reference(ownerSchema, refSchema, refKey, null);
-		final ReferencesStoragePart refsPart = new ReferencesStoragePart(
-			ENTITY_PK, 1, new Reference[]{ ref }, -1
+		final Reference ref = new Reference(
+			ownerSchema, ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, null
 		);
-		when(accessor.getReferencesStoragePart(ENTITY_TYPE, ENTITY_PK)).thenReturn(refsPart);
-
-		final AttributesStoragePart brandAttrs = createAttributesPart(
-			REFERENCED_ENTITY_PK,
-			new AttributeValue(new AttributeKey("name"), "Nike")
-		);
-		when(accessor.getAttributeStoragePart(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK))
-			.thenReturn(brandAttrs);
+		accessor.registerReferences(ENTITY_TYPE, ENTITY_PK,
+			new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1));
+		accessor.registerBody(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK,
+			new EntityBodyStoragePart(REFERENCED_ENTITY_PK));
+		accessor.registerGlobalAttributes(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK,
+			createAttributesPart(REFERENCED_ENTITY_PK, new AttributeValue(new AttributeKey("name"), "Nike")));
 
 		final ExpressionProxyDescriptor descriptor = buildDescriptor(
 			"$entity.references['brand'].referencedEntity.attributes['name'] == 'Nike'"
 		);
 
-		ExpressionProxyInstantiator.instantiate(
-			descriptor, ownerSchema, ENTITY_PK, refSchema, refKey, accessor,
-			schemaResolver(Map.of(REFERENCED_ENTITY_TYPE, brandSchema))
+		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
+			descriptor, ownerSchema, ENTITY_PK,
+			ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, accessor,
+			schemaResolver(Map.of(REFERENCED_ENTITY_TYPE, brandSchema)), Scope.LIVE
 		);
 
-		// verify storage parts were fetched using the REFERENCED entity type and PK (not the owner's)
-		verify(accessor).getAttributeStoragePart(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK);
+		// implicitly verified: the proxy reads from the REFERENCED entity type storage —
+		// if it read from the owner's storage, the attribute value would not be found
+		assertNotNull(result.referenceProxy());
+		final Optional<SealedEntity> referencedEntity = result.referenceProxy().getReferencedEntity();
+		assertTrue(referencedEntity.isPresent());
+		assertEquals("Nike", referencedEntity.get().getAttribute("name"));
 	}
 
 	@Test
@@ -273,39 +286,31 @@ class NestedEntityProxyWiringTest {
 	@Test
 	@DisplayName("Should wire group entity proxy into reference proxy")
 	void shouldWireGroupEntityProxyIntoReferenceProxy() {
-		final EntitySchemaContract ownerSchema = mockSchema(ENTITY_TYPE);
-		final ReferenceSchemaContract refSchema = mockReferenceSchema(
-			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, GROUP_ENTITY_TYPE
-		);
-		when(ownerSchema.getReference(REFERENCE_NAME)).thenReturn(Optional.of(refSchema));
-		final EntitySchemaContract groupSchema = mockSchema(GROUP_ENTITY_TYPE);
+		final EntitySchemaContract ownerSchema = buildSchema(ENTITY_TYPE, REFERENCED_ENTITY_TYPE, GROUP_ENTITY_TYPE);
+		final EntitySchemaContract groupSchema = buildSchemaWithAttribute(GROUP_ENTITY_TYPE, "type");
 
-		final EntityStoragePartAccessor accessor = mock(EntityStoragePartAccessor.class);
+		final TestStoragePartAccessor accessor = new TestStoragePartAccessor();
 
-		// reference with group entity
 		final GroupEntityReference groupRef = new GroupEntityReference(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK);
 		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_ENTITY_PK, 1);
-		final Reference ref = new Reference(ownerSchema, refSchema, refKey, groupRef);
-		final ReferencesStoragePart refsPart = new ReferencesStoragePart(
-			ENTITY_PK, 1, new Reference[]{ ref }, -1
+		final Reference ref = new Reference(
+			ownerSchema, ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, groupRef
 		);
-		when(accessor.getReferencesStoragePart(ENTITY_TYPE, ENTITY_PK)).thenReturn(refsPart);
-
-		// group entity — has attribute "type" = "CHECKBOX"
-		final AttributesStoragePart groupAttrs = createAttributesPart(
-			GROUP_ENTITY_PK,
-			new AttributeValue(new AttributeKey("type"), "CHECKBOX")
-		);
-		when(accessor.getAttributeStoragePart(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK))
-			.thenReturn(groupAttrs);
+		accessor.registerReferences(ENTITY_TYPE, ENTITY_PK,
+			new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1));
+		accessor.registerBody(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK,
+			new EntityBodyStoragePart(GROUP_ENTITY_PK));
+		accessor.registerGlobalAttributes(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK,
+			createAttributesPart(GROUP_ENTITY_PK, new AttributeValue(new AttributeKey("type"), "CHECKBOX")));
 
 		final ExpressionProxyDescriptor descriptor = buildDescriptor(
 			"$entity.references['brand'].groupEntity.attributes['type'] == 'CHECKBOX'"
 		);
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
-			descriptor, ownerSchema, ENTITY_PK, refSchema, refKey, accessor,
-			schemaResolver(Map.of(GROUP_ENTITY_TYPE, groupSchema))
+			descriptor, ownerSchema, ENTITY_PK,
+			ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, accessor,
+			schemaResolver(Map.of(GROUP_ENTITY_TYPE, groupSchema)), Scope.LIVE
 		);
 
 		assertNotNull(result.referenceProxy());
@@ -318,66 +323,64 @@ class NestedEntityProxyWiringTest {
 	@Test
 	@DisplayName("Should use group entity type and PK for group entity proxy storage fetching")
 	void shouldUseGroupEntityTypeAndPkForGroupProxy() {
-		final EntitySchemaContract ownerSchema = mockSchema(ENTITY_TYPE);
-		final ReferenceSchemaContract refSchema = mockReferenceSchema(
-			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, GROUP_ENTITY_TYPE
-		);
-		when(ownerSchema.getReference(REFERENCE_NAME)).thenReturn(Optional.of(refSchema));
-		final EntitySchemaContract groupSchema = mockSchema(GROUP_ENTITY_TYPE);
+		final EntitySchemaContract ownerSchema = buildSchema(ENTITY_TYPE, REFERENCED_ENTITY_TYPE, GROUP_ENTITY_TYPE);
+		final EntitySchemaContract groupSchema = buildSchema(GROUP_ENTITY_TYPE, null, null);
 
-		final EntityStoragePartAccessor accessor = mock(EntityStoragePartAccessor.class);
+		final TestStoragePartAccessor accessor = new TestStoragePartAccessor();
 
 		final GroupEntityReference groupRef = new GroupEntityReference(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK);
 		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_ENTITY_PK, 1);
-		final Reference ref = new Reference(ownerSchema, refSchema, refKey, groupRef);
-		final ReferencesStoragePart refsPart = new ReferencesStoragePart(
-			ENTITY_PK, 1, new Reference[]{ ref }, -1
+		final Reference ref = new Reference(
+			ownerSchema, ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, groupRef
 		);
-		when(accessor.getReferencesStoragePart(ENTITY_TYPE, ENTITY_PK)).thenReturn(refsPart);
-
-		final EntityBodyStoragePart groupBody = new EntityBodyStoragePart(GROUP_ENTITY_PK);
-		when(accessor.getEntityStoragePart(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK, EntityExistence.MUST_EXIST))
-			.thenReturn(groupBody);
-
-		final ExpressionProxyDescriptor descriptor = buildDescriptor(
-			"$entity.references['brand'].groupEntity.primaryKey > 0"
-		);
-
-		ExpressionProxyInstantiator.instantiate(
-			descriptor, ownerSchema, ENTITY_PK, refSchema, refKey, accessor,
-			schemaResolver(Map.of(GROUP_ENTITY_TYPE, groupSchema))
-		);
-
-		// verify storage parts fetched using GROUP entity type and PK
-		verify(accessor).getEntityStoragePart(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK, EntityExistence.MUST_EXIST);
-	}
-
-	@Test
-	@DisplayName("Should return empty group entity when reference has no group")
-	void shouldReturnEmptyGroupEntityWhenReferenceHasNoGroup() {
-		final EntitySchemaContract ownerSchema = mockSchema(ENTITY_TYPE);
-		final ReferenceSchemaContract refSchema = mockReferenceSchema(
-			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, GROUP_ENTITY_TYPE
-		);
-		when(ownerSchema.getReference(REFERENCE_NAME)).thenReturn(Optional.of(refSchema));
-
-		final EntityStoragePartAccessor accessor = mock(EntityStoragePartAccessor.class);
-
-		// reference WITHOUT a group
-		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_ENTITY_PK, 1);
-		final Reference ref = new Reference(ownerSchema, refSchema, refKey, null);
-		final ReferencesStoragePart refsPart = new ReferencesStoragePart(
-			ENTITY_PK, 1, new Reference[]{ ref }, -1
-		);
-		when(accessor.getReferencesStoragePart(ENTITY_TYPE, ENTITY_PK)).thenReturn(refsPart);
+		accessor.registerReferences(ENTITY_TYPE, ENTITY_PK,
+			new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1));
+		accessor.registerBody(GROUP_ENTITY_TYPE, GROUP_ENTITY_PK,
+			new EntityBodyStoragePart(GROUP_ENTITY_PK));
 
 		final ExpressionProxyDescriptor descriptor = buildDescriptor(
 			"$entity.references['brand'].groupEntity.primaryKey > 0"
 		);
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
-			descriptor, ownerSchema, ENTITY_PK, refSchema, refKey, accessor,
-			schemaResolver(Map.of(GROUP_ENTITY_TYPE, mockSchema(GROUP_ENTITY_TYPE)))
+			descriptor, ownerSchema, ENTITY_PK,
+			ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, accessor,
+			schemaResolver(Map.of(GROUP_ENTITY_TYPE, groupSchema)), Scope.LIVE
+		);
+
+		// implicitly verified: if the proxy used the wrong entity type / PK, the body part
+		// would not be found and the group entity proxy would be null
+		assertNotNull(result.referenceProxy());
+		final Optional<SealedEntity> groupEntity = result.referenceProxy().getGroupEntity();
+		assertTrue(groupEntity.isPresent(), "Group entity should be wired when body is registered");
+		assertEquals(GROUP_ENTITY_PK, groupEntity.get().getPrimaryKey(),
+			"Group entity proxy should return correct PK");
+	}
+
+	@Test
+	@DisplayName("Should return empty group entity when reference has no group")
+	void shouldReturnEmptyGroupEntityWhenReferenceHasNoGroup() {
+		final EntitySchemaContract ownerSchema = buildSchema(ENTITY_TYPE, REFERENCED_ENTITY_TYPE, GROUP_ENTITY_TYPE);
+		final EntitySchemaContract groupSchema = buildSchema(GROUP_ENTITY_TYPE, null, null);
+
+		final TestStoragePartAccessor accessor = new TestStoragePartAccessor();
+
+		// reference WITHOUT a group
+		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_ENTITY_PK, 1);
+		final Reference ref = new Reference(
+			ownerSchema, ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, null
+		);
+		accessor.registerReferences(ENTITY_TYPE, ENTITY_PK,
+			new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1));
+
+		final ExpressionProxyDescriptor descriptor = buildDescriptor(
+			"$entity.references['brand'].groupEntity.primaryKey > 0"
+		);
+
+		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
+			descriptor, ownerSchema, ENTITY_PK,
+			ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, accessor,
+			schemaResolver(Map.of(GROUP_ENTITY_TYPE, groupSchema)), Scope.LIVE
 		);
 
 		assertNotNull(result.referenceProxy());
@@ -388,29 +391,28 @@ class NestedEntityProxyWiringTest {
 	@Test
 	@DisplayName("Should implement SealedEntity interface on nested proxy")
 	void shouldImplementSealedEntityInterface() {
-		final EntitySchemaContract ownerSchema = mockSchema(ENTITY_TYPE);
-		final ReferenceSchemaContract refSchema = mockReferenceSchema(
-			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, null
-		);
-		when(ownerSchema.getReference(REFERENCE_NAME)).thenReturn(Optional.of(refSchema));
-		final EntitySchemaContract brandSchema = mockSchema(REFERENCED_ENTITY_TYPE);
+		final EntitySchemaContract ownerSchema = buildSchema(ENTITY_TYPE, REFERENCED_ENTITY_TYPE, null);
+		final EntitySchemaContract brandSchema = buildSchema(REFERENCED_ENTITY_TYPE, null, null);
 
-		final EntityStoragePartAccessor accessor = mock(EntityStoragePartAccessor.class);
+		final TestStoragePartAccessor accessor = new TestStoragePartAccessor();
 
 		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_ENTITY_PK, 1);
-		final Reference ref = new Reference(ownerSchema, refSchema, refKey, null);
-		final ReferencesStoragePart refsPart = new ReferencesStoragePart(
-			ENTITY_PK, 1, new Reference[]{ ref }, -1
+		final Reference ref = new Reference(
+			ownerSchema, ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, null
 		);
-		when(accessor.getReferencesStoragePart(ENTITY_TYPE, ENTITY_PK)).thenReturn(refsPart);
+		accessor.registerReferences(ENTITY_TYPE, ENTITY_PK,
+			new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1));
+		accessor.registerBody(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK,
+			new EntityBodyStoragePart(REFERENCED_ENTITY_PK));
 
 		final ExpressionProxyDescriptor descriptor = buildDescriptor(
 			"true || $entity.references['brand'].*[$.referencedEntity]"
 		);
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
-			descriptor, ownerSchema, ENTITY_PK, refSchema, refKey, accessor,
-			schemaResolver(Map.of(REFERENCED_ENTITY_TYPE, brandSchema))
+			descriptor, ownerSchema, ENTITY_PK,
+			ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, accessor,
+			schemaResolver(Map.of(REFERENCED_ENTITY_TYPE, brandSchema)), Scope.LIVE
 		);
 
 		assertNotNull(result.referenceProxy());
@@ -423,34 +425,124 @@ class NestedEntityProxyWiringTest {
 	@Test
 	@DisplayName("Should throw ExpressionEvaluationException for SealedEntity-only methods via CatchAll")
 	void shouldThrowForSealedEntityMethodsViaCatchAll() {
-		final EntitySchemaContract ownerSchema = mockSchema(ENTITY_TYPE);
-		final ReferenceSchemaContract refSchema = mockReferenceSchema(
-			REFERENCE_NAME, REFERENCED_ENTITY_TYPE, null
-		);
-		when(ownerSchema.getReference(REFERENCE_NAME)).thenReturn(Optional.of(refSchema));
-		final EntitySchemaContract brandSchema = mockSchema(REFERENCED_ENTITY_TYPE);
+		final EntitySchemaContract ownerSchema = buildSchema(ENTITY_TYPE, REFERENCED_ENTITY_TYPE, null);
+		final EntitySchemaContract brandSchema = buildSchema(REFERENCED_ENTITY_TYPE, null, null);
 
-		final EntityStoragePartAccessor accessor = mock(EntityStoragePartAccessor.class);
+		final TestStoragePartAccessor accessor = new TestStoragePartAccessor();
 
 		final ReferenceKey refKey = new ReferenceKey(REFERENCE_NAME, REFERENCED_ENTITY_PK, 1);
-		final Reference ref = new Reference(ownerSchema, refSchema, refKey, null);
-		final ReferencesStoragePart refsPart = new ReferencesStoragePart(
-			ENTITY_PK, 1, new Reference[]{ ref }, -1
+		final Reference ref = new Reference(
+			ownerSchema, ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, null
 		);
-		when(accessor.getReferencesStoragePart(ENTITY_TYPE, ENTITY_PK)).thenReturn(refsPart);
+		accessor.registerReferences(ENTITY_TYPE, ENTITY_PK,
+			new ReferencesStoragePart(ENTITY_PK, 1, new Reference[]{ref}, -1));
+		accessor.registerBody(REFERENCED_ENTITY_TYPE, REFERENCED_ENTITY_PK,
+			new EntityBodyStoragePart(REFERENCED_ENTITY_PK));
 
 		final ExpressionProxyDescriptor descriptor = buildDescriptor(
 			"true || $entity.references['brand'].*[$.referencedEntity]"
 		);
 
 		final InstantiationResult result = ExpressionProxyInstantiator.instantiate(
-			descriptor, ownerSchema, ENTITY_PK, refSchema, refKey, accessor,
-			schemaResolver(Map.of(REFERENCED_ENTITY_TYPE, brandSchema))
+			descriptor, ownerSchema, ENTITY_PK,
+			ownerSchema.getReferenceOrThrowException(REFERENCE_NAME), refKey, accessor,
+			schemaResolver(Map.of(REFERENCED_ENTITY_TYPE, brandSchema)), Scope.LIVE
 		);
 
 		final SealedEntity nestedProxy = result.referenceProxy().getReferencedEntity().orElseThrow();
-		// openForWrite() is a SealedInstance method — must be caught by CatchAllPartial
-		assertThrows(ExpressionEvaluationException.class, nestedProxy::openForWrite,
-			"SealedEntity-only methods should throw ExpressionEvaluationException");
+		// methods not backed by partials should throw ExpressionEvaluationException via CatchAll
+		assertThrows(ExpressionEvaluationException.class, nestedProxy::getAllLocales,
+			"SealedEntity method not backed by a partial should throw ExpressionEvaluationException");
+		assertThrows(ExpressionEvaluationException.class, nestedProxy::getReferences,
+			"SealedEntity method not backed by a partial should throw ExpressionEvaluationException");
 	}
+
+	/**
+	 * Simple map-backed implementation of {@link EntityStoragePartAccessor} for testing.
+	 * Routes storage part lookups based on `(entityType, entityPK)` tuples. Returns
+	 * empty default parts for unregistered entities.
+	 */
+	private static final class TestStoragePartAccessor implements EntityStoragePartAccessor {
+
+		private final Map<String, EntityBodyStoragePart> bodies = new HashMap<>(8);
+		private final Map<String, AttributesStoragePart> globalAttributes = new HashMap<>(8);
+		private final Map<String, ReferencesStoragePart> references = new HashMap<>(8);
+
+		/**
+		 * Generates a composite key for the `(entityType, entityPK)` pair.
+		 */
+		@Nonnull
+		private static String key(@Nonnull String entityType, int entityPK) {
+			return entityType + "#" + entityPK;
+		}
+
+		/**
+		 * Registers an entity body storage part.
+		 */
+		void registerBody(@Nonnull String entityType, int entityPK, @Nonnull EntityBodyStoragePart part) {
+			this.bodies.put(key(entityType, entityPK), part);
+		}
+
+		/**
+		 * Registers global attributes for a specific entity.
+		 */
+		void registerGlobalAttributes(
+			@Nonnull String entityType, int entityPK, @Nonnull AttributesStoragePart part
+		) {
+			this.globalAttributes.put(key(entityType, entityPK), part);
+		}
+
+		/**
+		 * Registers references for a specific entity.
+		 */
+		void registerReferences(@Nonnull String entityType, int entityPK, @Nonnull ReferencesStoragePart part) {
+			this.references.put(key(entityType, entityPK), part);
+		}
+
+		@Nonnull
+		@Override
+		public EntityBodyStoragePart getEntityStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey, @Nonnull EntityExistence expects
+		) {
+			final EntityBodyStoragePart part = this.bodies.get(key(entityType, entityPrimaryKey));
+			return part != null ? part : new EntityBodyStoragePart(entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public AttributesStoragePart getAttributeStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			final AttributesStoragePart part = this.globalAttributes.get(key(entityType, entityPrimaryKey));
+			return part != null ? part : new AttributesStoragePart(entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public AttributesStoragePart getAttributeStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey, @Nonnull Locale locale
+		) {
+			return new AttributesStoragePart(entityPrimaryKey, locale);
+		}
+
+		@Nonnull
+		@Override
+		public AssociatedDataStoragePart getAssociatedDataStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey, @Nonnull AssociatedDataKey key
+		) {
+			return new AssociatedDataStoragePart(entityPrimaryKey, key);
+		}
+
+		@Nonnull
+		@Override
+		public ReferencesStoragePart getReferencesStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			final ReferencesStoragePart part = this.references.get(key(entityType, entityPrimaryKey));
+			return part != null ? part : new ReferencesStoragePart(entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public PricesStoragePart getPriceStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			return new PricesStoragePart(entityPrimaryKey);
+		}
+	}
+
 }

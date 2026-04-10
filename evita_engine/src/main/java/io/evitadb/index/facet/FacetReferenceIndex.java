@@ -38,7 +38,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.facet.FacetGroupIndex.FacetGroupIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.mutation.DependencyType;
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -157,11 +157,11 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, @Nullable Integer groupId, int entityPrimaryKey) {
-		final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		final FacetGroupIndex facetGroupIndex;
 		if (groupId == null) {
 			final FacetGroupIndex existingNonGroupedFacetsIndex = this.notGroupedFacets.get();
 			if (existingNonGroupedFacetsIndex == null) {
+				final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 				facetGroupIndex = new FacetGroupIndex();
 				this.notGroupedFacets.set(facetGroupIndex);
 				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(facetGroupIndex));
@@ -175,11 +175,16 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 				(oldValues, newValues) -> ArrayUtils.insertIntIntoOrderedArray(newValues[0], oldValues)
 			);
 			// fetch or create index for referenced entity id (inside correct type)
-			facetGroupIndex = this.groupedFacets.computeIfAbsent(groupId, gPK -> {
-				final FacetGroupIndex fgIx = new FacetGroupIndex(gPK);
+			final FacetGroupIndex existingGroupedIndex = this.groupedFacets.get(groupId);
+			if (existingGroupedIndex == null) {
+				final FacetEntityTypeIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+				final FacetGroupIndex fgIx = new FacetGroupIndex(groupId);
+				this.groupedFacets.put(groupId, fgIx);
 				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(fgIx));
-				return fgIx;
-			});
+				facetGroupIndex = fgIx;
+			} else {
+				facetGroupIndex = existingGroupedIndex;
+			}
 		}
 
 		return facetGroupIndex.addFacet(facetPrimaryKey, entityPrimaryKey);
@@ -335,7 +340,7 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 
 	/**
 	 * Returns the group ID for the given facet primary key, or `null` if the facet is ungrouped or not found in any
-	 * group. Used by the cross-entity re-evaluation executor ReevaluateFacetExpressionExecutor to determine the group
+	 * group. Used by the cross-entity re-evaluation executor ReevaluateExpressionExecutor to determine the group
 	 * assignment when resolving {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} dependencies.
 	 *
 	 * @param facetPK the primary key of the facet (referenced entity)

@@ -89,9 +89,7 @@ public class FormulaFinder<T> implements FormulaVisitor {
 	 * passed `lookedUpFormula` type.
 	 */
 	public static <T> Collection<T> find(@Nonnull Formula formulaToSearch, @Nonnull Predicate<Formula> predicate, @Nonnull LookUp lookUp) {
-		final FormulaFinder<T> visitor = new FormulaFinder<>(predicate, NO_SKIP_PREDICATE, lookUp);
-		formulaToSearch.accept(visitor);
-		return visitor.getResult();
+		return find(formulaToSearch, predicate, NO_SKIP_PREDICATE, lookUp);
 	}
 
 	/**
@@ -99,11 +97,7 @@ public class FormulaFinder<T> implements FormulaVisitor {
 	 * passed `lookedUpFormula` type. This method excludes the `formulaToSearch` itself.
 	 */
 	public static <T> Collection<T> findAmongChildren(@Nonnull Formula formulaToSearch, @Nonnull Predicate<Formula> predicate, @Nonnull LookUp lookUp) {
-		final FormulaFinder<T> visitor = new FormulaFinder<>(predicate, NO_SKIP_PREDICATE, lookUp);
-		for (Formula childFormula : formulaToSearch.getInnerFormulas()) {
-			childFormula.accept(visitor);
-		}
-		return visitor.getResult();
+		return findAmongChildren(formulaToSearch, predicate, NO_SKIP_PREDICATE, lookUp);
 	}
 
 	/**

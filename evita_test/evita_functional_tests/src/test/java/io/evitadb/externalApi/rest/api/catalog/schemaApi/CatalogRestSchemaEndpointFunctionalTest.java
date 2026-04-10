@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
@@ -338,6 +339,8 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(ReferenceSchemaDescriptor.INDEXED_COMPONENTS.name(), createReferenceIndexedComponentsDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.FACETED.name(), createFlagInScopesDto(referenceSchema::isFacetedInScope))
 			.e(ReferenceSchemaDescriptor.FACETED_PARTIALLY.name(), createFacetedPartiallyDto(referenceSchema))
+			.e(ReferenceSchemaDescriptor.BUCKETED.name(), createBucketedHistogramDto(referenceSchema))
+			.e(ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(), createBucketedPartiallyDto(referenceSchema))
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
 			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 
@@ -439,6 +442,62 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
 				.e(
 					ScopedFacetedPartiallyDescriptor.EXPRESSION.name(),
+					entry.getValue().toExpressionString()
+				)
+				.build())
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the bucketed histogram definitions for different scopes
+	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope,
+	 * the histogram index name, and the optional value expression string.
+	 *
+	 * @param referenceSchema the reference schema containing bucketed histogram definitions
+	 * @return a list of maps, where each map contains scope, nameOfTheIndex, and valueExpression fields
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createBucketedHistogramDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramDefinitions =
+			referenceSchema.getAllHistogramIndexDefinitions();
+		return bucketedHistogramDefinitions.entrySet()
+			.stream()
+			.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+				.map(def -> {
+					final Expression valueExpression = def.valueExpression();
+					return map()
+						.e(ScopedDataDescriptor.SCOPE.name(), scopeEntry.getKey().name())
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
+							def.nameOfTheIndex()
+						)
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
+							valueExpression != null ? valueExpression.toExpressionString() : null
+						)
+						.build();
+				})
+			)
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the bucketed partially expressions for different scopes
+	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope
+	 * and the corresponding partial-bucketing expression string.
+	 *
+	 * @param referenceSchema the reference schema containing bucketed partially expressions
+	 * @return a list of maps, where each map contains scope and expression fields
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createBucketedPartiallyDto(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Map<Scope, Expression> bucketedPartiallyInScopes = referenceSchema.getBucketedPartiallyInScopes();
+		return bucketedPartiallyInScopes.entrySet()
+			.stream()
+			.map(entry -> map()
+				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+				.e(
+					ScopedBucketedPartiallyDescriptor.EXPRESSION.name(),
 					entry.getValue().toExpressionString()
 				)
 				.build())

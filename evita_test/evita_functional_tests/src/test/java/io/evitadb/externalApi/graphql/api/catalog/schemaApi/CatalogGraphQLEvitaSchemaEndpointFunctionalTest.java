@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,8 +29,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedAttributeUniquenessTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedGlobalAttributeUniquenessTypeDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
@@ -149,6 +153,66 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 					)
 					.build()
 			)
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the bucketed histogram definitions for different scopes
+	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope,
+	 * the histogram index name, and the optional value expression string.
+	 *
+	 * @param referenceSchema the reference schema containing bucketed histogram definitions
+	 * @return a list of maps, where each map contains scope, nameOfTheIndex, and valueExpression fields
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createBucketedHistogramDto(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramDefinitions =
+			referenceSchema.getAllHistogramIndexDefinitions();
+		return bucketedHistogramDefinitions.entrySet()
+			.stream()
+			.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+				.map(def -> {
+					final Expression valueExpression = def.valueExpression();
+					return map()
+						.e(ScopedDataDescriptor.SCOPE.name(), scopeEntry.getKey().name())
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
+							def.nameOfTheIndex()
+						)
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
+							valueExpression != null ? valueExpression.toExpressionString() : null
+						)
+						.build();
+				})
+			)
+			.toList();
+	}
+
+	/**
+	 * Creates a list of maps representing the bucketed partially expressions for different scopes
+	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope
+	 * and the corresponding partial-bucketing expression string.
+	 *
+	 * @param referenceSchema the reference schema containing bucketed partially expressions
+	 * @return a list of maps, where each map contains scope and expression fields
+	 */
+	@Nonnull
+	protected static List<Map<String, Object>> createBucketedPartiallyDto(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final Map<Scope, Expression> bucketedPartiallyInScopes = referenceSchema.getBucketedPartiallyInScopes();
+		return bucketedPartiallyInScopes.entrySet()
+			.stream()
+			.map(entry -> map()
+				.e(ScopedDataDescriptor.SCOPE.name(), entry.getKey().name())
+				.e(
+					ScopedBucketedPartiallyDescriptor.EXPRESSION.name(),
+					entry.getValue().toExpressionString()
+				)
+				.build())
 			.toList();
 	}
 }

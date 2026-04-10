@@ -24,16 +24,12 @@
 package io.evitadb.api.query.expression.bool;
 
 
-import io.evitadb.api.query.expression.exception.ParserException;
+import io.evitadb.api.query.expression.AbstractUnaryOperator;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
 import io.evitadb.dataType.expression.ExpressionNode;
-import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.exception.ExpressionEvaluationException;
-import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -44,46 +40,29 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@EqualsAndHashCode
-public class InverseOperator implements BooleanOperator {
+@EqualsAndHashCode(callSuper = true)
+public class InverseOperator extends AbstractUnaryOperator implements BooleanOperator {
 	@Serial private static final long serialVersionUID = 4825500310430824808L;
-	private final ExpressionNode operator;
-	@EqualsAndHashCode.Exclude
-	@Getter
-	private final ExpressionNode[] children;
 
 	public InverseOperator(@Nonnull ExpressionNode operator) {
-		Assert.isTrue(
-			operator != null,
-			() -> new ParserException("Inversion function must have at least one operand!")
-		);
-		this.operator = operator;
-		this.children = new ExpressionNode[]{this.operator};
+		super(operator);
 	}
 
 	@Nonnull
 	@Override
 	public Boolean compute(@Nonnull ExpressionEvaluationContext context) {
-		final Boolean operand = this.operator.compute(context, Boolean.class);
-		if (operand == null) {
-			throw new ExpressionEvaluationException("Operand is required, but evaluated to null.");
-		}
+		final Boolean operand = computeOperand(context, Boolean.class);
 		return !operand;
 	}
 
 	@Nonnull
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
-		return this.operator.determinePossibleRange().inverse(16);
-	}
-
-	@Override
-	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
-		visitor.visit(this);
+		return getOperand().determinePossibleRange().inverse(16);
 	}
 
 	@Override
 	public String toString() {
-		return "!" + this.operator.toString();
+		return "!" + getOperand();
 	}
 }

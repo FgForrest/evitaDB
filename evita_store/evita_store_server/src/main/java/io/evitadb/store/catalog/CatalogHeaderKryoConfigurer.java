@@ -30,6 +30,7 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart.AttributesSetKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexKey;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_05;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_08;
@@ -42,6 +43,7 @@ import io.evitadb.store.entity.serializer.EnumNameSerializer;
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer_2025_5;
+import io.evitadb.store.index.serializer.HistogramIndexKeySerializer;
 import io.evitadb.store.index.serializer.PriceIndexKeySerializer;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
@@ -89,6 +91,11 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 			index++
 		);
 		kryo.register(PriceIndexKey.class, new SerialVersionBasedSerializer<>(new PriceIndexKeySerializer(), PriceIndexKey.class), index++);
+		kryo.register(
+			HistogramIndexKey.class,
+			new SerialVersionBasedSerializer<>(new HistogramIndexKeySerializer(), HistogramIndexKey.class),
+			index++
+		);
 
 		Assert.isPremiseValid(index < 800, "Index count overflow.");
 	}

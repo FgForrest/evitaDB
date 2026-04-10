@@ -77,6 +77,9 @@ public class CreateReflectedReferenceSchemaMutationSerializer_2026_1 extends Ser
 			indexedInScopes,
 			null,
 			facetedInScopes,
+			null,
+			null,
+			null,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance
 		);

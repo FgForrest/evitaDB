@@ -45,8 +45,8 @@ import static io.evitadb.api.query.QueryConstraints.directRelation;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.groupHaving;
-import static io.evitadb.api.query.QueryConstraints.having;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRootSelf;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
@@ -1560,55 +1560,53 @@ class ExpressionToQueryTranslatorTest {
 	// --- Happy path: parent entity attribute comparisons ---
 
 	@Test
-	@DisplayName("parentEntity.attributes['code'] == 'ACTIVE' -> hierarchyWithinRootSelf(having(eq))")
+	@DisplayName("parentEntity.attributes['code'] == 'ACTIVE' -> hierarchyWithinSelf(eq, directRelation())")
 	void shouldTranslateParentEntityAttributeEqualsString() {
 		final FilterBy result = translate("$entity.parentEntity.attributes['code'] == 'ACTIVE'");
 		assertEquals(
-			filterBy(hierarchyWithinRootSelf(directRelation(), having(attributeEquals("code", "ACTIVE")))),
+			filterBy(hierarchyWithinSelf(attributeEquals("code", "ACTIVE"), directRelation())),
 			result
 		);
 	}
 
 	@Test
-	@DisplayName("parentEntity.localizedAttributes['name'] == 'foo' -> hierarchyWithinRootSelf(having(eq))")
+	@DisplayName("parentEntity.localizedAttributes['name'] == 'foo' -> hierarchyWithinSelf(eq, directRelation())")
 	void shouldTranslateParentEntityLocalizedAttributeEquals() {
 		final FilterBy result = translate(
 			"$entity.parentEntity.localizedAttributes['name'] == 'foo'"
 		);
 		assertEquals(
-			filterBy(hierarchyWithinRootSelf(directRelation(), having(attributeEquals("name", "foo")))),
+			filterBy(hierarchyWithinSelf(attributeEquals("name", "foo"), directRelation())),
 			result
 		);
 	}
 
 	@Test
-	@DisplayName("parentEntity.attributes['x'] != null -> hierarchyWithinRootSelf(having(isNotNull))")
+	@DisplayName("parentEntity.attributes['x'] != null -> hierarchyWithinSelf(isNotNull, directRelation())")
 	void shouldTranslateParentEntityAttributeIsNotNull() {
 		final FilterBy result = translate("$entity.parentEntity.attributes['x'] != null");
 		assertEquals(
-			filterBy(hierarchyWithinRootSelf(directRelation(), having(attributeIsNotNull("x")))),
+			filterBy(hierarchyWithinSelf(attributeIsNotNull("x"), directRelation())),
 			result
 		);
 	}
 
 	@Test
-	@DisplayName("parentEntity.attributes['x'] == null -> hierarchyWithinRootSelf(having(isNull))")
+	@DisplayName("parentEntity.attributes['x'] == null -> hierarchyWithinSelf(isNull, directRelation())")
 	void shouldTranslateParentEntityAttributeIsNull() {
 		final FilterBy result = translate("$entity.parentEntity.attributes['x'] == null");
 		assertEquals(
-			filterBy(hierarchyWithinRootSelf(directRelation(), having(attributeIsNull("x")))),
+			filterBy(hierarchyWithinSelf(attributeIsNull("x"), directRelation())),
 			result
 		);
 	}
 
 	@Test
-	@DisplayName("parentEntity.attributes['price'] > 100 -> hierarchyWithinRootSelf(having(gt))")
+	@DisplayName("parentEntity.attributes['price'] > 100 -> hierarchyWithinSelf(gt, directRelation())")
 	void shouldTranslateParentEntityAttributeGreaterThan() {
 		final FilterBy result = translate("$entity.parentEntity.attributes['price'] > 100");
 		assertEquals(
-			filterBy(
-				hierarchyWithinRootSelf(directRelation(), having(attributeGreaterThan("price", 100L)))
-			),
+			filterBy(hierarchyWithinSelf(attributeGreaterThan("price", 100L), directRelation())),
 			result
 		);
 	}
@@ -1620,7 +1618,7 @@ class ExpressionToQueryTranslatorTest {
 			"($entity.parentEntity?.attributes['x'] ?? 'default') == 'foo'"
 		);
 		assertEquals(
-			filterBy(hierarchyWithinRootSelf(directRelation(), having(attributeEquals("x", "foo")))),
+			filterBy(hierarchyWithinSelf(attributeEquals("x", "foo"), directRelation())),
 			result
 		);
 	}
@@ -1630,7 +1628,7 @@ class ExpressionToQueryTranslatorTest {
 	void shouldTranslateReversedParentEntityAttributeComparison() {
 		final FilterBy result = translate("'ACTIVE' == $entity.parentEntity.attributes['code']");
 		assertEquals(
-			filterBy(hierarchyWithinRootSelf(directRelation(), having(attributeEquals("code", "ACTIVE")))),
+			filterBy(hierarchyWithinSelf(attributeEquals("code", "ACTIVE"), directRelation())),
 			result
 		);
 	}
@@ -1643,7 +1641,7 @@ class ExpressionToQueryTranslatorTest {
 		);
 		assertEquals(
 			filterBy(and(
-				hierarchyWithinRootSelf(directRelation(), having(attributeEquals("a", 1L))),
+				hierarchyWithinSelf(attributeEquals("a", 1L), directRelation()),
 				attributeEquals("b", 2L)
 			)),
 			result
@@ -1658,7 +1656,7 @@ class ExpressionToQueryTranslatorTest {
 		);
 		assertEquals(
 			filterBy(or(
-				hierarchyWithinRootSelf(directRelation(), having(attributeEquals("a", 1L))),
+				hierarchyWithinSelf(attributeEquals("a", 1L), directRelation()),
 				attributeEquals("b", 2L)
 			)),
 			result
@@ -1673,7 +1671,7 @@ class ExpressionToQueryTranslatorTest {
 		);
 		assertEquals(
 			filterBy(and(
-				hierarchyWithinRootSelf(directRelation(), having(attributeEquals("code", "A"))),
+				hierarchyWithinSelf(attributeEquals("code", "A"), directRelation()),
 				referenceHaving(REF_NAME, attributeEquals("x", 1L))
 			)),
 			result
@@ -1681,14 +1679,14 @@ class ExpressionToQueryTranslatorTest {
 	}
 
 	@Test
-	@DisplayName("parentEntity.references['r'].attributes['x'] == 'Y' -> hierarchy(having(refHaving))")
+	@DisplayName("parentEntity.references['r'].attributes['x'] == 'Y' -> hierarchyWithinSelf(refHaving, directRelation())")
 	void shouldTranslateParentEntityReferenceAttributeEquals() {
 		final FilterBy result = translate(
 			"$entity.parentEntity.references['r'].attributes['x'] == 'Y'"
 		);
 		assertEquals(
-			filterBy(hierarchyWithinRootSelf(
-				directRelation(), having(referenceHaving("r", attributeEquals("x", "Y")))
+			filterBy(hierarchyWithinSelf(
+				referenceHaving("r", attributeEquals("x", "Y")), directRelation()
 			)),
 			result
 		);

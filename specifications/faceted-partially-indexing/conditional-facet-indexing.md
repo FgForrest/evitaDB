@@ -356,7 +356,7 @@ occurs** (owner entity vs. referenced entity vs. group entity). However, a singl
 can reference data from multiple categories simultaneously — e.g.,
 `$reference.groupEntity?.attributes['type'] == 'CHECKBOX' && $entity.attributes['isActive'] == true`
 depends on both 2a (owner entity attribute) and 2c (group entity attribute). A cross-entity
-change creates a `ReevaluateFacetExpressionMutation` — the target executor translates the full
+change creates a `ReevaluateExpressionMutation` — the target executor translates the full
 expression to a `FilterBy` query and evaluates it against current indexes to determine which
 entities should (or should not) be faceted. See "Expression-to-query translation" section below.
 
@@ -490,12 +490,12 @@ Trigger registration must account for inherited expressions:
 A post-processing step in `EntityIndexLocalMutationExecutor` consults the
 `CatalogExpressionTriggerRegistry`, keyed by the MUTATED entity's type, to find which OTHER
 entity schemas have `facetedPartially` expressions depending on this entity's data. For each
-matching trigger, the source executor creates a `ReevaluateFacetExpressionMutation` wrapped in an
+matching trigger, the source executor creates a `ReevaluateExpressionMutation` wrapped in an
 `EntityIndexMutation` that carries the target schema type. The source does NOT evaluate the
 expression and does NOT determine the add/remove direction — it only detects that a relevant
 change occurred. These mutations are then sent to the appropriate `EntityCollection` for
 handling. The target collection dispatches each concrete mutation through
-`IndexMutationExecutorRegistry` to the `ReevaluateFacetExpressionExecutor`, which translates
+`IndexMutationExecutorRegistry` to the `ReevaluateExpressionExecutor`, which translates
 the full expression to a `FilterBy` query, evaluates it against current indexes, compares
 with current facet state, and performs the necessary add/remove operations.
 
@@ -507,7 +507,7 @@ the expression together with pre-built Proxycian proxy infrastructure and a pre-
 
 - **Local evaluation** (inline in `ReferenceIndexMutator`): evaluates the expression per entity
   using Proxycian proxies backed by storage parts — used during local trigger processing
-- **Cross-entity query** (used by `ReevaluateFacetExpressionExecutor`): provides a pre-translated
+- **Cross-entity query** (used by `ReevaluateExpressionExecutor`): provides a pre-translated
   `FilterBy` constraint that the executor runs against the target collection's indexes to
   determine which entities currently satisfy the expression — used during cross-entity trigger
   processing (no per-entity evaluation, pure index queries)
@@ -770,7 +770,7 @@ public enum DependencyType {
 **No `affectedPKsAccessor` here** — the trigger does NOT resolve affected owner entity PKs.
 That resolution happens inside the `IndexMutationExecutor` on the target side using the
 target collection's own indexes (see "Processing inside target `EntityCollection`" below).
-The source executor consults triggers, creates `ReevaluateFacetExpressionMutation` instances,
+The source executor consults triggers, creates `ReevaluateExpressionMutation` instances,
 and wraps them into `EntityIndexMutation` — but PK resolution is delegated to the executor.
 
 #### `CatalogExpressionTriggerRegistry` — cross-schema wiring
@@ -958,7 +958,7 @@ Changes required:
  * - are processed entirely by the target `EntityCollection`
  *
  * This is a marker interface — concrete leaf mutations (e.g.,
- * {@link ReevaluateFacetExpressionMutation}) carry domain-specific fields. The target
+ * {@link ReevaluateExpressionMutation}) carry domain-specific fields. The target
  * entity type is NOT on this interface — it is carried by the wrapping
  * {@link EntityIndexMutation} transport envelope, which routes the mutations to the
  * correct {@link EntityCollection}.
@@ -979,7 +979,7 @@ MutationContract (empty root — IDE navigation)                   [evita_api]
 │       ├── SchemaMutation                                       [evita_api]
 │       └── TransactionMutation                                  [evita_api]
 └── IndexMutation (internal, engine-only — marker)                [evita_engine]
-    ├── ReevaluateFacetExpressionMutation (leaf — no entityType)  [evita_engine]
+    ├── ReevaluateExpressionMutation (leaf — no entityType)  [evita_engine]
     └── (future: ReevaluateHistogramExpressionMutation, etc.)     [evita_engine]
 
 EntityIndexMutation (transport envelope — does NOT implement IndexMutation)  [evita_engine]
@@ -993,7 +993,7 @@ executor decides WHAT is affected and HOW to handle it.**
 
 The source entity's executor (e.g., ParameterGroup's `EntityIndexLocalMutationExecutor`)
 consults the `CatalogExpressionTriggerRegistry`, verifies that the relevant attribute value
-actually changed (old ≠ new), and creates `ReevaluateFacetExpressionMutation` instances.
+actually changed (old ≠ new), and creates `ReevaluateExpressionMutation` instances.
 These are wrapped into an `EntityIndexMutation` carrying the target schema type. The source
 does NOT evaluate the expression and does NOT determine the add/remove direction — it only
 signals that a relevant change occurred.
@@ -1161,12 +1161,19 @@ void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation) {
   `ReferenceKey(referenceName, facetPK)`), and `getAllPrimaryKeys()` yields owner entity PKs.
   (Confirmed by `FilterByVisitor.getMatchingGroupEntityPrimaryKeys()` which does the reverse
   mapping via `getReferencedPrimaryKeysForIndexPks()`.)
-- **REFERENCED_ENTITY_ATTRIBUTE**: `ReferencedTypeEntityIndex` for `REFERENCED_ENTITY_TYPE`
-  (discriminator = referenceName) → `getAllReferenceIndexes(referencedEntityPK)` returns storage
-  PKs of `ReducedEntityIndex` instances → the facet PK is `mutatedEntityPK` itself, and for
-  each, `getAllPrimaryKeys()` yields owner entity PKs. The group PK for each reference is
-  determined from the `ReducedGroupEntityIndex` structure (the reduced index lives within the
-  group's scope).
+- **REFERENCED_ENTITY_ATTRIBUTE**: resolution splits by whether the reference has groups:
+  - **Grouped references**: `ReferencedTypeEntityIndex` for `REFERENCED_GROUP_ENTITY_TYPE`
+    (discriminator = referenceName) → `getAllTrackedReferencedEntityPrimaryKeys()` returns all
+    group PKs tracked by the index → for each group PK, `getAllReferenceIndexes(groupPK)` returns
+    storage PKs of `ReducedGroupEntityIndex` instances → for each,
+    `getOwnerPKsForReferencedEntity(facetPK)` yields owner entity PKs for the specific facet.
+    The group PK is known from the iteration key — no reverse lookup needed. This approach reads
+    from the reference indexing infrastructure (always maintained) rather than the facet index
+    (which may be empty if the facet was previously removed by an expression flip).
+  - **Ungrouped references**: `ReferencedTypeEntityIndex` for `REFERENCED_ENTITY_TYPE`
+    (discriminator = referenceName) → `getAllReferenceIndexes(referencedEntityPK)` returns storage
+    PKs of `ReducedEntityIndex` instances → the facet PK is `mutatedEntityPK` itself, and for
+    each, `getAllPrimaryKeys()` yields owner entity PKs. The group PK is `null`.
 
 **Target index routing** — same as existing facet mutations:
 
@@ -1182,7 +1189,7 @@ void applyIndexMutations(@Nonnull EntityIndexMutation entityIndexMutation) {
 | Reference created (expression=false) | Local trigger — skip `addFacetToIndex` | No — inline guard |
 | Reference removed | Existing `removeFacetInIndex` logic | No — always removes |
 | Group assignment changes | Existing `setFacetGroupInIndex` logic | No — then expression re-eval may add/remove |
-| Cross-entity attr change or entity removal | **This mechanism** | Yes → `ReevaluateFacetExpressionMutation` in `EntityIndexMutation` |
+| Cross-entity attr change or entity removal | **This mechanism** | Yes → `ReevaluateExpressionMutation` in `EntityIndexMutation` |
 | Schema expression changes | Full re-index (separate mechanism) | Not via this path |
 
 #### Fan-out example — purely cross-entity expression
@@ -1195,14 +1202,14 @@ Group entity G (parameterGroup "Color", PK=99) changes `inputWidgetType` from `'
 1. Detects that attribute `inputWidgetType` changed on entity PK 99
 2. Consults `CatalogExpressionTriggerRegistry` — finds a trigger for Product/"parameter"
    depending on `GROUP_ENTITY_ATTRIBUTE` / `inputWidgetType`
-4. Creates a `ReevaluateFacetExpressionMutation` (does NOT evaluate the expression or
+4. Creates a `ReevaluateExpressionMutation` (does NOT evaluate the expression or
    determine add/remove direction):
 
 ```java
 new EntityIndexMutation(
     "product",                             // target collection
     new IndexMutation[] {
-        new ReevaluateFacetExpressionMutation(
+        new ReevaluateExpressionMutation(
             "parameter",                   // reference with the expression
             99,                            // group entity PK that changed
             DependencyType.GROUP_ENTITY_ATTRIBUTE,
@@ -1212,7 +1219,7 @@ new EntityIndexMutation(
 )
 ```
 
-**Target executor** (`ReevaluateFacetExpressionExecutor` in Product collection):
+**Target executor** (`ReevaluateExpressionExecutor` in Product collection):
 
 1. Looks up `ReferencedTypeEntityIndex` for `REFERENCED_GROUP_ENTITY_TYPE`
    (discriminator="parameter")
@@ -1244,9 +1251,9 @@ Same scenario, but the expression is now mixed:
 `$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX' && $entity.attributes['isActive'] == true`
 
 **Source side** (ParameterGroup executor): Identical to above — detects change, confirms
-old ≠ new, creates `ReevaluateFacetExpressionMutation`. Does NOT evaluate the expression.
+old ≠ new, creates `ReevaluateExpressionMutation`. Does NOT evaluate the expression.
 
-**Target side** (`ReevaluateFacetExpressionExecutor` in Product collection):
+**Target side** (`ReevaluateExpressionExecutor` in Product collection):
 
 1-3. Same PK resolution as above → 1000 candidate Product PKs
 4. Gets the pre-translated `FilterBy`:
@@ -1268,7 +1275,7 @@ This expression depends on TWO cross-entity sources. The registry has entries fo
 
 When group entity PK=99 changes `status` from `'ACTIVE'` to `'INACTIVE'`:
 
-**Source side**: Creates `ReevaluateFacetExpressionMutation` targeting Product.
+**Source side**: Creates `ReevaluateExpressionMutation` targeting Product.
 
 **Target side**: Same flow as above. The parameterized `FilterBy` becomes:
 ```
@@ -1343,7 +1350,7 @@ for (EntityMutation externalMutation : containerImplicit.externalMutations()) {
 
 // Step 5b: index trigger mutations (NEW — separate dispatch path, separate record)
 //   The index executor consults CatalogExpressionTriggerRegistry, checks old != new
-//   for relevant attributes, and creates ReevaluateFacetExpressionMutation instances
+//   for relevant attributes, and creates ReevaluateExpressionMutation instances
 //   wrapped in EntityIndexMutation per target schema. The target collection dispatches
 //   each to the appropriate IndexMutationExecutor.
 IndexImplicitMutations indexImplicit = entityIndexUpdater.popIndexImplicitMutations(
@@ -1414,7 +1421,7 @@ public interface IndexMutationExecutor<M extends IndexMutation> {
 }
 ```
 
-##### Concrete `IndexMutation` type — `ReevaluateFacetExpressionMutation`
+##### Concrete `IndexMutation` type — `ReevaluateExpressionMutation`
 
 A single mutation type signals that a relevant cross-entity change occurred and the
 expression needs re-evaluation on the target side. The mutation is a pure data carrier —
@@ -1430,7 +1437,7 @@ with OR / multiple cross-entity sources) or resolved owner entity PKs.
  * a relevant attribute change (old ≠ new) on a group or referenced entity
  * but does NOT evaluate the expression or determine add/remove direction.
  *
- * The target-side {@link ReevaluateFacetExpressionExecutor}:
+ * The target-side {@link ReevaluateExpressionExecutor}:
  * 1. Resolves affected owner entity PKs from local indexes
  * 2. Translates the full expression to a parameterized FilterBy query
  * 3. Evaluates the query against current indexes
@@ -1441,7 +1448,7 @@ with OR / multiple cross-entity sources) or resolved owner entity PKs.
  * @param dependencyType how the mutated entity relates to the owner
  * @param scope          scope of the expression to re-evaluate
  */
-record ReevaluateFacetExpressionMutation(
+record ReevaluateExpressionMutation(
     @Nonnull String referenceName,
     int mutatedEntityPK,
     @Nonnull DependencyType dependencyType,
@@ -1450,7 +1457,7 @@ record ReevaluateFacetExpressionMutation(
 }
 ```
 
-##### Concrete executor — `ReevaluateFacetExpressionExecutor`
+##### Concrete executor — `ReevaluateExpressionExecutor`
 
 A **stateless singleton** that handles the full reevaluation pipeline. All collection
 context flows via `IndexMutationTarget`.
@@ -1465,30 +1472,47 @@ context flows via `IndexMutationTarget`.
  *
  * Stateless singleton — registered in {@link IndexMutationExecutorRegistry}.
  */
-class ReevaluateFacetExpressionExecutor
-    implements IndexMutationExecutor<ReevaluateFacetExpressionMutation> {
+class ReevaluateExpressionExecutor
+    implements IndexMutationExecutor<ReevaluateExpressionMutation> {
 
     /**
      * Resolves affected owner entity PKs and associated facet PKs using the
      * target collection's indexes. Returns a structured result mapping each
-     * reduced index to its (facetPK, groupPK, ownerPKs) tuple.
+     * resolved group to its (facetPK, groupPK, ownerPKs) tuple.
      *
-     * Two-step lookup:
-     * 1. {@code target.getIndexIfExists(REFERENCED_GROUP_ENTITY_TYPE/...)}
+     * Resolution differs by dependency type:
+     *
+     * GROUP_ENTITY_ATTRIBUTE / GROUP_ENTITY_REFERENCE_ATTRIBUTE:
+     * 1. {@code target.getIndexIfExists(REFERENCED_GROUP_ENTITY_TYPE, referenceName)}
      *    → {@link ReferencedTypeEntityIndex}
-     * 2. {@code rtei.getAllReferenceIndexes(mutatedPK)} → {@code int[]} storage PKs
-     * 3. For each storage PK: {@code target.getIndexByPrimaryKeyIfExists(pk)}
-     *    → {@link ReducedGroupEntityIndex} / {@link ReducedEntityIndex}
-     *    — facetPK recovered from {@code EntityIndexKey.discriminator}
-     *      (which is a {@code ReferenceKey(referenceName, facetPK)})
-     *    — groupPK: for GROUP_ENTITY_ATTRIBUTE = mutatedEntityPK;
-     *      for REFERENCED_ENTITY_ATTRIBUTE = from ReducedGroupEntityIndex scope
-     * 4. {@code reducedIndex.getAllPrimaryKeys()} → owner entity PKs
+     * 2. {@code rtei.getAllReferenceIndexes(mutatedEntityPK)} → storage PKs
+     *    (mutatedEntityPK = groupPK)
+     * 3. For each storage PK → {@link ReducedGroupEntityIndex}
+     *    → facetPKs from {@code getReferencedEntityPrimaryKeys()}
+     *    → ownerPKs from {@code getOwnerPKsForReferencedEntity(facetPK)}
+     *
+     * REFERENCED_ENTITY_ATTRIBUTE / REFERENCED_ENTITY_REFERENCE_ATTRIBUTE
+     * (grouped references):
+     * 1. {@code target.getIndexIfExists(REFERENCED_GROUP_ENTITY_TYPE, referenceName)}
+     *    → {@link ReferencedTypeEntityIndex}
+     * 2. {@code rtei.getAllTrackedReferencedEntityPrimaryKeys()} → all group PKs
+     * 3. For each groupPK → {@code getAllReferenceIndexes(groupPK)} → storage PKs
+     *    → {@link ReducedGroupEntityIndex}
+     *    → ownerPKs from {@code getOwnerPKsForReferencedEntity(facetPK)}
+     *    (facetPK = mutatedEntityPK; groupPK known from the iteration key)
+     *
+     * REFERENCED_ENTITY_ATTRIBUTE / REFERENCED_ENTITY_REFERENCE_ATTRIBUTE
+     * (ungrouped references):
+     * 1. {@code target.getIndexIfExists(REFERENCED_ENTITY_TYPE, referenceName)}
+     *    → {@link ReferencedTypeEntityIndex}
+     * 2. {@code rtei.getAllReferenceIndexes(facetPK)} → storage PKs
+     * 3. For each storage PK → {@link ReducedEntityIndex}
+     *    → ownerPKs from {@code getAllPrimaryKeys()}; groupPK = null
      */
     @Nonnull
     private AffectedEntityResolution resolveAffected(
         @Nonnull IndexMutationTarget target,
-        @Nonnull ReevaluateFacetExpressionMutation mutation
+        @Nonnull ReevaluateExpressionMutation mutation
     ) { /* ... */ }
 
     /**
@@ -1503,7 +1527,7 @@ class ReevaluateFacetExpressionExecutor
 
     @Override
     public void execute(
-        @Nonnull ReevaluateFacetExpressionMutation mutation,
+        @Nonnull ReevaluateExpressionMutation mutation,
         @Nonnull IndexMutationTarget target
     ) {
         // 1. Resolve affected (facetPK, groupPK, ownerPKs) tuples
@@ -1616,8 +1640,8 @@ class IndexMutationExecutorRegistry {
     static final IndexMutationExecutorRegistry INSTANCE =
         new IndexMutationExecutorRegistry(
             Map.of(
-                ReevaluateFacetExpressionMutation.class,
-                    new ReevaluateFacetExpressionExecutor()
+                ReevaluateExpressionMutation.class,
+                    new ReevaluateExpressionExecutor()
                 // future: ReevaluateHistogramExpressionMutation.class,
                 //         new ReevaluateHistogramExpressionExecutor()
             )
@@ -1658,7 +1682,7 @@ The processing pipeline splits cleanly between source and target:
 1. Iterates `inputMutations` to find `AttributeMutation` instances (no old-value caching needed)
 2. For each mutated attribute name, consults `CatalogExpressionTriggerRegistry` — finds matching
    triggers. No old-vs-new comparison is performed (safe over-firing; target-side idempotency).
-4. For each matching trigger, creates a `ReevaluateFacetExpressionMutation`. The source
+4. For each matching trigger, creates a `ReevaluateExpressionMutation`. The source
    does NOT evaluate the expression and does NOT determine the add/remove direction.
 5. Groups mutations by target entity type, wraps in `EntityIndexMutation`
 
@@ -1667,7 +1691,7 @@ The processing pipeline splits cleanly between source and target:
 2. Dispatches each to `IndexMutationExecutorRegistry.INSTANCE`, passing
    `this.entityIndexCreator` (which implements `IndexMutationTarget`)
 
-**Executor** (`ReevaluateFacetExpressionExecutor`):
+**Executor** (`ReevaluateExpressionExecutor`):
 1. Receives `IndexMutationTarget` — accesses indexes, schema, triggers, and query evaluation
 2. Resolves affected (facetPK, groupPK, ownerPKs) tuples from the collection's own indexes
 3. Gets the pre-translated `FilterBy` from the trigger, parameterizes it with the mutated
@@ -1802,7 +1826,7 @@ IndexMutationTarget extends IndexProvider<EntityIndexKey, EntityIndex>
   evaluateFilter(FilterBy)                          ← query-based expression evaluation
 
 IndexMutationExecutor<M> (stateless strategy — execute(M, IndexMutationTarget))
-└── ReevaluateFacetExpressionExecutor  handles: ReevaluateFacetExpressionMutation
+└── ReevaluateExpressionExecutor  handles: ReevaluateExpressionMutation
     (future: ReevaluateHistogramExpressionExecutor handles: ReevaluateHistogramExpressionMutation)
 
 ExpressionIndexTrigger (expression evaluation + FilterBy constraint)
@@ -1824,14 +1848,14 @@ IndexMutationExecutorRegistry (static singleton — INSTANCE)
   PKs from the collection's own indexes: `ReducedEntityIndex` (per group) and
   `ReferencedTypeEntityIndex` (per reference type)
 - [x] **Processing model** — source executor detects relevant attribute changes (old ≠ new),
-  consults triggers, and creates `ReevaluateFacetExpressionMutation` instances wrapped in
+  consults triggers, and creates `ReevaluateExpressionMutation` instances wrapped in
   `EntityIndexMutation`. The source does NOT evaluate the expression or determine direction.
-  Target collection dispatches to `ReevaluateFacetExpressionExecutor` which translates the
+  Target collection dispatches to `ReevaluateExpressionExecutor` which translates the
   expression to a parameterized `FilterBy` query, evaluates against current indexes, compares
   with current facet state, and performs add/remove operations.
 - [x] **Mutation hierarchy** — `EntityIndexMutation` is a transport envelope (does NOT implement
   `IndexMutation`) carrying `IndexMutation[]` instances. Currently one concrete type:
-  `ReevaluateFacetExpressionMutation`. PK resolution and expression evaluation happen inside
+  `ReevaluateExpressionMutation`. PK resolution and expression evaluation happen inside
   the executor on the target side.
 - [x] **No forced abstraction** — `IndexMutation` and `EntityMutation` remain independent
   types; separate dispatch loops in collector for clarity
@@ -1841,8 +1865,8 @@ IndexMutationExecutorRegistry (static singleton — INSTANCE)
   for bidirectional references.
 - [x] **Trigger/Handler separation** — registry-based dispatch with clear responsibilities:
   `ExpressionIndexTrigger` (generic base) → `FacetExpressionTrigger` (evaluation + FilterBy),
-  `IndexMutationExecutorRegistry` (static singleton — maps `ReevaluateFacetExpressionMutation`
-  to `ReevaluateFacetExpressionExecutor`), `EntityIndexMaintainer implements IndexMutationTarget`
+  `IndexMutationExecutorRegistry` (static singleton — maps `ReevaluateExpressionMutation`
+  to `ReevaluateExpressionExecutor`), `EntityIndexMaintainer implements IndexMutationTarget`
   (role interface — thin dispatcher passes `entityIndexCreator`, provides trigger access and query evaluation),
   `CatalogExpressionTriggerRegistry` (cross-schema wiring).
 - [x] **Cross-schema wiring** — `CatalogExpressionTriggerRegistry` inverts the ownership:
@@ -1909,8 +1933,8 @@ The decision matrix applies to both local and cross-entity triggers:
 - **Local triggers** (Domain 2a): inline guard in `ReferenceIndexMutator` calls
   `addFacetToIndex()` / `removeFacetInIndex()` directly
 - **Cross-entity triggers** (Domain 2b/2c): source executor creates
-  `ReevaluateFacetExpressionMutation` wrapped in `EntityIndexMutation`, dispatched to target
-  collection → `ReevaluateFacetExpressionExecutor` translates the expression to a parameterized
+  `ReevaluateExpressionMutation` wrapped in `EntityIndexMutation`, dispatched to target
+  collection → `ReevaluateExpressionExecutor` translates the expression to a parameterized
   `FilterBy` query, evaluates against indexes, compares with current facet state, and calls
   `addFacet()` / `removeFacet()` on the collection's `EntityIndex` instances
 
@@ -1957,7 +1981,7 @@ None — all resolved.
 | 2  | **Fan-out on group entity change** — one change cascades to many entities                                                          | High     | Use existing `ReducedEntityIndex` per group for reverse lookup; triggers are schema-derived and bounded         |
 | 3  | **Multiple reference types to same group** — expression must be re-evaluated per reference type, not just per entity               | Medium   | `CatalogExpressionTriggerRegistry` maps `(targetEntityType, dependencyType)` → all affected triggers           |
 | 4  | **Expression evaluation performance** — local triggers: Proxycian proxies with ~2 allocations per entity, pre-built at schema time. Cross-entity triggers: no per-entity evaluation, pure index-based `FilterBy` queries | Medium | Two-mode evaluation: `evaluate()` for local (per-entity), `getFilterByConstraint()` for cross-entity (index-based query) |
-| 5  | **Scope awareness** — expression can differ per scope (`facetedPartiallyInScopes`); `ReevaluateFacetExpressionMutation` carries `Scope` | Medium | Must evaluate per-scope, same as `isFacetedInScope()`. Scope transitions (entity moved between scopes) handled naturally: entity removed from old scope indexes, inserted into new scope → expression evaluated inline |
+| 5  | **Scope awareness** — expression can differ per scope (`facetedPartiallyInScopes`); `ReevaluateExpressionMutation` carries `Scope` | Medium | Must evaluate per-scope, same as `isFacetedInScope()`. Scope transitions (entity moved between scopes) handled naturally: entity removed from old scope indexes, inserted into new scope → expression evaluated inline |
 | 6  | **Null safety in expression** — group entity might not exist yet when expression references it                                     | Medium   | `NullSafeAccessStep` handles `?.` but non-null-safe paths will throw — document requirement                    |
 | 7  | **Schema evolution** — expression changes on existing data                                                                         | Medium   | Out of scope for this iteration — expression is effectively immutable after initial schema creation. Full re-index mechanism deferred to separate issue. |
 | 8  | **Accessor registration** — expression evaluator needs `ObjectPropertyAccessor`/`ObjectElementAccessor` for contract types         | Resolved | All needed accessors already registered via ServiceLoader: `EntityContractAccessor`, `ReferenceContractAccessor`, `AttributesContractAccessor`, `ReferencesContractAccessor`, `AssociatedDataContractAccessor`. Proxycian proxies implement the contract interfaces, so no new registrations needed. |
@@ -1966,10 +1990,10 @@ None — all resolved.
 | 11 | **Reference still indexed for filtering even when not faceted** — must not skip reference indexing                                 | Low      | Ensure conditional logic only wraps facet add/remove, not the entire reference indexing flow                    |
 | 12 | **Empty facet index cleanup** — when expression removes last faceted entity, ensure `FacetReferenceIndex` auto-cleanup still works | Low      | Existing auto-cleanup in `FacetIndex.removeFacet()` should handle this                                          |
 | 13 | **Mixed-dependency expressions** — expression uses both local (`$entity.*`) and cross-entity (`$reference.groupEntity.*`) data    | High     | Full expression translated to `FilterBy` at schema time by `ExpressionToQueryTranslator`. Target executor parameterizes with mutated PK and evaluates against indexes. Non-translatable expressions rejected at schema time. See AD 18. |
-| 14 | **Multi-source cross-entity dependencies** — expression has OR with different cross-entity sources (`groupEntity \|\| referencedEntity`) | High | Single `ReevaluateFacetExpressionMutation` (no Add/Remove split). Target evaluates full expression via query — handles OR naturally. Registry has entries for BOTH dependency types. |
+| 14 | **Multi-source cross-entity dependencies** — expression has OR with different cross-entity sources (`groupEntity \|\| referencedEntity`) | High | Single `ReevaluateExpressionMutation` (no Add/Remove split). Target evaluates full expression via query — handles OR naturally. Registry has entries for BOTH dependency types. |
 | 15 | **FilterBy parameterization required** — without PK-scoping, entity with refs to multiple groups gets false positives             | High     | Executor injects `entityGroupHaving(entityPrimaryKeyInSet(mutatedPK))` / `entityHaving(entityPrimaryKeyInSet(mutatedPK))` at trigger time to scope to the specific changed entity. |
 | 16 | **Dynamic attribute paths in expressions** — `$entity.attributes[variable]` prevents static analysis                              | Medium   | `AccessedDataFinder` / `ExpressionToQueryTranslator` throws exception at schema load time. Dynamic paths are not supported in `facetedPartially` expressions. |
-| 17 | **Entity removal as cross-entity trigger** — group/referenced entity removal changes expression results                           | Medium   | `EntityRemoveMutation` classified as cross-entity trigger source in Domain 2b/2c. Creates `ReevaluateFacetExpressionMutation` same as attribute changes. |
+| 17 | **Entity removal as cross-entity trigger** — group/referenced entity removal changes expression results                           | Medium   | `EntityRemoveMutation` classified as cross-entity trigger source in Domain 2b/2c. Creates `ReevaluateExpressionMutation` same as attribute changes. |
 | 18 | **ReflectedReferenceSchema inheritance** — reflected references inherit `facetedPartially` from source schema                     | Medium   | Trigger registration processes both direct and reflected schemas. Source expression change cascades trigger rebuild to all inheriting reflected schemas. |
 | 19 | **Reference-level dependencies on referenced/group entity** — expression accesses `$reference.referencedEntity.references['r']*.attributes['x']`, creating a dependency on reference mutations (not entity attributes) on the referenced entity | Medium | New `DependencyType` values (`REFERENCED_ENTITY_REFERENCE_ATTRIBUTE`, `GROUP_ENTITY_REFERENCE_ATTRIBUTE`) with `getDependentReferenceName()` to distinguish from entity-attribute dependencies. Trigger dispatch must watch for `InsertReferenceMutation`, `RemoveReferenceMutation`, `UpsertReferenceAttributeMutation` on the target entity. FilterBy translation produces nested `referenceHaving` inside `entityHaving`/`groupHaving`. See AD-22. |
 
@@ -1994,17 +2018,22 @@ None — all resolved.
 
 4. **Source detects, target decides** — the source `EntityIndexLocalMutationExecutor`
    detects relevant attribute changes (old ≠ new), consults `CatalogExpressionTriggerRegistry`,
-   and creates `ReevaluateFacetExpressionMutation` instances. The source does NOT evaluate
+   and creates `ReevaluateExpressionMutation` instances. The source does NOT evaluate
    the expression and does NOT determine add/remove direction — it only signals that a
    relevant change occurred. PK resolution, expression evaluation (via `FilterBy` query),
    and add/remove decisions happen entirely on the target side.
 
 5. **No cross-collection index access** — source entity's executor never reaches into the
    target collection's indexes. The executor on the target side resolves affected PKs via
-   two-step lookup: `ReferencedTypeEntityIndex` (type-level, `REFERENCED_GROUP_ENTITY_TYPE`
-   or `REFERENCED_ENTITY_TYPE`) → `getAllReferenceIndexes(mutatedPK)` → reduced-index
-   storage PKs → `ReducedGroupEntityIndex`/`ReducedEntityIndex` → `getAllPrimaryKeys()` →
-   owner entity PKs. Facet PK and group PK are recovered from `EntityIndexKey` discriminators.
+   the `REFERENCED_GROUP_ENTITY_TYPE` or `REFERENCED_ENTITY_TYPE` type-level indexes. For
+   `GROUP_ENTITY_ATTRIBUTE`: `getAllReferenceIndexes(groupPK)` → `ReducedGroupEntityIndex`
+   → facetPKs and ownerPKs. For `REFERENCED_ENTITY_ATTRIBUTE` with groups:
+   `getAllTrackedReferencedEntityPrimaryKeys()` iterates all group PKs, then for each
+   `getAllReferenceIndexes(groupPK)` → `ReducedGroupEntityIndex` →
+   `getOwnerPKsForReferencedEntity(facetPK)`. For ungrouped: `REFERENCED_ENTITY_TYPE` →
+   `getAllReferenceIndexes(facetPK)` → `ReducedEntityIndex` → `getAllPrimaryKeys()`.
+   Group PKs are always resolved from the reference index structure (invariant), never
+   from the facet index (which may be empty after an expression-driven removal).
 
 6. **Thin dispatch path** — `EntityIndexMaintainer` (private inner class of `EntityCollection`)
    implements `IndexMutationTarget` (role interface limiting access to index lookup, schema
@@ -2065,8 +2094,8 @@ None — all resolved.
       `getFilterByConstraint()` for cross-entity triggers (full expression as `FilterBy`
       template, parameterized at trigger time, evaluated against indexes).
     - `IndexMutationExecutorRegistry` — static singleton mapping concrete `IndexMutation`
-      types (`ReevaluateFacetExpressionMutation`) to stateless `IndexMutationExecutor<M>`
-      singletons (`ReevaluateFacetExpressionExecutor`). Both the registry and its executors
+      types (`ReevaluateExpressionMutation`) to stateless `IndexMutationExecutor<M>`
+      singletons (`ReevaluateExpressionExecutor`). Both the registry and its executors
       hold no instance state — they survive `EntityCollection` transactional copy without
       reinstantiation. Extensible — new mutation types require only a new mutation record +
       executor class + registry entry.
@@ -2135,7 +2164,7 @@ None — all resolved.
     - Non-translatable expressions (dynamic attribute paths, direct cross-to-local comparisons,
       unsupported operators) are **rejected at schema time** with a clear error — no per-entity
       fallback exists
-    - At trigger time, the `ReevaluateFacetExpressionExecutor` parameterizes the `FilterBy`
+    - At trigger time, the `ReevaluateExpressionExecutor` parameterizes the `FilterBy`
       template with the mutated entity PK (via `entityGroupHaving(entityPrimaryKeyInSet(pk))`
       or `entityHaving(entityPrimaryKeyInSet(pk))`) to scope evaluation to the specific
       changed entity — preventing false positives from other groups/referenced entities

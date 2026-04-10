@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -262,6 +263,72 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 			facetedPartiallyMap.put(scope, expression);
 		}
 		return facetedPartiallyMap;
+	}
+
+	/**
+	 * Serializes a map of {@link Scope} to {@link HistogramIndexDefinition} representing
+	 * bucketed histogram configuration into a Kryo {@link Output}.
+	 *
+	 * The serialization format is a nested map: outer scope count, then for each scope its ordinal
+	 * followed by the inner entry count, and for each inner entry the nameOfTheIndex string and
+	 * nullable valueExpression.
+	 *
+	 * @param kryo                   the Kryo instance to use for serialization
+	 * @param output                 the Output instance to write to
+	 * @param bucketedHistogramMap   the nested map to serialize
+	 */
+	static void writeBucketedHistogramMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Output output,
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramMap
+	) {
+		output.writeVarInt(bucketedHistogramMap.size(), true);
+		for (final Entry<Scope, Map<String, HistogramIndexDefinition>> outerEntry : bucketedHistogramMap.entrySet()) {
+			kryo.writeObject(output, outerEntry.getKey());
+			final Map<String, HistogramIndexDefinition> innerMap = outerEntry.getValue();
+			output.writeVarInt(innerMap.size(), true);
+			for (final Entry<String, HistogramIndexDefinition> innerEntry : innerMap.entrySet()) {
+				output.writeString(innerEntry.getValue().nameOfTheIndex());
+				if (innerEntry.getValue().valueExpression() != null) {
+					output.writeBoolean(true);
+					kryo.writeObject(output, innerEntry.getValue().valueExpression());
+				} else {
+					output.writeBoolean(false);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Reads a nested map of {@link Scope} to name-keyed {@link HistogramIndexDefinition} maps
+	 * representing bucketed histogram configuration from a Kryo {@link Input}.
+	 *
+	 * @param kryo  the Kryo instance to use for deserialization
+	 * @param input the Input instance to read from
+	 * @return the deserialized nested map
+	 */
+	@Nonnull
+	static Map<Scope, Map<String, HistogramIndexDefinition>> readBucketedHistogramMap(
+		@Nonnull Kryo kryo,
+		@Nonnull Input input
+	) {
+		final int outerCount = input.readVarInt(true);
+		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedHistogramMap =
+			CollectionUtils.createHashMap(outerCount);
+		for (int i = 0; i < outerCount; i++) {
+			final Scope scope = kryo.readObject(input, Scope.class);
+			final int innerCount = input.readVarInt(true);
+			final Map<String, HistogramIndexDefinition> innerMap =
+				new LinkedHashMap<>(innerCount);
+			for (int j = 0; j < innerCount; j++) {
+				final String nameOfTheIndex = input.readString();
+				final Expression valueExpression = input.readBoolean()
+					? kryo.readObject(input, Expression.class) : null;
+				innerMap.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+			}
+			bucketedHistogramMap.put(scope, innerMap);
+		}
+		return bucketedHistogramMap;
 	}
 
 	/**

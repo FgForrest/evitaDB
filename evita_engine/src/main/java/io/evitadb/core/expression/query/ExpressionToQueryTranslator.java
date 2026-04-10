@@ -53,10 +53,11 @@ import io.evitadb.api.query.expression.visitor.PathItem;
 import io.evitadb.api.query.expression.visitor.VariablePathItem;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.dataType.expression.BinaryExpressionNode;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.dataType.expression.ExpressionNodeVisitor;
-import io.evitadb.utils.Assert;
+import io.evitadb.dataType.expression.UnaryExpressionNode;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,6 +67,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
@@ -88,7 +90,9 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
  * - Referenced entity attribute comparisons: wrapped in `referenceHaving("refName", entityHaving(...))`
  * - Boolean operators `&&`, `||`, `!` to `and()`, `or()`, `not()` with flattening
  * - Parent existence checks to `hierarchyWithinRootSelf()`
- * - Parent entity attribute comparisons: wrapped in `hierarchyWithinRootSelf(directRelation(), having(...))`
+ * - Parent entity attribute comparisons: wrapped in `hierarchyWithinSelf(attributeConstraint, directRelation())`
+ * - Parent entity reference attribute comparisons: wrapped in
+ *   `hierarchyWithinSelf(referenceHaving('r', attributeConstraint), directRelation())`
  * - Null-coalesce (`??`) unwrapping: the default value is discarded (FilterBy handles nulls natively)
  * - Attribute null checks to `attributeIsNull()` / `attributeIsNotNull()`
  *
@@ -173,12 +177,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	private static ExpressionNode unwrap(@Nonnull ExpressionNode node) {
 		ExpressionNode current = node;
 		while (current instanceof Expression || current instanceof NestedOperator) {
-			final ExpressionNode[] children = current.getChildren();
-			Assert.isPremiseValid(
-				children != null && children.length == 1,
-				"Unsupported children for node `" + current.getClass().getSimpleName() + "`."
-			);
-			current = children[0];
+			current = ((UnaryExpressionNode) current).getOperand();
 		}
 		return current;
 	}
@@ -194,14 +193,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	@Nonnull
 	private static ExpressionNode unwrapNullCoalesce(@Nonnull ExpressionNode node) {
 		ExpressionNode current = unwrap(node);
-		while (current instanceof NullCoalesceOperator) {
-			final ExpressionNode[] coalesceChildren = current.getChildren();
-			Assert.isPremiseValid(
-				coalesceChildren != null && coalesceChildren.length == 2,
-				"NullCoalesceOperator must have 2 children."
-			);
-			// take the value operand (first child) — the default value is discarded
-			current = unwrap(coalesceChildren[0]);
+		while (current instanceof NullCoalesceOperator coalesce) {
+			current = unwrap(coalesce.getLeftOperand());
 		}
 		return current;
 	}
@@ -356,7 +349,6 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 					}
 					// chain continues → delegate to shared entity path walker
 					return extractEntityAttributePath(firstProperty, PathType.PARENT_ENTITY_ATTRIBUTE);
-					// chain continues → delegate to shared entity path walker
 				}
 				case EntityContractAccessor.ASSOCIATED_DATA_PROPERTY,
 				     EntityContractAccessor.LOCALIZED_ASSOCIATED_DATA_PROPERTY ->
@@ -586,17 +578,11 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		}
 
 		// verify the operand is $ (this)
-		final ExpressionNode[] mappingChildren = mappingAccess.getChildren();
-		Assert.isPremiseValid(
-			mappingChildren != null && mappingChildren.length == 1,
-			"ObjectAccessOperator in spread mapping must have 1 child."
-		);
-		if (
-			!(mappingChildren[0] instanceof VariableOperand thisVar) || !thisVar.isThis()
-		) {
+		final ExpressionNode mappingOperand = mappingAccess.getOperand();
+		if (!(mappingOperand instanceof VariableOperand thisVar) || !thisVar.isThis()) {
 			throw new NonTranslatableExpressionException(
 				"Spread mapping expression operand must be `$` (this), but found `" +
-					mappingChildren[0].getClass().getSimpleName() + "`."
+					mappingOperand.getClass().getSimpleName() + "`."
 			);
 		}
 
@@ -622,13 +608,13 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 
 	/**
 	 * Checks whether the given property name refers to an attributes accessor.
+	 * Delegates to {@link EntityContractAccessor#isAttributesProperty(String)}.
 	 *
 	 * @param propertyName the property name to check
 	 * @return `true` if the name matches `attributes` or `localizedAttributes`
 	 */
 	private static boolean isAttributesProperty(@Nonnull String propertyName) {
-		return EntityContractAccessor.ATTRIBUTES_PROPERTY.equals(propertyName)
-			|| EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
+		return EntityContractAccessor.isAttributesProperty(propertyName);
 	}
 
 	/**
@@ -694,9 +680,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 */
 	@Nonnull
 	private static String extractVariableName(@Nonnull ObjectAccessOperator accessOperator) {
-		final ExpressionNode[] children = accessOperator.getChildren();
-		Assert.isPremiseValid(children != null && children.length == 1, "ObjectAccessOperator must have 1 child.");
-		if (children[0] instanceof VariableOperand variable) {
+		final ExpressionNode operand = accessOperator.getOperand();
+		if (operand instanceof VariableOperand variable) {
 			final String name = variable.getVariableName();
 			if (name == null) {
 				throw new NonTranslatableExpressionException(
@@ -707,7 +692,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		}
 		throw new NonTranslatableExpressionException(
 			"Expected a variable operand (e.g., $entity, $reference) but found `"
-				+ children[0].getClass().getSimpleName() + "`."
+				+ operand.getClass().getSimpleName() + "`."
 		);
 	}
 
@@ -803,8 +788,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 			translateConjunction(node);
 		} else if (node instanceof DisjunctionOperator) {
 			translateDisjunction(node);
-		} else if (node instanceof InverseOperator) {
-			translateInverse(node);
+		} else if (node instanceof InverseOperator inverseOperator) {
+			translateInverse(inverseOperator);
 		} else if (
 			node instanceof EqualsOperator
 				|| node instanceof NotEqualsOperator
@@ -856,7 +841,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 
 	/**
 	 * Wraps the given attribute constraint based on the path type. For `ENTITY_ATTRIBUTE`, the constraint
-	 * is returned as-is (no wrapper). Other path types add `referenceHaving`, `groupHaving`, etc.
+	 * is returned as-is (no wrapper). Other path types add `referenceHaving`, `groupHaving`,
+	 * `hierarchyWithinSelf`, etc.
 	 */
 	@Nonnull
 	private FilterConstraint wrapForPathType(
@@ -877,12 +863,14 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 				this.referenceName,
 				groupHaving(referenceHaving(dataPath.referenceName(), attributeConstraint))
 			);
-			case PARENT_ENTITY_ATTRIBUTE -> hierarchyWithinRootSelf(
-				directRelation(), having(attributeConstraint)
+			case PARENT_ENTITY_ATTRIBUTE -> Objects.requireNonNull(
+				hierarchyWithinSelf(attributeConstraint, directRelation())
 			);
-			case PARENT_ENTITY_REFERENCE_ATTRIBUTE -> hierarchyWithinRootSelf(
-				directRelation(),
-				having(referenceHaving(dataPath.referenceName(), attributeConstraint))
+			case PARENT_ENTITY_REFERENCE_ATTRIBUTE -> Objects.requireNonNull(
+				hierarchyWithinSelf(
+					referenceHaving(dataPath.referenceName(), attributeConstraint),
+					directRelation()
+				)
 			);
 		};
 	}
@@ -891,10 +879,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 * Translates a unary inverse (`!`) operator into a `not(...)` filter constraint.
 	 * The single child is translated recursively and then wrapped in {@code not()}.
 	 */
-	private void translateInverse(@Nonnull ExpressionNode node) {
-		final ExpressionNode[] children = node.getChildren();
-		Assert.isPremiseValid(children != null && children.length == 1, "Inverse must have 1 child.");
-		children[0].accept(this);
+	private void translateInverse(@Nonnull UnaryExpressionNode node) {
+		node.getOperand().accept(this);
 		this.result = not(this.result);
 	}
 
@@ -932,18 +918,14 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 */
 	private void collectBinaryBooleanOperands(
 		@Nonnull ExpressionNode node,
-		@Nonnull Class<? extends ExpressionNode> operatorType,
+		@Nonnull Class<? extends BinaryExpressionNode> operatorType,
 		@Nonnull List<FilterConstraint> collector
 	) {
 		final ExpressionNode unwrapped = unwrap(node);
 		if (operatorType.isInstance(unwrapped)) {
-			final ExpressionNode[] children = unwrapped.getChildren();
-			Assert.isPremiseValid(
-				children != null && children.length == 2,
-				operatorType.getSimpleName() + " must have 2 children."
-			);
-			collectBinaryBooleanOperands(children[0], operatorType, collector);
-			collectBinaryBooleanOperands(children[1], operatorType, collector);
+			final BinaryExpressionNode binary = operatorType.cast(unwrapped);
+			collectBinaryBooleanOperands(binary.getLeftOperand(), operatorType, collector);
+			collectBinaryBooleanOperands(binary.getRightOperand(), operatorType, collector);
 		} else {
 			unwrapped.accept(this);
 			collector.add(this.result);
@@ -963,12 +945,11 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 * `price > 100`).
 	 */
 	private void translateComparison(@Nonnull ExpressionNode comparisonNode) {
-		final ExpressionNode[] children = comparisonNode.getChildren();
-		Assert.isPremiseValid(children != null && children.length == 2, "Comparison must have 2 children.");
+		final BinaryExpressionNode comparison = (BinaryExpressionNode) comparisonNode;
 		// unwrap parenthesized/nested wrappers and null-coalesce operators so that
 		// (path ?? default) == value works the same as path == value
-		final ExpressionNode left = unwrapNullCoalesce(children[0]);
-		final ExpressionNode right = unwrapNullCoalesce(children[1]);
+		final ExpressionNode left = unwrapNullCoalesce(comparison.getLeftOperand());
+		final ExpressionNode right = unwrapNullCoalesce(comparison.getRightOperand());
 
 		// determine which operand is the path and which is the value
 		final ObjectAccessOperator pathOperand;
@@ -1064,13 +1045,13 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		ENTITY_PARENT,
 		/**
 		 * `$entity.parentEntity.attributes['x']` — parent entity attribute,
-		 * wrapped in `hierarchyWithinRootSelf(directRelation(), having(...))`.
+		 * wrapped in `hierarchyWithinSelf(attributeConstraint, directRelation())`.
 		 */
 		PARENT_ENTITY_ATTRIBUTE,
 		/**
 		 * `$entity.parentEntity.references['r'].attributes['x']` — reference attribute on
 		 * the parent entity, wrapped in
-		 * `hierarchyWithinRootSelf(directRelation(), having(referenceHaving('r', ...)))`.
+		 * `hierarchyWithinSelf(referenceHaving('r', attributeConstraint), directRelation())`.
 		 */
 		PARENT_ENTITY_REFERENCE_ATTRIBUTE
 	}

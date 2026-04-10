@@ -27,7 +27,9 @@ import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -41,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Tests for {@link CreateReferenceSchemaMutationConverter} verifying gRPC round-trip
- * conversion including facetedPartially expressions.
+ * conversion including facetedPartially and bucketed expressions.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -92,7 +94,7 @@ class CreateReferenceSchemaMutationConverterTest {
 
 	/**
 	 * Verifies that a mutation with facetedPartially expressions survives
-	 * gRPC serialization and deserialization using the 12-arg constructor.
+	 * gRPC serialization and deserialization using the 14-arg constructor.
 	 */
 	@Test
 	@DisplayName("should round-trip mutation with facetedPartially expression")
@@ -116,7 +118,9 @@ class CreateReferenceSchemaMutationConverterTest {
 			new Scope[]{Scope.LIVE},
 			new ScopedFacetedPartially[]{
 				new ScopedFacetedPartially(Scope.LIVE, expression)
-			}
+			},
+			null,
+			null
 		);
 
 		final CreateReferenceSchemaMutation roundTripped =
@@ -161,7 +165,9 @@ class CreateReferenceSchemaMutationConverterTest {
 			new ScopedFacetedPartially[]{
 				new ScopedFacetedPartially(Scope.LIVE, liveExpr),
 				new ScopedFacetedPartially(Scope.ARCHIVED, archivedExpr)
-			}
+			},
+			null,
+			null
 		);
 
 		final CreateReferenceSchemaMutation roundTripped =
@@ -194,7 +200,9 @@ class CreateReferenceSchemaMutationConverterTest {
 			new Scope[]{Scope.LIVE},
 			new ScopedFacetedPartially[]{
 				new ScopedFacetedPartially(Scope.LIVE, null)
-			}
+			},
+			null,
+			null
 		);
 
 		final CreateReferenceSchemaMutation roundTripped =
@@ -204,5 +212,92 @@ class CreateReferenceSchemaMutationConverterTest {
 		assertEquals(1, roundTripped.getFacetedPartiallyInScopes().length);
 		assertEquals(Scope.LIVE, roundTripped.getFacetedPartiallyInScopes()[0].scope());
 		assertNull(roundTripped.getFacetedPartiallyInScopes()[0].expression());
+	}
+
+	/**
+	 * Verifies that a mutation with bucketed histogram definitions and bucketedPartially
+	 * expressions survives gRPC round-trip.
+	 */
+	@Test
+	@DisplayName("should round-trip mutation with bucketed fields")
+	void shouldConvertMutationWithBucketedFields() {
+		final Expression valueExpr = ExpressionFactory.parse("$price * $quantity");
+		final Expression bucketedPartiallyExpr = ExpressionFactory.parse("$active == 1");
+		final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+			"tags",
+			"desc",
+			null,
+			Cardinality.ZERO_OR_MORE,
+			"tag",
+			false,
+			"tagGroup",
+			false,
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			},
+			null,
+			new Scope[]{Scope.LIVE},
+			null,
+			new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpr)
+			},
+			new ScopedBucketedPartially[]{
+				new ScopedBucketedPartially(Scope.LIVE, bucketedPartiallyExpr)
+			}
+		);
+
+		final CreateReferenceSchemaMutation roundTripped =
+			converter.convert(converter.convert(mutation));
+
+		assertEquals(mutation, roundTripped);
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(1, roundTripped.getBucketedInScopes().length);
+		assertEquals("priceHistogram", roundTripped.getBucketedInScopes()[0].nameOfTheIndex());
+		assertNotNull(roundTripped.getBucketedInScopes()[0].valueExpression());
+		assertEquals(
+			valueExpr.toExpressionString(),
+			roundTripped.getBucketedInScopes()[0].valueExpression().toExpressionString()
+		);
+
+		assertNotNull(roundTripped.getBucketedPartiallyInScopes());
+		assertEquals(1, roundTripped.getBucketedPartiallyInScopes().length);
+		assertEquals(Scope.LIVE, roundTripped.getBucketedPartiallyInScopes()[0].scope());
+		assertNotNull(roundTripped.getBucketedPartiallyInScopes()[0].expression());
+	}
+
+	/**
+	 * Verifies that a bucketed histogram entry with null valueExpression survives round-trip.
+	 */
+	@Test
+	@DisplayName("should round-trip mutation with null valueExpression in bucketed")
+	void shouldRoundTripNullValueExpressionInBucketed() {
+		final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+			"tags",
+			null,
+			null,
+			Cardinality.ZERO_OR_MORE,
+			"tag",
+			false,
+			null,
+			false,
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			},
+			null,
+			new Scope[]{Scope.LIVE},
+			null,
+			new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "histogram", null)
+			},
+			null
+		);
+
+		final CreateReferenceSchemaMutation roundTripped =
+			converter.convert(converter.convert(mutation));
+
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(1, roundTripped.getBucketedInScopes().length);
+		assertEquals("histogram", roundTripped.getBucketedInScopes()[0].nameOfTheIndex());
+		assertNull(roundTripped.getBucketedInScopes()[0].valueExpression());
 	}
 }

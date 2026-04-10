@@ -132,6 +132,13 @@ group PK. The group PK is tracked **internally** by `ReducedGroupEntityIndex` vi
 `referencedPrimaryKeysIndex` (which maps referenced entity PKs to bitmaps of owning entity PKs)
 and `pkCardinalities` (which tracks how many times each owning entity PK was added).
 
+**Why keyed by referenced entity PK, not group PK?** Reference attributes are per-reference —
+each reference to a different target entity can carry distinct attribute values (e.g.
+`basicUnitValue`, `quantity`). Keying by group PK would merge these into one index, making
+per-reference filtering and sorting impossible. The `REFERENCED_GROUP_ENTITY_TYPE` type index
+provides the necessary group → indexes mapping for `GroupHaving` queries, so group-level
+semantics are preserved despite the per-reference keying.
+
 The `entityIds` bitmap contains
 <Term location="/documentation/developer/indexes/overview.md" name="owning entity">**owning** entity PKs</Term>
 (same semantics as `REFERENCED_ENTITY`), but an owning entity PK is only added to the bitmap

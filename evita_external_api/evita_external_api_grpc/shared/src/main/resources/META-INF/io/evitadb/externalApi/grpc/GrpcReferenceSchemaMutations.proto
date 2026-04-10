@@ -85,6 +85,10 @@ message GrpcCreateReferenceSchemaMutation {
   repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;
   // Per-scope expressions that narrow which entities participate in faceting.
   repeated GrpcScopedFacetedPartially facetedPartially = 15;
+  // Per-scope bucketed histogram configurations defining index name and value expression.
+  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;
+  // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+  repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;
 }
 
 // Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
@@ -159,6 +163,10 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;
   // Per-scope expressions that narrow which entities participate in faceting.
   repeated GrpcScopedFacetedPartially facetedPartially = 16;
+  // Per-scope bucketed histogram configurations defining index name and value expression.
+  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;
+  // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+  repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
@@ -290,6 +298,17 @@ message GrpcSetReferenceSchemaFacetedMutation {
   // Per-scope expressions that narrow which entities participate in faceting.
   // When absent (not set), expressions are inherited for reflected references.
   repeated GrpcScopedFacetedPartially facetedPartially = 5;
+}
+
+// Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema` in `EntitySchema`.
+// Mutation can be used for altering also the existing `ReferenceSchema` alone.
+message GrpcSetReferenceSchemaBucketedMutation {
+  // Name of the reference the mutation is targeting.
+  string name = 1;
+  // Per-scope bucketed histogram configurations defining index name and value expression.
+  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 2;
+  // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+  repeated GrpcScopedBucketedPartially bucketedPartially = 3;
 }
 
 // Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.

@@ -283,6 +283,16 @@ public final class GrpcEvitaDataTypes {
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedFacetedPartially_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_fieldAccessorTable;
 
   public static com.google.protobuf.Descriptors.FileDescriptor
       getDescriptor() {
@@ -522,7 +532,16 @@ public final class GrpcEvitaDataTypes {
       "edPartially\022E\n\005scope\030\001 \001(\01626.io.evitadb." +
       "externalApi.grpc.generated.GrpcEntitySco" +
       "pe\0220\n\nexpression\030\002 \001(\0132\034.google.protobuf" +
-      ".StringValueB\014P\001\252\002\007EvitaDBb\006proto3"
+      ".StringValue\"\272\001\n\"GrpcScopedHistogramInde" +
+      "xDefinition\022E\n\005scope\030\001 \001(\01626.io.evitadb." +
+      "externalApi.grpc.generated.GrpcEntitySco" +
+      "pe\022\026\n\016nameOfTheIndex\030\002 \001(\t\0225\n\017valueExpre" +
+      "ssion\030\003 \001(\0132\034.google.protobuf.StringValu" +
+      "e\"\226\001\n\033GrpcScopedBucketedPartially\022E\n\005sco" +
+      "pe\030\001 \001(\01626.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcEntityScope\0220\n\nexpression\030\002" +
+      " \001(\0132\034.google.protobuf.StringValueB\014P\001\252\002" +
+      "\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -824,6 +843,18 @@ public final class GrpcEvitaDataTypes {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedFacetedPartially_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedFacetedPartially_descriptor,
+        new java.lang.String[] { "Scope", "Expression", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_descriptor =
+      getDescriptor().getMessageTypes().get(48);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedHistogramIndexDefinition_descriptor,
+        new java.lang.String[] { "Scope", "NameOfTheIndex", "ValueExpression", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_descriptor =
+      getDescriptor().getMessageTypes().get(49);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcScopedBucketedPartially_descriptor,
         new java.lang.String[] { "Scope", "Expression", });
     com.google.protobuf.TimestampProto.getDescriptor();
     com.google.protobuf.WrappersProto.getDescriptor();

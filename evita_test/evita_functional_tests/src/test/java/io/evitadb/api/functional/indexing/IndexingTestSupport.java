@@ -193,12 +193,12 @@ public interface IndexingTestSupport {
 
 	/**
 	 * Retrieves the referenced group entity index for the given collection, scope, reference name,
-	 * and referenced entity primary key.
+	 * and group primary key.
 	 *
-	 * @param collection         the entity collection to query
-	 * @param scope              the scope to search in
-	 * @param referenceName      the reference schema name
-	 * @param referencedEntityPk the primary key of the referenced entity
+	 * @param collection    the entity collection to query
+	 * @param scope         the scope to search in
+	 * @param referenceName the reference schema name
+	 * @param groupPk       the primary key of the group entity
 	 * @return the referenced group entity index, or null if not found
 	 */
 	@Nullable
@@ -206,14 +206,14 @@ public interface IndexingTestSupport {
 		@Nonnull EntityCollectionContract collection,
 		@Nonnull Scope scope,
 		@Nonnull String referenceName,
-		int referencedEntityPk
+		int groupPk
 	) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ((EntityCollection) collection).getIndexByKeyIfExists(
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY,
 				scope,
-				new RepresentativeReferenceKey(new ReferenceKey(referenceName, referencedEntityPk))
+				new RepresentativeReferenceKey(new ReferenceKey(referenceName, groupPk))
 			)
 		);
 	}

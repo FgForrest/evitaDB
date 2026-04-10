@@ -493,8 +493,8 @@ class BoolOperatorTest {
 				() -> op.compute(CONTEXT)
 			);
 			assertEquals(
-				"Greater than function operand " +
-					"must be comparable!",
+				"Greater than function left operand evaluated to null" +
+					" \u2014 the referenced data may be missing or not yet available.",
 				exception.getMessage()
 			);
 		}

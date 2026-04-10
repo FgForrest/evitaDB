@@ -410,6 +410,12 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(ReferenceIndexedComponents.class, new EnumNameSerializer<>(), index++);
 		kryo.register(Expression.class, new SerialVersionBasedSerializer<>(new ExpressionSerializer(), Expression.class), index++);
 
+		kryo.register(
+			SetReferenceSchemaBucketedMutation.class,
+			new SerialVersionBasedSerializer<>(new SetReferenceSchemaBucketedMutationSerializer(), SetReferenceSchemaBucketedMutation.class),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 801, "Index count overflow.");
 	}
 

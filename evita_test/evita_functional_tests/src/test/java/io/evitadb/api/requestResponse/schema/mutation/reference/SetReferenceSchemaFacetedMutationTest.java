@@ -93,6 +93,7 @@ class SetReferenceSchemaFacetedMutationTest {
 			},
 			null,
 			null, // null facetedInScopes -> facetedInherited = true
+			null, null, null,
 			Map.of(),
 			Map.of(),
 			io.evitadb.api.requestResponse.schema
@@ -200,7 +201,8 @@ class SetReferenceSchemaFacetedMutationTest {
 					},
 					null,
 					new Scope[]{Scope.LIVE},
-					null // create mutation has no facetedPartially initially
+					null, // create mutation has no facetedPartially initially
+					null, null
 				);
 
 			final MutationCombinationResult<LocalEntitySchemaMutation> result =
@@ -258,7 +260,8 @@ class SetReferenceSchemaFacetedMutationTest {
 					new Scope[]{Scope.LIVE},
 					new ScopedFacetedPartially[]{
 						new ScopedFacetedPartially(Scope.LIVE, expression)
-					}
+					},
+					null, null
 				);
 
 			final MutationCombinationResult<LocalEntitySchemaMutation> result =
@@ -318,6 +321,7 @@ class SetReferenceSchemaFacetedMutationTest {
 					new ScopedFacetedPartially[]{
 						new ScopedFacetedPartially(Scope.LIVE, expression)
 					},
+					null, null,
 					io.evitadb.api.requestResponse.schema
 						.ReflectedReferenceSchemaContract
 						.AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -1200,6 +1204,7 @@ class SetReferenceSchemaFacetedMutationTest {
 							Scope.LIVE, ExpressionFactory.parse("1 > 0")
 						)
 					},
+					null, null,
 					io.evitadb.api.requestResponse.schema
 						.ReflectedReferenceSchemaContract
 						.AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,

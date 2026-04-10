@@ -25,9 +25,9 @@ package io.evitadb.index.mutation;
 
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.mutation.ReevaluateFacetExpressionExecutor.AffectedEntityResolution;
-import io.evitadb.index.mutation.ReevaluateFacetExpressionExecutor.AffectedFacetEntry;
-import io.evitadb.index.mutation.ReevaluateFacetExpressionExecutor.AffectedFacetGroup;
+import io.evitadb.index.mutation.ReevaluateExpressionExecutor.AffectedEntityResolution;
+import io.evitadb.index.mutation.ReevaluateExpressionExecutor.AffectedReferenceEntry;
+import io.evitadb.index.mutation.ReevaluateExpressionExecutor.AffectedReferenceGroup;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -42,8 +42,8 @@ import java.util.NoSuchElementException;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the supporting records inside {@link ReevaluateFacetExpressionExecutor}: {@link AffectedEntityResolution},
- * {@link AffectedFacetGroup}, and {@link AffectedFacetEntry}. Verifies bitmap union computation, lazy filtered
+ * Tests for the supporting records inside {@link ReevaluateExpressionExecutor}: {@link AffectedEntityResolution},
+ * {@link AffectedReferenceGroup}, and {@link AffectedReferenceEntry}. Verifies bitmap union computation, lazy filtered
  * entry iteration, and record field access.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -73,7 +73,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		void shouldReturnOwnerPKsForSingleGroup() {
 			final BaseBitmap ownerPKs = new BaseBitmap(10, 20, 30);
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
-				List.of(new AffectedFacetGroup(1, 100, ownerPKs))
+				List.of(new AffectedReferenceGroup(1, 100, ownerPKs))
 			);
 
 			final Bitmap result = resolution.allOwnerPKs();
@@ -89,8 +89,8 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		void shouldReturnUnionForMultipleGroups() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
 				List.of(
-					new AffectedFacetGroup(1, 100, new BaseBitmap(1, 2)),
-					new AffectedFacetGroup(2, 200, new BaseBitmap(3, 4))
+					new AffectedReferenceGroup(1, 100, new BaseBitmap(1, 2)),
+					new AffectedReferenceGroup(2, 200, new BaseBitmap(3, 4))
 				)
 			);
 
@@ -105,8 +105,8 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		void shouldDeduplicateOverlappingPKsInUnion() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
 				List.of(
-					new AffectedFacetGroup(1, 100, new BaseBitmap(1, 2, 3)),
-					new AffectedFacetGroup(2, 200, new BaseBitmap(2, 3, 4))
+					new AffectedReferenceGroup(1, 100, new BaseBitmap(1, 2, 3)),
+					new AffectedReferenceGroup(2, 200, new BaseBitmap(2, 3, 4))
 				)
 			);
 
@@ -121,8 +121,8 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		void shouldHandleGroupWithEmptyBitmap() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
 				List.of(
-					new AffectedFacetGroup(1, 100, new BaseBitmap(5, 10)),
-					new AffectedFacetGroup(2, 200, new BaseBitmap())
+					new AffectedReferenceGroup(1, 100, new BaseBitmap(5, 10)),
+					new AffectedReferenceGroup(2, 200, new BaseBitmap())
 				)
 			);
 
@@ -145,42 +145,42 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		@DisplayName("Should return all entries when filter matches all owner PKs")
 		void shouldReturnAllEntriesWhenFilterMatchesAll() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
-				List.of(new AffectedFacetGroup(1, 100, new BaseBitmap(10, 20, 30)))
+				List.of(new AffectedReferenceGroup(1, 100, new BaseBitmap(10, 20, 30)))
 			);
 
-			final List<AffectedFacetEntry> entries = collectEntries(
+			final List<AffectedReferenceEntry> entries = collectEntries(
 				resolution.entriesForOwnerPKs(new BaseBitmap(10, 20, 30))
 			);
 
 			assertEquals(3, entries.size());
-			assertEquals(new AffectedFacetEntry(1, 100, 10), entries.get(0));
-			assertEquals(new AffectedFacetEntry(1, 100, 20), entries.get(1));
-			assertEquals(new AffectedFacetEntry(1, 100, 30), entries.get(2));
+			assertEquals(new AffectedReferenceEntry(1, 100, 10), entries.get(0));
+			assertEquals(new AffectedReferenceEntry(1, 100, 20), entries.get(1));
+			assertEquals(new AffectedReferenceEntry(1, 100, 30), entries.get(2));
 		}
 
 		@Test
 		@DisplayName("Should return subset when filter is partial")
 		void shouldReturnSubsetWhenFilterIsPartial() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
-				List.of(new AffectedFacetGroup(1, 100, new BaseBitmap(10, 20, 30)))
+				List.of(new AffectedReferenceGroup(1, 100, new BaseBitmap(10, 20, 30)))
 			);
 
-			final List<AffectedFacetEntry> entries = collectEntries(
+			final List<AffectedReferenceEntry> entries = collectEntries(
 				resolution.entriesForOwnerPKs(new BaseBitmap(20))
 			);
 
 			assertEquals(1, entries.size());
-			assertEquals(new AffectedFacetEntry(1, 100, 20), entries.get(0));
+			assertEquals(new AffectedReferenceEntry(1, 100, 20), entries.get(0));
 		}
 
 		@Test
 		@DisplayName("Should return empty when filter has no overlap")
 		void shouldReturnEmptyWhenFilterHasNoOverlap() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
-				List.of(new AffectedFacetGroup(1, 100, new BaseBitmap(10, 20)))
+				List.of(new AffectedReferenceGroup(1, 100, new BaseBitmap(10, 20)))
 			);
 
-			final List<AffectedFacetEntry> entries = collectEntries(
+			final List<AffectedReferenceEntry> entries = collectEntries(
 				resolution.entriesForOwnerPKs(new BaseBitmap(99, 100))
 			);
 
@@ -190,7 +190,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Should return empty for EMPTY resolution")
 		void shouldReturnEmptyForEmptyResolution() {
-			final List<AffectedFacetEntry> entries = collectEntries(
+			final List<AffectedReferenceEntry> entries = collectEntries(
 				AffectedEntityResolution.EMPTY.entriesForOwnerPKs(new BaseBitmap(1, 2, 3))
 			);
 
@@ -201,10 +201,10 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		@DisplayName("Should return empty when filter bitmap is empty")
 		void shouldReturnEmptyWhenFilterBitmapIsEmpty() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
-				List.of(new AffectedFacetGroup(1, 100, new BaseBitmap(10, 20)))
+				List.of(new AffectedReferenceGroup(1, 100, new BaseBitmap(10, 20)))
 			);
 
-			final List<AffectedFacetEntry> entries = collectEntries(
+			final List<AffectedReferenceEntry> entries = collectEntries(
 				resolution.entriesForOwnerPKs(new BaseBitmap())
 			);
 
@@ -216,19 +216,19 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		void shouldFanOutAcrossMultipleGroups() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
 				List.of(
-					new AffectedFacetGroup(1, 100, new BaseBitmap(10, 20, 30)),
-					new AffectedFacetGroup(2, 200, new BaseBitmap(20, 40, 50))
+					new AffectedReferenceGroup(1, 100, new BaseBitmap(10, 20, 30)),
+					new AffectedReferenceGroup(2, 200, new BaseBitmap(20, 40, 50))
 				)
 			);
 			// filter matches PK 20 from both groups and PK 40 from second group only
-			final List<AffectedFacetEntry> entries = collectEntries(
+			final List<AffectedReferenceEntry> entries = collectEntries(
 				resolution.entriesForOwnerPKs(new BaseBitmap(20, 40))
 			);
 
 			assertEquals(3, entries.size());
-			assertEquals(new AffectedFacetEntry(1, 100, 20), entries.get(0));
-			assertEquals(new AffectedFacetEntry(2, 200, 20), entries.get(1));
-			assertEquals(new AffectedFacetEntry(2, 200, 40), entries.get(2));
+			assertEquals(new AffectedReferenceEntry(1, 100, 20), entries.get(0));
+			assertEquals(new AffectedReferenceEntry(2, 200, 20), entries.get(1));
+			assertEquals(new AffectedReferenceEntry(2, 200, 40), entries.get(2));
 		}
 
 		/**
@@ -239,10 +239,10 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		@DisplayName("Should throw NoSuchElementException when next() called on exhausted iterator")
 		void shouldThrowNoSuchElementExceptionOnExhaustedIterator() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
-				List.of(new AffectedFacetGroup(1, 100, new BaseBitmap(10)))
+				List.of(new AffectedReferenceGroup(1, 100, new BaseBitmap(10)))
 			);
 
-			final Iterator<AffectedFacetEntry> iterator =
+			final Iterator<AffectedReferenceEntry> iterator =
 				resolution.entriesForOwnerPKs(new BaseBitmap(10)).iterator();
 
 			// drain the single entry
@@ -259,24 +259,24 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 		void shouldPreserveFieldsInEntries() {
 			final AffectedEntityResolution resolution = new AffectedEntityResolution(
 				List.of(
-					new AffectedFacetGroup(42, null, new BaseBitmap(7)),
-					new AffectedFacetGroup(99, 500, new BaseBitmap(7))
+					new AffectedReferenceGroup(42, null, new BaseBitmap(7)),
+					new AffectedReferenceGroup(99, 500, new BaseBitmap(7))
 				)
 			);
 
-			final List<AffectedFacetEntry> entries = collectEntries(
+			final List<AffectedReferenceEntry> entries = collectEntries(
 				resolution.entriesForOwnerPKs(new BaseBitmap(7))
 			);
 
 			assertEquals(2, entries.size());
 
-			final AffectedFacetEntry ungrouped = entries.get(0);
-			assertEquals(42, ungrouped.facetPK());
+			final AffectedReferenceEntry ungrouped = entries.get(0);
+			assertEquals(42, ungrouped.referencedEntityPK());
 			assertNull(ungrouped.groupPK(), "Ungrouped facet must have null groupPK");
 			assertEquals(7, ungrouped.ownerPK());
 
-			final AffectedFacetEntry grouped = entries.get(1);
-			assertEquals(99, grouped.facetPK());
+			final AffectedReferenceEntry grouped = entries.get(1);
+			assertEquals(99, grouped.referencedEntityPK());
 			assertEquals(500, grouped.groupPK());
 			assertEquals(7, grouped.ownerPK());
 		}
@@ -289,11 +289,11 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 	 * @return list of all entries yielded by the iterable
 	 */
 	@Nonnull
-	private static List<AffectedFacetEntry> collectEntries(
-		@Nonnull Iterable<AffectedFacetEntry> iterable
+	private static List<AffectedReferenceEntry> collectEntries(
+		@Nonnull Iterable<AffectedReferenceEntry> iterable
 	) {
-		final List<AffectedFacetEntry> result = new ArrayList<>(8);
-		for (AffectedFacetEntry entry : iterable) {
+		final List<AffectedReferenceEntry> result = new ArrayList<>(8);
+		for (AffectedReferenceEntry entry : iterable) {
 			result.add(entry);
 		}
 		return result;

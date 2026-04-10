@@ -305,7 +305,9 @@ public class SetReferenceSchemaIndexedMutation
 					mergedScopes,
 					mergedComponents,
 					createMutation.getFacetedInScopes(),
-					createMutation.getFacetedPartiallyInScopes()
+					createMutation.getFacetedPartiallyInScopes(),
+					createMutation.getBucketedInScopes(),
+					createMutation.getBucketedPartiallyInScopes()
 				)
 			);
 		} else {
@@ -413,6 +415,8 @@ public class SetReferenceSchemaIndexedMutation
 					indexedComponents,
 					referenceSchema.getFacetedInScopes(),
 					referenceSchema.getFacetedPartiallyInScopes(),
+					referenceSchema.getAllHistogramIndexDefinitions(),
+					referenceSchema.getBucketedPartiallyInScopes(),
 					referenceSchema.getAttributes(),
 					referenceSchema.getSortableAttributeCompounds()
 				);

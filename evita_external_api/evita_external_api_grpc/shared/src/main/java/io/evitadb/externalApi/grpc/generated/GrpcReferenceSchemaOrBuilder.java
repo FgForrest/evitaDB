@@ -1051,4 +1051,92 @@ io.evitadb.externalApi.grpc.generated.GrpcSortableAttributeCompoundSchema defaul
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketed = 32;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> 
+      getBucketedList();
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketed = 32;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition getBucketed(int index);
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketed = 32;</code>
+   */
+  int getBucketedCount();
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketed = 32;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> 
+      getBucketedOrBuilderList();
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketed = 32;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder getBucketedOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartially = 33;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> 
+      getBucketedPartiallyList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartially = 33;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially getBucketedPartially(int index);
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartially = 33;</code>
+   */
+  int getBucketedPartiallyCount();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartially = 33;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> 
+      getBucketedPartiallyOrBuilderList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartially = 33;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyOrBuilder(
+      int index);
 }

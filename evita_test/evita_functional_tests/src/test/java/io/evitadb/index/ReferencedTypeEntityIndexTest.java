@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -77,6 +78,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 	private static final int INDEX_PK = 1;
 	private static final String REFERENCE_NAME = "BRAND";
+	private static final String HISTOGRAM_NAME = "priceHistogram";
 
 	@Nonnull
 	@Override
@@ -286,6 +288,68 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			assertTrue(first);
 			assertTrue(second);
+		}
+	}
+
+	/**
+	 * Tests for {@link ReferencedTypeEntityIndex#getAllTrackedReferencedEntityPrimaryKeys()}.
+	 */
+	@Nested
+	@DisplayName("Tracked referenced entity PK lookup")
+	class TrackedReferencedEntityPrimaryKeysTest {
+
+		@Test
+		@DisplayName("should return empty set when no references tracked")
+		void shouldReturnEmptySetWhenNoReferencesTracked() {
+			final Set<Integer> result = ReferencedTypeEntityIndexTest.this.index.getAllTrackedReferencedEntityPrimaryKeys();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("should return all distinct referenced entity PKs")
+		void shouldReturnAllDistinctReferencedEntityPrimaryKeys() {
+			// index PK 10 -> referenced entities 1, 2
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 2);
+			// index PK 20 -> referenced entity 2 (overlap with 10)
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 2);
+			// index PK 30 -> referenced entity 3
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(30, 3);
+
+			final Set<Integer> result = ReferencedTypeEntityIndexTest.this.index.getAllTrackedReferencedEntityPrimaryKeys();
+
+			assertEquals(3, result.size());
+			assertTrue(result.contains(1));
+			assertTrue(result.contains(2));
+			assertTrue(result.contains(3));
+		}
+
+		@Test
+		@DisplayName("should remove referenced entity PK when all references to it are removed")
+		void shouldRemoveReferencedEntityPkWhenAllReferencesRemoved() {
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 1);
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(30, 2);
+
+			ReferencedTypeEntityIndexTest.this.index.removePrimaryKey(10, 1);
+			ReferencedTypeEntityIndexTest.this.index.removePrimaryKey(20, 1);
+
+			final Set<Integer> result = ReferencedTypeEntityIndexTest.this.index.getAllTrackedReferencedEntityPrimaryKeys();
+			assertEquals(1, result.size());
+			assertTrue(result.contains(2));
+			assertFalse(result.contains(1));
+		}
+
+		@Test
+		@DisplayName("should return unmodifiable set")
+		void shouldReturnUnmodifiableSet() {
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+
+			final Set<Integer> result = ReferencedTypeEntityIndexTest.this.index.getAllTrackedReferencedEntityPrimaryKeys();
+
+			assertThrows(UnsupportedOperationException.class, () -> result.add(999));
 		}
 	}
 
@@ -1123,6 +1187,55 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 				copy.put(entry.getKey(), new HashSet<>(entry.getValue()));
 			}
 			return copy;
+		}
+	}
+
+	/**
+	 * Thin delegation test verifying that RTEI convenience methods correctly delegate to
+	 * {@link HistogramIndex}. Full histogram transactional lifecycle is tested in
+	 * {@link HistogramIndexTest}.
+	 */
+	@Nested
+	@DisplayName("Histogram delegation")
+	class HistogramDelegationTest {
+
+		@Test
+		@DisplayName("should delegate histogram insert and retrieval to HistogramIndex")
+		void shouldDelegateHistogramInsertAndRetrieval() {
+			assertStateAfterCommit(
+				ReferencedTypeEntityIndexTest.this.index,
+				original -> {
+					original.insertPrimaryKeyIfMissing(10, 1);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class);
+
+					final FilterIndex filter = original.getHistogramFilterIndex(HISTOGRAM_NAME, null);
+					assertNotNull(filter, "Filter index should be accessible via convenience method");
+					assertTrue(filter.getRecordsEqualTo(42).contains(10));
+				},
+				(original, committed) -> {
+					assertNotNull(committed, "Committed copy must not be null");
+					assertNotNull(
+						committed.getHistogramFilterIndex(HISTOGRAM_NAME, null),
+						"Committed copy should have histogram data"
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should report non-empty when only histogram data exists")
+		void shouldReportNonEmptyWhenOnlyHistogramDataExists() {
+			assertStateAfterCommit(
+				ReferencedTypeEntityIndexTest.this.index,
+				original -> {
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 99, 10, Integer.class);
+					assertFalse(original.isEmpty(), "Index with histogram data should not be empty");
+				},
+				(original, committed) -> {
+					assertNotNull(committed, "Committed copy must not be null");
+					assertFalse(committed.isEmpty(), "Committed index with histogram data should not be empty");
+				}
+			);
 		}
 	}
 

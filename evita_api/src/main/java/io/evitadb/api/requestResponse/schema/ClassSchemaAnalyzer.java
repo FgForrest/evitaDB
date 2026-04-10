@@ -1164,6 +1164,7 @@ public class ClassSchemaAnalyzer {
 			}
 
 			final ScopeReferenceSettings[] scopedDefinition = reference.scope();
+			final Histogram bucketedProperty = reference.bucketed();
 			if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 				// indexed - only set if index type differs in default scope
 				applyReferenceIndexType(
@@ -1180,6 +1181,20 @@ public class ClassSchemaAnalyzer {
 				final String facetedPartiallyExpr = reference.facetedPartially().value();
 				if (!facetedPartiallyExpr.isEmpty()) {
 					editor.facetedPartially(ExpressionFactory.parse(facetedPartiallyExpr));
+				}
+				// bucketed - set if nameOfTheIndex or value expression is non-empty
+				final String bucketedIndexName = bucketedProperty.nameOfTheIndex();
+				final String bucketedValueExpr = bucketedProperty.value().value();
+				if (!bucketedIndexName.isEmpty() || !bucketedValueExpr.isEmpty()) {
+					editor.bucketed(
+						bucketedIndexName,
+						bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr)
+					);
+				}
+				// bucketedPartially - set if expression is non-empty
+				final String bucketedPartiallyExpr = reference.bucketedPartially().value();
+				if (!bucketedPartiallyExpr.isEmpty()) {
+					editor.bucketedPartially(ExpressionFactory.parse(bucketedPartiallyExpr));
 				}
 			} else {
 				Assert.isTrue(
@@ -1220,6 +1235,44 @@ public class ClassSchemaAnalyzer {
 					final String scopeExprValue = scopeSettings.facetedPartially().value();
 					if (!scopeExprValue.isEmpty()) {
 						editor.facetedPartiallyInScope(
+							scopeSettings.scope(),
+							ExpressionFactory.parse(scopeExprValue)
+						);
+					}
+				}
+
+				Assert.isTrue(
+					bucketedProperty.nameOfTheIndex().isEmpty() &&
+						bucketedProperty.value().value().isEmpty(),
+					"When `scope` is defined in `@Reference` annotation, " +
+						"the value of `bucketed` property is not taken into an account " +
+						"(and thus it doesn't make sense to set it)!"
+				);
+				Assert.isTrue(
+					reference.bucketedPartially().value().isEmpty(),
+					"When `scope` is defined in `@Reference` annotation, " +
+						"the value of `bucketedPartially` property is not taken into an account " +
+						"(and thus it doesn't make sense to set it)!"
+				);
+				// per-scope bucketed - set histogram config for each scope where defined
+				for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
+					final String scopeBucketedIndex = scopeSettings.bucketed().nameOfTheIndex();
+					final String scopeBucketedValue = scopeSettings.bucketed().value().value();
+					if (!scopeBucketedIndex.isEmpty() || !scopeBucketedValue.isEmpty()) {
+						editor.bucketedInScope(
+							scopeSettings.scope(),
+							scopeBucketedIndex,
+							scopeBucketedValue.isEmpty()
+								? null
+								: ExpressionFactory.parse(scopeBucketedValue)
+						);
+					}
+				}
+				// per-scope bucketedPartially - set expression for each scope where defined
+				for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
+					final String scopeExprValue = scopeSettings.bucketedPartially().value();
+					if (!scopeExprValue.isEmpty()) {
+						editor.bucketedPartiallyInScope(
 							scopeSettings.scope(),
 							ExpressionFactory.parse(scopeExprValue)
 						);

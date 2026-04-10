@@ -128,6 +128,28 @@ public class EntityContractAccessor implements ObjectPropertyAccessor {
 	}
 
 	/**
+	 * Checks whether the given property name refers to an attributes accessor
+	 * (`attributes` or `localizedAttributes`).
+	 *
+	 * @param propertyName the property name to check
+	 * @return `true` if the name matches {@link #ATTRIBUTES_PROPERTY} or {@link #LOCALIZED_ATTRIBUTES_PROPERTY}
+	 */
+	public static boolean isAttributesProperty(@Nonnull String propertyName) {
+		return ATTRIBUTES_PROPERTY.equals(propertyName)
+			|| LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
+	}
+
+	/**
+	 * Checks whether the given property name refers to a localized attributes accessor.
+	 *
+	 * @param propertyName the property name to check
+	 * @return `true` if the name matches {@link #LOCALIZED_ATTRIBUTES_PROPERTY}
+	 */
+	public static boolean isLocalizedAttributesProperty(@Nonnull String propertyName) {
+		return LOCALIZED_ATTRIBUTES_PROPERTY.equals(propertyName);
+	}
+
+	/**
 	 * Converts a set of {@link Locale} instances to an {@link ArrayList} of language tag strings.
 	 */
 	@Nonnull

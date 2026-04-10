@@ -180,6 +180,32 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS))
 		.build();
 
+	PropertyDescriptor BUCKETED = PropertyDescriptor.builder()
+		.name("bucketed")
+		.description("""
+			Contains per-scope bucketed histogram configuration for this reference. Each entry
+			associates a scope with a histogram index name and an optional value expression.
+			The presence of a scope key means the reference is bucketed in that scope.
+
+			Returns array of scopes and their corresponding bucketed histogram configurations.
+			""")
+		.type(nonNullListRef(ScopedHistogramIndexDefinitionDescriptor.THIS))
+		.build();
+
+	PropertyDescriptor BUCKETED_PARTIALLY = PropertyDescriptor.builder()
+		.name("bucketedPartially")
+		.description("""
+			Contains per-scope expressions that narrow which entities participate in bucketed
+			histogram computation. Only meaningful for scopes where the reference is bucketed.
+			Each entry associates a scope with a boolean expression evaluated against the entity
+			data. Only entities for which the expression evaluates to true will participate in
+			histogram computation for the given scope.
+
+			Returns array of scopes and their corresponding partial-bucketing expressions.
+			""")
+		.type(nullableListRef(ScopedBucketedPartiallyDescriptor.THIS))
+		.build();
+
 	PropertyDescriptor ATTRIBUTES = PropertyDescriptor.builder()
 		.name("attributes")
 		.description("""
@@ -230,6 +256,8 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			INDEXED_COMPONENTS,
 			FACETED,
 			FACETED_PARTIALLY,
+			BUCKETED,
+			BUCKETED_PARTIALLY,
 			ENTITY_TYPE_NAME_VARIANTS,
 			GROUP_TYPE_NAME_VARIANTS
 		))
@@ -272,6 +300,8 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 			INDEXED_COMPONENTS,
 			FACETED,
 			FACETED_PARTIALLY,
+			BUCKETED,
+			BUCKETED_PARTIALLY,
 			ALL_ATTRIBUTES,
 			ALL_SORTABLE_ATTRIBUTE_COMPOUNDS
 		))

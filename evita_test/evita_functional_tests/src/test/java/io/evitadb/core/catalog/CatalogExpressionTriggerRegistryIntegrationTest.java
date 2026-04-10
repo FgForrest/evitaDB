@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
-import io.evitadb.index.mutation.DependencyType;
-import io.evitadb.index.mutation.ExpressionIndexTrigger;
+import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.AfterEach;
@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * schema changes, and cleaned on entity collection removal.
  *
  * These tests use real {@link Evita} instances with disk storage to exercise the full lifecycle,
- * complementing the isolated unit tests in {@link CatalogExpressionTriggerRegistryImplTest}.
+ * complementing the isolated unit tests in {@link DefaultCatalogExpressionTriggerRegistryTest}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

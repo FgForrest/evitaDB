@@ -37,6 +37,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -50,8 +51,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static java.util.Optional.ofNullable;
@@ -203,6 +206,21 @@ public class ReferenceTypeCardinalityIndex
 	 */
 	public boolean isEmpty() {
 		return this.cardinalities.isEmpty();
+	}
+
+	/**
+	 * Returns an unmodifiable view of all referenced entity primary keys tracked by this index. For a
+	 * `REFERENCED_GROUP_ENTITY_TYPE` index these are the group entity PKs; for a `REFERENCED_ENTITY_TYPE`
+	 * index these are the referenced (facet) entity PKs.
+	 *
+	 * Used by ReevaluateExpressionExecutor to iterate all groups when resolving group PKs for
+	 * {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} dependencies on grouped references.
+	 *
+	 * @return unmodifiable set of all tracked referenced entity primary keys
+	 */
+	@Nonnull
+	public Set<Integer> getAllTrackedReferencedEntityPrimaryKeys() {
+		return Collections.unmodifiableSet(this.referencedPrimaryKeysIndex.keySet());
 	}
 
 	/**
