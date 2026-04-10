@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges entityCollectionChanges = 6;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChangesOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChangesOrBuilder> 
       getEntityCollectionChangesOrBuilderList() {
     return entityCollectionChanges_;
   }
@@ -542,7 +542,7 @@ private static final long serialVersionUID = 0L;
             entityCollectionChangesBuilder_ = null;
             entityCollectionChanges_ = other.entityCollectionChanges_;
             bitField0_ = (bitField0_ & ~0x00000008);
-            entityCollectionChangesBuilder_ =
+            entityCollectionChangesBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getEntityCollectionChangesFieldBuilder() : null;
           } else {
@@ -1008,7 +1008,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges entityCollectionChanges = 6;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChangesOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChangesOrBuilder> 
          getEntityCollectionChangesOrBuilderList() {
       if (entityCollectionChangesBuilder_ != null) {
         return entityCollectionChangesBuilder_.getMessageOrBuilderList();
@@ -1046,12 +1046,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges entityCollectionChanges = 6;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges.Builder> 
          getEntityCollectionChangesBuilderList() {
       return getEntityCollectionChangesFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChangesOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChanges.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionChangesOrBuilder> 
         getEntityCollectionChangesFieldBuilder() {
       if (entityCollectionChangesBuilder_ == null) {
         entityCollectionChangesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

@@ -114,7 +114,7 @@ public class RestManager {
 
 		// listen to any evita catalog changes
 		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(
-			this.evita.getEngineState().startVersion() + 1, // we need all changes since the evitaDB start before the GQL API was initialized to accept changes
+			this.evita.getExpandedEngineState().startVersion() + 1, // we need all changes since the evitaDB start before the GQL API was initialized to accept changes
 			null,
 			ChangeCaptureContent.BODY
 		))

@@ -456,13 +456,13 @@ public final class Evita implements EvitaContract {
 	@Override
 	@Nonnull
 	public Set<String> getCatalogNames() {
-		return this.getEngineState().catalogs().keySet();
+		return this.getExpandedEngineState().catalogs().keySet();
 	}
 
 	@Nonnull
 	@Override
 	public Optional<CatalogState> getCatalogState(@Nonnull String catalogName) {
-		return this.getEngineState().getCatalog(catalogName)
+		return this.getExpandedEngineState().getCatalog(catalogName)
 			.map(CatalogContract::getCatalogState);
 	}
 
@@ -550,7 +550,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	public Optional<Progress<Void>> deleteCatalogIfExistsWithProgress(@Nonnull String catalogName) {
 		assertActive();
-		return this.getEngineState().getCatalog(catalogName)
+		return this.getExpandedEngineState().getCatalog(catalogName)
 			.map(__ -> applyMutation(new RemoveCatalogSchemaMutation(catalogName)));
 	}
 
@@ -618,7 +618,7 @@ public final class Evita implements EvitaContract {
 		if (this.readOnly && flags != null && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw ReadOnlyException.engineReadOnly();
 		}
-		if (this.getEngineState().isReadOnly(catalogName)) {
+		if (this.getExpandedEngineState().isReadOnly(catalogName)) {
 			throw ReadOnlyException.catalogReadOnly(catalogName);
 		}
 		final SessionTraits traits = new SessionTraits(
@@ -660,7 +660,7 @@ public final class Evita implements EvitaContract {
 		if (this.readOnly && flags != null && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw ReadOnlyException.engineReadOnly();
 		}
-		if (this.getEngineState().isReadOnly(catalogName)) {
+		if (this.getExpandedEngineState().isReadOnly(catalogName)) {
 			throw ReadOnlyException.catalogReadOnly(catalogName);
 		}
 		final SessionTraits traits = new SessionTraits(
@@ -808,7 +808,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Collection<CatalogContract> getCatalogs() {
-		return this.getEngineState().getCatalogCollection();
+		return this.getExpandedEngineState().getCatalogCollection();
 	}
 
 	/**
@@ -893,7 +893,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	public Optional<CatalogContract> getCatalogInstance(@Nonnull String catalog) {
-		return this.getEngineState().getCatalog(catalog);
+		return this.getExpandedEngineState().getCatalog(catalog);
 	}
 
 	/**
@@ -920,13 +920,22 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Retrieves the current state of the Evita engine. The engine state represents
-	 * the operational condition or status of the Evita instance at the moment of invocation.
+	 * Retrieves the expanded runtime view of the engine state.
 	 *
-	 * @return the current {@link EngineState} of the Evita instance
+	 * The {@link ExpandedEngineState} combines:
+	 *
+	 * - the persisted {@link EngineState} snapshot (containing only catalog names, version, and WAL reference)
+	 * - the in-memory map of actual {@link CatalogContract} instances ready for immediate use
+	 *
+	 * This separation allows the engine to persist a minimal, serializable snapshot while providing
+	 * fast access to live catalog objects when executing operations. Use this method when you need
+	 * to access catalog instances or query the current topology of the engine.
+	 *
+	 * @return the current {@link ExpandedEngineState} with live catalog references
+	 * @see EngineState for the underlying persistable form
 	 */
 	@Nonnull
-	public ExpandedEngineState getEngineState() {
+	public ExpandedEngineState getExpandedEngineState() {
 		return this.engineState.get();
 	}
 
@@ -1095,6 +1104,17 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
+	 * TODO JNO - Implement
+	 * @param bytes
+	 * @param crc32
+	 * @return
+	 */
+	@Nonnull
+	public CompletionStage<EngineState<LogRecordReference>> applyWAL(@Nonnull byte[] bytes, long crc32) {
+		return CompletableFuture.failedFuture(new UnsupportedOperationException("TODO JNO - Implement"));
+	}
+
+	/**
 	 * Retrieves a catalog by its name from the engine state.
 	 *
 	 * @param catalogName the name of the catalog to be retrieved; must not be null
@@ -1105,7 +1125,7 @@ public final class Evita implements EvitaContract {
 	 */
 	@Nonnull
 	private Catalog getCatalogByName(@Nonnull String catalogName) {
-		return this.getEngineState()
+		return this.getExpandedEngineState()
 			.getCatalog(catalogName)
 			.map(it -> {
 				if (it instanceof Catalog catalog) {
@@ -1126,7 +1146,7 @@ public final class Evita implements EvitaContract {
 		notNull(catalog, "Sanity check.");
 
 		// replace catalog reference in the engine state
-		getEngineState().replaceCatalogReference(catalog);
+		getExpandedEngineState().replaceCatalogReference(catalog);
 
 		// discard suspension of the session registry for the catalog, if present
 		this.sessionRegistry.discardSuspension(catalog.getName());
@@ -1149,7 +1169,7 @@ public final class Evita implements EvitaContract {
 
 				final Catalog catalog = sessionRegistry.getCatalog();
 				final String catalogName = catalog.getName();
-				if (this.getEngineState().isReadOnly(catalogName)) {
+				if (this.getExpandedEngineState().isReadOnly(catalogName)) {
 					isTrue(
 						!sessionTraits.isReadWrite() || sessionTraits.isDryRun(),
 						() -> ReadOnlyException.catalogReadOnly(catalogName)
@@ -1209,7 +1229,7 @@ public final class Evita implements EvitaContract {
 				public void run() {
 					try {
 						if (Evita.this.isActive()) {
-							final ExpandedEngineState theEngineState = Evita.this.getEngineState();
+							final ExpandedEngineState theEngineState = Evita.this.getExpandedEngineState();
 							// in very rare race conditions the engine state may be null here
 							// (if evita is closed already)
 							// noinspection ConstantValue

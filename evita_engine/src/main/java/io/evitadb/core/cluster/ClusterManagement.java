@@ -24,6 +24,8 @@
 package io.evitadb.core.cluster;
 
 import io.evitadb.api.configuration.ClusterOptions;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.core.Evita;
 import io.evitadb.core.exception.ClusterEnvironmentNotFoundException;
 import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.core.executor.Scheduler;
@@ -37,6 +39,12 @@ import io.evitadb.spi.cluster.model.ReplicaClusterState;
 import io.evitadb.spi.cluster.model.ViewState;
 import io.evitadb.spi.cluster.protocol.recovery.RecoveryRequest;
 import io.evitadb.spi.cluster.protocol.recovery.RecoveryResponse;
+import io.evitadb.spi.cluster.protocol.stateTransfer.GetEngineSnapshotRequest;
+import io.evitadb.spi.cluster.protocol.stateTransfer.GetEngineSnapshotResponse;
+import io.evitadb.spi.cluster.protocol.stateTransfer.GetEngineStateRequest;
+import io.evitadb.spi.cluster.protocol.stateTransfer.GetEngineStateResponse;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +61,7 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -82,12 +91,23 @@ import java.util.function.Supplier;
 public class ClusterManagement implements AutoCloseable {
 	private static final Duration RECONCILIATION_TIMEOUT = Duration.ofMinutes(1);
 	private static final Duration RECONCILIATION_RETRY_DELAY = Duration.ofSeconds(1);
+	/**
+	 * Maximum number of WAL entries fetched from the primary in a single `getEngineState` RPC call during
+	 * catch-up synchronization. Keeping this bounded prevents arbitrarily large RPC payloads and allows the
+	 * `onProgress` callback to be invoked between pages, which resets the reconciliation deadline timer.
+	 */
+	private static final int WAL_SYNC_PAGE_SIZE = 1000;
 	@Nonnull
 	private final ViewStampedReplicationService viewStampedReplicationService;
 	@Nonnull
 	private final AtomicReference<ReplicaClusterState> replicaState;
 	private final ScheduledTask clusterReconciliationTask;
-	private final Scheduler scheduler;
+	/**
+	 * Reference to the owning evitaDB engine instance. Used to access the current expanded engine state
+	 * (including WAL reference and version), to apply incoming WAL batches during catch-up, and to obtain
+	 * the service executor for scheduling asynchronous work.
+	 */
+	private final Evita evita;
 
 	/**
 	 * Initializes the {@link EnvironmentService} based on the provided {@link ClusterOptions}.
@@ -189,7 +209,7 @@ public class ClusterManagement implements AutoCloseable {
 	 */
 	public ClusterManagement(
 		@Nonnull ClusterOptions clusterOptions,
-		@Nonnull Scheduler scheduler,
+		@Nonnull Evita evita,
 		long initialEpoch,
 		long initialViewNumber
 	) {
@@ -209,13 +229,13 @@ public class ClusterManagement implements AutoCloseable {
 		this.clusterReconciliationTask = new ScheduledTask(
 			null,
 			"replicaInitialization",
-			scheduler,
+			evita.getServiceExecutor(),
 			() -> initializeReplicaState(initialReplicaState, initialEnvironment),
 			RECONCILIATION_RETRY_DELAY.toSeconds(),
 			TimeUnit.SECONDS
 		);
 		this.clusterReconciliationTask.scheduleImmediately();
-		this.scheduler = scheduler;
+		this.evita = evita;
 
 		log.info(
 			"Cluster management initialized for replica {} with {} cluster members. " +
@@ -324,7 +344,7 @@ public class ClusterManagement implements AutoCloseable {
 				() -> lastProgressTimestamp.set(OffsetDateTime.now())
 			);
 			final ReconciliationDeadlineTask cancellationTask = new ReconciliationDeadlineTask(
-				this.scheduler,
+				this.evita.getServiceExecutor(),
 				lastProgressTimestamp,
 				replicaStateCompletableFuture,
 				initialEnvironment.selfIndex()
@@ -507,6 +527,26 @@ public class ClusterManagement implements AutoCloseable {
 			.thenCompose(Function.identity());
 	}
 
+	/**
+	 * Reconciles the local replica's engine and catalog state against the primary, completing the startup
+	 * recovery handshake.
+	 *
+	 * This method is called after a quorum decision has been reached during cluster reconciliation. It is
+	 * expected to apply any missing WAL records or transfer snapshots as needed so that the local state
+	 * matches the primary, and then return the resulting {@link ReplicaClusterState} in `NORMAL` view
+	 * state. The recovery responses from other peers (excluding the primary and self) are available via
+	 * `recoveryResponseSupplier` to assist with state selection when the primary alone cannot satisfy the
+	 * required data.
+	 *
+	 * @param initialReplicaState the local replica's initial state at the start of reconciliation
+	 * @param primaryReplicaState the quorum-selected primary replica's current state
+	 * @param recoveryResponseSupplier provides the recovery responses already collected from other peers
+	 *                                 (excluding primary and self) at the time of invocation
+	 * @param onProgress              callback invoked whenever meaningful progress is made; resets the
+	 *                                reconciliation deadline timer
+	 * @return a `CompletableFuture` that completes with the updated local {@link ReplicaClusterState}
+	 *         after the replica has caught up with the primary
+	 */
 	@Nonnull
 	private CompletableFuture<ReplicaClusterState> updateLocalState(
 		@Nonnull ReplicaClusterState initialReplicaState,
@@ -515,6 +555,98 @@ public class ClusterManagement implements AutoCloseable {
 		@Nonnull Runnable onProgress
 	) {
 		return CompletableFuture.failedFuture(new UnsupportedOperationException("Not implemented yet!"));
+	}
+
+	/**
+	 * Updates the local engine state to match the primary replica, using the most efficient strategy available.
+	 *
+	 * Two strategies are attempted in order:
+	 *
+	 * 1. **WAL catch-up (incremental):** when the local replica already has an engine WAL reference, missing WAL
+	 *    entries are fetched from the primary in pages of up to {@link #WAL_SYNC_PAGE_SIZE} entries per RPC call.
+	 *    Each page is applied sequentially via `applyWAL` and `onProgress` is invoked between pages. The returned
+	 *    `CompletionStage` completes only after all pages have been fetched and applied in sequence.
+	 *
+	 * 2. **Snapshot fallback:** triggered in two situations — when the local replica has no WAL reference at all
+	 *    (cold bootstrap), or when a {@link io.evitadb.api.exception.TemporalDataNotAvailableException} is thrown
+	 *    during WAL catch-up because the requested entries have already been rotated out of the primary's WAL.
+	 *    In this case the full engine state is retrieved as a single snapshot via `getEngineSnapshot`.
+	 *
+	 * @param initialReplicaState identity and configuration of the local replica
+	 * @param primaryReplicaState current state of the primary, used as the synchronization target
+	 * @param onProgress          callback invoked after each WAL page is applied; resets the reconciliation
+	 *                            deadline timer so long catch-ups are not prematurely cancelled
+	 * @return a `CompletionStage` that completes with the fully synchronized local {@link EngineState}
+	 */
+	@Nonnull
+	private CompletionStage<EngineState<LogRecordReference>> updateEngineState(
+		@Nonnull ReplicaClusterState initialReplicaState,
+		@Nonnull ReplicaState primaryReplicaState,
+		@Nonnull Runnable onProgress
+	) {
+		onProgress.run();
+		if (this.evita.getExpandedEngineState().engineState().walReference() == null) {
+			// bootstrap from primary, we have no local engine state history
+			return this.viewStampedReplicationService.getEngineSnapshot(
+				new GetEngineSnapshotRequest(
+					initialReplicaState.replicaNumber(),
+					primaryReplicaState.replicaNumber(),
+					primaryReplicaState.epoch(),
+					primaryReplicaState.viewNumber()
+				)
+			).thenApply(GetEngineSnapshotResponse::engineState);
+		} else {
+			// try to fetch missing WAL records from primary
+			try {
+				CompletionStage<EngineState<LogRecordReference>> localEngineState = CompletableFuture.completedFuture(
+					this.evita.getExpandedEngineState().engineState()
+				);
+				long replicaEngineVersion = this.evita.getExpandedEngineState().engineState().version();
+				do {
+					final GetEngineStateResponse engineStateResponse = this.viewStampedReplicationService.getEngineState(
+						new GetEngineStateRequest(
+							initialReplicaState.replicaNumber(),
+							primaryReplicaState.replicaNumber(),
+							0L, // TODO JNO - determine from local WAL
+							primaryReplicaState.epoch(),
+							primaryReplicaState.viewNumber(),
+							replicaEngineVersion + 1,
+							Math.min(
+								WAL_SYNC_PAGE_SIZE,
+								Math.toIntExact(primaryReplicaState.engineVersion() - replicaEngineVersion)
+							)
+						)
+					).toCompletableFuture().join();
+
+					// apply received WAL records
+					onProgress.run();
+					replicaEngineVersion += engineStateResponse.versionCount();
+					// chain the application of WAL records sequentially
+					localEngineState = localEngineState
+						.thenApply(
+							__ -> this.evita.applyWAL(
+								engineStateResponse.writeAheadLog(),
+								engineStateResponse.crc32()
+							)
+					).thenCompose(Function.identity());
+				} while (replicaEngineVersion < primaryReplicaState.engineVersion());
+
+				// return the fully updated local engine state
+				return localEngineState;
+
+			} catch (TemporalDataNotAvailableException ex) {
+				// fall back to getting snapshot without WAL if WAL has already rotated away
+				onProgress.run();
+				return this.viewStampedReplicationService.getEngineSnapshot(
+					new GetEngineSnapshotRequest(
+						initialReplicaState.replicaNumber(),
+						primaryReplicaState.replicaNumber(),
+						primaryReplicaState.epoch(),
+						primaryReplicaState.viewNumber()
+					)
+				).thenApply(GetEngineSnapshotResponse::engineState);
+			}
+		}
 	}
 
 	/**

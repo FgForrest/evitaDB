@@ -196,7 +196,7 @@ public class EngineTransactionManager implements Closeable {
 		this.engineExecutor = new SystemObservableExecutorService("engineExecutor", executor);
 		this.enginePersistenceService = enginePersistenceService;
 		this.engineMutationWaitIntervalInMillis = this.evita.getConfiguration().server().transactionTimeoutInMilliseconds();
-		final ExpandedEngineState engineState = this.evita.getEngineState();
+		final ExpandedEngineState engineState = this.evita.getExpandedEngineState();
 		truncateWalFile(engineState);
 		this.lastStoredEngineStateVersion = engineState.version();
 	}
@@ -443,7 +443,7 @@ public class EngineTransactionManager implements Closeable {
 		try {
 			this.evita.setNextEngineState(
 				engineStateUpdater.apply(
-					this.lastStoredEngineStateVersion + 1, this.evita.getEngineState()
+					this.lastStoredEngineStateVersion + 1, this.evita.getExpandedEngineState()
 				)
 			);
 		} finally {
@@ -475,7 +475,7 @@ public class EngineTransactionManager implements Closeable {
 			this.changeObserver.processMutation(engineMutation);
 
 			// create new engine state with the incremented version, and store it in the persistence service
-			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getEngineState());
+			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getExpandedEngineState());
 			final EngineState theEngineState = nextEngineState.engineState(
 				txMutationWithWalReference.walReference(),
 				nextStateVersion

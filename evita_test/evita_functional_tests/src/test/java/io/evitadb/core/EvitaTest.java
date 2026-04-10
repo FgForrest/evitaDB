@@ -291,7 +291,7 @@ class EvitaTest implements EvitaTestSupport {
 	@DisplayName("Late subscribers with fixed initial version")
 	void shouldNotifyLateSubscribersWithFixedInitialVersion() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(this.evita.getEngineState().version(), null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(this.evita.getExpandedEngineState().version(), null, ChangeCaptureContent.BODY)
 		);
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
@@ -4376,7 +4376,7 @@ class EvitaTest implements EvitaTestSupport {
 		final CompletableFuture<FileForFetch> backupPathFuture = management.backupCatalog(
 			TEST_CATALOG, null, null, withWal
 		);
-		final Path backupPath = backupPathFuture.join().path(
+		final Path backupPath = ((FileSystemFileForFetch)backupPathFuture.join()).path(
 			((FileSystemExportOptions) this.evita.getConfiguration().export()).getDirectory()
 		);
 

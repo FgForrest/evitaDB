@@ -125,7 +125,7 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 			SYSTEM_URL,
 			SYSTEM_CHANGE_CAPTURE_URL_PATH,
 			writer -> {
-				final long startVersion = evita.getEngineState().version() + 1;
+				final long startVersion = evita.getExpandedEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
@@ -159,7 +159,7 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 			SYSTEM_URL,
 			SYSTEM_CHANGE_CAPTURE_URL_PATH,
 			writer -> {
-				final long startVersion = evita.getEngineState().version() + 1;
+				final long startVersion = evita.getExpandedEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();

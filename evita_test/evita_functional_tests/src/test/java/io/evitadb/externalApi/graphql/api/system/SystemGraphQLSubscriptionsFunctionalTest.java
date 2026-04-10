@@ -150,7 +150,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 		tester.testWebSocket(
 			SYSTEM_URL,
 			writer -> {
-				final long startVersion = evita.getEngineState().version() + 1;
+				final long startVersion = evita.getExpandedEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
@@ -183,7 +183,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 		tester.testWebSocket(
 			SYSTEM_URL,
 			writer -> {
-				final long startVersion = evita.getEngineState().version() + 1;
+				final long startVersion = evita.getExpandedEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
@@ -216,7 +216,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 		tester.testWebSocket(
 			SYSTEM_URL,
 			writer -> {
-				final long startVersion = evita.getEngineState().version() + 1;
+				final long startVersion = evita.getExpandedEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
@@ -257,7 +257,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 		tester.testWebSocket(
 			SYSTEM_URL,
 			writer -> {
-				final long startVersion = evita.getEngineState().version() + 1;
+				final long startVersion = evita.getExpandedEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();

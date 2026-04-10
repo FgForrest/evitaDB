@@ -162,7 +162,7 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	) {
 		this.evita = evita;
 		this.cdcExecutor = cdcExecutor;
-		final long engineVersion = evita.getEngineState().version();
+		final long engineVersion = evita.getExpandedEngineState().version();
 		this.version = new AtomicLong(engineVersion);
 		this.onNextConsumer = onNextConsumer;
 		// Initialize the ring buffer with the current catalog version

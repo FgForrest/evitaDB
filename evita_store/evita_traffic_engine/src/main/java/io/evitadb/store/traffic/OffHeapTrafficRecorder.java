@@ -46,7 +46,6 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRe
 import io.evitadb.core.executor.ScheduledTask;
 import io.evitadb.api.traffic.LabelIntrospector;
 import io.evitadb.api.traffic.TrafficRecordingReader;
-import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.exception.EvitaInternalError;

@@ -26,8 +26,6 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.refere
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
-import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Comparator;
@@ -35,6 +33,7 @@ import java.util.List;
 
 /**
  * Handy container for holding {@link ReferenceAttributeKey attribute keys}.
+ * TODO LHO - is this class really used anywhere?
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */

@@ -245,7 +245,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 	@DisplayName("capture only new mutations after registration")
 	void shouldRegisterObserverAndObtainOnlyNewMutations(@Nonnull Evita evita) {
 		// Get the current engine version
-		final long currentVersion = evita.getEngineState().version();
+		final long currentVersion = evita.getExpandedEngineState().version();
 
 		// Create a request to capture only new mutations that occur after the current engine version
 		final ChangeSystemCaptureRequest newMutationsRequest = new ChangeSystemCaptureRequest(
@@ -310,7 +310,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 	@DisplayName("unregister an observer correctly")
 	void shouldUnregisterObserverCorrectly(@Nonnull Evita evita) {
 		// Get the current engine version
-		final long currentVersion = evita.getEngineState().version();
+		final long currentVersion = evita.getExpandedEngineState().version();
 
 		// Create a request to capture mutations
 		final ChangeSystemCaptureRequest request = new ChangeSystemCaptureRequest(
@@ -481,7 +481,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 	@DisplayName("handle multiple subscribers with different capture conditions")
 	void shouldHandleMultipleSubscribersWithDifferentCaptureConditions(@Nonnull Evita evita) {
 		// Get the current engine version
-		final long currentVersion = evita.getEngineState().version();
+		final long currentVersion = evita.getExpandedEngineState().version();
 
 		// 1. Subscriber that consumes entire WAL (since version 0)
 		final ChangeSystemCaptureRequest entireWalRequest = new ChangeSystemCaptureRequest(
@@ -592,7 +592,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 
 			// Create a third subscriber that starts from the current version
 			final ChangeSystemCaptureRequest latestMutationsRequest = new ChangeSystemCaptureRequest(
-				evita.getEngineState().version(),
+				evita.getExpandedEngineState().version(),
 				0,
 				ChangeCaptureContent.BODY
 			);

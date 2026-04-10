@@ -45,6 +45,8 @@ import io.evitadb.spi.cluster.protocol.stateTransfer.GetCatalogSnapshotRequest;
 import io.evitadb.spi.cluster.protocol.stateTransfer.GetCatalogSnapshotResponse;
 import io.evitadb.spi.cluster.protocol.stateTransfer.GetCatalogStateRequest;
 import io.evitadb.spi.cluster.protocol.stateTransfer.GetCatalogStateResponse;
+import io.evitadb.spi.cluster.protocol.stateTransfer.GetEngineSnapshotRequest;
+import io.evitadb.spi.cluster.protocol.stateTransfer.GetEngineSnapshotResponse;
 import io.evitadb.spi.cluster.protocol.stateTransfer.GetEngineStateRequest;
 import io.evitadb.spi.cluster.protocol.stateTransfer.GetEngineStateResponse;
 import io.evitadb.spi.cluster.protocol.viewChange.DoViewChangeRequest;
@@ -121,6 +123,24 @@ public interface ViewStampedReplicationService {
 	 */
 	@Nonnull
 	CompletionStage<GetEngineStateResponse> getEngineState(@Nonnull GetEngineStateRequest request);
+
+	/**
+	 * Handles a request for a full engine state snapshot from the target replica.
+	 *
+	 * Returns the complete {@link io.evitadb.spi.store.engine.model.EngineState} in a single response.
+	 * Unlike catalog snapshots — which are transferred in multiple paginated pages via
+	 * {@link #getCatalogSnapshot} and {@link #getCatalogSnapshotPage} — the engine state is small
+	 * enough to be returned in one RPC call.
+	 *
+	 * This is used during recovery when the local replica either has no WAL history (cold bootstrap)
+	 * or when the required WAL entries have been rotated out of the primary's log and incremental
+	 * catch-up via {@link #getEngineState} is no longer possible.
+	 *
+	 * @param request the request identifying the source and target replicas and the current epoch/view
+	 * @return completion stage with response containing the full engine state snapshot
+	 */
+	@Nonnull
+	CompletionStage<GetEngineSnapshotResponse> getEngineSnapshot(@Nonnull GetEngineSnapshotRequest request);
 
 	/**
 	 * Handles a request for incremental catalog state via WAL transfer.

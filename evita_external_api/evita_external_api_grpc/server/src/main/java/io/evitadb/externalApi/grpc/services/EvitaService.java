@@ -26,7 +26,6 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.EvitaContract;
@@ -65,8 +64,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.time.Duration;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -636,7 +633,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 							this.evita.getServiceExecutor(),
 							responseObserver,
 							subscriptionFuture,
-							() -> this.evita.getEngineState().version(),
+							() -> this.evita.getExpandedEngineState().version(),
 							serviceRequestContext
 						)
 					);

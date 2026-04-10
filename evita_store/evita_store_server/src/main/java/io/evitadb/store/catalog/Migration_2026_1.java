@@ -273,7 +273,7 @@ public interface Migration_2026_1 {
 
 		// Phase 1: Backup WAL files (only if export service is available)
 		if (exportService != null) {
-			backupWalFiles(name, storagePath, walFiles, exportService);
+			backupWalFiles(name, walFiles, exportService);
 		}
 
 		// Phase 1 continued: Convert all WAL files
@@ -339,13 +339,11 @@ public interface Migration_2026_1 {
 	 * Creates a backup ZIP of all WAL files before migration.
 	 *
 	 * @param name          descriptive name for the backup file
-	 * @param storagePath   path to the storage directory
 	 * @param walFiles      array of WAL files to back up
 	 * @param exportService export service for creating the backup
 	 */
 	private static void backupWalFiles(
 		@Nonnull String name,
-		@Nonnull Path storagePath,
 		@Nonnull File[] walFiles,
 		@Nonnull ExportService exportService
 	) {
@@ -355,6 +353,7 @@ public interface Migration_2026_1 {
 				backupFileName,
 				"WAL backup before migration from storage protocol version 4 to 5",
 				"application/zip",
+				name,
 				"migration"
 			)
 		) {

@@ -129,7 +129,7 @@ class ServerOptionsTest {
 					.DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS,
 				ServerOptions
 					.DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
-				null, null,
+				null, null, null,
 				false, false, false
 			);
 
@@ -152,7 +152,7 @@ class ServerOptionsTest {
 					.DEFAULT_TRANSACTION_TIMEOUT_IN_MILLISECONDS,
 				ServerOptions
 					.DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
-				null, null,
+				null, null, null,
 				false, false, false
 			);
 

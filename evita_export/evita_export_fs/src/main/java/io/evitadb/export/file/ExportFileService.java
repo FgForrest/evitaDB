@@ -333,97 +333,11 @@ public class ExportFileService implements ExportService {
 		return storeFileInternal(fileName, description, contentType, catalog, origin, true);
 	}
 
-	/**
-	 * Internal method that creates a new export file with optional external management flag.
-	 *
-	 * @param fileName          preferred file name
-	 * @param description       optional human-readable description
-	 * @param contentType       MIME type of the content
-	 * @param catalog           optional catalog name the file relates to
-	 * @param origin            optional origin tag of the file
-	 * @param externallyManaged true if the file should not be automatically purged
-	 * @return handle for writing and publishing the file
-	 */
-	@Nonnull
-	private ExportFileHandleLocal storeFileInternal(
-		@Nonnull String fileName,
-		@Nullable String description,
-		@Nonnull String contentType,
-		@Nullable String catalog,
-		@Nullable String origin,
-		boolean externallyManaged
-	) {
-		final UUID fileId = UUIDUtil.randomUUID();
-		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
-		final Path directory = resolveDirectory(catalog);
-		final Path finalFilePath = directory.resolve(finalFileName);
-		try {
-			if (!this.fsOptions.getDirectory().toFile().exists()) {
-				Assert.isPremiseValid(
-					this.fsOptions.getDirectory().toFile().mkdirs(),
-					() -> new UnexpectedIOException(
-						"Failed to create directory: " + this.fsOptions.getDirectory(),
-						"Failed to create directory."
-					)
-				);
-			}
-			Assert.isPremiseValid(
-				finalFilePath.toFile().createNewFile(),
-				() -> new UnexpectedIOException(
-					"Failed to create file: " + finalFilePath,
-					"Failed to create file."
-				)
-			);
-			final CompletableFuture<FileForFetch> fileForFetchCompletableFuture = new CompletableFuture<>();
-			return new ExportFileHandleLocal(
-				fileId,
-				fileForFetchCompletableFuture,
-				finalFilePath,
-				new WriteMetadataOnCloseOutputStream(
-					finalFilePath,
-					fileForFetchCompletableFuture,
-					(checksum) -> {
-						final FileSystemFileForFetch fileForFetch;
-						try {
-							fileForFetch = new FileSystemFileForFetch(
-								fileId,
-								fileName,
-								description,
-								contentType,
-								Files.size(finalFilePath),
-								this.timeProvider.get(),
-								origin == null ? null : Arrays.stream(origin.split(","))
-									.map(String::trim)
-									.toArray(String[]::new),
-								catalog,
-								checksum,
-								externallyManaged
-							);
-							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
-						} catch (IOException e) {
-							throw new UnexpectedIOException(
-								"Failed to write metadata file: " + e.getMessage(),
-								"Failed to write metadata file."
-							);
-						}
-						// update cache
-						updateCacheSafely(fileForFetch);
-						return fileForFetch;
-					}
-				)
-			);
-		} catch (IOException e) {
-			throw new UnexpectedIOException(
-				"Failed to store file: " + finalFilePath,
-				"Failed to store file.",
-				e
-			);
-		}
-	}
-
 	@Nonnull
 	@Override
-	public InputStream fetchFile(@Nonnull UUID fileId) throws FileForFetchNotFoundException, FileChecksumInvalidException {
+	public InputStream fetchFile(
+		@Nonnull UUID fileId
+	) throws FileForFetchNotFoundException, FileChecksumInvalidException {
 		try {
 			final FileForFetch file = getFile(fileId)
 				.orElseThrow(() -> new FileForFetchNotFoundException(fileId));
@@ -606,6 +520,94 @@ public class ExportFileService implements ExportService {
 	}
 
 	/**
+	 * Internal method that creates a new export file with optional external management flag.
+	 *
+	 * @param fileName          preferred file name
+	 * @param description       optional human-readable description
+	 * @param contentType       MIME type of the content
+	 * @param catalog           optional catalog name the file relates to
+	 * @param origin            optional origin tag of the file
+	 * @param externallyManaged true if the file should not be automatically purged
+	 * @return handle for writing and publishing the file
+	 */
+	@Nonnull
+	private ExportFileHandleLocal storeFileInternal(
+		@Nonnull String fileName,
+		@Nullable String description,
+		@Nonnull String contentType,
+		@Nullable String catalog,
+		@Nullable String origin,
+		boolean externallyManaged
+	) {
+		final UUID fileId = UUIDUtil.randomUUID();
+		final String finalFileName = fileId + FileUtils.getFileExtension(fileName).map(it -> "." + it).orElse("");
+		final Path directory = resolveDirectory(catalog);
+		final Path finalFilePath = directory.resolve(finalFileName);
+		try {
+			if (!this.fsOptions.getDirectory().toFile().exists()) {
+				Assert.isPremiseValid(
+					this.fsOptions.getDirectory().toFile().mkdirs(),
+					() -> new UnexpectedIOException(
+						"Failed to create directory: " + this.fsOptions.getDirectory(),
+						"Failed to create directory."
+					)
+				);
+			}
+			Assert.isPremiseValid(
+				finalFilePath.toFile().createNewFile(),
+				() -> new UnexpectedIOException(
+					"Failed to create file: " + finalFilePath,
+					"Failed to create file."
+				)
+			);
+			final CompletableFuture<FileForFetch> fileForFetchCompletableFuture = new CompletableFuture<>();
+			return new ExportFileHandleLocal(
+				fileId,
+				fileForFetchCompletableFuture,
+				finalFilePath,
+				new WriteMetadataOnCloseOutputStream(
+					finalFilePath,
+					fileForFetchCompletableFuture,
+					(checksum) -> {
+						final FileSystemFileForFetch fileForFetch;
+						try {
+							fileForFetch = new FileSystemFileForFetch(
+								fileId,
+								fileName,
+								description,
+								contentType,
+								Files.size(finalFilePath),
+								this.timeProvider.get(),
+								origin == null ? null : Arrays.stream(origin.split(","))
+									.map(String::trim)
+									.toArray(String[]::new),
+								catalog,
+								checksum,
+								externallyManaged
+							);
+							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
+						} catch (IOException e) {
+							throw new UnexpectedIOException(
+								"Failed to write metadata file: " + e.getMessage(),
+								"Failed to write metadata file."
+							);
+						}
+						// update cache
+						updateCacheSafely(fileForFetch);
+						return fileForFetch;
+					}
+				)
+			);
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Failed to store file: " + finalFilePath,
+				"Failed to store file.",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Updates the cache of files safely by either modifying the internal file list directly if the lock
 	 * is acquired, or adding the update operation to a queue for delayed execution if the lock is not available.
 	 * Ensures thread safety when updating the file list.
@@ -702,13 +704,14 @@ public class ExportFileService implements ExportService {
 			? this.fsOptions.getDirectory()
 			: this.fsOptions.getDirectory().resolve(catalogName);
 		if (!directory.toFile().exists()) {
-			Assert.isPremiseValid(
-				directory.toFile().mkdirs(),
-				() -> new UnexpectedIOException(
-					"Failed to create directory: " + directory,
-					"Failed to create directory."
-				)
-			);
+			if (!directory.toFile().mkdirs()) {
+				if (!directory.toFile().exists()) {
+					throw new UnexpectedIOException(
+						"Failed to create directory: " + directory,
+						"Failed to create directory."
+					);
+				}
+			}
 		}
 		return directory;
 	}

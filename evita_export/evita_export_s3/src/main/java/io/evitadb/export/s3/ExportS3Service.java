@@ -41,10 +41,21 @@ import io.evitadb.utils.Crc32Calculator;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
-import io.minio.*;
-import io.minio.BucketExistsArgs.Builder;
+import io.minio.BucketExistsArgs;
+import io.minio.CloseableIterator;
+import io.minio.GetObjectArgs;
+import io.minio.ListObjectsArgs;
+import io.minio.MakeBucketArgs;
+import io.minio.MinioAsyncClient;
+import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
+import io.minio.Result;
+import io.minio.StatObjectArgs;
+import io.minio.StatObjectResponse;
 import io.minio.http.HttpUtils;
+import io.minio.messages.Event;
 import io.minio.messages.Item;
+import io.minio.messages.NotificationRecords;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -61,7 +72,6 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -70,6 +80,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -169,6 +180,25 @@ public class ExportS3Service implements ExportService {
 	private final ScheduledTask purgeTask;
 
 	/**
+	 * In-memory cache of file descriptors loaded from S3. Maintained in newest-first order
+	 * (sorted by creation date descending). Updated via S3 bucket notification events and direct operations.
+	 *
+	 * While {@link CopyOnWriteArrayList} ensures safe, consistent iteration without external locking, the
+	 * compound `removeIf` + `add` sequence used during cache updates is not atomic. Concurrent modifications
+	 * may therefore transiently result in duplicates or missing entries, though these inconsistencies resolve
+	 * on the next refresh cycle.
+	 */
+	private final CopyOnWriteArrayList<FileForFetch> filesCache;
+
+	/**
+	 * Iterator for S3 bucket notification events. Used by {@link #refreshFiles()}
+	 * to process object-created and object-removed events.
+	 * May be {@code null} if the S3 backend does not support bucket notifications.
+	 */
+	@Nullable
+	private volatile CloseableIterator<Result<NotificationRecords>> notificationIterator;
+
+	/**
 	 * Parses user metadata into a {@link FileForFetch} instance.
 	 *
 	 * @param userMetadata the S3 object user metadata
@@ -194,9 +224,16 @@ public class ExportS3Service implements ExportService {
 
 			final UUID fileId = UUID.fromString(fileIdStr);
 			final OffsetDateTime created = OffsetDateTime.parse(createdStr, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-			final String[] origin = (originStr == null || originStr.isBlank())
-				? null
-				: Arrays.stream(originStr.split(",")).map(String::trim).toArray(String[]::new);
+			final String[] origin;
+			if (originStr == null || originStr.isBlank()) {
+				origin = null;
+			} else {
+				final String[] rawParts = originStr.split(",");
+				origin = new String[rawParts.length];
+				for (int i = 0; i < rawParts.length; i++) {
+					origin[i] = rawParts[i].trim();
+				}
+			}
 
 			return new S3FileForFetch(
 				fileId,
@@ -281,6 +318,9 @@ public class ExportS3Service implements ExportService {
 		// Ensure bucket exists
 		ensureBucketExists();
 
+		// Load existing files from S3 into the in-memory cache
+		this.filesCache = new CopyOnWriteArrayList<>(loadAllFilesFromS3());
+
 		// Schedule automatic purging task
 		this.purgeTask = new ScheduledTask(
 			null,
@@ -292,15 +332,15 @@ public class ExportS3Service implements ExportService {
 		this.purgeTask.schedule();
 	}
 
+	/**
+	 * Loads all managed files from S3 storage and returns them sorted by
+	 * creation date (newest first).
+	 *
+	 * @return list of file descriptors sorted by creation date descending
+	 */
 	@Nonnull
-	@Override
-	public PaginatedList<FileForFetch> listFilesToFetch(
-		int page,
-		int pageSize,
-		@Nonnull Set<String> catalog,
-		@Nonnull Set<String> origin
-	) {
-		final List<FileForFetch> allFiles = new ArrayList<>(pageSize < 1000 ? (page * pageSize + pageSize) : 1000);
+	private List<FileForFetch> loadAllFilesFromS3() {
+		final List<FileForFetch> allFiles = new ArrayList<>(64);
 		final String bucket = this.s3Options.getBucketOrThrowException();
 		final String region = this.s3Options.getRegion();
 		final boolean regionSet = isRegionValid(region);
@@ -314,75 +354,83 @@ public class ExportS3Service implements ExportService {
 				listObjectsBuilder.region(region);
 			}
 
-			final Iterable<Result<Item>> objects = this.minioClient.listObjects(listObjectsBuilder.build());
+			final Iterable<Result<Item>> objects = this.minioClient.listObjects(
+				listObjectsBuilder.build()
+			);
 
 			for (final Result<Item> itemResult : objects) {
 				try {
 					final Item item = itemResult.get();
 					final Map<String, String> userMetadata = getItemUserMetadata(item, bucket);
-					if (!userMetadata.isEmpty()) {
-						if (isNotManagedFile(userMetadata)) {
-							continue;
-						}
+					if (!userMetadata.isEmpty() && !isNotManagedFile(userMetadata)) {
 						final FileForFetch file = parseFileForFetch(userMetadata, item.size());
-						if (file == null) {
-							continue;
-						}
-
-						// Filter by catalog
-						boolean catalogMatches = catalog.isEmpty();
-						if (!catalogMatches) {
-							// If catalog filter is present, file must have a matching catalog name
-							// Files in root (null catalog) won't match any specific catalog filter
-							catalogMatches = file.catalogName() != null && catalog.contains(file.catalogName());
-						}
-
-						if (!catalogMatches) {
-							continue;
-						}
-
-						// Filter by origin
-						boolean originMatches = origin.isEmpty();
-						if (!originMatches) {
-							final String[] fileOrigin = file.origin();
-							if (fileOrigin != null) {
-								for (final String o : fileOrigin) {
-									if (origin.contains(o)) {
-										originMatches = true;
-										break;
-									}
-								}
-							}
-						}
-
-						if (originMatches) {
+						if (file != null) {
 							allFiles.add(file);
 						}
 					}
 				} catch (Exception e) {
-					log.warn("Failed to process S3 object during listing", e);
+					log.warn("Failed to process S3 object during initial cache load", e);
 				}
 			}
 		} catch (Exception e) {
-			throw new UnexpectedIOException(
-				"Failed to list files from S3: " + e.getMessage(),
-				"Failed to list files from S3.",
-				e
-			);
+			log.error("Failed to load files from S3 during initialization", e);
 		}
 
 		// Sort by creation date (newest first)
 		allFiles.sort(Comparator.comparing(FileForFetch::created).reversed());
+		return allFiles;
+	}
+
+	@Nonnull
+	@Override
+	public PaginatedList<FileForFetch> listFilesToFetch(
+		int page,
+		int pageSize,
+		@Nonnull Set<String> catalog,
+		@Nonnull Set<String> origin
+	) {
+		// Process any pending notification events
+		refreshFiles();
+
+		// Filter from cache
+		final List<FileForFetch> filtered = new ArrayList<>(this.filesCache.size());
+		for (final FileForFetch file : this.filesCache) {
+			// Filter by catalog
+			if (!catalog.isEmpty()) {
+				if (file.catalogName() == null || !catalog.contains(file.catalogName())) {
+					continue;
+				}
+			}
+
+			// Filter by origin
+			if (!origin.isEmpty()) {
+				final String[] fileOrigin = file.origin();
+				boolean originMatches = false;
+				if (fileOrigin != null) {
+					for (final String o : fileOrigin) {
+						if (origin.contains(o)) {
+							originMatches = true;
+							break;
+						}
+					}
+				}
+				if (!originMatches) {
+					continue;
+				}
+			}
+
+			filtered.add(file);
+		}
 
 		final int firstItem = PaginatedList.getFirstItemNumberForPage(page, pageSize);
-		final int totalSize = allFiles.size();
+		final int totalSize = filtered.size();
 		final int endIndex = Math.min(firstItem + pageSize, totalSize);
 
 		final List<FileForFetch> filePage;
 		if (firstItem >= totalSize) {
 			filePage = List.of();
 		} else {
-			filePage = allFiles.subList(firstItem, endIndex);
+			filePage = filtered.subList(firstItem, endIndex);
 		}
 
 		return new PaginatedList<>(
@@ -395,37 +443,14 @@ public class ExportS3Service implements ExportService {
 	@Nonnull
 	@Override
 	public Optional<FileForFetch> getFile(@Nonnull UUID fileId) {
-		final String bucket = this.s3Options.getBucketOrThrowException();
-		final String region = this.s3Options.getRegion();
-		final boolean regionSet = isRegionValid(region);
+		// Process any pending notification events
+		refreshFiles();
 
-		try {
-			final ListObjectsArgs.Builder listObjectsBuilder = ListObjectsArgs.builder()
-				.bucket(bucket)
-				.prefix(fileId.toString())
-				.includeUserMetadata(true)
-				.recursive(true);
-			if (regionSet) {
-				listObjectsBuilder.region(region);
+		for (final FileForFetch file : this.filesCache) {
+			if (file.fileId().equals(fileId)) {
+				return Optional.of(file);
 			}
-
-			final Iterable<Result<Item>> objects = this.minioClient.listObjects(listObjectsBuilder.build());
-
-			for (final Result<Item> itemResult : objects) {
-				final Item item = itemResult.get();
-				final Map<String, String> userMetadata = getItemUserMetadata(item, bucket);
-				if (isNotManagedFile(userMetadata)) {
-					continue;
-				}
-				final FileForFetch file = parseFileForFetch(userMetadata, item.size());
-				if (file != null && file.fileId().equals(fileId)) {
-					return Optional.of(file);
-				}
-			}
-		} catch (Exception e) {
-			log.warn("Failed to fetch file metadata for ID: {}", fileId, e);
 		}
-
 		return Optional.empty();
 	}
 
@@ -490,11 +515,26 @@ public class ExportS3Service implements ExportService {
 		userMetadata.put(META_EXTERNALLY_MANAGED, Boolean.toString(externallyManaged));
 
 		// Parse origin tags
-		final String[] originTags = origin == null ? null : Arrays.stream(origin.split(","))
-			.map(String::trim)
-			.toArray(String[]::new);
+		final String[] originTags;
+		if (origin == null) {
+			originTags = null;
+		} else {
+			final String[] rawParts = origin.split(",");
+			originTags = new String[rawParts.length];
+			for (int i = 0; i < rawParts.length; i++) {
+				originTags[i] = rawParts[i].trim();
+			}
+		}
 
 		final CompletableFuture<FileForFetch> fileForFetchFuture = new CompletableFuture<>();
+
+		// Update cache when file upload completes successfully
+		fileForFetchFuture.whenComplete((file, throwable) -> {
+			if (throwable == null && file != null) {
+				this.filesCache.removeIf(f -> f.fileId().equals(file.fileId()));
+				this.filesCache.add(0, file);
+			}
+		});
 
 		// Create output stream that buffers data and uploads to S3 when closed
 		final S3UploadOutputStream uploadOutputStream = new S3UploadOutputStream(
@@ -600,7 +640,8 @@ public class ExportS3Service implements ExportService {
 		}
 
 		if (objectKey == null) {
-			// the file is already not present - nothing to delete
+			// the file is already not present in S3 - remove from cache and return
+			this.filesCache.removeIf(f -> f.fileId().equals(fileId));
 			return;
 		}
 
@@ -622,6 +663,9 @@ public class ExportS3Service implements ExportService {
 				e.getMessage()
 			);
 		}
+
+		// Remove from cache
+		this.filesCache.removeIf(f -> f.fileId().equals(fileId));
 	}
 
 	@Override
@@ -701,7 +745,7 @@ public class ExportS3Service implements ExportService {
 
 			// Calculate managed file size and log warnings/errors
 			long managedFileSize = 0L;
-			for (FileForFetch file : managedFiles) {
+			for (final FileForFetch file : managedFiles) {
 				managedFileSize += file.totalSizeInBytes();
 			}
 			if (managedFileSize > sizeLimitBytes) {
@@ -720,7 +764,7 @@ public class ExportS3Service implements ExportService {
 
 			// Check total size and delete oldest non-managed files if over limit
 			long totalSize = managedFileSize;
-			for (FileForFetch fileForFetch : regularFiles) {
+			for (final FileForFetch fileForFetch : regularFiles) {
 				totalSize += fileForFetch.totalSizeInBytes();
 			}
 
@@ -753,10 +797,141 @@ public class ExportS3Service implements ExportService {
 	public void close() throws IOException {
 		IOUtils.closeQuietly(
 			this.purgeTask::close,
+			() -> {
+				final CloseableIterator<Result<NotificationRecords>> iter =
+					this.notificationIterator;
+				if (iter != null) {
+					iter.close();
+					this.notificationIterator = null;
+				}
+			},
 			this.minioClient::close
 		);
 	}
 
+	/**
+	 * Processes pending S3 bucket notification events to keep the in-memory cache
+	 * up to date. Returns immediately if no notification iterator is available.
+	 *
+	 * For each {@code s3:ObjectCreated:*} event, fetches the object metadata from S3
+	 * and adds/updates the corresponding entry in the cache.
+	 * For each {@code s3:ObjectRemoved:*} event, extracts the file ID from the object
+	 * key and removes the entry from the cache.
+	 *
+	 * @return the notification iterator used for polling, or {@code null} if notifications are not configured
+	 */
+	@Nullable
+	private CloseableIterator<Result<NotificationRecords>> refreshFiles() {
+		final CloseableIterator<Result<NotificationRecords>> iterator = this.notificationIterator;
+		if (iterator == null) {
+			return null;
+		}
+
+		// Process all pending notification events
+		try {
+			while (iterator.hasNext()) {
+				final Result<NotificationRecords> result = iterator.next();
+				try {
+					final NotificationRecords records = result.get();
+					if (records.events() != null) {
+						for (final Event event : records.events()) {
+							processNotificationEvent(event);
+						}
+					}
+				} catch (Exception e) {
+					log.warn("Failed to process notification event", e);
+				}
+			}
+		} catch (Exception e) {
+			log.warn("Error reading notification events", e);
+		}
+
+		return iterator;
+	}
+
+	/**
+	 * Processes a single S3 bucket notification event by updating the in-memory cache.
+	 *
+	 * @param event the S3 notification event to process
+	 */
+	private void processNotificationEvent(@Nonnull Event event) {
+		final String eventName = event.eventType() != null
+			? event.eventType().toString()
+			: "";
+		final String objectKey = event.objectName();
+
+		if (objectKey == null) {
+			return;
+		}
+
+		if (eventName.startsWith("s3:ObjectRemoved")) {
+			// Handle object removal - extract fileId from key and remove from cache
+			final UUID fileId = extractFileIdFromObjectKey(objectKey);
+			if (fileId != null) {
+				this.filesCache.removeIf(f -> f.fileId().equals(fileId));
+			}
+		} else if (eventName.startsWith("s3:ObjectCreated")) {
+			// Handle object creation - fetch metadata from S3 and add to cache
+			try {
+				final String bucket = this.s3Options.getBucketOrThrowException();
+				final String region = this.s3Options.getRegion();
+				final long timeout = this.s3Options.getRequestTimeoutInMillis();
+
+				final StatObjectArgs.Builder statBuilder = StatObjectArgs.builder()
+					.bucket(bucket)
+					.object(objectKey);
+				if (isRegionValid(region)) {
+					statBuilder.region(region);
+				}
+
+				final StatObjectResponse stat = this.minioClient.statObject(
+					statBuilder.build()
+				).get(timeout, TimeUnit.MILLISECONDS);
+
+				final Map<String, String> userMetadata = normalizeMetadataNames(
+					stat.userMetadata()
+				);
+
+				if (userMetadata.isEmpty() || userMetadata.get(META_FILE_ID) == null) {
+					// No recognizable metadata - ignore
+					return;
+				}
+
+				final FileForFetch file = parseFileForFetch(userMetadata, stat.size());
+				if (file == null) {
+					return;
+				}
+
+				// Remove existing entry with same fileId to avoid duplicates
+				this.filesCache.removeIf(f -> f.fileId().equals(file.fileId()));
+				// Add at the beginning (newest first)
+				this.filesCache.add(0, file);
+			} catch (Exception e) {
+				log.warn("Failed to fetch metadata for created object: {}", objectKey, e);
+			}
+		}
+	}
+
+	/**
+	 * Extracts a UUID file identifier from an S3 object key.
+	 * The key format is expected to be {@code <uuid>.<extension>} or just {@code <uuid>}.
+	 *
+	 * @param objectKey the S3 object key
+	 * @return the extracted UUID, or {@code null} if the key does not contain a valid UUID
+	 */
+	@Nullable
+	private static UUID extractFileIdFromObjectKey(@Nonnull String objectKey) {
+		try {
+			final int dotIndex = objectKey.indexOf('.');
+			final String uuidPart = dotIndex >= 0
+				? objectKey.substring(0, dotIndex)
+				: objectKey;
+			return UUID.fromString(uuidPart);
+		} catch (IllegalArgumentException e) {
+			log.debug("Could not extract UUID from object key: {}", objectKey);
+			return null;
+		}
+	}
 
 	/**
 	 * Ensures the configured S3 bucket exists, creating it if necessary.
@@ -767,7 +942,7 @@ public class ExportS3Service implements ExportService {
 		final boolean regionSet = isRegionValid(region);
 		try {
 			final long timeout = this.s3Options.getRequestTimeoutInMillis();
-			final Builder bucketExistsBuilder = BucketExistsArgs.builder().bucket(bucket);
+			final BucketExistsArgs.Builder bucketExistsBuilder = BucketExistsArgs.builder().bucket(bucket);
 			if (regionSet) {
 				bucketExistsBuilder.region(region);
 			}
@@ -843,20 +1018,20 @@ public class ExportS3Service implements ExportService {
 	 * @param userMetadata a map containing user-defined metadata where the keys are
 	 *                     strings and the values represent metadata values; must not
 	 *                     be null.
-	 * @return a normalized map of metadata with processed keys, or null if no keys
-	 *         required normalization.
+	 * @return a normalized map of metadata with processed keys, or the original map
+	 *         if no keys required normalization
 	 */
 	@Nonnull
 	private static Map<String, String> normalizeMetadataNames(@Nonnull Map<String, String> userMetadata) {
 		Map<String, String> normalizedMetadata = null;
-		for (Map.Entry<String, String> entry : userMetadata.entrySet()) {
+		for (final Map.Entry<String, String> entry : userMetadata.entrySet()) {
 			final String key = entry.getKey();
 			final String lowerCaseKey = key.toLowerCase(Locale.US);
 			if (lowerCaseKey.startsWith(USER_METADATA_PREFIX) || !key.equals(lowerCaseKey)) {
 				if (normalizedMetadata == null) {
 					normalizedMetadata = CollectionUtils.createHashMap(userMetadata.size());
 					// copy previous entries
-					for (Map.Entry<String, String> e : userMetadata.entrySet()) {
+					for (final Map.Entry<String, String> e : userMetadata.entrySet()) {
 						if (e.getKey().equals(key)) {
 							break;
 						}
@@ -907,14 +1082,13 @@ public class ExportS3Service implements ExportService {
 	}
 
 	/**
-	 * An implementation of OutputStream that writes data to a temporary file and uploads it to an S3-compatible storage
-	 * upon stream closure. This class is designed to facilitate stream-based file uploads while managing metadata and
-	 * ensuring temporary file cleanup.
+	 * An {@link OutputStream} implementation that buffers data into a local temporary file and
+	 * uploads it to S3-compatible storage when the stream is closed. Handles metadata attachment
+	 * and completes a {@link CompletableFuture} with the resulting {@link FileForFetch} descriptor
+	 * upon successful upload, or exceptionally on failure.
 	 *
-	 * This output stream writes data to a local temporary file and uploads the file to a S3 bucket on close. The class
-	 * also supports metadata handling for the uploaded object and returns a `FileForFetch` object upon successful upload.
-	 *
-	 * Thread Safety: This class is not thread-safe, and instances should not be shared between threads.
+	 * **Thread Safety:** This class is not thread-safe; instances should not be shared between
+	 * threads.
 	 */
 	private static final class S3UploadOutputStream extends OutputStream {
 		private final OutputStream delegate;

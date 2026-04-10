@@ -78,7 +78,7 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 		final CatalogState transitionState = mutation.isActive() ?
 			CatalogState.BEING_ACTIVATED : CatalogState.BEING_DEACTIVATED;
 		final CatalogContract theCatalog = evita.getCatalogInstanceOrThrowException(catalogName);
-		final boolean readOnly = evita.getEngineState().isReadOnly(catalogName);
+		final boolean readOnly = evita.getExpandedEngineState().isReadOnly(catalogName);
 
 		transitionEngineStateUpdater.accept(
 			new AbstractEngineStateUpdater(transactionId, mutation) {

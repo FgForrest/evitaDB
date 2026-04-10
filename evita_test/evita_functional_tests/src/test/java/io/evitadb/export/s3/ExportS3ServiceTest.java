@@ -64,20 +64,27 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies behavior of {@link ExportS3Service}.
@@ -88,6 +95,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@SuppressWarnings("SameParameterValue")
 @DisplayName("S3 Export Service Test")
 class ExportS3ServiceTest {
 
@@ -253,7 +261,7 @@ class ExportS3ServiceTest {
 				.toArray(String[]::new);
 			tags.add(theTags);
 			writeFile(
-				"testFile" + i + ".txt",
+				"testFile_" + i + ".txt",
 				String.join(",", theTags)
 			);
 		}
@@ -261,7 +269,7 @@ class ExportS3ServiceTest {
 		final PaginatedList<FileForFetch> fileForFetches = this.exportService.listFilesToFetch(1, 5, Set.of(), Set.of());
 		assertArrayEquals(
 			new String[]{
-				"testFile27.txt", "testFile26.txt", "testFile25.txt", "testFile24.txt", "testFile23.txt"
+				"testFile_27.txt", "testFile_26.txt", "testFile_25.txt", "testFile_24.txt", "testFile_23.txt"
 			},
 			fileForFetches.getData().stream().map(FileForFetch::name).toArray(String[]::new)
 		);
@@ -269,7 +277,7 @@ class ExportS3ServiceTest {
 
 		assertArrayEquals(
 			new String[]{
-				"testFile2.txt", "testFile1.txt", "testFile0.txt"
+				"testFile_2.txt", "testFile_1.txt", "testFile_0.txt"
 			},
 			this.exportService.listFilesToFetch(6, 5, Set.of(), Set.of())
 				.getData().stream().map(FileForFetch::name).toArray(String[]::new)
@@ -279,7 +287,7 @@ class ExportS3ServiceTest {
 		for (int i = 0; i < tags.size(); i++) {
 			final String[] tag = tags.get(i);
 			if (Arrays.asList(tag).contains("A")) {
-				filteredNames.add("testFile" + i + ".txt");
+				filteredNames.add("testFile_" + i + ".txt");
 			}
 		}
 
@@ -368,7 +376,7 @@ class ExportS3ServiceTest {
 	@DisplayName("Should delete file from S3 bucket")
 	void shouldDeleteFile() throws IOException {
 		for (int i = 0; i < 5; i++) {
-			writeFile("testFile" + i + ".txt", null);
+			writeFile("testFile_" + i + ".txt", null);
 		}
 
 		final PaginatedList<FileForFetch> filesBeforeDelete = this.exportService.listFilesToFetch(1, 20, Set.of(), Set.of());
@@ -413,8 +421,8 @@ class ExportS3ServiceTest {
 		final String objectKey = storedFile.fileId().toString() + ext;
 
 		// Get original metadata
-		var headObjectResponse = this.s3Client.headObject(b -> b.bucket(BUCKET_NAME).key(objectKey));
-		Map<String, String> metadata = headObjectResponse.metadata();
+		final var headObjectResponse = this.s3Client.headObject(b -> b.bucket(BUCKET_NAME).key(objectKey));
+		final Map<String, String> metadata = headObjectResponse.metadata();
 
 		// Upload modified content with original metadata (containing original CRC32)
 		this.s3Client.putObject(PutObjectRequest.builder()
@@ -505,7 +513,7 @@ class ExportS3ServiceTest {
 		// The service is configured with sizeLimitBytes=1000
 		// Write files that exceed this limit
 		for (int i = 0; i < 5; i++) {
-			writeFile("file" + i + ".txt", null);
+			writeFile("file_" + i + ".txt", null);
 		}
 
 		// Write large files to exceed the limit (each file is 15 bytes, need to go over 1000)
@@ -560,10 +568,10 @@ class ExportS3ServiceTest {
 	@Test
 	@DisplayName("Should handle file with unicode content")
 	void shouldHandleFileWithUnicodeContent() throws IOException, InterruptedException, ExecutionException, TimeoutException {
-		final String unicodeContent = "Hello \u4e16\u754c \ud83d\ude00";
+		final String unicodeContent = "Hello 世界 \ud83d\ude00";
 
 		final ExportFileHandle handle = this.exportService.storeFile(
-			"unicode.txt", "Description with \u00e9\u00e8", "text/plain", null, null);
+			"unicode.txt", "Description with éè", "text/plain", null, null);
 
 		try (final OutputStream os = handle.outputStream()) {
 			os.write(unicodeContent.getBytes(StandardCharsets.UTF_8));
@@ -605,7 +613,7 @@ class ExportS3ServiceTest {
 	@DisplayName("Should handle page size larger than total files")
 	void shouldHandlePageSizeLargerThanTotalFiles() throws IOException {
 		for (int i = 0; i < 3; i++) {
-			writeFile("test" + i + ".txt", null);
+			writeFile("test_" + i + ".txt", null);
 		}
 
 		final PaginatedList<FileForFetch> result = this.exportService.listFilesToFetch(1, 100, Set.of(), Set.of());
@@ -624,13 +632,10 @@ class ExportS3ServiceTest {
 		this.exportService.close();
 
 		// Create a new service instance
-		final ExportS3Service newService = createExportService();
 
-		try {
+		try (ExportS3Service newService = createExportService()) {
 			final PaginatedList<FileForFetch> files = newService.listFilesToFetch(1, 10, Set.of(), Set.of());
 			assertEquals(2, files.getTotalRecordCount());
-		} finally {
-			newService.close();
 		}
 	}
 
@@ -915,7 +920,7 @@ class ExportS3ServiceTest {
 		assertEquals("updated.txt", fetched.get().name(), "Name should be updated");
 
 		// Verify no duplicates
-		final PaginatedList<FileForFetch> all = this.exportService.listFilesToFetch(1, 100, Set.of());
+		final PaginatedList<FileForFetch> all = this.exportService.listFilesToFetch(1, 100, Set.of(), Set.of());
 		final long count = all.getData().stream()
 			.filter(f -> f.fileId().equals(stored.fileId()))
 			.count();
@@ -950,7 +955,7 @@ class ExportS3ServiceTest {
 		);
 		invokeRefreshFiles(this.exportService);
 
-		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of());
+		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of(), Set.of());
 		assertEquals(
 			"newest.txt", files.getData().get(0).name(),
 			"Newly created file should be at the beginning of the list"
@@ -1013,7 +1018,7 @@ class ExportS3ServiceTest {
 	@Test
 	@DisplayName("Should ignore created event when object has no metadata")
 	void shouldIgnoreCreatedEventWhenObjectHasNoMetadata() throws Exception {
-		final int countBefore = this.exportService.listFilesToFetch(1, 100, Set.of()).getTotalRecordCount();
+		final int countBefore = this.exportService.listFilesToFetch(1, 100, Set.of(), Set.of()).getTotalRecordCount();
 
 		// Upload object without user metadata
 		final String objectKey = UUIDUtil.randomUUID() + ".txt";
@@ -1035,7 +1040,7 @@ class ExportS3ServiceTest {
 		);
 		invokeRefreshFiles(this.exportService);
 
-		final int countAfter = this.exportService.listFilesToFetch(1, 100, Set.of()).getTotalRecordCount();
+		final int countAfter = this.exportService.listFilesToFetch(1, 100, Set.of(), Set.of()).getTotalRecordCount();
 		assertEquals(
 			countBefore, countAfter,
 			"Cache should remain unchanged when object has no required metadata"
@@ -1081,7 +1086,7 @@ class ExportS3ServiceTest {
 			this.exportService.getFile(stored.fileId()).isPresent(),
 			"Existing file should remain in cache when event refers to non-existent file"
 		);
-		assertEquals(1, this.exportService.listFilesToFetch(1, 100, Set.of()).getTotalRecordCount());
+		assertEquals(1, this.exportService.listFilesToFetch(1, 100, Set.of(), Set.of()).getTotalRecordCount());
 	}
 
 	@Test

@@ -404,7 +404,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 			}
 		}
 
-		final EngineState<?> engineState = this.evita.getEngineState().engineState();
+		final EngineState<?> engineState = this.evita.getExpandedEngineState().engineState();
 
 		return new SystemStatus(
 			VersionUtils.readVersion(),

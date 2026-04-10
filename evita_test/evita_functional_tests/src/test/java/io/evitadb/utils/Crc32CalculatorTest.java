@@ -48,6 +48,19 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 @DisplayName("Test verifies contract of Crc32Calculator class")
 class Crc32CalculatorTest {
 
+	/**
+	 * Computes the CRC32C checksum of the given byte array.
+	 *
+	 * @param bytes the byte array for which the CRC32C checksum is to be calculated;
+	 *              must not be null or empty to avoid unexpected behavior.
+	 * @return the computed CRC32C value as a long.
+	 */
+	private static long crc32c(final byte[] bytes) {
+		final CRC32C crc = new CRC32C();
+		crc.update(bytes, 0, bytes.length);
+		return crc.getValue();
+	}
+
 	@Test
 	@DisplayName("Should compute CRC32C for single long value")
 	void shouldComputeCrc32ForSingleLongValue() {
@@ -588,6 +601,205 @@ class Crc32CalculatorTest {
 		expected.update(unicodeString.getBytes(StandardCharsets.UTF_8));
 
 		assertEquals(expected.getValue(), result);
+	}
+
+	@Test
+	@DisplayName("Should combine CRC values when two chunks are concatenated")
+	void shouldCombineCrcValuesWhenTwoChunksAreConcatenated() {
+		final byte[] chunk1 = "Hello ".getBytes();
+		final byte[] chunk2 = "world!".getBytes();
+
+		final long crc1 = crc32c(chunk1);     // persisted after writing chunk1
+		final long crc2 = crc32c(chunk2);     // computed later for chunk2
+
+		final long combined = Crc32Calculator.combine(crc1, crc2, chunk2.length);
+
+		final byte[] all = new byte[chunk1.length + chunk2.length];
+		System.arraycopy(chunk1, 0, all, 0, chunk1.length);
+		System.arraycopy(chunk2, 0, all, chunk1.length, chunk2.length);
+
+		final long direct = crc32c(all);
+
+		assertEquals(direct, combined);
+	}
+
+	@Test
+	@DisplayName("Should chain multiple CRC values when three chunks are combined")
+	void shouldChainMultipleCrcValuesWhenThreeChunksAreCombined() {
+		final byte[] c1 = "chunk-1|".getBytes();
+		final byte[] c2 = "chunk-2|".getBytes();
+		final byte[] c3 = "chunk-3".getBytes();
+
+		final long crc1 = crc32c(c1);
+		final long crc2 = crc32c(c2);
+		final long crc3 = crc32c(c3);
+
+		// simulate resuming: ((c1||c2)||c3)
+		final long crc12 = Crc32Calculator.combine(crc1, crc2, c2.length);
+		final long crc123 = Crc32Calculator.combine(crc12, crc3, c3.length);
+
+		final byte[] all = new byte[c1.length + c2.length + c3.length];
+		System.arraycopy(c1, 0, all, 0, c1.length);
+		System.arraycopy(c2, 0, all, c1.length, c2.length);
+		System.arraycopy(c3, 0, all, c1.length + c2.length, c3.length);
+
+		final long direct = crc32c(all);
+
+		// [c1][crc(c1)][c2][crc(c1||c2)][c3][crc(c1||c2||c3)]
+		assertEquals(direct, crc123);
+	}
+
+	@Test
+	@DisplayName("Should return first CRC when second chunk is empty")
+	void shouldReturnFirstCrcWhenSecondChunkIsEmpty() {
+		final byte[] chunk1 = "Hello world!".getBytes();
+		final byte[] chunk2 = new byte[0];
+
+		final long crc1 = crc32c(chunk1);
+		final long crc2 = crc32c(chunk2);
+
+		final long combined = Crc32Calculator.combine(crc1, crc2, 0);
+
+		assertEquals(crc1, combined);
+	}
+
+	@Test
+	@DisplayName("Should return first CRC when second chunk length is negative")
+	void shouldReturnFirstCrcWhenSecondChunkLengthIsNegative() {
+		final byte[] chunk1 = "Hello world!".getBytes();
+
+		final long crc1 = crc32c(chunk1);
+		final long crc2 = 12345L; // arbitrary value
+
+		final long combined = Crc32Calculator.combine(crc1, crc2, -10);
+
+		assertEquals(crc1, combined);
+	}
+
+	@Test
+	@DisplayName("Should combine correctly when first chunk is empty")
+	void shouldCombineCorrectlyWhenFirstChunkIsEmpty() {
+		final byte[] chunk1 = new byte[0];
+		final byte[] chunk2 = "Hello!".getBytes();
+
+		final long crc1 = crc32c(chunk1);
+		final long crc2 = crc32c(chunk2);
+
+		final long combined = Crc32Calculator.combine(crc1, crc2, chunk2.length);
+
+		final byte[] all = new byte[chunk2.length];
+		System.arraycopy(chunk2, 0, all, 0, chunk2.length);
+		final long direct = crc32c(all);
+
+		assertEquals(direct, combined);
+	}
+
+	@Test
+	@DisplayName("Should combine correctly when single bytes are combined")
+	void shouldCombineCorrectlyWhenSingleBytesAreCombined() {
+		final byte[] chunk1 = new byte[]{42};
+		final byte[] chunk2 = new byte[]{73};
+
+		final long crc1 = crc32c(chunk1);
+		final long crc2 = crc32c(chunk2);
+
+		final long combined = Crc32Calculator.combine(crc1, crc2, chunk2.length);
+
+		final byte[] all = new byte[]{42, 73};
+		final long direct = crc32c(all);
+
+		assertEquals(direct, combined);
+	}
+
+	@Test
+	@DisplayName("Should combine correctly when large chunks are combined")
+	void shouldCombineCorrectlyWhenLargeChunksAreCombined() {
+		// Create 10KB chunks
+		final byte[] chunk1 = new byte[10240];
+		final byte[] chunk2 = new byte[10240];
+
+		// Fill with deterministic data
+		for (int i = 0; i < chunk1.length; i++) {
+			chunk1[i] = (byte) (i % 256);
+			chunk2[i] = (byte) ((i * 2) % 256);
+		}
+
+		final long crc1 = crc32c(chunk1);
+		final long crc2 = crc32c(chunk2);
+
+		final long combined = Crc32Calculator.combine(crc1, crc2, chunk2.length);
+
+		final byte[] all = new byte[chunk1.length + chunk2.length];
+		System.arraycopy(chunk1, 0, all, 0, chunk1.length);
+		System.arraycopy(chunk2, 0, all, chunk1.length, chunk2.length);
+		final long direct = crc32c(all);
+
+		assertEquals(direct, combined);
+	}
+
+	@Test
+	@DisplayName("Should maintain associativity when chaining multiple combinations")
+	void shouldMaintainAssociativityWhenChainingMultipleCombinations() {
+		final byte[] a = "part-A|".getBytes();
+		final byte[] b = "part-B|".getBytes();
+		final byte[] c = "part-C".getBytes();
+
+		final long crcA = crc32c(a);
+		final long crcB = crc32c(b);
+		final long crcC = crc32c(c);
+
+		// Left-associative: ((A + B) + C)
+		final long crcAB = Crc32Calculator.combine(crcA, crcB, b.length);
+		final long leftResult = Crc32Calculator.combine(crcAB, crcC, c.length);
+
+		// Right-associative: (A + (B + C))
+		// First combine B and C
+		final byte[] bc = new byte[b.length + c.length];
+		System.arraycopy(b, 0, bc, 0, b.length);
+		System.arraycopy(c, 0, bc, b.length, c.length);
+		final long crcBC = crc32c(bc);
+		final long rightResult = Crc32Calculator.combine(crcA, crcBC, bc.length);
+
+		// Direct computation: A + B + C
+		final byte[] all = new byte[a.length + b.length + c.length];
+		System.arraycopy(a, 0, all, 0, a.length);
+		System.arraycopy(b, 0, all, a.length, b.length);
+		System.arraycopy(c, 0, all, a.length + b.length, c.length);
+		final long directResult = crc32c(all);
+
+		// Both associative forms should produce the same result as direct computation
+		assertEquals(directResult, leftResult);
+		assertEquals(directResult, rightResult);
+	}
+
+	@Test
+	@DisplayName("Should combine correctly with power-of-two lengths")
+	void shouldCombineCorrectlyWithPowerOfTwoLengths() {
+		final int[] powerOfTwoLengths = {1, 2, 4, 8, 16, 1024};
+		final byte[] chunk1 = "prefix".getBytes();
+		final long crc1 = crc32c(chunk1);
+
+		for (final int len : powerOfTwoLengths) {
+			// Create chunk2 of the power-of-two length with deterministic data
+			final byte[] chunk2 = new byte[len];
+			for (int i = 0; i < len; i++) {
+				chunk2[i] = (byte) (i % 256);
+			}
+
+			final long crc2 = crc32c(chunk2);
+			final long combined = Crc32Calculator.combine(crc1, crc2, chunk2.length);
+
+			// Compute CRC of the full concatenation directly
+			final byte[] all = new byte[chunk1.length + chunk2.length];
+			System.arraycopy(chunk1, 0, all, 0, chunk1.length);
+			System.arraycopy(chunk2, 0, all, chunk1.length, chunk2.length);
+			final long direct = crc32c(all);
+
+			assertEquals(
+				direct, combined,
+				"combine mismatch for power-of-two length " + len
+			);
+		}
 	}
 
 }

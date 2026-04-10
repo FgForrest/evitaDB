@@ -59,6 +59,8 @@ import javax.annotation.Nonnull;
  * @param viewNumber current view number for consistency verification
  * @param catalogPrimaryKey unique identifier of the catalog to transfer
  * @param sinceCatalogVersionInclusive starting catalog op-number (inclusive) for WAL transfer
+ * @param sinceIndexInclusive starting mutation index within catalog version from which the WAL transfer should start
+ * @param upToCatalogVersionExclusive ending catalog op-number (exclusive) of the WAL entries
  * @param limit maximum number of WAL entries to return in one response
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  * @see GetCatalogStateResponse
@@ -71,6 +73,8 @@ public record GetCatalogStateRequest(
 	long viewNumber,
 	int catalogPrimaryKey,
 	long sinceCatalogVersionInclusive,
+	long upToCatalogVersionExclusive,
+	int sinceIndexInclusive,
 	int limit
 ) implements HashChainedClusterRequestMessage {
 
