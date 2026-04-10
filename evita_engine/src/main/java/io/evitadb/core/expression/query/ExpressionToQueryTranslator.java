@@ -38,7 +38,7 @@ import io.evitadb.api.query.expression.numeric.SubtractionOperator;
 import io.evitadb.api.query.expression.object.ElementAccessStep;
 import io.evitadb.api.query.expression.object.NullSafeAccessStep;
 import io.evitadb.api.query.expression.object.ObjectAccessOperator;
-import io.evitadb.api.query.expression.object.ObjectAccessStep;
+import io.evitadb.api.query.expression.object.ObjectOperationStep;
 import io.evitadb.api.query.expression.object.PropertyAccessStep;
 import io.evitadb.api.query.expression.object.SpreadAccessStep;
 import io.evitadb.api.query.expression.object.accessor.entity.EntityContractAccessor;
@@ -319,7 +319,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 */
 	@Nonnull
 	private static DataPath classifyPath(@Nonnull ObjectAccessOperator accessOperator) {
-		final ObjectAccessStep step = accessOperator.getAccessChain();
+		final ObjectOperationStep step = accessOperator.getAccessChain();
 		if (!(step instanceof PropertyAccessStep firstProperty)) {
 			throw new NonTranslatableExpressionException(
 				"Expected a property access step as the first step in the data path, but found `" +
@@ -340,7 +340,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 				}
 				case EntityContractAccessor.PARENT_ENTITY_PROPERTY -> {
 					// check if chain continues beyond parentEntity (attribute or reference access)
-					final ObjectAccessStep afterParent = skipNullSafe(firstProperty.getNext());
+					final ObjectOperationStep afterParent = skipNullSafe(firstProperty.getNext());
 					if (afterParent == null) {
 						// chain ends at parentEntity → existence check (existing behavior)
 						return new DataPath(
@@ -428,7 +428,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		@Nonnull PropertyAccessStep firstProperty,
 		@Nonnull PathType pathType
 	) {
-		final ObjectAccessStep afterNavigation = skipNullSafe(firstProperty.getNext());
+		final ObjectOperationStep afterNavigation = skipNullSafe(firstProperty.getNext());
 		if (!(afterNavigation instanceof PropertyAccessStep propertyStep)) {
 			throw new NonTranslatableExpressionException(
 				"Expected `." + EntityContractAccessor.ATTRIBUTES_PROPERTY + "` or `." +
@@ -472,7 +472,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		@Nonnull PathType basePathType
 	) {
 		// extract reference name from ElementAccessStep: references['r']
-		final ObjectAccessStep elementStep = referencesStep.getNext();
+		final ObjectOperationStep elementStep = referencesStep.getNext();
 		if (!(elementStep instanceof ElementAccessStep refElement)) {
 			throw new NonTranslatableExpressionException(
 				"Expected element access (e.g., ['referenceName']) after `." +
@@ -483,7 +483,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		final String referenceName = getReferenceName(refElement);
 
 		// after the element access, check for spread or direct property chain
-		final ObjectAccessStep afterElement = refElement.getNext();
+		final ObjectOperationStep afterElement = refElement.getNext();
 		final String attributeName;
 
 		if (afterElement instanceof SpreadAccessStep spreadStep) {
@@ -491,7 +491,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 			attributeName = extractAttributeFromSpreadMapping(spreadStep);
 		} else {
 			// non-spread variant: references['r'].attributes['A'] (with optional null-safe)
-			final ObjectAccessStep afterNullSafe = skipNullSafe(afterElement);
+			final ObjectOperationStep afterNullSafe = skipNullSafe(afterElement);
 			if (!(afterNullSafe instanceof PropertyAccessStep attrStep)) {
 				throw new NonTranslatableExpressionException(
 					"Expected `." + EntityContractAccessor.ATTRIBUTES_PROPERTY + "` after `." +
@@ -587,7 +587,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		}
 
 		// walk the access chain: PropertyAccessStep("attributes") -> ElementAccessStep('A')
-		final ObjectAccessStep chainStep = mappingAccess.getAccessChain();
+		final ObjectOperationStep chainStep = mappingAccess.getAccessChain();
 		if (!(chainStep instanceof PropertyAccessStep attrProp)) {
 			throw new NonTranslatableExpressionException(
 				"Spread mapping access chain must start with `." +
@@ -626,7 +626,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 * @throws NonTranslatableExpressionException if the identifier is dynamic (variable)
 	 */
 	@Nonnull
-	private static String extractAttributeName(@Nullable ObjectAccessStep step) {
+	private static String extractAttributeName(@Nullable ObjectOperationStep step) {
 		if (extractElementIdentifier(step) instanceof ConstantOperand constantOperand) {
 			final Serializable value = constantOperand.getValue();
 			if (value == null) {
@@ -647,16 +647,16 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	}
 
 	/**
-	 * Extracts the element identifier operand from a given {@link ObjectAccessStep}, which must be
+	 * Extracts the element identifier operand from a given {@link ObjectOperationStep}, which must be
 	 * an {@link ElementAccessStep}. Throws if the step is null or not the expected type.
 	 *
-	 * @param step an {@link ObjectAccessStep} representing a single step in an object access chain
+	 * @param step an {@link ObjectOperationStep} representing a single step in an object access chain
 	 *             (may be null if the chain ended prematurely)
 	 * @return the extracted {@link ExpressionNode} that represents the element identifier operand
 	 * @throws NonTranslatableExpressionException if the step is null or not an {@link ElementAccessStep}
 	 */
 	@Nonnull
-	private static ExpressionNode extractElementIdentifier(@Nullable ObjectAccessStep step) {
+	private static ExpressionNode extractElementIdentifier(@Nullable ObjectOperationStep step) {
 		if (step == null) {
 			throw new NonTranslatableExpressionException(
 				"Expected an element access step (e.g., ['attributeName']) after `." +
@@ -701,7 +701,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 	 * This allows the chain walker to handle both `?.` and `.` syntax uniformly.
 	 */
 	@Nullable
-	private static ObjectAccessStep skipNullSafe(@Nullable ObjectAccessStep step) {
+	private static ObjectOperationStep skipNullSafe(@Nullable ObjectOperationStep step) {
 		return step instanceof NullSafeAccessStep nullSafe ? nullSafe.getNext() : step;
 	}
 

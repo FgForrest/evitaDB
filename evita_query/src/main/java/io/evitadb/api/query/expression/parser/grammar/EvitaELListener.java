@@ -344,6 +344,16 @@ public interface EvitaELListener extends ParseTreeListener {
 	 */
 	void exitNestedExpressionCallOperand(EvitaELParser.NestedExpressionCallOperandContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link EvitaELParser#methodAccessExpression}.
+	 * @param ctx the parse tree
+	 */
+	void enterMethodAccessExpression(EvitaELParser.MethodAccessExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaELParser#methodAccessExpression}.
+	 * @param ctx the parse tree
+	 */
+	void exitMethodAccessExpression(EvitaELParser.MethodAccessExpressionContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link EvitaELParser#elementAccessExpression}.
 	 * @param ctx the parse tree
 	 */

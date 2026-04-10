@@ -24,8 +24,9 @@
 package io.evitadb.api.query.expression.object;
 
 import io.evitadb.api.query.expression.object.accessor.ObjectAccessorRegistry;
-import io.evitadb.api.query.expression.object.accessor.ObjectPropertyAccessor;
+import io.evitadb.api.query.expression.object.accessor.ObjectMethodAccessor;
 import io.evitadb.dataType.expression.ExpressionEvaluationContext;
+import io.evitadb.dataType.expression.ExpressionNode;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -35,26 +36,25 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.List;
 
 /**
- * An {@link ObjectOperationStep} that resolves a named property on the current operand using
- * dot-notation syntax (`.propertyName`). The property is resolved via
- * {@link ObjectPropertyAccessor} looked up from the {@link ObjectAccessorRegistry}.
- *
- * For example, in the expression `$entity.primaryKey`, this step handles the `.primaryKey` access.
- * If the operand is null, an {@link ExpressionEvaluationException} is thrown — use
- * {@link NullSafeAccessStep} (`?.property`) to handle nullable operands gracefully.
+ * An {@link ObjectOperationStep} that invokes a method on the current operand using
+ * dot-notation syntax (`.method(...)`). The method is resolved via {@link ObjectMethodAccessor}
+ * looked up from the {@link ObjectAccessorRegistry}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
 @EqualsAndHashCode
-public class PropertyAccessStep implements ObjectOperationStep {
-	@Serial private static final long serialVersionUID = 2760082902212762061L;
+public class MethodInvocationStep implements ObjectOperationStep {
 
-	@Nonnull @Getter private final String propertyIdentifier;
+	@Serial private static final long serialVersionUID = 2616337062617784804L;
 
-	@Getter @Nullable private final ObjectOperationStep next;
+	@Nonnull @Getter private final String methodIdentifier;
+	@Nonnull private final List<ExpressionNode> argumentOperands;
+
+	@Nullable @Getter private final ObjectOperationStep next;
 
 	@Nullable
 	@Override
@@ -64,21 +64,26 @@ public class PropertyAccessStep implements ObjectOperationStep {
 	) throws ExpressionEvaluationException {
 		if (operand == null) {
 			throw new ExpressionEvaluationException(
-				"Cannot access property `" + this.propertyIdentifier + "`, object is null. If this is expected, use " +
-					"optional chaining (`?.property`) instead."
+				"Cannot invoke method `" + this.methodIdentifier + "`, object is null. If this is expected, use " +
+					"optional chaining (`?.method(...)`) instead."
 			);
 		}
 
 		final ObjectAccessorRegistry registry = ObjectAccessorRegistry.getInstance();
-		final ObjectPropertyAccessor propertyAccessor = registry.getPropertyAccessor(operand.getClass())
+		final ObjectMethodAccessor methodAccessor = registry.getMethodAccessor(operand.getClass())
 			.orElseThrow(
 				() -> new ExpressionEvaluationException(
-					"Property accessor for class `" + operand.getClass().getName() + "` not found.",
-					"Cannot access property `" + this.propertyIdentifier + "`. Not supported."
+					"Method accessor for class `" + operand.getClass().getName() + "` not found.",
+					"Cannot invoke method `" + this.methodIdentifier + "`. Not supported."
 				)
 			);
 
-		final Serializable result = propertyAccessor.get(operand, this.propertyIdentifier);
+		final Serializable result = methodAccessor.invoke(
+			context,
+			operand,
+			this.methodIdentifier,
+			this.argumentOperands
+		);
 		if (getNext() == null) {
 			return result;
 		}
@@ -87,6 +92,17 @@ public class PropertyAccessStep implements ObjectOperationStep {
 
 	@Override
 	public String toString() {
-		return "." + this.propertyIdentifier + (this.next != null ? this.next.toString() : "");
+		final int size = this.argumentOperands.size();
+		// estimate: function name + parens + ~10 chars per arg + separators
+		final StringBuilder sb = new StringBuilder(".");
+		sb.append(this.methodIdentifier).append('(');
+		for (int i = 0; i < size; i++) {
+			if (i > 0) {
+				sb.append(", ");
+			}
+			sb.append(this.argumentOperands.get(i).toString());
+		}
+		sb.append(')');
+		return sb.toString();
 	}
 }

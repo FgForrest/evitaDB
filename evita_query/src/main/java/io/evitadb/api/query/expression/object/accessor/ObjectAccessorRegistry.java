@@ -60,6 +60,11 @@ public class ObjectAccessorRegistry {
 	private final Map<Class<?>, ObjectElementAccessor> elementAccessors;
 
 	/**
+	 * Map of method accessors keyed by the exact type they are registered for.
+	 */
+	private final Map<Class<?>, ObjectMethodAccessor> methodAccessors;
+
+	/**
 	 * Cache for property accessor lookups that includes type hierarchy resolution.
 	 */
 	private final Map<Class<?>, Optional<ObjectPropertyAccessor>> propertyAccessorCache;
@@ -68,6 +73,11 @@ public class ObjectAccessorRegistry {
 	 * Cache for element accessor lookups that includes type hierarchy resolution.
 	 */
 	private final Map<Class<?>, Optional<ObjectElementAccessor>> elementAccessorCache;
+
+	/**
+	 * Cache for method accessor lookups that includes type hierarchy resolution.
+	 */
+	private final Map<Class<?>, Optional<ObjectMethodAccessor>> methodAccessorCache;
 
 	/**
 	 * Returns the singleton instance of the registry.
@@ -91,14 +101,21 @@ public class ObjectAccessorRegistry {
 			.stream()
 			.map(Provider::get)
 			.toList();
+		final List<ObjectMethodAccessor> foundMethodAccessors = ServiceLoader.load(ObjectMethodAccessor.class)
+			.stream()
+			.map(Provider::get)
+			.toList();
 
 		this.propertyAccessors = createHashMap(foundPropertyAccessors.size());
 		this.elementAccessors = createHashMap(foundElementAccessors.size());
+		this.methodAccessors = createHashMap(foundMethodAccessors.size());
 		this.propertyAccessorCache = createConcurrentHashMap(Math.round(foundPropertyAccessors.size() * 1.5f));
 		this.elementAccessorCache = createConcurrentHashMap(Math.round(foundElementAccessors.size() * 1.5f));
+		this.methodAccessorCache = createConcurrentHashMap(Math.round(foundMethodAccessors.size() * 1.5f));
 
 		foundPropertyAccessors.forEach(this::registerPropertyAccessor);
 		foundElementAccessors.forEach(this::registerElementAccessor);
+		foundMethodAccessors.forEach(this::registerMethodAccessor);
 	}
 
 	/**
@@ -140,6 +157,25 @@ public class ObjectAccessorRegistry {
 	}
 
 	/**
+	 * Registers a method accessor for the specified type. Only one accessor can be registered per type -
+	 * attempting to register a duplicate will result in an error.
+	 *
+	 * @param accessor the accessor to register
+	 * @throws IllegalStateException if an accessor is already registered for the given type
+	 */
+	public void registerMethodAccessor(@Nonnull ObjectMethodAccessor accessor) {
+		for (final Class<?> supportedType : accessor.getSupportedTypes()) {
+			final ObjectMethodAccessor existing = this.methodAccessors.putIfAbsent(supportedType, accessor);
+			Assert.isTrue(
+				existing == null,
+				"MethodAccessor already registered for type `" + supportedType.getName() + "`."
+			);
+		}
+		// invalidate cache as new accessor may affect lookups
+		this.methodAccessorCache.clear();
+	}
+
+	/**
 	 * Gets the property accessor for the specified type. If no accessor is registered for the exact type,
 	 * the registry will search through the type hierarchy (superclasses and interfaces).
 	 *
@@ -176,6 +212,29 @@ public class ObjectAccessorRegistry {
 			type,
 			t -> {
 				for (final Map.Entry<Class<?>, ObjectElementAccessor> entry : this.elementAccessors.entrySet()) {
+					if (entry.getKey().isAssignableFrom(t)) {
+						return Optional.of(entry.getValue());
+					}
+				}
+				return Optional.empty();
+			}
+		);
+	}
+
+	/**
+	 * Gets the method accessor for the specified type. If no accessor is registered for the exact type,
+	 * the registry will search through the type hierarchy (superclasses and interfaces).
+	 *
+	 * @param type the type to get the accessor for
+	 * @param <T> the type parameter
+	 * @return an optional containing the accessor if found, empty otherwise
+	 */
+	@Nonnull
+	public <T extends Serializable> Optional<ObjectMethodAccessor> getMethodAccessor(@Nonnull Class<T> type) {
+		return this.methodAccessorCache.computeIfAbsent(
+			type,
+			t -> {
+				for (final Map.Entry<Class<?>, ObjectMethodAccessor> entry : this.methodAccessors.entrySet()) {
 					if (entry.getKey().isAssignableFrom(t)) {
 						return Optional.of(entry.getValue());
 					}

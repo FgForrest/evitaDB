@@ -34,7 +34,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * An {@link ObjectAccessStep} decorator that provides optional chaining semantics for the wrapped
+ * An {@link ObjectOperationStep} decorator that provides optional chaining semantics for the wrapped
  * next step. If the operand is null, this step short-circuits the access chain and returns null
  * instead of throwing an {@link ExpressionEvaluationException}.
  *
@@ -45,10 +45,10 @@ import java.io.Serializable;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
-public class NullSafeAccessStep implements ObjectAccessStep {
+public class NullSafeAccessStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = -2195956191525819662L;
-	@Nonnull @Getter private final ObjectAccessStep next;
+	@Nonnull @Getter private final ObjectOperationStep next;
 
 	@Nullable
 	@Override

@@ -208,6 +208,12 @@ public interface EvitaELVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitNestedExpressionCallOperand(EvitaELParser.NestedExpressionCallOperandContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link EvitaELParser#methodAccessExpression}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitMethodAccessExpression(EvitaELParser.MethodAccessExpressionContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link EvitaELParser#elementAccessExpression}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

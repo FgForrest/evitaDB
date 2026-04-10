@@ -44,7 +44,7 @@ import java.util.Map;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * An {@link ObjectAccessStep} that applies a mapping expression to each element of a collection,
+ * An {@link ObjectOperationStep} that applies a mapping expression to each element of a collection,
  * array, or map using the spread operator syntax (`.*[expr]`). Each element is made available as
  * the `$` (this) variable within the mapping expression context.
  *
@@ -57,7 +57,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @RequiredArgsConstructor
-public class SpreadAccessStep implements ObjectAccessStep {
+public class SpreadAccessStep implements ObjectOperationStep {
 
 	@Serial private static final long serialVersionUID = 3389942116283673090L;
 
@@ -67,7 +67,7 @@ public class SpreadAccessStep implements ObjectAccessStep {
 	 */
 	private final boolean compact;
 
-	@Nullable @Getter private final ObjectAccessStep next;
+	@Nullable @Getter private final ObjectOperationStep next;
 
 	@Nullable
 	@Override
