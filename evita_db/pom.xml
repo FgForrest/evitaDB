@@ -34,6 +34,11 @@
 		<version>2026.2-SNAPSHOT</version>
 	</parent>
 
+	<modules>
+		<module>bom_client</module>
+		<module>bom_server</module>
+	</modules>
+
 	<dependencies>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>

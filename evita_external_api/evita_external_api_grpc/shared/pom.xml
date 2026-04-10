@@ -49,7 +49,6 @@
 			<plugin>
 				<groupId>org.xolstice.maven.plugins</groupId>
 				<artifactId>protobuf-maven-plugin</artifactId>
-				<version>0.6.1</version>
 				<configuration>
 					<protocArtifact>com.google.protobuf:protoc:3.25.8:exe:${os.detected.classifier}</protocArtifact>
 					<pluginId>grpc-java</pluginId>
@@ -87,7 +86,6 @@
 			<plugin>
 				<groupId>com.google.code.maven-replacer-plugin</groupId>
 				<artifactId>replacer</artifactId>
-				<version>1.5.3</version>
 				<executions>
 					<execution>
 						<id>3</id>

@@ -34,7 +34,6 @@
 		<version>2026.2-SNAPSHOT</version>
 	</parent>
 	<properties>
-		<antlr4.version>4.13.2</antlr4.version>
 		<sonar.exclusions>src/main/java/io/evitadb/api/query/parser/grammar/**</sonar.exclusions>
 	</properties>
 	<dependencies>
@@ -46,7 +45,6 @@
 		<dependency>
 			<groupId>org.antlr</groupId>
 			<artifactId>antlr4-runtime</artifactId>
-			<version>${antlr4.version}</version>
 		</dependency>
 	</dependencies>
 	<build>
@@ -55,7 +53,6 @@
 			<plugin>
 				<groupId>com.google.code.maven-replacer-plugin</groupId>
 				<artifactId>replacer</artifactId>
-				<version>1.5.3</version>
 				<configuration>
 					<filesToInclude>${basedir}/src/main/java/io/evitadb/api/query/parser/grammar/*.java</filesToInclude>
 					<regexFlags>MULTILINE,DOTALL</regexFlags>

@@ -148,6 +148,15 @@
 		<opentelemetry.version>1.59.0</opentelemetry.version>
 		<opentelemetry.semconv.version>1.40.0</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
+		<hppc.version>0.10.0</hppc.version>
+		<zero-allocation-hashing.version>2026.0</zero-allocation-hashing.version>
+		<proxycian.version>1.4.0</proxycian.version>
+		<commons-io.version>2.21.0</commons-io.version>
+		<guava.version>33.5.0-jre</guava.version>
+		<commons-text.version>1.15.0</commons-text.version>
+		<commons-lang3.version>3.20.0</commons-lang3.version>
+		<jsr305.version>3.0.2</jsr305.version>
+		<antlr4.version>4.13.2</antlr4.version>
 	</properties>
 
 	<modules>
@@ -179,17 +188,17 @@
 			<dependency>
 				<groupId>com.carrotsearch</groupId>
 				<artifactId>hppc</artifactId>
-				<version>0.10.0</version>
+				<version>${hppc.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>net.openhft</groupId>
 				<artifactId>zero-allocation-hashing</artifactId>
-				<version>2026.0</version>
+				<version>${zero-allocation-hashing.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>one.edee.oss</groupId>
 				<artifactId>proxycian_bytebuddy</artifactId>
-				<version>1.4.0</version>
+				<version>${proxycian.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>com.squareup.okhttp3</groupId>
@@ -259,7 +268,7 @@
 			<dependency>
 				<groupId>commons-io</groupId>
 				<artifactId>commons-io</artifactId>
-				<version>2.21.0</version>
+				<version>${commons-io.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>com.linecorp.armeria</groupId>
@@ -281,17 +290,72 @@
 			<dependency>
 				<groupId>com.google.guava</groupId>
 				<artifactId>guava</artifactId>
-				<version>33.5.0-jre</version>
+				<version>${guava.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.commons</groupId>
 				<artifactId>commons-text</artifactId>
-				<version>1.15.0</version>
+				<version>${commons-text.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.commons</groupId>
 				<artifactId>commons-lang3</artifactId>
-				<version>3.20.0</version>
+				<version>${commons-lang3.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.antlr</groupId>
+				<artifactId>antlr4-runtime</artifactId>
+				<version>${antlr4.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.github.javafaker</groupId>
+				<artifactId>javafaker</artifactId>
+				<version>1.0.2</version>
+			</dependency>
+			<dependency>
+				<groupId>one.edee.oss</groupId>
+				<artifactId>pmptt_core</artifactId>
+				<version>1.3.1</version>
+			</dependency>
+			<dependency>
+				<groupId>io.rest-assured</groupId>
+				<artifactId>rest-assured</artifactId>
+				<version>6.0.0</version>
+			</dependency>
+			<dependency>
+				<groupId>org.awaitility</groupId>
+				<artifactId>awaitility</artifactId>
+				<version>4.3.0</version>
+			</dependency>
+			<dependency>
+				<groupId>com.adobe.testing</groupId>
+				<artifactId>s3mock-junit5</artifactId>
+				<version>4.11.0</version>
+			</dependency>
+			<dependency>
+				<groupId>commons-codec</groupId>
+				<artifactId>commons-codec</artifactId>
+				<version>1.21.0</version>
+			</dependency>
+			<dependency>
+				<groupId>net.javacrumbs.json-unit</groupId>
+				<artifactId>json-unit</artifactId>
+				<version>5.1.0</version>
+			</dependency>
+			<dependency>
+				<groupId>net.javacrumbs.json-unit</groupId>
+				<artifactId>json-unit-assertj</artifactId>
+				<version>5.1.0</version>
+			</dependency>
+			<dependency>
+				<groupId>net.steppschuh.markdowngenerator</groupId>
+				<artifactId>markdowngenerator</artifactId>
+				<version>1.3.1.1</version>
+			</dependency>
+			<dependency>
+				<groupId>com.thoughtworks.qdox</groupId>
+				<artifactId>qdox</artifactId>
+				<version>2.2.0</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -299,7 +363,7 @@
 		<dependency>
 			<groupId>com.google.code.findbugs</groupId>
 			<artifactId>jsr305</artifactId>
-			<version>3.0.2</version>
+			<version>${jsr305.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -317,12 +381,6 @@
 			<groupId>org.mockito</groupId>
 			<artifactId>mockito-junit-jupiter</artifactId>
 			<version>${mockito.junit.version}</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.mockito</groupId>
-			<artifactId>mockito-inline</artifactId>
-			<version>5.2.0</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -481,6 +539,41 @@
 					<artifactId>maven-shade-plugin</artifactId>
 					<version>3.6.1</version>
 				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-jar-plugin</artifactId>
+					<version>3.5.0</version>
+				</plugin>
+				<plugin>
+					<groupId>com.google.code.maven-replacer-plugin</groupId>
+					<artifactId>replacer</artifactId>
+					<version>1.5.3</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-surefire-plugin</artifactId>
+					<version>3.5.4</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-javadoc-plugin</artifactId>
+					<version>3.12.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.jacoco</groupId>
+					<artifactId>jacoco-maven-plugin</artifactId>
+					<version>0.8.8</version>
+				</plugin>
+				<plugin>
+					<groupId>org.xolstice.maven.plugins</groupId>
+					<artifactId>protobuf-maven-plugin</artifactId>
+					<version>0.6.1</version>
+				</plugin>
+				<plugin>
+					<groupId>org.codehaus.mojo</groupId>
+					<artifactId>exec-maven-plugin</artifactId>
+					<version>3.5.0</version>
+				</plugin>
 			</plugins>
 		</pluginManagement>
 		<plugins>
@@ -513,19 +606,17 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.4</version>
 				<configuration>
 					<forkCount>1</forkCount>
 					<reuseForks>true</reuseForks>
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<argLine>${surefireArgLine} -Xmx5g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<argLine>${surefireArgLine} -Xmx5g -Duser.country=US -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.12.0</version>
 				<configuration>
 					<verbose>false</verbose>
 					<quiet>true</quiet>
@@ -608,7 +699,6 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.8</version>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>

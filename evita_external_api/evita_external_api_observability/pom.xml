@@ -128,21 +128,21 @@
 			</exclusions>
 		</dependency>
 		<dependency>
-			<groupId>io.evitadb</groupId>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_external_api_grpc</artifactId>
-			<version>2026.2-SNAPSHOT</version>
+			<version>${project.parent.version}</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
-			<groupId>io.evitadb</groupId>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_external_api_graphql</artifactId>
-			<version>2026.2-SNAPSHOT</version>
+			<version>${project.parent.version}</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
-			<groupId>io.evitadb</groupId>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_external_api_rest</artifactId>
-			<version>2026.2-SNAPSHOT</version>
+			<version>${project.parent.version}</version>
 			<scope>compile</scope>
 		</dependency>
 	</dependencies>
