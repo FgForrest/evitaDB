@@ -30,6 +30,7 @@ import io.evitadb.api.query.expression.object.accessor.common.ListElementAccesso
 import io.evitadb.api.query.expression.object.accessor.common.ArrayMethodAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.ListMethodAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.MapElementAccessor;
+import io.evitadb.api.query.expression.object.accessor.common.MapMethodAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.DateTimeRangePropertyAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.MapEntryPropertyAccessor;
 import io.evitadb.api.query.expression.object.accessor.common.MapPropertyAccessor;
@@ -67,7 +68,8 @@ module evita.query {
 
 	provides ObjectMethodAccessor with
 		ListMethodAccessor,
-		ArrayMethodAccessor;
+		ArrayMethodAccessor,
+		MapMethodAccessor;
 
 	exports io.evitadb.api.query;
 	exports io.evitadb.api.query.descriptor;

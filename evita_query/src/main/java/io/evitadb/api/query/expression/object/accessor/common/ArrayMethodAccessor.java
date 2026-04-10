@@ -126,7 +126,7 @@ public class ArrayMethodAccessor implements ObjectMethodAccessor {
 		@Nonnull List<ExpressionNode> args,
 		@Nonnull MatchMode mode
 	) {
-		final String methodName = mode.name().toLowerCase();
+		final String methodName = mode.name();
 		validateRequiredNumberOfArgs(methodName, args, 1);
 		final ExpressionNode predicate = args.get(0);
 

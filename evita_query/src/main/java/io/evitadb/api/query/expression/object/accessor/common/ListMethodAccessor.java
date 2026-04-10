@@ -36,11 +36,18 @@ import java.util.List;
 import java.util.function.Function;
 
 /**
- * TODO LHO docs
+ * Method accessor implementation for lists.
+ * Provides method invocation support for the following methods:
+ *
+ * - `size()` - returns the length of the list
+ * - `any(predicate)` - returns `true` if any element matches the predicate
+ * - `all(predicate)` - returns `true` if all elements match the predicate
+ * - `none(predicate)` - returns `true` if no element matches the predicate
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 public class ListMethodAccessor implements ObjectMethodAccessor {
+
 	@Nonnull
 	@Override
 	public Class<? extends Serializable>[] getSupportedTypes() {

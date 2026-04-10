@@ -212,21 +212,27 @@ public class ExpressionTest {
 			/* 111 */ Arguments.of("null == $var", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
 			/* 112 */ Arguments.of("$var == null", Map.of("var", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
 			/* List `any` method */
-			        Arguments.of("$obj.list.any($ > 200)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.list.any($ > 1000)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.list.all($ < 1000)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.list.all($ > 200)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.list.none($ > 1000)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.list.none($ < 1000)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.objectList.any($.attribute != null)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.objectList.any($.attribute == null)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 113 */ Arguments.of("$obj.list.any($ > 200)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 114 */ Arguments.of("$obj.list.any($ > 1000)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 115 */ Arguments.of("$obj.list.all($ < 1000)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 116 */ Arguments.of("$obj.list.all($ > 200)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 117 */ Arguments.of("$obj.list.none($ > 1000)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 118 */ Arguments.of("$obj.list.none($ < 1000)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 119 */ Arguments.of("$obj.objectList.any($.attribute != null)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 120 */ Arguments.of("$obj.objectList.any($.attribute == null)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
 			/* Array `any` method */
-			        Arguments.of("$obj.arr.any($ > 8.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.arr.any($ > 1000.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.arr.all($ < 1000.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.arr.all($ > 200.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.arr.none($ > 1000.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			        Arguments.of("$obj.arr.none($ < 1000.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE)
+			/* 121 */ Arguments.of("$obj.arr.any($ > 8.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 122 */ Arguments.of("$obj.arr.any($ > 1000.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 123 */ Arguments.of("$obj.arr.all($ < 1000.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 124 */ Arguments.of("$obj.arr.all($ > 200.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 125 */ Arguments.of("$obj.arr.none($ > 1000.0)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 126 */ Arguments.of("$obj.arr.none($ < 1000.0)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 127 */ Arguments.of("$obj.objectArr.any($.attribute != null)", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 128 */ Arguments.of("$obj.objectArr.any($.attribute == null)", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* Map `size` method */
+			/* 129 */ Arguments.of("$obj.map.size()", Map.of("obj", new TestObject()), 4, BigDecimalNumberRange.INFINITE),
+			/* 130 */ Arguments.of("$obj.mapWithPrimitiveValues.size()", Map.of("obj", new TestObject()), 4, BigDecimalNumberRange.INFINITE),
+			/* 131 */ Arguments.of("$obj.mapWithMissingValues.size()", Map.of("obj", new TestObject()), 2, BigDecimalNumberRange.INFINITE)
 		);
 	}
 
@@ -361,6 +367,11 @@ public class ExpressionTest {
 		}
 
 		@Nonnull
+		public NestedTestObject[] objectArr() {
+			return new NestedTestObject[] {new NestedTestObject(), new NestedTestObject()};
+		}
+
+		@Nonnull
 		public List<NestedTestObject> objectList() {
 			return Arrays.asList(new NestedTestObject(), new NestedTestObject());
 		}
@@ -406,6 +417,7 @@ public class ExpressionTest {
 				case "mapWithPrimitiveMissingValues" -> (Serializable) testObject.mapWithPrimitiveMissingValues();
 				case "nested" -> testObject.nested();
 				case "optionalNested" -> testObject.optionalNested();
+				case "objectArr" -> testObject.objectArr();
 				case "objectList" -> (Serializable) testObject.objectList();
 				case "objectListWithMissingValues" -> (Serializable) testObject.objectListWithMissingValues();
 				default -> throw new IllegalArgumentException("Unknown property: " + propertyIdentifier);
