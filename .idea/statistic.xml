@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Statistic">
+    <option name="separateTabsFileTypes" value="java;xml;css;html;js;properties;jsp;txt;php;php4;php5;phtml;inc;py;vue;kt;md" />
+    <option name="excludeDotArtifactDirectory" value="true" />
+    <option name="excludedDirectories">
+      <list>
+        <option value="$PROJECT_DIR$/data" />
+        <option value="$PROJECT_DIR$/docker" />
+        <option value="$PROJECT_DIR$/documentation" />
+        <option value="$PROJECT_DIR$/evita-server-certificates" />
+        <option value="$PROJECT_DIR$/evita_db" />
+        <option value="$PROJECT_DIR$/evita_test/evita_functional_tests" />
+        <option value="$PROJECT_DIR$/evita_test/evita_performance_tests" />
+        <option value="$PROJECT_DIR$/evita_test/evita_test_support" />
+        <option value="$PROJECT_DIR$/export" />
+        <option value="$PROJECT_DIR$/jacoco" />
+        <option value="$PROJECT_DIR$/tools" />
+        <option value="$PROJECT_DIR$/evita_query/src/main/java/io/evitadb/api/query/expression/parser/grammar" />
+        <option value="$PROJECT_DIR$/evita_query/src/main/java/io/evitadb/api/query/parser/grammar" />
+        <option value="$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/generated" />
+        <option value="$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/client_all_in_one" />
+      </list>
+    </option>
+  </component>
+</project>

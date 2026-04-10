@@ -1,0 +1,15 @@
+POST https://demo.evitadb.io:5555/rest/evita/product/list
+Accept: application/json
+Content-Type: application/json
+
+{
+  "require": {
+    "page": {
+	  "number": 1,
+	  "size": 3
+	},
+    "entityFetch": {
+      "attributeContentAll": true
+    }
+  }
+}

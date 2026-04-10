@@ -21,14 +21,12 @@
  *   limitations under the License.
  */
 
-import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
-
 /**
  * Module contains gRPC API (server) for evitaDB.
  */
 module evita.external.api.grpc {
 
-	uses CatalogPersistenceServiceFactory;
+	uses io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
 	uses io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 	uses io.evitadb.api.observability.trace.TracingContext;
 	uses io.evitadb.externalApi.utils.ExternalApiTracingContext;

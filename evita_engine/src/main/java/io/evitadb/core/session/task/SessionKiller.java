@@ -65,7 +65,7 @@ public class SessionKiller implements Runnable, Closeable {
 	 * and terminates them after the specified inactivity timeout.
 	 *
 	 * @param allowedInactivityInSeconds maximum allowed inactivity time in seconds
-	 * @param sessionRegistry TODO JNO
+	 * @param sessionRegistry the session registry to access active sessions
 	 * @param scheduler the scheduler used to plan periodic execution
 	 */
 	public SessionKiller(int allowedInactivityInSeconds, @Nonnull SessionRegistry sessionRegistry, @Nonnull Scheduler scheduler) {

@@ -91,8 +91,16 @@ fabric.properties
 .hole/*
 
 ### Claude settings
-/.claude/agent-memory/
 /.claude/settings.local.json
+/.claude/agent-memory/**
+
+### Eclipse JDTLS
+
+*/**/.project
+*/**/.classpath
+*/**/.settings/*
+*/**/*.args
+*/**/.factorypath
 
 ### Data
 

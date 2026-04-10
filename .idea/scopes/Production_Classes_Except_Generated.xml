@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="Production Classes Except Generated" pattern="src:*..*&amp;&amp;!src[evita_external_api_grpc_shared]:io.evitadb.externalApi.grpc.generated..*&amp;&amp;!src[evita_query]:io.evitadb.api.query.expression.parser.grammar..*&amp;&amp;!src[evita_query]:io.evitadb.api.query.parser.grammar..*&amp;&amp;!src[evita_external_api_core]:io.evitadb.externalApi.utils.path..*" />
+</component>

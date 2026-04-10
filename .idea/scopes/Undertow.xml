@@ -1,0 +1,3 @@
+<component name="DependencyValidationManager">
+  <scope name="Undertow" pattern="src[evita_external_api_core]:io.evitadb.externalApi.utils.path..*" />
+</component>
