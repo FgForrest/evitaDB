@@ -36,6 +36,7 @@ import io.evitadb.api.query.expression.numeric.NegativeOperator;
 import io.evitadb.api.query.expression.numeric.PositiveOperator;
 import io.evitadb.api.query.expression.numeric.SubtractionOperator;
 import io.evitadb.api.query.expression.object.ElementAccessStep;
+import io.evitadb.api.query.expression.object.MethodInvocationStep;
 import io.evitadb.api.query.expression.object.NullSafeAccessStep;
 import io.evitadb.api.query.expression.object.ObjectAccessOperator;
 import io.evitadb.api.query.expression.object.ObjectOperationStep;
@@ -482,13 +483,22 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		}
 		final String referenceName = getReferenceName(refElement);
 
-		// after the element access, check for spread or direct property chain
+		// after the element access, check for spread, method invocation, or direct property chain
 		final ObjectOperationStep afterElement = refElement.getNext();
 		final String attributeName;
 
 		if (afterElement instanceof SpreadAccessStep spreadStep) {
-			// spread variant: references['r']*.attributes['A']
+			// spread variant: references['r'].*[$.attributes['A']]
 			attributeName = extractAttributeFromSpreadMapping(spreadStep);
+		} else if (afterElement instanceof MethodInvocationStep methodStep) {
+			// method variant: references['r'].any($.attributes['A'] > v)
+			attributeName = extractAttributeFromMethodPredicate(methodStep);
+		} else if (
+			afterElement instanceof NullSafeAccessStep nullSafe
+				&& nullSafe.getNext() instanceof MethodInvocationStep methodStep
+		) {
+			// null-safe method variant: references['r']?.any($.attributes['A'] > v)
+			attributeName = extractAttributeFromMethodPredicate(methodStep);
 		} else {
 			// non-spread variant: references['r'].attributes['A'] (with optional null-safe)
 			final ObjectOperationStep afterNullSafe = skipNullSafe(afterElement);
@@ -598,6 +608,95 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		if (!isAttributesProperty(attrProp.getPropertyIdentifier())) {
 			throw new NonTranslatableExpressionException(
 				"Spread mapping access chain must start with `." +
+					EntityContractAccessor.ATTRIBUTES_PROPERTY + "` or `." +
+					EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "`, but found `." +
+					attrProp.getPropertyIdentifier() + "`."
+			);
+		}
+		return extractAttributeName(attrProp.getNext());
+	}
+
+	/**
+	 * Extracts the attribute name from a {@link MethodInvocationStep}'s predicate argument.
+	 * The predicate must be a comparison expression containing an attribute access path
+	 * rooted at `$` (this), e.g., `($.attributes['weight'] ?? 0) > 5`.
+	 *
+	 * @param methodStep the method invocation step (must be a predicate method with exactly 1 argument)
+	 * @return the extracted attribute name
+	 * @throws NonTranslatableExpressionException if the predicate structure is not recognized
+	 */
+	@Nonnull
+	private static String extractAttributeFromMethodPredicate(
+		@Nonnull MethodInvocationStep methodStep
+	) {
+		if (methodStep.getArgumentOperands().size() != 1) {
+			throw new NonTranslatableExpressionException(
+				"Predicate method `" + methodStep.getMethodIdentifier() +
+					"()` requires exactly one argument for FilterBy translation, " +
+					"but found " + methodStep.getArgumentOperands().size() + "."
+			);
+		}
+
+		final ExpressionNode predicateArg = methodStep.getArgumentOperands().get(0);
+		final ExpressionNode unwrapped = unwrap(predicateArg);
+
+		if (!(unwrapped instanceof BinaryExpressionNode comparison)) {
+			throw new NonTranslatableExpressionException(
+				"Predicate argument must be a comparison expression for FilterBy " +
+					"translation, but found `" + unwrapped.getClass().getSimpleName() + "`."
+			);
+		}
+
+		final ExpressionNode left = unwrapNullCoalesce(comparison.getLeftOperand());
+		final ExpressionNode right = unwrapNullCoalesce(comparison.getRightOperand());
+
+		final ObjectAccessOperator pathOperand;
+		if (left instanceof ObjectAccessOperator leftPath) {
+			pathOperand = leftPath;
+		} else if (right instanceof ObjectAccessOperator rightPath) {
+			pathOperand = rightPath;
+		} else {
+			throw new NonTranslatableExpressionException(
+				"Predicate argument must contain an attribute access path (e.g., " +
+					"`$.attributes['name']`), but neither operand is an object access."
+			);
+		}
+
+		return extractAttributeFromThisAccess(pathOperand);
+	}
+
+	/**
+	 * Extracts the attribute name from an {@link ObjectAccessOperator} rooted at `$` (this).
+	 * The access chain must follow the pattern `$.attributes['x']` or
+	 * `$.localizedAttributes['x']`.
+	 *
+	 * @param thisAccess the object access operator with `$` (this) operand
+	 * @return the extracted attribute name
+	 * @throws NonTranslatableExpressionException if the access pattern is not recognized
+	 */
+	@Nonnull
+	private static String extractAttributeFromThisAccess(
+		@Nonnull ObjectAccessOperator thisAccess
+	) {
+		final ExpressionNode operand = thisAccess.getOperand();
+		if (!(operand instanceof VariableOperand thisVar) || !thisVar.isThis()) {
+			throw new NonTranslatableExpressionException(
+				"Predicate attribute access operand must be `$` (this), but found `" +
+					operand.getClass().getSimpleName() + "`."
+			);
+		}
+
+		final ObjectOperationStep chainStep = thisAccess.getAccessChain();
+		if (!(chainStep instanceof PropertyAccessStep attrProp)) {
+			throw new NonTranslatableExpressionException(
+				"Predicate attribute access chain must start with `." +
+					EntityContractAccessor.ATTRIBUTES_PROPERTY + "`, but found `" +
+					chainStep.getClass().getSimpleName() + "`."
+			);
+		}
+		if (!isAttributesProperty(attrProp.getPropertyIdentifier())) {
+			throw new NonTranslatableExpressionException(
+				"Predicate attribute access chain must start with `." +
 					EntityContractAccessor.ATTRIBUTES_PROPERTY + "` or `." +
 					EntityContractAccessor.LOCALIZED_ATTRIBUTES_PROPERTY + "`, but found `." +
 					attrProp.getPropertyIdentifier() + "`."
@@ -799,6 +898,8 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 				|| node instanceof LesserThanEqualsOperator
 		) {
 			translateComparison(node);
+		} else if (node instanceof ObjectAccessOperator objectAccessOperator) {
+			translateMethodInvocationExpression(objectAccessOperator);
 		} else if (node instanceof XorOperator) {
 			throw new NonTranslatableExpressionException(
 				"XOR operator (`^`) has no FilterBy equivalent. " +
@@ -873,6 +974,106 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 				)
 			);
 		};
+	}
+
+	/**
+	 * Translates an {@link ObjectAccessOperator} whose chain ends with a predicate
+	 * {@link MethodInvocationStep} (`any`, `none`) into a FilterBy constraint.
+	 * The method invocation is semantically equivalent to a spread access for FilterBy
+	 * purposes: `referenceHaving` is existential by nature.
+	 *
+	 * - `.any(predicate)` translates identically to the spread variant
+	 * - `.none(predicate)` wraps the result in `not()`
+	 * - `.all(predicate)` is rejected (no universal quantifier in FilterBy)
+	 *
+	 * @param objectAccessOperator the access operator whose chain ends with method invocation
+	 * @throws NonTranslatableExpressionException if the method cannot be translated
+	 */
+	private void translateMethodInvocationExpression(
+		@Nonnull ObjectAccessOperator objectAccessOperator
+	) {
+		// walk chain to find terminal MethodInvocationStep
+		ObjectOperationStep lastStep = objectAccessOperator.getAccessChain();
+		while (lastStep.getNext() != null) {
+			lastStep = lastStep.getNext();
+		}
+		if (!(lastStep instanceof MethodInvocationStep methodStep)) {
+			throw new NonTranslatableExpressionException(
+				"Standalone object access expression cannot be translated to a " +
+					"FilterBy constraint. Only predicate methods (`any()`, `none()`) " +
+					"on collections are supported."
+			);
+		}
+
+		final String methodName = methodStep.getMethodIdentifier();
+		if ("all".equals(methodName)) {
+			throw new NonTranslatableExpressionException(
+				"Method `all()` cannot be translated to a FilterBy constraint. " +
+					"FilterBy has no universal quantifier."
+			);
+		}
+		if (!("any".equals(methodName) || "none".equals(methodName))) {
+			throw new NonTranslatableExpressionException(
+				"Method `" + methodName + "()` cannot be translated to a " +
+					"FilterBy constraint. Only `any()` and `none()` are supported."
+			);
+		}
+
+		// classify the outer path (produces the same DataPath as for spread)
+		final DataPath dataPath = classifyPath(objectAccessOperator);
+
+		// extract comparison from the predicate argument
+		if (methodStep.getArgumentOperands().size() != 1) {
+			throw new NonTranslatableExpressionException(
+				"Method `" + methodName + "()` requires exactly one predicate " +
+					"argument for FilterBy translation."
+			);
+		}
+		final ExpressionNode predicateArg = methodStep.getArgumentOperands().get(0);
+		final ExpressionNode unwrappedPredicate = unwrap(predicateArg);
+
+		if (!(unwrappedPredicate instanceof BinaryExpressionNode comparison)) {
+			throw new NonTranslatableExpressionException(
+				"Predicate argument of `" + methodName + "()` must be a " +
+					"comparison expression for FilterBy translation."
+			);
+		}
+
+		final ExpressionNode left = unwrapNullCoalesce(comparison.getLeftOperand());
+		final ExpressionNode right = unwrapNullCoalesce(comparison.getRightOperand());
+
+		final ConstantOperand valueOperand;
+		final boolean reversed;
+		if (left instanceof ObjectAccessOperator && right instanceof ConstantOperand rightConst) {
+			valueOperand = rightConst;
+			reversed = false;
+		} else if (left instanceof ConstantOperand leftConst && right instanceof ObjectAccessOperator) {
+			valueOperand = leftConst;
+			reversed = true;
+		} else {
+			throw new NonTranslatableExpressionException(
+				"Predicate comparison must have one attribute access and one " +
+					"constant literal operand."
+			);
+		}
+
+		final Serializable value = valueOperand.getValue();
+		final FilterConstraint attributeConstraint;
+		if (value == null) {
+			attributeConstraint = createNullAttributeConstraint(
+				unwrappedPredicate, dataPath.attributeName()
+			);
+		} else {
+			attributeConstraint = createAttributeConstraint(
+				unwrappedPredicate, dataPath.attributeName(), value, reversed
+			);
+		}
+
+		FilterConstraint wrapped = wrapForPathType(dataPath, attributeConstraint);
+		if ("none".equals(methodName)) {
+			wrapped = not(wrapped);
+		}
+		this.result = wrapped;
 	}
 
 	/**

@@ -4,14 +4,15 @@ The Evita Expression Language (EvitaEL) is an expression evaluation engine used 
 attribute values, dynamic attribute histograms, and other scenarios where user-defined expressions are
 evaluated against entity data at query time.
 
-EvitaEL exposes three Service Provider Interface (SPI) extension points that allow external modules
+EvitaEL exposes four Service Provider Interface (SPI) extension points that allow external modules
 (or third-party code) to extend the language with new capabilities:
 
 - `FunctionProcessor` - custom functions invoked as `functionName(args...)` (e.g. `abs(x)`, `sqrt(x)`)
 - `ObjectPropertyAccessor` - dot-notation property access on objects (e.g. `entity.attributes`)
 - `ObjectElementAccessor` - bracket-notation element access on objects (e.g. `map['key']`, `list[0]`)
+- `ObjectMethodAccessor` - dot-notation method invocation on objects (e.g. `list.any($ > 5)`, `map.size()`)
 
-All three SPIs are discovered via `java.util.ServiceLoader` and registered in singleton registries at
+All four SPIs are discovered via `java.util.ServiceLoader` and registered in singleton registries at
 startup. The SPI interfaces live in the `evita_query` module, package
 `io.evitadb.api.query.expression.function.processor` (functions) and
 `io.evitadb.api.query.expression.object.accessor` (object accessors).
@@ -235,6 +236,114 @@ public class MoneyPropertyAccessor implements ObjectPropertyAccessor {
 ```
 
 
+## ObjectMethodAccessor
+
+### Interface
+
+`io.evitadb.api.query.expression.object.accessor.ObjectMethodAccessor` enables dot-notation method
+invocation in EvitaEL expressions (e.g. `list.any($ > 5)`, `map.size()`). Unlike property and element
+accessors, method accessors receive the `ExpressionEvaluationContext` and the raw argument
+`ExpressionNode` list. This means method arguments are lazily evaluated - the accessor controls when
+and how arguments are computed, which is essential for predicate-style methods like `any()` where
+each element needs its own evaluation context:
+
+```java
+public interface ObjectMethodAccessor {
+    @Nonnull
+    Class<? extends Serializable>[] getSupportedTypes();
+
+    Serializable invoke(
+        @Nonnull ExpressionEvaluationContext context,
+        @Nonnull Serializable object,
+        @Nonnull String methodIdentifier,
+        @Nonnull List<ExpressionNode> args
+    ) throws ExpressionEvaluationException;
+}
+```
+
+### Registry
+
+`ObjectMethodAccessor` implementations are managed by the same `ObjectAccessorRegistry` that handles
+property and element accessors. The registry loads method accessors via `ServiceLoader`, indexes them
+by supported types, and supports type hierarchy traversal with concurrent caching - exactly the same
+dispatch mechanism as for property and element accessors.
+
+### Built-in implementations
+
+| Class | Module | Supported types | Methods |
+|---|---|---|---|
+| `ListMethodAccessor` | `evita_query` | `List` | `size()`, `any(predicate)`, `all(predicate)`, `none(predicate)` |
+| `ArrayMethodAccessor` | `evita_query` | All primitive arrays, `Object[]` | `size()`, `any(predicate)`, `all(predicate)`, `none(predicate)` |
+| `MapMethodAccessor` | `evita_query` | `Map` | `size()` |
+
+For predicate methods (`any`, `all`, `none`), the predicate argument is an expression where `$`
+refers to the current element. The accessor evaluates the predicate for each element using
+`context.withThis(element)` to bind the `$` variable.
+
+### Implementing a custom method accessor
+
+The following example shows a method accessor for a hypothetical `Money` type that provides a
+`convertTo(currencyCode)` method:
+
+```java
+package com.example.evita.expression;
+
+import io.evitadb.api.query.expression.object.accessor.ObjectMethodAccessor;
+import io.evitadb.dataType.expression.ExpressionEvaluationContext;
+import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.exception.ExpressionEvaluationException;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.List;
+
+public class MoneyMethodAccessor implements ObjectMethodAccessor {
+
+    @Nonnull
+    @Override
+    public Class<? extends Serializable>[] getSupportedTypes() {
+        //noinspection unchecked
+        return new Class[] { Money.class };
+    }
+
+    @Override
+    public Serializable invoke(
+        @Nonnull ExpressionEvaluationContext context,
+        @Nonnull Serializable object,
+        @Nonnull String methodIdentifier,
+        @Nonnull List<ExpressionNode> args
+    ) throws ExpressionEvaluationException {
+        if (!(object instanceof Money money)) {
+            throw new ExpressionEvaluationException(
+                "Expected Money, got " + object.getClass().getName()
+            );
+        }
+        return switch (methodIdentifier) {
+            case "convertTo" -> {
+                if (args.size() != 1) {
+                    throw new ExpressionEvaluationException(
+                        "Method `convertTo` requires exactly 1 argument."
+                    );
+                }
+                // evaluate the argument to get the target currency code
+                final Serializable currencyArg = args.get(0).compute(context);
+                if (!(currencyArg instanceof String currencyCode)) {
+                    throw new ExpressionEvaluationException(
+                        "Method `convertTo` requires a string argument."
+                    );
+                }
+                yield money.convertTo(currencyCode);
+            }
+            default -> throw new ExpressionEvaluationException(
+                "Method `" + methodIdentifier + "` does not exist on Money."
+            );
+        };
+    }
+}
+```
+
+
 ## ObjectElementAccessor
 
 ### Interface
@@ -321,7 +430,7 @@ public class TupleElementAccessor implements ObjectElementAccessor {
 
 ## Registration
 
-All three SPIs use the standard Java `ServiceLoader` mechanism. Registration requires two steps:
+All four SPIs use the standard Java `ServiceLoader` mechanism. Registration requires two steps:
 
 ### Step 1 - META-INF/services file
 
@@ -349,6 +458,13 @@ For a custom `ObjectElementAccessor`:
 com.example.evita.expression.TupleElementAccessor
 ```
 
+For a custom `ObjectMethodAccessor`:
+
+```
+# src/main/resources/META-INF/services/io.evitadb.api.query.expression.object.accessor.ObjectMethodAccessor
+com.example.evita.expression.MoneyMethodAccessor
+```
+
 ### Step 2 - module-info.java provides clause
 
 When using Java modules, the `META-INF/services` file alone is not sufficient. You must also declare
@@ -366,10 +482,13 @@ module com.example.evita.extension {
 
     provides io.evitadb.api.query.expression.object.accessor.ObjectElementAccessor
         with com.example.evita.expression.TupleElementAccessor;
+
+    provides io.evitadb.api.query.expression.object.accessor.ObjectMethodAccessor
+        with com.example.evita.expression.MoneyMethodAccessor;
 }
 ```
 
-The `uses` directives for all three SPIs are already declared in the `evita.query` module, so consumer
+The `uses` directives for all four SPIs are already declared in the `evita.query` module, so consumer
 modules only need `provides`.
 
 ### Reference - built-in module declarations
@@ -390,6 +509,9 @@ provides ObjectPropertyAccessor with
 
 provides ObjectElementAccessor with
     ListElementAccessor, ArrayElementAccessor, MapElementAccessor;
+
+provides ObjectMethodAccessor with
+    ListMethodAccessor, ArrayMethodAccessor, MapMethodAccessor;
 ```
 
 **`evita.api`** (`evita_api/src/main/java/module-info.java`):

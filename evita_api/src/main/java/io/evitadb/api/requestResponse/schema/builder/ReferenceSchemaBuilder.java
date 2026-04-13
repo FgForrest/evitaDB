@@ -70,53 +70,6 @@ public final class ReferenceSchemaBuilder
 	@Serial private static final long serialVersionUID = 2718281828459045235L;
 
 	/**
-	 * Computes the correct base schema for the constructor's `super()` call.
-	 *
-	 * When `createNew` is true, the base is either the caller-supplied hint or a freshly built
-	 * placeholder. When `createNew` is false, the base MUST be the raw persisted reference —
-	 * never the caller-supplied `existingSchema`, which may already have pending mutations baked
-	 * in. Re-using it would cause double-application of those mutations during replay.
-	 */
-	@Nonnull
-	private static ReferenceSchemaContract resolveBaseSchema(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract existingSchema,
-		@Nonnull String name,
-		@Nonnull String entityType,
-		boolean referencedEntityTypeManaged,
-		@Nonnull Cardinality cardinality,
-		boolean createNew
-	) {
-		if (createNew) {
-			return existingSchema == null ?
-				ReferenceSchema._internalBuild(
-					name, entityType, referencedEntityTypeManaged, cardinality,
-					null, false,
-					ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
-				) :
-				existingSchema;
-		} else {
-			Assert.isPremiseValid(
-				existingSchema != null,
-				"When not creating new reference schema, the existing schema must be provided!"
-			);
-			// baseSchema MUST be the raw persisted reference, never the caller-supplied
-			// `existingSchema`. The caller builds `existingSchema` from `toInstance()`, so it
-			// already reflects every pending entity-level mutation targeting this reference —
-			// the very same mutations that are copied into `this.mutations` below. Starting the
-			// replay from an already-mutated base would re-apply those mutations on top of
-			// themselves (e.g. a bare CreateAttributeSchemaMutation clashing with the same
-			// attribute already enriched by a follow-up ModifyAttributeSchemaDescriptionMutation).
-			// The caller's `createNew == false` guarantees the persisted lookup is present.
-			return entitySchema.getReference(name)
-				.orElseThrow(() -> new GenericEvitaInternalError(
-					"Reference `" + name + "` is expected to exist in the persisted entity schema" +
-						" when the builder is constructed with createNew=false, but was not found."
-				));
-		}
-	}
-
-	/**
 	 * Creates a new builder from an existing or freshly initialized reference schema. When `createNew` is true,
 	 * a {@link CreateReferenceSchemaMutation} is automatically emitted. Otherwise, only mutations for changed
 	 * properties (entity type, cardinality) are emitted against `existingSchema`.
@@ -137,11 +90,15 @@ public final class ReferenceSchemaBuilder
 		super(
 			catalogSchema, entitySchema,
 			resolveBaseSchema(
-				entitySchema, existingSchema, name, entityType,
-				referencedEntityTypeManaged, cardinality, createNew
+				createNew, existingSchema, entitySchema,
+				name, entityType, referencedEntityTypeManaged, cardinality
 			)
 		);
 		if (createNew) {
+			// caller promises there is no standard reference persisted under `name` yet, so the
+			// base is either the caller-supplied hint (e.g. a reflected reference being replaced)
+			// or a freshly built placeholder that the CreateReferenceSchemaMutation below will
+			// hydrate during replay.
 			this.mutations.add(
 				new CreateReferenceSchemaMutation(
 					this.baseSchema.getName(),
@@ -172,7 +129,17 @@ public final class ReferenceSchemaBuilder
 				)
 			);
 		} else {
-			// Intentional asymmetry: `baseSchema` is the raw persisted reference (see resolveBaseSchema),
+			Assert.isPremiseValid(
+				existingSchema != null,
+				"When not creating new reference schema, the existing schema must be provided!"
+			);
+			// baseSchema is resolved in the super() call above — it uses the raw persisted
+			// reference, never the caller-supplied `existingSchema`. The caller builds
+			// `existingSchema` from `toInstance()`, so it already reflects every pending
+			// entity-level mutation targeting this reference — the very same mutations that are
+			// copied into `this.mutations` below. Starting the replay from an already-mutated
+			// base would re-apply those mutations on top of themselves.
+			// Intentional asymmetry: `baseSchema` is the raw persisted reference (see above),
 			// but the comparisons below deliberately read `existingSchema` (the post-mutation view).
 			// Any prior entity-type / cardinality change is already present in the `mutations` list
 			// copied a few lines further down, and therefore already reflected in `existingSchema`.
@@ -207,15 +174,38 @@ public final class ReferenceSchemaBuilder
 	}
 
 	/**
-	 * Creates a builder for modifying an already existing reference schema without emitting a create mutation.
-	 * Used when the schema already exists and only individual property mutations are needed.
+	 * Resolves the base schema for the constructor's `super()` call.
+	 *
+	 * When creating a new reference (`createNew == true`), the base is either the caller-supplied
+	 * hint or a freshly built placeholder. When modifying an existing one, the base **must** be the
+	 * raw persisted reference — never the caller-supplied `existingSchema` which already reflects
+	 * pending mutations and would cause double-application.
 	 */
-	public ReferenceSchemaBuilder(
-		@Nonnull CatalogSchemaContract catalogSchema,
+	@Nonnull
+	private static ReferenceSchemaContract resolveBaseSchema(
+		boolean createNew,
+		@Nullable ReferenceSchemaContract existingSchema,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract existingSchema
+		@Nonnull String name,
+		@Nonnull String entityType,
+		boolean referencedEntityTypeManaged,
+		@Nonnull Cardinality cardinality
 	) {
-		super(catalogSchema, entitySchema, existingSchema);
+		if (createNew) {
+			return existingSchema == null ?
+				ReferenceSchema._internalBuild(
+					name, entityType, referencedEntityTypeManaged, cardinality,
+					null, false,
+					ScopedReferenceIndexType.EMPTY, Scope.NO_SCOPE
+				) :
+				existingSchema;
+		} else {
+			return entitySchema.getReference(name)
+				.orElseThrow(() -> new GenericEvitaInternalError(
+					"Reference `" + name + "` is expected to exist in the persisted entity schema" +
+						" when the builder is constructed with createNew=false, but was not found."
+				));
+		}
 	}
 
 	@Override

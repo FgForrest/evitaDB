@@ -52,7 +52,7 @@ public class MethodInvocationStep implements ObjectOperationStep {
 	@Serial private static final long serialVersionUID = 2616337062617784804L;
 
 	@Nonnull @Getter private final String methodIdentifier;
-	@Nonnull private final List<ExpressionNode> argumentOperands;
+	@Nonnull @Getter private final List<ExpressionNode> argumentOperands;
 
 	@Nullable @Getter private final ObjectOperationStep next;
 

@@ -30,12 +30,16 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.expression.query.NonTranslatableExpressionException;
+import io.evitadb.dataType.Scope;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
@@ -54,10 +58,7 @@ import javax.annotation.Nullable;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * End-to-end integration tests for the conditional facet indexing infrastructure.
@@ -197,7 +198,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 			.withHierarchy()
 			.withAttribute(ATTR_IS_ACTIVE, Boolean.class, whichIs -> whichIs.filterable().nullable())
 			.withAttribute(ATTR_CODE, String.class, whichIs -> whichIs.filterable().nullable())
-			.withAssociatedData(ASSOC_DATA_METADATA, String.class, whichIs -> whichIs.nullable())
+			.withAssociatedData(ASSOC_DATA_METADATA, String.class, AssociatedDataSchemaEditor::nullable)
 			.withReferenceToEntity(
 				REF_SINGLE_TAG, ENTITY_TAG, Cardinality.ZERO_OR_ONE,
 				whichIs -> whichIs
@@ -318,7 +319,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.faceted()
 					.facetedPartially(
 						ExpressionFactory.parse(
-							"$reference.referencedEntity.references['tag'].*[$.attributes['weight'] ?? 0] > 5"
+							"$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)"
 						)
 					)
 			)
@@ -333,7 +334,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER_GROUP)
 					.facetedPartially(
 						ExpressionFactory.parse(
-							"$reference.groupEntity?.references['tag'].*[$.attributes['weight'] ?? 0] > 5"
+							"$reference.groupEntity?.references['tag']?.any(($.attributes['weight'] ?? 0) > 5)"
 						)
 					)
 			)
@@ -2539,13 +2540,54 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 
 		@ParameterizedTest(name = "catalog state: {0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-		@DisplayName("Should inherit facetedPartially from source schema via reflected reference")
-		void shouldInheritFacetedPartiallyFromSourceSchemaViaReflectedReference(CatalogState state) {
+		@DisplayName("Should reject inheriting facetedPartially via reflected reference")
+		void shouldRejectInheritingFacetedPartiallyViaReflectedReference(CatalogState state) {
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> withCatalogInState(
+					state,
+					session -> {
+						session.defineEntitySchema("category")
+							.withAttribute(ATTR_PRIORITY, Integer.class,
+								whichIs -> whichIs.filterable().nullable()
+							)
+							.updateVia(session);
+
+						session.defineEntitySchema("item")
+							.withReferenceToEntity(
+								"category", "category", Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs
+									.indexedForFilteringAndPartitioning()
+									.faceted()
+									.facetedPartially(
+										ExpressionFactory.parse(
+											"$reference.referencedEntity.attributes['priority'] > 0"
+										)
+									)
+							)
+							.updateVia(session);
+
+						// attempting to inherit facetedPartially via reflected reference
+						// must fail because the expression contains direction-specific paths
+						session.defineEntitySchema("category")
+							.withReflectedReferenceToEntity(
+								"items", "item", "category",
+								ReflectedReferenceSchemaEditor::withFacetedInherited
+							)
+							.updateVia(session);
+					},
+					session -> fail("Should not reach assertion phase")
+				)
+			);
+		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should allow explicit faceted on reflected when source has facetedPartially")
+		void shouldAllowExplicitFacetedOnReflectedWhenSourceHasFacetedPartially(CatalogState state) {
 			withCatalogInState(
 				state,
 				session -> {
-					// use $reference.referencedEntity expression on source reference
-					// from item's perspective: $reference.referencedEntity is the category
 					session.defineEntitySchema("category")
 						.withAttribute(ATTR_PRIORITY, Integer.class,
 							whichIs -> whichIs.filterable().nullable()
@@ -2566,41 +2608,138 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 						)
 						.updateVia(session);
 
-					// reflected reference inherits faceted + facetedPartially from source
+					// reflected reference with explicit faceted — no inheritance
 					session.defineEntitySchema("category")
 						.withReflectedReferenceToEntity(
 							"items", "item", "category",
-							whichIs -> whichIs.withFacetedInherited()
+							whichIs -> whichIs.facetedInScope(Scope.LIVE)
 						)
 						.updateVia(session);
 
-					// data setup
 					session.createNewEntity("category", 1)
 						.setAttribute(ATTR_PRIORITY, 5)
-						.upsertVia(session);
-					session.createNewEntity("category", 2)
-						.setAttribute(ATTR_PRIORITY, -1)
 						.upsertVia(session);
 
 					session.createNewEntity("item", 1)
 						.setReference("category", 1)
 						.upsertVia(session);
-					session.createNewEntity("item", 2)
-						.setReference("category", 2)
-						.upsertVia(session);
 				},
 				session -> {
-					// assert on item collection — source reference faceting
 					final CatalogContract catalog =
 						ConditionalFacetIndexingTest.this.evita
 							.getCatalogInstance(TEST_CATALOG).orElseThrow();
+					// item side: conditional faceting applies
 					final EntityCollectionContract itemCollection =
 						catalog.getCollectionForEntity("item").orElseThrow();
-
-					// priority=5 > 0 → faceted
 					assertFacetIndexed(itemCollection, "category", 1, null, 1);
-					// priority=-1 ≤ 0 → not faceted
-					assertFacetNotIndexed(itemCollection, "category", 2, null, 2);
+
+					// category side: explicit faceted — all references are faceted
+					final EntityCollectionContract categoryCollection =
+						catalog.getCollectionForEntity("category").orElseThrow();
+					assertFacetIndexed(categoryCollection, "items", 1, null, 1);
+				}
+			);
+		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should reject adding facetedPartially to source when reflected inherits")
+		void shouldRejectAddingFacetedPartiallyToSourceWhenReflectedInherits(CatalogState state) {
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> withCatalogInState(
+					state,
+					session -> {
+						session.defineEntitySchema("category")
+							.withAttribute(ATTR_PRIORITY, Integer.class,
+								whichIs -> whichIs.filterable().nullable()
+							)
+							.updateVia(session);
+
+						// source with simple faceted (no partial)
+						session.defineEntitySchema("item")
+							.withReferenceToEntity(
+								"category", "category", Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs
+									.indexedForFilteringAndPartitioning()
+									.faceted()
+							)
+							.updateVia(session);
+
+						// reflected inherits — succeeds because source has no facetedPartially
+						session.defineEntitySchema("category")
+							.withReflectedReferenceToEntity(
+								"items", "item", "category",
+								ReflectedReferenceSchemaEditor::withFacetedInherited
+							)
+							.updateVia(session);
+
+						// now add facetedPartially to source — triggers cascade to reflected
+						// which should fail because reflected inherits
+						session.defineEntitySchema("item")
+							.withReferenceToEntity(
+								"category", "category", Cardinality.ZERO_OR_MORE,
+								whichIs -> whichIs
+									.facetedPartially(
+										ExpressionFactory.parse(
+											"$reference.referencedEntity.attributes['priority'] > 0"
+										)
+									)
+							)
+							.updateVia(session);
+					},
+					session -> fail("Should not reach assertion phase")
+				)
+			);
+		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should allow faceted inheritance when source has no facetedPartially")
+		void shouldAllowFacetedInheritanceWhenSourceHasNoPartially(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					session.defineEntitySchema("category")
+						.updateVia(session);
+
+					// source with simple faceted (no partial expression)
+					session.defineEntitySchema("item")
+						.withReferenceToEntity(
+							"category", "category", Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedForFilteringAndPartitioning()
+								.faceted()
+						)
+						.updateVia(session);
+
+					// reflected inherits — should succeed
+					session.defineEntitySchema("category")
+						.withReflectedReferenceToEntity(
+							"items", "item", "category",
+							ReflectedReferenceSchemaEditor::withFacetedInherited
+						)
+						.updateVia(session);
+
+					session.createNewEntity("category", 1)
+						.upsertVia(session);
+
+					session.createNewEntity("item", 1)
+						.setReference("category", 1)
+						.upsertVia(session);
+				},
+				session -> {
+					final CatalogContract catalog =
+						ConditionalFacetIndexingTest.this.evita
+							.getCatalogInstance(TEST_CATALOG).orElseThrow();
+					// both sides should have the reference faceted
+					final EntityCollectionContract itemCollection =
+						catalog.getCollectionForEntity("item").orElseThrow();
+					assertFacetIndexed(itemCollection, "category", 1, null, 1);
+
+					final EntityCollectionContract categoryCollection =
+						catalog.getCollectionForEntity("category").orElseThrow();
+					assertFacetIndexed(categoryCollection, "items", 1, null, 1);
 				}
 			);
 		}
