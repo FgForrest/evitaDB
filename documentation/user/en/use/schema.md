@@ -558,6 +558,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaIndexedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaIndexedMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaFacetedMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaFacetedMutation.cs</SourceClass></LS>**
+- **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaBucketedMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver)</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceAttributeSchemaMutation.cs</SourceClass></LS>**
 - **<LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReflectedReferenceAttributeInheritanceSchemaMutation.java</SourceClass></LS><LS to="c"><SourceClass>(not yet supported in C# driver - see [issue 8](https://github.com/FgForrest/evitaDB-C-Sharp-client/issues/8))</SourceClass></LS>**
 
@@ -619,7 +620,93 @@ You need to select the indexing level for each of the references defined in the 
 
 Partitioning indexes are represented by <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> and such an index is created for each reference used in any entity in the schema, and will contain a subset of the attribute, price and other indexes reduced only to entities with the given reference. Let's describe it with an example - let's say we have entity type `Product` that has reference `categories` to entity type `Category`, which is indexed `FOR_FILTERING_AND_PARTITIONING`. Let's imagine that we need to find all products classified in a specific category that also meet ten other conditions (they are published, currently valid, have an available price in the user's price list and in EUR, etc.). We can evaluate such a query over one large index, where this information is available for all known products in the database, or (if we use partitioning) we can use a much smaller index, in which we can find all the necessary information only for products that have a valid link to the category for which we are evaluating this query. Logically, the response to the query will be significantly faster because the amount of data searched is significantly smaller. The downside of this approach is that it requires a relatively large amount of memory space.
 
-If the reference is marked as *faceted*, the special <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for the entity type. This index contains optimized data structures for [facet summary](../query/requirements/facet.md) computation. All reference instances of a given type are then inserted into the *facet reference index* (there is no way to exclude a reference from indexing in the facet reference index). References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type.
+##### Reference facets
+
+If the reference is marked as *faceted*, the special <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for the entity type. This index contains optimized data structures for [facet summary](../query/requirements/facet.md) computation — the counts and statistics that power checkbox-style filtering in e-commerce UIs (e.g., "Brand: Nike (42), Adidas (31), Puma (18)").
+
+When a reference is marked as faceted, all its instances are inserted into the facet reference index. References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type. The facet index is built at **indexing time** — when entities are created or updated — so that the [facet summary](../query/requirements/facet.md) computation at query time reads the pre-built index directly and runs at full speed.
+
+By default, **every** instance of a faceted reference participates in the facet index. The [conditional indexing](#conditional-indexing-with-expressions) option described below lets you narrow this down using an expression.
+
+##### Reference histograms
+
+evitaDB can compute [histograms](../query/requirements/histogram.md) for any numeric filterable attribute of an entity via the `attributeHistogram` requirement. However, this approach requires the client to explicitly name every attribute it wants histograms for. When the set of relevant attributes varies dynamically — for example, when different product parameter groups need different filter presentations (some as checkboxes, others as range sliders) — the client must maintain its own mapping logic to decide which attributes to request histograms for. This creates complex middleware and caching logic on the client side.
+
+**Bucketed histogram indexing** on references solves this by making histograms a first-class part of the reference schema. When a reference is marked as *bucketed*, evitaDB builds and maintains a histogram index alongside the facet index. These reference-level histograms are then **automatically included in the [facet summary](../query/requirements/facet.md)** — just like facets are. The client simply requests the summary and receives both checkbox-style facet counts and interval-style histograms in a single response, without naming individual attributes.
+
+A typical e-commerce example: a Product entity has a `parameterValues` reference to ParameterValue, grouped by Parameter. Each parameter group has an `inputWidgetType` attribute that determines how it should be presented to the user:
+
+- Parameters with `inputWidgetType == 'CHECKBOX'` → the reference is **faceted** (users pick from checkboxes)
+- Parameters with `inputWidgetType == 'INTERVAL'` → the reference is **bucketed** for histogram (users slide a range bar)
+
+Both treatments coexist on a single reference definition. The [conditional expressions](#conditional-indexing-with-expressions) (`facetedPartially` and `bucketedPartially`) direct each group to the appropriate index type at indexing time.
+
+When defining a histogram, you provide a **value expression** — an [EvitaEL expression](../query/expression-language.md) that identifies which numeric attribute's value to store as the histogram bucket value for each reference instance. For example, `$reference.referencedEntity.attributes['basicUnitValue']` extracts the `basicUnitValue` attribute from the referenced entity. Each reference can define multiple **named histogram indexes** in each scope — the histogram name identifies the index slot, and different scopes may use different value expressions for the same name.
+
+Only numeric attribute types (`Byte`, `Short`, `Integer`, `Long`, `BigDecimal`) are supported as histogram values; non-numeric types are rejected at schema definition time. Like facets, all histogram data is built at **indexing time** — the value expression is evaluated when entities are created or updated, and the query engine reads the pre-built index directly without any expression evaluation.
+
+The histogram data is maintained in the same reduced entity indexes that hold facet data — `ReducedGroupEntityIndex` for grouped references and `ReferencedTypeEntityIndex` for ungrouped references. This makes histogram computation at query time as fast as facet summary computation: the data is already partitioned and ready.
+
+##### Conditional indexing with expressions
+
+Both [facet indexing](#reference-facets) and [reference histograms](#reference-histograms) support conditional participation via `facetedPartially` and `bucketedPartially` respectively. The `facetedPartially` expression controls which reference instances are included in the facet index; the `bucketedPartially` expression controls which participate in the histogram index. When a reference carries both facets and histograms, the condition expressions can separate reference instances into different index types — for example, directing checkbox parameters to the facet index and interval parameters to the histogram index, all within a single reference definition.
+
+Both expressions use the same [EvitaEL expression](../query/expression-language.md) language and are **evaluated at indexing time** — that is, when entities are created or updated. The expression result determines whether each individual reference instance is added to or removed from the respective index. The expressions play no role at query time; by then the indexes already contain only the reference instances that passed their conditions, and summary computation runs at full speed.
+
+**Available data paths in the expression:**
+
+The expression receives two context variables — `$entity` (the owner entity) and `$reference` (the specific reference being evaluated). Through these, you can access data on the owner entity, the reference itself, and — up to one entity hop — on the referenced entity, group entity, or parent entity. The paths are listed below from most commonly used to least:
+
+- `$reference.referencedEntity.attributes['x']` — attributes of the referenced entity (e.g., check the referenced category's `status`)
+- `$reference.groupEntity?.attributes['x']` — attributes of the group entity (use `?.` for null-safe navigation since group may be absent)
+- `$reference.attributes['x']` — reference-level attributes (attributes on the link itself)
+- `$entity.attributes['x']` — owner entity attributes
+- `$entity.parentEntity.attributes['x']` — attributes of the owner entity's hierarchical parent (the parent is the same entity type — this is a cross-entity path)
+- `$entity.parentEntity != null` — check whether the owner entity has a parent at all
+- `$entity.parent` — owner entity parent primary key (integer)
+- `$reference.referencedPrimaryKey` — the referenced entity's primary key (integer)
+
+You can also navigate into a referenced, group, or parent entity's own references and their attributes. For example, `$reference.referencedEntity.references['tag'].any(($.attributes['weight'] ?? 0) > 5)` checks whether any `tag` reference on the referenced entity has a `weight` attribute greater than 5.
+
+<Note type="info">
+
+Expressions can reach at most **one entity deep** from the owner entity. You can navigate to the referenced entity, group entity, or parent entity and read its properties — including its own references and their attributes — but you cannot follow those references further to reach a third entity. This limitation keeps the dependency graph between entities predictable and ensures that changes can be tracked and re-evaluated efficiently.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+###### Automatic re-indexing on data changes
+</NoteTitle>
+
+evitaDB analyzes each expression at schema definition time to determine which data it depends on. From that point on, whenever a relevant attribute or reference is modified — even on a *different* entity (e.g., the referenced entity or the group entity) — evitaDB automatically re-evaluates the expression for all affected reference instances and updates the facet or histogram index accordingly. This happens transparently during the write operation, so the indexes are always consistent with the current data and no manual re-indexing is required.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+###### Non-translatable expressions
+</NoteTitle>
+
+Not all expressions are supported. Each expression must be translatable into an evitaDB `FilterBy` constraint at schema definition time. Expressions with dynamic attribute paths (where the attribute name is not a string literal) or unsupported operators are rejected immediately with a clear error message.
+
+</Note>
+
+<Note type="warning">
+
+###### Reflected references and conditional indexing
+
+[Reflected references](#reference-directionality) **cannot** inherit conditional indexing expressions from the source reference. Both `facetedPartially` and `bucketedPartially` expressions (as well as histogram value expressions) contain direction-specific paths — most notably `$reference.referencedEntity` — that resolve to different entity types depending on which side of the reference they are evaluated from. Inheriting such an expression verbatim on the reflected side would cause it to look up attributes on the wrong entity type.
+
+If the source reference defines `facetedPartially`, the reflected reference must define its own faceted settings explicitly (using `facetedInScope` with its own `facetedPartially` expression written for the reflected direction, or simply `faceted` without a partial expression). Attempting to use `withFacetedInherited()` when the source has `facetedPartially` results in an `InvalidSchemaMutationException`. The same exception is thrown if `facetedPartially` is added to a source reference that already has a reflected reference inheriting its faceted settings.
+
+Histogram definitions (`bucketedInScope`, `bucketedPartiallyInScope`) are never inherited by reflected references at all. If a reflected reference needs histogram indexing, it must define its own configuration explicitly.
+
+</Note>
 
 #### Reference cardinality
 

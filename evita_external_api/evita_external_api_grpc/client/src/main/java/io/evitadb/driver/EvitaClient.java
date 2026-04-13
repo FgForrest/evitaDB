@@ -52,6 +52,7 @@ import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
@@ -204,9 +205,11 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private final Map<UUID, EvitaSessionContract> activeSessions = CollectionUtils.createConcurrentHashMap(16);
 	/**
-	 * Index of the opened and active {@link ClientChangeCapturePublisher} indexed by their unique {@link ChangeSystemCaptureRequest}.
+	 * Index of the opened and active {@link ClientChangeCapturePublisher} indexed by their unique
+	 * {@link CapturePublisherKey} — either a {@link CatalogBoundCaptureKey} (for catalog-level captures)
+	 * or a {@link SystemCaptureKey} (for system-level captures).
 	 */
-	protected final Map<ChangeCaptureRequest, ClientChangeCapturePublisher<?, ?, ?>> activePublishers = CollectionUtils.createConcurrentHashMap(
+	final Map<CapturePublisherKey, ClientChangeCapturePublisher<?, ?, ?>> activePublishers = CollectionUtils.createConcurrentHashMap(
 		16);
 	/**
 	 * Executor service used for asynchronous operations.
@@ -1061,10 +1064,11 @@ public class EvitaClient implements EvitaContract {
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(
 		@Nonnull ChangeSystemCaptureRequest request
 	) {
+		final SystemCaptureKey key = new SystemCaptureKey(request);
 		//noinspection unchecked
 		return (ChangeCapturePublisher<ChangeSystemCapture>) this.activePublishers.compute(
-			request,
-			(theRequest, existingInstance) ->
+			key,
+			(theKey, existingInstance) ->
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeSystemCaptureProcessor(
 						this.configuration.changeCaptureQueueSize(),
@@ -1073,14 +1077,13 @@ public class EvitaClient implements EvitaContract {
 						subscriber -> executeWithStreamingEvitaService(
 							evitaService -> {
 								evitaService.registerSystemChangeCapture(
-									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(
-										(ChangeSystemCaptureRequest) theRequest),
-										subscriber
+									ChangeCaptureConverter.toGrpcChangeSystemCaptureRequest(request),
+									subscriber
 								);
 								return null;
 							}
 							),
-						publisher -> this.activePublishers.remove(theRequest, publisher)
+						publisher -> this.activePublishers.remove(key, publisher)
 					) : existingInstance
 		);
 	}
@@ -1232,6 +1235,38 @@ public class EvitaClient implements EvitaContract {
 				timeout.timeout(), timeout.timeoutUnit()
 			);
 		}
+	}
+
+	/**
+	 * Key type for the {@link #activePublishers} map, ensuring compile-time safety
+	 * while allowing both system-level and catalog-level capture keys.
+	 */
+	sealed interface CapturePublisherKey
+		permits SystemCaptureKey, CatalogBoundCaptureKey {
+	}
+
+	/**
+	 * Key for system-level CDC publishers in the {@link #activePublishers} map.
+	 *
+	 * @param request the original system capture request
+	 */
+	record SystemCaptureKey(
+		@Nonnull ChangeSystemCaptureRequest request
+	) implements CapturePublisherKey {
+	}
+
+	/**
+	 * Key for catalog-level CDC publishers in the {@link #activePublishers} map.
+	 * Binds a {@link ChangeCaptureRequest} to a specific catalog name, preventing
+	 * collisions when two different catalogs issue requests with identical criteria.
+	 *
+	 * @param catalogName the name of the catalog this capture is bound to
+	 * @param request     the original capture request
+	 */
+	record CatalogBoundCaptureKey(
+		@Nonnull String catalogName,
+		@Nonnull ChangeCatalogCaptureRequest request
+	) implements CapturePublisherKey {
 	}
 
 }

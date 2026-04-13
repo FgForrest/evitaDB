@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -226,6 +227,16 @@ public class SetReferenceSchemaFacetedMutation
 				// only skip if already inherited
 				if (reflectedReferenceSchema.isFacetedInherited()) {
 					return reflectedReferenceSchema;
+				}
+				// block transition to inherited when source has facetedPartially
+				if (reflectedReferenceSchema.isSourceFacetedPartiallyDefined()) {
+					throw new InvalidSchemaMutationException(
+						"Reflected reference `" + reflectedReferenceSchema.getName() +
+							"` cannot inherit faceted settings because the source " +
+							"reference defines facetedPartially expressions with " +
+							"direction-specific paths. Define explicit " +
+							"faceted/facetedPartially settings instead."
+					);
 				}
 				result = reflectedReferenceSchema.withFaceted(null);
 			} else {

@@ -40,8 +40,17 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ConstantFormula extends AbstractFormula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 2713157071360876502L;
+	/**
+	 * Reusable empty long array returned when the delegate bitmap has no transactional identity.
+	 */
 	private static final long[] EMPTY_LONG_ARRAY = new long[0];
+	/**
+	 * Bitmap of entity primary keys that this constant formula directly returns as its result.
+	 */
 	@Getter private final Bitmap delegate;
 
 	public ConstantFormula(@Nonnull Bitmap delegate) {

@@ -3507,6 +3507,105 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		}
 	}
 
+	@Test
+	@DisplayName("CDC publishers for different catalogs with identical request criteria should be independent")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldNotLeakCdcEventsBetweenCatalogsWithIdenticalCaptureRequests(EvitaClient evitaClient) {
+		final String catalogA = "testCatalogCdcA";
+		final String catalogB = "testCatalogCdcB";
+
+		try {
+			// create two separate catalogs and make them go live
+			evitaClient.defineCatalog(catalogA);
+			evitaClient.updateCatalog(catalogA, session -> {
+				session.goLiveAndClose();
+				return null;
+			});
+
+			evitaClient.defineCatalog(catalogB);
+			evitaClient.updateCatalog(catalogB, session -> {
+				session.goLiveAndClose();
+				return null;
+			});
+
+			// build identical CDC request criteria for both catalogs
+			final ChangeCatalogCaptureRequest identicalRequest = ChangeCatalogCaptureRequest
+				.builder()
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					ChangeCatalogCaptureCriteria
+						.builder()
+						.schemaArea()
+						.build()
+				)
+				.build();
+
+			final MockCatalogChangeCaptureSubscriber subscriberA =
+				new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+			final MockCatalogChangeCaptureSubscriber subscriberB =
+				new MockCatalogChangeCaptureSubscriber(Integer.MAX_VALUE);
+
+			// register CDC on catalog A
+			evitaClient.updateCatalog(catalogA, session -> {
+				session.registerChangeCatalogCapture(identicalRequest)
+					.subscribe(subscriberA);
+				return null;
+			});
+
+			// register CDC on catalog B with the same request
+			evitaClient.updateCatalog(catalogB, session -> {
+				session.registerChangeCatalogCapture(identicalRequest)
+					.subscribe(subscriberB);
+				return null;
+			});
+
+			// trigger schema change only in catalog A
+			evitaClient.updateCatalog(catalogA, session -> {
+				session.defineEntitySchema(Entities.BRAND)
+					.updateVia(session);
+				return null;
+			});
+
+			// subscriber A should receive the event
+			assertEquals(
+				1,
+				subscriberA.getEntityCollectionCreated(Entities.BRAND, 10, TimeUnit.SECONDS, 1),
+				"Subscriber on catalog A should receive schema change from catalog A"
+			);
+
+			// subscriber B must NOT receive the event from catalog A
+			assertEquals(
+				0,
+				subscriberB.getEntityCollectionCreated(Entities.BRAND),
+				"Subscriber on catalog B must not receive events from catalog A"
+			);
+
+			// trigger schema change only in catalog B
+			evitaClient.updateCatalog(catalogB, session -> {
+				session.defineEntitySchema(Entities.STORE)
+					.updateVia(session);
+				return null;
+			});
+
+			// subscriber B should receive its own event
+			assertEquals(
+				1,
+				subscriberB.getEntityCollectionCreated(Entities.STORE, 10, TimeUnit.SECONDS, 1),
+				"Subscriber on catalog B should receive schema change from catalog B"
+			);
+
+			// subscriber A must NOT receive the event from catalog B
+			assertEquals(
+				0,
+				subscriberA.getEntityCollectionCreated(Entities.STORE),
+				"Subscriber on catalog A must not receive events from catalog B"
+			);
+		} finally {
+			evitaClient.deleteCatalogIfExists(catalogA);
+			evitaClient.deleteCatalogIfExists(catalogB);
+		}
+	}
+
 	private static class MockCatalogChangeCaptureSubscriberWithHeartBeat extends MockCatalogChangeCaptureSubscriber implements HeartBeatSensor {
 		private final AtomicInteger heartbeatCount = new AtomicInteger(0);
 		private final AtomicReference<Long> firstHeartbeatTime = new AtomicReference<>();

@@ -50,6 +50,9 @@ import javax.annotation.Nullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class EntityFilteringFormula extends AbstractFormula implements RequirementsDefiner, FilteredPriceRecordAccessor {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -1887923944737482575L;
 	/**
 	 * Contains a simple text, that would be used in an error message if the entities are not prefetched and computation

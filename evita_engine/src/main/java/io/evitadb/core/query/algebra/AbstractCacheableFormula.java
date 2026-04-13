@@ -29,19 +29,21 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.function.Consumer;
 
 import static java.util.Optional.ofNullable;
 
 /**
- * AbstractCacheableFormula is abstract ancestor for all {@link Formula} that produce int based bitmaps as their
- * result and that are suitable for caching. We need to stick to primitive types in order to perform fast. That's why
+ * AbstractCacheableFormula is an abstract ancestor for all {@link Formula} that produce int based bitmaps as their
+ * result and that are suitable for caching. We need to stick to primitive types to perform fast. That's why
  * we need to maintain this type of formula.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public abstract class AbstractCacheableFormula extends AbstractFormula implements CacheableFormula {
+	/**
+	 * Callback invoked after the formula result is computed, allowing the cache supervisor to record the computation.
+	 */
 	protected final Consumer<CacheableFormula> computationCallback;
 
 	protected AbstractCacheableFormula(@Nullable Consumer<CacheableFormula> computationCallback) {
@@ -69,10 +71,7 @@ public abstract class AbstractCacheableFormula extends AbstractFormula implement
 		return new FlattenedFormula(
 			formulaHash,
 			getTransactionalIdHash(),
-			Arrays.stream(gatherTransactionalIds())
-				.distinct()
-				.sorted()
-				.toArray(),
+			gatherTransactionalIds(),
 			compute()
 		);
 	}

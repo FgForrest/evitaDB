@@ -177,6 +177,138 @@ jobs:
         latest: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
         commitish: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
 
+    # Resolve previous release tag and milestone for the release-notes skill.
+    # This is best-effort: failures must not block the release pipeline.
+    - name: Resolve release notes inputs
+      id: notes_inputs
+      if: success()
+      env:
+        VERSION: ${{ steps.release_version.outputs.version }}
+        IS_MAJOR: ${{ github.event.workflow_run.conclusion == 'success' }}
+      run: |
+        # Highest v* tag strictly less than VERSION, by semantic version sort.
+        PREV=$( (git tag -l 'v*'; printf "%s\n" "$VERSION") \
+          | sort -V -u \
+          | awk -v v="$VERSION" 'BEGIN { prev = "" }
+                                  $0 == v { print prev; exit }
+                                  { prev = $0 }' )
+        echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
+        echo "Resolved previous tag: ${PREV:-<none>}"
+
+        # Milestone is only set for MAJOR releases (triggered by workflow_run
+        # from CI Master); patch releases use commit-only mode in the skill.
+        if [ "$IS_MAJOR" = "true" ]; then
+          MILESTONE="${VERSION#v}"
+          MILESTONE="${MILESTONE%.0}"
+        else
+          MILESTONE=""
+        fi
+        echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
+        echo "Resolved milestone: ${MILESTONE:-<none>}"
+
+    # Cache the Claude Code CLI binary so we don't re-download it on every
+    # release run. The cache key is pinned to CLAUDE_CODE_VERSION below; bump
+    # that version to roll forward and auto-invalidate the cache.
+    - name: Cache Claude Code CLI
+      id: cache_claude_cli
+      if: success()
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/bin/claude
+          ~/.local/share/claude
+        key: claude-code-cli-${{ runner.os }}-2.1.89
+
+    # Install Claude Code CLI for headless invocation. We can't use
+    # anthropics/claude-code-action here because that action only accepts
+    # issue/PR/workflow_dispatch events and errors on `push` (which is what
+    # triggers this workflow). DISABLE_AUTOUPDATER keeps the cached binary
+    # pinned so the cache key stays valid across runs.
+    - name: Install Claude Code CLI
+      if: success() && steps.cache_claude_cli.outputs.cache-hit != 'true'
+      run: curl -fsSL https://claude.ai/install.sh | bash -s 2.1.89
+
+    - name: Add Claude Code CLI to PATH
+      if: success()
+      run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    # Generate enriched release notes via the .claude/skills/release-notes
+    # skill. The release-drafter draft from the previous step is the safety
+    # net — this step is allowed to fail without affecting the release build.
+    # Uses Sonnet (cheaper than Opus) because release-notes enrichment is a
+    # straightforward summarise/rewrite task.
+    - name: Generate enriched release notes with Claude
+      id: claude_notes
+      if: success()
+      continue-on-error: true
+      env:
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.ANTHROPIC_API_KEY }}
+        DISABLE_AUTOUPDATER: "1"
+        RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        BASE_VERSION: ${{ steps.notes_inputs.outputs.prev_tag }}
+        MILESTONE: ${{ steps.notes_inputs.outputs.milestone }}
+      run: |
+        PROMPT=$(cat <<EOF
+        You are generating release notes for evitaDB ${RELEASE_VERSION}.
+
+        RELEASE_VERSION=${RELEASE_VERSION}
+        BASE_VERSION=${BASE_VERSION}
+        MILESTONE=${MILESTONE}
+
+        Read .claude/skills/release-notes/SKILL.md and follow its workflow
+        exactly. Pass the values above as inputs (Step 1 of the skill).
+        Write the final notes to release-notes.md in the working directory.
+        Do not modify any other file. Do not commit, push, or create branches.
+        EOF
+        )
+        claude -p "$PROMPT" \
+          --model claude-sonnet-4-6 \
+          --max-turns 30 \
+          --allowedTools "Read,Write,Bash(./tools/generate-release-notes.sh:*),Bash(./tools/list-issues.sh:*),Bash(./tools/list-commits.sh:*),Bash(git tag:*),Bash(git log:*),Bash(git describe:*),Bash(git rev-parse:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh api:*)"
+
+    # Always-print diagnostic — surfaces the generated body and Claude outcome
+    # in the build log even when the PATCH step is skipped, so failures are
+    # easy to inspect without re-running the workflow.
+    - name: Show generated release notes
+      if: always() && steps.claude_notes.outcome != 'skipped'
+      run: |
+        echo "claude_notes outcome: ${{ steps.claude_notes.outcome }}"
+        if [ -s release-notes.md ]; then
+          echo "--- release-notes.md ---"
+          cat release-notes.md
+          echo "--- end ---"
+        else
+          echo "(release-notes.md missing or empty)"
+        fi
+
+    # Upload the generated body as a workflow artifact so it can be downloaded
+    # offline for inspection — even if the PATCH step skipped or failed.
+    - name: Upload release-notes.md artifact
+      if: always() && hashFiles('release-notes.md') != ''
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: release-notes-${{ steps.release_version.outputs.version }}
+        path: release-notes.md
+
+    # Patch the drafted release body with the enriched notes if Claude
+    # produced them. Soft failure: missing file or API error is logged and
+    # ignored — the release-drafter draft remains in place as a fallback.
+    - name: Update draft release body with enriched notes
+      if: steps.claude_notes.outcome == 'success'
+      continue-on-error: true
+      env:
+        RELEASE_ID: ${{ steps.create_release.outputs.id }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        if [ ! -s release-notes.md ]; then
+          echo "release-notes.md missing or empty — keeping release-drafter body."
+          exit 0
+        fi
+        echo "Patching release $RELEASE_ID with enriched notes from release-notes.md"
+        gh api --method PATCH "/repos/FgForrest/evitaDB/releases/$RELEASE_ID" \
+          --field body=@release-notes.md
+        echo "Release body updated."
+
     - name: Upload dist.zip to release
       uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
       if: success()

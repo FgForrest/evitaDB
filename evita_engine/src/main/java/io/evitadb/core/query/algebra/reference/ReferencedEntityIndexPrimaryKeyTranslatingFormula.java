@@ -69,8 +69,16 @@ import java.util.function.UnaryOperator;
  */
 public class ReferencedEntityIndexPrimaryKeyTranslatingFormula
 	extends AbstractFormula
-	implements ChildrenDependentFormula {
+	implements ChildrenDependentFormula
+{
+
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 2738491562847195632L;
+	/**
+	 * Error message thrown when {@link #getCloneWithInnerFormulas(Formula...)} receives more than one inner formula.
+	 */
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
 	 * Optional union bitmap of all referenced entity primary keys that are allowed to participate

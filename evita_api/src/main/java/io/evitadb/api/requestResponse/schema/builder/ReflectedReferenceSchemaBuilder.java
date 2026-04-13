@@ -90,11 +90,13 @@ public final class ReflectedReferenceSchemaBuilder
 	) {
 		super(
 			catalogSchema, entitySchema,
-			existingSchema == null ?
-				ReflectedReferenceSchema._internalBuild(name, entityType, reflectedReferenceName) :
-				(ReflectedReferenceSchema) existingSchema
+			resolveBaseSchema(createNew, existingSchema, entitySchema, name, entityType, reflectedReferenceName)
 		);
 		if (createNew) {
+			// caller promises there is no reflected reference persisted under `name` yet, so the
+			// base is either the caller-supplied hint (e.g. a standard reference being replaced)
+			// or a freshly built placeholder that the CreateReflectedReferenceSchemaMutation below
+			// will hydrate during replay.
 			this.mutations.add(
 				new CreateReflectedReferenceSchemaMutation(
 					this.baseSchema.getName(),
@@ -128,6 +130,16 @@ public final class ReflectedReferenceSchemaBuilder
 					this.baseSchema.getAttributeInheritanceFilter()
 				)
 			);
+		} else {
+			Assert.isPremiseValid(
+				existingSchema != null,
+				"When not creating new reflected reference schema, the existing schema must be provided!"
+			);
+			// baseSchema is resolved in the super() call above via resolvePersistedReflectedReference —
+			// it uses the raw persisted reflected reference, never the caller-supplied `existingSchema`.
+			// The caller builds `existingSchema` from `toInstance()`, so it already reflects every
+			// pending entity-level mutation. Starting the replay from an already-mutated base would
+			// re-apply those mutations on top of themselves.
 		}
 		mutations.stream()
 			.filter(
@@ -137,6 +149,44 @@ public final class ReflectedReferenceSchemaBuilder
 						!(referenceSchemaMutation instanceof RemoveReferenceSchemaMutation)
 			)
 			.forEach(this.mutations::add);
+	}
+
+	/**
+	 * Resolves the base schema for the constructor's `super()` call.
+	 *
+	 * When creating a new reflected reference (`createNew == true`), the base is either the
+	 * caller-supplied hint or a freshly built placeholder. When modifying an existing one, the base
+	 * **must** be the raw persisted reference — never the caller-supplied `existingSchema` which
+	 * already reflects pending mutations and would cause double-application. The persisted reference
+	 * is also validated to be a {@link ReflectedReferenceSchema}.
+	 */
+	@Nonnull
+	private static ReflectedReferenceSchema resolveBaseSchema(
+		boolean createNew,
+		@Nullable ReflectedReferenceSchemaContract existingSchema,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String name,
+		@Nonnull String entityType,
+		@Nonnull String reflectedReferenceName
+	) {
+		if (createNew) {
+			return existingSchema == null ?
+				ReflectedReferenceSchema._internalBuild(name, entityType, reflectedReferenceName) :
+				(ReflectedReferenceSchema) existingSchema;
+		} else {
+			final ReferenceSchemaContract persistedReference = entitySchema.getReference(name)
+				.orElseThrow(() -> new GenericEvitaInternalError(
+					"Reflected reference `" + name + "` is expected to exist in the persisted entity" +
+						" schema when the builder is constructed with createNew=false, but was not found."
+				));
+			Assert.isPremiseValid(
+				persistedReference instanceof ReflectedReferenceSchema,
+				() -> "Persisted reference `" + name + "` is expected to be a reflected reference" +
+					" when the builder is constructed with createNew=false, but found `" +
+					persistedReference.getClass().getSimpleName() + "`."
+			);
+			return (ReflectedReferenceSchema) persistedReference;
+		}
 	}
 
 	/**

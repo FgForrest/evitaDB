@@ -35,8 +35,10 @@ import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.utils.IOUtils;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.time.Duration;
@@ -45,6 +47,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
@@ -60,17 +64,55 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 @RequiredArgsConstructor
 public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCapture>, AutoCloseable {
+	/**
+	 * Flag ensuring the gRPC stream is finalized (via `onError` or `onCompleted`) exactly once
+	 * across all termination paths ({@link #onError}, {@link #onComplete}, {@link #close}).
+	 */
+	private final AtomicBoolean streamFinalized = new AtomicBoolean(false);
+	/**
+	 * The gRPC stream observer used to send responses to the client.
+	 */
 	private final StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver;
+	/**
+	 * Future that is completed when the subscription is established, allowing the gRPC cancel
+	 * handler to obtain the subscription reference for cancellation.
+	 */
 	private final CompletableFuture<Subscription> subscriptionFuture;
+	/**
+	 * Supplier that provides the current system version for heartbeat messages.
+	 */
 	private final LongSupplier versionSupplier;
+	/**
+	 * The Armeria service request context, used to extend the request timeout on activity.
+	 */
 	private final ServiceRequestContext serviceContext;
+	/**
+	 * The original response timeout in milliseconds, used to extend the timeout after each
+	 * message or heartbeat.
+	 */
 	private final long responseTimeoutMillis;
+	/**
+	 * The delay between heartbeat messages in milliseconds — computed as 5 seconds less than
+	 * the response timeout, clamped to [1 second, 5 minutes].
+	 */
 	private final long heartBeatDelay;
+	/**
+	 * Scheduled task that periodically sends heartbeat messages to keep the gRPC stream alive.
+	 */
 	private final DelayedAsyncTask heartBeatTask;
+	/**
+	 * The active subscription from the publisher, set during {@link #onSubscribe(Subscription)}.
+	 */
 	private Subscription subscription;
-	private long index = 0L;
+	/**
+	 * Monotonically increasing counter for heartbeat message indexing. Atomic because
+	 * it is accessed from both the publisher thread ({@link #onNext}) and the scheduler
+	 * thread ({@link #sendHeartbeat}) via {@link #buildHeartBeatMessage()}.
+	 */
+	private final AtomicLong index = new AtomicLong(0L);
 
 	public ChangeSystemCaptureSubscriber(
 		@Nonnull Scheduler scheduler,
@@ -119,31 +161,58 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 
 	@Override
 	public void onNext(ChangeSystemCapture item) {
-		this.responseObserver.onNext(
-			GrpcRegisterSystemChangeCaptureResponse
-				.newBuilder()
-				.setCapture(ChangeCaptureConverter.toGrpcChangeSystemCapture(item))
-				.setResponseType(GrpcCaptureResponseType.CHANGE)
-				.build()
-		);
+		if (this.streamFinalized.get()) {
+			return;
+		}
+		try {
+			this.responseObserver.onNext(
+				GrpcRegisterSystemChangeCaptureResponse
+					.newBuilder()
+					.setCapture(ChangeCaptureConverter.toGrpcChangeSystemCapture(item))
+					.setResponseType(GrpcCaptureResponseType.CHANGE)
+					.build()
+			);
+		} catch (Exception ex) {
+			log.debug("CDC onNext failed (stream likely finalized concurrently): {}", ex.getMessage());
+			this.subscription.cancel();
+			return;
+		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 		this.subscription.request(1);
 	}
 
 	@Override
 	public void onError(Throwable throwable) {
-		this.subscriptionFuture.completeExceptionally(throwable);
-		this.responseObserver.onError(throwable);
+		if (this.streamFinalized.compareAndSet(false, true)) {
+			IOUtils.closeQuietly(this.heartBeatTask::close);
+			this.subscriptionFuture.completeExceptionally(throwable);
+			this.responseObserver.onError(throwable);
+		}
 	}
 
 	@Override
 	public void onComplete() {
-		this.responseObserver.onCompleted();
+		if (this.streamFinalized.compareAndSet(false, true)) {
+			IOUtils.closeQuietly(this.heartBeatTask::close);
+			this.responseObserver.onCompleted();
+		}
 	}
 
 	@Override
 	public void close() {
-		IOUtils.closeQuietly(this.heartBeatTask::close);
+		// signal the gRPC client that the stream was forcibly terminated
+		if (this.streamFinalized.compareAndSet(false, true)) {
+			IOUtils.closeQuietly(this.heartBeatTask::close);
+			try {
+				this.responseObserver.onError(
+					Status.UNAVAILABLE
+						.withDescription("CDC stream has been terminated by the server.")
+						.asRuntimeException()
+				);
+			} catch (Exception ex) {
+				log.debug("Failed to send UNAVAILABLE error to CDC client: {}", ex.getMessage(), ex);
+			}
+		}
 	}
 
 	/**
@@ -154,17 +223,25 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 	 * @return the delay (in milliseconds) until the next heartbeat is scheduled
 	 */
 	private long sendHeartbeat() {
+		if (this.streamFinalized.get()) {
+			return -1L;
+		}
 		final GrpcRegisterSystemChangeCaptureResponse.Builder response = GrpcRegisterSystemChangeCaptureResponse
 			.newBuilder();
 		if (this.subscription instanceof ChangeCaptureSubscription ccs) {
 			response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
 		}
-		this.responseObserver.onNext(
-			response
-				.setResponseType(GrpcCaptureResponseType.HEARTBEAT)
-				.setHeartBeat(buildHeartBeatMessage())
-				.build()
-		);
+		try {
+			this.responseObserver.onNext(
+				response
+					.setResponseType(GrpcCaptureResponseType.HEARTBEAT)
+					.setHeartBeat(buildHeartBeatMessage())
+					.build()
+			);
+		} catch (Exception ex) {
+			log.debug("Heartbeat send failed (stream likely finalized concurrently): {}", ex.getMessage());
+			return -1L;
+		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
 		// plan the next heartbeat at regular interval
 		return 0L;
@@ -180,7 +257,7 @@ public class ChangeSystemCaptureSubscriber implements Subscriber<ChangeSystemCap
 	@Nonnull
 	private GrpcHeartBeat buildHeartBeatMessage() {
 		return GrpcHeartBeat.newBuilder()
-			.setIndex(this.index++)
+			.setIndex(this.index.getAndIncrement())
 			.setTimestamp(toGrpcOffsetDateTime(OffsetDateTime.now()))
 			.setLastObservedVersion(this.versionSupplier.getAsLong())
 			.setMillisToNextHeartbeat(this.heartBeatDelay)

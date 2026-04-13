@@ -41,7 +41,16 @@ import java.io.Serial;
 import java.time.OffsetDateTime;
 
 /**
- * Mock PriceListAndCurrencyPriceIndex implementation to be used in perf. tests.
+ * Mock implementation of {@link PriceListAndCurrencyPriceIndex} that supports incremental price
+ * recording via {@link #recordPrice(PriceRecordContract)}. Maintains an entity-to-price-IDs
+ * lookup map ({@link IntObjectHashMap}) and ordered arrays of price records and inner record IDs.
+ *
+ * Only {@link #getInternalPriceIdsForEntity(int)}, {@link #getPriceRecords()}, and
+ * {@link #getIndexedPriceIds()} are implemented — all other methods throw
+ * {@link UnsupportedOperationException}.
+ *
+ * **Note:** This class is only used by {@link EntityIdsState}, which itself is not referenced
+ * by any benchmark in {@link io.evitadb.spike.FormulaCostMeasurement}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

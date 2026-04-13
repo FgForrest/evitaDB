@@ -40,35 +40,47 @@ import javax.annotation.Nonnull;
  *
  * Formula {@link #compute()} produces the result of the equation. Formula can estimate its computational cost by
  * calling {@link #getEstimatedCost()} or more exactly by calling {@link #getCost()} that involves result computation.
- * There costs are derived from {@link #getOperationCost()} that was measured by performance tests on random numbers
+ * These costs are derived from {@link #getOperationCost()} that was measured by performance tests on random numbers
  * and the amount of data processed by the formula.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface Formula extends TransactionalDataRelatedStructure, PrettyPrintable {
 
+	/**
+	 * Reusable empty array of formulas to avoid unnecessary allocations.
+	 */
 	Formula[] EMPTY_FORMULA_ARRAY = new Formula[0];
 
 	/**
 	 * Traverses formula tree with passed visitor.
+	 *
+	 * @param visitor the visitor to accept
 	 */
 	void accept(@Nonnull FormulaVisitor visitor);
 
 	/**
 	 * Computes product of this formula. The result is cached so multiple calls on this method will pay the cost only
 	 * for the first time.
+	 *
+	 * @return bitmap representing the computed result of this formula
 	 */
 	@Nonnull
 	Bitmap compute();
 
 	/**
 	 * Returns copy of this formula with replaced inner formulas.
+	 *
+	 * @param innerFormulas the new inner formulas to use in the cloned formula
+	 * @return a new formula instance of the same type with the given inner formulas
 	 */
 	@Nonnull
 	Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas);
 
 	/**
 	 * Returns inner formulas this formula {@link #compute()} builds upon.
+	 *
+	 * @return array of child formulas (may be empty for leaf formulas)
 	 */
 	@Nonnull
 	Formula[] getInnerFormulas();
@@ -76,6 +88,8 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	/**
 	 * Returns the cardinality estimate of {@link #compute()} method without really computing the result. The estimate
 	 * will not be precise but differs between AND/OR relations and helps us to compute {@link #getEstimatedCost()}.
+	 *
+	 * @return estimated number of elements in the result bitmap
 	 */
 	int getEstimatedCardinality();
 
@@ -86,6 +100,8 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 
 	/**
 	 * Prints information about the formula in a user-friendly way in verbose mode.
+	 *
+	 * @return verbose human-readable representation of this formula
 	 */
 	@Nonnull
 	String toStringVerbose();

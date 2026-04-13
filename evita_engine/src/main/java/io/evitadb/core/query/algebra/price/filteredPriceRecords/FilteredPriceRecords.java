@@ -48,7 +48,6 @@ import org.roaringbitmap.RoaringBitmapWriter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -78,9 +77,17 @@ public interface FilteredPriceRecords extends Serializable {
 	FilteredPriceRecords EMPTY = new ResolvedFilteredPriceRecords();
 
 	/**
-	 * Method collects all {@link FilteredPriceRecords} from all inner formulas of `parentFormula` tree that implement
-	 * {@link FilteredPriceRecordAccessor} interface. All those objects are aggregated and reduced to single instance
-	 * of {@link FilteredPriceRecords} that represents all of them.
+	 * Collects all {@link FilteredPriceRecords} from {@link FilteredPriceRecordAccessor} nodes
+	 * found in the `parentFormula` tree and reduces them into a single {@link FilteredPriceRecords}
+	 * instance. When `narrowToEntityIds` is provided, only prices linked to those entities are
+	 * retained. The result may be a {@link ResolvedFilteredPriceRecords},
+	 * {@link LazyEvaluatedEntityPriceRecords}, or a {@link CombinedPriceRecords} depending on
+	 * the mix of accessor types found.
+	 *
+	 * @param parentFormula     root of the formula tree to search for price record accessors
+	 * @param narrowToEntityIds optional bitmap to restrict results to specific entity primary keys
+	 * @param context           current query execution context
+	 * @return aggregated price records covering all accessors in the formula tree
 	 */
 	@Nonnull
 	static FilteredPriceRecords createFromFormulas(
@@ -93,11 +100,19 @@ public interface FilteredPriceRecords extends Serializable {
 			parentFormula, FilteredPriceRecordAccessor.class, LookUp.SHALLOW
 		);
 
-		final List<FilteredPriceRecords> filteredPriceRecords = filteredPriceRecordAccessors
-			.stream()
-			.map(it -> it.getFilteredPriceRecords(context))
-			.map(it -> it instanceof NonResolvedFilteredPriceRecords ? ((NonResolvedFilteredPriceRecords) it).toResolvedFilteredPriceRecords() : it)
-			.toList();
+		final List<FilteredPriceRecords> filteredPriceRecords;
+		{
+			final FilteredPriceRecords[] arr = new FilteredPriceRecords[filteredPriceRecordAccessors.size()];
+			int idx = 0;
+			for (FilteredPriceRecordAccessor accessor : filteredPriceRecordAccessors) {
+				FilteredPriceRecords records = accessor.getFilteredPriceRecords(context);
+				if (records instanceof NonResolvedFilteredPriceRecords) {
+					records = ((NonResolvedFilteredPriceRecords) records).toResolvedFilteredPriceRecords();
+				}
+				arr[idx++] = records;
+			}
+			filteredPriceRecords = List.of(arr);
+		}
 
 		// there are no filtered price accessors or narrowed bitmap produces no output
 		if (filteredPriceRecords.isEmpty() || (narrowToEntityIds != null && narrowToEntityIds.isEmpty())) {
@@ -134,17 +149,41 @@ public interface FilteredPriceRecords extends Serializable {
 		}
 	}
 
+	/**
+	 * Extracts all {@link PriceListAndCurrencyPriceIndex} references from accessors whose
+	 * {@link FilteredPriceRecords} are {@link LazyEvaluatedEntityPriceRecords} and merges them
+	 * into a single {@link LazyEvaluatedEntityPriceRecords} instance. Returns empty if none
+	 * of the accessors use lazy evaluation.
+	 *
+	 * @param filteredPriceRecordAccessors accessors to inspect for lazy price records
+	 * @param context                     current query execution context
+	 * @return combined lazy price records, or empty if no lazy records found
+	 */
 	@Nonnull
 	private static Optional<LazyEvaluatedEntityPriceRecords> getLazyEvaluatedEntityPriceRecords(
 		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
 		@Nonnull QueryExecutionContext context
 	) {
-		final PriceListAndCurrencyPriceIndex<?, ?>[] priceIndexes = filteredPriceRecordAccessors.stream()
-			.map(it -> it.getFilteredPriceRecords(context))
-			.filter(LazyEvaluatedEntityPriceRecords.class::isInstance)
-			.map(LazyEvaluatedEntityPriceRecords.class::cast)
-			.flatMap(it -> Arrays.stream(it.getPriceIndexes()))
-			.toArray(PriceListAndCurrencyPriceIndex[]::new);
+		// cache results to avoid calling getFilteredPriceRecords twice per accessor
+		final FilteredPriceRecords[] cachedRecords = new FilteredPriceRecords[filteredPriceRecordAccessors.size()];
+		int totalIndexCount = 0;
+		int idx = 0;
+		for (FilteredPriceRecordAccessor accessor : filteredPriceRecordAccessors) {
+			final FilteredPriceRecords records = accessor.getFilteredPriceRecords(context);
+			cachedRecords[idx++] = records;
+			if (records instanceof LazyEvaluatedEntityPriceRecords lazy) {
+				totalIndexCount += lazy.getPriceIndexes().length;
+			}
+		}
+		final PriceListAndCurrencyPriceIndex<?, ?>[] priceIndexes = new PriceListAndCurrencyPriceIndex[totalIndexCount];
+		int offset = 0;
+		for (final FilteredPriceRecords cachedRecord : cachedRecords) {
+			if (cachedRecord instanceof LazyEvaluatedEntityPriceRecords lazy) {
+				final PriceListAndCurrencyPriceIndex<?, ?>[] indexes = lazy.getPriceIndexes();
+				System.arraycopy(indexes, 0, priceIndexes, offset, indexes.length);
+				offset += indexes.length;
+			}
+		}
 		return ArrayUtils.isEmpty(priceIndexes) ?
 			empty() :
 			of(
@@ -154,6 +193,16 @@ public interface FilteredPriceRecords extends Serializable {
 			);
 	}
 
+	/**
+	 * Filters resolved price records to only include prices whose entity primary key is present
+	 * in `narrowToEntityIds`. Iterates over the narrowing bitmap in batches via
+	 * {@link SharedBufferPool} and looks up matching prices through {@link PriceRecordLookup}.
+	 *
+	 * @param narrowToEntityIds    bitmap of entity primary keys to retain
+	 * @param filteredPriceRecords all collected price records (only resolved ones are examined)
+	 * @param requirePriceFound    when true, asserts that every entity id maps to at least one price
+	 * @return resolved price records narrowed to matching entities, or empty if no resolved records exist
+	 */
 	@Nonnull
 	private static Optional<ResolvedFilteredPriceRecords> getNarrowedResolvedFilteredPriceRecords(
 		@Nonnull Bitmap narrowToEntityIds,
@@ -167,22 +216,36 @@ public interface FilteredPriceRecords extends Serializable {
 				RoaringBitmapBackedBitmap.getRoaringBitmap(narrowToEntityIds).getBatchIterator(),
 				buffer
 			);
-			final PriceRecordLookup[] priceRecordIterators = filteredPriceRecords.stream()
-				.filter(ResolvedFilteredPriceRecords.class::isInstance)
-				.map(FilteredPriceRecords::getPriceRecordsLookup)
-				.toArray(PriceRecordLookup[]::new);
+			int lookupCount = 0;
+			for (FilteredPriceRecords priceRecord : filteredPriceRecords) {
+				if (priceRecord instanceof ResolvedFilteredPriceRecords) {
+					lookupCount++;
+				}
+			}
+			final PriceRecordLookup[] priceRecordIterators = new PriceRecordLookup[lookupCount];
+			int lookupIdx = 0;
+			for (FilteredPriceRecords filteredPriceRecord : filteredPriceRecords) {
+				if (filteredPriceRecord instanceof ResolvedFilteredPriceRecords) {
+					priceRecordIterators[lookupIdx++] = filteredPriceRecord.getPriceRecordsLookup();
+				}
+			}
 			if (ArrayUtils.isEmpty(priceRecordIterators)) {
 				resolvedFilteredPriceRecords = empty();
 			} else {
-				final CompositeObjectArray<PriceRecordContract> narrowedPrices = new CompositeObjectArray<>(PriceRecordContract.class, false);
+				final CompositeObjectArray<PriceRecordContract> narrowedPrices =
+					new CompositeObjectArray<>(PriceRecordContract.class, false);
 				while (filteredPriceIdsIterator.hasNext()) {
 					final int[] batch = filteredPriceIdsIterator.nextBatch();
-					final int lastExpectedEntity = filteredPriceIdsIterator.getPeek() > 0 ? batch[filteredPriceIdsIterator.getPeek() - 1] : -1;
+					final int lastExpectedEntity = filteredPriceIdsIterator.getPeek() > 0
+						? batch[filteredPriceIdsIterator.getPeek() - 1]
+						: -1;
 					for (int i = 0; i < filteredPriceIdsIterator.getPeek(); i++) {
 						int narrowedPriceId = batch[i];
 						boolean anyPriceFound = false;
 						for (PriceRecordLookup it : priceRecordIterators) {
-							anyPriceFound = it.forEachPriceOfEntity(narrowedPriceId, lastExpectedEntity, narrowedPrices::add);
+							anyPriceFound = it.forEachPriceOfEntity(
+								narrowedPriceId, lastExpectedEntity, narrowedPrices::add
+							);
 							if (anyPriceFound) {
 								break;
 							}
@@ -206,17 +269,32 @@ public interface FilteredPriceRecords extends Serializable {
 		}
 	}
 
+	/**
+	 * Merges all {@link ResolvedFilteredPriceRecords} from the given list into a single instance
+	 * by concatenating their price record arrays. Non-resolved records are skipped.
+	 *
+	 * @param filteredPriceRecords all collected price records to merge
+	 * @return merged resolved price records, or empty if none of the records are resolved
+	 */
 	@Nonnull
-	private static Optional<ResolvedFilteredPriceRecords> getResolvedFilteredPriceRecords(List<FilteredPriceRecords> filteredPriceRecords) {
-		final Optional<ResolvedFilteredPriceRecords> resolvedFilteredPriceRecords;
-		final PriceRecordContract[] priceRecords = ArrayUtils.mergeArrays(
-			filteredPriceRecords.stream()
-				.filter(ResolvedFilteredPriceRecords.class::isInstance)
-				.map(ResolvedFilteredPriceRecords.class::cast)
-				.map(ResolvedFilteredPriceRecords::getPriceRecords)
-				.toArray(PriceRecordContract[][]::new)
-		);
-		resolvedFilteredPriceRecords = ArrayUtils.isEmpty(priceRecords) ?
+	private static Optional<ResolvedFilteredPriceRecords> getResolvedFilteredPriceRecords(
+		@Nonnull List<FilteredPriceRecords> filteredPriceRecords
+	) {
+		int resolvedCount = 0;
+		for (FilteredPriceRecords priceRecord : filteredPriceRecords) {
+			if (priceRecord instanceof ResolvedFilteredPriceRecords) {
+				resolvedCount++;
+			}
+		}
+		final PriceRecordContract[][] arrays = new PriceRecordContract[resolvedCount][];
+		int arrIdx = 0;
+		for (FilteredPriceRecords filteredPriceRecord : filteredPriceRecords) {
+			if (filteredPriceRecord instanceof ResolvedFilteredPriceRecords resolved) {
+				arrays[arrIdx++] = resolved.getPriceRecords();
+			}
+		}
+		final PriceRecordContract[] priceRecords = ArrayUtils.mergeArrays(arrays);
+		return ArrayUtils.isEmpty(priceRecords) ?
 			empty() :
 			of(
 				new ResolvedFilteredPriceRecords(
@@ -224,16 +302,18 @@ public interface FilteredPriceRecords extends Serializable {
 					SortingForm.NOT_SORTED
 				)
 			);
-		return resolvedFilteredPriceRecords;
 	}
 
 	/**
-	 * Method collects all prices from list of passed `filteredPriceRecordAccessors`, reduces them to a subset which
-	 * {@link PriceRecordContract#entityPrimaryKey()} matches the `filterTo` bitmap and returns thre result wrapped
-	 * in {@link FilteredPriceRecordsLookupResult} divided into two parts:
+	 * Collects prices from `filteredPriceRecordAccessors` and retains only those whose
+	 * {@link PriceRecordContract#entityPrimaryKey()} is present in `filterTo`. The result
+	 * is split into two parts: an array of matched price records and a bitmap of entity ids
+	 * that had no associated price.
 	 *
-	 * - array of prices that match passed entities
-	 * - the rest of entity ids that were not matched to any price
+	 * @param filteredPriceRecordAccessors accessors providing price records to filter
+	 * @param filterTo                    bitmap of entity primary keys to match against
+	 * @param context                     current query execution context
+	 * @return lookup result containing matched prices and unmatched entity ids
 	 */
 	@Nonnull
 	static FilteredPriceRecordsLookupResult collectFilteredPriceRecordsFromPriceRecordAccessors(
@@ -242,10 +322,11 @@ public interface FilteredPriceRecords extends Serializable {
 		@Nonnull QueryExecutionContext context
 	) {
 		final CompositeObjectArray<PriceRecordContract> collectedPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class, false);
-		final List<PriceRecordLookup> priceRecordIterators = filteredPriceRecordAccessors
-			.stream()
-			.map(it -> it.getFilteredPriceRecords(context).getPriceRecordsLookup())
-			.toList();
+		final PriceRecordLookup[] priceRecordIterators = new PriceRecordLookup[filteredPriceRecordAccessors.size()];
+		int prIdx = 0;
+		for (FilteredPriceRecordAccessor accessor : filteredPriceRecordAccessors) {
+			priceRecordIterators[prIdx++] = accessor.getFilteredPriceRecords(context).getPriceRecordsLookup();
+		}
 
 		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 		try {
@@ -330,7 +411,11 @@ public interface FilteredPriceRecords extends Serializable {
 		 * @param priceConsumer      lambda that accepts the {@link PriceRecordContract} of the price that
 		 *                           links to the `entityPk`
 		 */
-		boolean forEachPriceOfEntity(int entityPk, int lastExpectedEntity, @Nonnull Consumer<PriceRecordContract> priceConsumer);
+		boolean forEachPriceOfEntity(
+			int entityPk,
+			int lastExpectedEntity,
+			@Nonnull Consumer<PriceRecordContract> priceConsumer
+		);
 
 	}
 

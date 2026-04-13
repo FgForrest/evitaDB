@@ -31,7 +31,6 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
@@ -121,7 +120,12 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Returns true if all parents match the passed predicate.
 	 */
 	public boolean allParentsMatch(@Nonnull Predicate<Formula> formulaTester) {
-		return this.parents.stream().allMatch(formulaTester);
+		for (Formula parent : this.parents) {
+			if (!formulaTester.test(parent)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -148,8 +152,15 @@ public class FormulaCloner implements FormulaVisitor {
 				this.parents.pop();
 				final SubTree subTree = popContext(this.treeStack);
 				final Set<Formula> updatedChildren = subTree.getChildren();
-				final boolean childrenHaveNotChanged = updatedChildren.size() == formula.getInnerFormulas().length &&
-					Arrays.stream(formula.getInnerFormulas()).allMatch(updatedChildren::contains);
+				boolean childrenHaveNotChanged = updatedChildren.size() == formula.getInnerFormulas().length;
+				if (childrenHaveNotChanged) {
+					for (Formula innerFormula : formula.getInnerFormulas()) {
+						if (!updatedChildren.contains(innerFormula)) {
+							childrenHaveNotChanged = false;
+							break;
+						}
+					}
+				}
 
 				if (childrenHaveNotChanged) {
 					// use entire formula tree block
@@ -238,7 +249,7 @@ public class FormulaCloner implements FormulaVisitor {
 	 * Default implementation of {@link SubTree} contract used in the formula cloner.
 	 */
 	private static class DefaultSubTree implements SubTree {
-		@Getter private final Set<Formula> children = new LinkedHashSet<>();
+		@Getter private final Set<Formula> children = new LinkedHashSet<>(16);
 
 		@Override
 		public void add(@Nonnull Formula formula) {

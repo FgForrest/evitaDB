@@ -49,6 +49,9 @@ import java.util.function.Consumer;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class PriceIndexContainerFormula extends AbstractCacheableFormula implements PriceIndexProvidingFormula, Formula {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = 1785319770058715404L;
 
 	/**
@@ -74,7 +77,7 @@ public class PriceIndexContainerFormula extends AbstractCacheableFormula impleme
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PriceIndexContainerFormula(
-			this.priceIndex, getDelegate()
+			this.priceIndex, innerFormulas[0]
 		);
 	}
 

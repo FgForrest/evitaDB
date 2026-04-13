@@ -42,8 +42,17 @@ import javax.annotation.Nonnull;
  */
 @RequiredArgsConstructor
 public class MockEntityIdsFormula extends AbstractFormula implements FilteredPriceRecordAccessor {
+	/**
+	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
+	 */
 	private static final long CLASS_ID = -8786720221479629134L;
+	/**
+	 * Pre-built bitmap of entity primary keys returned directly by {@link #computeInternal()}.
+	 */
 	private final Bitmap entityIds;
+	/**
+	 * Pre-built filtered price records returned by {@link #getFilteredPriceRecords(QueryExecutionContext)}.
+	 */
 	private final FilteredPriceRecords priceRecords;
 
 	@Nonnull
