@@ -106,8 +106,7 @@ mcp-jdwp-inspector.log
 ### Data
 
 /data/*
-/evita_server/evita-server-certificates/*
+/**/evita-server-certificates/*
 /evita_server/logs
-/evita_test/evita_functional_tests/evita-server-certificates/*
 /evita_test/evita_functional_tests/export/*
 /evita_test/evita_functional_tests/data/*
