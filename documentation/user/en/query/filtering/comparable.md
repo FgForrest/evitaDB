@@ -148,6 +148,10 @@ whose primary key is greater than or equal to the first argument and less than o
 At least one of the two bounds must be provided; when a bound is omitted, the range is open-ended on
 that side (equivalent to `entityPrimaryKeyGreaterThanEquals` or `entityPrimaryKeyLessThanEquals`).
 
+Note that open-ended ranges are only accessible through the Java, GraphQL, and REST APIs. The EvitaQL
+text grammar requires both bounds to be specified — if you need an unbounded range in EvitaQL text,
+use `entityPrimaryKeyGreaterThanEquals` or `entityPrimaryKeyLessThanEquals` instead.
+
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products with primary key between 10 and 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-between.evitaql)

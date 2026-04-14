@@ -31,6 +31,7 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -85,6 +86,10 @@ public class EntityPrimaryKeyBetween extends AbstractFilterConstraintLeaf
 		super(
 			EvitaDataTypes.toTargetType(from, Integer.class),
 			EvitaDataTypes.toTargetType(to, Integer.class)
+		);
+		Assert.isTrue(
+			from != null || to != null,
+			"At least one bound (from or to) must be non-null for entityPrimaryKeyBetween."
 		);
 	}
 

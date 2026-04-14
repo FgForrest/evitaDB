@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -69,8 +70,11 @@ class EntityPrimaryKeyBetweenTest {
 	}
 
 	@Test
-	void shouldRecognizeNotApplicability() {
-		assertFalse(new EntityPrimaryKeyBetween(null, null).isApplicable());
+	void shouldRejectBothBoundsNull() {
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> new EntityPrimaryKeyBetween(null, null)
+		);
 	}
 
 	@Test
