@@ -25,6 +25,7 @@ package io.evitadb.core.query.filter.translator.entity;
 
 import io.evitadb.api.query.filter.EntityPrimaryKeyLessThan;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.entity.EntityPrimaryKeyRangeFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
@@ -46,6 +47,10 @@ public class EntityPrimaryKeyLessThanTranslator implements FilteringConstraintTr
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final int threshold = constraint.getPrimaryKey();
+		if (threshold == Integer.MIN_VALUE) {
+			// no integer is strictly less than MIN_VALUE; guard avoids threshold - 1 underflow
+			return EmptyFormula.INSTANCE;
+		}
 		return new EntityPrimaryKeyRangeFormula(
 			Integer.MIN_VALUE,
 			threshold - 1,

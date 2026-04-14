@@ -35,6 +35,7 @@ import net.openhft.hashing.LongHashFunction;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.function.Consumer;
 
 /**
@@ -93,7 +94,7 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 	 * @param superSetFormula     the formula providing the full set of candidate primary keys
 	 */
 	private EntityPrimaryKeyRangeFormula(
-		@Nonnull Consumer<CacheableFormula> computationCallback,
+		@Nullable Consumer<CacheableFormula> computationCallback,
 		int from,
 		int to,
 		@Nonnull Formula superSetFormula
@@ -145,7 +146,8 @@ public class EntityPrimaryKeyRangeFormula extends AbstractCacheableFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return hashFunction.hashLongs(new long[]{this.from, this.to});
+		// manual combination avoids the long[] allocation of hashFunction.hashLongs
+		return 31L * Integer.hashCode(this.from) + Integer.hashCode(this.to);
 	}
 
 	@Override

@@ -50,6 +50,7 @@ import static io.evitadb.api.query.require.DebugMode.VERIFY_POSSIBLE_CACHING_TRE
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.AssertionUtils.assertResultIs;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies whether entities can be filtered by primary key comparison constraints.
@@ -270,4 +271,131 @@ public class EntityByPrimaryKeyFilteringFunctionalTest {
 			}
 		);
 	}
+
+	@DisplayName("Should return no entities when greater-than threshold is Integer.MAX_VALUE")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEmptyResultWhenGreaterThanMaxValue(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyGreaterThan(Integer.MAX_VALUE)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(VERIFY_ALTERNATIVE_INDEX_RESULTS, VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertTrue(
+					result.getRecordData().isEmpty(),
+					"Expected no entities to match entityPrimaryKeyGreaterThan(Integer.MAX_VALUE)"
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return no entities when less-than threshold is Integer.MIN_VALUE")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEmptyResultWhenLessThanMinValue(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyLessThan(Integer.MIN_VALUE)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(VERIFY_ALTERNATIVE_INDEX_RESULTS, VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertTrue(
+					result.getRecordData().isEmpty(),
+					"Expected no entities to match entityPrimaryKeyLessThan(Integer.MIN_VALUE)"
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered by primary key between with unbounded upper bound")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByPrimaryKeyBetweenWithNullUpperBound(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int from = originalProductEntities
+					.get(originalProductEntities.size() / 2)
+					.getPrimaryKeyOrThrowException();
+
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyBetween(from, null)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(VERIFY_ALTERNATIVE_INDEX_RESULTS, VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity.getPrimaryKeyOrThrowException() >= from,
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities filtered by primary key between with unbounded lower bound")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFilterByPrimaryKeyBetweenWithNullLowerBound(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final int to = originalProductEntities
+					.get(originalProductEntities.size() / 2)
+					.getPrimaryKeyOrThrowException();
+
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyBetween(null, to)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(VERIFY_ALTERNATIVE_INDEX_RESULTS, VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity.getPrimaryKeyOrThrowException() <= to,
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 }

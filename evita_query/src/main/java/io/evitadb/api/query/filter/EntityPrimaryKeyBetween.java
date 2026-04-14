@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,17 +70,22 @@ public class EntityPrimaryKeyBetween extends AbstractFilterConstraintLeaf
 
 	/**
 	 * Creates a constraint that filters entities to those with a primary key within the specified
-	 * inclusive range. At least one of the bounds must be non-null.
+	 * inclusive range. At least one of the bounds must be non-null. Inputs may be any supported
+	 * numeric type (Byte, Short, Integer, Long, BigDecimal) — they are converted to Integer via
+	 * {@link EvitaDataTypes#toTargetType}, which throws if the value does not fit in an int.
 	 *
 	 * @param from the lower bound of the range (inclusive), or null for unbounded lower
 	 * @param to   the upper bound of the range (inclusive), or null for unbounded upper
 	 */
 	@Creator(implicitClassifier = "primaryKey")
-	public EntityPrimaryKeyBetween(
-		@Nullable @Value(requiresPlainType = true) Integer from,
-		@Nullable @Value(requiresPlainType = true) Integer to
+	public <T extends Number & Serializable> EntityPrimaryKeyBetween(
+		@Nullable @Value(requiresPlainType = true) T from,
+		@Nullable @Value(requiresPlainType = true) T to
 	) {
-		super(from, to);
+		super(
+			EvitaDataTypes.toTargetType(from, Integer.class),
+			EvitaDataTypes.toTargetType(to, Integer.class)
+		);
 	}
 
 	/**

@@ -125,24 +125,28 @@ whose primary key is less than or equal to the specified value.
 
 ```evitaql-syntax
 entityPrimaryKeyBetween(
-    argument:int!,
-    argument:int!
+    argument:int,
+    argument:int
 )
 ```
 
 <dl>
-    <dt>argument:int!</dt>
+    <dt>argument:int</dt>
     <dd>
-        the lower bound (inclusive) of the primary key range
+        the lower bound (inclusive) of the primary key range; may be omitted (`null` in Java / GraphQL /
+        REST) to leave the range unbounded on the lower side
     </dd>
-    <dt>argument:int!</dt>
+    <dt>argument:int</dt>
     <dd>
-        the upper bound (inclusive) of the primary key range
+        the upper bound (inclusive) of the primary key range; may be omitted (`null` in Java / GraphQL /
+        REST) to leave the range unbounded on the upper side
     </dd>
 </dl>
 
 The `entityPrimaryKeyBetween` filters entities by their primary key and returns only those
 whose primary key is greater than or equal to the first argument and less than or equal to the second argument.
+At least one of the two bounds must be provided; when a bound is omitted, the range is open-ended on
+that side (equivalent to `entityPrimaryKeyGreaterThanEquals` or `entityPrimaryKeyLessThanEquals`).
 
 <SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
