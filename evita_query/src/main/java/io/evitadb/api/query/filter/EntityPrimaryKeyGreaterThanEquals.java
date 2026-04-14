@@ -30,7 +30,6 @@ import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
-import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -68,17 +67,15 @@ public class EntityPrimaryKeyGreaterThanEquals extends AbstractFilterConstraintL
 
 	/**
 	 * Creates a constraint that filters entities to those with a primary key greater than or equal
-	 * to the specified value. The input may be any supported numeric type (Byte, Short, Integer,
-	 * Long, BigDecimal) — it is converted to Integer via {@link EvitaDataTypes#toTargetType}, which
-	 * throws if the value does not fit in an int.
+	 * to the specified value.
 	 *
 	 * @param primaryKey the threshold primary key value (inclusive lower bound)
 	 */
 	@Creator(implicitClassifier = "primaryKey")
-	public <T extends Number & Serializable> EntityPrimaryKeyGreaterThanEquals(
-		@Nonnull @Value(requiresPlainType = true) T primaryKey
+	public EntityPrimaryKeyGreaterThanEquals(
+		@Nonnull @Value(requiresPlainType = true) Integer primaryKey
 	) {
-		super(EvitaDataTypes.toTargetType(primaryKey, Integer.class));
+		super(primaryKey);
 	}
 
 	/**

@@ -63,6 +63,8 @@ Progress:
 
 **Constraint annotation reference**: `documentation/developer/query/query_constraint_description_framework.md`
 
+**Type erasure pitfall**: The `@Creator` constructor parameter type **must be concrete** (e.g. `Integer`, not `<T extends Number & Serializable>`). `ConstraintProcessor` reads the raw type via `Parameter.getType()` — generics erase to their first bound, and `Number.class` has no GraphQL scalar mapping, crashing the schema build. Keep the broad type list in `@ConstraintSupportedValues`; the external API layer coerces types before calling the constructor.
+
 ### Layer 2: Engine (`evita_engine`)
 
 | # | What | Path |
