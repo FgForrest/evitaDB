@@ -54,6 +54,8 @@ duration of the probe.</dd>
     <dt>resolution</dt>
     <dd><strong>Transaction resolution</strong>: The resolution of the transaction (either commit or rollback).</dd>
     <dt>responseStatus</dt>
+    <dd><strong>Response status</strong>: The status of the response: OK, ERROR, CANCELLED, or TIMEOUT.</dd>
+    <dt>responseStatus</dt>
     <dd><strong>Response status</strong>: The status of the response: OK or ERROR.</dd>
     <dt>restInstanceType</dt>
     <dd><strong>REST instance type</strong>: Domain of the REST API used in connection with this event/metric: SYSTEM, or CATALOG</dd>
