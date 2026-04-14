@@ -27,6 +27,8 @@ import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.base.AndFormula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.entity.EntityPrimaryKeyRangeFormula;
 import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
@@ -189,6 +191,22 @@ public class FormulaCostMeasurement {
 			new DisentangleFormula(
 				bitmapDataSet.getBitmapA(),
 				bitmapDataSet.getBitmapB()
+			).compute()
+		);
+	}
+
+	/**
+	 * Measures throughput of {@link EntityPrimaryKeyRangeFormula} — iterates a 100K-element
+	 * RoaringBitmap-backed superset bitmap and retains only primary keys within a range covering
+	 * approximately the middle 50% of values (25th to 75th percentile).
+	 */
+	@Benchmark
+	public void entityPrimaryKeyRangeFormula(IntegerBitmapState bitmapDataSet, Blackhole blackhole) {
+		blackhole.consume(
+			new EntityPrimaryKeyRangeFormula(
+				50_000,
+				150_000,
+				new ConstantFormula(bitmapDataSet.getBitmapA())
 			).compute()
 		);
 	}

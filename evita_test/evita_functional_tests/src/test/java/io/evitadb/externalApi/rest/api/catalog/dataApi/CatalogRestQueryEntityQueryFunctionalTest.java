@@ -164,6 +164,255 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	}
 
 	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key greater than")
+	void shouldReturnProductsByPrimaryKeyGreaterThan(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int threshold = originalProductEntities
+			.get(originalProductEntities.size() / 2)
+			.getPrimaryKeyOrThrowException();
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyGreaterThan(threshold)
+				),
+				require(
+					page(1, 20),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyGreaterThan": %d
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": 20
+						},
+						"entityFetch": {
+							"attributeContent": ["code"]
+						}
+					}
+				}
+				""",
+				threshold)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key greater than or equals")
+	void shouldReturnProductsByPrimaryKeyGreaterThanEquals(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int threshold = originalProductEntities
+			.get(originalProductEntities.size() / 2)
+			.getPrimaryKeyOrThrowException();
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyGreaterThanEquals(threshold)
+				),
+				require(
+					page(1, 20),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyGreaterThanEquals": %d
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": 20
+						},
+						"entityFetch": {
+							"attributeContent": ["code"]
+						}
+					}
+				}
+				""",
+				threshold)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key less than")
+	void shouldReturnProductsByPrimaryKeyLessThan(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int threshold = originalProductEntities
+			.get(originalProductEntities.size() / 2)
+			.getPrimaryKeyOrThrowException();
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyLessThan(threshold)
+				),
+				require(
+					page(1, 20),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyLessThan": %d
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": 20
+						},
+						"entityFetch": {
+							"attributeContent": ["code"]
+						}
+					}
+				}
+				""",
+				threshold)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key less than or equals")
+	void shouldReturnProductsByPrimaryKeyLessThanEquals(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int threshold = originalProductEntities
+			.get(originalProductEntities.size() / 2)
+			.getPrimaryKeyOrThrowException();
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyLessThanEquals(threshold)
+				),
+				require(
+					page(1, 20),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyLessThanEquals": %d
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": 20
+						},
+						"entityFetch": {
+							"attributeContent": ["code"]
+						}
+					}
+				}
+				""",
+				threshold)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key between")
+	void shouldReturnProductsByPrimaryKeyBetween(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+		final int from = originalProductEntities
+			.get(originalProductEntities.size() / 4)
+			.getPrimaryKeyOrThrowException();
+		final int to = originalProductEntities
+			.get(originalProductEntities.size() / 2)
+			.getPrimaryKeyOrThrowException();
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyBetween(from, to)
+				),
+				require(
+					page(1, 20),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"entityPrimaryKeyBetween": [%d, %d]
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": 20
+						},
+						"entityFetch": {
+							"attributeContent": ["code"]
+						}
+					}
+				}
+				""",
+				from,
+				to)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
 	@UseDataSet(REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
 	@DisplayName("Should return archived entities")
 	void shouldReturnArchivedEntities(Evita evita, RestTester tester) {
