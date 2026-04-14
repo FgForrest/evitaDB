@@ -266,6 +266,273 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key greater than")
+	void shouldReturnProductsByPrimaryKeyGreaterThan(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int threshold = originalProductEntities.get(originalProductEntities.size() / 2).getPrimaryKey();
+
+		final List<EntityClassifier> expectedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyGreaterThan(threshold)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					entityFetch()
+				)
+			),
+			EntityClassifier.class
+		);
+
+		final List<Map<String, Object>> expectedBody = expectedEntities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyGreaterThan: %d
+	                        }
+	                    ) {
+	                        recordPage(size: %d) {
+	                            data {
+	                                primaryKey
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				threshold,
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key greater than or equals")
+	void shouldReturnProductsByPrimaryKeyGreaterThanEquals(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int threshold = originalProductEntities.get(originalProductEntities.size() / 2).getPrimaryKey();
+
+		final List<EntityClassifier> expectedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyGreaterThanEquals(threshold)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					entityFetch()
+				)
+			),
+			EntityClassifier.class
+		);
+
+		final List<Map<String, Object>> expectedBody = expectedEntities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyGreaterThanEquals: %d
+	                        }
+	                    ) {
+	                        recordPage(size: %d) {
+	                            data {
+	                                primaryKey
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				threshold,
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key less than")
+	void shouldReturnProductsByPrimaryKeyLessThan(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int threshold = originalProductEntities.get(originalProductEntities.size() / 2).getPrimaryKey();
+
+		final List<EntityClassifier> expectedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyLessThan(threshold)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					entityFetch()
+				)
+			),
+			EntityClassifier.class
+		);
+
+		final List<Map<String, Object>> expectedBody = expectedEntities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyLessThan: %d
+	                        }
+	                    ) {
+	                        recordPage(size: %d) {
+	                            data {
+	                                primaryKey
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				threshold,
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key less than or equals")
+	void shouldReturnProductsByPrimaryKeyLessThanEquals(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int threshold = originalProductEntities.get(originalProductEntities.size() / 2).getPrimaryKey();
+
+		final List<EntityClassifier> expectedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyLessThanEquals(threshold)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					entityFetch()
+				)
+			),
+			EntityClassifier.class
+		);
+
+		final List<Map<String, Object>> expectedBody = expectedEntities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyLessThanEquals: %d
+	                        }
+	                    ) {
+	                        recordPage(size: %d) {
+	                            data {
+	                                primaryKey
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				threshold,
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return products by primary key between")
+	void shouldReturnProductsByPrimaryKeyBetween(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final int from = originalProductEntities.get(originalProductEntities.size() / 4).getPrimaryKey();
+		final int to = originalProductEntities.get(3 * originalProductEntities.size() / 4).getPrimaryKey();
+
+		final List<EntityClassifier> expectedEntities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyBetween(from, to)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					entityFetch()
+				)
+			),
+			EntityClassifier.class
+		);
+
+		final List<Map<String, Object>> expectedBody = expectedEntities.stream()
+			.map(entity -> map()
+				.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+				.build())
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    queryProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyBetween: [%d, %d]
+	                        }
+	                    ) {
+	                        recordPage(size: %d) {
+	                            data {
+	                                primaryKey
+	                            }
+	                        }
+	                    }
+	                }
+					""",
+				from,
+				to,
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
+	}
+
+	@Test
 	@UseDataSet(GRAPHQL_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE)
 	@DisplayName("Should return archived entities")
 	void shouldReturnArchivedEntities(Evita evita, GraphQLTester tester) {

@@ -29,6 +29,134 @@ The <LS to="e,j,r,g">**[boolean](https://docs.oracle.com/javase/tutorial/java/nu
 a numeric value, where the *true* is 1, and *false* is 0.
 </Note>
 
+## Entity primary key greater than
+
+```evitaql-syntax
+entityPrimaryKeyGreaterThan(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        the primary key value that returned entities must be strictly greater than
+    </dd>
+</dl>
+
+The `entityPrimaryKeyGreaterThan` filters entities by their primary key and returns only those
+whose primary key is strictly greater than the specified value.
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key greater than 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-greater-than.evitaql)
+</SourceCodeTabs>
+
+## Entity primary key greater than, equals
+
+```evitaql-syntax
+entityPrimaryKeyGreaterThanEquals(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        the primary key value that returned entities must be greater than or equal to
+    </dd>
+</dl>
+
+The `entityPrimaryKeyGreaterThanEquals` filters entities by their primary key and returns only those
+whose primary key is greater than or equal to the specified value.
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key greater than or equal to 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-greater-than-equals.evitaql)
+</SourceCodeTabs>
+
+## Entity primary key less than
+
+```evitaql-syntax
+entityPrimaryKeyLessThan(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        the primary key value that returned entities must be strictly less than
+    </dd>
+</dl>
+
+The `entityPrimaryKeyLessThan` filters entities by their primary key and returns only those
+whose primary key is strictly less than the specified value.
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key less than 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-less-than.evitaql)
+</SourceCodeTabs>
+
+## Entity primary key less than, equals
+
+```evitaql-syntax
+entityPrimaryKeyLessThanEquals(
+    argument:int!
+)
+```
+
+<dl>
+    <dt>argument:int!</dt>
+    <dd>
+        the primary key value that returned entities must be less than or equal to
+    </dd>
+</dl>
+
+The `entityPrimaryKeyLessThanEquals` filters entities by their primary key and returns only those
+whose primary key is less than or equal to the specified value.
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key less than or equal to 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-less-than-equals.evitaql)
+</SourceCodeTabs>
+
+## Entity primary key between
+
+```evitaql-syntax
+entityPrimaryKeyBetween(
+    argument:int,
+    argument:int
+)
+```
+
+<dl>
+    <dt>argument:int</dt>
+    <dd>
+        the lower bound (inclusive) of the primary key range; may be omitted (`null` in Java / GraphQL /
+        REST) to leave the range unbounded on the lower side
+    </dd>
+    <dt>argument:int</dt>
+    <dd>
+        the upper bound (inclusive) of the primary key range; may be omitted (`null` in Java / GraphQL /
+        REST) to leave the range unbounded on the upper side
+    </dd>
+</dl>
+
+The `entityPrimaryKeyBetween` filters entities by their primary key and returns only those
+whose primary key is greater than or equal to the first argument and less than or equal to the second argument.
+At least one of the two bounds must be provided; when a bound is omitted, the range is open-ended on
+that side (equivalent to `entityPrimaryKeyGreaterThanEquals` or `entityPrimaryKeyLessThanEquals`).
+
+Note that open-ended ranges are only accessible through the Java, GraphQL, and REST APIs. The EvitaQL
+text grammar requires both bounds to be specified — if you need an unbounded range in EvitaQL text,
+use `entityPrimaryKeyGreaterThanEquals` or `entityPrimaryKeyLessThanEquals` instead.
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products with primary key between 10 and 50](/documentation/user/en/query/filtering/examples/comparable/entity-primary-key-between.evitaql)
+</SourceCodeTabs>
+
 ## Attribute equals
 
 ```evitaql-syntax

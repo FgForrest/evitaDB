@@ -416,6 +416,67 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
+	public FilterConstraint visitEntityPrimaryKeyGreaterThanConstraint(
+		EvitaQLParser.EntityPrimaryKeyGreaterThanConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyGreaterThan(
+				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityPrimaryKeyGreaterThanEqualsConstraint(
+		EvitaQLParser.EntityPrimaryKeyGreaterThanEqualsConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyGreaterThanEquals(
+				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityPrimaryKeyLessThanConstraint(
+		EvitaQLParser.EntityPrimaryKeyLessThanConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyLessThan(
+				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityPrimaryKeyLessThanEqualsConstraint(
+		EvitaQLParser.EntityPrimaryKeyLessThanEqualsConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyLessThanEquals(
+				ctx.args.value.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
+	public FilterConstraint visitEntityPrimaryKeyBetweenConstraint(
+		EvitaQLParser.EntityPrimaryKeyBetweenConstraintContext ctx
+	) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyBetween(
+				ctx.args.valueFrom.accept(this.intValueTokenVisitor).asInt(),
+				ctx.args.valueTo.accept(this.intValueTokenVisitor).asInt()
+			)
+		);
+	}
+
+	@Override
 	public FilterConstraint visitEntityLocaleEqualsConstraint(EvitaQLParser.EntityLocaleEqualsConstraintContext ctx) {
 		return parse(
 			ctx,
