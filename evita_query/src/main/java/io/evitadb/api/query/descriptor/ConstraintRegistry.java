@@ -75,6 +75,11 @@ class ConstraintRegistry {
 		FilterInScope.class,
 		// entity
 		EntityPrimaryKeyInSet.class,
+		EntityPrimaryKeyGreaterThan.class,
+		EntityPrimaryKeyGreaterThanEquals.class,
+		EntityPrimaryKeyLessThan.class,
+		EntityPrimaryKeyLessThanEquals.class,
+		EntityPrimaryKeyBetween.class,
 		EntityLocaleEquals.class,
 		EntityHaving.class,
 		// attribute
