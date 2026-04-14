@@ -1,0 +1,9 @@
+query(
+    collection("Product"),
+    filterBy(
+        entityPrimaryKeyLessThan(50)
+    ),
+    require(
+        page(1, 10)
+    )
+)
