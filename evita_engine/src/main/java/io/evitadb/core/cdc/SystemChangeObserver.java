@@ -112,6 +112,7 @@ public class SystemChangeObserver
 			this::cleanSubscribers,
 			1, TimeUnit.MINUTES
 		);
+		this.cleaner.schedule();
 		FlightRecorder.addPeriodicEvent(
 			ChangeCatalogCaptureStatisticsEvent.class,
 			this::emitChangeCaptureStatistics
