@@ -132,6 +132,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 			this::cleanInactivePublishers,
 			1, TimeUnit.MINUTES
 		);
+		this.cleaner.schedule();
 	}
 
 	@Override
