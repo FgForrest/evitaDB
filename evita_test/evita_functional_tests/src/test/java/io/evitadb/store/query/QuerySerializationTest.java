@@ -84,6 +84,13 @@ public class QuerySerializationTest {
 		assertSerializationRound(or(attributeEquals("a", "b"), attributeEquals("c", "d")));
 		assertSerializationRound(not(attributeEquals("a", "b")));
 		assertSerializationRound(entityPrimaryKeyInSet(1, 2, 3));
+		assertSerializationRound(entityPrimaryKeyGreaterThan(5));
+		assertSerializationRound(entityPrimaryKeyGreaterThanEquals(5));
+		assertSerializationRound(entityPrimaryKeyLessThan(5));
+		assertSerializationRound(entityPrimaryKeyLessThanEquals(5));
+		assertSerializationRound(entityPrimaryKeyBetween(5, 10));
+		assertSerializationRound(entityPrimaryKeyBetween(null, 10));
+		assertSerializationRound(entityPrimaryKeyBetween(5, null));
 		assertSerializationRound(attributeEquals("a", "b"));
 		assertSerializationRound(attributeLessThan("a", "b"));
 		assertSerializationRound(attributeLessThanEquals("a", "b"));

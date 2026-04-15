@@ -189,6 +189,12 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(DefaultAccompanyingPriceLists.class, new DefaultAccompanyingPriceSerializer(), index++);
 		kryo.register(AccompanyingPriceContent.class, new AccompanyingPriceContentSerializer(), index++);
 
+		kryo.register(EntityPrimaryKeyGreaterThan.class, new EntityPrimaryKeyGreaterThanSerializer(), index++);
+		kryo.register(EntityPrimaryKeyGreaterThanEquals.class, new EntityPrimaryKeyGreaterThanEqualsSerializer(), index++);
+		kryo.register(EntityPrimaryKeyLessThan.class, new EntityPrimaryKeyLessThanSerializer(), index++);
+		kryo.register(EntityPrimaryKeyLessThanEquals.class, new EntityPrimaryKeyLessThanEqualsSerializer(), index++);
+		kryo.register(EntityPrimaryKeyBetween.class, new EntityPrimaryKeyBetweenSerializer(), index++);
+
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 

@@ -1302,6 +1302,111 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The `entityPrimaryKeyGreaterThan` constraint filters the returned entities to only those whose primary key
+	 * is strictly greater than the specified value.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityPrimaryKeyGreaterThan(100)
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-greater-than">Visit detailed user documentation</a></p>
+	 *
+	 * @param primaryKey the threshold value (exclusive lower bound), or null to skip the constraint
+	 * @return the constraint instance, or null if the primaryKey is null
+	*/
+	@Nullable
+	static EntityPrimaryKeyGreaterThan entityPrimaryKeyGreaterThan(@Nullable Integer primaryKey) {
+		return primaryKey == null ? null : new EntityPrimaryKeyGreaterThan(primaryKey);
+	}
+
+	/**
+	 * The `entityPrimaryKeyGreaterThanEquals` constraint filters the returned entities to only those whose primary key
+	 * is greater than or equal to the specified value.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityPrimaryKeyGreaterThanEquals(100)
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-greater-than-equals">Visit detailed user documentation</a></p>
+	 *
+	 * @param primaryKey the threshold value (inclusive lower bound), or null to skip the constraint
+	 * @return the constraint instance, or null if the primaryKey is null
+	*/
+	@Nullable
+	static EntityPrimaryKeyGreaterThanEquals entityPrimaryKeyGreaterThanEquals(@Nullable Integer primaryKey) {
+		return primaryKey == null ? null : new EntityPrimaryKeyGreaterThanEquals(primaryKey);
+	}
+
+	/**
+	 * The `entityPrimaryKeyLessThan` constraint filters the returned entities to only those whose primary key
+	 * is strictly less than the specified value.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityPrimaryKeyLessThan(100)
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-less-than">Visit detailed user documentation</a></p>
+	 *
+	 * @param primaryKey the threshold value (exclusive upper bound), or null to skip the constraint
+	 * @return the constraint instance, or null if the primaryKey is null
+	*/
+	@Nullable
+	static EntityPrimaryKeyLessThan entityPrimaryKeyLessThan(@Nullable Integer primaryKey) {
+		return primaryKey == null ? null : new EntityPrimaryKeyLessThan(primaryKey);
+	}
+
+	/**
+	 * The `entityPrimaryKeyLessThanEquals` constraint filters the returned entities to only those whose primary key
+	 * is less than or equal to the specified value.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityPrimaryKeyLessThanEquals(100)
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-less-than-equals">Visit detailed user documentation</a></p>
+	 *
+	 * @param primaryKey the threshold value (inclusive upper bound), or null to skip the constraint
+	 * @return the constraint instance, or null if the primaryKey is null
+	*/
+	@Nullable
+	static EntityPrimaryKeyLessThanEquals entityPrimaryKeyLessThanEquals(@Nullable Integer primaryKey) {
+		return primaryKey == null ? null : new EntityPrimaryKeyLessThanEquals(primaryKey);
+	}
+
+	/**
+	 * The `entityPrimaryKeyBetween` constraint filters the returned entities to only those whose primary key
+	 * falls within the specified inclusive range. Either bound can be null to represent an open-ended range,
+	 * but at least one bound must be non-null.
+	 *
+	 * Example:
+	 *
+	 * <pre>
+	 * entityPrimaryKeyBetween(10, 100)
+	 * </pre>
+	 *
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#entity-primary-key-between">Visit detailed user documentation</a></p>
+	 *
+	 * @param from the lower bound of the range (inclusive), or null for unbounded lower
+	 * @param to   the upper bound of the range (inclusive), or null for unbounded upper
+	 * @return the constraint instance, or null if both from and to are null
+	*/
+	@Nullable
+	static EntityPrimaryKeyBetween entityPrimaryKeyBetween(@Nullable Integer from, @Nullable Integer to) {
+		if (from == null && to == null) {
+			return null;
+		}
+		return new EntityPrimaryKeyBetween(from, to);
+	}
+
+	/**
 	 * Restricts child filtering constraints to a specific data scope (LIVE or ARCHIVED), enabling scope-aware queries where different filters apply based on indexing and data availability in each scope. Prevents query failures when attributes are indexed only in certain scopes and allows flexible, scope-specific filtering logic.
 	 *
 	 * ```evitaql

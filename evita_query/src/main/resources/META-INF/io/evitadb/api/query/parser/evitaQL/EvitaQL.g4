@@ -66,6 +66,11 @@ filterConstraint
     | 'attributeInRange'                    args = classifierWithValueArgs                                  # attributeInRangeConstraint
     | 'attributeInRangeNow'                 args = classifierArgs                                           # attributeInRangeNowConstraint
     | 'entityPrimaryKeyInSet'               (emptyArgs | args = valueListArgs)                              # entityPrimaryKeyInSetConstraint
+    | 'entityPrimaryKeyGreaterThan'         args = valueArgs                                                # entityPrimaryKeyGreaterThanConstraint
+    | 'entityPrimaryKeyGreaterThanEquals'   args = valueArgs                                                # entityPrimaryKeyGreaterThanEqualsConstraint
+    | 'entityPrimaryKeyLessThan'            args = valueArgs                                                # entityPrimaryKeyLessThanConstraint
+    | 'entityPrimaryKeyLessThanEquals'      args = valueArgs                                                # entityPrimaryKeyLessThanEqualsConstraint
+    | 'entityPrimaryKeyBetween'             args = betweenValuesArgs                                        # entityPrimaryKeyBetweenConstraint
     | 'entityLocaleEquals'                  args = valueArgs                                                # entityLocaleEqualsConstraint
     | 'priceInCurrency'                     args = valueArgs                                                # priceInCurrencyConstraint
     | 'priceInPriceLists'                   (emptyArgs | args = classifierListArgs)                         # priceInPriceListsConstraints
