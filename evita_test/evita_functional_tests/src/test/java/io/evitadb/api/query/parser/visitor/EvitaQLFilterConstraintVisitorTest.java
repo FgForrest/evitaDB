@@ -1821,6 +1821,8 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inScope('a','b')"));
 		}
 
+	}
+
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
      *
