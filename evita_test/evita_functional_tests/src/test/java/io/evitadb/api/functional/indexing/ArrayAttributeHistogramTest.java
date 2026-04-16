@@ -43,19 +43,20 @@ import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end integration tests for histogram indexing of array-typed numeric attributes.
@@ -84,87 +85,6 @@ class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSuppo
 	private static final String HISTOGRAM_ENTITY_ARRAY = "entityArrayHistogram";
 
 	private Evita evita;
-
-	@BeforeEach
-	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST_EXPORT);
-		this.evita = new Evita(
-			getEvitaConfiguration()
-		);
-		this.evita.defineCatalog(TEST_CATALOG);
-	}
-
-	@AfterEach
-	void tearDown() {
-		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST_EXPORT);
-	}
-
-	/**
-	 * Builds the standard Evita configuration pointing to the test directories.
-	 *
-	 * @return the Evita configuration for the test
-	 */
-	@Nonnull
-	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
-			.server(
-				ServerOptions.builder()
-					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_ARRAY_HISTOGRAM_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_ARRAY_HISTOGRAM_TEST_EXPORT))
-					.build()
-			)
-			.build();
-	}
-
-	/**
-	 * Retrieves the product entity collection from the current catalog.
-	 *
-	 * @return the product entity collection
-	 */
-	@Nonnull
-	private EntityCollectionContract getProductCollection() {
-		final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		return catalog.getCollectionForEntity(ENTITY_PRODUCT).orElseThrow();
-	}
-
-	/**
-	 * Executes a test in the specified catalog state. The fixture setup always runs in WARMING_UP
-	 * (bulk mode), then the catalog optionally transitions to ALIVE before the test logic executes.
-	 *
-	 * @param targetState  the catalog state in which the test logic should execute
-	 * @param fixtureSetup schema definition and initial entity creation (always runs in WARMING_UP)
-	 * @param testLogic    assertions and mutations that exercise the scenario under test
-	 */
-	private void withCatalogInState(
-		@Nonnull CatalogState targetState,
-		@Nonnull Consumer<EvitaSessionContract> fixtureSetup,
-		@Nonnull Consumer<EvitaSessionContract> testLogic
-	) {
-		if (targetState == CatalogState.WARMING_UP) {
-			this.evita.updateCatalog(TEST_CATALOG, session -> {
-				fixtureSetup.accept(session);
-				testLogic.accept(session);
-			});
-		} else {
-			this.evita.updateCatalog(TEST_CATALOG, session -> {
-				fixtureSetup.accept(session);
-				session.goLiveAndClose();
-			});
-			this.evita.updateCatalog(TEST_CATALOG, testLogic);
-		}
-	}
 
 	/**
 	 * Defines entity schemas for array histogram tests: a referenced entity with an array attribute,
@@ -327,6 +247,91 @@ class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSuppo
 		);
 	}
 
+	@BeforeEach
+	void setUp() {
+		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST_EXPORT);
+		this.evita = new Evita(
+			getEvitaConfiguration()
+		);
+		this.evita.defineCatalog(TEST_CATALOG);
+	}
+
+	@AfterEach
+	void tearDown() {
+		this.evita.close();
+		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST);
+		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST_EXPORT);
+	}
+
+	/**
+	 * Builds the standard Evita configuration pointing to the test directories.
+	 *
+	 * @return the Evita configuration for the test
+	 */
+	@Nonnull
+	private EvitaConfiguration getEvitaConfiguration() {
+		return EvitaConfiguration.builder()
+			.server(
+				ServerOptions.builder()
+					.closeSessionsAfterSecondsOfInactivity(-1)
+					.build()
+			)
+			.storage(
+				StorageOptions.builder()
+					.storageDirectory(getTestDirectory().resolve(DIR_ARRAY_HISTOGRAM_TEST))
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(DIR_ARRAY_HISTOGRAM_TEST_EXPORT))
+					.build()
+			)
+			.build();
+	}
+
+	/**
+	 * Retrieves the product entity collection from the current catalog.
+	 *
+	 * @return the product entity collection
+	 */
+	@Nonnull
+	private EntityCollectionContract getProductCollection() {
+		final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		return catalog.getCollectionForEntity(ENTITY_PRODUCT).orElseThrow();
+	}
+
+	/**
+	 * Executes a test in the specified catalog state. The fixture setup always runs in WARMING_UP
+	 * (bulk mode), then the catalog optionally transitions to ALIVE before the test logic executes.
+	 *
+	 * @param targetState  the catalog state in which the test logic should execute
+	 * @param fixtureSetup schema definition and initial entity creation (always runs in WARMING_UP)
+	 * @param testLogic    assertions and mutations that exercise the scenario under test
+	 */
+	private void withCatalogInState(
+		@Nonnull CatalogState targetState,
+		@Nonnull Consumer<EvitaSessionContract> fixtureSetup,
+		@Nonnull Consumer<EvitaSessionContract> testLogic
+	) {
+		if (targetState == CatalogState.WARMING_UP) {
+			this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					fixtureSetup.accept(session);
+					testLogic.accept(session);
+				}
+			);
+		} else {
+			this.evita.updateCatalog(
+				TEST_CATALOG, session -> {
+					fixtureSetup.accept(session);
+					session.goLiveAndClose();
+				}
+			);
+			this.evita.updateCatalog(TEST_CATALOG, testLogic);
+		}
+	}
+
 	/**
 	 * Tests for histogram indexing of BigDecimal[] reference attributes.
 	 */
@@ -444,9 +449,7 @@ class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSuppo
 		@ParameterizedTest(name = "catalog state: {0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should track cardinality correctly for array attributes across multiple references")
-		// TODO JNO - investigate: array cardinality tracking with multiple references to same type fails at initial indexing
-		@org.junit.jupiter.api.Disabled("Array cardinality tracking with multiple references needs investigation")
-	void shouldTrackCardinalityCorrectlyForArrayAttributes(CatalogState state) {
+		void shouldTrackCardinalityCorrectlyForArrayAttributes(CatalogState state) {
 			withCatalogInState(
 				state,
 				session -> {
