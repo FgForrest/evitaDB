@@ -2038,6 +2038,22 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	/**
+	 * Marks this session as terminated without any server round-trip. Intended for cases
+	 * where the server has already invalidated the session — e.g. the catalog was deleted,
+	 * renamed, or replaced through this same `EvitaClient` — and only the local bookkeeping
+	 * needs to catch up (fire `onTerminationCallback`, remove this session from
+	 * `EvitaClient.activeSessions`, and flip `isActive()` to false so subsequent calls fail
+	 * fast instead of attempting a round-trip that the server would reject).
+	 *
+	 * Idempotent: a session that is already closing is left alone.
+	 */
+	public void terminateLocally() {
+		if (isActive()) {
+			closeInternally().complete(null);
+		}
+	}
+
+	/**
 	 * Method executes lambda using specified timeout for the call ignoring the defaults specified
 	 * in {@link EvitaClientConfiguration#timeout()}.
 	 *
