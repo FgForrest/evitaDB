@@ -429,6 +429,29 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return this.closedFuture == null;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Overridden to route through {@link #closeNowWithProgress()} rather than the
+	 * single-response {@link #closeNow(CommitBehavior)}. The progress variant
+	 * streams intermediate milestone messages from the server, and every received
+	 * message extends the Armeria response deadline via {@link TimeoutMode#EXTEND}.
+	 * This means the caller is bounded by "no server activity for
+	 * {@link ClientTimeoutOptions#streamingTimeout()}" instead of by a single
+	 * wall-clock response deadline - a commit that legitimately takes longer than
+	 * the streaming timeout to reach the requested behavior keeps the call alive
+	 * as long as progress keeps flowing, while a silent/dead connection still
+	 * unblocks the caller once the streaming timeout elapses without activity.
+	 */
+	@Nonnull
+	@Override
+	public CommitVersions closeWhen(@Nonnull CommitBehavior commitBehaviour) {
+		return closeNowWithProgress()
+			.on(commitBehaviour)
+			.toCompletableFuture()
+			.join();
+	}
+
 	@Nonnull
 	@Override
 	public Progress<CommitVersions> goLiveAndCloseWithProgress(@Nullable IntConsumer progressObserver) {
