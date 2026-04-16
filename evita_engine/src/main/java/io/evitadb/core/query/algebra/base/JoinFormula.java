@@ -290,22 +290,18 @@ public class JoinFormula extends AbstractFormula {
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		if (this.bitmaps.length > EXCESSIVE_HIGH_CARDINALITY) {
-			return hashFunction.hashLongs(this.indexTransactionId);
-		} else {
-			final long[] hashes = new long[this.bitmaps.length];
-			for (int i = 0; i < this.bitmaps.length; i++) {
-				final Bitmap bitmap = this.bitmaps[i];
-				if (bitmap instanceof TransactionalLayerProducer) {
-					hashes[i] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();
-				} else {
-					// this shouldn't happen for long arrays - these are expected to be always linked to transactional
-					// bitmaps located in indexes and represented by "transactional id"
-					hashes[i] = hashFunction.hashInts(bitmap.getArray());
-				}
+		final long[] hashes = new long[this.bitmaps.length];
+		for (int i = 0; i < this.bitmaps.length; i++) {
+			final Bitmap bitmap = this.bitmaps[i];
+			if (bitmap instanceof TransactionalLayerProducer) {
+				hashes[i] = ((TransactionalLayerProducer<?, ?>) bitmap).getId();
+			} else {
+				// this shouldn't happen for long arrays - these are expected to be always linked to transactional
+				// bitmaps located in indexes and represented by "transactional id"
+				hashes[i] = hashFunction.hashInts(bitmap.getArray());
 			}
-			return hashFunction.hashLongs(hashes);
 		}
+		return hashFunction.hashLongs(hashes);
 	}
 
 	@Override
