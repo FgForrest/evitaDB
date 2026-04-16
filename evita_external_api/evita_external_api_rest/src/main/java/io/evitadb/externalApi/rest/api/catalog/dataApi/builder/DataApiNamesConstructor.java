@@ -38,6 +38,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.HistogramStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
@@ -138,6 +139,15 @@ public class DataApiNamesConstructor {
 		boolean localized
 	) {
 		return ReferenceGroupStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
+	}
+
+	@Nonnull
+	public static String constructHistogramStatisticsObjectName(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean localized
+	) {
+		return HistogramStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
 	}
 
 	// TODO: remove when FacetSummary constraint is removed

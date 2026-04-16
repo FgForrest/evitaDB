@@ -24,6 +24,7 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintWithDefaults;
 import io.evitadb.api.query.ReferenceConstraint;
 import io.evitadb.api.query.RequireConstraint;
@@ -161,8 +162,9 @@ import java.util.Optional;
 	userDocsLink = "/documentation/query/requirements/facet#facet-summary"
 )
 public class ReferenceSummary extends AbstractRequireConstraintContainer
-	implements ConstraintWithDefaults<RequireConstraint>, ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
+	implements ConstraintWithDefaults<RequireConstraint>, ReferenceConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint, ConstraintContainerWithSuffix {
 	@Serial private static final long serialVersionUID = 8834271649011709243L;
+	private static final String SUFFIX_WITH_HISTOGRAMS = "withHistograms";
 
 	private ReferenceSummary(@Nonnull Serializable[] arguments, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
 		super(arguments, children, additionalChildren);
@@ -173,8 +175,9 @@ public class ReferenceSummary extends AbstractRequireConstraintContainer
 		for (RequireConstraint child : children) {
 			Assert.isTrue(
 				child instanceof EntityFetch ||
-					child instanceof EntityGroupFetch,
-				"Reference summary accepts only `EntityFetch` and `EntityGroupFetch` constraints."
+					child instanceof EntityGroupFetch ||
+					child instanceof ReferenceHistogramStatistics,
+				"Reference summary accepts only `EntityFetch`, `EntityGroupFetch` and `HistogramStatistics` constraints."
 			);
 		}
 		Assert.isTrue(
@@ -207,7 +210,7 @@ public class ReferenceSummary extends AbstractRequireConstraintContainer
 	@Creator
 	public ReferenceSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
-		@Nonnull @Child(uniqueChildren = true) EntityFetchRequire... requirements
+		@Nonnull @Child(allowed = {EntityFetch.class, EntityGroupFetch.class, ReferenceHistogramStatistics.class}) RequireConstraint... requirements
 	) {
 		this(
 			new Serializable[]{Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},
@@ -221,7 +224,7 @@ public class ReferenceSummary extends AbstractRequireConstraintContainer
 		@Nullable FilterGroupBy filterGroupBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy orderGroupBy,
-		@Nonnull EntityFetchRequire... requirements
+		@Nonnull RequireConstraint... requirements
 	) {
 		super(
 			new Serializable[]{Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)},
@@ -231,16 +234,6 @@ public class ReferenceSummary extends AbstractRequireConstraintContainer
 			orderBy,
 			orderGroupBy
 		);
-		Assert.isTrue(
-			requirements.length <= 2,
-			"Expected maximum number of 2 entity requirements. Found " + requirements.length + "."
-		);
-		if (requirements.length == 2) {
-			Assert.isTrue(
-				!requirements[0].getClass().equals(requirements[1].getClass()),
-				"Cannot have two same entity requirements."
-			);
-		}
 	}
 
 	/**
@@ -318,6 +311,17 @@ public class ReferenceSummary extends AbstractRequireConstraintContainer
 			.findFirst();
 	}
 
+	/**
+	 * Returns histogram statistics constraints.
+	 */
+	@Nonnull
+	public ReferenceHistogramStatistics[] getHistogramStatistics() {
+		return Arrays.stream(getChildren())
+			.filter(ReferenceHistogramStatistics.class::isInstance)
+			.map(ReferenceHistogramStatistics.class::cast)
+			.toArray(ReferenceHistogramStatistics[]::new);
+	}
+
 	@AliasForParameter("requirements")
 	@Nonnull
 	@Override
@@ -328,6 +332,20 @@ public class ReferenceSummary extends AbstractRequireConstraintContainer
 	@Override
 	public boolean isApplicable() {
 		return true;
+	}
+
+	/**
+	 * Returns the `withHistograms` suffix when any {@link ReferenceHistogramStatistics} child is
+	 * present — this makes the EvitaQL string representation use the `referenceSummaryWithHistograms`
+	 * alias that clearly signals the richer shape to the reader, matching the factory method naming
+	 * in {@code QueryConstraints}.
+	 */
+	@Nonnull
+	@Override
+	public Optional<String> getSuffixIfApplied() {
+		return Arrays.stream(getChildren()).anyMatch(ReferenceHistogramStatistics.class::isInstance)
+			? Optional.of(SUFFIX_WITH_HISTOGRAMS)
+			: Optional.empty();
 	}
 
 	@Nonnull

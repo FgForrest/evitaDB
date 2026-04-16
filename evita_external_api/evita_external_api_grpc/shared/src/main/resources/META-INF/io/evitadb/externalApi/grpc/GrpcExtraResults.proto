@@ -49,6 +49,12 @@ message GrpcHistogram {
   // Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
   // values.
   repeated GrpcBucket buckets = 4;
+  // Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
+  // reference-scope histograms when an entity fetch is requested for the associated reference.
+  GrpcSealedEntity minReferencedEntity = 5;
+  // Referenced entity whose value anchors the maximum bucket of the histogram. Populated only for
+  // reference-scope histograms when an entity fetch is requested for the associated reference.
+  GrpcSealedEntity maxReferencedEntity = 6;
 }
 
 // This DTO contains information about single reference group and statistics of the references that relates to it.
@@ -63,6 +69,9 @@ message GrpcReferenceGroupStatistics {
   int32 count = 4;
   // Contains statistics of individual facets.
   repeated GrpcFacetStatistics facetStatistics = 5;
+  // Contains named histogram statistics for this reference group. Each histogram index defined on the
+  // reference schema produces a separate histogram entry keyed by the histogram index name.
+  map<string, GrpcHistogram> histogramStatistics = 6;
 }
 
 // This DTO contains information about single facet group and statistics of the facets that relates to it.

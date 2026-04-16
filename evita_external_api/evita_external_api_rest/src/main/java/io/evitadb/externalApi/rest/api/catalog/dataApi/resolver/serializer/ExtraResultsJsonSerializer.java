@@ -51,6 +51,8 @@ import io.evitadb.externalApi.api.catalog.dataApi.dto.QueryTelemetryDto;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
@@ -106,9 +108,9 @@ public class ExtraResultsJsonSerializer {
 			if (extraResult instanceof QueryTelemetry queryTelemetry) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.QUERY_TELEMETRY.name(), serializeQueryTelemetry(queryTelemetry));
 			} else if (extraResult instanceof AttributeHistogram attributeHistogram) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name(), serializeAttributeHistogram(attributeHistogram, resultEntitySchema));
+				rootNode.putIfAbsent(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name(), serializeAttributeHistogram(attributeHistogram, resultEntitySchema, catalogSchema));
 			} else if (extraResult instanceof PriceHistogram priceHistogram) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.PRICE_HISTOGRAM.name(), serializePriceHistogram(priceHistogram));
+				rootNode.putIfAbsent(ExtraResultsDescriptor.PRICE_HISTOGRAM.name(), serializeHistogram(priceHistogram, catalogSchema));
 			} else if (extraResult instanceof Hierarchy hierarchyStats) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchy(hierarchyStats, catalogSchema, resultEntitySchema));
 			} else if (extraResult instanceof FacetSummary facetSummary) { // TODO: replace with ReferenceSummary when the FacetSummary constraint is removed
@@ -239,7 +241,60 @@ public class ExtraResultsJsonSerializer {
 					)
 			);
 		groupStatsNode.putIfAbsent(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), jsonNodes);
+
+		// serialize named histogram statistics wrapped under a `histogramStatistics` object
+		final Map<String, HistogramContract> histogramStats = groupStatistics.getHistogramStatistics();
+		if (!histogramStats.isEmpty()) {
+			final ObjectNode histogramStatisticsNode = this.objectJsonSerializer.objectNode();
+			for (Entry<String, HistogramContract> entry : histogramStats.entrySet()) {
+				histogramStatisticsNode.putIfAbsent(
+					entry.getKey(),
+					serializeHistogram(entry.getValue(), catalogSchema)
+				);
+			}
+			groupStatsNode.putIfAbsent(
+				ReferenceGroupStatisticsDescriptor.HISTOGRAM_STATISTICS.name(),
+				histogramStatisticsNode
+			);
+		}
 		return groupStatsNode;
+	}
+
+	/**
+	 * Serializes a histogram — attribute, price or reference-scope — using explicit field emission
+	 * so Jackson's bean reflection never walks the `Optional<SealedEntity>` anchor getters (which
+	 * `jackson-databind` rejects without the `jdk8` datatype module). Anchor referenced entities are
+	 * only emitted when present, so attribute / price histograms (which never carry them) produce
+	 * the same shape they did before the anchors were introduced.
+	 */
+	@Nonnull
+	private JsonNode serializeHistogram(
+		@Nonnull HistogramContract histogram,
+		@Nonnull CatalogSchemaContract catalogSchema
+	) {
+		final ObjectNode histogramNode = this.objectJsonSerializer.objectNode();
+		histogramNode.putIfAbsent(
+			HistogramDescriptor.MIN.name(),
+			this.objectJsonSerializer.serializeObject(histogram.getMin())
+		);
+		histogramNode.putIfAbsent(
+			HistogramDescriptor.MAX.name(),
+			this.objectJsonSerializer.serializeObject(histogram.getMax())
+		);
+		histogramNode.put(HistogramDescriptor.OVERALL_COUNT.name(), histogram.getOverallCount());
+		histogramNode.putIfAbsent(
+			HistogramDescriptor.BUCKETS.name(),
+			this.objectJsonSerializer.getObjectMapper().valueToTree(histogram.getBuckets())
+		);
+		histogram.getMinReferencedEntity().ifPresent(entity -> histogramNode.putIfAbsent(
+			ReferenceHistogramDescriptor.MIN_REFERENCED_ENTITY.name(),
+			serializeEntity(entity, catalogSchema)
+		));
+		histogram.getMaxReferencedEntity().ifPresent(entity -> histogramNode.putIfAbsent(
+			ReferenceHistogramDescriptor.MAX_REFERENCED_ENTITY.name(),
+			serializeEntity(entity, catalogSchema)
+		));
+		return histogramNode;
 	}
 
 	// TODO: remove when FacetSummary constraint is removed
@@ -396,7 +451,8 @@ public class ExtraResultsJsonSerializer {
 
 	@Nonnull
 	private JsonNode serializeAttributeHistogram(@Nonnull AttributeHistogram attributeHistogram,
-	                                             @Nonnull EntitySchemaContract entitySchema) {
+	                                             @Nonnull EntitySchemaContract entitySchema,
+	                                             @Nonnull CatalogSchemaContract catalogSchema) {
 		final ObjectNode histogramNode = this.objectJsonSerializer.objectNode();
 		for (Entry<String, HistogramContract> entry : attributeHistogram.getHistograms().entrySet()) {
 			final String attributeName = entry.getKey();
@@ -404,13 +460,8 @@ public class ExtraResultsJsonSerializer {
 				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find attribute schema for `" + attributeName + "` in entity schema `" + entitySchema.getName() + "`."));
 
-			histogramNode.putIfAbsent(serializableAttributeName, this.objectJsonSerializer.getObjectMapper().valueToTree(entry.getValue()));
+			histogramNode.putIfAbsent(serializableAttributeName, serializeHistogram(entry.getValue(), catalogSchema));
 		}
 		return histogramNode;
-	}
-
-	@Nonnull
-	private JsonNode serializePriceHistogram(@Nonnull PriceHistogram priceHistogram) {
-		return this.objectJsonSerializer.getObjectMapper().valueToTree(priceHistogram);
 	}
 }

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
@@ -41,6 +42,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEntityReference;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder;
 import io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics;
 import io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics;
+import io.evitadb.externalApi.grpc.generated.GrpcHistogram;
 import io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import lombok.AccessLevel;
@@ -51,6 +53,8 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import static io.evitadb.utils.VersionUtils.SemVer;
 
@@ -101,6 +105,17 @@ public class GrpcReferenceSummaryBuilder {
 						);
 					} else if (groupStatistics.getGroupEntity() instanceof SealedEntity entity) {
 						groupStatisticBuilder.setGroupEntity(EntityConverter.toGrpcSealedEntity(entity, clientVersion));
+					}
+				}
+
+				// serialize named histogram statistics keyed by histogram index name
+				final Map<String, HistogramContract> histogramStatistics = groupStatistics.getHistogramStatistics();
+				if (!histogramStatistics.isEmpty()) {
+					for (Entry<String, HistogramContract> entry : histogramStatistics.entrySet()) {
+						groupStatisticBuilder.putHistogramStatistics(
+							entry.getKey(),
+							GrpcHistogramBuilder.buildHistogram(entry.getValue(), clientVersion)
+						);
 					}
 				}
 

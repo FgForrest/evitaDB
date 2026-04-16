@@ -158,4 +158,63 @@ public interface GrpcReferenceGroupStatisticsOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsOrBuilder getFacetStatisticsOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  int getHistogramStatisticsCount();
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  boolean containsHistogramStatistics(
+      java.lang.String key);
+  /**
+   * Use {@link #getHistogramStatisticsMap()} instead.
+   */
+  @java.lang.Deprecated
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>
+  getHistogramStatistics();
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>
+  getHistogramStatisticsMap();
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcHistogram getHistogramStatisticsOrDefault(
+      java.lang.String key,
+      /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue);
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHistogram getHistogramStatisticsOrThrow(
+      java.lang.String key);
 }

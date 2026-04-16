@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -64,6 +65,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -349,6 +351,21 @@ public class ResponseConverter {
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nonnull GrpcReferenceGroupStatistics grpcReferenceGroupStatistics
 	) {
+		// deserialize histogram statistics (backward-compatible: map is empty when server does not send them)
+		final Map<String, GrpcHistogram> grpcHistograms = grpcReferenceGroupStatistics.getHistogramStatisticsMap();
+		final Map<String, HistogramContract> histogramStatistics;
+		if (grpcHistograms.isEmpty()) {
+			histogramStatistics = Collections.emptyMap();
+		} else {
+			histogramStatistics = new LinkedHashMap<>(grpcHistograms.size());
+			for (Map.Entry<String, GrpcHistogram> entry : grpcHistograms.entrySet()) {
+				histogramStatistics.put(
+					entry.getKey(),
+					toHistogram(entitySchemaFetcher, evitaRequest, entityFetch, entry.getValue())
+				);
+			}
+		}
+
 		return new ReferenceGroupStatistics(
 			grpcReferenceGroupStatistics.getReferenceName(),
 			grpcReferenceGroupStatistics.hasGroupEntity() ?
@@ -377,7 +394,8 @@ public class ResponseConverter {
 						},
 						LinkedHashMap::new
 					)
-				)
+				),
+			histogramStatistics
 		);
 	}
 
@@ -534,7 +552,8 @@ public class ResponseConverter {
 	}
 
 	/**
-	 * Method converts {@link GrpcHistogram} to {@link Histogram}.
+	 * Method converts {@link GrpcHistogram} to {@link Histogram}. Used for attribute / price histograms which
+	 * never carry anchor entities.
 	 */
 	@Nonnull
 	private static Histogram toHistogram(@Nonnull GrpcHistogram grpcHistogram) {
@@ -545,6 +564,50 @@ public class ResponseConverter {
 				.map(ResponseConverter::toBucket)
 				.toArray(Bucket[]::new),
 			toBigDecimal(grpcHistogram.getMax())
+		);
+	}
+
+	/**
+	 * Method converts {@link GrpcHistogram} to {@link Histogram} including optional anchor referenced entities.
+	 * Used for histograms living inside a reference summary where the server may attach the entities whose values
+	 * anchor the minimum and maximum buckets. The supplied {@link EntityFetch} describes the fetch requirements
+	 * that were asked for the reference.
+	 */
+	@Nonnull
+	private static Histogram toHistogram(
+		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nullable EntityFetch entityFetch,
+		@Nonnull GrpcHistogram grpcHistogram
+	) {
+		final Bucket[] buckets = grpcHistogram.getBucketsList()
+			.stream()
+			.filter(Objects::nonNull)
+			.map(ResponseConverter::toBucket)
+			.toArray(Bucket[]::new);
+		final SealedEntity minReferencedEntity = grpcHistogram.hasMinReferencedEntity()
+			? EntityConverter.toEntity(
+				entitySchemaFetcher,
+				evitaRequest.deriveCopyWith(grpcHistogram.getMinReferencedEntity().getEntityType(), entityFetch),
+				grpcHistogram.getMinReferencedEntity(),
+				SealedEntity.class,
+				SEALED_ENTITY_TYPE_CONVERTER
+			)
+			: null;
+		final SealedEntity maxReferencedEntity = grpcHistogram.hasMaxReferencedEntity()
+			? EntityConverter.toEntity(
+				entitySchemaFetcher,
+				evitaRequest.deriveCopyWith(grpcHistogram.getMaxReferencedEntity().getEntityType(), entityFetch),
+				grpcHistogram.getMaxReferencedEntity(),
+				SealedEntity.class,
+				SEALED_ENTITY_TYPE_CONVERTER
+			)
+			: null;
+		return new Histogram(
+			buckets,
+			toBigDecimal(grpcHistogram.getMax()),
+			minReferencedEntity,
+			maxReferencedEntity
 		);
 	}
 

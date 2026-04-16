@@ -520,6 +520,14 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 		@Setter(value = AccessLevel.NONE)
 		@Nonnull
 		private final Map<Integer, FacetStatistics> facetStatistics;
+		/**
+		 * Contains named histogram statistics for this reference group. Each histogram index defined on the
+		 * reference schema produces a separate histogram entry keyed by the histogram index name.
+		 */
+		@Getter(value = AccessLevel.NONE)
+		@Setter(value = AccessLevel.NONE)
+		@Nonnull
+		private final Map<String, HistogramContract> histogramStatistics;
 
 		/**
 		 * Method checks that the group entity type matches the group specified in schema.
@@ -544,10 +552,24 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 			int count,
 			@Nonnull Map<Integer, FacetStatistics> facetStatistics
 		) {
+			this(referenceName, groupEntity, count, facetStatistics, Collections.emptyMap());
+		}
+
+		/**
+		 * This constructor should be used only for deserialization.
+		 */
+		public ReferenceGroupStatistics(
+			@Nonnull String referenceName,
+			@Nullable EntityClassifier groupEntity,
+			int count,
+			@Nonnull Map<Integer, FacetStatistics> facetStatistics,
+			@Nonnull Map<String, HistogramContract> histogramStatistics
+		) {
 			this.referenceName = referenceName;
 			this.groupEntity = groupEntity;
 			this.count = count;
 			this.facetStatistics = facetStatistics;
+			this.histogramStatistics = histogramStatistics;
 		}
 
 		public ReferenceGroupStatistics(
@@ -556,11 +578,22 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 			int count,
 			@Nonnull Map<Integer, FacetStatistics> facetStatistics
 		) {
+			this(referenceSchema, groupEntity, count, facetStatistics, Collections.emptyMap());
+		}
+
+		public ReferenceGroupStatistics(
+			@Nonnull ReferenceSchemaContract referenceSchema,
+			@Nullable EntityClassifier groupEntity,
+			int count,
+			@Nonnull Map<Integer, FacetStatistics> facetStatistics,
+			@Nonnull Map<String, HistogramContract> histogramStatistics
+		) {
 			verifyGroupType(referenceSchema, groupEntity);
 			this.referenceName = referenceSchema.getName();
 			this.groupEntity = groupEntity;
 			this.count = count;
 			this.facetStatistics = facetStatistics;
+			this.histogramStatistics = histogramStatistics;
 		}
 
 		public ReferenceGroupStatistics(
@@ -568,6 +601,16 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 			@Nullable EntityClassifier groupEntity,
 			int count,
 			@Nonnull Collection<FacetStatistics> facetStatistics
+		) {
+			this(referenceSchema, groupEntity, count, facetStatistics, Collections.emptyMap());
+		}
+
+		public ReferenceGroupStatistics(
+			@Nonnull ReferenceSchemaContract referenceSchema,
+			@Nullable EntityClassifier groupEntity,
+			int count,
+			@Nonnull Collection<FacetStatistics> facetStatistics,
+			@Nonnull Map<String, HistogramContract> histogramStatistics
 		) {
 			verifyGroupType(referenceSchema, groupEntity);
 			this.referenceName = referenceSchema.getName();
@@ -585,6 +628,7 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 						LinkedHashMap::new
 					)
 				);
+			this.histogramStatistics = histogramStatistics;
 		}
 
 		/**
@@ -603,12 +647,30 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 			return Collections.unmodifiableCollection(this.facetStatistics.values());
 		}
 
+		/**
+		 * Returns histogram statistics for the passed histogram index name, or null when no histogram is available
+		 * under that name.
+		 */
+		@Nullable
+		public HistogramContract getHistogramStatistics(@Nonnull String histogramIndexName) {
+			return this.histogramStatistics.get(histogramIndexName);
+		}
+
+		/**
+		 * Returns all named histogram statistics computed for this reference group.
+		 */
+		@Nonnull
+		public Map<String, HistogramContract> getHistogramStatistics() {
+			return Collections.unmodifiableMap(this.histogramStatistics);
+		}
+
 		@Override
 		public int hashCode() {
 			int result = this.referenceName.hashCode();
 			result = 31 * result + (this.groupEntity != null ? Integer.hashCode(this.groupEntity.getPrimaryKeyOrThrowException()) : 0);
 			result = 31 * result + Integer.hashCode(this.count);
 			result = 31 * result + this.facetStatistics.hashCode();
+			result = 31 * result + this.histogramStatistics.hashCode();
 			return result;
 		}
 
@@ -620,7 +682,8 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 			if (!this.referenceName.equals(that.referenceName) ||
 				this.count != that.count ||
 				!Objects.equals(this.groupEntity, that.getGroupEntity()) ||
-				this.facetStatistics.size() != that.facetStatistics.size()) {
+				this.facetStatistics.size() != that.facetStatistics.size() ||
+				!Objects.equals(this.histogramStatistics, that.histogramStatistics)) {
 				return false;
 			}
 

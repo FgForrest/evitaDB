@@ -98,6 +98,7 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Tests for REST catalog entity list query.
@@ -3599,11 +3600,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						"require": {
 							"referenceBrandSummary": {
 								"statisticsDepth":"IMPACT",
-								"requirements": {
-					   				"entityFetch": {
-					   					"attributeContent": ["code"]
-					      			}
-					   			}
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			}
+								]
 					        }
 						}
 					}
@@ -3684,11 +3687,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						"require": {
 							"referenceParameterSummary": {
 								"statisticsDepth":"IMPACT",
-								"requirements": {
-					   				"entityFetch": {
-					   					"attributeContent": ["code"]
-					      			}
-					   			}
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			}
+								]
 					        }
 						}
 					}
@@ -3700,6 +3705,62 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "parameter"),
 				equalTo(expectedBody)
 			);
+	}
+
+	// TODO LHO: implement — backend computation of histogram statistics is not finished yet, this test is a mockup
+	//  illustrating the intended REST request shape; expected to fail until the engine populates `histogramStatistics`
+	//  on `ReferenceGroupStatistics`. The reference schema must define a histogram index named `priceIndex` for the
+	//  `parameter` reference so the OpenAPI schema exposes the corresponding property under `histogramStatistics`.
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with histogram statistics for products")
+	void shouldReturnReferenceSummaryWithHistogramStatisticsForProducts(Evita evita, RestTester tester) {
+		queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						entityFetch(attributeContent(ATTRIBUTE_CODE)),
+						null,
+						histogramStatistics(20, "priceIndex")
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"COUNTS",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			},
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["priceIndex"]
+										}
+									}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200);
+
+		fail();
 	}
 
 

@@ -2050,6 +2050,86 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * Triggers computation of histogram statistics for one or more named histogram indexes within a reference summary.
+	 * Used as a child of `referenceSummary` or `referenceSummaryOfReference` to request per-group histogram data
+	 * alongside facet statistics. Requires at least one histogram index name. Uses STANDARD bucket behavior by default.
+	 *
+	 * ```evitaql
+	 * histogramStatistics(20, "priceIndex")
+	 * ```
+	 *
+	 * @see ReferenceHistogramStatistics
+	 */
+	@Nullable
+	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable String... indexNames) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
+			return null;
+		}
+		return new ReferenceHistogramStatistics(requestedBucketCount, indexNames);
+	}
+
+	/**
+	 * Triggers computation of histogram statistics for one or more named histogram indexes within a reference summary.
+	 * Supports custom bucket behavior (standard, optimized, equalized). Requires at least one histogram index name.
+	 *
+	 * ```evitaql
+	 * histogramStatistics(20, OPTIMIZED, "priceIndex", "ratingIndex")
+	 * ```
+	 *
+	 * @see ReferenceHistogramStatistics
+	 */
+	@Nullable
+	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nullable String... indexNames) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
+			return null;
+		}
+		return new ReferenceHistogramStatistics(requestedBucketCount, behavior, indexNames);
+	}
+
+	/**
+	 * Triggers computation of histogram statistics for one or more named histogram indexes within a reference summary,
+	 * including richness definition of referenced entities via the provided `entityFetch`. Requires at least one
+	 * histogram index name. Uses STANDARD bucket behavior by default.
+	 *
+	 * ```evitaql
+	 * histogramStatistics(20, entityFetch(attributeContent("name")), "priceIndex")
+	 * ```
+	 *
+	 * @see ReferenceHistogramStatistics
+	 */
+	@Nullable
+	static ReferenceHistogramStatistics histogramStatistics(int requestedBucketCount, @Nullable EntityFetch entityFetch, @Nullable String... indexNames) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
+			return null;
+		}
+		return new ReferenceHistogramStatistics(requestedBucketCount, null, entityFetch, indexNames);
+	}
+
+	/**
+	 * Triggers computation of histogram statistics for one or more named histogram indexes within a reference summary,
+	 * with a custom bucket behavior and a richness definition of referenced entities via the provided `entityFetch`.
+	 * Requires at least one histogram index name.
+	 *
+	 * ```evitaql
+	 * histogramStatistics(20, OPTIMIZED, entityFetch(attributeContent("name")), "priceIndex")
+	 * ```
+	 *
+	 * @see ReferenceHistogramStatistics
+	 */
+	@Nullable
+	static ReferenceHistogramStatistics histogramStatistics(
+		int requestedBucketCount,
+		@Nullable HistogramBehavior behavior,
+		@Nullable EntityFetch entityFetch,
+		@Nullable String... indexNames
+	) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(indexNames)) {
+			return null;
+		}
+		return new ReferenceHistogramStatistics(requestedBucketCount, behavior, entityFetch, indexNames);
+	}
+
+	/**
 	 * Computes a price-distribution histogram for entities matching the main `filterBy` conditions, excluding any price or attribute range narrowing from `userFilter`. The histogram aids UI elements like price sliders and defaults to 20 equal-width buckets using the price with tax unless overridden.
 	 * ```evitaql
 	 * priceHistogram(20)
@@ -12653,6 +12733,113 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * Triggers calculation of a reference summary combining entity fetch requirements with one or more
+	 * {@link ReferenceHistogramStatistics} children. The histogram children request per-group histograms for named
+	 * histogram indexes defined on the reference schema.
+	 *
+	 * This variant is named distinctly from `referenceSummary` to avoid overload ambiguity with the existing
+	 * `EntityFetchRequire...` factory methods when no histogram statistics are passed.
+	 *
+	 * ```evitaql
+	 * referenceSummaryWithHistograms(
+	 *     COUNTS,
+	 *     entityFetch(attributeContent("name")),
+	 *     entityGroupFetch(attributeContent("name")),
+	 *     histogramStatistics(20, "priceIndex"),
+	 *     histogramStatistics(10, OPTIMIZED, "ratingIndex")
+	 * )
+	 * ```
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@Nonnull
+	static ReferenceSummary referenceSummaryWithHistograms(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ReferenceHistogramStatistics... histogramStatistics
+	) {
+		final RequireConstraint[] children = mergeReferenceSummaryChildren(entityFetch, entityGroupFetch, histogramStatistics);
+		return new ReferenceSummary(
+			statisticsDepth == null ? FacetStatisticsDepth.COUNTS : statisticsDepth,
+			children
+		);
+	}
+
+	/**
+	 * Triggers calculation of a reference summary combining filtering and ordering constraints, entity fetch
+	 * requirements, and one or more {@link ReferenceHistogramStatistics} children. The histogram children request
+	 * per-group histograms for named histogram indexes defined on the reference schema.
+	 *
+	 * This variant is named distinctly from `referenceSummary` to avoid overload ambiguity with the existing
+	 * `EntityFetchRequire...` factory methods when no histogram statistics are passed.
+	 *
+	 * ```evitaql
+	 * referenceSummaryWithHistograms(
+	 *     IMPACT,
+	 *     filterBy(attributeStartsWith("code", "a")),
+	 *     orderBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("name")),
+	 *     entityGroupFetch(attributeContent("name")),
+	 *     histogramStatistics(20, "priceIndex")
+	 * )
+	 * ```
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummary
+	 */
+	@Nonnull
+	static ReferenceSummary referenceSummaryWithHistograms(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ReferenceHistogramStatistics... histogramStatistics
+	) {
+		final RequireConstraint[] children = mergeReferenceSummaryChildren(entityFetch, entityGroupFetch, histogramStatistics);
+		return new ReferenceSummary(
+			statisticsDepth == null ? FacetStatisticsDepth.COUNTS : statisticsDepth,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			children
+		);
+	}
+
+	/**
+	 * Merges the entity fetch requirements and histogram statistics constraints into a single array of children
+	 * for the `ReferenceSummary` / `ReferenceSummaryOfReference` constraints. Null elements are skipped.
+	 */
+	@Nonnull
+	private static RequireConstraint[] mergeReferenceSummaryChildren(
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ReferenceHistogramStatistics... histogramStatistics
+	) {
+		final int fixedCount = (entityFetch == null ? 0 : 1) + (entityGroupFetch == null ? 0 : 1);
+		final int histogramCount = histogramStatistics == null
+			? 0
+			: (int) Arrays.stream(histogramStatistics).filter(Objects::nonNull).count();
+		final RequireConstraint[] children = new RequireConstraint[fixedCount + histogramCount];
+		int index = 0;
+		if (entityFetch != null) {
+			children[index++] = entityFetch;
+		}
+		if (entityGroupFetch != null) {
+			children[index++] = entityGroupFetch;
+		}
+		if (histogramStatistics != null) {
+			for (ReferenceHistogramStatistics stats : histogramStatistics) {
+				if (stats != null) {
+					children[index++] = stats;
+				}
+			}
+		}
+		return children;
+	}
+
+	/**
 	 * Calculates a reference summary for a single named reference, overriding any generic `referenceSummary` for that reference. Allows fine-grained control over statistics depth, filtering, ordering, and entity fetches for the targeted reference only; constraints are never merged.
 	 *
 	 * ```evitaql
@@ -13520,6 +13707,94 @@ public interface QueryConstraints {
 			facetFilterBy, facetGroupFilterBy,
 			facetOrderBy, facetGroupOrderBy,
 			requirements
+		);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference combining entity fetch requirements with one or more
+	 * {@link ReferenceHistogramStatistics} children. The histogram children request per-group histograms for named
+	 * histogram indexes defined on the referenced schema.
+	 *
+	 * This variant is named distinctly from `referenceSummaryOfReference` to avoid overload ambiguity with the existing
+	 * `EntityFetchRequire...` factory methods when no histogram statistics are passed.
+	 *
+	 * ```evitaql
+	 * referenceSummaryOfReferenceWithHistograms(
+	 *     "brand",
+	 *     COUNTS,
+	 *     entityFetch(attributeContent("name")),
+	 *     entityGroupFetch(attributeContent("name")),
+	 *     histogramStatistics(20, "priceIndex")
+	 * )
+	 * ```
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ReferenceHistogramStatistics... histogramStatistics
+	) {
+		if (referenceName == null) {
+			return null;
+		}
+		final RequireConstraint[] children = mergeReferenceSummaryChildren(entityFetch, entityGroupFetch, histogramStatistics);
+		return new ReferenceSummaryOfReference(
+			referenceName,
+			statisticsDepth == null ? FacetStatisticsDepth.COUNTS : statisticsDepth,
+			children
+		);
+	}
+
+	/**
+	 * Calculates a reference summary for a single named reference combining filtering and ordering constraints, entity
+	 * fetch requirements, and one or more {@link ReferenceHistogramStatistics} children. The histogram children request
+	 * per-group histograms for named histogram indexes defined on the referenced schema.
+	 *
+	 * This variant is named distinctly from `referenceSummaryOfReference` to avoid overload ambiguity with the existing
+	 * `EntityFetchRequire...` factory methods when no histogram statistics are passed.
+	 *
+	 * ```evitaql
+	 * referenceSummaryOfReferenceWithHistograms(
+	 *     "parameterValues",
+	 *     IMPACT,
+	 *     filterBy(attributeContains("code", "memory")),
+	 *     filterGroupBy(attributeInSet("code", "ram-memory")),
+	 *     orderBy(attributeNatural("name", ASC)),
+	 *     orderGroupBy(attributeNatural("name", ASC)),
+	 *     entityFetch(attributeContent("code", "name")),
+	 *     entityGroupFetch(attributeContent("code")),
+	 *     histogramStatistics(20, "priceIndex")
+	 * )
+	 * ```
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy facetFilterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy facetOrderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ReferenceHistogramStatistics... histogramStatistics
+	) {
+		if (referenceName == null) {
+			return null;
+		}
+		final RequireConstraint[] children = mergeReferenceSummaryChildren(entityFetch, entityGroupFetch, histogramStatistics);
+		return new ReferenceSummaryOfReference(
+			referenceName,
+			statisticsDepth == null ? FacetStatisticsDepth.COUNTS : statisticsDepth,
+			facetFilterBy, facetGroupFilterBy,
+			facetOrderBy, facetGroupOrderBy,
+			children
 		);
 	}
 

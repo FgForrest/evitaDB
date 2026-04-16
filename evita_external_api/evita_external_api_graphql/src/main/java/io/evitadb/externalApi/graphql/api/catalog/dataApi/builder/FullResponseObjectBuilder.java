@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
@@ -65,6 +66,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.HistogramStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
@@ -72,6 +74,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Fil
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.extraResult.ReferenceHistogramObjectBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BucketsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.PaginatedListFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.RecordPageFieldHeaderDescriptor;
@@ -93,9 +96,11 @@ import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static graphql.schema.GraphQLFieldDefinition.newFieldDefinition;
@@ -127,6 +132,7 @@ public class FullResponseObjectBuilder {
 	@Nonnull private final FilterConstraintSchemaBuilder filterConstraintSchemaBuilder;
 	@Nonnull private final OrderConstraintSchemaBuilder orderConstraintSchemaBuilder;
 	@Nonnull private final RequireConstraintSchemaBuilder complementaryRequireConstraintSchemaBuilder;
+	@Nonnull private final ReferenceHistogramObjectBuilder referenceHistogramObjectBuilder;
 
 	public FullResponseObjectBuilder(
 		@Nonnull CatalogGraphQLSchemaBuildingContext buildingContext,
@@ -153,6 +159,12 @@ public class FullResponseObjectBuilder {
 			constraintSchemaBuildingContext,
 			new AtomicReference<>(filterConstraintSchemaBuilder)
 		);
+		this.referenceHistogramObjectBuilder = new ReferenceHistogramObjectBuilder(
+			buildingContext,
+			objectBuilderTransformer,
+			fieldBuilderTransformer,
+			argumentBuilderTransformer
+		);
 	}
 
 	public void buildCommonTypes() {
@@ -167,6 +179,19 @@ public class FullResponseObjectBuilder {
 		this.buildingContext.registerTypeResolver(recordStripInterface, HelperInterfaceTypeResolver.getInstance());
 
 		this.buildingContext.registerType(BucketDescriptor.THIS.to(this.objectBuilderTransformer).build());
+
+		// register the shared `Histogram` interface first so that the concrete BaseHistogram and
+		// per-reference-entity-type histograms can implement it. The transformer emits the four
+		// base fields from the descriptor's static properties; we then override just `buckets` to
+		// attach the `requestedCount` / `behavior` arguments so implementing types (which declare
+		// the same arguments) satisfy GraphQL's "field signature must match interface" rule.
+		final GraphQLInterfaceType histogramInterface = HistogramDescriptor.THIS_INTERFACE
+			.to(this.interfaceBuilderTransformer)
+			.field(buildHistogramBucketsField())
+			.build();
+		this.buildingContext.registerType(histogramInterface);
+		this.buildingContext.registerTypeResolver(histogramInterface, HelperInterfaceTypeResolver.getInstance());
+
 		this.buildingContext.registerType(buildHistogramObject());
 		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
 		this.buildingContext.registerType(buildAttributeNamedHistogramObject());
@@ -472,8 +497,7 @@ public class FullResponseObjectBuilder {
 			.getReferences()
 			.values()
 			.stream()
-			// TODO lho: should be resolved somehow differently to recognize histograms as well
-			.filter(ReferenceSchemaContract::isFacetedInAnyScope)
+			.filter(ref -> ref.isFacetedInAnyScope() || ref.isBucketedInAnyScope())
 			.toList();
 
 		if (referenceSchemas.isEmpty()) {
@@ -577,7 +601,94 @@ public class FullResponseObjectBuilder {
 			buildFacetStatisticsField(entitySchema, referenceSchema, true)
 		);
 
+		// register the histogram statistics wrapper field (if any histogram indexes are defined)
+		final Set<String> histogramIndexNames = collectHistogramIndexNames(referenceSchema);
+		if (!histogramIndexNames.isEmpty()) {
+			this.buildingContext.registerFieldToObject(
+				objectName,
+				referenceGroupStatisticsBuilder,
+				buildHistogramStatisticsField(entitySchema, referenceSchema, histogramIndexNames)
+			);
+		}
+
 		return referenceGroupStatisticsBuilder.build();
+	}
+
+	/**
+	 * Collects unique histogram index names defined on the reference schema across all scopes.
+	 */
+	@Nonnull
+	private static Set<String> collectHistogramIndexNames(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final Set<String> histogramIndexNames = new LinkedHashSet<>();
+		for (Scope scope : Scope.values()) {
+			if (referenceSchema.isBucketedInScope(scope)) {
+				histogramIndexNames.addAll(referenceSchema.getHistogramIndexDefinitions(scope).keySet());
+			}
+		}
+		return histogramIndexNames;
+	}
+
+	/**
+	 * Builds the `histogramStatistics` wrapper field on the reference group statistics object. The wrapper is a
+	 * dynamically-generated type with one field per histogram index name, each typed as the common `Histogram`.
+	 * The data fetcher passes through the parent {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics}
+	 * so child field fetchers can extract the named histograms from it.
+	 */
+	@Nonnull
+	private BuiltFieldDescriptor buildHistogramStatisticsField(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<String> histogramIndexNames
+	) {
+		final GraphQLObjectType wrapperType = buildHistogramStatisticsWrapperObject(
+			entitySchema, referenceSchema, histogramIndexNames
+		);
+
+		final GraphQLFieldDefinition field = ReferenceGroupStatisticsDescriptor.HISTOGRAM_STATISTICS
+			.to(this.fieldBuilderTransformer)
+			.type(wrapperType)
+			.build();
+		return new BuiltFieldDescriptor(
+			field,
+			HistogramStatisticsWrapperDataFetcher.getInstance()
+		);
+	}
+
+	/**
+	 * Builds the dynamic wrapper object type that exposes one field per named histogram index. Each
+	 * index field is typed as the per-referenced-entity-type `{EntityType}Histogram` concrete type
+	 * produced by {@link ReferenceHistogramObjectBuilder}, so that anchor referenced entity fields
+	 * are exposed with the correct entity type.
+	 */
+	@Nonnull
+	private GraphQLObjectType buildHistogramStatisticsWrapperObject(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<String> histogramIndexNames
+	) {
+		final String objectName = HistogramStatisticsDescriptor.THIS.name(entitySchema, referenceSchema);
+
+		final GraphQLObjectType.Builder wrapperBuilder = HistogramStatisticsDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.name(objectName);
+
+		// trigger/ensure the per-referenced-entity-type histogram concrete type is built and cached
+		final GraphQLObjectType referenceHistogramType =
+			this.referenceHistogramObjectBuilder.getOrBuild(referenceSchema);
+
+		for (String indexName : histogramIndexNames) {
+			final GraphQLFieldDefinition indexField = newFieldDefinition()
+				.name(indexName)
+				.type(typeRef(referenceHistogramType.getName()))
+				.build();
+			this.buildingContext.registerFieldToObject(
+				objectName,
+				wrapperBuilder,
+				new BuiltFieldDescriptor(indexField, new HistogramStatisticsDataFetcher(indexName))
+			);
+		}
+
+		return wrapperBuilder.build();
 	}
 
 	@Nonnull
@@ -1193,10 +1304,22 @@ public class FullResponseObjectBuilder {
 	private GraphQLObjectType buildHistogramObject() {
 		return HistogramDescriptor.THIS
 			.to(this.objectBuilderTransformer)
-			.field(HistogramDescriptor.BUCKETS
-				.to(this.fieldBuilderTransformer)
-				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(this.argumentBuilderTransformer))
-				.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(this.argumentBuilderTransformer)))
+			.withInterface(typeRef(HistogramDescriptor.THIS_INTERFACE.name()))
+			.field(buildHistogramBucketsField())
+			.build();
+	}
+
+	/**
+	 * Builds the `buckets` {@link GraphQLFieldDefinition} shared by the Histogram GraphQL interface
+	 * and every concrete histogram object type. Keeping the field definition in one place guarantees
+	 * identical signatures across interface + implementations — a GraphQL schema-validity requirement.
+	 */
+	@Nonnull
+	private GraphQLFieldDefinition buildHistogramBucketsField() {
+		return HistogramDescriptor.BUCKETS
+			.to(this.fieldBuilderTransformer)
+			.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(this.argumentBuilderTransformer))
+			.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(this.argumentBuilderTransformer))
 			.build();
 	}
 
@@ -1206,11 +1329,9 @@ public class FullResponseObjectBuilder {
 		return HistogramDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.name("AttributeNamedHistogram")
+			.withInterface(typeRef(HistogramDescriptor.THIS_INTERFACE.name()))
 			.field(f -> f.name("attributeName").type(nonNull(STRING)))
-			.field(HistogramDescriptor.BUCKETS
-				.to(this.fieldBuilderTransformer)
-				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(this.argumentBuilderTransformer))
-				.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(this.argumentBuilderTransformer)))
+			.field(buildHistogramBucketsField())
 			.build();
 	}
 

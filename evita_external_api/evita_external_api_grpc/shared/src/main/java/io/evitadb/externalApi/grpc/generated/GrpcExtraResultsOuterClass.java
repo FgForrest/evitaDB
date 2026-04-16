@@ -54,6 +54,11 @@ public final class GrpcExtraResultsOuterClass {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_HistogramStatisticsEntry_descriptor;
+  static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_HistogramStatisticsEntry_fieldAccessorTable;
+  static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_descriptor;
   static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -115,89 +120,99 @@ public final class GrpcExtraResultsOuterClass {
       "\n\026GrpcExtraResults.proto\022%io.evitadb.ext" +
       "ernalApi.grpc.generated\032\036google/protobuf" +
       "/wrappers.proto\032\020GrpcEntity.proto\032\030GrpcE" +
-      "vitaDataTypes.proto\032\017GrpcEnums.proto\"\322\003\n" +
+      "vitaDataTypes.proto\032\017GrpcEnums.proto\"\376\004\n" +
       "\rGrpcHistogram\022B\n\003min\030\001 \001(\01325.io.evitadb" +
       ".externalApi.grpc.generated.GrpcBigDecim" +
       "al\022B\n\003max\030\002 \001(\01325.io.evitadb.externalApi" +
       ".grpc.generated.GrpcBigDecimal\022\024\n\014overal" +
       "lCount\030\003 \001(\005\022P\n\007buckets\030\004 \003(\0132?.io.evita" +
       "db.externalApi.grpc.generated.GrpcHistog" +
-      "ram.GrpcBucket\032\320\001\n\nGrpcBucket\022H\n\tthresho" +
-      "ld\030\002 \001(\01325.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcBigDecimal\022\023\n\013occurrences\030\003" +
-      " \001(\005\022\021\n\trequested\030\004 \001(\010\022P\n\021relativeFrequ" +
-      "ency\030\005 \001(\01325.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcBigDecimal\"\301\002\n\034GrpcRefere" +
-      "nceGroupStatistics\022\025\n\rreferenceName\030\001 \001(" +
-      "\t\022X\n\024groupEntityReference\030\002 \001(\0132:.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcEnti" +
-      "tyReference\022L\n\013groupEntity\030\003 \001(\01327.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcSea" +
-      "ledEntity\022\r\n\005count\030\004 \001(\005\022S\n\017facetStatist" +
-      "ics\030\005 \003(\0132:.io.evitadb.externalApi.grpc." +
-      "generated.GrpcFacetStatistics\"\301\002\n\030GrpcFa" +
-      "cetGroupStatistics\022\025\n\rreferenceName\030\001 \001(" +
-      "\t\022X\n\024groupEntityReference\030\002 \001(\0132:.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcEnti" +
-      "tyReference\022L\n\013groupEntity\030\003 \001(\01327.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcSea" +
-      "ledEntity\022\r\n\005count\030\004 \001(\005\022S\n\017facetStatist" +
-      "ics\030\005 \003(\0132:.io.evitadb.externalApi.grpc." +
-      "generated.GrpcFacetStatistics:\002\030\001\"\317\002\n\023Gr" +
-      "pcFacetStatistics\022X\n\024facetEntityReferenc" +
-      "e\030\001 \001(\0132:.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcEntityReference\022L\n\013facetEnti" +
-      "ty\030\002 \001(\01327.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcSealedEntity\022\021\n\trequested\030\003" +
-      " \001(\010\022\r\n\005count\030\004 \001(\005\022+\n\006impact\030\005 \001(\0132\033.go" +
-      "ogle.protobuf.Int32Value\022/\n\nmatchCount\030\006" +
-      " \001(\0132\033.google.protobuf.Int32Value\022\020\n\010has" +
-      "Sense\030\007 \001(\010\"\320\001\n\rGrpcHierarchy\022V\n\thierarc" +
-      "hy\030\001 \003(\0132C.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcHierarchy.HierarchyEntry\032g\n" +
-      "\016HierarchyEntry\022\013\n\003key\030\001 \001(\t\022D\n\005value\030\002 " +
-      "\001(\01325.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcLevelInfos:\0028\001\"Z\n\016GrpcLevelInfos" +
-      "\022H\n\nlevelInfos\030\001 \003(\01324.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcLevelInfo\"\362\002\n\rG" +
-      "rpcLevelInfo\022S\n\017entityReference\030\001 \001(\0132:." +
-      "io.evitadb.externalApi.grpc.generated.Gr" +
-      "pcEntityReference\022G\n\006entity\030\002 \001(\01327.io.e" +
-      "vitadb.externalApi.grpc.generated.GrpcSe" +
-      "aledEntity\0227\n\022queriedEntityCount\030\003 \001(\0132\033" +
-      ".google.protobuf.Int32Value\0222\n\rchildrenC" +
-      "ount\030\004 \001(\0132\033.google.protobuf.Int32Value\022" +
-      "C\n\005items\030\005 \003(\01324.io.evitadb.externalApi." +
-      "grpc.generated.GrpcLevelInfo\022\021\n\trequeste" +
-      "d\030\006 \001(\010\"\335\001\n\022GrpcQueryTelemetry\022H\n\toperat" +
-      "ion\030\001 \001(\01625.io.evitadb.externalApi.grpc." +
-      "generated.GrpcQueryPhase\022\r\n\005start\030\002 \001(\003\022" +
-      "H\n\005steps\030\003 \003(\01329.io.evitadb.externalApi." +
-      "grpc.generated.GrpcQueryTelemetry\022\021\n\targ" +
-      "uments\030\004 \003(\t\022\021\n\tspentTime\030\005 \001(\003\"\353\006\n\020Grpc" +
-      "ExtraResults\022k\n\022attributeHistogram\030\001 \003(\013" +
-      "2O.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcExtraResults.AttributeHistogramEntr" +
-      "y\022L\n\016priceHistogram\030\002 \001(\01324.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcHistogram\022" +
-      "a\n\024facetGroupStatistics\030\003 \003(\0132?.io.evita" +
-      "db.externalApi.grpc.generated.GrpcFacetG" +
-      "roupStatisticsB\002\030\001\022K\n\rselfHierarchy\030\004 \001(" +
-      "\01324.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcHierarchy\022Y\n\thierarchy\030\005 \003(\0132F.io." +
-      "evitadb.externalApi.grpc.generated.GrpcE" +
-      "xtraResults.HierarchyEntry\022Q\n\016queryTelem" +
-      "etry\030\006 \001(\01329.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcQueryTelemetry\022e\n\030referen" +
-      "ceGroupStatistics\030\007 \003(\0132C.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcReferenceGro" +
-      "upStatistics\032o\n\027AttributeHistogramEntry\022" +
-      "\013\n\003key\030\001 \001(\t\022C\n\005value\030\002 \001(\01324.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcHistogra" +
-      "m:\0028\001\032f\n\016HierarchyEntry\022\013\n\003key\030\001 \001(\t\022C\n\005" +
-      "value\030\002 \001(\01324.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcHierarchy:\0028\001B\014P\001\252\002\007Evit" +
-      "aDBb\006proto3"
+      "ram.GrpcBucket\022T\n\023minReferencedEntity\030\005 " +
+      "\001(\01327.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcSealedEntity\022T\n\023maxReferencedEnt" +
+      "ity\030\006 \001(\01327.io.evitadb.externalApi.grpc." +
+      "generated.GrpcSealedEntity\032\320\001\n\nGrpcBucke" +
+      "t\022H\n\tthreshold\030\002 \001(\01325.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcBigDecimal\022\023\n\013o" +
+      "ccurrences\030\003 \001(\005\022\021\n\trequested\030\004 \001(\010\022P\n\021r" +
+      "elativeFrequency\030\005 \001(\01325.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcBigDecimal\"\256\004" +
+      "\n\034GrpcReferenceGroupStatistics\022\025\n\rrefere" +
+      "nceName\030\001 \001(\t\022X\n\024groupEntityReference\030\002 " +
+      "\001(\0132:.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcEntityReference\022L\n\013groupEntity\030\003" +
+      " \001(\01327.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcSealedEntity\022\r\n\005count\030\004 \001(\005\022S\n\017" +
+      "facetStatistics\030\005 \003(\0132:.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcFacetStatistic" +
+      "s\022y\n\023histogramStatistics\030\006 \003(\0132\\.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcRefer" +
+      "enceGroupStatistics.HistogramStatisticsE" +
+      "ntry\032p\n\030HistogramStatisticsEntry\022\013\n\003key\030" +
+      "\001 \001(\t\022C\n\005value\030\002 \001(\01324.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcHistogram:\0028\001\"\301" +
+      "\002\n\030GrpcFacetGroupStatistics\022\025\n\rreference" +
+      "Name\030\001 \001(\t\022X\n\024groupEntityReference\030\002 \001(\013" +
+      "2:.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcEntityReference\022L\n\013groupEntity\030\003 \001(" +
+      "\01327.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcSealedEntity\022\r\n\005count\030\004 \001(\005\022S\n\017fac" +
+      "etStatistics\030\005 \003(\0132:.io.evitadb.external" +
+      "Api.grpc.generated.GrpcFacetStatistics:\002" +
+      "\030\001\"\317\002\n\023GrpcFacetStatistics\022X\n\024facetEntit" +
+      "yReference\030\001 \001(\0132:.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcEntityReference\022L\n\013" +
+      "facetEntity\030\002 \001(\01327.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcSealedEntity\022\021\n\tre" +
+      "quested\030\003 \001(\010\022\r\n\005count\030\004 \001(\005\022+\n\006impact\030\005" +
+      " \001(\0132\033.google.protobuf.Int32Value\022/\n\nmat" +
+      "chCount\030\006 \001(\0132\033.google.protobuf.Int32Val" +
+      "ue\022\020\n\010hasSense\030\007 \001(\010\"\320\001\n\rGrpcHierarchy\022V" +
+      "\n\thierarchy\030\001 \003(\0132C.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcHierarchy.Hierarch" +
+      "yEntry\032g\n\016HierarchyEntry\022\013\n\003key\030\001 \001(\t\022D\n" +
+      "\005value\030\002 \001(\01325.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcLevelInfos:\0028\001\"Z\n\016GrpcL" +
+      "evelInfos\022H\n\nlevelInfos\030\001 \003(\01324.io.evita" +
+      "db.externalApi.grpc.generated.GrpcLevelI" +
+      "nfo\"\362\002\n\rGrpcLevelInfo\022S\n\017entityReference" +
+      "\030\001 \001(\0132:.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcEntityReference\022G\n\006entity\030\002 \001" +
+      "(\01327.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcSealedEntity\0227\n\022queriedEntityCoun" +
+      "t\030\003 \001(\0132\033.google.protobuf.Int32Value\0222\n\r" +
+      "childrenCount\030\004 \001(\0132\033.google.protobuf.In" +
+      "t32Value\022C\n\005items\030\005 \003(\01324.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcLevelInfo\022\021\n" +
+      "\trequested\030\006 \001(\010\"\335\001\n\022GrpcQueryTelemetry\022" +
+      "H\n\toperation\030\001 \001(\01625.io.evitadb.external" +
+      "Api.grpc.generated.GrpcQueryPhase\022\r\n\005sta" +
+      "rt\030\002 \001(\003\022H\n\005steps\030\003 \003(\01329.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcQueryTelemet" +
+      "ry\022\021\n\targuments\030\004 \003(\t\022\021\n\tspentTime\030\005 \001(\003" +
+      "\"\353\006\n\020GrpcExtraResults\022k\n\022attributeHistog" +
+      "ram\030\001 \003(\0132O.io.evitadb.externalApi.grpc." +
+      "generated.GrpcExtraResults.AttributeHist" +
+      "ogramEntry\022L\n\016priceHistogram\030\002 \001(\01324.io." +
+      "evitadb.externalApi.grpc.generated.GrpcH" +
+      "istogram\022a\n\024facetGroupStatistics\030\003 \003(\0132?" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcFacetGroupStatisticsB\002\030\001\022K\n\rselfHiera" +
+      "rchy\030\004 \001(\01324.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcHierarchy\022Y\n\thierarchy\030\005 " +
+      "\003(\0132F.io.evitadb.externalApi.grpc.genera" +
+      "ted.GrpcExtraResults.HierarchyEntry\022Q\n\016q" +
+      "ueryTelemetry\030\006 \001(\01329.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcQueryTelemetry\022e" +
+      "\n\030referenceGroupStatistics\030\007 \003(\0132C.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcRef" +
+      "erenceGroupStatistics\032o\n\027AttributeHistog" +
+      "ramEntry\022\013\n\003key\030\001 \001(\t\022C\n\005value\030\002 \001(\01324.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cHistogram:\0028\001\032f\n\016HierarchyEntry\022\013\n\003key\030" +
+      "\001 \001(\t\022C\n\005value\030\002 \001(\01324.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcHierarchy:\0028\001B\014" +
+      "P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -212,7 +227,7 @@ public final class GrpcExtraResultsOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_descriptor,
-        new java.lang.String[] { "Min", "Max", "OverallCount", "Buckets", });
+        new java.lang.String[] { "Min", "Max", "OverallCount", "Buckets", "MinReferencedEntity", "MaxReferencedEntity", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_GrpcBucket_descriptor =
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_descriptor.getNestedTypes().get(0);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_GrpcBucket_fieldAccessorTable = new
@@ -224,7 +239,13 @@ public final class GrpcExtraResultsOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_descriptor,
-        new java.lang.String[] { "ReferenceName", "GroupEntityReference", "GroupEntity", "Count", "FacetStatistics", });
+        new java.lang.String[] { "ReferenceName", "GroupEntityReference", "GroupEntity", "Count", "FacetStatistics", "HistogramStatistics", });
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_HistogramStatisticsEntry_descriptor =
+      internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_descriptor.getNestedTypes().get(0);
+    internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_HistogramStatisticsEntry_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_HistogramStatisticsEntry_descriptor,
+        new java.lang.String[] { "Key", "Value", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_descriptor =
       getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_fieldAccessorTable = new

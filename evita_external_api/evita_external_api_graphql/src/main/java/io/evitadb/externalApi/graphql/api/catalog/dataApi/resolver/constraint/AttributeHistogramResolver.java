@@ -150,6 +150,10 @@ public class AttributeHistogramResolver extends AbstractExtraResultConstraintRes
 			});
 		}
 
+		if (requestedAttributeHistograms.isEmpty()) {
+			return List.of();
+		}
+
 		// construct actual requires from gathered data
 		//noinspection ConstantConditions
 		return requestedAttributeHistograms.entrySet()

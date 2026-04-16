@@ -78,6 +78,15 @@ public interface ReferenceSummaryDescriptor {
 				""")
 			// type is expected to be a `FacetStatistics` object
 			.build();
+		PropertyDescriptor HISTOGRAM_STATISTICS = PropertyDescriptor.builder()
+			.name("histogramStatistics")
+			.description("""
+				Contains named histogram statistics for this reference group.
+				Each histogram index defined on the reference schema produces a separate histogram entry
+				keyed by the histogram index name.
+				""")
+			// type is expected to be dynamically generated per reference schema with named histogram fields
+			.build();
 
 		ObjectDescriptor THIS = ObjectDescriptor.builder()
 			.name("*ReferenceGroupStatistics")
@@ -85,6 +94,24 @@ public interface ReferenceSummaryDescriptor {
 				This DTO contains information about single reference group and statistics of the facets that relates to it.
 				""")
 			.staticProperties(List.of(COUNT))
+			.build();
+	}
+
+	/**
+	 * Wrapper descriptor for histogram statistics within a reference group. The actual fields of this object are
+	 * dynamically generated per reference schema — one field per named histogram index, each typed as
+	 * {@link HistogramDescriptor}.
+	 *
+	 * Note: this descriptor is meant to be template for generated specific DTOs based on the reference schema.
+	 */
+	interface HistogramStatisticsDescriptor {
+
+		ObjectDescriptor THIS = ObjectDescriptor.builder()
+			.name("*HistogramStatistics")
+			.description("""
+				Contains named histogram statistics for a reference group. Each histogram index defined on the
+				reference schema appears as a separate field typed as `Histogram`.
+				""")
 			.build();
 	}
 

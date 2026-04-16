@@ -34,16 +34,23 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
+import io.evitadb.api.query.require.HistogramBehavior;
+import io.evitadb.api.query.require.ReferenceHistogramStatistics;
+import io.evitadb.api.query.require.ReferenceSummaryOfReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceHistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BucketsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.ReferenceGroupStatisticsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.ReferenceStatisticsHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
@@ -55,6 +62,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -65,7 +73,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.facetSummaryOfReference;
+import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
+import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceWithHistograms;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
 /**
  * FacetSummaryResolver is a utility class responsible for resolving facet summary-related GraphQL query requirements.
@@ -186,16 +198,174 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 		final EntityFetch facetEntityFetch = resolveFacetEntityFetch(field, desiredLocale, referenceName).orElse(null);
 		final EntityGroupFetch groupEntityFetch = resolveGroupEntityFetch(field, desiredLocale, referenceName).orElse(null);
 
-		final FacetSummaryOfReference facetSummaryOfReference =
-			facetSummaryOfReference(referenceName, depth, filterBy, filterGroupBy, orderBy, orderGroupBy, facetEntityFetch, groupEntityFetch);
-		Assert.isPremiseValid(
-			facetSummaryOfReference != null,
-			() -> new GraphQLQueryResolvingInternalError("Could not resolve facet summary of reference `" + referenceName + "`. It is null.")
-		);
+		// detect requested histogram statistics fields — the schema indexes must be resolved for the effective scope
+		// coming from the query tree (or the default scope when no `inScope` wrapper is present). Each histogram
+		// statistics constraint carries its own EntityFetch synthesized from the anchor-entity selections on that
+		// specific index, independent of the facet entity fetch.
+		final List<ReferenceHistogramStatistics> histogramStatistics =
+			resolveHistogramStatistics(field, referenceSchema, scope, desiredLocale);
+
+		final RequireConstraint summaryConstraint;
+		if (histogramStatistics.isEmpty()) {
+			final FacetSummaryOfReference facetSummaryOfReference =
+				facetSummaryOfReference(referenceName, depth, filterBy, filterGroupBy, orderBy, orderGroupBy, facetEntityFetch, groupEntityFetch);
+			Assert.isPremiseValid(
+				facetSummaryOfReference != null,
+				() -> new GraphQLQueryResolvingInternalError("Could not resolve facet summary of reference `" + referenceName + "`. It is null.")
+			);
+			summaryConstraint = facetSummaryOfReference;
+		} else {
+			// when histogram statistics are requested, we use the dedicated `referenceSummaryOfReferenceWithHistograms`
+			// factory method which accepts histogram statistics as children alongside `EntityFetch` / `EntityGroupFetch`
+			final ReferenceSummaryOfReference referenceSummaryOfReference = referenceSummaryOfReferenceWithHistograms(
+				referenceName,
+				depth,
+				filterBy, filterGroupBy,
+				orderBy, orderGroupBy,
+				facetEntityFetch, groupEntityFetch,
+				histogramStatistics.toArray(ReferenceHistogramStatistics[]::new)
+			);
+			Assert.isPremiseValid(
+				referenceSummaryOfReference != null,
+				() -> new GraphQLQueryResolvingInternalError("Could not resolve reference summary of reference `" + referenceName + "`. It is null.")
+			);
+			summaryConstraint = referenceSummaryOfReference;
+		}
 		return new SimpleEntry<>(
 			referenceName,
-			wrapInScopeConstraint(scope, facetSummaryOfReference)
+			wrapInScopeConstraint(scope, summaryConstraint)
 		);
+	}
+
+	/**
+	 * Resolves histogram statistics constraints based on histogram index fields requested in the selection set.
+	 * Follows the pattern of {@link AttributeHistogramResolver}: collects histogram requests keyed by index name
+	 * (each entry carries its own bucket count and behavior), then groups entries sharing the same
+	 * `(requestedBucketCount, behavior)` pair into a single {@link ReferenceHistogramStatistics} constraint.
+	 *
+	 * Histogram fields share the same bucket count and behavior when requested on the same reference via different
+	 * GraphQL aliases — a common limitation since one physical histogram computation is triggered per constraint.
+	 *
+	 * Only histogram indexes defined on the reference schema in the effective `scope` parsed from the query tree are
+	 * considered — any field referring to an index not present in that scope is ignored.
+	 */
+	@Nonnull
+	private List<ReferenceHistogramStatistics> resolveHistogramStatistics(
+		@Nonnull SelectedField field,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Scope scope,
+		@Nullable Locale desiredLocale
+	) {
+		// collect histogram index names defined on the reference schema in the effective scope (or the default scope
+		// when no `inScope` wrapper is present)
+		final Scope effectiveScope = scope == null ? Scope.DEFAULT_SCOPE : scope;
+		if (!referenceSchema.isBucketedInScope(effectiveScope)) {
+			return List.of();
+		}
+		final Set<String> histogramIndexNames = referenceSchema.getHistogramIndexDefinitions(effectiveScope).keySet();
+		if (histogramIndexNames.isEmpty()) {
+			return List.of();
+		}
+
+		// navigate into the `histogramStatistics` wrapper field (which contains the named histogram fields)
+		final List<SelectedField> histogramStatisticsFields = SelectionSetAggregator.getImmediateFields(
+			ReferenceGroupStatisticsDescriptor.HISTOGRAM_STATISTICS.name(), field.getSelectionSet()
+		);
+		if (histogramStatisticsFields.isEmpty()) {
+			return List.of();
+		}
+
+		// collect histogram requests and their anchor entity selection sets keyed by index name
+		final Map<String, HistogramRequest> requestedHistograms = createHashMap(10);
+		final Map<String, List<DataFetchingFieldSelectionSet>> anchorEntitySelections = createHashMap(10);
+		final Set<String> anchorFieldNames = Set.of(
+			ReferenceHistogramDescriptor.MIN_REFERENCED_ENTITY.name(),
+			ReferenceHistogramDescriptor.MAX_REFERENCED_ENTITY.name()
+		);
+		histogramStatisticsFields
+			.forEach(histogramStatisticsField -> {
+				// each named histogram index field lives directly under the wrapper
+				for (final SelectedField histogramIndexField : SelectionSetAggregator.getImmediateFields(histogramStatisticsField.getSelectionSet())) {
+					// todo lho we must pass the naming convention here
+					final HistogramIndexDefinition histogramIndexDefinition = Optional.ofNullable(
+							referenceSchema
+								.getHistogramIndexDefinition(effectiveScope, histogramIndexField.getName())
+						)
+						.orElseThrow(() -> new GraphQLQueryResolvingInternalError(
+							"Missing histogram index definition for `" + histogramIndexField.getName() + "` in reference `" + referenceSchema.getName() + "`."
+						));
+					final String originalIndexName = histogramIndexDefinition.nameOfTheIndex();
+
+					final List<SelectedField> bucketsFields = SelectionSetAggregator.getImmediateFields(
+						HistogramDescriptor.BUCKETS.name(), histogramIndexField.getSelectionSet()
+					);
+					Assert.isTrue(
+						!bucketsFields.isEmpty(),
+						() -> new GraphQLInvalidResponseUsageException(
+							"Histogram statistics for index `" + originalIndexName + "` must have at least one `" +
+								HistogramDescriptor.BUCKETS.name() + "` field."
+						)
+					);
+
+					bucketsFields.forEach(bucketsField -> {
+						final int requestedBucketCount = (int) bucketsField.getArguments().get(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.name());
+						final HistogramBehavior behavior = (HistogramBehavior) bucketsField.getArguments().getOrDefault(BucketsFieldHeaderDescriptor.BEHAVIOR.name(), HistogramBehavior.STANDARD);
+						final HistogramRequest newRequest = new HistogramRequest(scope, requestedBucketCount, behavior);
+						final HistogramRequest existingRequest = requestedHistograms.put(originalIndexName, newRequest);
+						Assert.isTrue(
+							existingRequest == null || existingRequest.equals(newRequest),
+							() -> new GraphQLInvalidResponseUsageException(
+								"Histogram statistics for index `" + originalIndexName + "` was already requested with different " +
+									"bucket count or behavior. Only a single histogram request for each index is allowed."
+							)
+						);
+					});
+
+					// collect selection sets of `minReferencedEntity` / `maxReferencedEntity` for this index so a
+					// dedicated `EntityFetch` can be attached to its `ReferenceHistogramStatistics` constraint
+					for (final SelectedField anchorEntityField : SelectionSetAggregator.getImmediateFields(anchorFieldNames, histogramIndexField.getSelectionSet())) {
+						anchorEntitySelections
+							.computeIfAbsent(originalIndexName, k -> new ArrayList<>(2))
+							.add(anchorEntityField.getSelectionSet());
+					}
+				}
+			});
+
+		if (requestedHistograms.isEmpty()) {
+			return List.of();
+		}
+
+		return requestedHistograms
+			.entrySet()
+			.stream()
+			.map(h -> {
+				final String indexName = h.getKey();
+				final HistogramRequest request = h.getValue();
+
+				final EntityFetch histogramEntityFetch = Optional
+					.ofNullable(anchorEntitySelections.get(indexName))
+					.filter(selections -> !selections.isEmpty())
+					.flatMap(selections -> this.entityFetchRequireResolver.resolveEntityFetch(
+						SelectionSetAggregator.from(selections),
+						desiredLocale,
+						this.referencedEntitySchemas.get(referenceSchema.getName())
+					))
+					.orElse(null);
+
+				final ReferenceHistogramStatistics histogramStatistics = histogramStatistics(
+					request.requestedBucketCount(),
+					request.behavior(),
+					histogramEntityFetch,
+					indexName
+				);
+				Assert.isPremiseValid(
+					histogramStatistics != null,
+					() -> new GraphQLQueryResolvingInternalError("Could not resolve histogram statistics for index `" + indexName + "`. It is null.")
+				);
+				// we don't neet to wrap it into scope constraint because this wrapping is happening for parent reference summary already
+				return histogramStatistics;
+			})
+			.toList();
 	}
 
 	@Nonnull

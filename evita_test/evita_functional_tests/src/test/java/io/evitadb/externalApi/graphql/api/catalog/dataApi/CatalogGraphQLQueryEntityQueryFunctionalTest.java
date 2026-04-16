@@ -8266,6 +8266,77 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			);
 	}
 
+	// TODO LHO: implement — backend computation of histogram statistics is not finished yet, this test is a mockup
+	//  illustrating the intended GraphQL query shape; expected to fail until the engine populates `histogramStatistics`
+	//  on `ReferenceGroupStatistics`. The reference schema must define a histogram index named `priceIndex` for the
+	//  `parameter` reference so the GraphQL schema exposes the corresponding field under `histogramStatistics`.
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with histogram statistics for products")
+	void shouldReturnReferenceSummaryWithHistogramStatisticsForProducts(Evita evita, GraphQLTester tester) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReferenceWithHistograms(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_CODE)),
+								null,
+								histogramStatistics(20, "priceIndex")
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        referenceSummary {
+		                            parameter {
+		                                count
+		                                facetStatistics {
+		                                    facetEntity {
+		                                        primaryKey
+		                                        type
+		                                    }
+		                                    requested
+		                                    count
+		                                }
+		                                histogramStatistics {
+		                                    priceIndex {
+		                                        min
+		                                        max
+		                                        overallCount
+		                                        buckets(requestedCount: 20, behavior: OPTIMIZED) {
+		                                            threshold
+		                                            occurrences
+		                                            requested
+		                                        }
+		                                    }
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue());
+	}
+
 	@Test
 	@UseDataSet(GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS)
 	@DisplayName("Should return entities in manually crafter segmented order")

@@ -60,6 +60,18 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_descriptor;
   }
 
+  @SuppressWarnings({"rawtypes"})
+  @java.lang.Override
+  protected com.google.protobuf.MapFieldReflectionAccessor internalGetMapFieldReflection(
+      int number) {
+    switch (number) {
+      case 6:
+        return internalGetHistogramStatistics();
+      default:
+        throw new RuntimeException(
+            "Invalid map field number: " + number);
+    }
+  }
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
@@ -268,6 +280,105 @@ private static final long serialVersionUID = 0L;
     return facetStatistics_.get(index);
   }
 
+  public static final int HISTOGRAMSTATISTICS_FIELD_NUMBER = 6;
+  private static final class HistogramStatisticsDefaultEntryHolder {
+    static final com.google.protobuf.MapEntry<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> defaultEntry =
+            com.google.protobuf.MapEntry
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>newDefaultInstance(
+                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_HistogramStatisticsEntry_descriptor, 
+                com.google.protobuf.WireFormat.FieldType.STRING,
+                "",
+                com.google.protobuf.WireFormat.FieldType.MESSAGE,
+                io.evitadb.externalApi.grpc.generated.GrpcHistogram.getDefaultInstance());
+  }
+  @SuppressWarnings("serial")
+  private com.google.protobuf.MapField<
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> histogramStatistics_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>
+  internalGetHistogramStatistics() {
+    if (histogramStatistics_ == null) {
+      return com.google.protobuf.MapField.emptyMapField(
+          HistogramStatisticsDefaultEntryHolder.defaultEntry);
+    }
+    return histogramStatistics_;
+  }
+  public int getHistogramStatisticsCount() {
+    return internalGetHistogramStatistics().getMap().size();
+  }
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  @java.lang.Override
+  public boolean containsHistogramStatistics(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    return internalGetHistogramStatistics().getMap().containsKey(key);
+  }
+  /**
+   * Use {@link #getHistogramStatisticsMap()} instead.
+   */
+  @java.lang.Override
+  @java.lang.Deprecated
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> getHistogramStatistics() {
+    return getHistogramStatisticsMap();
+  }
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  @java.lang.Override
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> getHistogramStatisticsMap() {
+    return internalGetHistogramStatistics().getMap();
+  }
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  @java.lang.Override
+  public /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcHistogram getHistogramStatisticsOrDefault(
+      java.lang.String key,
+      /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> map =
+        internalGetHistogramStatistics().getMap();
+    return map.containsKey(key) ? map.get(key) : defaultValue;
+  }
+  /**
+   * <pre>
+   * Contains named histogram statistics for this reference group. Each histogram index defined on the
+   * reference schema produces a separate histogram entry keyed by the histogram index name.
+   * </pre>
+   *
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcHistogram getHistogramStatisticsOrThrow(
+      java.lang.String key) {
+    if (key == null) { throw new NullPointerException("map key"); }
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> map =
+        internalGetHistogramStatistics().getMap();
+    if (!map.containsKey(key)) {
+      throw new java.lang.IllegalArgumentException();
+    }
+    return map.get(key);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -297,6 +408,12 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < facetStatistics_.size(); i++) {
       output.writeMessage(5, facetStatistics_.get(i));
     }
+    com.google.protobuf.GeneratedMessageV3
+      .serializeStringMapTo(
+        output,
+        internalGetHistogramStatistics(),
+        HistogramStatisticsDefaultEntryHolder.defaultEntry,
+        6);
     getUnknownFields().writeTo(output);
   }
 
@@ -324,6 +441,16 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < facetStatistics_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, facetStatistics_.get(i));
+    }
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> entry
+         : internalGetHistogramStatistics().getMap().entrySet()) {
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>
+      histogramStatistics__ = HistogramStatisticsDefaultEntryHolder.defaultEntry.newBuilderForType()
+          .setKey(entry.getKey())
+          .setValue(entry.getValue())
+          .build();
+      size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(6, histogramStatistics__);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -356,6 +483,8 @@ private static final long serialVersionUID = 0L;
         != other.getCount()) return false;
     if (!getFacetStatisticsList()
         .equals(other.getFacetStatisticsList())) return false;
+    if (!internalGetHistogramStatistics().equals(
+        other.internalGetHistogramStatistics())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -382,6 +511,10 @@ private static final long serialVersionUID = 0L;
     if (getFacetStatisticsCount() > 0) {
       hash = (37 * hash) + FACETSTATISTICS_FIELD_NUMBER;
       hash = (53 * hash) + getFacetStatisticsList().hashCode();
+    }
+    if (!internalGetHistogramStatistics().getMap().isEmpty()) {
+      hash = (37 * hash) + HISTOGRAMSTATISTICS_FIELD_NUMBER;
+      hash = (53 * hash) + internalGetHistogramStatistics().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -496,6 +629,28 @@ private static final long serialVersionUID = 0L;
       return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcReferenceGroupStatistics_descriptor;
     }
 
+    @SuppressWarnings({"rawtypes"})
+    protected com.google.protobuf.MapFieldReflectionAccessor internalGetMapFieldReflection(
+        int number) {
+      switch (number) {
+        case 6:
+          return internalGetHistogramStatistics();
+        default:
+          throw new RuntimeException(
+              "Invalid map field number: " + number);
+      }
+    }
+    @SuppressWarnings({"rawtypes"})
+    protected com.google.protobuf.MapFieldReflectionAccessor internalGetMutableMapFieldReflection(
+        int number) {
+      switch (number) {
+        case 6:
+          return internalGetMutableHistogramStatistics();
+        default:
+          throw new RuntimeException(
+              "Invalid map field number: " + number);
+      }
+    }
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
@@ -545,6 +700,7 @@ private static final long serialVersionUID = 0L;
         facetStatisticsBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00000010);
+      internalGetMutableHistogramStatistics().clear();
       return this;
     }
 
@@ -609,6 +765,9 @@ private static final long serialVersionUID = 0L;
       }
       if (((from_bitField0_ & 0x00000008) != 0)) {
         result.count_ = count_;
+      }
+      if (((from_bitField0_ & 0x00000020) != 0)) {
+        result.histogramStatistics_ = internalGetHistogramStatistics().build(HistogramStatisticsDefaultEntryHolder.defaultEntry);
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -697,6 +856,9 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      internalGetMutableHistogramStatistics().mergeFrom(
+          other.internalGetHistogramStatistics());
+      bitField0_ |= 0x00000020;
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -760,6 +922,15 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 42
+            case 50: {
+              com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>
+              histogramStatistics__ = input.readMessage(
+                  HistogramStatisticsDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
+              internalGetMutableHistogramStatistics().ensureBuilderMap().put(
+                  histogramStatistics__.getKey(), histogramStatistics__.getValue());
+              bitField0_ |= 0x00000020;
+              break;
+            } // case 50
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1537,6 +1708,201 @@ private static final long serialVersionUID = 0L;
         facetStatistics_ = null;
       }
       return facetStatisticsBuilder_;
+    }
+
+    private static final class HistogramStatisticsConverter implements com.google.protobuf.MapFieldBuilder.Converter<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcHistogram> {
+      @java.lang.Override
+      public io.evitadb.externalApi.grpc.generated.GrpcHistogram build(io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder val) {
+        if (val instanceof io.evitadb.externalApi.grpc.generated.GrpcHistogram) { return (io.evitadb.externalApi.grpc.generated.GrpcHistogram) val; }
+        return ((io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder) val).build();
+      }
+
+      @java.lang.Override
+      public com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> defaultEntry() {
+        return HistogramStatisticsDefaultEntryHolder.defaultEntry;
+      }
+    };
+    private static final HistogramStatisticsConverter histogramStatisticsConverter = new HistogramStatisticsConverter();
+
+    private com.google.protobuf.MapFieldBuilder<
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder> histogramStatistics_;
+    private com.google.protobuf.MapFieldBuilder<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder>
+        internalGetHistogramStatistics() {
+      if (histogramStatistics_ == null) {
+        return new com.google.protobuf.MapFieldBuilder<>(histogramStatisticsConverter);
+      }
+      return histogramStatistics_;
+    }
+    private com.google.protobuf.MapFieldBuilder<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder, io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder>
+        internalGetMutableHistogramStatistics() {
+      if (histogramStatistics_ == null) {
+        histogramStatistics_ = new com.google.protobuf.MapFieldBuilder<>(histogramStatisticsConverter);
+      }
+      bitField0_ |= 0x00000020;
+      onChanged();
+      return histogramStatistics_;
+    }
+    public int getHistogramStatisticsCount() {
+      return internalGetHistogramStatistics().ensureBuilderMap().size();
+    }
+    /**
+     * <pre>
+     * Contains named histogram statistics for this reference group. Each histogram index defined on the
+     * reference schema produces a separate histogram entry keyed by the histogram index name.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+     */
+    @java.lang.Override
+    public boolean containsHistogramStatistics(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      return internalGetHistogramStatistics().ensureBuilderMap().containsKey(key);
+    }
+    /**
+     * Use {@link #getHistogramStatisticsMap()} instead.
+     */
+    @java.lang.Override
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> getHistogramStatistics() {
+      return getHistogramStatisticsMap();
+    }
+    /**
+     * <pre>
+     * Contains named histogram statistics for this reference group. Each histogram index defined on the
+     * reference schema produces a separate histogram entry keyed by the histogram index name.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+     */
+    @java.lang.Override
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> getHistogramStatisticsMap() {
+      return internalGetHistogramStatistics().getImmutableMap();
+    }
+    /**
+     * <pre>
+     * Contains named histogram statistics for this reference group. Each histogram index defined on the
+     * reference schema produces a separate histogram entry keyed by the histogram index name.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+     */
+    @java.lang.Override
+    public /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcHistogram getHistogramStatisticsOrDefault(
+        java.lang.String key,
+        /* nullable */
+io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> map = internalGetMutableHistogramStatistics().ensureBuilderMap();
+      return map.containsKey(key) ? histogramStatisticsConverter.build(map.get(key)) : defaultValue;
+    }
+    /**
+     * <pre>
+     * Contains named histogram statistics for this reference group. Each histogram index defined on the
+     * reference schema produces a separate histogram entry keyed by the histogram index name.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcHistogram getHistogramStatisticsOrThrow(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> map = internalGetMutableHistogramStatistics().ensureBuilderMap();
+      if (!map.containsKey(key)) {
+        throw new java.lang.IllegalArgumentException();
+      }
+      return histogramStatisticsConverter.build(map.get(key));
+    }
+    public Builder clearHistogramStatistics() {
+      bitField0_ = (bitField0_ & ~0x00000020);
+      internalGetMutableHistogramStatistics().clear();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains named histogram statistics for this reference group. Each histogram index defined on the
+     * reference schema produces a separate histogram entry keyed by the histogram index name.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+     */
+    public Builder removeHistogramStatistics(
+        java.lang.String key) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      internalGetMutableHistogramStatistics().ensureBuilderMap()
+          .remove(key);
+      return this;
+    }
+    /**
+     * Use alternate mutation accessors instead.
+     */
+    @java.lang.Deprecated
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>
+        getMutableHistogramStatistics() {
+      bitField0_ |= 0x00000020;
+      return internalGetMutableHistogramStatistics().ensureMessageMap();
+    }
+    /**
+     * <pre>
+     * Contains named histogram statistics for this reference group. Each histogram index defined on the
+     * reference schema produces a separate histogram entry keyed by the histogram index name.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+     */
+    public Builder putHistogramStatistics(
+        java.lang.String key,
+        io.evitadb.externalApi.grpc.generated.GrpcHistogram value) {
+      if (key == null) { throw new NullPointerException("map key"); }
+      if (value == null) { throw new NullPointerException("map value"); }
+      internalGetMutableHistogramStatistics().ensureBuilderMap()
+          .put(key, value);
+      bitField0_ |= 0x00000020;
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains named histogram statistics for this reference group. Each histogram index defined on the
+     * reference schema produces a separate histogram entry keyed by the histogram index name.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+     */
+    public Builder putAllHistogramStatistics(
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> values) {
+      for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> e : values.entrySet()) {
+        if (e.getKey() == null || e.getValue() == null) {
+          throw new NullPointerException();
+        }
+      }
+      internalGetMutableHistogramStatistics().ensureBuilderMap()
+          .putAll(values);
+      bitField0_ |= 0x00000020;
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains named histogram statistics for this reference group. Each histogram index defined on the
+     * reference schema produces a separate histogram entry keyed by the histogram index name.
+     * </pre>
+     *
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcHistogram&gt; histogramStatistics = 6;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder putHistogramStatisticsBuilderIfAbsent(
+        java.lang.String key) {
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> builderMap = internalGetMutableHistogramStatistics().ensureBuilderMap();
+      io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder entry = builderMap.get(key);
+      if (entry == null) {
+        entry = io.evitadb.externalApi.grpc.generated.GrpcHistogram.newBuilder();
+        builderMap.put(key, entry);
+      }
+      if (entry instanceof io.evitadb.externalApi.grpc.generated.GrpcHistogram) {
+        entry = ((io.evitadb.externalApi.grpc.generated.GrpcHistogram) entry).toBuilder();
+        builderMap.put(key, entry);
+      }
+      return (io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder) entry;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
