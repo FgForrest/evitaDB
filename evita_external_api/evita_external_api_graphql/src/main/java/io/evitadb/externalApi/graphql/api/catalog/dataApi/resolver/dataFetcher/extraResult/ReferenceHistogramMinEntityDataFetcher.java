@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,33 +25,37 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
-import java.util.Objects;
+import javax.annotation.Nullable;
 
 /**
- * Extracts list of all {@link FacetGroupStatistics} of certain reference name from {@link FacetSummary}.
+ * Returns the referenced entity whose value anchors the minimum bucket of a reference-scope
+ * {@link HistogramContract}. When the histogram has no anchor entity the fetcher returns `null`.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
-@RequiredArgsConstructor
-public class FacetGroupStatisticsDataFetcher implements DataFetcher<Collection<FacetGroupStatistics>> {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class ReferenceHistogramMinEntityDataFetcher implements DataFetcher<SealedEntity> {
+
+	private static final ReferenceHistogramMinEntityDataFetcher INSTANCE = new ReferenceHistogramMinEntityDataFetcher();
 
 	@Nonnull
-	private final ReferenceSchemaContract referenceSchema;
+	public static ReferenceHistogramMinEntityDataFetcher getInstance() {
+		return INSTANCE;
+	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	public Collection<FacetGroupStatistics> get(DataFetchingEnvironment environment) throws Exception {
-		final FacetSummary facetSummary = Objects.requireNonNull(environment.getSource());
-		return facetSummary.getReferenceStatistics()
-			.stream()
-			.filter(it -> it.getReferenceName().equals(this.referenceSchema.getName()))
-			.toList();
+	public SealedEntity get(DataFetchingEnvironment environment) throws Exception {
+		final HistogramContract histogram = environment.getSource();
+		if (histogram == null) {
+			return null;
+		}
+		return histogram.getMinReferencedEntity().orElse(null);
 	}
 }

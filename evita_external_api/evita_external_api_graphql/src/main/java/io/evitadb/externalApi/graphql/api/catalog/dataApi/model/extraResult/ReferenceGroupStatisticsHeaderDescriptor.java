@@ -26,11 +26,11 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 /**
- * Descriptor of header arguments for group of {@link io.evitadb.api.query.require.FacetSummaryOfReference} for specific reference.
+ * Descriptor of header arguments for group of {@link io.evitadb.api.query.require.ReferenceSummaryOfReference} for specific reference.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface FacetGroupStatisticsHeaderDescriptor {
+public interface ReferenceGroupStatisticsHeaderDescriptor {
 
 	PropertyDescriptor FILTER_GROUP_BY = PropertyDescriptor.builder()
 		.name("filterGroupBy")

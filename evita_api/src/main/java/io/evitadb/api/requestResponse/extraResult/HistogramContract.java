@@ -27,6 +27,7 @@ import io.evitadb.api.query.filter.AttributeBetween;
 import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.PriceHistogram;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
@@ -34,6 +35,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
@@ -121,6 +123,29 @@ public interface HistogramContract extends Serializable {
 	 */
 	@Nonnull
 	Bucket[] getBuckets();
+
+	/**
+	 * Returns the referenced entity whose value anchors the minimum bucket of this histogram.
+	 *
+	 * Only populated for histograms computed over references (see
+	 * {@link ReferenceSummary.ReferenceGroupStatistics#getHistogramStatistics()}) and only when the
+	 * query requests an entity fetch for the associated reference. In all other cases — and on the
+	 * contract defaults — the returned optional is empty.
+	 */
+	@Nonnull
+	default Optional<SealedEntity> getMinReferencedEntity() {
+		return Optional.empty();
+	}
+
+	/**
+	 * Returns the referenced entity whose value anchors the maximum bucket of this histogram.
+	 *
+	 * See {@link #getMinReferencedEntity()} for when this is populated.
+	 */
+	@Nonnull
+	default Optional<SealedEntity> getMaxReferencedEntity() {
+		return Optional.empty();
+	}
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be

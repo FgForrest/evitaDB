@@ -149,7 +149,17 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 			if (step instanceof PropertyAccessStep propertyAccessStep) {
 				path.add(new IdentifierPathItem(propertyAccessStep.getPropertyIdentifier()));
 			} else if (step instanceof ElementAccessStep elementAccessStep) {
-				elementAccessStep.getElementIdentifierOperand().accept(this);
+				final ExpressionNode identifierOperand = elementAccessStep.getElementIdentifierOperand();
+				if (identifierOperand instanceof ConstantOperand constantOperand) {
+					// constants are only meaningful for path building as element access keys
+					// (e.g., references['brand']). In other contexts (comparison operands, method
+					// arguments), constants do not contribute to data access paths.
+					final Serializable value = constantOperand.getValue();
+					path.add(new ElementPathItem(value != null ? value.toString() : "null"));
+				} else {
+					// dynamic element access (e.g. variable or complex expression)
+					identifierOperand.accept(this);
+				}
 			} else if (step instanceof SpreadAccessStep spreadAccessStep) {
 				spreadAccessStep.getMappingExpression().accept(this);
 			} else if (step instanceof MethodInvocationStep methodInvocationStep) {
@@ -171,11 +181,10 @@ public class AccessedDataFinder implements ExpressionNodeVisitor {
 	}
 
 	private void visit(@Nonnull ConstantOperand constantOperand) {
-		if (this.currentPath != null) {
-			final Serializable value = constantOperand.getValue();
-			// null literal used in element access (e.g., references[null]) — record as "null" string
-			this.currentPath.add(new ElementPathItem(value != null ? value.toString() : "null"));
-		}
+		// no-op: constants are only meaningful for path building as element access keys
+		// (e.g., references['brand']), handled directly in the ElementAccessStep branch
+		// of visit(ObjectAccessOperator). In other contexts (comparison operands, method
+		// arguments), constants do not contribute to data access paths.
 	}
 
 	private void visit(@Nonnull VariableOperand variableOperand) {

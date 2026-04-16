@@ -25,39 +25,34 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.Objects;
 
 /**
- * Extracts {@link FacetSummary} from {@link EvitaResponse}'s extra results requested by
- * {@link io.evitadb.api.query.require.FacetSummary}.
+ * Extracts list of all {@link ReferenceGroupStatistics} of certain reference name from {@link ReferenceSummary}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class FacetSummaryDataFetcher implements DataFetcher<FacetSummary> {
-
-	@Nullable
-	private static FacetSummaryDataFetcher INSTANCE;
+@RequiredArgsConstructor
+public class ReferenceGroupStatisticsDataFetcher implements DataFetcher<Collection<ReferenceGroupStatistics>> {
 
 	@Nonnull
-	public static FacetSummaryDataFetcher getInstance() {
-		if (INSTANCE == null) {
-			INSTANCE = new FacetSummaryDataFetcher();
-		}
-		return INSTANCE;
-	}
+	private final ReferenceSchemaContract referenceSchema;
 
-	@Nullable
+	@Nonnull
 	@Override
-	public FacetSummary get(DataFetchingEnvironment environment) throws Exception {
-		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
-		return response.getExtraResult(FacetSummary.class);
+	public Collection<ReferenceGroupStatistics> get(DataFetchingEnvironment environment) throws Exception {
+		final ReferenceSummary referenceSummary = Objects.requireNonNull(environment.getSource());
+		return referenceSummary.getReferenceStatistics()
+			.stream()
+			.filter(it -> it.getReferenceName().equals(this.referenceSchema.getName()))
+			.map(ReferenceGroupStatistics.class::cast)
+			.toList();
 	}
 }

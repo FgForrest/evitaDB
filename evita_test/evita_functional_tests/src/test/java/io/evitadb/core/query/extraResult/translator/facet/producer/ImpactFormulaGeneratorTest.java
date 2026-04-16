@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ImpactFormulaGenerator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;

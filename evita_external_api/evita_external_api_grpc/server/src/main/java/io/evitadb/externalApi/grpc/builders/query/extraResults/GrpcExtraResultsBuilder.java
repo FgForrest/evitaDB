@@ -69,12 +69,12 @@ public class GrpcExtraResultsBuilder {
 		evitaResponse.getExtraResultTypes().forEach(extraResultType -> {
 			final EvitaResponseExtraResult extraResult = evitaResponse.getExtraResult(extraResultType);
 			if (extraResult instanceof AttributeHistogram erHistogram) {
-				final Map<String, GrpcHistogram> attributeHistograms = GrpcHistogramBuilder.buildAttributeHistogram(erHistogram);
+				final Map<String, GrpcHistogram> attributeHistograms = GrpcHistogramBuilder.buildAttributeHistogram(erHistogram, clientVersion.get());
 				extraResults.putAllAttributeHistogram(attributeHistograms);
 			} else if (extraResult instanceof PriceHistogram erHistogram) {
-				extraResults.setPriceHistogram(GrpcHistogramBuilder.buildPriceHistogram(erHistogram));
+				extraResults.setPriceHistogram(GrpcHistogramBuilder.buildPriceHistogram(erHistogram, clientVersion.get()));
 			} else if (extraResult instanceof FacetSummary erFacetSummary) {
-				GrpcFacetSummaryBuilder.buildFacetSummary(extraResults, erFacetSummary, clientVersion.get());
+				GrpcReferenceSummaryBuilder.buildReferenceSummary(evitaResponse.getSourceQuery(), extraResults, erFacetSummary, clientVersion.get());
 			} else if (extraResult instanceof Hierarchy erHierarchy) {
 				GrpcHierarchyStatisticsBuilder.buildHierarchy(extraResults, erHierarchy, clientVersion.get());
 			} else if (extraResult instanceof QueryTelemetry erQueryTelemetry) {

@@ -170,6 +170,9 @@ class ConstraintRegistry {
 		DefaultAccompanyingPriceLists.class,
 		// references
 		ReferenceContent.class,
+		ReferenceSummary.class,
+		ReferenceSummaryOfReference.class,
+		ReferenceHistogramStatistics.class,
 		// hierarchy
 		HierarchyContent.class,
 		HierarchyChildren.class,

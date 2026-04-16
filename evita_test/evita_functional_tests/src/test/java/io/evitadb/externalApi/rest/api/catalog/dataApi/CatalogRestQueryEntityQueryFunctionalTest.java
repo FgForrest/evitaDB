@@ -55,11 +55,12 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
@@ -97,6 +98,7 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Tests for REST catalog entity list query.
@@ -3780,6 +3782,236 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			);
 	}
 
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with counts for products")
+	void shouldReturnNonGroupedReferenceSummaryWithCountsForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReference(Entities.BRAND, FacetStatisticsDepth.COUNTS)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createNonGroupedReferenceSummaryDto(response, Entities.BRAND);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"referenceBrandSummary": {
+								"statisticsDepth":"COUNTS"
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "brand"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with impacts and entities for products")
+	void shouldReturnNonGroupedReferenceSummaryWithImpactsAndEntitiesForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReference(
+						Entities.BRAND,
+						FacetStatisticsDepth.IMPACT,
+						entityFetch(attributeContent(ATTRIBUTE_CODE))
+					)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createNonGroupedReferenceSummaryDto(response, Entities.BRAND);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"referenceBrandSummary": {
+								"statisticsDepth":"IMPACT",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "brand"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return grouped reference summary with counts for products")
+	void shouldReturnReferenceSummaryWithCountsForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReference(Entities.PARAMETER, FacetStatisticsDepth.COUNTS)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createReferenceSummaryDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"COUNTS"
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "parameter"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return grouped reference summary with impacts and entities for products")
+	void shouldReturnReferenceSummaryWithImpactsAndEntitiesForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReference(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.IMPACT,
+						entityFetch(attributeContent(ATTRIBUTE_CODE))
+					)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createReferenceSummaryDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"IMPACT",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "parameter"),
+				equalTo(expectedBody)
+			);
+	}
+
+	// TODO LHO: implement — backend computation of histogram statistics is not finished yet, this test is a mockup
+	//  illustrating the intended REST request shape; expected to fail until the engine populates `histogramStatistics`
+	//  on `ReferenceGroupStatistics`. The reference schema must define a histogram index named `priceIndex` for the
+	//  `parameter` reference so the OpenAPI schema exposes the corresponding property under `histogramStatistics`.
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with histogram statistics for products")
+	void shouldReturnReferenceSummaryWithHistogramStatisticsForProducts(Evita evita, RestTester tester) {
+		queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						entityFetch(attributeContent(ATTRIBUTE_CODE)),
+						null,
+						histogramStatistics(20, "priceIndex")
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"COUNTS",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			},
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["priceIndex"]
+										}
+									}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200);
+
+		fail();
+	}
+
 
 	@Test
 	@UseDataSet(REST_HUNDRED_PRODUCTS_FOR_SEGMENTS)
@@ -4417,6 +4649,75 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), createEntityDto(groupStatistics.getGroupEntity()))
 					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics -> {
+							final MapBuilder facetStatisticsDto = map()
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
+
+							Optional.ofNullable(facetStatistics.getImpact())
+								.ifPresent(impact -> facetStatisticsDto.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
+									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
+									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
+									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
+									.build()));
+
+							return facetStatisticsDto.build();
+						})
+						.toList())
+					.build()
+			)
+			.toList();
+	}
+
+	@Nonnull
+	private Map<String, Object> createNonGroupedReferenceSummaryDto(@Nonnull EvitaResponse<? extends EntityClassifier> response,
+	                                                                @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics -> {
+							final MapBuilder facetStatisticsDto = map()
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
+
+							Optional.ofNullable(facetStatistics.getImpact())
+								.ifPresent(impact -> facetStatisticsDto.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
+									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
+									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
+									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
+									.build()));
+
+							return facetStatisticsDto.build();
+						})
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Reference summary must contain reference group statistics for reference " + referenceName));
+	}
+
+	@Nonnull
+	private List<Map<String, Object>> createReferenceSummaryDto(@Nonnull EvitaResponse<? extends EntityClassifier> response,
+	                                                            @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return facetSummary.getReferenceStatistics()
+			.stream()
+			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(ReferenceGroupStatisticsDescriptor.GROUP_ENTITY.name(), createEntityDto(groupStatistics.getGroupEntity()))
+					.e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics -> {
 							final MapBuilder facetStatisticsDto = map()

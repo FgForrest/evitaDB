@@ -35,8 +35,11 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.HistogramStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.FetchEntityRequestDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.HierarchyOfDescriptor;
@@ -125,6 +128,30 @@ public class DataApiNamesConstructor {
 	}
 
 	@Nonnull
+	public static String constructReferenceSummaryObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
+		return ReferenceSummaryDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));
+	}
+
+	@Nonnull
+	public static String constructReferenceGroupStatisticsObjectName(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean localized
+	) {
+		return ReferenceGroupStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
+	}
+
+	@Nonnull
+	public static String constructHistogramStatisticsObjectName(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean localized
+	) {
+		return HistogramStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
+	}
+
+	// TODO: remove when FacetSummary constraint is removed
+	@Nonnull
 	public static String constructFacetGroupStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                             @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                             boolean localized) {
@@ -138,6 +165,7 @@ public class DataApiNamesConstructor {
 		return EntityFacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
 	}
 
+	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	public static String constructFacetSummaryObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
 		return FacetSummaryDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));

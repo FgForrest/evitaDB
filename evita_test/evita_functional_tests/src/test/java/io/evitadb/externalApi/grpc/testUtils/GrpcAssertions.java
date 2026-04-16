@@ -37,8 +37,10 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -414,6 +416,66 @@ public class GrpcAssertions {
 
 	public static void assertPriceHistogram(@Nonnull PriceHistogram priceHistogram, @Nonnull GrpcHistogram histogram) {
 		assertHistograms(priceHistogram, histogram);
+	}
+
+	public static void assertReferenceSummary(@Nonnull ReferenceSummary referenceSummary, @Nonnull List<GrpcReferenceGroupStatistics> allGrpcReferenceGroupStatistics) {
+		for (GrpcReferenceGroupStatistics grpcReferenceGroupStatistics : allGrpcReferenceGroupStatistics) {
+			final ReferenceGroupStatistics expectedReferenceGroupStatistics;
+			if (grpcReferenceGroupStatistics.hasGroupEntityReference()) {
+				expectedReferenceGroupStatistics = referenceSummary.getReferenceGroupStatistics(grpcReferenceGroupStatistics.getReferenceName(), grpcReferenceGroupStatistics.getGroupEntityReference().getPrimaryKey());
+			} else if (grpcReferenceGroupStatistics.hasGroupEntity()) {
+				expectedReferenceGroupStatistics = referenceSummary.getReferenceGroupStatistics(grpcReferenceGroupStatistics.getReferenceName(), grpcReferenceGroupStatistics.getGroupEntity().getPrimaryKey());
+			} else {
+				expectedReferenceGroupStatistics = referenceSummary.getReferenceGroupStatistics(grpcReferenceGroupStatistics.getReferenceName());
+			}
+
+			assertNotNull(expectedReferenceGroupStatistics);
+			assertEquals(expectedReferenceGroupStatistics.getReferenceName(), grpcReferenceGroupStatistics.getReferenceName());
+			final EntityClassifier expectedGroupEntity = expectedReferenceGroupStatistics.getGroupEntity();
+			if (expectedGroupEntity == null) {
+				assertFalse(grpcReferenceGroupStatistics.hasGroupEntity());
+				assertFalse(grpcReferenceGroupStatistics.hasGroupEntityReference());
+			} else if (expectedGroupEntity instanceof EntityReference) {
+				assertEquals(expectedGroupEntity.getType(), grpcReferenceGroupStatistics.getGroupEntityReference().getEntityType());
+				assertEquals(expectedGroupEntity.getPrimaryKey(), grpcReferenceGroupStatistics.getGroupEntityReference().getPrimaryKey());
+				assertFalse(grpcReferenceGroupStatistics.hasGroupEntity());
+			} else if (expectedGroupEntity instanceof SealedEntity entity) {
+				assertEntity(entity, grpcReferenceGroupStatistics.getGroupEntity());
+				assertFalse(grpcReferenceGroupStatistics.hasGroupEntityReference());
+			}
+
+			for (GrpcFacetStatistics actualFacetStatistics : grpcReferenceGroupStatistics.getFacetStatisticsList()) {
+				final int facetId;
+				if (actualFacetStatistics.hasFacetEntity()) {
+					facetId = actualFacetStatistics.getFacetEntity().getPrimaryKey();
+				} else {
+					facetId = actualFacetStatistics.getFacetEntityReference().getPrimaryKey();
+				}
+				final FacetStatistics expectedFacetStatistics = expectedReferenceGroupStatistics.getFacetStatistics(facetId);
+				assertNotNull(expectedFacetStatistics);
+
+				final EntityClassifier expectedEntity = expectedFacetStatistics.getFacetEntity();
+				if (expectedEntity instanceof EntityReference) {
+					assertEquals(expectedEntity.getType(), actualFacetStatistics.getFacetEntityReference().getEntityType());
+					assertEquals(expectedEntity.getPrimaryKey(), actualFacetStatistics.getFacetEntityReference().getPrimaryKey());
+					assertFalse(actualFacetStatistics.hasFacetEntity());
+				} else if (expectedEntity instanceof SealedEntity entity) {
+					assertEntity(entity, actualFacetStatistics.getFacetEntity());
+					assertFalse(actualFacetStatistics.hasFacetEntityReference());
+				}
+
+				assertEquals(expectedFacetStatistics.getCount(), actualFacetStatistics.getCount());
+				assertEquals(expectedFacetStatistics.isRequested(), actualFacetStatistics.getRequested());
+				final RequestImpact facetImpact = expectedFacetStatistics.getImpact();
+				if (facetImpact == null) {
+					assertFalse(actualFacetStatistics.hasImpact());
+				} else {
+					assertNotNull(expectedFacetStatistics.getImpact());
+					assertEquals(expectedFacetStatistics.getImpact().difference(), actualFacetStatistics.getImpact().getValue());
+				}
+
+			}
+		}
 	}
 
 	public static void assertFacetSummary(@Nonnull FacetSummary facetSummary, @Nonnull List<GrpcFacetGroupStatistics> allGrpcFacetGroupStatistics) {

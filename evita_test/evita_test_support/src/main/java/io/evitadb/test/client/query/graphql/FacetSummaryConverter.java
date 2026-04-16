@@ -37,10 +37,10 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ExternalEntityTypeP
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetGroupStatisticsHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.FacetStatisticsHeaderDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.ReferenceGroupStatisticsHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.ReferenceStatisticsHeaderDescriptor;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
 
@@ -178,7 +178,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		if (facetSummaryOfReference.getFilterGroupBy().isPresent()) {
 			arguments.add(
 				(offset, multipleArguments) -> new Argument(
-					FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY,
+					ReferenceGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY,
 					offset,
 					multipleArguments,
 					convertFilterConstraint(
@@ -198,7 +198,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		if (facetSummaryOfReference.getOrderGroupBy().isPresent()) {
 			arguments.add(
 				(offset, multipleArguments) -> new Argument(
-					FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY,
+					ReferenceGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY,
 					offset,
 					multipleArguments,
 					convertOrderConstraint(
@@ -260,7 +260,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		if (facetSummaryOfReference.getFilterBy().isPresent()) {
 			arguments.add(
 				(offset, multipleArguments) -> new Argument(
-					FacetStatisticsHeaderDescriptor.FILTER_BY,
+					ReferenceStatisticsHeaderDescriptor.FILTER_BY,
 					offset,
 					multipleArguments,
 					convertFilterConstraint(
@@ -279,7 +279,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		if (facetSummaryOfReference.getOrderBy().isPresent()) {
 			arguments.add(
 				(offset, multipleArguments) -> new Argument(
-					FacetStatisticsHeaderDescriptor.ORDER_BY,
+					ReferenceStatisticsHeaderDescriptor.ORDER_BY,
 					offset,
 					multipleArguments,
 					convertOrderConstraint(

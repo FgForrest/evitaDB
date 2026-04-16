@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,16 +21,16 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.extraResult.translator.facet.producer;
+package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.query.extraResult.translator.facet.FilterFormulaFacetOptimizeVisitor;
+import io.evitadb.core.query.extraResult.translator.reference.FilterFormulaFacetOptimizeVisitor;
 import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;

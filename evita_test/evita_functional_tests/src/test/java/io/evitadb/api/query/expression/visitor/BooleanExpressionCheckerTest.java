@@ -83,7 +83,11 @@ public class BooleanExpressionCheckerTest {
 			Arguments.of(false, "42"),
 			Arguments.of(false, "$x"),
 			Arguments.of(false, "(1 + 2)"),
-			Arguments.of(false, "random()")
+			Arguments.of(false, "random()"),
+			// method invocation expression
+			Arguments.of(true, "$entity.references['categories']?.any($.attributes['order'] > 100)"),
+			// non-boolean method invocation expression
+			Arguments.of(false, "$entity.references['categories']?.size()")
 		);
 	}
 }

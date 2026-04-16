@@ -64,11 +64,13 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.AttributeHis
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
@@ -7974,6 +7976,635 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with counts for products")
+	void shouldReturnReferenceSummaryWithCountsForProducts(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReference(Entities.BRAND, FacetStatisticsDepth.COUNTS)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createNonGroupedReferenceSummaryWithCountsDto(response, Entities.BRAND);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        __typename
+		                        referenceSummary {
+		                            __typename
+		                            brand {
+		                                __typename
+			                            count
+			                            facetStatistics {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
+				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + "." + TYPENAME_FIELD,
+				equalTo(ReferenceSummaryDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".brand",
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary in specific scope for products")
+	void shouldReturnReferenceSummaryInSpecificScopeForProducts(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							inScope(Scope.LIVE, referenceSummaryOfReference(Entities.BRAND, FacetStatisticsDepth.COUNTS))
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createNonGroupedReferenceSummaryWithCountsDto(response, Entities.BRAND);
+
+		final String baseResultPath = resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE);
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        inScope(scope: LIVE) {
+		                            __typename
+		                            referenceSummary {
+		                                __typename
+		                                brand {
+		                                    __typename
+			                                count
+			                                facetStatistics {
+			                                    __typename
+			                                    facetEntity {
+			                                        __typename
+			                                        primaryKey
+			                                        type
+			                                    }
+			                                    requested
+			                                    count
+			                                }
+		                                }
+		                            }
+	                            }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(baseResultPath, TYPENAME_FIELD),
+				equalTo(InScopeDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(baseResultPath, ExtraResultsDescriptor.REFERENCE_SUMMARY, TYPENAME_FIELD),
+				equalTo(ReferenceSummaryDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(baseResultPath, ExtraResultsDescriptor.REFERENCE_SUMMARY, "brand"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should not return duplicate reference summaries across scopes")
+	void shouldNotReturnDuplicateReferenceSummariesAcrossScopes(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        inScope(scope: LIVE) {
+		                            referenceSummary {
+		                                brand {
+			                                count
+		                                }
+		                            }
+	                            }
+	                            referenceSummary {
+								    brand {
+								        count
+								    }
+								}
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with impacts and entities for products")
+	void shouldReturnReferenceSummaryWithImpactsAndEntitiesForProducts(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReference(
+								Entities.BRAND,
+								FacetStatisticsDepth.IMPACT,
+								entityFetch(attributeContent(ATTRIBUTE_CODE))
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createNonGroupedReferenceSummaryWithImpactsDto(response, Entities.BRAND);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        referenceSummary {
+		                            brand {
+		                                count
+			                            facetStatistics {
+			                                facetEntity {
+			                                    primaryKey
+			                                    type
+			                                    attributes {
+			                                        code
+			                                    }
+			                                }
+			                                requested
+			                                count
+			                                impact {
+			                                    __typename
+			                                    difference
+			                                    matchCount
+			                                    hasSense
+			                                }
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".brand",
+				equalTo(expectedBody)
+			);
+		;
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with filtered and ordered facet groups")
+	void shouldReturnReferenceSummaryWithFilteredAndOrderedFacetGroups(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReference(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								filterGroupBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
+								orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createReferenceSummaryWithCountsDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        referenceSummary {
+		                            parameter(
+		                                filterGroupBy: {
+		                                    attributeCodeLessThanEquals: "K",
+		                                    entityLocaleEquals: en
+			                            },
+			                            orderGroupBy: {
+			                                attributeNameNatural: DESC
+			                            }
+		                            ) {
+		                                __typename
+		                                groupEntity {
+			                                __typename
+			                                primaryKey
+			                                type
+			                            }
+			                            count
+			                            facetStatistics {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return empty reference summary of non-grouped reference if missing reference")
+	void shouldReturnEmptyReferenceSummaryOfNonGroupedReferenceIfMissingReference(Evita evita, GraphQLTester tester) {
+		final EntityClassifier entityWithoutBrand = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					not(referenceHaving(Entities.BRAND))
+				),
+				require(
+					strip(0, 1)
+				)
+			)
+		);
+		assertNotNull(entityWithoutBrand);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: %d
+		                    }
+		                ) {
+		                    extraResults {
+		                        referenceSummary {
+		                            brand {
+			                            count
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				entityWithoutBrand.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH),
+				equalTo(
+					map()
+						.e(ResponseDescriptor.EXTRA_RESULTS.name(), map()
+							.e(ExtraResultsDescriptor.REFERENCE_SUMMARY.name(), map()
+								.e("brand", null)))
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with filtered and ordered facets")
+	void shouldReturnReferenceSummaryWithFilteredAndOrderedFacets(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReference(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								filterBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createReferenceSummaryWithCountsDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        referenceSummary {
+		                            parameter {
+		                                __typename
+		                                groupEntity {
+			                                __typename
+			                                primaryKey
+			                                type
+			                            }
+			                            count
+			                            facetStatistics(
+			                                filterBy: {
+		                                        attributeCodeLessThanEquals: "K",
+		                                        entityLocaleEquals: en
+				                            },
+				                            orderBy: {
+				                                attributeNameNatural: DESC
+				                            }
+			                            ) {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with marked facets")
+	void shouldReturnReferenceSummaryWithMarkedFacets(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								facetHaving(
+									Entities.PARAMETER,
+									entityHaving(
+										attributeLessThanEquals(ATTRIBUTE_CODE, "H")
+									)
+								)
+							)
+						),
+						require(
+							referenceSummaryOfReference(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								filterBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
+								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createReferenceSummaryWithCountsDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        userFilter: {
+		                            facetParameterHaving: {
+		                                entityHaving: {
+		                                    attributeCodeLessThanEquals: "H"
+		                                }
+		                            }
+		                        }
+		                    }
+		                ) {
+		                    extraResults {
+		                        referenceSummary {
+		                            parameter {
+		                                __typename
+		                                groupEntity {
+			                                __typename
+			                                primaryKey
+			                                type
+			                            }
+			                            count
+			                            facetStatistics(
+			                                filterBy: {
+		                                        attributeCodeLessThanEquals: "K",
+		                                        entityLocaleEquals: en
+				                            },
+				                            orderBy: {
+				                                attributeNameNatural: DESC
+				                            }
+			                            ) {
+			                                __typename
+			                                facetEntity {
+			                                    __typename
+			                                    primaryKey
+			                                    type
+			                                }
+			                                requested
+			                                count
+			                            }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
+				equalTo(expectedBody)
+			);
+	}
+
+	// TODO LHO: implement — backend computation of histogram statistics is not finished yet, this test is a mockup
+	//  illustrating the intended GraphQL query shape; expected to fail until the engine populates `histogramStatistics`
+	//  on `ReferenceGroupStatistics`. The reference schema must define a histogram index named `priceIndex` for the
+	//  `parameter` reference so the GraphQL schema exposes the corresponding field under `histogramStatistics`.
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with histogram statistics for products")
+	void shouldReturnReferenceSummaryWithHistogramStatisticsForProducts(Evita evita, GraphQLTester tester) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReferenceWithHistograms(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_CODE)),
+								null,
+								histogramStatistics(20, "priceIndex")
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct {
+		                    extraResults {
+		                        referenceSummary {
+		                            parameter {
+		                                count
+		                                facetStatistics {
+		                                    facetEntity {
+		                                        primaryKey
+		                                        type
+		                                    }
+		                                    requested
+		                                    count
+		                                }
+		                                histogramStatistics {
+		                                    priceIndex {
+		                                        min
+		                                        max
+		                                        overallCount
+		                                        buckets(requestedCount: 20, behavior: OPTIMIZED) {
+		                                            threshold
+		                                            occurrences
+		                                            requested
+		                                        }
+		                                    }
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue());
+	}
+
+	@Test
 	@UseDataSet(GRAPHQL_HUNDRED_PRODUCTS_FOR_SEGMENTS)
 	@DisplayName("Should return entities in manually crafter segmented order")
 	void shouldReturnDifferentlySortedSegments(Evita evita, GraphQLTester tester) {
@@ -8726,6 +9357,112 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.build()
 			)
 			.toList();
+	}
+
+	@Nonnull
+	private Map<String, Object> createNonGroupedReferenceSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                          @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(TYPENAME_FIELD, ReferenceGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.build())
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.build())
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+	}
+
+	@Nonnull
+	private List<Map<String, Object>> createReferenceSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                      @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return facetSummary.getReferenceStatistics()
+			.stream()
+			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(TYPENAME_FIELD, ReferenceGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(ReferenceGroupStatisticsDescriptor.GROUP_ENTITY.name(), groupStatistics.getGroupEntity() != null
+						? map()
+							.e(TYPENAME_FIELD, StringUtils.toPascalCase(groupStatistics.getGroupEntity().getType()))
+							.e(EntityDescriptor.PRIMARY_KEY.name(), groupStatistics.getGroupEntity().getPrimaryKey())
+							.e(EntityDescriptor.TYPE.name(), groupStatistics.getGroupEntity().getType())
+						: null)
+					.e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.build())
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.build())
+						.toList())
+					.build()
+			)
+			.toList();
+	}
+
+	@Nonnull
+	private Map<String, Object> createNonGroupedReferenceSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                           @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(
+									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.e(
+										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
+										.build())
+									.build())
+								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(
+									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
+									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
+									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
+									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
+									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
+									.build())
+								.build())
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
 	}
 
 	protected static Stream<Arguments> statisticTypeAndBaseVariants() {

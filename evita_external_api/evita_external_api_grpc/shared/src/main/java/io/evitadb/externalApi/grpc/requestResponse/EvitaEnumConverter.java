@@ -457,6 +457,7 @@ public class EvitaEnumConverter {
 		return switch (grpcFacetStatisticsDepth) {
 			case COUNTS -> FacetStatisticsDepth.COUNTS;
 			case IMPACT -> FacetStatisticsDepth.IMPACT;
+			case STATISTICS_NONE -> FacetStatisticsDepth.NONE;
 			case UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized remote facet statistics depth: " + grpcFacetStatisticsDepth);
 		};
@@ -533,6 +534,7 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static GrpcFacetStatisticsDepth toGrpcFacetStatisticsDepth(@Nonnull FacetStatisticsDepth facetStatisticsDepth) {
 		return switch (facetStatisticsDepth) {
+			case NONE -> GrpcFacetStatisticsDepth.STATISTICS_NONE;
 			case COUNTS -> GrpcFacetStatisticsDepth.COUNTS;
 			case IMPACT -> GrpcFacetStatisticsDepth.IMPACT;
 		};

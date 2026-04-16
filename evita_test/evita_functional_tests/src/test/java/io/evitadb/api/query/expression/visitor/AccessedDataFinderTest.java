@@ -90,6 +90,12 @@ public class AccessedDataFinderTest {
 					List.of(new VariablePathItem("entity"), new IdentifierPathItem("attributes"), new ElementPathItem("fallbackTag"))
 				),
 				"$entity.references['brand']?.*[$.attributes['tag']] ?*? $entity.attributes['fallbackTag'] ?? 'none']"
+			),
+			Arguments.of(
+				List.of(
+					List.of(new VariablePathItem("entity"), new IdentifierPathItem("references"), new ElementPathItem("categories"), new IdentifierPathItem("attributes"), new ElementPathItem("order"))
+				),
+				"$entity.references['categories']?.any($.attributes['order'] > 100)"
 			)
 		);
 	}

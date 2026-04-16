@@ -62,7 +62,8 @@ class GrpcHistogramBuilderTest {
 			)
 		);
 
-		final Map<String, GrpcHistogram> attributeHistogramMap = GrpcHistogramBuilder.buildAttributeHistogram(attributeHistogram);
+		final Map<String, GrpcHistogram> attributeHistogramMap =
+			GrpcHistogramBuilder.buildAttributeHistogram(attributeHistogram, null);
 
 		GrpcAssertions.assertAttributeHistograms(attributeHistogram, attributeHistogramMap);
 	}
@@ -70,7 +71,7 @@ class GrpcHistogramBuilderTest {
 	@Test
 	void buildPriceHistogram() {
 		final PriceHistogram priceHistogram = new PriceHistogram(this.histogram);
-		final GrpcHistogram grpcHistogram = GrpcHistogramBuilder.buildPriceHistogram(priceHistogram);
+		final GrpcHistogram grpcHistogram = GrpcHistogramBuilder.buildPriceHistogram(priceHistogram, null);
 		GrpcAssertions.assertPriceHistogram(priceHistogram, grpcHistogram);
 	}
 }

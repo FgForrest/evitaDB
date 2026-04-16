@@ -134,12 +134,16 @@ import java.util.Optional;
  * @see FacetSummary
  * @see FacetStatisticsDepth
  * @see FacetCalculationRules
+ *
+ * @deprecated Use {@link ReferenceSummary} instead. ReferenceSummary is extended version of the FacetSummary constraint.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated
 @ConstraintDefinition(
 	name = "summary",
 	shortDescription = "The constraint triggers computation of facet summary statistics for a single named reference with custom fetching, filtering, and ordering settings.",
-	userDocsLink = "/documentation/query/requirements/facet#facet-summary-of-reference"
+	userDocsLink = "/documentation/query/requirements/facet#facet-summary-of-reference",
+	deprecated = "Use `referenceSummary` instead. ReferenceSummary is extended version of the FacetSummary constraint."
 )
 public class FacetSummaryOfReference
 	extends AbstractRequireConstraintContainer

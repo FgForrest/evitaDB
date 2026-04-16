@@ -178,6 +178,26 @@ requireConstraint
     | 'facetSummary'                        args = facetSummary7Args                                        # facetSummary7Constraint
     | 'facetSummaryOfReference'             args = classifierArgs                                           # facetSummaryOfReference1Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference2Args                             # facetSummaryOfReference2Constraint
+    | 'referenceSummary'                    (emptyArgs | args = referenceSummary1Args)                      # referenceSummary1Constraint
+    | 'referenceSummary'                    args = referenceSummary2Args                                    # referenceSummary2Constraint
+    | 'referenceSummary'                    args = referenceSummary3Args                                    # referenceSummary3Constraint
+    | 'referenceSummary'                    args = referenceSummary4Args                                    # referenceSummary4Constraint
+    | 'referenceSummary'                    args = referenceSummary5Args                                    # referenceSummary5Constraint
+    | 'referenceSummary'                    args = referenceSummary6Args                                    # referenceSummary6Constraint
+    | 'referenceSummary'                    args = referenceSummary7Args                                    # referenceSummary7Constraint
+    | 'referenceSummaryWithHistograms'      (emptyArgs | args = referenceSummary1Args)                      # referenceSummaryWithHistograms1Constraint
+    | 'referenceSummaryWithHistograms'      args = referenceSummary2Args                                    # referenceSummaryWithHistograms2Constraint
+    | 'referenceSummaryWithHistograms'      args = referenceSummary3Args                                    # referenceSummaryWithHistograms3Constraint
+    | 'referenceSummaryWithHistograms'      args = referenceSummary4Args                                    # referenceSummaryWithHistograms4Constraint
+    | 'referenceSummaryWithHistograms'      args = referenceSummary5Args                                    # referenceSummaryWithHistograms5Constraint
+    | 'referenceSummaryWithHistograms'      args = referenceSummary6Args                                    # referenceSummaryWithHistograms6Constraint
+    | 'referenceSummaryWithHistograms'      args = referenceSummary7Args                                    # referenceSummaryWithHistograms7Constraint
+    | 'referenceSummaryOfReference'         args = classifierArgs                                           # referenceSummaryOfReference1Constraint
+    | 'referenceSummaryOfReference'         args = referenceSummaryOfReference2Args                         # referenceSummaryOfReference2Constraint
+    | 'referenceSummaryOfReferenceWithHistograms'  args = classifierArgs                                    # referenceSummaryOfReferenceWithHistograms1Constraint
+    | 'referenceSummaryOfReferenceWithHistograms'  args = referenceSummaryOfReference2Args                  # referenceSummaryOfReferenceWithHistograms2Constraint
+    | 'histogramStatistics'                 args = histogramStatistics1Args                                 # histogramStatistics1Constraint
+    | 'histogramStatistics'                 args = histogramStatistics2Args                                 # histogramStatistics2Constraint
     | 'facetGroupsConjunction'              args = facetGroupRelationArgs                                   # facetGroupsConjunctionConstraint
     | 'facetGroupsDisjunction'              args = facetGroupRelationArgs                                   # facetGroupsDisjunctionConstraint
     | 'facetGroupsNegation'                 args = facetGroupRelationArgs                                   # facetGroupsNegationConstraint
@@ -380,6 +400,28 @@ facetSummaryOrderArgs :                             (
                                                         (orderBy = orderConstraint) |
                                                         (orderBy = orderConstraint ARGS_DELIMITER orderGroupBy = orderConstraint)
                                                     ) ;
+
+referenceSummary1Args :                             argsOpening depth = valueToken argsClosing ;
+
+referenceSummary2Args :                             argsOpening depth = valueToken ARGS_DELIMITER filter = facetSummaryFilterArgs (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = referenceSummaryRequirementsArgs)? argsClosing ;
+
+referenceSummary3Args :                             argsOpening depth = valueToken ARGS_DELIMITER order = facetSummaryOrderArgs (ARGS_DELIMITER requirements = referenceSummaryRequirementsArgs)? argsClosing ;
+
+referenceSummary4Args :                             argsOpening depth = valueToken ARGS_DELIMITER requirements = referenceSummaryRequirementsArgs argsClosing ;
+
+referenceSummary5Args :                             argsOpening filter = facetSummaryFilterArgs (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = referenceSummaryRequirementsArgs)? argsClosing ;
+
+referenceSummary6Args :                             argsOpening order = facetSummaryOrderArgs (ARGS_DELIMITER requirements = referenceSummaryRequirementsArgs)? argsClosing ;
+
+referenceSummary7Args :                             argsOpening requirements = referenceSummaryRequirementsArgs argsClosing ;
+
+referenceSummaryOfReference2Args :                  argsOpening referenceName = valueToken (ARGS_DELIMITER depth = valueToken)? (ARGS_DELIMITER filter = facetSummaryFilterArgs)? (ARGS_DELIMITER order = facetSummaryOrderArgs)? (ARGS_DELIMITER requirements = referenceSummaryRequirementsArgs)? argsClosing ;
+
+referenceSummaryRequirementsArgs :                  requirements += requireConstraint (ARGS_DELIMITER requirements += requireConstraint)* ;
+
+histogramStatistics1Args :                          argsOpening requestedBucketCount = valueToken ARGS_DELIMITER values = variadicValueTokens argsClosing ;
+
+histogramStatistics2Args :                          argsOpening requestedBucketCount = valueToken ARGS_DELIMITER entityFetch = requireConstraint ARGS_DELIMITER values = variadicValueTokens argsClosing ;
 
 attributeHistogramArgs :                            argsOpening requestedBucketCount = valueToken ARGS_DELIMITER values = variadicValueTokens argsClosing ;
 

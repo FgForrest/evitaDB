@@ -1,49 +1,3 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2023
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2023
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 // Generated from EvitaQL.g4 by ANTLR 4.13.2
 
 package io.evitadb.api.query.parser.grammar;
@@ -459,66 +413,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitEntityPrimaryKeyInSetConstraint(EvitaQLParser.EntityPrimaryKeyInSetConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code entityPrimaryKeyGreaterThanConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterEntityPrimaryKeyGreaterThanConstraint(EvitaQLParser.EntityPrimaryKeyGreaterThanConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code entityPrimaryKeyGreaterThanConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitEntityPrimaryKeyGreaterThanConstraint(EvitaQLParser.EntityPrimaryKeyGreaterThanConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code entityPrimaryKeyGreaterThanEqualsConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterEntityPrimaryKeyGreaterThanEqualsConstraint(EvitaQLParser.EntityPrimaryKeyGreaterThanEqualsConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code entityPrimaryKeyGreaterThanEqualsConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitEntityPrimaryKeyGreaterThanEqualsConstraint(EvitaQLParser.EntityPrimaryKeyGreaterThanEqualsConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code entityPrimaryKeyLessThanConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterEntityPrimaryKeyLessThanConstraint(EvitaQLParser.EntityPrimaryKeyLessThanConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code entityPrimaryKeyLessThanConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitEntityPrimaryKeyLessThanConstraint(EvitaQLParser.EntityPrimaryKeyLessThanConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code entityPrimaryKeyLessThanEqualsConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterEntityPrimaryKeyLessThanEqualsConstraint(EvitaQLParser.EntityPrimaryKeyLessThanEqualsConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code entityPrimaryKeyLessThanEqualsConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitEntityPrimaryKeyLessThanEqualsConstraint(EvitaQLParser.EntityPrimaryKeyLessThanEqualsConstraintContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code entityPrimaryKeyBetweenConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void enterEntityPrimaryKeyBetweenConstraint(EvitaQLParser.EntityPrimaryKeyBetweenConstraintContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code entityPrimaryKeyBetweenConstraint}
-	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
-	 * @param ctx the parse tree
-	 */
-	void exitEntityPrimaryKeyBetweenConstraint(EvitaQLParser.EntityPrimaryKeyBetweenConstraintContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code entityLocaleEqualsConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
@@ -1708,6 +1602,246 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitFacetSummaryOfReference2Constraint(EvitaQLParser.FacetSummaryOfReference2ConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code referenceSummary1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary1Constraint(EvitaQLParser.ReferenceSummary1ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummary1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary1Constraint(EvitaQLParser.ReferenceSummary1ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummary2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary2Constraint(EvitaQLParser.ReferenceSummary2ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummary2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary2Constraint(EvitaQLParser.ReferenceSummary2ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummary3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary3Constraint(EvitaQLParser.ReferenceSummary3ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummary3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary3Constraint(EvitaQLParser.ReferenceSummary3ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummary4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary4Constraint(EvitaQLParser.ReferenceSummary4ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummary4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary4Constraint(EvitaQLParser.ReferenceSummary4ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummary5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary5Constraint(EvitaQLParser.ReferenceSummary5ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummary5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary5Constraint(EvitaQLParser.ReferenceSummary5ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummary6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary6Constraint(EvitaQLParser.ReferenceSummary6ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummary6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary6Constraint(EvitaQLParser.ReferenceSummary6ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummary7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary7Constraint(EvitaQLParser.ReferenceSummary7ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummary7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary7Constraint(EvitaQLParser.ReferenceSummary7ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryWithHistograms1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryWithHistograms1Constraint(EvitaQLParser.ReferenceSummaryWithHistograms1ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryWithHistograms1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryWithHistograms1Constraint(EvitaQLParser.ReferenceSummaryWithHistograms1ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryWithHistograms2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryWithHistograms2Constraint(EvitaQLParser.ReferenceSummaryWithHistograms2ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryWithHistograms2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryWithHistograms2Constraint(EvitaQLParser.ReferenceSummaryWithHistograms2ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryWithHistograms3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryWithHistograms3Constraint(EvitaQLParser.ReferenceSummaryWithHistograms3ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryWithHistograms3Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryWithHistograms3Constraint(EvitaQLParser.ReferenceSummaryWithHistograms3ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryWithHistograms4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryWithHistograms4Constraint(EvitaQLParser.ReferenceSummaryWithHistograms4ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryWithHistograms4Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryWithHistograms4Constraint(EvitaQLParser.ReferenceSummaryWithHistograms4ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryWithHistograms5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryWithHistograms5Constraint(EvitaQLParser.ReferenceSummaryWithHistograms5ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryWithHistograms5Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryWithHistograms5Constraint(EvitaQLParser.ReferenceSummaryWithHistograms5ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryWithHistograms6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryWithHistograms6Constraint(EvitaQLParser.ReferenceSummaryWithHistograms6ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryWithHistograms6Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryWithHistograms6Constraint(EvitaQLParser.ReferenceSummaryWithHistograms6ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryWithHistograms7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryWithHistograms7Constraint(EvitaQLParser.ReferenceSummaryWithHistograms7ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryWithHistograms7Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryWithHistograms7Constraint(EvitaQLParser.ReferenceSummaryWithHistograms7ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryOfReference1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryOfReference1Constraint(EvitaQLParser.ReferenceSummaryOfReference1ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryOfReference1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryOfReference1Constraint(EvitaQLParser.ReferenceSummaryOfReference1ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryOfReference2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryOfReference2Constraint(EvitaQLParser.ReferenceSummaryOfReference2ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryOfReference2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryOfReference2Constraint(EvitaQLParser.ReferenceSummaryOfReference2ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryOfReferenceWithHistograms1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryOfReferenceWithHistograms1Constraint(EvitaQLParser.ReferenceSummaryOfReferenceWithHistograms1ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryOfReferenceWithHistograms1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryOfReferenceWithHistograms1Constraint(EvitaQLParser.ReferenceSummaryOfReferenceWithHistograms1ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code referenceSummaryOfReferenceWithHistograms2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryOfReferenceWithHistograms2Constraint(EvitaQLParser.ReferenceSummaryOfReferenceWithHistograms2ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code referenceSummaryOfReferenceWithHistograms2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryOfReferenceWithHistograms2Constraint(EvitaQLParser.ReferenceSummaryOfReferenceWithHistograms2ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code histogramStatistics1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterHistogramStatistics1Constraint(EvitaQLParser.HistogramStatistics1ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code histogramStatistics1Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitHistogramStatistics1Constraint(EvitaQLParser.HistogramStatistics1ConstraintContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code histogramStatistics2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterHistogramStatistics2Constraint(EvitaQLParser.HistogramStatistics2ConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code histogramStatistics2Constraint}
+	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitHistogramStatistics2Constraint(EvitaQLParser.HistogramStatistics2ConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code facetGroupsConjunctionConstraint}
 	 * labeled alternative in {@link EvitaQLParser#requireConstraint}.
 	 * @param ctx the parse tree
@@ -2785,6 +2919,116 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummary1Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary1Args(EvitaQLParser.ReferenceSummary1ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummary1Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary1Args(EvitaQLParser.ReferenceSummary1ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummary2Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary2Args(EvitaQLParser.ReferenceSummary2ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummary2Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary2Args(EvitaQLParser.ReferenceSummary2ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummary3Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary3Args(EvitaQLParser.ReferenceSummary3ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummary3Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary3Args(EvitaQLParser.ReferenceSummary3ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummary4Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary4Args(EvitaQLParser.ReferenceSummary4ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummary4Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary4Args(EvitaQLParser.ReferenceSummary4ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummary5Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary5Args(EvitaQLParser.ReferenceSummary5ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummary5Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary5Args(EvitaQLParser.ReferenceSummary5ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummary6Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary6Args(EvitaQLParser.ReferenceSummary6ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummary6Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary6Args(EvitaQLParser.ReferenceSummary6ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummary7Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummary7Args(EvitaQLParser.ReferenceSummary7ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummary7Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummary7Args(EvitaQLParser.ReferenceSummary7ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummaryOfReference2Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryOfReference2Args(EvitaQLParser.ReferenceSummaryOfReference2ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummaryOfReference2Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryOfReference2Args(EvitaQLParser.ReferenceSummaryOfReference2ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#referenceSummaryRequirementsArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterReferenceSummaryRequirementsArgs(EvitaQLParser.ReferenceSummaryRequirementsArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#referenceSummaryRequirementsArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitReferenceSummaryRequirementsArgs(EvitaQLParser.ReferenceSummaryRequirementsArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#histogramStatistics1Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterHistogramStatistics1Args(EvitaQLParser.HistogramStatistics1ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#histogramStatistics1Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitHistogramStatistics1Args(EvitaQLParser.HistogramStatistics1ArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#histogramStatistics2Args}.
+	 * @param ctx the parse tree
+	 */
+	void enterHistogramStatistics2Args(EvitaQLParser.HistogramStatistics2ArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#histogramStatistics2Args}.
+	 * @param ctx the parse tree
+	 */
+	void exitHistogramStatistics2Args(EvitaQLParser.HistogramStatistics2ArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#attributeHistogramArgs}.
 	 * @param ctx the parse tree

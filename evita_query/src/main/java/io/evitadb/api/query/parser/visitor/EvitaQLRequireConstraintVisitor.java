@@ -1769,6 +1769,345 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	}
 
 	@Override
+	public RequireConstraint visitReferenceSummary1Constraint(ReferenceSummary1ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				if (ctx.args == null) {
+					return new ReferenceSummary();
+				}
+				return new ReferenceSummary(
+					ctx.args.depth.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummary2Constraint(ReferenceSummary2ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, ctx.args.depth, ctx.args.filter, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummary3Constraint(ReferenceSummary3ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, ctx.args.depth, null, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummary4Constraint(ReferenceSummary4ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, ctx.args.depth, null, null, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummary5Constraint(ReferenceSummary5ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, null, ctx.args.filter, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummary6Constraint(ReferenceSummary6ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, null, null, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummary7Constraint(ReferenceSummary7ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, null, null, null, ctx.args.requirements)
+		);
+	}
+
+	private RequireConstraint visitReferenceSummaryConstraint(@Nonnull RequireConstraintContext ctx,
+	                                                          @Nullable ValueTokenContext depthArg,
+	                                                          @Nullable FacetSummaryFilterArgsContext filterArg,
+	                                                          @Nullable FacetSummaryOrderArgsContext orderArg,
+	                                                          @Nullable ReferenceSummaryRequirementsArgsContext requirementsArg) {
+		final FacetStatisticsDepth depth = ofNullable(depthArg)
+			.map(it -> it.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class))
+			.orElse(FacetStatisticsDepth.COUNTS);
+
+		final FilterConstraint filterBy1 = ofNullable(filterArg)
+			.map(filter -> filter.filterBy)
+			.map(c -> (FilterConstraint) visitChildConstraint(this.filterConstraintVisitor, c, FilterBy.class, FilterGroupBy.class))
+			.orElse(null);
+		final FilterGroupBy filterBy2 = ofNullable(filterArg)
+			.flatMap(filter -> ofNullable(filter.filterGroupBy))
+			.map(c -> visitChildConstraint(this.filterConstraintVisitor, c, FilterGroupBy.class))
+			.orElse(null);
+		if (filterBy2 != null) {
+			Assert.isTrue(
+				filterBy1 instanceof FilterBy,
+				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
+			);
+		}
+
+		final OrderConstraint orderBy1 = ofNullable(orderArg)
+			.map(order -> order.orderBy)
+			.map(c -> (OrderConstraint) visitChildConstraint(this.orderConstraintVisitor, c, OrderBy.class, OrderGroupBy.class))
+			.orElse(null);
+		final OrderGroupBy orderBy2 = ofNullable(orderArg)
+			.flatMap(order -> ofNullable(order.orderGroupBy))
+			.map(c -> visitChildConstraint(this.orderConstraintVisitor, c, OrderGroupBy.class))
+			.orElse(null);
+		if (orderBy2 != null) {
+			Assert.isTrue(
+				orderBy1 instanceof OrderBy,
+				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
+			);
+		}
+
+		return new ReferenceSummary(
+			depth,
+			filterBy1 instanceof FilterBy f ? f : null,
+			filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
+			orderBy1 instanceof OrderBy o ? o : null,
+			orderBy1 instanceof OrderGroupBy o ? o : orderBy2,
+			parseReferenceSummaryRequirementsArgs(requirementsArg)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryWithHistograms1Constraint(ReferenceSummaryWithHistograms1ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				if (ctx.args == null) {
+					return new ReferenceSummary();
+				}
+				return new ReferenceSummary(
+					ctx.args.depth.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class)
+				);
+			}
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryWithHistograms2Constraint(ReferenceSummaryWithHistograms2ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, ctx.args.depth, ctx.args.filter, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryWithHistograms3Constraint(ReferenceSummaryWithHistograms3ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, ctx.args.depth, null, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryWithHistograms4Constraint(ReferenceSummaryWithHistograms4ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, ctx.args.depth, null, null, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryWithHistograms5Constraint(ReferenceSummaryWithHistograms5ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, null, ctx.args.filter, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryWithHistograms6Constraint(ReferenceSummaryWithHistograms6ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, null, null, ctx.args.order, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryWithHistograms7Constraint(ReferenceSummaryWithHistograms7ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> visitReferenceSummaryConstraint(ctx, null, null, null, ctx.args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryOfReference1Constraint(ReferenceSummaryOfReference1ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new ReferenceSummaryOfReference(
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryOfReference2Constraint(ReferenceSummaryOfReference2ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> buildReferenceSummaryOfReference(ctx, ctx.args)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryOfReferenceWithHistograms1Constraint(ReferenceSummaryOfReferenceWithHistograms1ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new ReferenceSummaryOfReference(
+				ctx.args.classifier.accept(this.stringValueTokenVisitor).asString()
+			)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitReferenceSummaryOfReferenceWithHistograms2Constraint(ReferenceSummaryOfReferenceWithHistograms2ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> buildReferenceSummaryOfReference(ctx, ctx.args)
+		);
+	}
+
+	/**
+	 * Shared builder for {@code referenceSummaryOfReference} and its {@code ...WithHistograms} alias.
+	 * Both accept identical {@link ReferenceSummaryOfReference2ArgsContext} arguments — the alias only
+	 * affects the EvitaQL string representation via
+	 * {@link ReferenceSummaryOfReference#getSuffixIfApplied()}.
+	 */
+	@Nonnull
+	private ReferenceSummaryOfReference buildReferenceSummaryOfReference(
+		@Nonnull RequireConstraintContext ctx,
+		@Nonnull ReferenceSummaryOfReference2ArgsContext args
+	) {
+		final String referenceName = args.referenceName.accept(this.stringValueTokenVisitor).asString();
+		final FacetStatisticsDepth depth = ofNullable(args.depth)
+			.map(it -> it.accept(this.facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class))
+			.orElse(FacetStatisticsDepth.COUNTS);
+
+		final FilterConstraint filterBy1 = ofNullable(args.filter)
+			.map(filter -> filter.filterBy)
+			.map(c -> (FilterConstraint) visitChildConstraint(this.filterConstraintVisitor, c, FilterBy.class, FilterGroupBy.class))
+			.orElse(null);
+		final FilterGroupBy filterBy2 = ofNullable(args.filter)
+			.flatMap(filter -> ofNullable(filter.filterGroupBy))
+			.map(c -> visitChildConstraint(this.filterConstraintVisitor, c, FilterGroupBy.class))
+			.orElse(null);
+		if (filterBy2 != null) {
+			Assert.isTrue(
+				filterBy1 instanceof FilterBy,
+				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `filterGroupBy` constraints.")
+			);
+		}
+
+		final OrderConstraint orderBy1 = ofNullable(args.order)
+			.map(order -> order.orderBy)
+			.map(c -> (OrderConstraint) visitChildConstraint(this.orderConstraintVisitor, c, OrderBy.class, OrderGroupBy.class))
+			.orElse(null);
+		final OrderGroupBy orderBy2 = ofNullable(args.order)
+			.flatMap(order -> ofNullable(order.orderGroupBy))
+			.map(c -> visitChildConstraint(this.orderConstraintVisitor, c, OrderGroupBy.class))
+			.orElse(null);
+		if (orderBy2 != null) {
+			Assert.isTrue(
+				orderBy1 instanceof OrderBy,
+				() -> new EvitaSyntaxException(ctx, "Cannot pass 2 `orderGroupBy` constraints.")
+			);
+		}
+
+		return new ReferenceSummaryOfReference(
+			referenceName,
+			depth,
+			filterBy1 instanceof FilterBy f ? f : null,
+			filterBy1 instanceof FilterGroupBy f ? f : filterBy2,
+			orderBy1 instanceof OrderBy o ? o : null,
+			orderBy1 instanceof OrderGroupBy o ? o : orderBy2,
+			parseReferenceSummaryRequirementsArgs(args.requirements)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitHistogramStatistics1Constraint(HistogramStatistics1ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> buildHistogramStatistics(ctx, ctx.args.requestedBucketCount, null, ctx.args.values)
+		);
+	}
+
+	@Override
+	public RequireConstraint visitHistogramStatistics2Constraint(HistogramStatistics2ConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> buildHistogramStatistics(
+				ctx,
+				ctx.args.requestedBucketCount,
+				visitChildConstraint(ctx.args.entityFetch, EntityFetch.class),
+				ctx.args.values
+			)
+		);
+	}
+
+	/**
+	 * Common builder for {@link ReferenceHistogramStatistics}. The variadic value list may carry an
+	 * optional {@link HistogramBehavior} enum as its first element (matching the in-memory constructor
+	 * shape shared with {@link AttributeHistogram}), followed by one or more histogram index names.
+	 */
+	@Nonnull
+	private ReferenceHistogramStatistics buildHistogramStatistics(
+		@Nonnull RequireConstraintContext ctx,
+		@Nonnull ValueTokenContext requestedBucketCountArg,
+		@Nullable EntityFetch entityFetch,
+		@Nonnull VariadicValueTokensContext valuesArg
+	) {
+		final int requestedBucketCount = requestedBucketCountArg.accept(this.intValueTokenVisitor).asInt();
+
+		final LinkedList<Serializable> args = Arrays.stream(valuesArg
+				.accept(this.attributeHistogramArgValueTokenVisitor)
+				.asSerializableArray())
+			.collect(Collectors.toCollection(LinkedList::new));
+
+		final HistogramBehavior behavior;
+		final Serializable firstArgument = args.peekFirst();
+		if (firstArgument instanceof HistogramBehavior) {
+			behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
+		} else if (firstArgument instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
+			behavior = castArgument(ctx, args.pop(), EnumWrapper.class).toEnum(HistogramBehavior.class);
+		} else {
+			behavior = null;
+		}
+
+		final Serializable indexNamesArgument = args.peekFirst();
+		final String[] indexNames;
+		if (indexNamesArgument == null) {
+			indexNames = new String[0];
+		} else if (indexNamesArgument instanceof Iterable<?>) {
+			indexNames = StreamSupport.stream(((Iterable<?>) args.pop()).spliterator(), false)
+				.map(it -> castArgument(ctx, it, String.class))
+				.toArray(String[]::new);
+		} else if (indexNamesArgument.getClass().isArray()) {
+			indexNames = Arrays.stream((Object[]) args.pop())
+				.map(it -> castArgument(ctx, it, String.class))
+				.toArray(String[]::new);
+		} else {
+			indexNames = args.stream()
+				.map(it -> castArgument(ctx, it, String.class))
+				.toArray(String[]::new);
+		}
+
+		return new ReferenceHistogramStatistics(requestedBucketCount, behavior, entityFetch, indexNames);
+	}
+
+	@Override
 	public RequireConstraint visitFacetGroupsConjunctionConstraint(FacetGroupsConjunctionConstraintContext ctx) {
 		return parse(
 			ctx,
@@ -2338,6 +2677,23 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			managedReferencesBehaviour
 				.accept(this.managedReferenceBehaviourValueTokenVisitor)
 				.asEnum(ManagedReferencesBehaviour.class);
+	}
+
+	/**
+	 * Parses the variadic requirements list of {@link ReferenceSummary} /
+	 * {@link ReferenceSummaryOfReference}. Each element must resolve to an {@link EntityFetch},
+	 * {@link EntityGroupFetch}, or {@link ReferenceHistogramStatistics} — the constraint constructors
+	 * enforce the same shape at runtime, so we let any {@link RequireConstraint} through here and
+	 * let the constructor validate.
+	 */
+	@Nonnull
+	private RequireConstraint[] parseReferenceSummaryRequirementsArgs(@Nullable ReferenceSummaryRequirementsArgsContext ctx) {
+		if (ctx == null) {
+			return new RequireConstraint[0];
+		}
+		return ctx.requirements.stream()
+			.map(rc -> visitChildConstraint(rc, RequireConstraint.class))
+			.toArray(RequireConstraint[]::new);
 	}
 
 	@Nonnull

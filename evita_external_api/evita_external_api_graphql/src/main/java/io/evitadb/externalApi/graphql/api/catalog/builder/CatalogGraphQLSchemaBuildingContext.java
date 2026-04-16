@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.graphql.api.catalog.builder;
 
 import graphql.schema.GraphQLInterfaceType;
+import graphql.schema.GraphQLObjectType;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -35,6 +36,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.referen
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.ReferenceDefinitionKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.ReferenceWithReferencedEntityKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.entity.reference.WithNamedReferenceKey;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.extraResult.ReferenceHistogramKey;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.HelperInterfaceTypeResolver;
 import io.evitadb.externalApi.graphql.configuration.GraphQLOptions;
 import lombok.Getter;
@@ -79,6 +81,13 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Nonnull private final Map<ReferenceWithReferencedEntityKey, GraphQLInterfaceType> referenceWithReferencedEntityStripInterfaces;
 	@Nonnull private final Map<ReferenceDefinitionKey, GraphQLInterfaceType> referenceDefinitionStripInterfaces;
 
+	/**
+	 * Cache of per-referenced-entity-type reference histogram concrete object types. One
+	 * `{EntityType}Histogram` object is shared across all references pointing to the same
+	 * target entity type.
+	 */
+	@Nonnull private final Map<ReferenceHistogramKey, GraphQLObjectType> referenceHistogramObjects;
+
 	public CatalogGraphQLSchemaBuildingContext(
 		@Nonnull GraphQLOptions config,
 		@Nonnull Evita evita,
@@ -121,6 +130,8 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 
 		this.referenceWithReferencedEntityStripInterfaces = createHashMap(uniqueReferencedEntityTypesCount);
 		this.referenceDefinitionStripInterfaces = createHashMap(totalReferencesCount);
+
+		this.referenceHistogramObjects = createHashMap(uniqueReferencedEntityTypesCount);
 	}
 
 	@Nonnull
@@ -283,6 +294,26 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 				this.registerType(newInterface);
 				this.registerTypeResolver(newInterface, HelperInterfaceTypeResolver.getInstance());
 				return newInterface;
+			}
+		);
+	}
+
+	/**
+	 * Returns a cached per-referenced-entity-type reference histogram object type or computes it when
+	 * absent. The cache key is based solely on the referenced entity type, so all references
+	 * targeting the same entity share a single concrete `{EntityType}Histogram` type.
+	 */
+	@Nonnull
+	public GraphQLObjectType getOrComputeReferenceHistogramObject(
+		@Nonnull ReferenceHistogramKey key,
+		@Nonnull Supplier<GraphQLObjectType> referenceHistogramObjectBuilder
+	) {
+		return this.referenceHistogramObjects.computeIfAbsent(
+			key,
+			k -> {
+				final GraphQLObjectType newObject = referenceHistogramObjectBuilder.get();
+				this.registerType(newObject);
+				return newObject;
 			}
 		);
 	}
