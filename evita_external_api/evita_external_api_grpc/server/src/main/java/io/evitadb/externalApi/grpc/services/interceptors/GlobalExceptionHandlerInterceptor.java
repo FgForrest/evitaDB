@@ -28,6 +28,7 @@ import com.google.rpc.ErrorInfo;
 import com.linecorp.armeria.common.stream.ClosedStreamException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.grpc.exception.ClosedGrpcStreamException;
 import io.evitadb.utils.ExceptionUtils;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -138,12 +139,18 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 	 * Checks whether the given exception represents a client-initiated cancellation
 	 * (e.g., HTTP/2 RST_STREAM CANCEL or CompletableFuture cancellation).
 	 *
+	 * Also recognises {@link ClosedGrpcStreamException}, our typed wrapper around
+	 * gRPC's stream-already-closed `IllegalStateException` — raised when our
+	 * callback tries to push onto a stream whose `cancelled` flag was already
+	 * set by an incoming client cancel. That is a benign race, not a server bug.
+	 *
 	 * @param exception the exception to check
 	 * @return true if the exception indicates client cancellation
 	 */
 	private static boolean isClientCancellation(@Nonnull Throwable exception) {
 		return ExceptionUtils.causeChainContains(exception, ClosedStreamException.class)
-			|| ExceptionUtils.causeChainContains(exception, CancellationException.class);
+			|| ExceptionUtils.causeChainContains(exception, CancellationException.class)
+			|| ExceptionUtils.causeChainContains(exception, ClosedGrpcStreamException.class);
 	}
 
 	private static class ExceptionHandler<T, R> extends ForwardingServerCallListener.SimpleForwardingServerCallListener<T> {

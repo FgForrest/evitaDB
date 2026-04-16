@@ -57,7 +57,7 @@ class ClientTimeoutOptionsTest {
 
 		assertEquals(5, options.timeout());
 		assertEquals(TimeUnit.SECONDS, options.timeoutUnit());
-		assertEquals(3600, options.streamingTimeout());
+		assertEquals(300, options.streamingTimeout());
 		assertEquals(TimeUnit.SECONDS, options.streamingTimeoutUnit());
 	}
 

@@ -2068,7 +2068,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldRestoreAndFetchExistingCustomEntity(
-		EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
+		EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories
+	) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		final AtomicReference<SealedEntity> theEntity = new AtomicReference<>();
 		evitaClient.updateCatalog(
