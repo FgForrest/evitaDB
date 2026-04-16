@@ -462,6 +462,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			progressObserver
 		);
 
+		// wire the termination callback chain so that stream completion (or error) removes
+		// the session from EvitaClient.activeSessions via onTerminationCallback
+		final CompletableFuture<CommitVersions> closeFuture = closeInternally();
 		final Duration timeout = this.streamingTimeout;
 
 		executeWithStreamingEvitaSessionService(
@@ -489,19 +492,34 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 					@Override
 					public void onError(Throwable throwable) {
+						closeFuture.completeExceptionally(throwable);
 						goLiveProgress.completeExceptionally(throwable);
 					}
 
 					@Override
 					public void onCompleted() {
-						goLiveProgress.complete(
-							new CommitVersions(this.catalogVersion, this.catalogSchemaVersion)
-						);
-
-						if (this.catalogVersion > -1 && this.catalogSchemaVersion > -1) {
-							EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+						try {
+							final CommitVersions commitVersions = new CommitVersions(
 								this.catalogVersion, this.catalogSchemaVersion
 							);
+
+							final CommitProgressRecord cpr = new CommitProgressRecord();
+							cpr.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, commitVersions);
+							EvitaClientSession.this.commitProgress = cpr;
+
+							if (this.catalogVersion > -1 && this.catalogSchemaVersion > -1) {
+								EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
+									this.catalogVersion, this.catalogSchemaVersion
+								);
+							}
+
+							// completing the close future triggers onTerminationCallback which
+							// removes this session from EvitaClient.activeSessions
+							closeFuture.complete(commitVersions);
+							goLiveProgress.complete(commitVersions);
+						} catch (Exception e) {
+							closeFuture.completeExceptionally(e);
+							goLiveProgress.completeExceptionally(e);
 						}
 					}
 				};
@@ -548,7 +566,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 						@Override
 						public void onCompleted() {
-
+							if (!result.isDone()) {
+								result.completeExceptionally(
+									new GenericEvitaInternalError(
+										"Server completed the close stream without sending final commit versions! This should never happen and indicates a bug in the server implementation.",
+										"Unexpected end of close progress stream!"
+									)
+								);
+							}
 						}
 					};
 					evitaSessionService.close(
@@ -609,8 +634,15 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public CommitProgress closeNowWithProgress() {
 		if (isActive()) {
 			final CompletableFuture<CommitVersions> result = closeInternally();
-			this.commitProgress = new CommitProgressRecord();
-			this.commitProgress.on(this.commitBehaviour).thenAccept(result::complete);
+			this.commitProgress = new CommitProgressRecord(
+				(commitVersions, throwable) -> {
+					if (throwable == null) {
+						result.complete(commitVersions);
+					} else {
+						result.completeExceptionally(throwable);
+					}
+				}
+			);
 			final Duration timeout = this.streamingTimeout;
 
 			executeWithStreamingEvitaSessionService(
@@ -639,12 +671,19 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 						@Override
 						public void onError(Throwable throwable) {
-							result.completeExceptionally(throwable);
+							EvitaClientSession.this.commitProgress.completeExceptionally(throwable);
 						}
 
 						@Override
 						public void onCompleted() {
-
+							if (!EvitaClientSession.this.commitProgress.isDone()) {
+								EvitaClientSession.this.commitProgress.completeExceptionally(
+									new GenericEvitaInternalError(
+										"Server completed the commit progress stream without sending final commit versions! This should never happen and indicates a bug in the server implementation.",
+										"Unexpected end of commit progress stream!"
+									)
+								);
+							}
 						}
 					};
 					evitaSessionService.closeWithProgress(
@@ -656,6 +695,21 @@ public class EvitaClientSession implements EvitaSessionContract {
 					return null;
 				}
 			);
+		} else if (this.commitProgress == null) {
+			// Session is already closing via a different path (closeNow() or
+			// goLiveAndCloseWithProgress()) that populated closedFuture but has not
+			// yet produced a commitProgress record. Synthesize one wired to the
+			// existing closedFuture so we honor the @Nonnull contract instead of
+			// tripping callers like closeWhen() with an NPE.
+			final CommitProgressRecord synthetic = new CommitProgressRecord();
+			this.closedFuture.whenComplete((commitVersions, throwable) -> {
+				if (throwable != null) {
+					synthetic.completeExceptionally(throwable);
+				} else {
+					synthetic.complete(commitVersions);
+				}
+			});
+			this.commitProgress = synthetic;
 		}
 		return this.commitProgress;
 	}
