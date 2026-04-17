@@ -71,15 +71,6 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 	 * Publisher that emits {@link TrunkIncorporationTransactionTask} objects to be processed by the next stage.
 	 */
 	private final SubmissionPublisher<TrunkIncorporationTransactionTask> publisher;
-	/**
-	 * Number of catalog versions that were dropped during the last transaction processing.
-	 * This is used to notify the transaction manager about the dropped versions.
-	 */
-	private int droppedCatalogVersions;
-	/**
-	 * Delta of the catalog schema version that was dropped during the last transaction processing.
-	 */
-	private int droppedCatalogSchemaVersionDelta;
 
 	public ConflictResolutionAndWalAppendingTransactionStage(
 		@Nonnull Executor executor,
@@ -112,13 +103,30 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			"Future is unexpectedly null in the first stage!"
 		);
 
-		// identify conflicts with other transactions
 		final long expectedCatalogVersion = this.transactionManager.getLastAssignedCatalogVersion() + 1L;
+		// track how many catalog versions / schema deltas must be rolled back if something throws below
+		// resolveConflicts either succeeds (and both effects are applied) or rolls its own effects back
+		// internally before propagating the exception, so no bookkeeping is required before it returns
+		int droppedCatalogVersions = 0;
+		int droppedCatalogSchemaVersionDelta = 0;
 		try {
-			// first resolve conflicts with previously committed transactions
+			// first resolve conflicts with previously committed transactions and reserve a catalog version
 			final CommitVersions commitVersions = resolveConflicts(task, expectedCatalogVersion);
-			// then append the transaction to the shared WAL
-			appendToSharedWal(task, commitVersions);
+			droppedCatalogVersions = 1;
+			droppedCatalogSchemaVersionDelta = task.catalogSchemaVersionDelta();
+			try {
+				// then append the transaction to the shared WAL
+				appendToSharedWal(task, commitVersions);
+			} catch (CatalogWriteAheadLastTransactionMismatchException walMismatch) {
+				// the WAL is further ahead than the transaction manager believes — close the whole gap
+				droppedCatalogVersions = Math.toIntExact(
+					walMismatch.getCurrentTransactionVersion() - this.transactionManager.getLastWrittenCatalogVersion()
+				);
+				throw walMismatch;
+			}
+			// WAL append succeeded — the reserved version is now durable
+			droppedCatalogVersions = 0;
+			droppedCatalogSchemaVersionDelta = 0;
 			// and continue with trunk incorporation
 			push(
 				task,
@@ -134,6 +142,13 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 		} catch (RuntimeException ex) {
 			// rollback any conflict keys that were tentatively assigned
 			this.transactionManager.rollbackConflictKeys(expectedCatalogVersion);
+			// release the catalog version and schema delta reserved for this transaction (if any)
+			if (droppedCatalogVersions > 0 || droppedCatalogSchemaVersionDelta > 0) {
+				this.transactionManager.notifyCatalogVersionDropped(
+					droppedCatalogVersions,
+					droppedCatalogSchemaVersionDelta
+				);
+			}
 			// rethrow the exception to be handled by the exception handler
 			throw ex;
 		}
@@ -157,30 +172,40 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			task.conflictKeys()
 		);
 
-		// assign new catalog version
+		// assign new catalog version — from this point on, an exception must roll back the reservation
 		final long assignedCatalogVersion = this.transactionManager.getNextCatalogVersionToAssign();
-		this.droppedCatalogVersions = 1;
-
-		Assert.isPremiseValid(
-			expectedCatalogVersion == assignedCatalogVersion,
-			"Expected catalog version " + expectedCatalogVersion + " but got " + assignedCatalogVersion + "!"
-		);
-
-		final CommitVersions commitVersions = new CommitVersions(
-			assignedCatalogVersion,
-			this.transactionManager.addDeltaAndEstimateCatalogSchemaVersion(task.catalogSchemaVersionDelta())
-		);
-
-		task.commitProgress()
-			.complete(
-				CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION,
-				commitVersions,
-				this.transactionManager.getRequestExecutor()
+		int appliedSchemaDelta = 0;
+		boolean success = false;
+		try {
+			Assert.isPremiseValid(
+				expectedCatalogVersion == assignedCatalogVersion,
+				"Expected catalog version " + expectedCatalogVersion + " but got " + assignedCatalogVersion + "!"
 			);
 
-		conflictResolutionEvent.finishWithResolution(TransactionResolution.COMMIT).commit();
+			final int estimatedSchemaVersion = this.transactionManager.addDeltaAndEstimateCatalogSchemaVersion(
+				task.catalogSchemaVersionDelta()
+			);
+			appliedSchemaDelta = task.catalogSchemaVersionDelta();
 
-		return commitVersions;
+			final CommitVersions commitVersions = new CommitVersions(assignedCatalogVersion, estimatedSchemaVersion);
+
+			task.commitProgress()
+				.complete(
+					CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION,
+					commitVersions,
+					this.transactionManager.getRequestExecutor()
+				);
+
+			conflictResolutionEvent.finishWithResolution(TransactionResolution.COMMIT).commit();
+
+			success = true;
+			return commitVersions;
+		} finally {
+			// if we threw after reserving the version, release exactly what we applied
+			if (!success) {
+				this.transactionManager.notifyCatalogVersionDropped(1, appliedSchemaDelta);
+			}
+		}
 	}
 
 	/**
@@ -222,8 +247,6 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				task.catalogName(),
 				ex
 			);
-			this.droppedCatalogVersions = Math.toIntExact(ex.getCurrentTransactionVersion() - this.transactionManager.getLastWrittenCatalogVersion());
-			this.droppedCatalogSchemaVersionDelta = task.catalogSchemaVersionDelta();
 			throw ex;
 		}
 
@@ -238,29 +261,11 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 
 		this.transactionManager.updateLastWrittenCatalogVersion(commitVersions.catalogVersion());
 
-		// now the WAL is safely written - no version is lost
-		this.droppedCatalogVersions = 0;
-		this.droppedCatalogSchemaVersionDelta = 0;
-
 		// emit the event
 		walAppendEvent.finish(
 			task.mutationCount() + 1,
 			writtenLength
 		).commit();
-	}
-
-	@Override
-	protected void handleException(@Nonnull ConflictResolutionAndWalAppendingTransactionTask task, @Nonnull Throwable ex) {
-		try {
-			if (this.droppedCatalogVersions > 0 || this.droppedCatalogSchemaVersionDelta > 0) {
-				this.transactionManager.notifyCatalogVersionDropped(
-					this.droppedCatalogVersions,
-					this.droppedCatalogSchemaVersionDelta
-				);
-			}
-		} finally {
-			super.handleException(task, ex);
-		}
 	}
 
 	/**
