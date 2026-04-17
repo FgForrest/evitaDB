@@ -42,6 +42,7 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -1351,7 +1352,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.openForWrite()
 						.setOrUpdateReference(
 							REF_PARAM_BY_REF_ATTR, 1,
-							ref -> true,
+							Functions.alwaysTrue(),
 							whichIs -> whichIs.setAttribute(ATTR_PRIORITY, 5)
 						)
 						.upsertVia(session);
@@ -1367,7 +1368,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.openForWrite()
 						.setOrUpdateReference(
 							REF_PARAM_BY_REF_ATTR, 1,
-							ref -> true,
+							Functions.alwaysTrue(),
 							whichIs -> whichIs.setAttribute(ATTR_PRIORITY, -1)
 						)
 						.upsertVia(session);
@@ -1413,7 +1414,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 						.openForWrite()
 						.setOrUpdateReference(
 							REF_PARAM_BY_REF_ATTR, 1,
-							ref -> true,
+							Functions.alwaysTrue(),
 							whichIs -> whichIs.setAttribute(ATTR_SOME_VALUE, new BigDecimal("200"))
 						)
 						.upsertVia(session);

@@ -47,6 +47,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -1874,7 +1875,7 @@ public class EntityByPriceFilteringFunctionalTest {
 
 					assertSortedResultIs(
 						originalProductEntities,
-						sealedEntity -> true,
+						Functions.alwaysTrue(),
 						result.getRecordData(),
 						Comparator.comparing(PriceContract::priceWithTax),
 						page(currentPage, 3),

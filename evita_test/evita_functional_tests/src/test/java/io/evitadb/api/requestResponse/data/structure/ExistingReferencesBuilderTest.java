@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -156,11 +157,11 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 		builder.setReference(STORE, 1);
 		builder.setReference(STORE, 2);
 		builder.setOrUpdateReference(
-			BRAND, 1, ref -> false,
+			BRAND, 1, Functions.alwaysFalse(),
 			ref -> ref.setAttribute(COUNTRY, "CZ")
 		);
 		builder.setOrUpdateReference(
-			BRAND, 1, ref -> false,
+			BRAND, 1, Functions.alwaysFalse(),
 			ref -> ref.setAttribute(COUNTRY, "DE")
 		);
 		builder.setReference(
@@ -574,7 +575,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 				createDefaultBuilder();
 
 			builder.setOrUpdateReference(
-				STORE, 3, ref -> false,
+				STORE, 3, Functions.alwaysFalse(),
 				ref -> ref.setAttribute("priority", 10)
 			);
 
@@ -593,7 +594,7 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 				createDefaultBuilder();
 
 			builder.setOrUpdateReference(
-				STORE, 1, ref -> true,
+				STORE, 1, Functions.alwaysTrue(),
 				ref -> ref.setAttribute("priority", 20)
 			);
 

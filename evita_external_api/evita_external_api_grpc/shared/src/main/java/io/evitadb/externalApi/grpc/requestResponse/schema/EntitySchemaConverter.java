@@ -44,6 +44,7 @@ import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutationConverter;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.NamingConvention;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -111,8 +112,8 @@ public class EntitySchemaConverter {
 			.setIndexedPricePlaces(entitySchema.getIndexedPricePlaces())
 			.addAllLocales(entitySchema.getLocales().stream().map(EvitaDataTypesConverter::toGrpcLocale).toList())
 			.addAllCurrencies(entitySchema.getCurrencies().stream().map(EvitaDataTypesConverter::toGrpcCurrency).toList())
-			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes(), includeNameVariants, attributeName -> false))
-			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds(), includeNameVariants, attributeName -> false))
+			.putAllAttributes(toGrpcAttributeSchemas(entitySchema.getAttributes(), includeNameVariants, Functions.alwaysFalse()))
+			.putAllSortableAttributeCompounds(toGrpcSortableAttributeCompoundSchemas(entitySchema.getSortableAttributeCompounds(), includeNameVariants, Functions.alwaysFalse()))
 			.putAllAssociatedData(toGrpcAssociatedDataSchemas(entitySchema.getAssociatedData(), includeNameVariants))
 			.putAllReferences(toGrpcReferenceSchemas(entitySchema.getReferences(), includeNameVariants))
 			.addAllEvolutionMode(entitySchema.getEvolutionMode().stream().map(EvitaEnumConverter::toGrpcEvolutionMode).toList())
@@ -603,7 +604,7 @@ public class EntitySchemaConverter {
 			final Set<String> declaredAttributes = reflectedSchema.getDeclaredAttributes().keySet();
 			inheritedPredicate = attributeName -> !declaredAttributes.contains(attributeName);
 		} else {
-			inheritedPredicate = attributeName -> false;
+			inheritedPredicate = Functions.alwaysFalse();
 		}
 
 		builder

@@ -56,6 +56,7 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -4514,7 +4515,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					(sealedEntityA, sealedEntityB) -> {
 						final Long priorityA = sealedEntityA.getAttribute(ATTRIBUTE_PRIORITY);
 						final OffsetDateTime createdA = sealedEntityA.getAttribute(ATTRIBUTE_CREATED);

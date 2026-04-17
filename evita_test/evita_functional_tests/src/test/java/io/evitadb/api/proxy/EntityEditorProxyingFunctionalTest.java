@@ -50,6 +50,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -580,7 +581,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			final int no = i + 1;
 			editor.addOrUpdateRelatedProduct(
 				rel2.getPrimaryKey(),
-				ref -> false,
+				Functions.alwaysFalse(),
 				rp -> {
 					rp.setRelationType("upsell_" + no);
 					rp.setLabel(Locale.ENGLISH, "Expensive product " + no);

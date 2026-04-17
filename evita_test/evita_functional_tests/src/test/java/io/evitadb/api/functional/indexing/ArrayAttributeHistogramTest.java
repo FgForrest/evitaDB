@@ -40,6 +40,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -418,7 +419,7 @@ class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSuppo
 						.openForWrite()
 						.setOrUpdateReference(
 							REF_BY_REF_ARRAY_ATTR, 1,
-							ref -> true,
+							Functions.alwaysTrue(),
 							whichIs -> whichIs.setAttribute(
 								ATTR_REF_PRICES,
 								new BigDecimal[]{new BigDecimal("30"), new BigDecimal("40")}

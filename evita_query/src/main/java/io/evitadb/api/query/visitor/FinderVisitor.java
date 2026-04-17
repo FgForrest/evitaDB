@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Functions;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -65,7 +66,7 @@ public class FinderVisitor implements ConstraintVisitor {
 
 	private FinderVisitor(@Nonnull Predicate<Constraint<?>> matcher) {
 		this.matcher = matcher;
-		this.stopper = constraint -> false;
+		this.stopper = Functions.alwaysFalse();
 	}
 
 	/**

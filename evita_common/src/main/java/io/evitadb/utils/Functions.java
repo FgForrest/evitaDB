@@ -27,6 +27,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -46,6 +47,14 @@ public class Functions {
 	 * A predicate that always returns `false` regardless of the input.
 	 */
 	private static final Predicate<?> ALWAYS_FALSE = t -> false;
+	/**
+	 * An int predicate that always returns `true` regardless of the input.
+	 */
+	private static final IntPredicate INT_ALWAYS_TRUE = i -> true;
+	/**
+	 * An int predicate that always returns `false` regardless of the input.
+	 */
+	private static final IntPredicate INT_ALWAYS_FALSE = i -> false;
 
 	/**
 	 * Returns a predicate that always evaluates to `true`.
@@ -71,6 +80,28 @@ public class Functions {
 	@Nonnull
 	public static <T> Predicate<T> alwaysFalse() {
 		return (Predicate<T>) ALWAYS_FALSE;
+	}
+
+	/**
+	 * Returns an int predicate that always evaluates to `true`.
+	 * Avoids allocating a new lambda instance on every call site.
+	 *
+	 * @return an int predicate that always returns `true`
+	 */
+	@Nonnull
+	public static IntPredicate intAlwaysTrue() {
+		return INT_ALWAYS_TRUE;
+	}
+
+	/**
+	 * Returns an int predicate that always evaluates to `false`.
+	 * Avoids allocating a new lambda instance on every call site.
+	 *
+	 * @return an int predicate that always returns `false`
+	 */
+	@Nonnull
+	public static IntPredicate intAlwaysFalse() {
+		return INT_ALWAYS_FALSE;
 	}
 
 }

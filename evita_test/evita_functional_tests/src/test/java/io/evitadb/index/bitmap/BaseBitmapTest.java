@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bitmap;
 
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -341,7 +342,7 @@ class BaseBitmapTest {
 		@DisplayName("should remove none on small bitmap")
 		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingNone() {
 			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(value -> false);
+			tested.removeAll(Functions.intAlwaysFalse());
 			assertEquals(4, tested.size());
 			assertArrayEquals(new int[]{3, 5, 8, 10}, tested.getArray());
 		}
@@ -437,7 +438,7 @@ class BaseBitmapTest {
 				large.add(i);
 			}
 			assertEquals(150, large.size());
-			large.removeAll(value -> false);
+			large.removeAll(Functions.intAlwaysFalse());
 			assertEquals(150, large.size());
 			final int[] result = large.getArray();
 			for (int i = 0; i < result.length; i++) {
@@ -633,7 +634,7 @@ class BaseBitmapTest {
 		@DisplayName("should retain none on small bitmap")
 		void shouldRetainAllWithPredicateOnSmallBitmapRetainingNone() {
 			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(value -> false);
+			tested.retainAll(Functions.intAlwaysFalse());
 			assertEquals(0, tested.size());
 			assertArrayEquals(new int[]{}, tested.getArray());
 		}
@@ -732,7 +733,7 @@ class BaseBitmapTest {
 				large.add(i);
 			}
 			assertEquals(150, large.size());
-			large.retainAll(value -> false);
+			large.retainAll(Functions.intAlwaysFalse());
 			assertEquals(0, large.size());
 			assertArrayEquals(new int[]{}, large.getArray());
 		}

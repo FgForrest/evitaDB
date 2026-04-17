@@ -46,6 +46,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.HierarchyItem;
 import org.junit.jupiter.api.DisplayName;
@@ -194,7 +195,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 
 				assertResultIs(
 					originalCategoryEntities,
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					result.getRecordData()
 				);
 				return null;
@@ -1120,7 +1121,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeParents(
 							session, 53, categoryHierarchy,
-							categoryCardinalities, entity -> true,
+							categoryCardinalities, Functions.alwaysTrue(),
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
 							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
 							53
@@ -1293,7 +1294,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						"megaMenu",
 						computeParents(
 							session, 30, categoryHierarchy,
-							categoryCardinalities, entity -> true,
+							categoryCardinalities, Functions.alwaysTrue(),
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
 							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
 							30

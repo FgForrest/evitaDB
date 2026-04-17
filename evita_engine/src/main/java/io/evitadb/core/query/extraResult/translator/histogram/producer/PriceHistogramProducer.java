@@ -38,6 +38,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
+import io.evitadb.utils.Functions;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -115,7 +116,7 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 			return new PriceHistogram(
 				optimalHistogram.convertToHistogram(
 					ofNullable(requestedPricePredicate.get())
-						.orElseGet(() -> threshold -> true)
+						.orElseGet(Functions::alwaysTrue)
 				)
 			);
 		}

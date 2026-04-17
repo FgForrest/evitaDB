@@ -35,6 +35,7 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,7 +70,7 @@ public interface TrafficRecorder extends Closeable {
 		@Nonnull TrafficRecordingCaptureRequest request,
 		@Nonnull StreamDirection direction
 	) {
-		Predicate<TrafficRecording> requestPredicate = tr -> true;
+		Predicate<TrafficRecording> requestPredicate = Functions.alwaysTrue();
 		if (request.sessionId() != null) {
 			requestPredicate = requestPredicate.and(
 				tr -> Arrays.stream(request.sessionId()).anyMatch(sid -> sid.equals(tr.sessionId()))

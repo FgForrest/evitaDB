@@ -56,6 +56,7 @@ import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
 import org.roaringbitmap.RoaringBitmap;
@@ -84,10 +85,6 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
 	private static final long CLASS_ID = -4905806490462655316L;
-	/**
-	 * Default predicate that accepts all price records without any filtering.
-	 */
-	private static final Predicate<PriceRecordContract> ALL_MATCHING_PREDICATE = priceContract -> true;
 
 	/**
 	 * Price evaluation context allows optimizing formula tree in the such way, that terminating formula with same
@@ -131,7 +128,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 	) {
 		super(null);
 		this.sellingPricePredicate = sellingPricePredicate;
-		this.individualPricePredicate = ALL_MATCHING_PREDICATE;
+		this.individualPricePredicate = Functions.alwaysTrue();
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.queryPriceMode = queryPriceMode;
 		this.priceRecordComparator = queryPriceMode == QueryPriceMode.WITH_TAX ?
@@ -363,7 +360,7 @@ public class LowestPriceTerminationFormula extends AbstractCacheableFormula impl
 						}
 
 						Assert.isPremiseValid(
-							this.individualPricePredicate != ALL_MATCHING_PREDICATE || !entityInnerRecordPrice.isEmpty(),
+							this.individualPricePredicate != Functions.<PriceRecordContract>alwaysTrue() || !entityInnerRecordPrice.isEmpty(),
 							"Price for entity with PK " + entityId + " unexpectedly not found!"
 						);
 

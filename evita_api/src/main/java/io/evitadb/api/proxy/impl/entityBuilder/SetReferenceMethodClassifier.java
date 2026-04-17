@@ -54,6 +54,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
@@ -636,7 +637,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		if (predicate == null) {
 			if (constantPredicate == null) {
-				return ref -> true;
+				return Functions.alwaysTrue();
 			} else {
 				return ref -> constantPredicate.test(args, ref);
 			}

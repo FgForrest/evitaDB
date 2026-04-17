@@ -70,6 +70,7 @@ import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccess
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -179,7 +180,7 @@ public interface ReferenceIndexMutator {
 			indexType,
 			executor,
 			referenceIndexConsumer,
-			referenceContract -> true,
+			Functions.alwaysTrue(),
 			referencePresenceExpected
 		);
 	}
@@ -266,7 +267,7 @@ public interface ReferenceIndexMutator {
 			indexType,
 			executor,
 			referenceIndexConsumer,
-			referenceContract -> true,
+			Functions.alwaysTrue(),
 			referencePresenceExpected
 		);
 	}

@@ -49,6 +49,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Functions;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -408,7 +409,7 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 							entry.getKey(),
 							optimalHistogram.convertToHistogram(
 								ofNullable(userFilterFormulaPredicates.get(entry.getKey()))
-									.orElseGet(() -> value -> true)
+									.orElseGet(Functions::alwaysTrue)
 							)
 						);
 					}

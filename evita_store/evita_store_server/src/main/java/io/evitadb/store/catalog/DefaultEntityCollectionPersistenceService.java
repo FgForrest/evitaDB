@@ -122,6 +122,7 @@ import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -816,7 +817,7 @@ public class DefaultEntityCollectionPersistenceService
 			final Set<Locale> previouslyFetchedLanguages = ofNullable(previousAttributePredicate).map(AttributeValueSerializablePredicate::getAllLocales).orElse(null);
 			final Set<Locale> newlyFetchedLanguages = newAttributePredicate.getAllLocales();
 			final Predicate<Locale> fetchedPreviously = firstRequest ?
-				locale -> false :
+				Functions.alwaysFalse() :
 				locale -> previouslyFetchedLanguages != null && (previouslyFetchedLanguages.isEmpty() || previouslyFetchedLanguages.contains(locale));
 			final Predicate<Locale> fetchedNewly = locale -> newlyFetchedLanguages != null && (newlyFetchedLanguages.isEmpty() || newlyFetchedLanguages.contains(locale));
 			allAvailableLocales

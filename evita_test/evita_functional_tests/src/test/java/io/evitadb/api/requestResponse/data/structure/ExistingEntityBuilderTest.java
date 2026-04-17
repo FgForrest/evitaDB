@@ -255,21 +255,21 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		eb.setReference(CATEGORY, CATEGORY, Cardinality.ZERO_OR_MORE, 11);
 		// initial: 2x PARAMETER (same PKs)
 		eb.setOrUpdateReference(
-			PARAMETER, 100, ref -> false,
+			PARAMETER, 100, io.evitadb.utils.Functions.alwaysFalse(),
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
 		);
 		eb.setOrUpdateReference(
-			PARAMETER, 100, ref -> false,
+			PARAMETER, 100, io.evitadb.utils.Functions.alwaysFalse(),
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "B")
 		);
 		// initial: 3x STORE (two share same referencedEntityPrimaryKey)
-		eb.setOrUpdateReference(STORE, 1000, ref -> false, Functions.noOpConsumer());
+		eb.setOrUpdateReference(STORE, 1000, io.evitadb.utils.Functions.alwaysFalse(), Functions.noOpConsumer());
 		eb.setOrUpdateReference(
-			STORE, 1001, ref -> false,
+			STORE, 1001, io.evitadb.utils.Functions.alwaysFalse(),
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "A")
 		);
 		eb.setOrUpdateReference(
-			STORE, 1001, ref -> false,
+			STORE, 1001, io.evitadb.utils.Functions.alwaysFalse(),
 			whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "B")
 		);
 		final Entity resultInstance = eb.toInstance();
@@ -745,7 +745,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 					rb -> rb.setAttribute(BRAND_PRIORITY, 10L).setGroup(STORE, 1000)
 				)
 				.setOrUpdateReference(
-					CATEGORY, 1, ref -> false,
+					CATEGORY, 1, io.evitadb.utils.Functions.alwaysFalse(),
 					rb -> {
 						rb.setAttribute(CATEGORY_PRIORITY, 10L);
 						rb.setGroup(STORE, 1000);
@@ -769,7 +769,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			);
 
 			builder.setOrUpdateReference(
-				CATEGORY, 1, ref -> false,
+				CATEGORY, 1, io.evitadb.utils.Functions.alwaysFalse(),
 				rb -> {
 					assertNull(rb.getAttribute(CATEGORY_PRIORITY));
 					assertTrue(rb.getGroup().isEmpty());
@@ -794,7 +794,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			);
 
 			builder.setOrUpdateReference(
-				CATEGORY, 1, ref -> false,
+				CATEGORY, 1, io.evitadb.utils.Functions.alwaysFalse(),
 				rb -> {
 					assertNull(rb.getAttribute(CATEGORY_PRIORITY));
 					assertTrue(rb.getGroup().isEmpty());
@@ -883,8 +883,8 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 			eb.setReference(BRAND, 2);
 			eb.setReference(CATEGORY, 12);
-			eb.setOrUpdateReference(PARAMETER, 101, ref -> false, whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "C"));
-			eb.setOrUpdateReference(STORE, 1002, ref -> false, Functions.noOpConsumer());
+			eb.setOrUpdateReference(PARAMETER, 101, io.evitadb.utils.Functions.alwaysFalse(), whichIs -> whichIs.setAttribute(ATTRIBUTE_DISCRIMINATOR, "C"));
+			eb.setOrUpdateReference(STORE, 1002, io.evitadb.utils.Functions.alwaysFalse(), Functions.noOpConsumer());
 
 			assertEquals(2, eb.getReferences(BRAND).size());
 			assertEquals(2, eb.toInstance().getReferences(BRAND).size());
@@ -929,21 +929,21 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				InvalidMutationException.class,
 				() -> builder.setOrUpdateReference(
 					BRAND, "differentEntityType", Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-					2, ref -> false, Functions.noOpConsumer()
+					2, io.evitadb.utils.Functions.alwaysFalse(), Functions.noOpConsumer()
 				)
 			);
 			assertThrows(
 				InvalidMutationException.class,
 				() -> builder.setOrUpdateReference(
 					BRAND, BRAND, Cardinality.ONE_OR_MORE,
-					2, ref -> false, Functions.noOpConsumer()
+					2, io.evitadb.utils.Functions.alwaysFalse(), Functions.noOpConsumer()
 				)
 			);
 
 			assertThrows(
 				InvalidMutationException.class,
 				() -> builder.setOrUpdateReference(
-					BRAND, 2, ref -> false, Functions.noOpConsumer()
+					BRAND, 2, io.evitadb.utils.Functions.alwaysFalse(), Functions.noOpConsumer()
 				)
 			);
 
@@ -955,7 +955,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			}
 			assertTrue(builder.getReference(new ReferenceKey(BRAND, 1)).isPresent());
 
-			builder.setOrUpdateReference(BRAND, 3, ref -> false, Functions.noOpConsumer());
+			builder.setOrUpdateReference(BRAND, 3, io.evitadb.utils.Functions.alwaysFalse(), Functions.noOpConsumer());
 
 			checkCollectionBrands(builder.getReferences(BRAND), 1, 2, 3);
 			checkCollectionBrands(builder.toInstance().getReferences(BRAND), 1, 2, 3);
@@ -1426,15 +1426,15 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 			final SealedEntity initialEntity = new InitialEntityBuilder(schema, 1)
 				.setOrUpdateReference(
-					BRAND, 1, ref -> false,
+					BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(),
 					rb -> { rb.setAttribute(BRAND_PRIORITY, 10L); rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ"); }
 				)
 				.setOrUpdateReference(
-					BRAND, 1, ref -> false,
+					BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(),
 					rb -> { rb.setAttribute(BRAND_PRIORITY, 20L); rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE"); }
 				)
 				.setOrUpdateReference(
-					BRAND, 1, ref -> false,
+					BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(),
 					rb -> { rb.setAttribute(BRAND_PRIORITY, 30L); rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "FR"); }
 				)
 				.toInstance();
@@ -1516,11 +1516,11 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				.toInstance();
 
 			final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
-			builder.setOrUpdateReference(BRAND, 1, filter -> false, rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ"));
-			builder.setOrUpdateReference(BRAND, 1, filter -> false, rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE"));
+			builder.setOrUpdateReference(BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(), rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ"));
+			builder.setOrUpdateReference(BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(), rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE"));
 			assertThrows(
 				InvalidMutationException.class,
-				() -> builder.setOrUpdateReference(BRAND, 1, filter -> false, rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ"))
+				() -> builder.setOrUpdateReference(BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(), rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ"))
 			);
 
 			final Collection<ReferenceContract> references = builder.toInstance().getReferences(BRAND);
@@ -1542,14 +1542,14 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 				.toInstance();
 
 			final ExistingEntityBuilder builder = new ExistingEntityBuilder(new Entity(schema, 1));
-			builder.setOrUpdateReference(BRAND, 1, ref -> false, rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ"));
-			builder.setOrUpdateReference(BRAND, 1, ref -> false, rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE"));
+			builder.setOrUpdateReference(BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(), rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "CZ"));
+			builder.setOrUpdateReference(BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(), rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE"));
 			builder.setOrUpdateReference(
 				BRAND, 1,
 				ref -> "DE".equals(ref.getAttribute(ATTRIBUTE_DISCRIMINATOR)),
 				rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "FR")
 			);
-			builder.setOrUpdateReference(BRAND, 1, ref -> false, rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE"));
+			builder.setOrUpdateReference(BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(), rb -> rb.setAttribute(ATTRIBUTE_DISCRIMINATOR, "DE"));
 
 			final Collection<ReferenceContract> references = builder.toInstance().getReferences(BRAND);
 			assertEquals(3, references.size());

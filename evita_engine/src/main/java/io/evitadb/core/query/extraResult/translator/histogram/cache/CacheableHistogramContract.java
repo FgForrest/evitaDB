@@ -26,6 +26,7 @@ package io.evitadb.core.query.extraResult.translator.histogram.cache;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
@@ -158,7 +159,7 @@ public interface CacheableHistogramContract extends Serializable {
 			index -> buckets[index].threshold(),
 			index -> buckets[index].occurrences(),
 			index -> buckets[index].relativeFrequency(),
-			index -> false,
+			Functions.intAlwaysFalse(),
 			getMax(),
 			getOverallCount()
 		);

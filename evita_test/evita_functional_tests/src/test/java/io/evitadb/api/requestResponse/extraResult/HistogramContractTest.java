@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.extraResult;
 
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -151,7 +152,7 @@ class HistogramContractTest implements EvitaTestSupport {
 				index -> BigDecimal.ZERO,
 				index -> 0,
 				index -> BigDecimal.ZERO,
-				index -> false,
+				Functions.intAlwaysFalse(),
 				BigDecimal.ZERO,
 				0
 			);
@@ -166,7 +167,7 @@ class HistogramContractTest implements EvitaTestSupport {
 				index -> BigDecimal.ONE,
 				index -> 10,
 				index -> new BigDecimal("100"),
-				index -> false,
+				Functions.intAlwaysFalse(),
 				BigDecimal.TEN,
 				10
 			);
@@ -207,7 +208,7 @@ class HistogramContractTest implements EvitaTestSupport {
 				index -> index == 0 ? BigDecimal.ONE : BigDecimal.TEN,
 				index -> index == 0 ? 7 : 3,
 				index -> index == 0 ? new BigDecimal("70") : new BigDecimal("30"),
-				index -> false,
+				Functions.intAlwaysFalse(),
 				new BigDecimal("20"),
 				10
 			);

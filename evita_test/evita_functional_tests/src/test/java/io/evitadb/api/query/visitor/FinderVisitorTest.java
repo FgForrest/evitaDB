@@ -44,6 +44,7 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.visitor.FinderVisitor.MoreThanSingleResultException;
 import io.evitadb.api.query.visitor.FinderVisitor.PredicateWithDescription;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -336,7 +337,7 @@ class FinderVisitorTest {
 
 			final List<Constraint<?>> found = FinderVisitor.findConstraints(
 				constraint,
-				c -> true
+				Functions.alwaysTrue()
 			);
 
 			assertEquals(3, found.size());
@@ -637,7 +638,7 @@ class FinderVisitorTest {
 
 			final List<Constraint<?>> found = FinderVisitor.findConstraints(
 				constraint,
-				c -> true
+				Functions.alwaysTrue()
 			);
 
 			assertEquals(3, found.size());
@@ -653,7 +654,7 @@ class FinderVisitorTest {
 			// Depth-first: Require → Page → ReferenceContent → EntityFetch → AttributeContent → FilterBy → eq
 			final List<Constraint<?>> found = FinderVisitor.findConstraints(
 				FinderVisitorTest.this.requireConstraint,
-				c -> true
+				Functions.alwaysTrue()
 			);
 
 			// Verify Require is first, Page comes before ReferenceContent, and EntityFetch (primary) before

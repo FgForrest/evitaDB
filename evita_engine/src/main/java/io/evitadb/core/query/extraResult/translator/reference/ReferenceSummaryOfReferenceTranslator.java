@@ -64,6 +64,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.collection.BitmapIntoBitmapCollector;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -154,7 +155,7 @@ public class ReferenceSummaryOfReferenceTranslator
 					"non-managed entity type `" + referenceSchema.getReferencedEntityType() + "`."
 			);
 		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
-			return pk -> false;
+			return Functions.intAlwaysFalse();
 		}
 
 		final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
