@@ -24,26 +24,19 @@
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
 import com.google.protobuf.Int32Value;
-import io.evitadb.api.query.Query;
-import io.evitadb.api.query.QueryUtils;
-import io.evitadb.api.query.require.FacetSummaryOfReference;
-import io.evitadb.api.query.require.ReferenceSummaryOfReference;
-import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.GrpcEntityReference;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults.Builder;
 import io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics;
 import io.evitadb.externalApi.grpc.generated.GrpcFacetStatistics;
-import io.evitadb.externalApi.grpc.generated.GrpcHistogram;
 import io.evitadb.externalApi.grpc.generated.GrpcReferenceGroupStatistics;
+import io.evitadb.externalApi.grpc.generated.GrpcSealedEntity;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -55,11 +48,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 import static io.evitadb.utils.VersionUtils.SemVer;
 
 /**
- * This class is used to build {@link GrpcFacetStatistics} from {@link FacetSummary} and segment them into necessary collections.
+ * This class is used to build {@link GrpcFacetStatistics} from {@link ReferenceSummary} (or its deprecated
+ * {@link FacetSummary} subclass) and segment them into necessary collections.
  *
  * @author Tomáš Pozler, 2022
  */
@@ -67,97 +63,111 @@ import static io.evitadb.utils.VersionUtils.SemVer;
 public class GrpcReferenceSummaryBuilder {
 
 	/**
-	 * This method builds {@link GrpcFacetStatistics}, segments them into group statistics.
+	 * Builds {@link GrpcFacetStatistics}, segments them into group statistics and writes them
+	 * into the appropriate gRPC field. The target field is determined by the runtime type of
+	 * `referenceSummary`:
 	 *
-	 * @param extraResults the builder where the built result should be placed in
-	 * @param facetSummary {@link FacetSummary} returned by evita response
-	 * @param clientVersion version of the client so that the server can adjust the response
+	 * - {@link FacetSummary} (deprecated subclass) -> `facetGroupStatistics` (backward compat)
+	 * - plain {@link ReferenceSummary} -> `referenceGroupStatistics` (canonical form)
+	 *
+	 * When a mixed-constraint query produces both DTOs, each call writes to its own field.
+	 *
+	 * @param extraResults     the builder where the built result should be placed in
+	 * @param referenceSummary {@link ReferenceSummary} returned by evita response (or its
+	 *                         deprecated {@link FacetSummary} subclass for backward compatibility)
+	 * @param clientVersion    version of the client so that the server can adjust the response
 	 */
-	// TODO: replace facet summary parameter with reference summary parameter and remove logic deciding which statistics to fill for client
 	public static void buildReferenceSummary(
-		@Nonnull Query sourceQuery,
 		@Nonnull Builder extraResults,
-		@Nonnull FacetSummary facetSummary,
+		@Nonnull ReferenceSummary referenceSummary,
 		@Nullable SemVer clientVersion
 	) {
-		final Collection<FacetGroupStatistics> originalGroupStatistics = facetSummary.getReferenceStatistics();
+		final Collection<? extends ReferenceSummary.ReferenceGroupStatistics> originalGroupStatistics =
+			referenceSummary.getReferenceStatistics();
 
-		if (isReferenceSummaryRequested(sourceQuery)) {
-			final List<GrpcReferenceGroupStatistics> referenceGroupStatistics = new ArrayList<>(originalGroupStatistics.size());
+		if (referenceSummary instanceof FacetSummary) {
+			// deprecated path — write to the legacy facetGroupStatistics field
+			final List<GrpcFacetGroupStatistics> facetGroupStatistics =
+				new ArrayList<>(originalGroupStatistics.size());
 			for (ReferenceSummary.ReferenceGroupStatistics groupStatistics : originalGroupStatistics) {
-				final Collection<ReferenceSummary.FacetStatistics> originalFacetStatistics = groupStatistics.getFacetStatistics();
-				final List<GrpcFacetStatistics> facetStatistics = buildGrpcFacetStatistics(
+				final GrpcFacetGroupStatistics.Builder groupStatisticBuilder =
+					GrpcFacetGroupStatistics.newBuilder();
+				populateCommonFields(
+					groupStatistics,
 					clientVersion,
-					originalFacetStatistics
+					new BuilderAdapter(
+						groupStatisticBuilder::setReferenceName,
+						groupStatisticBuilder::setCount,
+						groupStatisticBuilder::addAllFacetStatistics,
+						groupStatisticBuilder::setGroupEntityReference,
+						groupStatisticBuilder::setGroupEntity
+					)
+				);
+				facetGroupStatistics.add(groupStatisticBuilder.build());
+			}
+			extraResults.addAllFacetGroupStatistics(facetGroupStatistics);
+		} else {
+			// canonical path — write to the referenceGroupStatistics field
+			final List<GrpcReferenceGroupStatistics> referenceGroupStatistics =
+				new ArrayList<>(originalGroupStatistics.size());
+			for (ReferenceSummary.ReferenceGroupStatistics groupStatistics : originalGroupStatistics) {
+				final GrpcReferenceGroupStatistics.Builder groupStatisticBuilder =
+					GrpcReferenceGroupStatistics.newBuilder();
+				populateCommonFields(
+					groupStatistics,
+					clientVersion,
+					new BuilderAdapter(
+						groupStatisticBuilder::setReferenceName,
+						groupStatisticBuilder::setCount,
+						groupStatisticBuilder::addAllFacetStatistics,
+						groupStatisticBuilder::setGroupEntityReference,
+						groupStatisticBuilder::setGroupEntity
+					)
 				);
 
-				final GrpcReferenceGroupStatistics.Builder groupStatisticBuilder = GrpcReferenceGroupStatistics.newBuilder()
-					.setReferenceName(groupStatistics.getReferenceName())
-					.setCount(groupStatistics.getCount())
-					.addAllFacetStatistics(facetStatistics);
-
-				if (groupStatistics.getGroupEntity() != null) {
-					if (groupStatistics.getGroupEntity() instanceof EntityReference entityReference) {
-						groupStatisticBuilder.setGroupEntityReference(
-							GrpcEntityReference.newBuilder()
-								.setEntityType(entityReference.getType())
-								.setPrimaryKey(entityReference.getPrimaryKey())
-						);
-					} else if (groupStatistics.getGroupEntity() instanceof SealedEntity entity) {
-						groupStatisticBuilder.setGroupEntity(EntityConverter.toGrpcSealedEntity(entity, clientVersion));
-					}
-				}
-
-				// serialize named histogram statistics keyed by histogram index name
+				// serialize named histogram statistics keyed by histogram index name (canonical path only)
 				final Map<String, HistogramContract> histogramStatistics = groupStatistics.getHistogramStatistics();
-				if (!histogramStatistics.isEmpty()) {
-					for (Entry<String, HistogramContract> entry : histogramStatistics.entrySet()) {
-						groupStatisticBuilder.putHistogramStatistics(
-							entry.getKey(),
-							GrpcHistogramBuilder.buildHistogram(entry.getValue(), clientVersion)
-						);
-					}
+				for (Entry<String, HistogramContract> entry : histogramStatistics.entrySet()) {
+					groupStatisticBuilder.putHistogramStatistics(
+						entry.getKey(),
+						GrpcHistogramBuilder.buildHistogram(entry.getValue(), clientVersion)
+					);
 				}
 
 				referenceGroupStatistics.add(groupStatisticBuilder.build());
 			}
-
 			extraResults.addAllReferenceGroupStatistics(referenceGroupStatistics);
-		} else if (isFacetSummaryRequested(sourceQuery)) {
-			final List<GrpcFacetGroupStatistics> facetGroupStatistics = new ArrayList<>(originalGroupStatistics.size());
-
-			for (FacetSummary.FacetGroupStatistics groupStatistics : originalGroupStatistics) {
-				final Collection<ReferenceSummary.FacetStatistics> originalFacetStatistics = groupStatistics.getFacetStatistics();
-				final List<GrpcFacetStatistics> facetStatistics = buildGrpcFacetStatistics(
-					clientVersion,
-					originalFacetStatistics
-				);
-
-				final GrpcFacetGroupStatistics.Builder groupStatisticBuilder = GrpcFacetGroupStatistics.newBuilder()
-					.setReferenceName(groupStatistics.getReferenceName())
-					.setCount(groupStatistics.getCount())
-					.addAllFacetStatistics(facetStatistics);
-
-				if (groupStatistics.getGroupEntity() != null) {
-					if (groupStatistics.getGroupEntity() instanceof EntityReference entityReference) {
-						groupStatisticBuilder.setGroupEntityReference(
-							GrpcEntityReference.newBuilder()
-								.setEntityType(entityReference.getType())
-								.setPrimaryKey(entityReference.getPrimaryKey())
-						);
-					} else if (groupStatistics.getGroupEntity() instanceof SealedEntity entity) {
-						groupStatisticBuilder.setGroupEntity(EntityConverter.toGrpcSealedEntity(entity, clientVersion));
-					}
-				}
-
-				facetGroupStatistics.add(groupStatisticBuilder.build());
-			}
-
-			extraResults.addAllFacetGroupStatistics(facetGroupStatistics);
-		} else {
-			throw new GenericEvitaInternalError("Facet summary is present in the response but neither reference summary nor facet summary is requested.");
 		}
+	}
 
+	/**
+	 * Populates the shared fields (reference name, count, facet statistics, group entity) on any
+	 * group-statistics gRPC builder through a type-erased {@link BuilderAdapter}. Allows the
+	 * deprecated {@link GrpcFacetGroupStatistics} path and the canonical {@link GrpcReferenceGroupStatistics}
+	 * path to share identical logic despite being backed by distinct generated proto types.
+	 */
+	private static void populateCommonFields(
+		@Nonnull ReferenceSummary.ReferenceGroupStatistics groupStatistics,
+		@Nullable SemVer clientVersion,
+		@Nonnull BuilderAdapter adapter
+	) {
+		final List<GrpcFacetStatistics> facetStatistics = buildGrpcFacetStatistics(
+			clientVersion,
+			groupStatistics.getFacetStatistics()
+		);
+		adapter.setReferenceName.accept(groupStatistics.getReferenceName());
+		adapter.setCount.accept(groupStatistics.getCount());
+		adapter.addAllFacetStatistics.accept(facetStatistics);
+
+		if (groupStatistics.getGroupEntity() instanceof EntityReference entityReference) {
+			adapter.setGroupEntityReference.accept(
+				GrpcEntityReference.newBuilder()
+					.setEntityType(entityReference.getType())
+					.setPrimaryKey(entityReference.getPrimaryKey())
+			);
+		} else if (groupStatistics.getGroupEntity() instanceof SealedEntity entity) {
+			adapter.setGroupEntity.accept(EntityConverter.toGrpcSealedEntity(entity, clientVersion));
+		}
 	}
 
 	@Nonnull
@@ -173,9 +183,11 @@ public class GrpcReferenceSummaryBuilder {
 				.setCount(facetStatistic.getCount());
 
 			if (facetStatistic.getFacetEntity() instanceof final EntityReference entityReference) {
-				statisticsBuilder.setFacetEntityReference(GrpcEntityReference.newBuilder()
-					                                          .setEntityType(entityReference.getType())
-					                                          .setPrimaryKey(entityReference.getPrimaryKey()));
+				statisticsBuilder.setFacetEntityReference(
+					GrpcEntityReference.newBuilder()
+						.setEntityType(entityReference.getType())
+						.setPrimaryKey(entityReference.getPrimaryKey())
+				);
 			} else if (facetStatistic.getFacetEntity() instanceof final SealedEntity entity) {
 				statisticsBuilder.setFacetEntity(EntityConverter.toGrpcSealedEntity(entity, clientVersion));
 			}
@@ -196,13 +208,19 @@ public class GrpcReferenceSummaryBuilder {
 		return facetStatistics;
 	}
 
-	private static boolean isReferenceSummaryRequested(@Nonnull Query query) {
-		return QueryUtils.findRequire(query, io.evitadb.api.query.require.ReferenceSummary.class) != null ||
-			!QueryUtils.findRequires(query, ReferenceSummaryOfReference.class).isEmpty();
+	/**
+	 * Type-erased bundle of setters that both {@link GrpcFacetGroupStatistics.Builder} and
+	 * {@link GrpcReferenceGroupStatistics.Builder} expose under identical names (but on unrelated
+	 * generated classes). Lets {@link #populateCommonFields} drive either builder through the same
+	 * lambda-based bridge.
+	 */
+	private record BuilderAdapter(
+		@Nonnull Consumer<String> setReferenceName,
+		@Nonnull IntConsumer setCount,
+		@Nonnull Consumer<Iterable<GrpcFacetStatistics>> addAllFacetStatistics,
+		@Nonnull Consumer<GrpcEntityReference.Builder> setGroupEntityReference,
+		@Nonnull Consumer<GrpcSealedEntity> setGroupEntity
+	) {
 	}
 
-	private static boolean isFacetSummaryRequested(@Nonnull Query query) {
-		return QueryUtils.findRequire(query, io.evitadb.api.query.require.FacetSummary.class) != null ||
-			!QueryUtils.findRequires(query, FacetSummaryOfReference.class).isEmpty();
-	}
 }

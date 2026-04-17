@@ -35,7 +35,6 @@ import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.query.require.ReferenceHistogramStatistics;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -47,6 +46,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
@@ -221,7 +221,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			}
 
 			@Nonnull
-			Builder facetGroupSorterFactory(@Nullable Function<String, Comparator<FacetGroupStatistics>> facetGroupSorterFactory) {
+			Builder facetGroupSorterFactory(
+					@Nullable Function<String, Comparator<FacetGroupStatistics>> facetGroupSorterFactory
+			) {
 				this.facetGroupSorterFactory = facetGroupSorterFactory;
 				return this;
 			}
@@ -355,7 +357,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			);
 
 
-		// filter entities by facets in input query (even if part of user filter) - use AND for different entity types, and OR for facet ids
+		// filter entities by facets in input query (even if part of user filter) - use AND for different entity types, and
+		// OR for facet ids
 		final List<SealedEntity> filteredEntitiesIncludingUserFilter =
 			params.selectedEntitiesPredicate() == null ?
 				filteredEntities.stream().toList() :
@@ -425,12 +428,14 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 										if (facetEntityRequirement == null) {
 											facetEntity = new EntityReference(facetEntityType, facetPrimaryKey);
 										} else {
-											facetEntity = params.session().getEntity(facetEntityType, facetPrimaryKey, facetEntityRequirement.getRequirements())
-												.orElseThrow();
+											facetEntity = params.session().getEntity(
+													facetEntityType, facetPrimaryKey, facetEntityRequirement.getRequirements()
+												).orElseThrow();
 										}
 
-										final FacetStatisticsDepth statisticsDepth = Optional.ofNullable(params.statisticsDepthSupplier().apply(referenceSchema.getName()))
-											.orElseThrow();
+										final FacetStatisticsDepth statisticsDepth = Optional.ofNullable(
+											params.statisticsDepthSupplier().apply(referenceSchema.getName())
+										).orElseThrow();
 
 										// create facet statistics
 										return new FacetStatistics(
@@ -441,7 +446,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 												computeImpact(filteredEntitiesIncludingUserFilter, facetFilteredEntityIds, facet.getKey(), fcc) : null
 										);
 									})
-									.sorted((o1, o2) -> compareFacet(referenceSchema.getName(), params.facetSorterFactory(), cachedComparators, o1, o2))
+									.sorted((o1, o2) -> compareFacet(
+										referenceSchema.getName(), params.facetSorterFactory(), cachedComparators, o1, o2
+									))
 									.collect(toList())
 							);
 						}
@@ -529,7 +536,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		);
 	}
 
-	private static boolean isWithinHierarchy(Hierarchy categoryHierarchy, ReferenceContract category, int requestedCategoryId) {
+	private static boolean isWithinHierarchy(
+			Hierarchy categoryHierarchy, ReferenceContract category, int requestedCategoryId
+	) {
 		final int categoryId = category.getReferencedPrimaryKey();
 		final String categoryIdAsString = String.valueOf(categoryId);
 		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(categoryIdAsString);
@@ -586,7 +595,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	@Nonnull
-	private static Integer[] getParametersWithDifferentGroups(List<SealedEntity> originalProductEntities, Set<Integer> groups) {
+	private static Integer[] getParametersWithDifferentGroups(
+			List<SealedEntity> originalProductEntities, Set<Integer> groups
+	) {
 		final SealedEntity exampleProduct = originalProductEntities
 			.stream()
 			.filter(it -> it.getReferences(Entities.PARAMETER)
@@ -597,7 +608,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				.count() >= 2
 			)
 			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("There is no product with two references to parameters in different groups!"));
+			.orElseThrow(() -> new IllegalStateException(
+			"There is no product with two references to parameters in different groups!"
+		));
 		return exampleProduct.getReferences(Entities.PARAMETER)
 			.stream()
 			.filter(it -> it.getGroup().isPresent())
@@ -634,7 +647,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			})
 			.filter(Objects::nonNull)
 			.findFirst()
-			.orElseThrow(() -> new IllegalStateException("There is no product with two references to parameters in same group!"));
+			.orElseThrow(() -> new IllegalStateException(
+			"There is no product with two references to parameters in same group!"
+		));
 	}
 
 	private static Set<Integer> getGroupsWithGaps(List<SealedEntity> originalProductEntities) {
@@ -758,10 +773,22 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				session,
 				schemaBuilder -> {
 					schemaBuilder
-						.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, whichIs -> makeReferenceIndexed(whichIs).faceted())
-						.withReferenceToEntity(Entities.STORE, Entities.STORE, Cardinality.ZERO_OR_MORE, whichIs -> makeReferenceIndexed(whichIs).faceted())
-						.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, whichIs -> makeReferenceIndexed(whichIs).faceted())
-						.withReferenceToEntity(EMPTY_COLLECTION_ENTITY, EMPTY_COLLECTION_ENTITY, Cardinality.ZERO_OR_MORE, whichIs -> makeReferenceIndexed(whichIs).faceted())
+						.withReferenceToEntity(
+							Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE,
+							whichIs -> makeReferenceIndexed(whichIs).faceted()
+						)
+						.withReferenceToEntity(
+							Entities.STORE, Entities.STORE, Cardinality.ZERO_OR_MORE,
+							whichIs -> makeReferenceIndexed(whichIs).faceted()
+						)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> makeReferenceIndexed(whichIs).faceted()
+						)
+						.withReferenceToEntity(
+							EMPTY_COLLECTION_ENTITY, EMPTY_COLLECTION_ENTITY, Cardinality.ZERO_OR_MORE,
+							whichIs -> makeReferenceIndexed(whichIs).faceted()
+						)
 						.withReferenceToEntity(
 							Entities.PARAMETER, Entities.PARAMETER,
 							Cardinality.ZERO_OR_MORE,
@@ -784,7 +811,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				tuple(
 					"originalProductEntities",
 					storedProducts.stream()
-						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll(), priceContentAll()).orElse(null))
+						.map(it -> session.getEntity(
+							it.getType(), it.getPrimaryKey(),
+							attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll(), priceContentAll()
+						).orElse(null))
 						.collect(toList())
 				),
 				tuple(
@@ -793,7 +823,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						.collect(
 							toMap(
 								EntityReferenceContract::getPrimaryKey,
-								it -> session.getEntity(it.getType(), it.getPrimaryKeyOrThrowException(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null)
+								it -> session.getEntity(
+								it.getType(), it.getPrimaryKeyOrThrowException(),
+								attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()
+							).orElse(null)
 							)
 						)
 				),
@@ -803,7 +836,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						.collect(
 							toMap(
 								EntityReferenceContract::getPrimaryKey,
-								it -> session.getEntity(it.getType(), it.getPrimaryKeyOrThrowException(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null)
+								it -> session.getEntity(
+								it.getType(), it.getPrimaryKeyOrThrowException(),
+								attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()
+							).orElse(null)
 							)
 						)
 				),
@@ -833,7 +869,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	protected abstract ReferenceSchemaBuilder makeReferenceIndexed(ReferenceSchemaBuilder whichIs);
 
 	/**
-	 * @deprecated Use {@link #shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesUsingReferenceSummary} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesUsingReferenceSummary}
+	* instead. Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
@@ -869,7 +906,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesOnExplicitReferenceUsingReferenceSummary} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link
+	* #shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesOnExplicitReferenceUsingReferenceSummary}
+	* instead. Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
@@ -906,7 +945,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldNotReturnReferenceSummaryForMissingReferencesOnProduct} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldNotReturnReferenceSummaryForMissingReferencesOnProduct} instead. Remove this method
+	* once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
@@ -945,7 +985,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnEmptyReferenceSummaryForEmptyCollection} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnEmptyReferenceSummaryForEmptyCollection} instead. Remove this method once
+	* FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
@@ -991,7 +1032,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@ParameterizedTest()
 	@MethodSource("returnRandomSeed")
-	void shouldReturnProductsWithSpecifiedFacetInEntireSet(long seed, Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsWithSpecifiedFacetInEntireSet(
+		long seed,
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1042,7 +1087,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching group AND combination of facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithSpecifiedFacetGroupAndCombinationInEntireSet(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsWithSpecifiedFacetGroupAndCombinationInEntireSet(
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1080,7 +1128,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching group OR combination of facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithSpecifiedFacetGroupOrCombinationInEntireSet(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsWithSpecifiedFacetGroupOrCombinationInEntireSet(
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1120,7 +1171,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching group NOT combination of facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithSpecifiedFacetGroupNotCombinationInEntireSet(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsWithSpecifiedFacetGroupNotCombinationInEntireSet(
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1160,7 +1214,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching AND combination of facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithSpecifiedFacetAndCombinationInEntireSet(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsWithSpecifiedFacetAndCombinationInEntireSet(
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1200,7 +1257,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching AND combination of facet using the attribute filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsUsingSpecifiedFacetAndCombinationDefinedByGroupAttributeFilterInEntireSetBy(Evita evita, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> parameterGroupIndex) {
+	void shouldReturnProductsUsingSpecifiedFacetAndCombinationDefinedByGroupAttributeFilterInEntireSetBy(
+		Evita evita,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, SealedEntity> parameterGroupIndex
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1244,7 +1305,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching OR combination of facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithSpecifiedFacetOrCombinationInEntireSet(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsWithSpecifiedFacetOrCombinationInEntireSet(
+		Evita evita,
+		List<SealedEntity> originalProductEntities
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1283,7 +1347,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@ParameterizedTest()
 	@MethodSource("returnRandomSeed")
-	void shouldReturnProductsWithSpecifiedFacetInHierarchyTree(long seed, Evita evita, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy) {
+	void shouldReturnProductsWithSpecifiedFacetInHierarchyTree(
+		long seed,
+		Evita evita,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1350,14 +1419,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnProductsWithHierarchicalFacetSubTreeUsingReferenceSummary} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnProductsWithHierarchicalFacetSubTreeUsingReferenceSummary} instead. Remove this
+	* method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching hierarchical facet including all its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithHierarchicalFacetSubTree(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsWithHierarchicalFacetSubTree(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1440,14 +1516,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnProductsWithPartialHierarchicalFacetSubTreeUsingReferenceSummary} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnProductsWithPartialHierarchicalFacetSubTreeUsingReferenceSummary} instead.
+	* Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching hierarchical facet including some of its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithPartialHierarchicalFacetSubTree(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsWithPartialHierarchicalFacetSubTree(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1511,14 +1594,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnProductsWithHierarchicalFacetSubTreeExcludingSomeUsingReferenceSummary} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnProductsWithHierarchicalFacetSubTreeExcludingSomeUsingReferenceSummary} instead.
+	* Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching hierarchical facet excluding some of its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithHierarchicalFacetSubTreeExcludingSome(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsWithHierarchicalFacetSubTreeExcludingSome(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1582,14 +1672,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSet} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSet} instead. Remove this method once FacetSummary is
+	* removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSet(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSet(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1618,14 +1714,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithPriceFilter} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithPriceFilter} instead. Remove this method once
+	* FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set when price filter is set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithPriceFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithPriceFilter(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -1658,8 +1760,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						session, productSchema, originalProductEntities,
 						query, __ -> FacetStatisticsDepth.IMPACT, parameterGroupMapping
 					)
-						.entityFilter(product -> product.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent())
-						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
+						.entityFilter(product -> product.getPriceForSale(
+								CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							).isPresent())
+						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(
+								from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							))
 						.build()
 				);
 
@@ -1670,14 +1776,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForPriceAndFacetInUserFilter} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForPriceAndFacetInUserFilter} instead. Remove this
+	* method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with impact when both price filter and facet selection are in user filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryWithImpactForPriceAndFacetInUserFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryWithImpactForPriceAndFacetInUserFilter(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -1711,8 +1823,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						session, productSchema, originalProductEntities,
 						query, __ -> FacetStatisticsDepth.IMPACT, parameterGroupMapping
 					)
-						.entityFilter(product -> product.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent())
-						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
+						.entityFilter(product -> product.getPriceForSale(
+								CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							).isPresent())
+						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(
+								from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							))
 						.build()
 				);
 
@@ -1723,14 +1839,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForAttributeInUserFilter} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForAttributeInUserFilter} instead. Remove this method
+	* once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with impact when attribute filter is in user filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryWithImpactForAttributeInUserFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryWithImpactForAttributeInUserFilter(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1769,14 +1891,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForPriceAttributeAndFacetInUserFilter} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForPriceAttributeAndFacetInUserFilter} instead. Remove
+	* this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with impact when price, attribute and facet filters coexist in user filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryWithImpactForPriceAttributeAndFacetInUserFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryWithImpactForPriceAttributeAndFacetInUserFilter(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -1812,8 +1940,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						session, productSchema, originalProductEntities,
 						query, __ -> FacetStatisticsDepth.IMPACT, parameterGroupMapping
 					)
-						.entityFilter(product -> product.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent())
-						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
+						.entityFilter(product -> product.getPriceForSale(
+								CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							).isPresent())
+						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(
+								from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							)
 							&& ofNullable((BigDecimal) product.getAttribute(ATTRIBUTE_QUANTITY))
 								.map(attr -> attr.compareTo(new BigDecimal("950")) > 0)
 								.orElse(false))
@@ -1827,14 +1959,19 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnSortedReferenceStatisticsByPredecessorAttribute} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnSortedReferenceStatisticsByPredecessorAttribute} instead. Remove this method
+	* once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return sorted facet statistics by predecessor attribute")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnSortedFacetStatisticsByPredecessorAttribute(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSortedFacetStatisticsByPredecessorAttribute(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1873,7 +2010,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						.entityFilter(sealedEntity -> sealedEntity.getLocales().contains(Locale.ENGLISH))
 						.facetSorterFactory(refName -> {
 							if (Entities.STORE.equals(refName)) {
-								return Comparator.comparingInt(o -> ArrayUtils.indexOf(o.getFacetEntity().getPrimaryKeyOrThrowException(), STORE_ORDER));
+								return Comparator.comparingInt(
+								o -> ArrayUtils.indexOf(o.getFacetEntity().getPrimaryKeyOrThrowException(), STORE_ORDER)
+							);
 							} else {
 								return null;
 							}
@@ -1894,14 +2033,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnProductsWithFacetMatchingConditionInEntireSetUsingReferenceSummary} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnProductsWithFacetMatchingConditionInEntireSetUsingReferenceSummary} instead.
+	* Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching facets identified by filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithFacetMatchingConditionInEntireSet(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping, Map<Integer, SealedEntity> parameterIndex) {
+	void shouldReturnProductsWithFacetMatchingConditionInEntireSet(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping,
+		Map<Integer, SealedEntity> parameterIndex
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1964,14 +2110,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForFilteredSet} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForFilteredSet} instead. Remove this method once FacetSummary is
+	* removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for filtered set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForFilteredSet(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForFilteredSet(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2007,14 +2159,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForFacetFilteredSet} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForFacetFilteredSet} instead. Remove this method once
+	* FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for facet filtered set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForFacetFilteredSet(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForFacetFilteredSet(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2057,14 +2215,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTree} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTree} instead. Remove this method once FacetSummary
+	* is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for hierarchy tree")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTree(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTree(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2133,14 +2298,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeWithStatistics} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeWithStatistics} instead. Remove this method once
+	* FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for hierarchy with statistics")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeWithStatistics(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeWithStatistics(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2181,14 +2353,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatistics} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatistics} instead. Remove
+	* this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatistics(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatistics(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2208,14 +2386,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeWithStatisticsAndInvertedInterFacetRelation} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeWithStatisticsAndInvertedInterFacetRelation}
+	* instead. Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for hierarchy with statistics and inverted inter facet relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeWithStatisticsAndInvertedInterFacetRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeWithStatisticsAndInvertedInterFacetRelation(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2258,14 +2443,22 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link
+	* #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation} instead.
+	* Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
-	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with inverted inter facet relation")
+	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics " +
+		"with inverted inter facet relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2287,14 +2480,17 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 				final Integer groupId = groups.iterator().next();
 				final int singleParameterSelectedResultInverted = queryParameterFacets(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session,
+					facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0]
 				);
 				final int twoParametersFromSameGroupResultInverted = queryParameterFacets(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0], facets[1]
+					productSchema, originalProductEntities, parameterGroupMapping, session,
+					facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0], facets[1]
 				);
 				assertTrue(
 					twoParametersFromSameGroupResultInverted < singleParameterSelectedResultInverted,
-					"When certain parameter group relation is inverted to AND, selecting multiple parameters from it should decrease the result"
+					"When certain parameter group relation is inverted to AND, " +
+					"selecting multiple parameters from it should decrease the result"
 				);
 				return null;
 			}
@@ -2302,14 +2498,22 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link
+	* #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation} instead.
+	* Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
-	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with inverted facet group relation")
+	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics " +
+		"with inverted facet group relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2335,14 +2539,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					"When selecting multiple facets from their groups should decrease the result"
 				);
 				final int singleParameterSelectedResultWithOr = queryParameterFacets(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session,
+					facetGroupsDisjunction(
+						Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))
+					), facets[0]
 				);
 				final int twoParametersFromDifferentGroupResultWithOr = queryParameterFacets(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))), facets
+					productSchema, originalProductEntities, parameterGroupMapping, session,
+					facetGroupsDisjunction(
+						Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))
+					), facets
 				);
 				assertTrue(
 					twoParametersFromDifferentGroupResultWithOr > singleParameterSelectedResultWithOr,
-					"When certain parameter group relation is inverted to OR, selecting multiple facets from their groups should increase the result"
+					"When certain parameter group relation is inverted to OR, " +
+					"selecting multiple facets from their groups should increase the result"
 				);
 				return null;
 			}
@@ -2350,14 +2561,22 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link
+	* #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact} instead. Remove
+	* this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
-	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics with negated meaning of group")
+	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics " +
+		"with negated meaning of group")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2380,18 +2599,26 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithGroupEntities} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithGroupEntities} instead. Remove this method once
+	* FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with group entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithGroupEntities(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithGroupEntities(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityGroupFetch groupEntityRequirement = entityGroupFetch(attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE));
+				final EntityGroupFetch groupEntityRequirement = entityGroupFetch(
+					attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE)
+				);
 
 				final Query query = query(
 					collection(Entities.PRODUCT),
@@ -2431,18 +2658,26 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFacetEntities} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFacetEntities} instead. Remove this method once
+	* FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with facet entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithFacetEntities(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithFacetEntities(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityFetch facetEntityRequirement = entityFetch(attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE));
+				final EntityFetch facetEntityRequirement = entityFetch(
+					attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE)
+				);
 
 				final Query query = query(
 					collection(Entities.PRODUCT),
@@ -2482,18 +2717,26 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithParameterEntities} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithParameterEntities} instead. Remove this method
+	* once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with parameter entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithParameterEntities(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithParameterEntities(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityFetch facetEntityRequirement = entityFetch(attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE));
+				final EntityFetch facetEntityRequirement = entityFetch(
+					attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE)
+				);
 				final EntityGroupFetch groupEntityRequirement = entityGroupFetch();
 
 				final Query query = query(
@@ -2547,18 +2790,26 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntitySetWithFacetEntitiesForParameters} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntitySetWithFacetEntitiesForParameters} instead. Remove this
+	* method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with facet entities for parameters")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntitySetWithFacetEntitiesForParameters(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntitySetWithFacetEntitiesForParameters(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityFetch facetEntityRequirement = entityFetch(attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE));
+				final EntityFetch facetEntityRequirement = entityFetch(
+					attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE)
+				);
 				final EntityGroupFetch groupEntityRequirement = entityGroupFetch();
 
 				final Query query = query(
@@ -2612,14 +2863,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacets} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacets} instead. Remove this
+	* method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with filtered and ordered facets")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithFilteredAndOrderedFacets(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> parameterIndex, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithFilteredAndOrderedFacets(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, SealedEntity> parameterIndex,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2697,14 +2955,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacetGroups} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacetGroups} instead. Remove
+	* this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with filtered and ordered facet groups")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithFilteredAndOrderedFacetGroups(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> parameterGroupIndex, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithFilteredAndOrderedFacetGroups(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, SealedEntity> parameterGroupIndex,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2784,14 +3049,22 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirementsWithOnlyDefaultRequirements} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link
+	* #shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirementsWithOnlyDefaultRequirements} instead. Remove
+	* this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
-	@DisplayName("Should return facet summary for entire set with complex entity requirements with only default requirements")
+	@DisplayName("Should return facet summary for entire set with complex entity requirements with only default " +
+		"requirements")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithComplexEntityRequirementsWithOnlyDefaultRequirements(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithComplexEntityRequirementsWithOnlyDefaultRequirements(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2849,14 +3122,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirements} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirements} instead. Remove this
+	* method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with complex entity requirements")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnFacetSummaryForEntireSetWithComplexEntityRequirements(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnFacetSummaryForEntireSetWithComplexEntityRequirements(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -2928,14 +3207,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnProductsWithSpecifiedFacetGroupExclusiveCombinationInEntireSetUsingReferenceSummary} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link
+	* #shouldReturnProductsWithSpecifiedFacetGroupExclusiveCombinationInEntireSetUsingReferenceSummary} instead. Remove
+	* this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching group EXCLUSIVE combination of facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithSpecifiedFacetGroupExclusiveCombinationInEntireSet(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsWithSpecifiedFacetGroupExclusiveCombinationInEntireSet(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3006,14 +3292,20 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * @deprecated Use {@link #shouldReturnProductsUsingDifferentDefaultFacetRulesUsingReferenceSummary} instead. Remove this method once FacetSummary is removed.
+	* @deprecated Use {@link #shouldReturnProductsUsingDifferentDefaultFacetRulesUsingReferenceSummary} instead. Remove
+	* this method once FacetSummary is removed.
 	 */
 	@Deprecated
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products using different default facet rules")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsUsingDifferentDefaultFacetRules(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsUsingDifferentDefaultFacetRules(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3145,7 +3437,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction
 	) {
 		facetSummary.getReferenceStatistics().forEach(actualFacetGroupStatistics -> {
-			if (actualFacetGroupStatistics.getGroupEntity() != null && actualFacetGroupStatistics.getGroupEntity() instanceof final SealedEntity groupEntity) {
+			if (actualFacetGroupStatistics.getGroupEntity() != null &&
+				actualFacetGroupStatistics.getGroupEntity() instanceof final SealedEntity groupEntity) {
 				assertTrue(groupEntitiesAssertFunction.apply(groupEntity));
 			}
 			actualFacetGroupStatistics.getFacetStatistics().forEach(actualFacetStatistics -> {
@@ -3231,9 +3524,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull
 		@Override
 		public String toString() {
-			// TODO: remove this cast after FacetSummary is removed
 			//noinspection unchecked
-			return this.facetSummary.prettyPrint((Function<ReferenceGroupStatistics, String>) (Function<?, ?>) this.groupRenderer, this.facetRenderer);
+			return this.facetSummary.prettyPrint(
+				(Function<ReferenceGroupStatistics, String>) (Function<?, ?>) this.groupRenderer, this.facetRenderer
+			);
 		}
 
 	}
@@ -3244,19 +3538,48 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * Wrapper around {@link #computeFacetSummary(FacetSummaryComputationParams)} that returns
 	 * {@link ReferenceSummaryWithResultCount} instead of {@link FacetSummaryWithResultCount}.
+	 * The intermediate {@link FacetSummary} is repackaged into a strict {@link ReferenceSummary}
+	 * instance and every {@link FacetGroupStatistics} element is rebuilt as a plain
+	 * {@link ReferenceGroupStatistics} — {@link ReferenceGroupStatistics#equals} is
+	 * {@code getClass()}-strict, and the canonical {@code referenceSummary()} constraint emits
+	 * plain {@link ReferenceGroupStatistics}, so the expected side must match that runtime type.
 	 */
 	private static ReferenceSummaryWithResultCount computeReferenceSummary(
 		@Nonnull FacetSummaryComputationParams params
 	) {
 		final FacetSummaryWithResultCount result = computeFacetSummary(params);
-		return new ReferenceSummaryWithResultCount(result.entityCount(), result.facetSummary());
+		final Collection<ReferenceGroupStatistics> rebuilt = result.facetSummary()
+			.getReferenceStatistics()
+			.stream()
+			.map(src -> new ReferenceGroupStatistics(
+				src.getReferenceName(),
+				src.getGroupEntity(),
+				src.getCount(),
+				src.getFacetStatistics()
+					.stream()
+					.collect(
+						toMap(
+							fs -> fs.getFacetEntity().getPrimaryKey(),
+							Function.identity(),
+							(a, b) -> {
+								throw new IllegalStateException(
+									"Duplicate facet statistics for primary key " +
+										a.getFacetEntity().getPrimaryKey()
+								);
+							},
+							LinkedHashMap::new
+						)
+					)
+			))
+			.toList();
+		return new ReferenceSummaryWithResultCount(result.entityCount(), new ReferenceSummary(rebuilt));
 	}
 
 	/**
 	 * Asserts reference summary against expected without full entity data asserts.
 	 */
 	private void assertReferenceSummary(@Nonnull ReferenceSummaryWithResultCount expectedSummary,
-	                                    @Nullable FacetSummary actualReferenceSummary) {
+	                                    @Nullable ReferenceSummary actualReferenceSummary) {
 		assertReferenceSummary(
 			expectedSummary,
 			actualReferenceSummary,
@@ -3270,7 +3593,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 */
 	private void assertReferenceSummary(
 		@Nonnull ReferenceSummaryWithResultCount expectedSummary,
-		@Nullable FacetSummary actualReferenceSummary,
+		@Nullable ReferenceSummary actualReferenceSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction
 	) {
@@ -3285,10 +3608,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 */
 	private void assertReferenceSummary(
 		@Nonnull ReferenceSummaryWithResultCount expectedSummary,
-		@Nullable FacetSummary actualReferenceSummary,
+		@Nullable ReferenceSummary actualReferenceSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction,
-		@Nonnull Function<FacetGroupStatistics, String> groupRenderer,
+		@Nonnull Function<ReferenceGroupStatistics, String> groupRenderer,
 		@Nonnull Function<FacetStatistics, String> facetRenderer
 	) {
 		assertNotNull(actualReferenceSummary);
@@ -3310,12 +3633,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * expected reference summary are equal.
 	 */
 	private void assertReferenceSummaryEntities(
-		@Nonnull FacetSummary referenceSummary,
+		@Nonnull ReferenceSummary referenceSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction
 	) {
 		referenceSummary.getReferenceStatistics().forEach(actualReferenceGroupStatistics -> {
-			if (actualReferenceGroupStatistics.getGroupEntity() != null && actualReferenceGroupStatistics.getGroupEntity() instanceof final SealedEntity groupEntity) {
+			if (actualReferenceGroupStatistics.getGroupEntity() != null &&
+				actualReferenceGroupStatistics.getGroupEntity() instanceof final SealedEntity groupEntity) {
 				assertTrue(groupEntitiesAssertFunction.apply(groupEntity));
 			}
 			actualReferenceGroupStatistics.getFacetStatistics().forEach(actualFacetStatistics -> {
@@ -3355,8 +3679,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			)
 		);
 		final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-		// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-		final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+		final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 		final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 			new FacetSummaryComputationParams.Builder(
@@ -3405,7 +3728,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should throw exception when accessing localized attributes on fetched entities using explicit reference")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesOnExplicitReferenceUsingReferenceSummary(Evita evita) {
+	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesOnExplicitReferenceUsingReferenceSummary(
+			Evita evita
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3462,8 +3787,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 
 				assertEquals(1, result.getRecordData().size());
 				assertTrue(result.getRecordData().get(0).getReferences(Entities.BRAND).isEmpty());
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				assertNull(result.getExtraResult(FacetSummary.class).getFacetGroupStatistics(Entities.BRAND));
+				assertNull(result.getExtraResult(ReferenceSummary.class).getReferenceGroupStatistics(Entities.BRAND));
 				return null;
 			}
 		);
@@ -3499,8 +3823,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					EntityReference.class
 				);
 
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary referenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 				assertNotNull(referenceSummary);
 				assertTrue(referenceSummary.getReferenceStatistics().isEmpty());
 				return null;
@@ -3511,7 +3834,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching hierarchical facet including all its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithHierarchicalFacetSubTreeUsingReferenceSummary(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsWithHierarchicalFacetSubTreeUsingReferenceSummary(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3570,8 +3899,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						.mapToInt(Integer::intValue)
 						.toArray();
 
-					// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-					final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+					final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 					final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 						new FacetSummaryComputationParams.Builder(
@@ -3597,7 +3925,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching hierarchical facet including some of its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithPartialHierarchicalFacetSubTreeUsingReferenceSummary(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsWithPartialHierarchicalFacetSubTreeUsingReferenceSummary(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3644,8 +3978,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final int[] selectedIds = new int[]{3, 7};
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -3664,7 +3997,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching hierarchical facet excluding some of its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithHierarchicalFacetSubTreeExcludingSomeUsingReferenceSummary(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsWithHierarchicalFacetSubTreeExcludingSomeUsingReferenceSummary(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3711,8 +4050,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final int[] selectedIds = new int[]{3, 7};
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -3731,7 +4069,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSet(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSet(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3744,8 +4087,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -3763,7 +4105,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set when price filter is set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSetWithPriceFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSetWithPriceFilter(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -3789,16 +4136,19 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
 						session, productSchema, originalProductEntities,
 						query, __ -> FacetStatisticsDepth.IMPACT, parameterGroupMapping
 					)
-						.entityFilter(product -> product.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent())
-						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
+						.entityFilter(product -> product.getPriceForSale(
+								CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							).isPresent())
+						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(
+								from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							))
 						.build()
 				);
 
@@ -3808,10 +4158,16 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		);
 	}
 
-	@DisplayName("Should return reference summary with impact when both price filter and facet selection are in user filter")
+	@DisplayName("Should return reference summary with impact when both price filter and facet selection are in user " +
+		"filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryWithImpactForPriceAndFacetInUserFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryWithImpactForPriceAndFacetInUserFilter(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -3838,16 +4194,19 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
 						session, productSchema, originalProductEntities,
 						query, __ -> FacetStatisticsDepth.IMPACT, parameterGroupMapping
 					)
-						.entityFilter(product -> product.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent())
-						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC))
+						.entityFilter(product -> product.getPriceForSale(
+								CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							).isPresent())
+						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(
+								from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							))
 						.build()
 				);
 
@@ -3860,7 +4219,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary with impact when attribute filter is in user filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryWithImpactForAttributeInUserFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryWithImpactForAttributeInUserFilter(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3879,8 +4243,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -3899,10 +4262,16 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		);
 	}
 
-	@DisplayName("Should return reference summary with impact when price, attribute and facet filters coexist in user filter")
+	@DisplayName("Should return reference summary with impact when price, attribute and facet filters coexist in user " +
+		"filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryWithImpactForPriceAttributeAndFacetInUserFilter(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryWithImpactForPriceAttributeAndFacetInUserFilter(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		final BigDecimal from = new BigDecimal("30");
 		final BigDecimal to = new BigDecimal("60");
 
@@ -3931,16 +4300,19 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
 						session, productSchema, originalProductEntities,
 						query, __ -> FacetStatisticsDepth.IMPACT, parameterGroupMapping
 					)
-						.entityFilter(product -> product.getPriceForSale(CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC).isPresent())
-						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC)
+						.entityFilter(product -> product.getPriceForSale(
+								CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							).isPresent())
+						.selectedEntitiesPredicate(product -> product.hasPriceInInterval(
+								from, to, QueryPriceMode.WITH_TAX, CURRENCY_EUR, null, PRICE_LIST_VIP, PRICE_LIST_BASIC
+							)
 							&& ofNullable((BigDecimal) product.getAttribute(ATTRIBUTE_QUANTITY))
 								.map(attr -> attr.compareTo(new BigDecimal("950")) > 0)
 								.orElse(false))
@@ -3956,7 +4328,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return sorted reference statistics by predecessor attribute")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnSortedReferenceStatisticsByPredecessorAttribute(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSortedReferenceStatisticsByPredecessorAttribute(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -3986,8 +4362,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					EntityReference.class
 				);
 
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
 						session, productSchema, originalProductEntities,
@@ -3996,7 +4371,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						.entityFilter(sealedEntity -> sealedEntity.getLocales().contains(Locale.ENGLISH))
 						.facetSorterFactory(refName -> {
 							if (Entities.STORE.equals(refName)) {
-								return Comparator.comparingInt(o -> ArrayUtils.indexOf(o.getFacetEntity().getPrimaryKeyOrThrowException(), STORE_ORDER));
+								return Comparator.comparingInt(
+								o -> ArrayUtils.indexOf(o.getFacetEntity().getPrimaryKeyOrThrowException(), STORE_ORDER)
+							);
 							} else {
 								return null;
 							}
@@ -4019,7 +4396,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching facets identified by filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithFacetMatchingConditionInEntireSetUsingReferenceSummary(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping, Map<Integer, SealedEntity> parameterIndex) {
+	void shouldReturnProductsWithFacetMatchingConditionInEntireSetUsingReferenceSummary(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping,
+		Map<Integer, SealedEntity> parameterIndex
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4042,8 +4425,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 				final int[] selectedFacets = parameterIndex.values()
 					.stream()
 					.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).compareTo("C") < 0)
@@ -4085,7 +4467,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for filtered set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForFilteredSet(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForFilteredSet(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4101,8 +4488,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4124,7 +4510,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for facet filtered set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForFacetFilteredSet(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForFacetFilteredSet(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4147,8 +4538,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4170,7 +4560,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for hierarchy tree")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForHierarchyTree(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForHierarchyTree(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4198,8 +4594,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 				final Set<Integer> excluded = new HashSet<>(Arrays.asList(excludedSubTrees));
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
@@ -4242,7 +4637,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for hierarchy with statistics")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForHierarchyTreeWithStatistics(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForHierarchyTreeWithStatistics(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4262,8 +4663,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4286,7 +4686,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary with parameter selection for hierarchy with statistics")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatistics(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatistics(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4308,7 +4713,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for hierarchy with statistics and inverted inter facet relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForHierarchyTreeWithStatisticsAndInvertedInterFacetRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Hierarchy categoryHierarchy, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForHierarchyTreeWithStatisticsAndInvertedInterFacetRelation(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Hierarchy categoryHierarchy,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4330,8 +4741,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4351,10 +4761,16 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		);
 	}
 
-	@DisplayName("Should return reference summary with parameter selection for hierarchy with statistics with inverted inter facet relation")
+	@DisplayName("Should return reference summary with parameter selection for hierarchy with statistics " +
+		"with inverted inter facet relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4376,24 +4792,33 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 				final Integer groupId = groups.iterator().next();
 				final int singleParameterSelectedResultInverted = queryParameterReferences(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session,
+					facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0]
 				);
 				final int twoParametersFromSameGroupResultInverted = queryParameterReferences(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0], facets[1]
+					productSchema, originalProductEntities, parameterGroupMapping, session,
+					facetGroupsConjunction(Entities.PARAMETER, filterBy(entityPrimaryKeyInSet(groupId))), facets[0], facets[1]
 				);
 				assertTrue(
 					twoParametersFromSameGroupResultInverted < singleParameterSelectedResultInverted,
-					"When certain parameter group relation is inverted to AND, selecting multiple parameters from it should decrease the result"
+					"When certain parameter group relation is inverted to AND, " +
+					"selecting multiple parameters from it should decrease the result"
 				);
 				return null;
 			}
 		);
 	}
 
-	@DisplayName("Should return reference summary with parameter selection for hierarchy with statistics with inverted facet group relation")
+	@DisplayName("Should return reference summary with parameter selection for hierarchy with statistics " +
+		"with inverted facet group relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4419,24 +4844,37 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					"When selecting multiple facets from their groups should decrease the result"
 				);
 				final int singleParameterSelectedResultWithOr = queryParameterReferences(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))), facets[0]
+					productSchema, originalProductEntities, parameterGroupMapping, session,
+					facetGroupsDisjunction(
+						Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))
+					), facets[0]
 				);
 				final int twoParametersFromDifferentGroupResultWithOr = queryParameterReferences(
-					productSchema, originalProductEntities, parameterGroupMapping, session, facetGroupsDisjunction(Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))), facets
+					productSchema, originalProductEntities, parameterGroupMapping, session,
+					facetGroupsDisjunction(
+						Entities.PARAMETER, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(groups[1]))
+					), facets
 				);
 				assertTrue(
 					twoParametersFromDifferentGroupResultWithOr > singleParameterSelectedResultWithOr,
-					"When certain parameter group relation is inverted to OR, selecting multiple facets from their groups should increase the result"
+					"When certain parameter group relation is inverted to OR, " +
+					"selecting multiple facets from their groups should increase the result"
 				);
 				return null;
 			}
 		);
 	}
 
-	@DisplayName("Should return reference summary with parameter selection for hierarchy with statistics with negated meaning of group")
+	@DisplayName("Should return reference summary with parameter selection for hierarchy with statistics " +
+		"with negated meaning of group")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4461,11 +4899,18 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set with group entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSetWithGroupEntities(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSetWithGroupEntities(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityGroupFetch groupEntityRequirement = entityGroupFetch(attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE));
+				final EntityGroupFetch groupEntityRequirement = entityGroupFetch(
+					attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE)
+				);
 
 				final Query query = query(
 					collection(Entities.PRODUCT),
@@ -4479,8 +4924,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4508,11 +4952,18 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set with facet entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSetWithFacetEntities(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSetWithFacetEntities(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityFetch facetEntityRequirement = entityFetch(attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE));
+				final EntityFetch facetEntityRequirement = entityFetch(
+					attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_CODE), dataInLocales(CZECH_LOCALE)
+				);
 
 				final Query query = query(
 					collection(Entities.PRODUCT),
@@ -4526,8 +4977,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4555,11 +5005,18 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set with parameter entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSetWithParameterEntities(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSetWithParameterEntities(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityFetch facetEntityRequirement = entityFetch(attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE));
+				final EntityFetch facetEntityRequirement = entityFetch(
+					attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE)
+				);
 				final EntityGroupFetch groupEntityRequirement = entityGroupFetch();
 
 				final Query query = query(
@@ -4576,8 +5033,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4616,11 +5072,18 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set with facet entities for parameters")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntitySetWithFacetEntitiesForParameters(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntitySetWithFacetEntitiesForParameters(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final EntityFetch facetEntityRequirement = entityFetch(attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE));
+				final EntityFetch facetEntityRequirement = entityFetch(
+					attributeContent(ATTRIBUTE_NAME), dataInLocales(CZECH_LOCALE)
+				);
 				final EntityGroupFetch groupEntityRequirement = entityGroupFetch();
 
 				final Query query = query(
@@ -4638,8 +5101,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4677,7 +5139,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set with filtered and ordered facets")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacets(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> parameterIndex, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacets(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, SealedEntity> parameterIndex,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4703,8 +5171,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4758,7 +5225,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set with filtered and ordered facet groups")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacetGroups(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, SealedEntity> parameterGroupIndex, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacetGroups(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, SealedEntity> parameterGroupIndex,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4784,8 +5257,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4838,10 +5310,16 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		);
 	}
 
-	@DisplayName("Should return reference summary for entire set with complex entity requirements with only default requirements")
+	@DisplayName("Should return reference summary for entire set with complex entity requirements with only default " +
+		"requirements")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirementsWithOnlyDefaultRequirements(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirementsWithOnlyDefaultRequirements(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4867,8 +5345,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4902,7 +5379,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return reference summary for entire set with complex entity requirements")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirements(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirements(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -4930,8 +5412,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				);
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -4977,7 +5458,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products matching group EXCLUSIVE combination of facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsWithSpecifiedFacetGroupExclusiveCombinationInEntireSetUsingReferenceSummary(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsWithSpecifiedFacetGroupExclusiveCombinationInEntireSetUsingReferenceSummary(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -5007,8 +5493,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final Predicate<SealedEntity> entityPredicate = sealedEntity -> sealedEntity
 					.getReferences(Entities.PARAMETER)
@@ -5051,7 +5536,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should return products using different default facet rules")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldReturnProductsUsingDifferentDefaultFacetRulesUsingReferenceSummary(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities, Map<Integer, Integer> parameterGroupMapping) {
+	void shouldReturnProductsUsingDifferentDefaultFacetRulesUsingReferenceSummary(
+		Evita evita,
+		EntitySchemaContract productSchema,
+		List<SealedEntity> originalProductEntities,
+		Map<Integer, Integer> parameterGroupMapping
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -5085,8 +5575,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				final EvitaResponse<EntityReference> result = session.query(query, EntityReference.class);
-				// TODO: replace FacetSummary.class with ReferenceSummary.class once FacetSummary is removed
-				final FacetSummary actualReferenceSummary = result.getExtraResult(FacetSummary.class);
+				final ReferenceSummary actualReferenceSummary = result.getExtraResult(ReferenceSummary.class);
 
 				final ReferenceSummaryWithResultCount expectedSummary = computeReferenceSummary(
 					new FacetSummaryComputationParams.Builder(
@@ -5114,24 +5603,22 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * Wraps a computed reference summary together with the count of entities matching the filter.
 	 */
-	private record ReferenceSummaryWithResultCount(int entityCount, FacetSummary referenceSummary) {
+	private record ReferenceSummaryWithResultCount(int entityCount, ReferenceSummary referenceSummary) {
 	}
 
 	/**
 	 * Helper wrapper that enables comparing reference summaries via their pretty-printed string representation.
 	 */
 	private record ReferenceSummaryToStringWrapper(
-		@Nonnull FacetSummary referenceSummary,
-		@Nonnull Function<FacetGroupStatistics, String> groupRenderer,
+		@Nonnull ReferenceSummary referenceSummary,
+		@Nonnull Function<ReferenceGroupStatistics, String> groupRenderer,
 		@Nonnull Function<FacetStatistics, String> facetRenderer
 	) {
 
 		@Nonnull
 		@Override
 		public String toString() {
-			// TODO: remove this cast once FacetSummary is removed
-			//noinspection unchecked
-			return this.referenceSummary.prettyPrint((Function<ReferenceGroupStatistics, String>) (Function<?, ?>) this.groupRenderer, this.facetRenderer);
+			return this.referenceSummary.prettyPrint(this.groupRenderer, this.facetRenderer);
 		}
 
 	}

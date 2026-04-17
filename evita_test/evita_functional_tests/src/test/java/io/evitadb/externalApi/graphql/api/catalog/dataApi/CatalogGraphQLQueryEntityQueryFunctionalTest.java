@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -70,6 +71,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
@@ -124,26 +126,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@SuppressWarnings("deprecation")
 public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
 	private static final String PRODUCT_QUERY_PATH = "data.queryProduct";
-	public static final String PRODUCT_QUERY_DATA_PATH = PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
+	public static final String PRODUCT_QUERY_DATA_PATH = PRODUCT_QUERY_PATH + "." +
+		ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
 	private static final String CATEGORY_QUERY_PATH = "data.queryCategory";
-	public static final String CATEGORY_QUERY_DATA_PATH = CATEGORY_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
+	public static final String CATEGORY_QUERY_DATA_PATH = CATEGORY_QUERY_PATH + "." +
+		ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name();
 
-	private static final String CATEGORY_HIERARCHY_PATH = CATEGORY_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String CATEGORY_HIERARCHY_PATH = CATEGORY_QUERY_PATH + "." +
+		ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
 	private static final String SELF_HIERARCHY_PATH = CATEGORY_HIERARCHY_PATH + "." + HierarchyDescriptor.SELF.name();
 	private static final String SELF_MEGA_MENU_PATH = SELF_HIERARCHY_PATH + ".megaMenu";
 	private static final String SELF_ROOT_SIBLINGS_PATH = SELF_HIERARCHY_PATH + ".rootSiblings";
 
-	private static final String PRODUCT_HIERARCHY_PATH = PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String PRODUCT_HIERARCHY_PATH = PRODUCT_QUERY_PATH + "." +
+		ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
 	private static final String REFERENCED_HIERARCHY_PATH = PRODUCT_HIERARCHY_PATH + ".category";
 	private static final String REFERENCED_MEGA_MENU_PATH = REFERENCED_HIERARCHY_PATH + ".megaMenu";
 	private static final String REFERENCED_ROOT_SIBLINGS_PATH = REFERENCED_HIERARCHY_PATH + ".rootSiblings";
 
 	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_QUERY = GRAPHQL_THOUSAND_PRODUCTS + "forEmptyQuery";
 
-	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_QUERY, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_QUERY, openWebApi = GraphQLProvider.CODE, readOnly = false,
+		destroyAfterClass = true)
 	protected DataCarrier setUpForEmptyQuery(Evita evita) {
 		return super.setUpData(evita, 0, false);
 	}
@@ -178,29 +186,29 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                __typename
-	                                primaryKey
-			                        type
-			                        locales
-			                        allLocales
-		                            attributes {
-		                                __typename
-		                                code
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: [%d, %d]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            __typename
+					                            primaryKey
+					                      type
+					                      locales
+					                      allLocales
+					                         attributes {
+					                             __typename
+					                             code
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -242,21 +250,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d]
-	                        }
-	                    ) {
-	                        recordPage {
-	                            data {
-	                                primaryKey
-			                        type
-			                        version
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: [%d, %d]
+					                    }
+					                ) {
+					                    recordPage {
+					                        data {
+					                            primaryKey
+					                      type
+					                      version
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -270,7 +278,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key greater than")
-	void shouldReturnProductsByPrimaryKeyGreaterThan(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyGreaterThan(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final int threshold = originalProductEntities.get(originalProductEntities.size() / 2).getPrimaryKey();
 
 		final List<EntityClassifier> expectedEntities = getEntities(
@@ -297,19 +306,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyGreaterThan: %d
-	                        }
-	                    ) {
-	                        recordPage(size: %d) {
-	                            data {
-	                                primaryKey
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyGreaterThan: %d
+					                    }
+					                ) {
+					                    recordPage(size: %d) {
+					                        data {
+					                            primaryKey
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				threshold,
 				Integer.MAX_VALUE
@@ -323,7 +332,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key greater than or equals")
-	void shouldReturnProductsByPrimaryKeyGreaterThanEquals(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyGreaterThanEquals(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final int threshold = originalProductEntities.get(originalProductEntities.size() / 2).getPrimaryKey();
 
 		final List<EntityClassifier> expectedEntities = getEntities(
@@ -350,19 +360,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyGreaterThanEquals: %d
-	                        }
-	                    ) {
-	                        recordPage(size: %d) {
-	                            data {
-	                                primaryKey
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyGreaterThanEquals: %d
+					                    }
+					                ) {
+					                    recordPage(size: %d) {
+					                        data {
+					                            primaryKey
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				threshold,
 				Integer.MAX_VALUE
@@ -376,7 +386,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key less than")
-	void shouldReturnProductsByPrimaryKeyLessThan(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyLessThan(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final int threshold = originalProductEntities.get(originalProductEntities.size() / 2).getPrimaryKey();
 
 		final List<EntityClassifier> expectedEntities = getEntities(
@@ -403,19 +414,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyLessThan: %d
-	                        }
-	                    ) {
-	                        recordPage(size: %d) {
-	                            data {
-	                                primaryKey
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyLessThan: %d
+					                    }
+					                ) {
+					                    recordPage(size: %d) {
+					                        data {
+					                            primaryKey
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				threshold,
 				Integer.MAX_VALUE
@@ -429,7 +440,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key less than or equals")
-	void shouldReturnProductsByPrimaryKeyLessThanEquals(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyLessThanEquals(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final int threshold = originalProductEntities.get(originalProductEntities.size() / 2).getPrimaryKey();
 
 		final List<EntityClassifier> expectedEntities = getEntities(
@@ -456,19 +468,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyLessThanEquals: %d
-	                        }
-	                    ) {
-	                        recordPage(size: %d) {
-	                            data {
-	                                primaryKey
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyLessThanEquals: %d
+					                    }
+					                ) {
+					                    recordPage(size: %d) {
+					                        data {
+					                            primaryKey
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				threshold,
 				Integer.MAX_VALUE
@@ -482,7 +494,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key between")
-	void shouldReturnProductsByPrimaryKeyBetween(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyBetween(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final int from = originalProductEntities.get(originalProductEntities.size() / 4).getPrimaryKey();
 		final int to = originalProductEntities.get(3 * originalProductEntities.size() / 4).getPrimaryKey();
 
@@ -510,19 +523,19 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyBetween: [%d, %d]
-	                        }
-	                    ) {
-	                        recordPage(size: %d) {
-	                            data {
-	                                primaryKey
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyBetween: [%d, %d]
+					                    }
+					                ) {
+					                    recordPage(size: %d) {
+					                        data {
+					                            primaryKey
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				from,
 				to,
@@ -564,21 +577,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d],
-	                            scope: ARCHIVED
-	                        }
-	                    ) {
-	                        recordPage {
-	                            data {
-	                                primaryKey
-			                        scope
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: [%d, %d],
+					                        scope: ARCHIVED
+					                    }
+					                ) {
+					                    recordPage {
+					                        data {
+					                            primaryKey
+					                      scope
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				archivedEntities.get(0).getPrimaryKey(),
 				archivedEntities.get(1).getPrimaryKey()
@@ -633,21 +646,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d, %d, %d],
-	                            scope: [LIVE, ARCHIVED]
-	                        }
-	                    ) {
-	                        recordPage {
-	                            data {
-	                                primaryKey
-			                        scope
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: [%d, %d, %d, %d],
+					                        scope: [LIVE, ARCHIVED]
+					                    }
+					                ) {
+					                    recordPage {
+					                        data {
+					                            primaryKey
+					                      scope
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				liveEntities.get(0).getPrimaryKey(),
 				liveEntities.get(1).getPrimaryKey(),
@@ -682,20 +695,20 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                         filterBy: {
+					            query {
+					                queryProduct(
+					                     filterBy: {
 							     entityPrimaryKeyInSet: %d
 							 }
-                        ) {
-                            recordPage {
-                                data {
-                                    primaryKey
-	                                scope
-                                }
-                            }
-	                    }
-	                }
+					                   ) {
+					                       recordPage {
+					                           data {
+					                               primaryKey
+					                            scope
+					                           }
+					                       }
+					                }
+					            }
 					""",
 				archivedEntity.getPrimaryKey()
 			)
@@ -876,26 +889,26 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: %d
-	                        }
-	                    ) {
-	                        recordPage {
-	                            data {
-	                                primaryKey
-		                            attributes(locale: en) {
-		                                name
-		                                code
-		                            },
-		                            associatedData(locale: en) {
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: %d
+					                    }
+					                ) {
+					                    recordPage {
+					                        data {
+					                            primaryKey
+					                         attributes(locale: en) {
+					                             name
+					                             code
+					                         },
+					                         associatedData(locale: en) {
 										labels
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				primaryKey
 			)
@@ -945,28 +958,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-			                        locales
-			                        allLocales
-		                            attributes(locale: en) {
-		                                code
-		                                name
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                      locales
+					                      allLocales
+					                         attributes(locale: en) {
+					                             code
+					                             name
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -980,7 +993,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by range attribute from variables")
-	void shouldReturnProductsByRangeAttributeFromVariables(GraphQLTester tester, Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByRangeAttributeFromVariables(GraphQLTester tester, Evita evita,
+		List<SealedEntity> originalProductEntities) {
 		final List<IntegerNumberRange> uniqueRanges = originalProductEntities.stream()
 			.flatMap(entity -> Arrays.stream(entity.getAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class)))
 			.collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
@@ -1017,21 +1031,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query ($size: IntegerNumberRange!) {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeSizeInSet: [$size]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-	                            }
-	                        }
-	                    }
-	                }
+					            query ($size: IntegerNumberRange!) {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeSizeInSet: [$size]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                        }
+					                    }
+					                }
+					            }
 					"""
 			)
 			.variable(
@@ -1047,7 +1061,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatted big decimal is missing locale")
-	void shouldReturnErrorWhenFormattedBigDecimalIsMissingLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattedBigDecimalIsMissingLocale(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null,
@@ -1057,25 +1072,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            attributes {
-		                                quantity(formatted: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         attributes {
+					                             quantity(formatted: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1088,7 +1103,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return big decimal attribute variants for products")
-	void shouldReturnBigDecimalAttributeVariantsForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnBigDecimalAttributeVariantsForProducts(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_QUANTITY) != null,
@@ -1104,10 +1120,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(
 						AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 						.e(ATTRIBUTE_QUANTITY, entity.getAttribute(ATTRIBUTE_QUANTITY).toString())
-						.e("formattedQuantity", NumberFormat.getNumberInstance(CZECH_LOCALE).format(entity.getAttribute(ATTRIBUTE_QUANTITY)))
+						.e("formattedQuantity", NumberFormat.getNumberInstance(CZECH_LOCALE)
+							.format(entity.getAttribute(ATTRIBUTE_QUANTITY)))
 						.build())
 					.e("enAttributes", map()
-						.e("enFormattedQuantity", NumberFormat.getNumberInstance(Locale.ENGLISH).format(entity.getAttribute(ATTRIBUTE_QUANTITY)))
+						.e("enFormattedQuantity", NumberFormat.getNumberInstance(Locale.ENGLISH)
+							.format(entity.getAttribute(ATTRIBUTE_QUANTITY)))
 						.build())
 					.build()
 		);
@@ -1115,30 +1133,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"],
-	                            entityLocaleEquals: cs_CZ
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            attributes {
-		                                quantity
-		                                formattedQuantity: quantity(formatted: true)
-		                            }
-		                            enAttributes: attributes(locale: en) {
-		                                enFormattedQuantity: quantity(formatted: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"],
+					                        entityLocaleEquals: cs_CZ
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         attributes {
+					                             quantity
+					                             formattedQuantity: quantity(formatted: true)
+					                         }
+					                         enAttributes: attributes(locale: en) {
+					                             enFormattedQuantity: quantity(formatted: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1179,29 +1197,29 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeUrlInSet: ["%s", "%s"]
-	                            entityLocaleEquals: en
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-			                        locales
-			                        allLocales
-		                            attributes {
-		                                url
-		                                name
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeUrlInSet: ["%s", "%s"]
+					                        entityLocaleEquals: en
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                      locales
+					                      allLocales
+					                         attributes {
+					                             url
+					                             name
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH),
 				entities.get(1).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH)
@@ -1221,15 +1239,15 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        primaryKey
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    primaryKey
+					                }
+					            }
 					""",
 				codeAttribute1,
 				codeAttribute2
@@ -1246,17 +1264,17 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(code: "product") {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(code: "product") {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                        }
+					                    }
+					                }
+					            }
 					"""
 			)
 			.executeAndThen()
@@ -1482,7 +1500,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.getReferencedEntity()
 					.orElseThrow()
 					.getParentEntity()
-					.get()
+					.orElseThrow()
 					.getParentEntity()
 					.isPresent());
 				return p;
@@ -1567,7 +1585,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.getReferencedEntity()
 					.orElseThrow()
 					.getParentEntity()
-					.get()
+					.orElseThrow()
 					.getParentEntity()
 					.isPresent());
 				return p;
@@ -1654,7 +1672,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.getReferencedEntity()
 					.orElseThrow()
 					.getParentEntity()
-					.get()
+					.orElseThrow()
 					.getParentEntity()
 					.isEmpty());
 				return p;
@@ -1703,7 +1721,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
-	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithOnlyOnePriceForSale);
@@ -1711,31 +1730,31 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-		                        attributeCodeInSet: ["%s", "%s"]
-		                        priceInCurrency: CZK,
-		                        priceInPriceLists: "basic"
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            priceForSale {
-		                                __typename
-		                                currency
-		                                priceList
-		                                priceWithTax
-		                            }
-		                            multiplePricesForSaleAvailable
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                     attributeCodeInSet: ["%s", "%s"]
+					                     priceInCurrency: CZK,
+					                     priceInPriceLists: "basic"
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         priceForSale {
+					                             __typename
+					                             currency
+					                             priceList
+					                             priceWithTax
+					                         }
+					                         multiplePricesForSaleAvailable
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1768,37 +1787,40 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.toList();
 		assertTrue(priceLists.size() > 1);
 
-		final var expectedBody = createBasicPageResponse(entities, entity -> createEntityDtoWithAllPricesForSale(entity, priceLists.toArray(String[]::new)));
+		final var expectedBody = createBasicPageResponse(
+			entities,
+			entity -> createEntityDtoWithAllPricesForSale(entity, priceLists.toArray(String[]::new))
+		);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-		                        entityPrimaryKeyInSet: [%d, %d]
-		                        priceInCurrency: CZK,
-		                        priceInPriceLists: %s
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-			                        multiplePricesForSaleAvailable
-		                            allPricesForSale {
-		                                __typename
-		                                currency
-		                                priceList
-		                                priceWithTax
-		                                innerRecordId
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                     entityPrimaryKeyInSet: [%d, %d]
+					                     priceInCurrency: CZK,
+					                     priceInPriceLists: %s
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                      multiplePricesForSaleAvailable
+					                         allPricesForSale {
+					                             __typename
+					                             currency
+					                             priceList
+					                             priceWithTax
+					                             innerRecordId
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey(),
@@ -1813,31 +1835,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom multiple prices for sale flag for master products")
-	void shouldReturnCustomMultiplePricesForSaleForMasterProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnCustomMultiplePricesForSaleForMasterProducts(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities1 = findEntitiesWithPrice(originalProductEntities, 2);
 
-		final var expectedBody1 = createBasicPageResponse(entities1, entity -> createEntityDtoWithMultiplePricesForSaleAvailable(entity, false));
+		final var expectedBody1 = createBasicPageResponse(
+			entities1,
+			entity -> createEntityDtoWithMultiplePricesForSaleAvailable(entity, false)
+		);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            multiplePricesForSaleAvailable(currency: CZK, priceLists: "basic")
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         multiplePricesForSaleAvailable(currency: CZK, priceLists: "basic")
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities1.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities1.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1865,28 +1891,31 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.toList();
 		assertTrue(priceLists.size() > 1);
 
-		final var expectedBody2 = createBasicPageResponse(entities2, entity -> createEntityDtoWithMultiplePricesForSaleAvailable(entity, true));
+		final var expectedBody2 = createBasicPageResponse(
+			entities2,
+			entity -> createEntityDtoWithMultiplePricesForSaleAvailable(entity, true)
+		);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-		                        entityPrimaryKeyInSet: [%d, %d]
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-			                        multiplePricesForSaleAvailable(currency: CZK, priceLists: %s)
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                     entityPrimaryKeyInSet: [%d, %d]
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                      multiplePricesForSaleAvailable(currency: CZK, priceLists: %s)
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities2.get(0).getPrimaryKey(),
 				entities2.get(1).getPrimaryKey(),
@@ -1907,24 +1936,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-		                        priceInCurrency: CZK,
-		                        priceInPriceLists: "nonexistent"
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-	                                type
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                     priceInCurrency: CZK,
+					                     priceInPriceLists: "nonexistent"
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                            type
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1932,36 +1961,38 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name(), hasSize(0));
+			.body(PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." +
+				DataChunkDescriptor.DATA.name(), hasSize(0));
 	}
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering products by unknown currency")
-	void shouldReturnErrorForFilteringProductsByUnknownCurrency(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForFilteringProductsByUnknownCurrency(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-		                        priceInCurrency: AAA,
-		                        priceInPriceLists: "basic"
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-	                                type
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                     priceInCurrency: AAA,
+					                     priceInPriceLists: "basic"
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                            type
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -1993,29 +2024,29 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%d, %d]
-	                            priceInCurrency: EUR
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            priceForSale(currency: CZK, priceList: "basic") {
-		                                __typename
-		                                currency
-		                                priceList
-		                                priceWithTax
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: [%d, %d]
+					                        priceInCurrency: EUR
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         priceForSale(currency: CZK, priceList: "basic") {
+					                             __typename
+					                             currency
+					                             priceList
+					                             priceWithTax
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -2029,7 +2060,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with entity locale")
-	void shouldReturnFormattedPriceForSaleWithEntityLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceForSaleWithEntityLocale(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
@@ -2037,26 +2069,26 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-		                        attributeCodeInSet: ["%s", "%s"]
-		                        priceInCurrency: CZK,
-		                        priceInPriceLists: "basic",
-		                        entityLocaleEquals: cs_CZ
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            priceForSale {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                     attributeCodeInSet: ["%s", "%s"]
+					                     priceInCurrency: CZK,
+					                     priceInPriceLists: "basic",
+					                     entityLocaleEquals: cs_CZ
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         priceForSale {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2070,7 +2102,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with custom locale")
-	void shouldReturnFormattedPriceForSaleWithCustomLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnFormattedPriceForSaleWithCustomLocale(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
@@ -2078,25 +2111,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-		                        attributeCodeInSet: ["%s", "%s"]
-		                        priceInCurrency: CZK,
-		                        priceInPriceLists: "basic"
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            priceForSale(locale: cs_CZ) {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                     attributeCodeInSet: ["%s", "%s"]
+					                     priceInCurrency: CZK,
+					                     priceInPriceLists: "basic"
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         priceForSale(locale: cs_CZ) {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2110,7 +2143,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return formatted price for sale with custom locale")
-	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPriceForSaleWithoutLocale(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithFormattedPriceForSale);
@@ -2118,25 +2152,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-		                        attributeCodeInSet: ["%s", "%s"]
-		                        priceInCurrency: CZK,
-		                        priceInPriceLists: "basic"
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            priceForSale {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                     attributeCodeInSet: ["%s", "%s"]
+					                     priceInCurrency: CZK,
+					                     priceInPriceLists: "basic"
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         priceForSale {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2147,7 +2181,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products with filter inheritance")
-	void shouldReturnPriceForProductsWithFilterInheritance(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForProductsWithFilterInheritance(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		final var expectedBody = createBasicPageResponse(
@@ -2158,30 +2193,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                            priceInCurrency: CZK
-	                            priceInPriceLists: "basic"
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            price(priceList: "basic") {
-		                                __typename
-		                                currency
-		                                priceList
-		                                priceWithTax
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                        priceInCurrency: CZK
+					                        priceInPriceLists: "basic"
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         price(priceList: "basic") {
+					                             __typename
+					                             currency
+					                             priceList
+					                             priceWithTax
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2195,11 +2230,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return price for products outside of filter")
-	void shouldReturnPriceForProductsOutsideOfFilter(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPriceForProductsOutsideOfFilter(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final int pk = findEntityPk(
 			originalProductEntities,
-			it -> it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC) && price.currency().equals(CURRENCY_CZK)) &&
-				it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP) && price.currency().equals(CURRENCY_EUR))
+			it -> it.getPrices().stream().anyMatch(
+					price -> price.priceList().equals(PRICE_LIST_BASIC) && price.currency().equals(CURRENCY_CZK)) &&
+				it.getPrices().stream().anyMatch(
+					price -> price.priceList().equals(PRICE_LIST_VIP) && price.currency().equals(CURRENCY_EUR))
 		);
 
 		final SealedEntity entity = getEntity(
@@ -2225,23 +2263,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: %d
-	                            priceInCurrency: CZK
-	                            priceInPriceLists: "basic"
-	                        }
-                        ) {
-	                        recordPage {
-	                            data {
-		                            price(currency: EUR, priceList: "vip") {
-		                                priceId
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: %d
+					                        priceInCurrency: CZK
+					                        priceInPriceLists: "basic"
+					                    }
+					                   ) {
+					                    recordPage {
+					                        data {
+					                         price(currency: EUR, priceList: "vip") {
+					                             priceId
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				pk
 			)
@@ -2261,11 +2299,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return prices for products outside of filter")
-	void shouldReturnPricesForProductsOutsideOfFilter(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnPricesForProductsOutsideOfFilter(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final int pk = findEntityPk(
 			originalProductEntities,
-			it -> it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_BASIC) && price.currency().equals(CURRENCY_CZK)) &&
-				it.getPrices().stream().anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP) && price.currency().equals(CURRENCY_EUR))
+			it -> it.getPrices().stream().anyMatch(
+					price -> price.priceList().equals(PRICE_LIST_BASIC) && price.currency().equals(CURRENCY_CZK)) &&
+				it.getPrices().stream().anyMatch(
+					price -> price.priceList().equals(PRICE_LIST_VIP) && price.currency().equals(CURRENCY_EUR))
 		);
 
 		final SealedEntity entity = getEntity(
@@ -2290,23 +2331,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: %d
-	                            priceInCurrency: CZK
-	                            priceInPriceLists: "basic"
-	                        }
-                        ) {
-	                        recordPage {
-	                            data {
-		                            prices(currency: EUR, priceLists: "vip") {
-		                                priceId
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: %d
+					                        priceInCurrency: CZK
+					                        priceInPriceLists: "basic"
+					                    }
+					                   ) {
+					                    recordPage {
+					                        data {
+					                         prices(currency: EUR, priceLists: "vip") {
+					                             priceId
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				pk
 			)
@@ -2339,28 +2380,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            price(priceList: "basic", currency: CZK) {
-		                                __typename
-		                                currency
-		                                priceList
-		                                priceWithTax
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         price(priceList: "basic", currency: CZK) {
+					                             __typename
+					                             currency
+					                             priceList
+					                             priceWithTax
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2385,24 +2426,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"],
-	                            entityLocaleEquals: cs_CZ
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            price(priceList: "basic", currency: CZK) {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"],
+					                        entityLocaleEquals: cs_CZ
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         price(priceList: "basic", currency: CZK) {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2427,23 +2468,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            price(priceList: "basic", currency: CZK, locale: cs_CZ) {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         price(priceList: "basic", currency: CZK, locale: cs_CZ) {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2457,29 +2498,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return when formatting price without locale")
-	void shouldReturnErrorWhenFormattingPriceWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPriceWithoutLocale(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            price(priceList: "basic", currency: CZK) {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         price(priceList: "basic", currency: CZK) {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2502,25 +2544,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            prices {
-		                                priceWithTax
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         prices {
+					                             priceWithTax
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -2533,11 +2575,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				hasSize(2)
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name() + "[0]." + EntityDescriptor.PRICES.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." +
+					DataChunkDescriptor.DATA.name() + "[0]." + EntityDescriptor.PRICES.name(),
 				hasSize(greaterThan(0))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name() + "[1]." + EntityDescriptor.PRICES.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." +
+					DataChunkDescriptor.DATA.name() + "[1]." + EntityDescriptor.PRICES.name(),
 				hasSize(greaterThan(0))
 			);
 	}
@@ -2553,28 +2597,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-		                    filterBy: {
-		                        entityPrimaryKeyInSet: [%d, %d]
-		                    }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            prices(priceLists: "basic", currency: CZK) {
-		                                __typename
-		                                currency
-		                                priceList
-		                                priceWithTax
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                 filterBy: {
+					                     entityPrimaryKeyInSet: [%d, %d]
+					                 }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         prices(priceLists: "basic", currency: CZK) {
+					                             __typename
+					                             currency
+					                             priceList
+					                             priceWithTax
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -2588,8 +2632,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered prices for multiple price lists for products")
-	void shouldReturnFilteredPricesForMutliplePriceListsForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
-		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2, PRICE_LIST_BASIC, PRICE_LIST_VIP);
+	void shouldReturnFilteredPricesForMutliplePriceListsForProducts(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> entities = findEntitiesWithPrice(
+			originalProductEntities, 2, PRICE_LIST_BASIC, PRICE_LIST_VIP
+		);
 
 		final var expectedBody = createBasicPageResponse(
 			entities,
@@ -2597,10 +2644,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				map()
 					.e("prices", List.of(
 						map()
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(),
+							entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
 							.build(),
 						map()
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_VIP).iterator().next().priceWithTax().toString())
+							.e(PriceDescriptor.PRICE_WITH_TAX.name(),
+							entity.getPrices(CURRENCY_CZK, PRICE_LIST_VIP).iterator().next().priceWithTax().toString())
 							.build()
 					))
 					.build()
@@ -2609,23 +2658,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-		                    filterBy: {
-		                        entityPrimaryKeyInSet: [%d, %d]
-		                    }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            prices(priceLists: ["basic", "vip"], currency: CZK) {
-		                                priceWithTax
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                 filterBy: {
+					                     entityPrimaryKeyInSet: [%d, %d]
+					                 }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         prices(priceLists: ["basic", "vip"], currency: CZK) {
+					                             priceWithTax
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -2650,24 +2699,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-		                    filterBy: {
-		                        entityPrimaryKeyInSet: [%d, %d],
-		                        entityLocaleEquals: cs_CZ
-		                    }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            prices(priceLists: "basic", currency: CZK) {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                 filterBy: {
+					                     entityPrimaryKeyInSet: [%d, %d],
+					                     entityLocaleEquals: cs_CZ
+					                 }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         prices(priceLists: "basic", currency: CZK) {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -2692,23 +2741,23 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-		                    filterBy: {
-		                        entityPrimaryKeyInSet: [%d, %d]
-		                    }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            prices(priceLists: "basic", currency: CZK, locale: cs_CZ) {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                 filterBy: {
+					                     entityPrimaryKeyInSet: [%d, %d]
+					                 }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         prices(priceLists: "basic", currency: CZK, locale: cs_CZ) {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -2722,29 +2771,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error when formatting prices without locale")
-	void shouldReturnErrorWhenFormattingPricesWithoutLocale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorWhenFormattingPricesWithoutLocale(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-		                    filterBy: {
-		                        entityPrimaryKeyInSet: [%d, %d]
-		                    }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-		                            prices(priceLists: "basic", currency: CZK) {
-		                                priceWithTax(formatted: true, withCurrency: true)
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                 filterBy: {
+					                     entityPrimaryKeyInSet: [%d, %d]
+					                 }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                         prices(priceLists: "basic", currency: CZK) {
+					                             priceWithTax(formatted: true, withCurrency: true)
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getPrimaryKey(),
 				entities.get(1).getPrimaryKey()
@@ -2757,7 +2807,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return accompanying prices for single price for sale")
-	void shouldReturnAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity -> {
 				final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
@@ -2841,7 +2892,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return accompanying prices for single price for sale")
-	void shouldReturnDefaultAccompanyingPriceForSinglePriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnDefaultAccompanyingPriceForSinglePriceForSale(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity ->
 				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
@@ -2917,7 +2969,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return accompanying prices for single price for sale")
-	void shouldReturnDefaultAndCustomAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnDefaultAndCustomAccompanyingPricesForSinglePriceForSale(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity ->
 				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
@@ -2999,7 +3052,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return accompanying prices for single custom price for sale")
-	void shouldReturnAccompanyingPricesForSingleCustomPriceForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAccompanyingPricesForSingleCustomPriceForSale(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity -> {
 				final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
@@ -3079,7 +3133,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return default and custom accompanying prices for all prices for sale")
-	void shouldReturnDefaultAndCustomAccompanyingPricesForAllPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnDefaultAndCustomAccompanyingPricesForAllPricesForSale(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity ->
 				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
@@ -3089,7 +3144,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -3163,7 +3218,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return accompanying prices for all prices for sale")
-	void shouldReturnAccompanyingPricesForAllPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAccompanyingPricesForAllPricesForSale(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity ->
 				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
@@ -3173,7 +3229,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -3241,7 +3297,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return accompanying prices for all custom prices for sale")
-	void shouldReturnAccompanyingPricesForAllCustomPricesForSale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAccompanyingPricesForAllCustomPricesForSale(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity ->
 				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
@@ -3251,7 +3308,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -3315,7 +3372,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for accompanying prices without price lists in single price for sale")
-	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInSinglePriceForSale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInSinglePriceForSale(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity ->
 				entity.getPrices(CURRENCY_CZK).stream()
@@ -3324,7 +3382,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 					entity.getPrices(CURRENCY_CZK).stream()
 						.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -3364,7 +3422,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for accompanying prices without price lists in all prices for sale")
-	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInAllPricesForSale(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForAccompanyingPricesWithoutPriceListsInAllPricesForSale(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity ->
 				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
@@ -3374,7 +3433,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.anyMatch(price -> price.priceList().equals(PRICE_LIST_REFERENCE)) &&
 				entity.getPrices(CURRENCY_CZK).stream()
 					.anyMatch(price -> price.priceList().equals(PRICE_LIST_VIP)))
-			.map(entity -> entity.getPrimaryKey())
+			.map(EntityContract::getPrimaryKey)
 			.toList();
 		assertTrue(desiredEntities.size() > 1);
 
@@ -3414,7 +3473,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with inherited locale for products")
-	void shouldReturnAssociatedDataWithInheritedLocaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithInheritedLocaleForProducts(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
@@ -3430,27 +3490,27 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                            entityLocaleEquals: en
-	                        }
-                        ) {
-                            __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            associatedData {
-		                                __typename
-		                                labels
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                        entityLocaleEquals: en
+					                    }
+					                   ) {
+					                       __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         associatedData {
+					                             __typename
+					                             labels
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -3464,7 +3524,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with custom locale for products")
-	void shouldReturnAssociatedDataWithCustomLocaleForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithCustomLocaleForProducts(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null,
@@ -3479,26 +3540,26 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            associatedData(locale: en) {
-		                                __typename
-		                                labels
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         associatedData(locale: en) {
+					                             __typename
+					                             labels
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -3512,7 +3573,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single reference for products")
-	void shouldReturnSingleReferenceForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleReferenceForProducts(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.PARAMETER).size() == 1 &&
@@ -3527,13 +3589,18 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				final SealedEntity referencedEntity = evita.queryCatalog(
 					TEST_CATALOG,
 					session -> {
-						return session.getEntity(Entities.PARAMETER, reference.getReferencedPrimaryKey(), attributeContent(ATTRIBUTE_CODE));
+						return session.getEntity(
+							Entities.PARAMETER, reference.getReferencedPrimaryKey(), attributeContent(ATTRIBUTE_CODE)
+						);
 					}
 				).orElseThrow();
 				final SealedEntity groupEntity = evita.queryCatalog(
 					TEST_CATALOG,
 					session -> {
-						return session.getEntity(Entities.PARAMETER_GROUP, reference.getGroup().get().getPrimaryKey(), attributeContent(ATTRIBUTE_CODE));
+						return session.getEntity(
+							Entities.PARAMETER_GROUP, reference.getGroup().orElseThrow().getPrimaryKey(),
+							attributeContent(ATTRIBUTE_CODE)
+						);
 					}
 				).orElseThrow();
 
@@ -3541,10 +3608,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e("parameter", map()
-						.e(TYPENAME_FIELD, EntityReferenceDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
+						.e(TYPENAME_FIELD, EntityReferenceDescriptor.THIS.name(
+							createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 						.e(
 							AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-							.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
+							.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(
+								createEmptyEntitySchema("Product"), createEmptyEntitySchema("Parameter")))
 							.e(ATTRIBUTE_MARKET_SHARE, reference.getAttribute(ATTRIBUTE_MARKET_SHARE).toString())
 							.build())
 						.e(
@@ -3562,7 +3631,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							ReferenceDefinitionDescriptor.GROUP_ENTITY.name(),
 							map()
 								.e(TYPENAME_FIELD, "ParameterGroup")
-								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().get().getPrimaryKey())
+								.e(EntityDescriptor.PRIMARY_KEY.name(), reference.getGroup().orElseThrow().getPrimaryKey())
 								.e(EntityDescriptor.TYPE.name(), reference.getGroup().get().getType())
 								.e(
 									AttributesProviderDescriptor.ATTRIBUTES.name(), map()
@@ -3577,45 +3646,45 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            parameter {
-		                                __typename
-		                                attributes {
-		                                    __typename
-		                                    marketShare
-		                                }
-		                                referencedEntity {
-		                                    __typename
-		                                    primaryKey
-		                                    type
-		                                    attributes {
-		                                        code
-		                                    }
-		                                }
-		                                groupEntity {
-		                                    __typename
-		                                    primaryKey
-		                                    type
-		                                    attributes {
-		                                        code
-		                                    }
-		                                }
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         parameter {
+					                             __typename
+					                             attributes {
+					                                 __typename
+					                                 marketShare
+					                             }
+					                             referencedEntity {
+					                                 __typename
+					                                 primaryKey
+					                                 type
+					                                 attributes {
+					                                     code
+					                                 }
+					                             }
+					                             groupEntity {
+					                                 __typename
+					                                 primaryKey
+					                                 type
+					                                 attributes {
+					                                     code
+					                                 }
+					                             }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -3660,27 +3729,27 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            store {
-		                                referencedEntity {
-		                                    primaryKey
-		                                }
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         store {
+					                             referencedEntity {
+					                                 primaryKey
+					                             }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -3694,7 +3763,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered and ordered reference list for products")
-	void shouldReturnFilteredAndOrderedReferenceListForProducts(GraphQLTester tester, List<SealedEntity> originalProductsEntities, List<SealedEntity> originalStoreEntities) {
+	void shouldReturnFilteredAndOrderedReferenceListForProducts(GraphQLTester tester,
+		List<SealedEntity> originalProductsEntities, List<SealedEntity> originalStoreEntities) {
 		final Map<Integer, SealedEntity> storesIndexedByPk = originalStoreEntities.stream()
 			.collect(Collectors.toMap(
 				EntityContract::getPrimaryKey,
@@ -3764,39 +3834,39 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            entityPrimaryKeyInSet: [%s],
-	                            entityLocaleEquals: cs_CZ
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage(number: 1, size: %d) {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            store(
-		                                filterBy: {
-		                                    entityHaving: {
-		                                        attributeCodeInSet: [%s]
-		                                    }
-		                                },
-		                                orderBy: {
-		                                    entityProperty: {
-		                                        attributeNameNatural: DESC
-		                                    }
-		                                }
-		                            ) {
-		                                referencedEntity {
-		                                    primaryKey
-		                                }
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        entityPrimaryKeyInSet: [%s],
+					                        entityLocaleEquals: cs_CZ
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage(number: 1, size: %d) {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         store(
+					                             filterBy: {
+					                                 entityHaving: {
+					                                     attributeCodeInSet: [%s]
+					                                 }
+					                             },
+					                             orderBy: {
+					                                 entityProperty: {
+					                                     attributeNameNatural: DESC
+					                                 }
+					                             }
+					                         ) {
+					                             referencedEntity {
+					                                 primaryKey
+					                             }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				productsWithLotsOfStores.keySet().stream().map(Object::toString).collect(Collectors.joining(",")),
 				Integer.MAX_VALUE,
@@ -3811,7 +3881,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return sublist of references for products")
-	void shouldReturnSublistOfReferencesForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSublistOfReferencesForProducts(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() >= 4,
@@ -3838,27 +3909,27 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            store(limit: 2) {
-		                                referencedEntity {
-		                                    primaryKey
-		                                }
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         store(limit: 2) {
+					                             referencedEntity {
+					                                 primaryKey
+					                             }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -3872,7 +3943,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference page for products")
-	void shouldReturnReferencePageForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferencePageForProducts(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() >= 4,
@@ -3905,7 +3977,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 								return map()
 									.e(
-										ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
+										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 											.e(
 												StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
 												reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
@@ -3918,7 +3990,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 												reference.getReferencedPrimaryKey()
 											)
 											.e(
-												EntityDescriptor.VERSION.name(),
+												VersionedDescriptor.VERSION.name(),
 												referencedEntity.version()
 											)
 									)
@@ -3933,34 +4005,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            storePage(number: 2, size: 2) {
-		                                totalRecordCount
-		                                data {
-		                                    attributes {
-		                                        storeVisibleForB2c
-		                                    }
-			                                referencedEntity {
-			                                    primaryKey
-			                                    version
-			                                }
-		                                }
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         storePage(number: 2, size: 2) {
+					                             totalRecordCount
+					                             data {
+					                                 attributes {
+					                                     storeVisibleForB2c
+					                                 }
+					                              referencedEntity {
+					                                  primaryKey
+					                                  version
+					                              }
+					                             }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -4000,7 +4072,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.map(reference ->
 									     map()
 										     .e(
-											     ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
+											     AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 												     .e(
 													     StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
 													     reference.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C)
@@ -4023,33 +4095,33 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            storeStrip(offset: 2, limit: 2) {
-		                                totalRecordCount
-		                                data {
-		                                    attributes {
-		                                        storeVisibleForB2c
-	                                        }
-			                                referencedEntity {
-			                                    primaryKey
-			                                }
-		                                }
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         storeStrip(offset: 2, limit: 2) {
+					                             totalRecordCount
+					                             data {
+					                                 attributes {
+					                                     storeVisibleForB2c
+					                                    }
+					                              referencedEntity {
+					                                  primaryKey
+					                              }
+					                             }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -4083,25 +4155,25 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            storePage {
-		                                totalRecordCount
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         storePage {
+					                             totalRecordCount
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -4115,7 +4187,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return named reference configuration with nested data for products")
-	void shouldReturnNamedReferenceConfigurationWithNestedDataForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnNamedReferenceConfigurationWithNestedDataForProducts(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> {
@@ -4161,7 +4234,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 									return map()
 										.e(
 											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-											.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+											.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
+												ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
 											.e(VersionedDescriptor.VERSION.name(), referencedEntity.version()))
@@ -4176,38 +4250,38 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-		                            storesWithVisibility: storePage(
-		                                filterBy: { attributeStoreVisibleForB2cEquals: true },
-		                                orderBy: { entityProperty: { entityPrimaryKeyNatural: ASC } }
-		                                size: 1
-	                                ) {
-		                                totalRecordCount
-		                                data {
-		                                    attributes {
-		                                        storeVisibleForB2c
-		                                    }
-			                                referencedEntity {
-			                                    primaryKey
-			                                    version
-			                                }
-		                                }
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                         storesWithVisibility: storePage(
+					                             filterBy: { attributeStoreVisibleForB2cEquals: true },
+					                             orderBy: { entityProperty: { entityPrimaryKeyNatural: ASC } }
+					                             size: 1
+					                            ) {
+					                             totalRecordCount
+					                             data {
+					                                 attributes {
+					                                     storeVisibleForB2c
+					                                 }
+					                              referencedEntity {
+					                                  primaryKey
+					                                  version
+					                              }
+					                             }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -4221,7 +4295,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return different reference configurations for products")
-	void shouldReturnDifferentReferenceConfigurationsForProducts(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnDifferentReferenceConfigurationsForProducts(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
 		final var entities = findEntities(
 			originalProductEntities,
 			it -> {
@@ -4261,8 +4336,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(ref -> map()
 							.e(ReferenceDescriptor.REFERENCED_PRIMARY_KEY.name(), ref.getReferencedPrimaryKey())
-							.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
-								.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+							.e(
+								AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+								.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
+									ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 							.build())
 						.toList()
 				)
@@ -4307,11 +4384,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										}
 									);
 									return map()
-										.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
-											.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+										.e(
+											AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+											.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
+												ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 										.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 											.e(EntityDescriptor.PRIMARY_KEY.name(), referencedEntity.getPrimaryKey())
-											.e(EntityDescriptor.VERSION.name(), referencedEntity.version()))
+											.e(VersionedDescriptor.VERSION.name(), referencedEntity.version()))
 										.build();
 								})
 								.toList()
@@ -4326,8 +4405,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 								.stream()
 								.filter(ref -> !ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class))
 								.map(ref -> map()
-									.e(ReferenceDefinitionDescriptor.ATTRIBUTES.name(), map()
-										.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C), ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
+									.e(
+										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
+										.e(StringUtils.toCamelCase(ATTRIBUTE_STORE_VISIBLE_FOR_B2C),
+											ref.getAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class)))
 									.e(ReferenceWithReferencedEntityDescriptor.REFERENCED_ENTITY.name(), map()
 										.e(EntityDescriptor.PRIMARY_KEY.name(), ref.getReferencedPrimaryKey()))
 									.build())
@@ -4340,64 +4421,64 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            attributeCodeInSet: ["%s", "%s"]
-	                        }
-	                    ) {
-	                        __typename
-	                        recordPage {
-	                            __typename
-	                            data {
-	                                primaryKey
-			                        type
-			                        store {
-			                            referencedPrimaryKey
-			                        }
-			                        storeWithAttributes: store {
-			                            referencedPrimaryKey
-			                            attributes {
-			                                storeVisibleForB2c
-			                            }
-			                        }
-			                        storePage {
-			                            data {
-			                                referencedPrimaryKey
-			                            }
-			                        }
-		                            storesWithVisibility: storePage(
-		                                filterBy: { attributeStoreVisibleForB2cEquals: true },
-		                                orderBy: { entityProperty: { entityPrimaryKeyNatural: ASC } }
-		                                size: 1
-	                                ) {
-		                                totalRecordCount
-		                                data {
-		                                    attributes {
-		                                        storeVisibleForB2c
-		                                    }
-			                                referencedEntity {
-			                                    primaryKey
-			                                    version
-			                                }
-		                                }
-		                            }
-		                            storesWithoutVisibility: storeStrip(
-		                                filterBy: { attributeStoreVisibleForB2cEquals: false }
-		                            ) {
-		                                data {
-		                                    attributes {
-		                                        storeVisibleForB2c
-		                                    }
-			                                referencedEntity {
-			                                    primaryKey
-			                                }
-		                                }
-		                            }
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        attributeCodeInSet: ["%s", "%s"]
+					                    }
+					                ) {
+					                    __typename
+					                    recordPage {
+					                        __typename
+					                        data {
+					                            primaryKey
+					                      type
+					                      store {
+					                          referencedPrimaryKey
+					                      }
+					                      storeWithAttributes: store {
+					                          referencedPrimaryKey
+					                          attributes {
+					                              storeVisibleForB2c
+					                          }
+					                      }
+					                      storePage {
+					                          data {
+					                              referencedPrimaryKey
+					                          }
+					                      }
+					                         storesWithVisibility: storePage(
+					                             filterBy: { attributeStoreVisibleForB2cEquals: true },
+					                             orderBy: { entityProperty: { entityPrimaryKeyNatural: ASC } }
+					                             size: 1
+					                            ) {
+					                             totalRecordCount
+					                             data {
+					                                 attributes {
+					                                     storeVisibleForB2c
+					                                 }
+					                              referencedEntity {
+					                                  primaryKey
+					                                  version
+					                              }
+					                             }
+					                         }
+					                         storesWithoutVisibility: storeStrip(
+					                             filterBy: { attributeStoreVisibleForB2cEquals: false }
+					                         ) {
+					                             data {
+					                                 attributes {
+					                                     storeVisibleForB2c
+					                                 }
+					                              referencedEntity {
+					                                  primaryKey
+					                              }
+					                             }
+					                         }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				entities.get(0).getAttribute(ATTRIBUTE_CODE),
 				entities.get(1).getAttribute(ATTRIBUTE_CODE)
@@ -4414,12 +4495,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	void shouldFindProductByComplexQuery(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final Random rnd = new Random(SEED);
 		final List<SealedEntity> withTrueAlias = originalProductEntities.stream()
-			.filter(it -> Objects.equals(Boolean.TRUE, it.getAttribute(ATTRIBUTE_ALIAS)) && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
+			.filter(it -> Objects.equals(Boolean.TRUE, it.getAttribute(ATTRIBUTE_ALIAS)) &&
+				it.getAttribute(ATTRIBUTE_PRIORITY) != null)
 			.filter(it -> rnd.nextInt(100) > 85)
 			.limit(2)
 			.toList();
 		final List<SealedEntity> withFalseAlias = originalProductEntities.stream()
-			.filter(it -> Objects.equals(Boolean.FALSE, it.getAttribute(ATTRIBUTE_ALIAS)) && it.getAttribute(ATTRIBUTE_CODE) != null && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
+			.filter(it -> Objects.equals(Boolean.FALSE, it.getAttribute(ATTRIBUTE_ALIAS)) &&
+				it.getAttribute(ATTRIBUTE_CODE) != null && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
 			.filter(it -> rnd.nextInt(100) > 85)
 			.limit(5)
 			.toList();
@@ -4475,35 +4558,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        filterBy: {
-	                            or: [
-	                                {
-	                                    attributeAliasEquals: %b
-	                                    attributePriorityEquals: "%s"
-	                                },
-	                                {
-	                                    attributeAliasEquals: %b
-	                                    attributePriorityEquals: "%s"
-	                                },
-	                                {
-	                                    attributeAliasEquals: false
-	                                    attributePriorityInSet: ["%s", "%s", "%s", "%s"]
-	                                }
-	                            ]
-	                            not: {
-	                                attributeCodeEquals: "%s"
-	                            }
-	                        }
-	                    ) {
-	                        recordStrip(limit: %d) {
-	                            data {
-	                                primaryKey
-	                            }
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    filterBy: {
+					                        or: [
+					                            {
+					                                attributeAliasEquals: %b
+					                                attributePriorityEquals: "%s"
+					                            },
+					                            {
+					                                attributeAliasEquals: %b
+					                                attributePriorityEquals: "%s"
+					                            },
+					                            {
+					                                attributeAliasEquals: false
+					                                attributePriorityInSet: ["%s", "%s", "%s", "%s"]
+					                            }
+					                        ]
+					                        not: {
+					                            attributeCodeEquals: "%s"
+					                        }
+					                    }
+					                ) {
+					                    recordStrip(limit: %d) {
+					                        data {
+					                            primaryKey
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
@@ -4520,7 +4603,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." +
+						DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(expectedEntities)
 			);
 	}
@@ -4558,34 +4642,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributePriorityLessThan: "35000"
-		                    }
-		                    orderBy: [
-		                        {
-			                        attributeCreatedNatural: DESC
-			                    },
-			                    {
-			                        attributeManufacturedNatural: ASC
-			                    }
-		                    ]
-		                ) {
-		                    recordStrip(limit: 30) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     attributePriorityLessThan: "35000"
+					                 }
+					                 orderBy: [
+					                     {
+					                      attributeCreatedNatural: DESC
+					                  },
+					                  {
+					                      attributeManufacturedNatural: ASC
+					                  }
+					                 ]
+					             ) {
+					                 recordStrip(limit: 30) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					             }
+					         }
 					"""
 			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." +
+						DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(expectedEntities)
 			);
 	}
@@ -4623,29 +4708,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        entityLocaleEquals: cs_CZ
-		                    },
-		                    orderBy: {
-		                        attributeCodeNameNatural: DESC
-		                    }
-		                ) {
-		                    recordStrip(limit: 30) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     entityLocaleEquals: cs_CZ
+					                 },
+					                 orderBy: {
+					                     attributeCodeNameNatural: DESC
+					                 }
+					             ) {
+					                 recordStrip(limit: 30) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					             }
+					         }
 					"""
 			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." +
+						DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(expectedEntities)
 			);
 	}
@@ -4680,26 +4766,27 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributePriorityLessThan: "35000"
-		                    }
-		                ) {
-		                    recordPage(number: 2, size: 3) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     attributePriorityLessThan: "35000"
+					                 }
+					             ) {
+					                 recordPage(number: 2, size: 3) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					             }
+					         }
 					"""
 			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." +
+						DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(
 					expectedEntities.stream()
 						.skip(3)
@@ -4739,26 +4826,27 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributePriorityLessThan: "35000"
-		                    }
-		                ) {
-		                    recordStrip(offset: 2, limit: 3) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     attributePriorityLessThan: "35000"
+					                 }
+					             ) {
+					                 recordStrip(offset: 2, limit: 3) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					             }
+					         }
 					"""
 			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." + DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_STRIP.name() + "." +
+						DataChunkDescriptor.DATA.name() + "." + EntityDescriptor.PRIMARY_KEY.name(),
 				contains(
 					expectedEntities.stream()
 						.skip(2)
@@ -4793,34 +4881,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        attributeHistogram {
-		                            __typename
-		                            quantity {
-		                                __typename
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 20) {
-		                                    __typename
-		                                    threshold
-		                                    occurrences
-		                                    requested
-		                                    relativeFrequency
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     __typename
+					                     attributeHistogram {
+					                         __typename
+					                         quantity {
+					                             __typename
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 20) {
+					                                 __typename
+					                                 threshold
+					                                 occurrences
+					                                 requested
+					                                 relativeFrequency
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -4832,11 +4920,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
 				equalTo(AttributeHistogramDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(expectedHistogram)
 			);
 	}
@@ -4863,41 +4953,43 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
 
-		final String baseResultPath = resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE);
+		final String baseResultPath = resultPath(
+			PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE
+		);
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        inScope(scope: LIVE) {
-		                            __typename
-		                            attributeHistogram {
-		                                __typename
-		                                quantity {
-		                                    __typename
-		                                    min
-		                                    max
-		                                    overallCount
-		                                    buckets(requestedCount: 20) {
-		                                        __typename
-		                                        threshold
-		                                        occurrences
-		                                        requested
-		                                        relativeFrequency
-		                                    }
-		                                }
-		                            }
-	                            }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     __typename
+					                     inScope(scope: LIVE) {
+					                         __typename
+					                         attributeHistogram {
+					                             __typename
+					                             quantity {
+					                                 __typename
+					                                 min
+					                                 max
+					                                 overallCount
+					                                 buckets(requestedCount: 20) {
+					                                     __typename
+					                                     threshold
+					                                     occurrences
+					                                     requested
+					                                     relativeFrequency
+					                                 }
+					                             }
+					                         }
+					                        }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -4925,39 +5017,39 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        inScope(scope: LIVE) {
-		                            attributeHistogram {
-		                                quantity {
-		                                    buckets(requestedCount: 20) {
-		                                        threshold
-		                                        occurrences
-		                                        requested
-		                                        relativeFrequency
-		                                    }
-		                                }
-		                            }
-	                            }
-	                            attributeHistogram {
-	                                quantity {
-	                                    buckets(requestedCount: 20) {
-	                                        threshold
-	                                        occurrences
-	                                        requested
-	                                        relativeFrequency
-	                                    }
-	                                }
-	                            }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     inScope(scope: LIVE) {
+					                         attributeHistogram {
+					                             quantity {
+					                                 buckets(requestedCount: 20) {
+					                                     threshold
+					                                     occurrences
+					                                     requested
+					                                     relativeFrequency
+					                                 }
+					                             }
+					                         }
+					                        }
+					                        attributeHistogram {
+					                            quantity {
+					                                buckets(requestedCount: 20) {
+					                                    threshold
+					                                    occurrences
+					                                    requested
+					                                    relativeFrequency
+					                                }
+					                            }
+					                        }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -4994,34 +5086,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        attributeHistogram {
-		                            __typename
-		                            quantity {
-		                                __typename
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
-		                                    __typename
-		                                    threshold
-		                                    occurrences
-		                                    requested
-		                                    relativeFrequency
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     __typename
+					                     attributeHistogram {
+					                         __typename
+					                         quantity {
+					                             __typename
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 20, behavior: OPTIMIZED) {
+					                                 __typename
+					                                 threshold
+					                                 occurrences
+					                                 requested
+					                                 relativeFrequency
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5033,11 +5125,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
 				equalTo(AttributeHistogramDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(expectedHistogram)
 			);
 	}
@@ -5073,40 +5167,40 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        userFilter: {
-		                            attributeQuantityBetween: ["100", "900"]
-	                            }
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        attributeHistogram {
-		                            __typename
-		                            quantity {
-		                                __typename
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 20) {
-		                                    __typename
-		                                    threshold
-		                                    occurrences
-		                                    requested
-		                                    relativeFrequency
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     userFilter: {
+					                         attributeQuantityBetween: ["100", "900"]
+					                        }
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     __typename
+					                     attributeHistogram {
+					                         __typename
+					                         quantity {
+					                             __typename
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 20) {
+					                                 __typename
+					                                 threshold
+					                                 occurrences
+					                                 requested
+					                                 relativeFrequency
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5118,11 +5212,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
 				equalTo(AttributeHistogramDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS,
+					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(expectedHistogram)
 			);
 	}
@@ -5156,49 +5252,49 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        attributeHistogram {
-		                            quantity {
-		                                __typename
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 20) {
-		                                    __typename
-		                                    threshold
-		                                    occurrences
-		                                    requested
-		                                    relativeFrequency
-		                                }
-		                            }
-		                        }
-		                    }
-		                    otherExtraResults: extraResults {
-		                        attributeHistogram {
-		                            priority {
-		                                __typename
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 20) {
-		                                    __typename
-		                                    threshold
-		                                    occurrences
-		                                    requested
-		                                    relativeFrequency
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     attributeHistogram {
+					                         quantity {
+					                             __typename
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 20) {
+					                                 __typename
+					                                 threshold
+					                                 occurrences
+					                                 requested
+					                                 relativeFrequency
+					                             }
+					                         }
+					                     }
+					                 }
+					                 otherExtraResults: extraResults {
+					                     attributeHistogram {
+					                         priority {
+					                             __typename
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 20) {
+					                                 __typename
+					                                 threshold
+					                                 occurrences
+					                                 requested
+					                                 relativeFrequency
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5240,45 +5336,45 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        attributeHistogram {
-		                            quantity {
-		                                __typename
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 20) {
-		                                    __typename
-		                                    threshold
-		                                    occurrences
-		                                    requested
-		                                    relativeFrequency
-		                                }
-		                            }
-		                            otherQuantity: quantity {
-		                                __typename
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 20, behavior: STANDARD) {
-		                                    __typename
-		                                    threshold
-		                                    occurrences
-		                                    requested
-		                                    relativeFrequency
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     attributeHistogram {
+					                         quantity {
+					                             __typename
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 20) {
+					                                 __typename
+					                                 threshold
+					                                 occurrences
+					                                 requested
+					                                 relativeFrequency
+					                             }
+					                         }
+					                         otherQuantity: quantity {
+					                             __typename
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 20, behavior: STANDARD) {
+					                                 __typename
+					                                 threshold
+					                                 occurrences
+					                                 requested
+					                                 relativeFrequency
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5286,10 +5382,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name() + "." + ATTRIBUTE_QUANTITY,
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name() + "." + ATTRIBUTE_QUANTITY,
 				equalTo(expectedHistogram))
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name() + ".otherQuantity",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name() + ".otherQuantity",
 				equalTo(expectedHistogram)
 			);
 	}
@@ -5301,32 +5399,32 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        attributeHistogram {
-		                            quantity {
-		                                min
-		                                max
-		                                overallCount
-		                                buckets {
-		                                    threshold
-		                                    occurrences
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     attributeAliasIs: NOT_NULL
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     attributeHistogram {
+					                         quantity {
+					                             min
+					                             max
+					                             overallCount
+					                             buckets {
+					                                 threshold
+					                                 occurrences
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5342,28 +5440,28 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        attributeHistogram {
-		                            quantity {
-		                                min
-		                                max
-		                                overallCount
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     attributeAliasIs: NOT_NULL
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     attributeHistogram {
+					                         quantity {
+					                             min
+					                             max
+					                             overallCount
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5379,34 +5477,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        attributeHistogram {
-		                            quantity {
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
-		                                    threshold
-		                                }
-		                                otherBuckets: buckets(requestedCount: 10) {
-		                                    threshold
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     attributeAliasIs: NOT_NULL
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     attributeHistogram {
+					                         quantity {
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 10, behavior: OPTIMIZED) {
+					                                 threshold
+					                             }
+					                             otherBuckets: buckets(requestedCount: 10) {
+					                                 threshold
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5422,34 +5520,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        attributeAliasIs: NOT_NULL
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        attributeHistogram {
-		                            quantity {
-		                                min
-		                                max
-		                                overallCount
-		                                buckets(requestedCount: 10) {
-		                                    threshold
-		                                }
-		                                otherBuckets: buckets(requestedCount: 20) {
-		                                    threshold
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     attributeAliasIs: NOT_NULL
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     attributeHistogram {
+					                         quantity {
+					                             min
+					                             max
+					                             overallCount
+					                             buckets(requestedCount: 10) {
+					                                 threshold
+					                             }
+					                             otherBuckets: buckets(requestedCount: 20) {
+					                                 threshold
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5490,36 +5588,36 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        priceHistogram {
-		                            __typename
-	                                min
-	                                max
-	                                overallCount
-	                                buckets(requestedCount: 20) {
-	                                    __typename
-	                                    threshold
-	                                    occurrences
-	                                    requested
-	                                    relativeFrequency
-	                                }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     __typename
+					                     priceHistogram {
+					                         __typename
+					                            min
+					                            max
+					                            overallCount
+					                            buckets(requestedCount: 20) {
+					                                __typename
+					                                threshold
+					                                occurrences
+					                                requested
+					                                relativeFrequency
+					                            }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5531,7 +5629,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
 				equalTo(expectedBody)
 			);
 	}
@@ -5564,43 +5663,45 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createPriceHistogramDto(response);
 
-		final String baseResultPath = resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE);
+		final String baseResultPath = resultPath(
+			PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE
+		);
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        inScope(scope: LIVE) {
-		                            __typename
-		                            priceHistogram {
-		                                __typename
-	                                    min
-	                                    max
-	                                    overallCount
-	                                    buckets(requestedCount: 20) {
-	                                        __typename
-	                                        threshold
-	                                        occurrences
-	                                        requested
-	                                        relativeFrequency
-	                                    }
-		                            }
-	                            }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     __typename
+					                     inScope(scope: LIVE) {
+					                         __typename
+					                         priceHistogram {
+					                             __typename
+					                                min
+					                                max
+					                                overallCount
+					                                buckets(requestedCount: 20) {
+					                                    __typename
+					                                    threshold
+					                                    occurrences
+					                                    requested
+					                                    relativeFrequency
+					                                }
+					                         }
+					                        }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5624,40 +5725,40 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        inScope(scope: LIVE) {
-		                            priceHistogram {
-	                                    buckets(requestedCount: 20) {
-	                                        threshold
-	                                        occurrences
-	                                        requested
-	                                        relativeFrequency
-	                                    }
-		                            }
-	                            }
-	                            priceHistogram {
-                                    buckets(requestedCount: 20) {
-                                        threshold
-                                        occurrences
-                                        requested
-                                        relativeFrequency
-                                    }
-	                            }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     inScope(scope: LIVE) {
+					                         priceHistogram {
+					                                buckets(requestedCount: 20) {
+					                                    threshold
+					                                    occurrences
+					                                    requested
+					                                    relativeFrequency
+					                                }
+					                         }
+					                        }
+					                        priceHistogram {
+					                               buckets(requestedCount: 20) {
+					                                   threshold
+					                                   occurrences
+					                                   requested
+					                                   relativeFrequency
+					                               }
+					                        }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5697,36 +5798,36 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        priceHistogram {
-		                            __typename
-	                                min
-	                                max
-	                                overallCount
-	                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
-	                                    __typename
-	                                    threshold
-	                                    occurrences
-	                                    requested
-	                                    relativeFrequency
-	                                }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     __typename
+					                     priceHistogram {
+					                         __typename
+					                            min
+					                            max
+					                            overallCount
+					                            buckets(requestedCount: 20, behavior: OPTIMIZED) {
+					                                __typename
+					                                threshold
+					                                occurrences
+					                                requested
+					                                relativeFrequency
+					                            }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5738,7 +5839,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
 				equalTo(expectedBody)
 			);
 	}
@@ -5779,39 +5881,39 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                        userFilter: {
-		                            priceBetween: ["80", "150"]
-		                        }
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        __typename
-		                        priceHistogram {
-		                            __typename
-	                                min
-	                                max
-	                                overallCount
-	                                buckets(requestedCount: 20) {
-	                                    __typename
-	                                    threshold
-	                                    occurrences
-	                                    requested
-	                                    relativeFrequency
-	                                }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                     userFilter: {
+					                         priceBetween: ["80", "150"]
+					                     }
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     __typename
+					                     priceHistogram {
+					                         __typename
+					                            min
+					                            max
+					                            overallCount
+					                            buckets(requestedCount: 20) {
+					                                __typename
+					                                threshold
+					                                occurrences
+					                                requested
+					                                relativeFrequency
+					                            }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5823,7 +5925,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
 				equalTo(expectedBody)
 			);
 	}
@@ -5859,48 +5962,48 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        priceHistogram {
-		                            __typename
-	                                min
-	                                max
-	                                overallCount
-	                                buckets(requestedCount: 20) {
-	                                    __typename
-	                                    threshold
-	                                    occurrences
-	                                    requested
-	                                    relativeFrequency
-	                                }
-		                        }
-		                        otherPriceHistogram: priceHistogram {
-		                            __typename
-	                                min
-	                                max
-	                                overallCount
-	                                buckets(requestedCount: 20, behavior: STANDARD) {
-	                                    __typename
-	                                    threshold
-	                                    occurrences
-	                                    requested
-	                                    relativeFrequency
-	                                }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     priceHistogram {
+					                         __typename
+					                            min
+					                            max
+					                            overallCount
+					                            buckets(requestedCount: 20) {
+					                                __typename
+					                                threshold
+					                                occurrences
+					                                requested
+					                                relativeFrequency
+					                            }
+					                     }
+					                     otherPriceHistogram: priceHistogram {
+					                         __typename
+					                            min
+					                            max
+					                            overallCount
+					                            buckets(requestedCount: 20, behavior: STANDARD) {
+					                                __typename
+					                                threshold
+					                                occurrences
+					                                requested
+					                                relativeFrequency
+					                            }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5908,7 +6011,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
 				equalTo(expectedBody)
 			)
 			.body(
@@ -5924,32 +6028,32 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        priceHistogram {
-	                                min
-	                                max
-	                                overallCount
-	                                buckets {
-	                                    threshold
-	                                    occurrences
-	                                    requested
-	                                }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     priceHistogram {
+					                            min
+					                            max
+					                            overallCount
+					                            buckets {
+					                                threshold
+					                                occurrences
+					                                requested
+					                            }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -5965,27 +6069,27 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        priceHistogram {
-	                                min
-	                                max
-	                                overallCount
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     priceHistogram {
+					                            min
+					                            max
+					                            overallCount
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -6001,35 +6105,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        priceHistogram {
-	                                min
-	                                max
-	                                overallCount
-	                                buckets(requestedCount: 10) {
-	                                    threshold
-	                                    occurrences
-	                                }
-	                                otherBuckets: buckets(requestedCount: 20) {
-	                                    threshold
-	                                    occurrences
-	                                }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     priceHistogram {
+					                            min
+					                            max
+					                            overallCount
+					                            buckets(requestedCount: 10) {
+					                                threshold
+					                                occurrences
+					                            }
+					                            otherBuckets: buckets(requestedCount: 20) {
+					                                threshold
+					                                occurrences
+					                            }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -6045,35 +6149,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        priceInCurrency: EUR
-		                        priceInPriceLists: ["vip", "basic"]
-		                    }
-		                ) {
-		                    recordPage(size: %d) {
-		                        data {
-		                            primaryKey
-		                        }
-		                    }
-		                    extraResults {
-		                        priceHistogram {
-	                                min
-	                                max
-	                                overallCount
-	                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
-	                                    threshold
-	                                    occurrences
-	                                }
-	                                otherBuckets: buckets(requestedCount: 10) {
-	                                    threshold
-	                                    occurrences
-	                                }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     priceInCurrency: EUR
+					                     priceInPriceLists: ["vip", "basic"]
+					                 }
+					             ) {
+					                 recordPage(size: %d) {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					                 extraResults {
+					                     priceHistogram {
+					                            min
+					                            max
+					                            overallCount
+					                            buckets(requestedCount: 10, behavior: OPTIMIZED) {
+					                                threshold
+					                                occurrences
+					                            }
+					                            otherBuckets: buckets(requestedCount: 10) {
+					                                threshold
+					                                occurrences
+					                            }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -6086,7 +6190,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return self hierarchy from root")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyFromRoot(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnSelfHierarchyFromRoot(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6157,7 +6263,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return self hierarchy from node")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyFromNode(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnSelfHierarchyFromNode(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6234,7 +6342,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return self hierarchy children")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyChildren(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnSelfHierarchyChildren(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6309,7 +6419,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return self hierarchy parents without siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyParentsWithoutSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnSelfHierarchyParentsWithoutSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6383,7 +6495,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return self hierarchy parents with siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyParentsWithSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnSelfHierarchyParentsWithSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6468,7 +6582,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return self hierarchy root siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyRootSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnSelfHierarchyRootSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6541,7 +6657,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return multiple different self hierarchies")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnMultipleDifferentSelfHierarchies(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnMultipleDifferentSelfHierarchies(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var hierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6667,7 +6785,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return referenced hierarchy from root")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyFromRoot(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnReferencedHierarchyFromRoot(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6745,7 +6865,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return referenced hierarchy from node")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyFromNode(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnReferencedHierarchyFromNode(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6826,7 +6948,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return referenced hierarchy children")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyChildren(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnReferencedHierarchyChildren(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6905,7 +7029,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return referenced hierarchy parents without siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyParentsWithoutSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnReferencedHierarchyParentsWithoutSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -6983,7 +7109,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return referenced hierarchy parents with siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyParentsWithSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnReferencedHierarchyParentsWithSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -7068,7 +7196,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return referenced hierarchy root siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyRootSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnReferencedHierarchyRootSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -7147,7 +7277,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return multiple different referenced hierarchies")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnMultipleDifferentReferencedHierarchies(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnMultipleDifferentReferencedHierarchies(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var hierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -7280,7 +7412,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should return referenced hierarchy in specific scope")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyInSpecificScope(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldReturnReferencedHierarchyInSpecificScope(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		var expectedHierarchy = evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -7357,7 +7491,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE, ExtraResultsDescriptor.HIERARCHY, "category", "megaMenu"),
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE,
+					ExtraResultsDescriptor.HIERARCHY, "category", "megaMenu"),
 				equalTo(expectedHierarchy)
 			);
 	}
@@ -7366,7 +7501,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@DisplayName("Should not return duplicate referenced hierarchy across scopes")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldNotReturnReferencedHierarchyAcrossScopes(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester) {
+	void shouldNotReturnReferencedHierarchyAcrossScopes(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, GraphQLTester tester
+	) {
 		final String hierarchyStatisticsBaseArgument = getHierarchyStatisticsBaseArgument(base);
 		final String levelInfoFragment = getLevelInfoFragment(statisticsType);
 		tester.test(TEST_CATALOG)
@@ -7442,30 +7579,30 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        __typename
-		                        facetSummary {
-		                            __typename
-		                            brand {
-		                                __typename
-			                            count
-			                            facetStatistics {
-			                                __typename
-			                                facetEntity {
-			                                    __typename
-			                                    primaryKey
-			                                    type
-			                                }
-			                                requested
-			                                count
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     __typename
+					                     facetSummary {
+					                         __typename
+					                         brand {
+					                             __typename
+					                          count
+					                          facetStatistics {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -7477,11 +7614,13 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + "." + TYPENAME_FIELD,
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.FACET_SUMMARY.name() + "." + TYPENAME_FIELD,
 				equalTo(FacetSummaryDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".brand",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.FACET_SUMMARY.name() + ".brand",
 				equalTo(expectedBody)
 			);
 	}
@@ -7508,36 +7647,38 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		final var expectedBody = createNonGroupedFacetSummaryWithCountsDto(response, Entities.BRAND);
 
-		final String baseResultPath = resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE);
+		final String baseResultPath = resultPath(
+			PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE
+		);
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        inScope(scope: LIVE) {
-		                            __typename
-		                            facetSummary {
-		                                __typename
-		                                brand {
-		                                    __typename
-			                                count
-			                                facetStatistics {
-			                                    __typename
-			                                    facetEntity {
-			                                        __typename
-			                                        primaryKey
-			                                        type
-			                                    }
-			                                    requested
-			                                    count
-			                                }
-		                                }
-		                            }
-	                            }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     inScope(scope: LIVE) {
+					                         __typename
+					                         facetSummary {
+					                             __typename
+					                             brand {
+					                                 __typename
+					                              count
+					                              facetStatistics {
+					                                  __typename
+					                                  facetEntity {
+					                                      __typename
+					                                      primaryKey
+					                                      type
+					                                  }
+					                                  requested
+					                                  count
+					                              }
+					                             }
+					                         }
+					                        }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -7565,24 +7706,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        inScope(scope: LIVE) {
-		                            facetSummary {
-		                                brand {
-			                                count
-		                                }
-		                            }
-	                            }
-	                            facetSummary {
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     inScope(scope: LIVE) {
+					                         facetSummary {
+					                             brand {
+					                              count
+					                             }
+					                         }
+					                        }
+					                        facetSummary {
 								    brand {
 								        count
 								    }
 								}
-		                    }
-		                }
-		            }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -7620,34 +7761,34 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        facetSummary {
-		                            brand {
-		                                count
-			                            facetStatistics {
-			                                facetEntity {
-			                                    primaryKey
-			                                    type
-			                                    attributes {
-			                                        code
-			                                    }
-			                                }
-			                                requested
-			                                count
-			                                impact {
-			                                    __typename
-			                                    difference
-			                                    matchCount
-			                                    hasSense
-			                                }
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     facetSummary {
+					                         brand {
+					                             count
+					                          facetStatistics {
+					                              facetEntity {
+					                                  primaryKey
+					                                  type
+					                                  attributes {
+					                                      code
+					                                  }
+					                              }
+					                              requested
+					                              count
+					                              impact {
+					                                  __typename
+					                                  difference
+					                                  matchCount
+					                                  hasSense
+					                              }
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -7655,7 +7796,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".brand",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.FACET_SUMMARY.name() + ".brand",
 				equalTo(expectedBody)
 			);
 		;
@@ -7694,41 +7836,41 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        facetSummary {
-		                            parameter(
-		                                filterGroupBy: {
-		                                    attributeCodeLessThanEquals: "K",
-		                                    entityLocaleEquals: en                                   
-			                            },
-			                            orderGroupBy: {
-			                                attributeNameNatural: DESC
-			                            }
-		                            ) {
-		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
-			                            count
-			                            facetStatistics {
-			                                __typename
-			                                facetEntity {
-			                                    __typename
-			                                    primaryKey
-			                                    type
-			                                }
-			                                requested
-			                                count
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     facetSummary {
+					                         parameter(
+					                             filterGroupBy: {
+					                                 attributeCodeLessThanEquals: "K",
+					                                 entityLocaleEquals: en
+					                          },
+					                          orderGroupBy: {
+					                              attributeNameNatural: DESC
+					                          }
+					                         ) {
+					                             __typename
+					                             groupEntity {
+					                              __typename
+					                              primaryKey
+					                              type
+					                          }
+					                          count
+					                          facetStatistics {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -7736,7 +7878,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
 			);
 	}
@@ -7762,21 +7905,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        entityPrimaryKeyInSet: %d
-		                    }
-		                ) {
-		                    extraResults {
-		                        facetSummary {
-		                            brand {
-			                            count
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     entityPrimaryKeyInSet: %d
+					                 }
+					             ) {
+					                 extraResults {
+					                     facetSummary {
+					                         brand {
+					                          count
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				entityWithoutBrand.getPrimaryKey()
 			)
@@ -7828,41 +7971,41 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        facetSummary {
-		                            parameter {
-		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
-			                            count
-			                            facetStatistics(
-			                                filterBy: {
-		                                        attributeCodeLessThanEquals: "K",
-		                                        entityLocaleEquals: en
-				                            },
-				                            orderBy: {
-				                                attributeNameNatural: DESC
-				                            }
-			                            ) {
-			                                __typename
-			                                facetEntity {
-			                                    __typename
-			                                    primaryKey
-			                                    type
-			                                }
-			                                requested
-			                                count
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     facetSummary {
+					                         parameter {
+					                             __typename
+					                             groupEntity {
+					                              __typename
+					                              primaryKey
+					                              type
+					                          }
+					                          count
+					                          facetStatistics(
+					                              filterBy: {
+					                                     attributeCodeLessThanEquals: "K",
+					                                     entityLocaleEquals: en
+					                           },
+					                           orderBy: {
+					                               attributeNameNatural: DESC
+					                           }
+					                          ) {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -7870,7 +8013,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
 			);
 	}
@@ -7918,51 +8062,51 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        userFilter: {
-		                            facetParameterHaving: {
-		                                entityHaving: {
-		                                    attributeCodeLessThanEquals: "H"
-		                                }
-		                            }
-		                        }
-		                    }
-		                ) {
-		                    extraResults {
-		                        facetSummary {
-		                            parameter {
-		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
-			                            count
-			                            facetStatistics(
-			                                filterBy: {
-		                                        attributeCodeLessThanEquals: "K",
-		                                        entityLocaleEquals: en		                                       
-				                            },
-				                            orderBy: {
-				                                attributeNameNatural: DESC
-				                            }
-			                            ) {
-			                                __typename
-			                                facetEntity {
-			                                    __typename
-			                                    primaryKey
-			                                    type
-			                                }
-			                                requested
-			                                count
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     userFilter: {
+					                         facetParameterHaving: {
+					                             entityHaving: {
+					                                 attributeCodeLessThanEquals: "H"
+					                             }
+					                         }
+					                     }
+					                 }
+					             ) {
+					                 extraResults {
+					                     facetSummary {
+					                         parameter {
+					                             __typename
+					                             groupEntity {
+					                              __typename
+					                              primaryKey
+					                              type
+					                          }
+					                          count
+					                          facetStatistics(
+					                              filterBy: {
+					                                     attributeCodeLessThanEquals: "K",
+					                                     entityLocaleEquals: en
+					                           },
+					                           orderBy: {
+					                               attributeNameNatural: DESC
+					                           }
+					                          ) {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -7970,7 +8114,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
 			);
 	}
@@ -7993,37 +8138,37 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createNonGroupedReferenceSummaryWithCountsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        __typename
-		                        referenceSummary {
-		                            __typename
-		                            brand {
-		                                __typename
-			                            count
-			                            facetStatistics {
-			                                __typename
-			                                facetEntity {
-			                                    __typename
-			                                    primaryKey
-			                                    type
-			                                }
-			                                requested
-			                                count
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     __typename
+					                     referenceSummary {
+					                         __typename
+					                         brand {
+					                             __typename
+					                          count
+					                          facetStatistics {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -8035,12 +8180,120 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + "." + TYPENAME_FIELD,
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + "." + TYPENAME_FIELD,
 				equalTo(ReferenceSummaryDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".brand",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".brand",
 				equalTo(expectedBody)
+			);
+	}
+
+	// Regression guard for the split of `ReferenceSummaryDataFetcher` into two dedicated fetchers. When the GraphQL
+	// request targets both the deprecated `facetSummary` and the new `referenceSummary` fields (on *different*
+	// references, since the resolver refuses the pair on the same reference), each field must resolve to its own
+	// data. Prior to the split, a single shared fetcher preferred `ReferenceSummary.class` for both fields and the
+	// `facetSummary` field would return stale data once the engine starts populating both extra-result keys.
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return both facet summary and reference summary side by side for different references")
+	void shouldReturnBothFacetSummaryAndReferenceSummaryForDifferentReferences(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							facetSummaryOfReference(Entities.BRAND, FacetStatisticsDepth.COUNTS),
+							referenceSummaryOfReference(Entities.PARAMETER, FacetStatisticsDepth.COUNTS)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBrandBody = createNonGroupedFacetSummaryWithCountsDto(response, Entities.BRAND);
+		final var expectedParameterBody = createReferenceSummaryWithCountsDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     facetSummary {
+					                         __typename
+					                         brand {
+					                             __typename
+					                          count
+					                          facetStatistics {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                     referenceSummary {
+					                         __typename
+					                         parameter {
+					                             __typename
+					                          groupEntity {
+					                           __typename
+					                           primaryKey
+					                           type
+					                          }
+					                          count
+					                          facetStatistics {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.FACET_SUMMARY.name() + "." + TYPENAME_FIELD,
+				equalTo(FacetSummaryDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.FACET_SUMMARY.name() + ".brand",
+				equalTo(expectedBrandBody)
+			)
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + "." + TYPENAME_FIELD,
+				equalTo(ReferenceSummaryDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
+				equalTo(expectedParameterBody)
 			);
 	}
 
@@ -8062,40 +8315,42 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createNonGroupedReferenceSummaryWithCountsDto(response, Entities.BRAND);
 
-		final String baseResultPath = resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE);
+		final String baseResultPath = resultPath(
+			PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, GraphQLExtraResultsDescriptor.IN_SCOPE
+		);
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        inScope(scope: LIVE) {
-		                            __typename
-		                            referenceSummary {
-		                                __typename
-		                                brand {
-		                                    __typename
-			                                count
-			                                facetStatistics {
-			                                    __typename
-			                                    facetEntity {
-			                                        __typename
-			                                        primaryKey
-			                                        type
-			                                    }
-			                                    requested
-			                                    count
-			                                }
-		                                }
-		                            }
-	                            }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     inScope(scope: LIVE) {
+					                         __typename
+					                         referenceSummary {
+					                             __typename
+					                             brand {
+					                                 __typename
+					                              count
+					                              facetStatistics {
+					                                  __typename
+					                                  facetEntity {
+					                                      __typename
+					                                      primaryKey
+					                                      type
+					                                  }
+					                                  requested
+					                                  count
+					                              }
+					                             }
+					                         }
+					                        }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -8123,24 +8378,24 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        inScope(scope: LIVE) {
-		                            referenceSummary {
-		                                brand {
-			                                count
-		                                }
-		                            }
-	                            }
-	                            referenceSummary {
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     inScope(scope: LIVE) {
+					                         referenceSummary {
+					                             brand {
+					                              count
+					                             }
+					                         }
+					                        }
+					                        referenceSummary {
 								    brand {
 								        count
 								    }
 								}
-		                    }
-		                }
-		            }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -8171,41 +8426,41 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createNonGroupedReferenceSummaryWithImpactsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        referenceSummary {
-		                            brand {
-		                                count
-			                            facetStatistics {
-			                                facetEntity {
-			                                    primaryKey
-			                                    type
-			                                    attributes {
-			                                        code
-			                                    }
-			                                }
-			                                requested
-			                                count
-			                                impact {
-			                                    __typename
-			                                    difference
-			                                    matchCount
-			                                    hasSense
-			                                }
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     referenceSummary {
+					                         brand {
+					                             count
+					                          facetStatistics {
+					                              facetEntity {
+					                                  primaryKey
+					                                  type
+					                                  attributes {
+					                                      code
+					                                  }
+					                              }
+					                              requested
+					                              count
+					                              impact {
+					                                  __typename
+					                                  difference
+					                                  matchCount
+					                                  hasSense
+					                              }
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -8213,7 +8468,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".brand",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".brand",
 				equalTo(expectedBody)
 			);
 		;
@@ -8245,48 +8501,48 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createReferenceSummaryWithCountsDto(response, Entities.PARAMETER);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        referenceSummary {
-		                            parameter(
-		                                filterGroupBy: {
-		                                    attributeCodeLessThanEquals: "K",
-		                                    entityLocaleEquals: en
-			                            },
-			                            orderGroupBy: {
-			                                attributeNameNatural: DESC
-			                            }
-		                            ) {
-		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
-			                            count
-			                            facetStatistics {
-			                                __typename
-			                                facetEntity {
-			                                    __typename
-			                                    primaryKey
-			                                    type
-			                                }
-			                                requested
-			                                count
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     referenceSummary {
+					                         parameter(
+					                             filterGroupBy: {
+					                                 attributeCodeLessThanEquals: "K",
+					                                 entityLocaleEquals: en
+					                          },
+					                          orderGroupBy: {
+					                              attributeNameNatural: DESC
+					                          }
+					                         ) {
+					                             __typename
+					                             groupEntity {
+					                              __typename
+					                              primaryKey
+					                              type
+					                          }
+					                          count
+					                          facetStatistics {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -8294,7 +8550,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
 			);
 	}
@@ -8320,21 +8577,21 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        entityPrimaryKeyInSet: %d
-		                    }
-		                ) {
-		                    extraResults {
-		                        referenceSummary {
-		                            brand {
-			                            count
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     entityPrimaryKeyInSet: %d
+					                 }
+					             ) {
+					                 extraResults {
+					                     referenceSummary {
+					                         brand {
+					                          count
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				entityWithoutBrand.getPrimaryKey()
 			)
@@ -8379,48 +8636,48 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createReferenceSummaryWithCountsDto(response, Entities.PARAMETER);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        referenceSummary {
-		                            parameter {
-		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
-			                            count
-			                            facetStatistics(
-			                                filterBy: {
-		                                        attributeCodeLessThanEquals: "K",
-		                                        entityLocaleEquals: en
-				                            },
-				                            orderBy: {
-				                                attributeNameNatural: DESC
-				                            }
-			                            ) {
-			                                __typename
-			                                facetEntity {
-			                                    __typename
-			                                    primaryKey
-			                                    type
-			                                }
-			                                requested
-			                                count
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     referenceSummary {
+					                         parameter {
+					                             __typename
+					                             groupEntity {
+					                              __typename
+					                              primaryKey
+					                              type
+					                          }
+					                          count
+					                          facetStatistics(
+					                              filterBy: {
+					                                     attributeCodeLessThanEquals: "K",
+					                                     entityLocaleEquals: en
+					                           },
+					                           orderBy: {
+					                               attributeNameNatural: DESC
+					                           }
+					                          ) {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -8428,7 +8685,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
 			);
 	}
@@ -8469,58 +8727,58 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
-		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
 
 		final var expectedBody = createReferenceSummaryWithCountsDto(response, Entities.PARAMETER);
 
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct(
-		                    filterBy: {
-		                        userFilter: {
-		                            facetParameterHaving: {
-		                                entityHaving: {
-		                                    attributeCodeLessThanEquals: "H"
-		                                }
-		                            }
-		                        }
-		                    }
-		                ) {
-		                    extraResults {
-		                        referenceSummary {
-		                            parameter {
-		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
-			                            count
-			                            facetStatistics(
-			                                filterBy: {
-		                                        attributeCodeLessThanEquals: "K",
-		                                        entityLocaleEquals: en
-				                            },
-				                            orderBy: {
-				                                attributeNameNatural: DESC
-				                            }
-			                            ) {
-			                                __typename
-			                                facetEntity {
-			                                    __typename
-			                                    primaryKey
-			                                    type
-			                                }
-			                                requested
-			                                count
-			                            }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     userFilter: {
+					                         facetParameterHaving: {
+					                             entityHaving: {
+					                                 attributeCodeLessThanEquals: "H"
+					                             }
+					                         }
+					                     }
+					                 }
+					             ) {
+					                 extraResults {
+					                     referenceSummary {
+					                         parameter {
+					                             __typename
+					                             groupEntity {
+					                              __typename
+					                              primaryKey
+					                              type
+					                          }
+					                          count
+					                          facetStatistics(
+					                              filterBy: {
+					                                     attributeCodeLessThanEquals: "K",
+					                                     entityLocaleEquals: en
+					                           },
+					                           orderBy: {
+					                               attributeNameNatural: DESC
+					                           }
+					                          ) {
+					                              __typename
+					                              facetEntity {
+					                                  __typename
+					                                  primaryKey
+					                                  type
+					                              }
+					                              requested
+					                              count
+					                          }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -8528,7 +8786,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." +
+						ExtraResultsDescriptor.REFERENCE_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
 			);
 	}
@@ -8565,37 +8824,37 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-		            query {
-		                queryProduct {
-		                    extraResults {
-		                        referenceSummary {
-		                            parameter {
-		                                count
-		                                facetStatistics {
-		                                    facetEntity {
-		                                        primaryKey
-		                                        type
-		                                    }
-		                                    requested
-		                                    count
-		                                }
-		                                histogramStatistics {
-		                                    priceIndex {
-		                                        min
-		                                        max
-		                                        overallCount
-		                                        buckets(requestedCount: 20, behavior: OPTIMIZED) {
-		                                            threshold
-		                                            occurrences
-		                                            requested
-		                                        }
-		                                    }
-		                                }
-		                            }
-		                        }
-		                    }
-		                }
-		            }
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     referenceSummary {
+					                         parameter {
+					                             count
+					                             facetStatistics {
+					                                 facetEntity {
+					                                     primaryKey
+					                                     type
+					                                 }
+					                                 requested
+					                                 count
+					                             }
+					                             histogramStatistics {
+					                                 priceIndex {
+					                                     min
+					                                     max
+					                                     overallCount
+					                                     buckets(requestedCount: 20, behavior: OPTIMIZED) {
+					                                         threshold
+					                                         occurrences
+					                                         requested
+					                                     }
+					                                 }
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
 					""",
 				Integer.MAX_VALUE
 			)
@@ -8793,8 +9052,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					expectedEntitiesCountValidator
 				);
 
+				// Fourth page contains 3 entities sorted according to EAN in descending order
+				// and ends with first 2 entities sorted according to quantity in ascending order.
 				compareGraphQLResultPksToEvitaDBResultPks(
-					"Fourth page contains 3 entities sorted according to EAN in descending order and ends with first 2 entities sorted according to quantity in ascending order.",
+					"Fourth page contains 3 entities sorted according to EAN in descending order and ends " +
+						"with first 2 entities sorted according to quantity in ascending order.",
 					session, tester,
 					fabricateEvitaQLSegmentedQuery(4, 5, evitaQLSegments),
 					fabricateGraphQLSegmentedQuery(4, 5, graphQLSegments),
@@ -8802,7 +9064,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				compareGraphQLResultPksToEvitaDBResultPks(
-					"Fifth page must have only 4 entities be sorted by quantity in ascending order and must end with first entity sorted by PK in ascending order.",
+					"Fifth page must have only 4 entities be sorted by quantity in ascending order and " +
+						"must end with first entity sorted by PK in ascending order.",
 					session, tester,
 					fabricateEvitaQLSegmentedQuery(5, 5, evitaQLSegments),
 					fabricateGraphQLSegmentedQuery(5, 5, graphQLSegments),
@@ -8810,7 +9073,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				compareGraphQLResultPksToEvitaDBResultPks(
-					"Sixth page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					"Sixth page must be sorted by PK in ascending order " +
+						"(but only from those entities that hasn't been already provided).",
 					session, tester,
 					fabricateEvitaQLSegmentedQuery(6, 5, evitaQLSegments),
 					fabricateGraphQLSegmentedQuery(6, 5, graphQLSegments),
@@ -8818,7 +9082,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 
 				compareGraphQLResultPksToEvitaDBResultPks(
-					"Seventh page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					"Seventh page must be sorted by PK in ascending order " +
+						"(but only from those entities that hasn't been already provided).",
 					session, tester,
 					fabricateEvitaQLSegmentedQuery(7, 5, evitaQLSegments),
 					fabricateGraphQLSegmentedQuery(7, 5, graphQLSegments),
@@ -8857,37 +9122,40 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		tester.test(TEST_CATALOG)
 			.document(
 				"""
-	                query {
-	                    queryProduct(
-	                        head: [
-	                            {
-	                                label: {
-	                                    name: "myLabel1"
-	                                    value: "myValue1"
-	                                }
-	                            },
-	                            {
-	                                label: {
-	                                    name: "myLabel2"
-	                                    value: 100
-	                                }
-	                            }
-	                        ]
-	                        filterBy: {
-	                            attributeCodeContains: "a"
-	                        }
-	                    ) {
-	                        recordPage {
-	                            totalRecordCount
-	                        }
-	                    }
-	                }
+					            query {
+					                queryProduct(
+					                    head: [
+					                        {
+					                            label: {
+					                                name: "myLabel1"
+					                                value: "myValue1"
+					                            }
+					                        },
+					                        {
+					                            label: {
+					                                name: "myLabel2"
+					                                value: 100
+					                            }
+					                        }
+					                    ]
+					                    filterBy: {
+					                        attributeCodeContains: "a"
+					                    }
+					                ) {
+					                    recordPage {
+					                        totalRecordCount
+					                    }
+					                }
+					            }
 					"""
 			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, DataChunkDescriptor.TOTAL_RECORD_COUNT), greaterThan(0));
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.RECORD_PAGE, DataChunkDescriptor.TOTAL_RECORD_COUNT),
+				greaterThan(0)
+			);
 	}
 
 	@Test
@@ -9112,8 +9380,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private Map<String, Object> createBasicPageResponse(@Nonnull List<SealedEntity> entities,
-	                                                    @Nonnull Function<SealedEntity, Map<String, Object>> entityMapper) {
+	private static Map<String, Object> createBasicPageResponse(
+		@Nonnull List<SealedEntity> entities,
+		@Nonnull Function<SealedEntity, Map<String, Object>> entityMapper
+	) {
 		return map()
 			.e(TYPENAME_FIELD, ResponseDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			.e(ResponseDescriptor.RECORD_PAGE.name(), map()
@@ -9127,8 +9397,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private Map<String, Object> createAttributeHistogramDto(@Nonnull EvitaResponse<EntityReference> response,
-	                                                        @Nonnull String attributeName) {
+	private static Map<String, Object> createAttributeHistogramDto(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String attributeName
+	) {
 		final AttributeHistogram attributeHistogram = response.getExtraResult(AttributeHistogram.class);
 		final HistogramContract histogram = attributeHistogram.getHistogram(attributeName);
 		Assert.isPremiseValid(
@@ -9154,7 +9426,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private Map<String, Object> createPriceHistogramDto(@Nonnull EvitaResponse<EntityReference> response) {
+	private static Map<String, Object> createPriceHistogramDto(@Nonnull EvitaResponse<EntityReference> response) {
 		final PriceHistogram priceHistogram = response.getExtraResult(PriceHistogram.class);
 		Assert.isPremiseValid(
 			priceHistogram.getBuckets().length > 0,
@@ -9179,22 +9451,26 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createFlattenedHierarchy(@Nonnull List<LevelInfo> hierarchy) {
+	private static List<Map<String, Object>> createFlattenedHierarchy(@Nonnull List<LevelInfo> hierarchy) {
 		final List<Map<String, Object>> flattenedHierarchy = new LinkedList<>();
 		hierarchy.forEach(levelInfo -> createFlattenedHierarchy(flattenedHierarchy, levelInfo, 1));
 		return flattenedHierarchy;
 	}
 
-	private void createFlattenedHierarchy(@Nonnull List<Map<String, Object>> flattenedHierarchy,
-	                                      @Nonnull LevelInfo levelInfo,
-	                                      int currentLevel) {
+	private static void createFlattenedHierarchy(
+		@Nonnull List<Map<String, Object>> flattenedHierarchy,
+		@Nonnull LevelInfo levelInfo,
+		int currentLevel
+	) {
 		final SealedEntity entity = (SealedEntity) levelInfo.entity();
 
 		final MapBuilder currentLevelInfoDto = map()
 			.e(LevelInfoDescriptor.LEVEL.name(), currentLevel)
 			.e(LevelInfoDescriptor.ENTITY.name(), map()
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
-				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParentEntity().isPresent() ? entity.getParentEntity().get().getPrimaryKey() : null)
+				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(),
+					entity.parentAvailable() && entity.getParentEntity().isPresent()
+						? entity.getParentEntity().get().getPrimaryKey() : null)
 				.e(
 					AttributesProviderDescriptor.ATTRIBUTES.name(), map()
 					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
@@ -9213,38 +9489,45 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private Map<String, Object> createNonGroupedFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
-	                                                                      @Nonnull String referenceName) {
+	private static Map<String, Object> createNonGroupedFacetSummaryWithCountsDto(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String referenceName
+	) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
 		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
 			.map(groupStatistics ->
 				map()
-					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(
+						createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(
+								createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 								.e(
-									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
 			)
-			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+			.orElseThrow(() -> new IllegalStateException(
+				"Facet summary must contain facet group statistics for reference " + referenceName));
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
-	                                                                  @Nonnull String referenceName) {
+	private static List<Map<String, Object>> createFacetSummaryWithCountsDto(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String referenceName
+	) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
 		return facetSummary.getReferenceStatistics()
@@ -9252,7 +9535,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
 				map()
-					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(
+						createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), groupStatistics.getGroupEntity() != null
 						? map()
 							.e(TYPENAME_FIELD, StringUtils.toPascalCase(groupStatistics.getGroupEntity().getType()))
@@ -9264,15 +9548,16 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(
+								createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 								.e(
-									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
@@ -9281,8 +9566,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private Map<String, Object> createNonGroupedFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
-	                                                                   @Nonnull String referenceName) {
+	private static Map<String, Object> createNonGroupedFacetSummaryWithImpactsDto(
+		@Nonnull EvitaResponse<EntityReference> response, @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
 		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
@@ -9294,7 +9579,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.map(facetStatistics ->
 							map()
 								.e(
-									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.e(
@@ -9302,10 +9587,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.e(
-									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
+									FacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
@@ -9315,12 +9600,16 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.toList())
 					.build()
 			)
-			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+			.orElseThrow(() -> new IllegalStateException(
+				"Facet summary must contain facet group statistics for reference " + referenceName));
 	}
 
+	/* TODO LHO - unused method?! */
 	@Nonnull
-	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
-	                                                                   @Nonnull String referenceName) {
+	private static List<Map<String, Object>> createFacetSummaryWithImpactsDto(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String referenceName
+	) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
 		return facetSummary.getReferenceStatistics()
@@ -9335,7 +9624,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.map(facetStatistics ->
 							map()
 								.e(
-									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.e(
@@ -9343,10 +9632,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.e(
-									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
+									FacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
@@ -9360,46 +9649,52 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private Map<String, Object> createNonGroupedReferenceSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
-	                                                                          @Nonnull String referenceName) {
-		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+	private static Map<String, Object> createNonGroupedReferenceSummaryWithCountsDto(
+		@Nonnull EvitaResponse<EntityReference> response, @Nonnull String referenceName) {
+		final ReferenceSummary referenceSummary = response.getExtraResult(ReferenceSummary.class);
 
-		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+		return Optional.ofNullable(referenceSummary.getReferenceGroupStatistics(referenceName))
 			.map(groupStatistics ->
 				map()
-					.e(TYPENAME_FIELD, ReferenceGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(TYPENAME_FIELD, ReferenceGroupStatisticsDescriptor.THIS.name(
+						createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 					.e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
 					.e(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(
+								createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 								.e(
-									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
 			)
-			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+			.orElseThrow(() -> new IllegalStateException(
+				"Facet summary must contain facet group statistics for reference " + referenceName));
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createReferenceSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
-	                                                                      @Nonnull String referenceName) {
-		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+	private static List<Map<String, Object>> createReferenceSummaryWithCountsDto(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String referenceName
+	) {
+		final ReferenceSummary referenceSummary = response.getExtraResult(ReferenceSummary.class);
 
-		return facetSummary.getReferenceStatistics()
+		return referenceSummary.getReferenceStatistics()
 			.stream()
 			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
 				map()
-					.e(TYPENAME_FIELD, ReferenceGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(TYPENAME_FIELD, ReferenceGroupStatisticsDescriptor.THIS.name(
+						createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 					.e(ReferenceGroupStatisticsDescriptor.GROUP_ENTITY.name(), groupStatistics.getGroupEntity() != null
 						? map()
 							.e(TYPENAME_FIELD, StringUtils.toPascalCase(groupStatistics.getGroupEntity().getType()))
@@ -9411,15 +9706,16 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.stream()
 						.map(facetStatistics ->
 							map()
-								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(TYPENAME_FIELD, EntityFacetStatisticsDescriptor.THIS.name(
+								createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
 								.e(
-									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.build())
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.build())
 						.toList())
 					.build()
@@ -9428,11 +9724,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private Map<String, Object> createNonGroupedReferenceSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
-	                                                                           @Nonnull String referenceName) {
-		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+	private static Map<String, Object> createNonGroupedReferenceSummaryWithImpactsDto(
+		@Nonnull EvitaResponse<EntityReference> response, @Nonnull String referenceName) {
+		final ReferenceSummary referenceSummary = response.getExtraResult(ReferenceSummary.class);
 
-		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+		return Optional.ofNullable(referenceSummary.getReferenceGroupStatistics(referenceName))
 			.map(groupStatistics ->
 				map()
 					.e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
@@ -9441,7 +9737,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.map(facetStatistics ->
 							map()
 								.e(
-									EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
 									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
 									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
 									.e(
@@ -9449,10 +9745,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
 										.build())
 									.build())
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
 								.e(
-									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
+									FacetStatisticsDescriptor.IMPACT.name(), map()
 									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
 									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
 									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
@@ -9462,7 +9758,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						.toList())
 					.build()
 			)
-			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+			.orElseThrow(() -> new IllegalStateException(
+				"Facet summary must contain facet group statistics for reference " + referenceName));
 	}
 
 	protected static Stream<Arguments> statisticTypeAndBaseVariants() {

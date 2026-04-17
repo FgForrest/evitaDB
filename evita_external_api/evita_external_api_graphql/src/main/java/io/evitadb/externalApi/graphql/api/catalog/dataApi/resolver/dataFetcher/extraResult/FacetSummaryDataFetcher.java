@@ -27,7 +27,6 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -36,33 +35,32 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 
 /**
- * Extracts {@link ReferenceSummary} from {@link EvitaResponse}'s extra results requested by
- * {@link io.evitadb.api.query.require.ReferenceSummary}.
+ * Extracts {@link FacetSummary} from {@link EvitaResponse}'s extra results requested by
+ * {@link io.evitadb.api.query.require.FacetSummary}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * Uses an exact-class lookup so it never falls back to a plain {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary}
+ * — that would be returned by {@link ReferenceSummaryDataFetcher} and would leave this field populated with data that does
+ * not contain facet statistics. When a request carries both the legacy `facetSummary(...)` and the new `referenceSummary(...)`
+ * requirements each GraphQL field must resolve to its own extra result.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class ReferenceSummaryDataFetcher implements DataFetcher<ReferenceSummary> {
+public class FacetSummaryDataFetcher implements DataFetcher<FacetSummary> {
 
 	@Nullable
-	private static ReferenceSummaryDataFetcher INSTANCE;
+	private static FacetSummaryDataFetcher INSTANCE;
 
 	@Nonnull
-	public static ReferenceSummaryDataFetcher getInstance() {
+	public static FacetSummaryDataFetcher getInstance() {
 		if (INSTANCE == null) {
-			INSTANCE = new ReferenceSummaryDataFetcher();
+			INSTANCE = new FacetSummaryDataFetcher();
 		}
 		return INSTANCE;
 	}
 
 	@Nullable
 	@Override
-	public ReferenceSummary get(DataFetchingEnvironment environment) throws Exception {
+	public FacetSummary get(DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
-		// EvitaResponse#getExtraResult performs exact-class lookup, so we must check both keys to cover both
-		// forms: the canonical ReferenceSummary for requests using the new require constraint, and the
-		// deprecated FacetSummary subclass for requests that still use facetSummary(...) / facetSummaryOfReference(...).
-		final ReferenceSummary referenceSummary = response.getExtraResult(ReferenceSummary.class);
-		return referenceSummary != null ? referenceSummary : response.getExtraResult(FacetSummary.class);
+		return response.getExtraResult(FacetSummary.class);
 	}
 }

@@ -83,7 +83,7 @@ public interface ExtraResultsDescriptor {
 			""")
 		.type(nullableRef(HistogramDescriptor.THIS))
 		.build();
-	// TODO: remove when FacetSummary constraint is removed
+	// TOBEDONE: remove when FacetSummary constraint is removed
 	PropertyDescriptor FACET_SUMMARY = PropertyDescriptor.builder()
 		.name("facetSummary")
 		.description("""

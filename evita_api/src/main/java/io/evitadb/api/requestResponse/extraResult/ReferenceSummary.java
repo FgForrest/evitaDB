@@ -179,7 +179,6 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 	 * Returns collection of all reference statistics aggregated by their group.
 	 */
 	@Nonnull
-	// TODO: remove `? extends` from the type when FacetSummary constraint is removed
 	public Collection<? extends ReferenceGroupStatistics> getReferenceStatistics() {
 		return this.referenceStatistics.values()
 			.stream()

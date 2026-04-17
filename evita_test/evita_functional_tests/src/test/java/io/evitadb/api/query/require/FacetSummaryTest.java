@@ -50,8 +50,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * copy/clone operations, visitor acceptance, and equality contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @deprecated Delete together with {@link FacetSummary}. The equivalent tests for the
+ *             canonical constraint live in {@code ReferenceSummaryTest}.
  */
-@DisplayName("FacetSummary constraint")
+@Deprecated
+@DisplayName("FacetSummary constraint (deprecated)")
 class FacetSummaryTest {
 
 	@Nested

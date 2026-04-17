@@ -38,6 +38,7 @@ import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.ReferenceSummaryOfReference;
 import io.evitadb.api.query.visitor.FinderVisitor;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
@@ -52,7 +53,9 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingSc
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryAdapter;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryResultAdapter;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
@@ -67,7 +70,6 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
@@ -79,13 +81,14 @@ import static java.util.Optional.ofNullable;
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link ReferenceSummaryOfReference} to
  * {@link ReferenceSummaryProducer}.
- * The producer instance has all pointer necessary to compute result. All operations in this translator are relatively
+ * The producer instance has all pointers necessary to compute result. All operations in this translator are relatively
  * cheap comparing to final result computation, that is deferred to
  * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class ReferenceSummaryOfReferenceTranslator implements RequireConstraintTranslator<ReferenceSummaryOfReference>, SelfTraversingTranslator {
+public class ReferenceSummaryOfReferenceTranslator
+	implements RequireConstraintTranslator<ReferenceSummaryOfReference>, SelfTraversingTranslator {
 
 	/**
 	 * Creates a predicate for filtering facet groups.
@@ -193,7 +196,8 @@ public class ReferenceSummaryOfReferenceTranslator implements RequireConstraintT
 		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
 			return null;
 		}
-		final Supplier<String> descriptionSupplier = () -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy;
+		final Supplier<String> descriptionSupplier = () ->
+			"Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy;
 		return extraResultPlanner.getEntityCollection(referenceSchema.getReferencedEntityType())
 			.map(collection -> extraResultPlanner.createSorter(orderBy, locale, collection, descriptionSupplier))
 			.orElseGet(() -> new NestedContextSorter(extraResultPlanningVisitor.createExecutionContext(), descriptionSupplier));
@@ -234,7 +238,8 @@ public class ReferenceSummaryOfReferenceTranslator implements RequireConstraintT
 			return null;
 		}
 
-		final Supplier<String> descriptionSupplier = () -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy;
+		final Supplier<String> descriptionSupplier = () ->
+			"Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy;
 		return extraResultPlanner.getEntityCollection(referenceSchema.getReferencedGroupType())
 			.map(collection -> extraResultPlanner.createSorter(orderBy, locale, collection, descriptionSupplier))
 			.orElseGet(() -> new NestedContextSorter(extraResultPlanningVisitor.createExecutionContext(), descriptionSupplier));
@@ -262,46 +267,22 @@ public class ReferenceSummaryOfReferenceTranslator implements RequireConstraintT
 	}
 
 	/**
-	 * Shared logic for creating a {@link ReferenceSummaryProducer} for a specific reference from the common set
-	 * of parameters extracted from either {@link ReferenceSummaryOfReference} or
-	 * {@link io.evitadb.api.query.require.FacetSummaryOfReference}.
+	 * Finds an existing {@link ReferenceSummaryProducer} that matches the given adapter, or creates a new one.
+	 * This method encapsulates the common logic shared by both the default (all-references) and
+	 * per-reference producer creation paths: computing the requested facets from user filtering formulas,
+	 * looking up an existing producer by adapter class, and constructing a new one if none is found.
 	 *
-	 * @param referenceName          the name of the reference
-	 * @param statisticsDepth        the depth of statistics to compute
-	 * @param referenceEntityRequirement optional entity fetch requirement for reference entities
-	 * @param groupEntityRequirement optional entity group fetch requirement for group entities
-	 * @param filterBy               optional filter for individual references
-	 * @param filterGroupBy          optional filter for reference groups
-	 * @param orderBy                optional ordering for individual references
-	 * @param orderGroupBy           optional ordering for reference groups
-	 * @param extraResultPlanner     the extra result planning visitor
-	 * @return the created producer, or null
+	 * @param facetIndexes       the pre-computed facet reference indexes to use for the producer
+	 * @param resultAdapter      adapter that decides which concrete DTO the producer emits
+	 * @param extraResultPlanner the extra result planning visitor
+	 * @return the found or newly created producer
 	 */
-	@Nullable
-	// TODO: after FacetSummaryOfReferenceTranslator is removed, this method can be merged with `createProducer` method
-	public static ExtraResultProducer createProducerInternal(
-		@Nonnull String referenceName,
-		@Nonnull FacetStatisticsDepth statisticsDepth,
-		@Nonnull Optional<EntityFetch> referenceEntityRequirement,
-		@Nonnull Optional<EntityGroupFetch> groupEntityRequirement,
-		@Nonnull Optional<FilterBy> filterBy,
-		@Nonnull Optional<FilterGroupBy> filterGroupBy,
-		@Nonnull Optional<OrderBy> orderBy,
-		@Nonnull Optional<OrderGroupBy> orderGroupBy,
+	@Nonnull
+	static ReferenceSummaryProducer findOrCreateProducer(
+		@Nonnull List<Map<String, FacetReferenceIndex>> facetIndexes,
+		@Nonnull ReferenceSummaryResultAdapter<? extends ReferenceGroupStatistics> resultAdapter,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
-		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema();
-		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
-			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
-
-		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
-		final Set<Scope> scopes = processingScope.getScopes();
-
-		isTrue(
-			scopes.stream().allMatch(referenceSchema::isFacetedInScope),
-			() -> new ReferenceNotFacetedException(referenceName, entitySchema)
-		);
-
 		// find user filters that enclose variable user defined part
 		final Set<Formula> formulaScope = extraResultPlanner.getUserFilteringFormula().isEmpty() ?
 			Set.of(extraResultPlanner.getFilteringFormula()) :
@@ -319,43 +300,110 @@ public class ReferenceSummaryOfReferenceTranslator implements RequireConstraintT
 					)
 				)
 			);
-		// collect all facet statistics
-		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
-		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
-			.map(EntityIndex::getFacetingEntities)
-			.collect(Collectors.toList());
 
-		// find existing ReferenceSummaryProducer for potential reuse
-		ReferenceSummaryProducer referenceSummaryProducer = extraResultPlanner.findExistingProducer(ReferenceSummaryProducer.class);
+		// find existing ReferenceSummaryProducer for potential reuse — only match one wired with the same adapter
+		// class, so a deprecated-form producer and a new-form producer can coexist independently in mixed queries
+		ReferenceSummaryProducer referenceSummaryProducer = extraResultPlanner.findExistingProducer(
+			ReferenceSummaryProducer.class,
+			existing -> existing.getResultAdapter().getClass() == resultAdapter.getClass()
+		);
 		if (referenceSummaryProducer == null) {
-			// now create the producer instance that has all pointer necessary to compute result
+			// now create the producer instance that has all pointers necessary to compute result
 			// all operations above should be relatively cheap comparing to final result computation, that is deferred
 			// to ReferenceSummaryProducer#fabricate method
 			referenceSummaryProducer = new ReferenceSummaryProducer(
 				extraResultPlanner.getFilteringFormula(),
 				extraResultPlanner.getFilteringFormulaWithoutUserFilter(),
 				facetIndexes,
-				requestedFacets
+				requestedFacets,
+				resultAdapter
 			);
 		}
+		return referenceSummaryProducer;
+	}
 
-		final EntityFetch facetEntityRequirement = referenceEntityRequirement
-			.map(it -> verifyFetch(referenceSchema.getReferencedEntityType(), it, extraResultPlanner))
-			.orElse(null);
-		final EntityGroupFetch groupEntityReq = groupEntityRequirement
-			.map(
-				it -> ofNullable(referenceSchema.getReferencedGroupType())
-					.map(group -> verifyFetch(group, it, extraResultPlanner))
-					.orElse(it)
-			)
-			.orElse(null);
+	/**
+	 * Shared logic for creating a {@link ReferenceSummaryProducer} for a specific reference from the common set
+	 * of parameters extracted from either {@link ReferenceSummaryOfReference} or
+	 * {@link io.evitadb.api.query.require.FacetSummaryOfReference}.
+	 *
+	 * @param referenceName          the name of the reference
+	 * @param statisticsDepth        the depth of statistics to compute
+	 * @param referenceEntityRequirement optional entity fetch requirement for reference entities
+	 * @param groupEntityRequirement optional entity group fetch requirement for group entities
+	 * @param filterBy               optional filter for individual references
+	 * @param filterGroupBy          optional filter for reference groups
+	 * @param orderBy                optional ordering for individual references
+	 * @param orderGroupBy           optional ordering for reference groups
+	 * @param resultAdapter          adapter that decides which concrete DTO the producer emits — the deprecated
+	 *                               {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} or the
+	 *                               canonical {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary}.
+	 *                               Reuse of an existing producer instance is keyed on the adapter's runtime class
+	 *                               so that a mixed request (both deprecated and new constraints) results in two
+	 *                               independent producer instances, one per adapter.
+	 * @param extraResultPlanner     the extra result planning visitor
+	 * @return the created producer, or null
+	 */
+	@Nullable
+	public static ExtraResultProducer createProducerInternal(
+		@Nonnull String referenceName,
+		@Nonnull FacetStatisticsDepth statisticsDepth,
+		@Nullable EntityFetch referenceEntityRequirement,
+		@Nullable EntityGroupFetch groupEntityRequirement,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy filterGroupBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy orderGroupBy,
+		@Nonnull ReferenceSummaryResultAdapter<? extends ReferenceGroupStatistics> resultAdapter,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
+	) {
+		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema();
+		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
+			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
+
+		final ProcessingScope processingScope = extraResultPlanner.getProcessingScope();
+		final Set<Scope> scopes = processingScope.getScopes();
+
+		isTrue(
+			scopes.stream().allMatch(referenceSchema::isFacetedInScope),
+			() -> new ReferenceNotFacetedException(referenceName, entitySchema)
+		);
+
+		// collect all facet statistics
+		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
+		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
+			.map(EntityIndex::getFacetingEntities)
+			.collect(Collectors.toList());
+
+		final ReferenceSummaryProducer referenceSummaryProducer = findOrCreateProducer(
+			facetIndexes, resultAdapter, extraResultPlanner
+		);
+
+		final EntityFetch facetEntityRequirement = referenceEntityRequirement != null ?
+			verifyFetch(referenceSchema.getReferencedEntityType(), referenceEntityRequirement, extraResultPlanner) :
+			null;
+		final EntityGroupFetch groupEntityReq;
+		if (groupEntityRequirement != null) {
+			final String referencedGroupType = referenceSchema.getReferencedGroupType();
+			groupEntityReq = referencedGroupType != null ?
+				verifyFetch(referencedGroupType, groupEntityRequirement, extraResultPlanner) :
+				groupEntityRequirement;
+		} else {
+			groupEntityReq = null;
+		}
 		referenceSummaryProducer.requireReferenceReferenceSummary(
 			referenceSchema,
 			statisticsDepth,
-			filterBy.map(it -> createFacetPredicate(extraResultPlanner, it, referenceSchema, true)).orElse(null),
-			filterGroupBy.map(it -> createFacetGroupPredicate(extraResultPlanner, it, referenceSchema, true)).orElse(null),
-			orderBy.map(it -> createFacetSorter(extraResultPlanner, it, findLocale(filterBy.orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
-			orderGroupBy.map(it -> createFacetGroupSorter(extraResultPlanner, it, findLocale(filterGroupBy.orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
+			filterBy != null ? createFacetPredicate(extraResultPlanner, filterBy, referenceSchema, true) : null,
+			filterGroupBy != null ? createFacetGroupPredicate(extraResultPlanner, filterGroupBy, referenceSchema, true) : null,
+			orderBy != null ?
+				createFacetSorter(
+					extraResultPlanner, orderBy, findLocale(filterBy), extraResultPlanner, referenceSchema, true
+				) : null,
+			orderGroupBy != null ?
+				createFacetGroupSorter(
+					extraResultPlanner, orderGroupBy, findLocale(filterGroupBy), extraResultPlanner, referenceSchema, true
+				) : null,
 			facetEntityRequirement,
 			groupEntityReq
 		);
@@ -371,12 +419,13 @@ public class ReferenceSummaryOfReferenceTranslator implements RequireConstraintT
 		return createProducerInternal(
 			referenceSummaryOfReference.getReferenceName(),
 			referenceSummaryOfReference.getStatisticsDepth(),
-			referenceSummaryOfReference.getReferenceEntityRequirement(),
-			referenceSummaryOfReference.getGroupEntityRequirement(),
-			referenceSummaryOfReference.getFilterBy(),
-			referenceSummaryOfReference.getFilterGroupBy(),
-			referenceSummaryOfReference.getOrderBy(),
-			referenceSummaryOfReference.getOrderGroupBy(),
+			referenceSummaryOfReference.getReferenceEntityRequirement().orElse(null),
+			referenceSummaryOfReference.getGroupEntityRequirement().orElse(null),
+			referenceSummaryOfReference.getFilterBy().orElse(null),
+			referenceSummaryOfReference.getFilterGroupBy().orElse(null),
+			referenceSummaryOfReference.getOrderBy().orElse(null),
+			referenceSummaryOfReference.getOrderGroupBy().orElse(null),
+			ReferenceSummaryAdapter.INSTANCE,
 			extraResultPlanner
 		);
 	}

@@ -205,7 +205,6 @@ public class ResponseConverter {
 			);
 		} else if (extraResults.getFacetGroupStatisticsCount() > 0) {
 			// fallback for backward-compatibility
-			// TODO: remove this branch after the FacetSummary constraint is removed
 			result.add(
 				toFacetSummary(
 					entitySchemaFetcher,
@@ -402,7 +401,6 @@ public class ResponseConverter {
 	/**
 	 * Method converts {@link GrpcFacetGroupStatistics} to {@link FacetGroupStatistics}.
 	 */
-	// TODO: remove when FacetSummary constraint is removed
 	@Nonnull
 	private static FacetGroupStatistics toFacetGroupStatistics(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,

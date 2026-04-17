@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -63,18 +63,27 @@ public class GrpcExtraResultsBuilder {
 	 * @return new {@link GrpcExtraResults} with all partial additional results
 	 */
 	@Nonnull
-	public static <T extends EntityClassifier> GrpcExtraResults buildExtraResults(@Nonnull EvitaResponse<T> evitaResponse) {
+	public static <T extends EntityClassifier> GrpcExtraResults buildExtraResults(
+		@Nonnull EvitaResponse<T> evitaResponse
+	) {
 		final Supplier<SemVer> clientVersion = ClientVersionSupplier.INSTANCE;
 		final GrpcExtraResults.Builder extraResults = GrpcExtraResults.newBuilder();
 		evitaResponse.getExtraResultTypes().forEach(extraResultType -> {
 			final EvitaResponseExtraResult extraResult = evitaResponse.getExtraResult(extraResultType);
 			if (extraResult instanceof AttributeHistogram erHistogram) {
-				final Map<String, GrpcHistogram> attributeHistograms = GrpcHistogramBuilder.buildAttributeHistogram(erHistogram, clientVersion.get());
+				final Map<String, GrpcHistogram> attributeHistograms = GrpcHistogramBuilder.buildAttributeHistogram(
+					erHistogram,
+					clientVersion.get()
+				);
 				extraResults.putAllAttributeHistogram(attributeHistograms);
 			} else if (extraResult instanceof PriceHistogram erHistogram) {
 				extraResults.setPriceHistogram(GrpcHistogramBuilder.buildPriceHistogram(erHistogram, clientVersion.get()));
-			} else if (extraResult instanceof FacetSummary erFacetSummary) {
-				GrpcReferenceSummaryBuilder.buildReferenceSummary(evitaResponse.getSourceQuery(), extraResults, erFacetSummary, clientVersion.get());
+			} else if (extraResult instanceof ReferenceSummary erReferenceSummary) {
+				// each DTO is serialized to the gRPC field matching its runtime type — FacetSummary
+				// (deprecated subclass) goes to facetGroupStatistics, plain ReferenceSummary goes to
+				// referenceGroupStatistics; in mixed-constraint queries both DTOs are present and both
+				// fields are populated independently
+				GrpcReferenceSummaryBuilder.buildReferenceSummary(extraResults, erReferenceSummary, clientVersion.get());
 			} else if (extraResult instanceof Hierarchy erHierarchy) {
 				GrpcHierarchyStatisticsBuilder.buildHierarchy(extraResults, erHierarchy, clientVersion.get());
 			} else if (extraResult instanceof QueryTelemetry erQueryTelemetry) {
@@ -85,8 +94,9 @@ public class GrpcExtraResultsBuilder {
 	}
 
 	/**
-	 * A private implementation of the {@link Supplier} interface designed to supply the client version as a {@link SemVer} object.
-	 * This implementation is lazy-initialized, retrieving the client version metadata only when requested for the first time.
+	 * A private implementation of the {@link Supplier} interface designed to supply the client version
+	 * as a {@link SemVer} object. This implementation is lazy-initialized, retrieving the client version
+	 * metadata only when requested for the first time.
 	 */
 	@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 	private static class ClientVersionSupplier implements Supplier<SemVer> {

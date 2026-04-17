@@ -28,6 +28,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.producer.FacetSummaryAdapter;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator;
 
@@ -38,26 +39,33 @@ import javax.annotation.Nullable;
  * This implementation of {@link RequireConstraintTranslator} converts {@link FacetSummary} to
  * {@link ReferenceSummaryProducer}. It delegates all logic to {@link ReferenceSummaryTranslator} to avoid
  * code duplication.
- * The producer instance has all pointer necessary to compute result. All operations in this translator are relatively
+ * The producer instance has all pointers necessary to compute result. All operations in this translator are relatively
  * cheap comparing to final result computation, that is deferred to
  * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
  *
+ * TOBEDONE JNO - remove also
+ * io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator#createProducerInternal
+ * @deprecated can be removed after FacetSummary constraint is removed
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-// TODO: can be removed after FacetSummary constraint is removed
+@Deprecated(since = "2026.2", forRemoval = true)
 public class FacetSummaryTranslator implements RequireConstraintTranslator<FacetSummary>, SelfTraversingTranslator {
 
 	@Nullable
 	@Override
-	public ExtraResultProducer createProducer(@Nonnull FacetSummary facetSummary, @Nonnull ExtraResultPlanningVisitor extraResultPlanner) {
+	public ExtraResultProducer createProducer(
+		@Nonnull FacetSummary facetSummary,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
+	) {
 		return ReferenceSummaryTranslator.createProducerInternal(
 			facetSummary.getStatisticsDepth(),
-			facetSummary.getFacetEntityRequirement(),
-			facetSummary.getGroupEntityRequirement(),
-			facetSummary.getFilterBy(),
-			facetSummary.getFilterGroupBy(),
-			facetSummary.getOrderBy(),
-			facetSummary.getOrderGroupBy(),
+			facetSummary.getFacetEntityRequirement().orElse(null),
+			facetSummary.getGroupEntityRequirement().orElse(null),
+			facetSummary.getFilterBy().orElse(null),
+			facetSummary.getFilterGroupBy().orElse(null),
+			facetSummary.getOrderBy().orElse(null),
+			facetSummary.getOrderGroupBy().orElse(null),
+			FacetSummaryAdapter.INSTANCE,
 			extraResultPlanner
 		);
 	}

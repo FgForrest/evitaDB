@@ -28,6 +28,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.producer.FacetSummaryAdapter;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator;
 
@@ -38,14 +39,18 @@ import javax.annotation.Nullable;
  * This implementation of {@link RequireConstraintTranslator} converts {@link FacetSummaryOfReference} to
  * {@link ReferenceSummaryProducer}. It delegates all logic to {@link ReferenceSummaryOfReferenceTranslator}
  * to avoid code duplication.
- * The producer instance has all pointer necessary to compute result. All operations in this translator are relatively
+ * The producer instance has all pointers necessary to compute result. All operations in this translator are relatively
  * cheap comparing to final result computation, that is deferred to
  * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
  *
+ * TOBEDONE JNO - remove also
+ * io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator#createProducerInternal
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @deprecated can be removed after FacetSummaryOfReference constraint is removed
  */
-// TODO: can be removed after FacetSummaryOfReference constraint is removed
-public class FacetSummaryOfReferenceTranslator implements RequireConstraintTranslator<FacetSummaryOfReference>, SelfTraversingTranslator {
+@Deprecated(since = "2026.2", forRemoval = true)
+public class FacetSummaryOfReferenceTranslator
+	implements RequireConstraintTranslator<FacetSummaryOfReference>, SelfTraversingTranslator {
 
 	@Nullable
 	@Override
@@ -56,12 +61,13 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		return ReferenceSummaryOfReferenceTranslator.createProducerInternal(
 			facetSummaryOfReference.getReferenceName(),
 			facetSummaryOfReference.getStatisticsDepth(),
-			facetSummaryOfReference.getFacetEntityRequirement(),
-			facetSummaryOfReference.getGroupEntityRequirement(),
-			facetSummaryOfReference.getFilterBy(),
-			facetSummaryOfReference.getFilterGroupBy(),
-			facetSummaryOfReference.getOrderBy(),
-			facetSummaryOfReference.getOrderGroupBy(),
+			facetSummaryOfReference.getFacetEntityRequirement().orElse(null),
+			facetSummaryOfReference.getGroupEntityRequirement().orElse(null),
+			facetSummaryOfReference.getFilterBy().orElse(null),
+			facetSummaryOfReference.getFilterGroupBy().orElse(null),
+			facetSummaryOfReference.getOrderBy().orElse(null),
+			facetSummaryOfReference.getOrderGroupBy().orElse(null),
+			FacetSummaryAdapter.INSTANCE,
 			extraResultPlanner
 		);
 	}

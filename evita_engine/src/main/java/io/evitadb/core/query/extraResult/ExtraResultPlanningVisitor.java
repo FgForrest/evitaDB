@@ -51,6 +51,7 @@ import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.utils.Functions;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireInScopeTranslator;
@@ -92,6 +93,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -111,7 +113,8 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ExtraResultPlanningVisitor implements ConstraintVisitor {
-	private static final Map<Class<? extends RequireConstraint>, RequireConstraintTranslator<? extends RequireConstraint>> TRANSLATORS;
+	private static final Map<Class<? extends RequireConstraint>, RequireConstraintTranslator<? extends RequireConstraint>>
+		TRANSLATORS;
 
 	/* initialize list of all RequireConstraint handlers once for a lifetime */
 	static {
@@ -235,16 +238,39 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * translators to reuse (enrich) it.
 	 */
 	@Nullable
-	public <T extends ExtraResultProducer> T findExistingProducer(Class<T> producerClass) {
+	public <T extends ExtraResultProducer> T findExistingProducer(@Nonnull Class<T> producerClass) {
+		return findExistingProducer(producerClass, Functions.alwaysTrue());
+	}
+
+	/**
+	 * Method finds an existing {@link ExtraResultProducer} implementation of `producerClass` that additionally
+	 * satisfies the passed `predicate`. Needed when multiple producers of the same class may coexist in the
+	 * planner and the caller wants the one matching a specific internal state — e.g. when the same producer type
+	 * is parameterized with different adapters to emit the deprecated {@link FacetSummary} DTO alongside the canonical
+	 * {@link ReferenceSummary} DTO.
+	 *
+	 * @param producerClass the expected producer class (also matches subclasses via {@link Class#isInstance})
+	 * @param predicate     additional filter applied to every candidate; the first producer matching both wins
+	 * @return the first matching producer or {@code null} if none is present
+	 */
+	@Nullable
+	public <T extends ExtraResultProducer> T findExistingProducer(
+		@Nonnull Class<T> producerClass,
+		@Nonnull Predicate<T> predicate
+	) {
 		if (producerClass.isInstance(this.lastReturnedProducer)) {
-			//noinspection unchecked
-			return (T) this.lastReturnedProducer;
+			@SuppressWarnings("unchecked") final T candidate = (T) this.lastReturnedProducer;
+			if (predicate.test(candidate)) {
+				return candidate;
+			}
 		}
-		for (ExtraResultProducer extraResultProducer : this.extraResultProducers) {
+		for (final ExtraResultProducer extraResultProducer : this.extraResultProducers) {
 			if (producerClass.isInstance(extraResultProducer)) {
-				this.lastReturnedProducer = extraResultProducer;
-				//noinspection unchecked
-				return (T) extraResultProducer;
+				@SuppressWarnings("unchecked") final T candidate = (T) extraResultProducer;
+				if (predicate.test(candidate)) {
+					this.lastReturnedProducer = extraResultProducer;
+					return candidate;
+				}
 			}
 		}
 		return null;
@@ -372,7 +398,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 			// if query is a container query
 			if (requireConstraint instanceof ConstraintContainer) {
-				@SuppressWarnings("unchecked") final ConstraintContainer<RequireConstraint> container = (ConstraintContainer<RequireConstraint>) requireConstraint;
+				@SuppressWarnings("unchecked") final ConstraintContainer<RequireConstraint> container =
+					(ConstraintContainer<RequireConstraint>) requireConstraint;
 				// process children constraints
 				if (!(translator instanceof SelfTraversingTranslator)) {
 					for (RequireConstraint child : container) {
@@ -397,7 +424,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			}
 
 			if (requireConstraint instanceof ConstraintContainer && !(translator instanceof SelfTraversingTranslator)) {
-				@SuppressWarnings("unchecked") final ConstraintContainer<RequireConstraint> container = (ConstraintContainer<RequireConstraint>) requireConstraint;
+				@SuppressWarnings("unchecked") final ConstraintContainer<RequireConstraint> container =
+					(ConstraintContainer<RequireConstraint>) requireConstraint;
 				for (RequireConstraint child : container) {
 					child.accept(this);
 				}
@@ -588,8 +616,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 	/**
 	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin},
-	 * {@link HierarchyWithinRoot} constraints inside {@link UserFilter} parts only. Result of this method is cached so that
-	 * additional calls introduce no performance penalty.
+	 * {@link HierarchyWithinRoot} constraints inside {@link UserFilter} parts only. Result of this method is cached
+	 * so that additional calls introduce no performance penalty.
 	 */
 	@Nullable
 	private FilterBy getFilterByIncludingUserFilterWithoutHierarchyInIt(@Nonnull FormulaVariant formulaVariant) {
@@ -600,7 +628,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 					(visitor, constraint) -> {
 						if (constraint instanceof HierarchyFilterConstraint hfc) {
 							if ((formulaVariant.referenceName() == null && hfc.getReferenceName().isEmpty()) ||
-								(formulaVariant.referenceName() != null && hfc.getReferenceName().map(refName -> refName.equals(formulaVariant.referenceName())).orElse(false)) &&
+								(formulaVariant.referenceName() != null &&
+									hfc.getReferenceName().map(refName -> refName.equals(formulaVariant.referenceName())).orElse(false)) &&
 									visitor.isWithin(UserFilter.class)) {
 								return null;
 							}

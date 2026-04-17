@@ -478,7 +478,7 @@ class EvitaTest implements EvitaTestSupport {
 					query(
 						collection(Entities.PRODUCT),
 						require(
-							facetSummaryOfReference(
+							referenceSummaryOfReference(
 								Entities.BRAND,
 								FacetStatisticsDepth.COUNTS,
 								entityFetch(entityFetchAllContent())
@@ -951,7 +951,8 @@ class EvitaTest implements EvitaTestSupport {
 	 * Tests that creating a catalog with a name that would be a duplicate in any naming convention fails.
 	 *
 	 * The test verifies that:
-	 * - Attempting to create a catalog with a name that would be the same as an existing catalog in any naming convention throws CatalogAlreadyPresentException
+	 * - Attempting to create a catalog with a name that would be the same as an existing catalog in any naming convention
+	 *   throws CatalogAlreadyPresentException
 	 * - The exception message correctly identifies the conflicting catalog names and the naming convention
 	 */
 	@Test
@@ -1506,7 +1507,8 @@ class EvitaTest implements EvitaTestSupport {
 	 * Tests that renaming a collection to an existing collection name fails.
 	 *
 	 * The test verifies that:
-	 * - Attempting to rename a collection to a name that already exists throws EntityTypeAlreadyPresentInCatalogSchemaException
+	 * - Attempting to rename a collection to a name that already exists throws
+	 *   EntityTypeAlreadyPresentInCatalogSchemaException
 	 * - The exception message correctly identifies the conflicting collection names
 	 */
 	@Test
@@ -1877,7 +1879,8 @@ class EvitaTest implements EvitaTestSupport {
 	 * The test verifies that:
 	 * - Global attributes can be defined at catalog level
 	 * - Multiple entity schemas can reference the same global attribute
-	 * - When global attributes are updated (description, localization, uniqueness), the changes are reflected in all entity schemas
+	 * - When global attributes are updated (description, localization, uniqueness),
+	 *   the changes are reflected in all entity schemas
 	 * - Entity instances with global attributes maintain consistency after global attribute changes
 	 */
 	@Test
@@ -2286,7 +2289,8 @@ class EvitaTest implements EvitaTestSupport {
 	 * Tests that creating a non-indexed reference fails when a reflected reference exists.
 	 *
 	 * The test verifies that:
-	 * - Attempting to create a non-indexed reference when a reflected reference exists throws InvalidSchemaMutationException
+	 * - Attempting to create a non-indexed reference when a reflected reference exists
+	 *   throws InvalidSchemaMutationException
 	 * - The exception message correctly explains that the reference must be indexed because a reflected reference exists
 	 */
 	@Test
@@ -2351,7 +2355,8 @@ class EvitaTest implements EvitaTestSupport {
 	 * Tests that creating a non-managed reference fails when an entity with the same name exists.
 	 *
 	 * The test verifies that:
-	 * - Attempting to create a non-managed reference with the same name as an existing entity throws InvalidSchemaMutationException
+	 * - Attempting to create a non-managed reference with the same name as an existing entity
+	 *   throws InvalidSchemaMutationException
 	 * - The exception message correctly explains the conflict between the reference name and entity name
 	 */
 	@Test
@@ -2402,7 +2407,8 @@ class EvitaTest implements EvitaTestSupport {
 	 * Tests that creating a non-managed group reference fails when an entity with the same name exists.
 	 *
 	 * The test verifies that:
-	 * - Attempting to create a non-managed group reference with the same name as an existing entity throws InvalidSchemaMutationException
+	 * - Attempting to create a non-managed group reference with the same name as an existing entity
+	 *   throws InvalidSchemaMutationException
 	 * - The exception message correctly explains the conflict between the reference name and entity name
 	 */
 	@Test
@@ -2459,7 +2465,8 @@ class EvitaTest implements EvitaTestSupport {
 	 * Tests that changing a reference to non-indexed fails when there is a filterable attribute present.
 	 *
 	 * The test verifies that:
-	 * - Attempting to change a reference to non-indexed when it has a filterable attribute throws InvalidSchemaMutationException
+	 * - Attempting to change a reference to non-indexed when it has a filterable attribute
+	 *   throws InvalidSchemaMutationException
 	 * - The exception message correctly explains that the reference must remain indexed due to the filterable attribute
 	 */
 	@Test
@@ -2502,7 +2509,8 @@ class EvitaTest implements EvitaTestSupport {
 	 * Tests that changing a reference to non-indexed fails when there is a unique attribute present.
 	 *
 	 * The test verifies that:
-	 * - Attempting to change a reference to non-indexed when it has a unique attribute throws InvalidSchemaMutationException
+	 * - Attempting to change a reference to non-indexed when it has a unique attribute
+	 *   throws InvalidSchemaMutationException
 	 * - The exception message correctly explains that the reference must remain indexed due to the unique attribute
 	 */
 	@Test
@@ -2724,10 +2732,12 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Tests that changing a reference to non-indexed fails when there is an inherited filterable attribute in a reflected reference.
+	 * Tests that changing a reference to non-indexed fails when there is an inherited filterable attribute
+	 * in a reflected reference.
 	 *
 	 * The test verifies that:
-	 * - When a reference has an inherited filterable attribute in a reflected reference, it cannot be changed to non-indexed
+	 * - When a reference has an inherited filterable attribute in a reflected reference,
+	 *   it cannot be changed to non-indexed
 	 * - An InvalidSchemaMutationException is thrown when attempting this change
 	 */
 	@Test
@@ -2775,7 +2785,8 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Tests that changing a reference to non-indexed fails when there is an inherited unique attribute in a reflected reference.
+	 * Tests that changing a reference to non-indexed fails when there is an inherited unique attribute
+	 * in a reflected reference.
 	 *
 	 * The test verifies that:
 	 * - When a reference has an inherited unique attribute in a reflected reference, it cannot be changed to non-indexed
@@ -2826,7 +2837,8 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Tests that changing a reference to non-indexed fails when there is an inherited sortable attribute in a reflected reference.
+	 * Tests that changing a reference to non-indexed fails when there is an inherited sortable attribute
+	 * in a reflected reference.
 	 *
 	 * The test verifies that:
 	 * - When a reference has an inherited sortable attribute in a reflected reference, it cannot be changed to non-indexed
@@ -3025,7 +3037,10 @@ class EvitaTest implements EvitaTestSupport {
 				session
 					.defineEntitySchema(Entities.PRODUCT)
 					.withPrice(2)
-					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, ReferenceSchemaEditor::indexedForFilteringAndPartitioning)
+					.withReferenceToEntity(
+						Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE,
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
+					)
 					.updateVia(session);
 
 				session.createNewEntity(Entities.CATEGORY, 1).upsertVia(session);
@@ -3756,7 +3771,8 @@ class EvitaTest implements EvitaTestSupport {
 		// damage the TEST_CATALOG_1 contents
 		try {
 			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-				TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
+					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -3905,7 +3921,8 @@ class EvitaTest implements EvitaTestSupport {
 		// damage the TEST_CATALOG_1 contents
 		try {
 			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-				TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
+					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -4004,7 +4021,8 @@ class EvitaTest implements EvitaTestSupport {
 		// damage the TEST_CATALOG_1 contents
 		try {
 			final Path productCollectionFile = getEvitaTestDirectory().resolve(
-				TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + "-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+					TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() +
+					"-1_0" + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
 			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
 		} catch (Exception ex) {
 			fail(ex);
@@ -4413,7 +4431,8 @@ class EvitaTest implements EvitaTestSupport {
 	@ParameterizedTest(name = "Create backup and restore transactional catalog (withWal={0})")
 	@ValueSource(booleans = {true, false})
 	@DisplayName("Create backup and restore transactional catalog")
-	void shouldCreateBackupAndRestoreTransactionalCatalog(boolean withWal) throws IOException, ExecutionException, InterruptedException {
+	void shouldCreateBackupAndRestoreTransactionalCatalog(boolean withWal)
+			throws IOException, ExecutionException, InterruptedException {
 		setupCatalogWithProductAndCategory();
 
 		this.evita.updateCatalog(
@@ -4630,7 +4649,9 @@ class EvitaTest implements EvitaTestSupport {
 		             });
 
 		// list them again and there should be none of them
-		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(1, numberOfTasks, Set.of());
+		final PaginatedList<FileForFetch> exportedFilesAfterDeletion = management.listFilesToFetch(
+			1, numberOfTasks, Set.of()
+		);
 		assertTrue(exportedFilesAfterDeletion.getData().stream().noneMatch(file -> deletedFiles.contains(file.fileId())));
 	}
 

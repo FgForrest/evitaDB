@@ -75,7 +75,7 @@ message GrpcReferenceGroupStatistics {
 }
 
 // This DTO contains information about single facet group and statistics of the facets that relates to it.
-// TODO: remove when FacetSummary constraint is removed
+// TOBEDONE: remove when FacetSummary constraint is removed
 message GrpcFacetGroupStatistics {
   option deprecated = true;
 

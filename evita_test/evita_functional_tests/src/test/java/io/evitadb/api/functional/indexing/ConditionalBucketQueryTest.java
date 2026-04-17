@@ -31,8 +31,8 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -55,7 +55,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.facetSummaryOfReference;
+import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReference;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -262,17 +262,17 @@ class ConditionalBucketQueryTest implements EvitaTestSupport {
 						final EvitaResponse<EntityReferenceContract> result = session.query(
 							query(
 								collection(ENTITY_PRODUCT),
-								require(facetSummaryOfReference(REF_DUAL))
+								require(referenceSummaryOfReference(REF_DUAL))
 							),
 							EntityReferenceContract.class
 						);
 
-						final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
-						assertNotNull(facetSummary, "Facet summary must be present");
+						final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+						assertNotNull(referenceSummary, "Facet summary must be present");
 
 						// CHECKBOX group (PK=1) should have facet statistics
-						final FacetGroupStatistics checkboxGroupStats =
-							facetSummary.getFacetGroupStatistics(REF_DUAL, 1);
+						final ReferenceGroupStatistics checkboxGroupStats =
+							referenceSummary.getReferenceGroupStatistics(REF_DUAL, 1);
 						assertNotNull(
 							checkboxGroupStats,
 							"Facet group stats for CHECKBOX group (PK=1) must exist"
@@ -288,8 +288,8 @@ class ConditionalBucketQueryTest implements EvitaTestSupport {
 
 						// INTERVAL group (PK=2) should NOT have facet statistics
 						// (PV#2 is only in the INTERVAL group, which is bucketed not faceted)
-						final FacetGroupStatistics intervalGroupStats =
-							facetSummary.getFacetGroupStatistics(REF_DUAL, 2);
+						final ReferenceGroupStatistics intervalGroupStats =
+							referenceSummary.getReferenceGroupStatistics(REF_DUAL, 2);
 						if (intervalGroupStats != null) {
 							assertEquals(
 								0, intervalGroupStats.getFacetStatistics().size(),
@@ -336,17 +336,17 @@ class ConditionalBucketQueryTest implements EvitaTestSupport {
 					ConditionalBucketQueryTest.this.evita.queryCatalog(
 						TEST_CATALOG,
 						session -> {
-							final FacetSummary facetSummary = session.query(
+							final ReferenceSummary referenceSummary = session.query(
 								query(
 									collection(ENTITY_PRODUCT),
-									require(facetSummaryOfReference(REF_DUAL))
+									require(referenceSummaryOfReference(REF_DUAL))
 								),
 								EntityReferenceContract.class
-							).getExtraResult(FacetSummary.class);
+							).getExtraResult(ReferenceSummary.class);
 
-							assertNotNull(facetSummary, "Facet summary must be present initially");
-							final FacetGroupStatistics groupStats =
-								facetSummary.getFacetGroupStatistics(REF_DUAL, 1);
+							assertNotNull(referenceSummary, "Facet summary must be present initially");
+							final ReferenceGroupStatistics groupStats =
+								referenceSummary.getReferenceGroupStatistics(REF_DUAL, 1);
 							assertNotNull(groupStats, "Group stats must exist initially");
 							final FacetStatistics pv1Stats = groupStats.getFacetStatistics(1);
 							assertNotNull(pv1Stats, "PV#1 facet stats must exist initially");
@@ -373,17 +373,17 @@ class ConditionalBucketQueryTest implements EvitaTestSupport {
 					ConditionalBucketQueryTest.this.evita.queryCatalog(
 						TEST_CATALOG,
 						session -> {
-							final FacetSummary facetSummary = session.query(
+							final ReferenceSummary referenceSummary = session.query(
 								query(
 									collection(ENTITY_PRODUCT),
-									require(facetSummaryOfReference(REF_DUAL))
+									require(referenceSummaryOfReference(REF_DUAL))
 								),
 								EntityReferenceContract.class
-							).getExtraResult(FacetSummary.class);
+							).getExtraResult(ReferenceSummary.class);
 
-							if (facetSummary != null) {
-								final FacetGroupStatistics groupStats =
-									facetSummary.getFacetGroupStatistics(REF_DUAL, 1);
+							if (referenceSummary != null) {
+								final ReferenceGroupStatistics groupStats =
+									referenceSummary.getReferenceGroupStatistics(REF_DUAL, 1);
 								if (groupStats != null) {
 									assertEquals(
 										0, groupStats.getFacetStatistics().size(),
@@ -410,17 +410,17 @@ class ConditionalBucketQueryTest implements EvitaTestSupport {
 					ConditionalBucketQueryTest.this.evita.queryCatalog(
 						TEST_CATALOG,
 						session -> {
-							final FacetSummary facetSummary = session.query(
+							final ReferenceSummary referenceSummary = session.query(
 								query(
 									collection(ENTITY_PRODUCT),
-									require(facetSummaryOfReference(REF_DUAL))
+									require(referenceSummaryOfReference(REF_DUAL))
 								),
 								EntityReferenceContract.class
-							).getExtraResult(FacetSummary.class);
+							).getExtraResult(ReferenceSummary.class);
 
-							assertNotNull(facetSummary, "Facet summary must be present after restore");
-							final FacetGroupStatistics groupStats =
-								facetSummary.getFacetGroupStatistics(REF_DUAL, 1);
+							assertNotNull(referenceSummary, "Facet summary must be present after restore");
+							final ReferenceGroupStatistics groupStats =
+								referenceSummary.getReferenceGroupStatistics(REF_DUAL, 1);
 							assertNotNull(groupStats, "Group stats must exist after restore");
 							final FacetStatistics pv1Stats = groupStats.getFacetStatistics(1);
 							assertNotNull(pv1Stats, "PV#1 facet stats must exist after restore");

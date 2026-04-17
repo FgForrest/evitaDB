@@ -726,7 +726,7 @@ public class FullResponseObjectBuilder {
 
 		return Optional.of(new BuiltFieldDescriptor(
 			facetSummaryField,
-			ReferenceSummaryDataFetcher.getInstance()
+			FacetSummaryDataFetcher.getInstance()
 		));
 	}
 
