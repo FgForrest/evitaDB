@@ -123,6 +123,17 @@ public final class TrunkIncorporationTransactionStage
 							0,
 							0
 						).commit();
+						// processTransactions returned empty: a concurrent trunk-incorporation task
+						// already drained the mutation stream while we were waiting for the lock.
+						// Complete the commit progress the same way the "already processed" branch does
+						// — wait until the live view catches up, then mark this stage done. Without this
+						// completion the record would hang with `onChangesVisible` pending forever.
+						this.transactionManager.waitUntilLiveVersionReaches(task.catalogVersion());
+						task.commitProgress().complete(
+							CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
+							commitVersions,
+							this.transactionManager.getRequestExecutor()
+						);
 					}
 				);
 		}

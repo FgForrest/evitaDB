@@ -27,8 +27,10 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.function.Functions;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -105,6 +107,7 @@ import java.util.function.BiConsumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Slf4j
 public class CommitProgressRecord implements CommitProgress {
 
 	/**
@@ -210,6 +213,10 @@ public class CommitProgressRecord implements CommitProgress {
 	 *
 	 * Since the first stage is completed asynchronously, chaining here is safe and won't block the transaction thread.
 	 *
+	 * **Exception propagation**: If `previousStage` completes exceptionally, `thisStage` is completed
+	 * exceptionally with the same throwable — preserving the contract that any stage failure cascades
+	 * to all subsequent stages. Completing with a `null` result instead would silently swallow the error.
+	 *
 	 * @param previousStage the stage that must complete first
 	 * @param thisStage     the stage to complete when previous stage finishes
 	 */
@@ -220,7 +227,39 @@ public class CommitProgressRecord implements CommitProgress {
 		// here we can just chain completion of this stage to the previous one
 		// since the first stage is done asynchronously, we can be synchronous here because it'll be executed
 		// in the same thread as the previous stage's completion
-		previousStage.whenComplete((result, throwable) -> thisStage.complete(result));
+		previousStage.whenComplete((result, throwable) -> {
+			if (throwable != null) {
+				thisStage.completeExceptionally(throwable);
+			} else {
+				thisStage.complete(result);
+			}
+		});
+	}
+
+	/**
+	 * Invokes the termination callback defensively.
+	 *
+	 * The contract says the callback "must not throw", but a misbehaving user-supplied implementation
+	 * (e.g., a throwing {@link EvitaSessionTerminationCallback}) must not leave stages pending. This helper
+	 * catches every throwable and logs it, then returns normally so the subsequent {@link CompletableFuture#complete}
+	 * call can still fire.
+	 *
+	 * @param commitVersions the versions passed to the callback (null on exception paths)
+	 * @param throwable      the exception passed to the callback (null on success paths)
+	 */
+	private void invokeTerminationSequence(
+		@Nullable CommitVersions commitVersions,
+		@Nullable Throwable throwable
+	) {
+		try {
+			this.terminationSequence.accept(commitVersions, throwable);
+		} catch (Throwable callbackException) {
+			log.error(
+				"Termination sequence callback threw an exception; the commit progress record will " +
+					"continue to complete the stage regardless.",
+				callbackException
+			);
+		}
 	}
 
 	/**
@@ -310,19 +349,19 @@ public class CommitProgressRecord implements CommitProgress {
 	public void completeExceptionally(@Nonnull Throwable exception) {
 		if (!this.onConflictResolved.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION) {
-				this.terminationSequence.accept(null, exception);
+				invokeTerminationSequence(null, exception);
 			}
 			this.onConflictResolved.completeExceptionally(exception);
 		}
 		if (!this.onWalAppended.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
-				this.terminationSequence.accept(null, exception);
+				invokeTerminationSequence(null, exception);
 			}
 			this.onWalAppended.completeExceptionally(exception);
 		}
 		if (!this.onChangesVisible.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
-				this.terminationSequence.accept(null, exception);
+				invokeTerminationSequence(null, exception);
 			}
 			this.onChangesVisible.completeExceptionally(exception);
 		}
@@ -356,7 +395,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_CONFLICT_RESOLUTION -> {
 				if (!this.onConflictResolved.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					this.onConflictResolved.complete(commitVersions);
 				}
@@ -364,7 +403,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_WAL_PERSISTENCE -> {
 				if (!this.onWalAppended.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					this.onWalAppended.complete(commitVersions);
 				}
@@ -372,7 +411,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_CHANGES_VISIBLE -> {
 				if (!this.onChangesVisible.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					this.onChangesVisible.complete(commitVersions);
 				}
@@ -415,7 +454,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_CONFLICT_RESOLUTION -> {
 				if (!this.onConflictResolved.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					completeStage(this.onConflictResolved, commitVersions, executor);
 				}
@@ -423,7 +462,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_WAL_PERSISTENCE -> {
 				if (!this.onWalAppended.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					completeStage(this.onConflictResolved, this.onWalAppended);
 				}
@@ -431,7 +470,7 @@ public class CommitProgressRecord implements CommitProgress {
 			case WAIT_FOR_CHANGES_VISIBLE -> {
 				if (!this.onChangesVisible.isDone()) {
 					if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
-						this.terminationSequence.accept(commitVersions, null);
+						invokeTerminationSequence(commitVersions, null);
 					}
 					completeStage(this.onWalAppended, this.onChangesVisible);
 				}
@@ -462,19 +501,19 @@ public class CommitProgressRecord implements CommitProgress {
 	public void complete(@Nonnull CommitVersions commitVersions) {
 		if (!this.onConflictResolved.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION) {
-				this.terminationSequence.accept(commitVersions, null);
+				invokeTerminationSequence(commitVersions, null);
 			}
 			this.onConflictResolved.complete(commitVersions);
 		}
 		if (!this.onWalAppended.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_WAL_PERSISTENCE) {
-				this.terminationSequence.accept(commitVersions, null);
+				invokeTerminationSequence(commitVersions, null);
 			}
 			this.onWalAppended.complete(commitVersions);
 		}
 		if (!this.onChangesVisible.isDone()) {
 			if (this.terminationStage == CommitBehavior.WAIT_FOR_CHANGES_VISIBLE) {
-				this.terminationSequence.accept(commitVersions, null);
+				invokeTerminationSequence(commitVersions, null);
 			}
 			this.onChangesVisible.complete(commitVersions);
 		}
