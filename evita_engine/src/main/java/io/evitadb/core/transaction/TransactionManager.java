@@ -218,6 +218,13 @@ public class TransactionManager implements Closeable {
 	 */
 	private final Deque<ModifyCatalogSchemaMutationWithCatalogVersion> engineMutationsQueue = new LinkedList<>();
 	/**
+	 * Watchdog registry that tracks in-flight {@link CommitProgressRecord}s by assigned catalog version
+	 * and fails any record that the transaction pipeline drops on the floor once the catalog advances
+	 * past its version. Exposed so the stages can register their records and the propagation path can
+	 * trigger the sweep.
+	 */
+	@Getter private final PendingCommitProgressRegistry pendingCommitProgressRegistry = new PendingCommitProgressRegistry();
+	/**
 	 * Conflict ring buffer that holds the conflict keys for recent catalog versions.
 	 */
 	private final ConflictRingBuffer conflictRingBuffer;
@@ -1189,6 +1196,18 @@ public class TransactionManager implements Closeable {
 			this.changeObserver::close,
 			this.walDrainingTask::close
 		);
+		// --- sweep is intentionally not called from propagateCatalogSnapshot ---
+		// At propagation time, the current task's commit progress has NOT yet been completed
+		// (the completion happens a few lines later in TrunkIncorporationTransactionStage), and tasks
+		// for earlier versions in the same batch are still queued on the pipeline waiting to hit the
+		// "already processed" branch. A sweep that fires here would prematurely fail records the
+		// pipeline is about to complete successfully. The watchdog therefore runs on close() only,
+		// where the pipeline is definitively shut down.
+		// fail any still-registered commit progress records so clients waiting on their
+		// CompletionStages are unblocked with a descriptive exception rather than hanging forever
+		// (e.g. when the request executor accepted an async completion task that shutdownNow
+		// then drained before it could run, or when a transaction was in-flight at shutdown)
+		this.pendingCommitProgressRegistry.failAllPending("the transaction manager is being closed");
 		this.livingCatalog.set(null);
 		this.lastFinalizedCatalog.set(null);
 	}
