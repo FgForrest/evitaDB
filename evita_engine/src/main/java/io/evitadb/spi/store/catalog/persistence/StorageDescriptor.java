@@ -49,4 +49,14 @@ public interface StorageDescriptor {
 	@Nonnull
 	Map<Integer, Object> compressedKeys();
 
+	/**
+	 * Returns the highest id currently assigned in {@link #compressedKeys()}, or `1` when the map is empty.
+	 * Newly registered keys obtain `peakCompressedKeyId() + 1` as their id.
+	 *
+	 * Each implementation must provide this value from its own bookkeeping — either a monotonic sequence
+	 * counter maintained alongside the key compressor, a dedicated field populated at deserialization time,
+	 * or a pre-computed record component.
+	 */
+	int peakCompressedKeyId();
+
 }

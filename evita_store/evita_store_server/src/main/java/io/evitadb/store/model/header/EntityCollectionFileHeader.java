@@ -35,7 +35,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -89,6 +88,16 @@ public record EntityCollectionFileHeader(
 ) implements PersistentStorageDescriptor, EntityCollectionHeader {
 	@Serial private static final long serialVersionUID = -2149051526452828365L;
 
+	/**
+	 * Exposes `compressedKeys` as an unmodifiable view so the record's accessor cannot be used to mutate the
+	 * underlying map. All known callers either build a private `HashMap` that is never retained after hand-off
+	 * (deserializers) or pass a view over a backing map that is frozen after its owner's construction
+	 * ({@code ReadOnlyKeyCompressor}), so an O(1) wrap is sufficient — a full copy would not add protection.
+	 */
+	public EntityCollectionFileHeader {
+		compressedKeys = Collections.unmodifiableMap(compressedKeys);
+	}
+
 	public EntityCollectionFileHeader(@Nonnull String entityType, int entityTypePrimaryKey, int entityTypeFileIndex) {
 		this(
 			entityType, entityTypePrimaryKey,
@@ -115,7 +124,6 @@ public record EntityCollectionFileHeader(
 			ofNullable(storageDescriptor).map(PersistentStorageDescriptor::fileLocation).orElse(FileLocation.EMPTY),
 			ofNullable(storageDescriptor)
 				.map(PersistentStorageDescriptor::compressedKeys)
-				.map(Collections::unmodifiableMap)
 				.orElseGet(Collections::emptyMap),
 			entityType,
 			entityTypePrimaryKey,
@@ -127,13 +135,7 @@ public record EntityCollectionFileHeader(
 			storageDescriptor,
 			globalIndexId,
 			entityIndexIds,
-			storageDescriptor == null ?
-				1 :
-				storageDescriptor.compressedKeys()
-				                 .keySet()
-				                 .stream()
-				                 .max(Comparator.comparingInt(o -> o))
-				                 .orElse(1),
+			storageDescriptor == null ? 1 : storageDescriptor.peakCompressedKeyId(),
 			activeRecordShare
 		);
 	}
@@ -147,6 +149,13 @@ public record EntityCollectionFileHeader(
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		return this.entityTypePrimaryKey;
+	}
+
+	@Override
+	public int peakCompressedKeyId() {
+		// `lastKeyId` is already serialized as part of this record and is always the peak id at the moment
+		// this header was constructed — reuse it directly instead of rescanning `compressedKeys`
+		return this.lastKeyId;
 	}
 
 	@Override
