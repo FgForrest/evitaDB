@@ -26,7 +26,6 @@ package io.evitadb.core.transaction.stage;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.core.executor.ObservableExecutorService;
-import io.evitadb.core.transaction.PendingCommitProgressRegistry;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
@@ -181,9 +180,9 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 		when(tm.getLastWrittenCatalogVersion()).thenAnswer(inv -> lastWritten.get());
 		when(tm.addDeltaAndEstimateCatalogSchemaVersion(anyInt())).thenReturn(0);
 		when(tm.getRequestExecutor()).thenReturn(synchronousExecutor);
-		// real registry so the stage's `register(...)` call has a valid target — the registry is
-		// exercised by its own dedicated test, here we just need it non-null
-		when(tm.getPendingCommitProgressRegistry()).thenReturn(new PendingCommitProgressRegistry());
+		// registerPendingCommitProgress is a void method on a mock — Mockito's default behaviour is
+		// a no-op, which is exactly what this test wants (the registry's own dedicated test exercises
+		// the registration and watchdog paths)
 		doAnswer(inv -> {
 			final int dropped = inv.getArgument(0);
 			if (dropped > 0) {

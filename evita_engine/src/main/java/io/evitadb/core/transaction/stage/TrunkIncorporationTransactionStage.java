@@ -166,6 +166,16 @@ public final class TrunkIncorporationTransactionStage
 				commitVersions,
 				this.transactionManager.getRequestExecutor()
 			);
+			// fan out WAIT_FOR_CHANGES_VISIBLE to every record greedily incorporated in this batch:
+			// the live catalog has advanced past every version in (current task, live view], so their
+			// changes are already visible and the records can be completed immediately instead of
+			// waiting for the publisher to re-deliver each task through the "already processed" branch
+			this.transactionManager.getPendingCommitProgressRegistry()
+				.completeChangesVisibleInRange(
+					commitVersions.catalogVersion(),
+					catalog.getVersion(),
+					this.transactionManager.getRequestExecutor()
+				);
 		} catch (Throwable ex) {
 			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);
 			commitProgressRecord.completeExceptionally(ex);
