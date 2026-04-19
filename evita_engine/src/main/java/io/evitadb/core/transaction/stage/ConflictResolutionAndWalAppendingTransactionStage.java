@@ -189,11 +189,13 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 
 			final CommitVersions commitVersions = new CommitVersions(assignedCatalogVersion, estimatedSchemaVersion);
 
-			// enrol the record in the watchdog registry under the freshly assigned catalog version —
-			// if the pipeline later drops this record on the floor, the registry will fail it once
-			// the catalog advances past this version, unblocking any client awaiting the progress
-			this.transactionManager.getPendingCommitProgressRegistry()
-				.register(assignedCatalogVersion, task.commitProgress());
+			// enrol the record under its freshly assigned catalog version. Storing the commitVersions
+			// alongside the record lets the trunk stage fan out WAIT_FOR_CHANGES_VISIBLE to every
+			// record in a greedy batch, and the helper also kicks the periodic watchdog so a
+			// dangling record eventually surfaces as a descriptive exception rather than a hang
+			this.transactionManager.registerPendingCommitProgress(
+				assignedCatalogVersion, task.commitProgress(), commitVersions
+			);
 
 			task.commitProgress()
 				.complete(

@@ -31,6 +31,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -44,17 +45,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link PendingCommitProgressRegistry}, the watchdog that fails dangling
- * {@link CommitProgressRecord}s when the catalog advances past their assigned version without
- * completing them through the normal transaction pipeline.
+ * Unit tests for {@link PendingCommitProgressRegistry}. The registry serves three purposes:
  *
- * The registry is the last line of defence against commit-progress hangs: even if a bug in the
- * transaction pipeline forgets to complete a record, this sweep will fail the record once the
- * catalog version advances past it.
+ * 1. **Fan-out to greedy batches** — when a trunk-incorporation batch advances the live catalog
+ *    past several transaction versions, the registry is used to complete
+ *    {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE} for every record in the range immediately
+ *    instead of waiting for the publisher to re-deliver each trunk task.
+ * 2. **Time-bounded watchdog** — a periodic sweep fails records whose pending age exceeds the
+ *    pipeline's worst-case latency, surfacing a descriptive exception to clients instead of a
+ *    silent hang.
+ * 3. **Shutdown safety net** — [PendingCommitProgressRegistry#failAllPending] fails every still
+ *    registered record when the transaction manager is closed.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("PendingCommitProgressRegistry — watchdog for dangling CommitProgressRecords")
+@DisplayName("PendingCommitProgressRegistry — in-flight index and watchdog for CommitProgressRecords")
 class PendingCommitProgressRegistryTest {
 
 	/**
@@ -63,8 +68,17 @@ class PendingCommitProgressRegistryTest {
 	 */
 	private static final Executor SYNCHRONOUS = Runnable::run;
 
+	/**
+	 * Pre-completes the upstream stages of a record so the chain from `onWalAppended` is ready and
+	 * any later `complete(WAIT_FOR_CHANGES_VISIBLE, ...)` call resolves synchronously.
+	 */
+	private static void preCompleteUpstreamStages(CommitProgressRecord record, CommitVersions versions) {
+		record.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, versions, SYNCHRONOUS);
+		record.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, versions, SYNCHRONOUS);
+	}
+
 	@Nested
-	@DisplayName("Auto-deregistration on successful completion")
+	@DisplayName("Auto-deregistration on completion")
 	class AutoDeregistrationTest {
 
 		@Test
@@ -72,12 +86,12 @@ class PendingCommitProgressRegistryTest {
 		void shouldRemoveRecordFromRegistryOnChangesVisibleCompletion() {
 			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
 			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(5L, 1);
 
-			registry.register(5L, record);
+			registry.register(5L, record, versions);
 			assertEquals(1, registry.size(), "record must be tracked after registration");
 
 			// complete all stages — auto-deregister on stage 3 completion
-			final CommitVersions versions = new CommitVersions(5L, 1);
 			record.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, versions, SYNCHRONOUS);
 			record.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, versions, SYNCHRONOUS);
 			record.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, versions, SYNCHRONOUS);
@@ -94,8 +108,9 @@ class PendingCommitProgressRegistryTest {
 		void shouldRemoveRecordFromRegistryOnExceptionalCompletion() {
 			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
 			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(7L, 1);
 
-			registry.register(7L, record);
+			registry.register(7L, record, versions);
 			assertEquals(1, registry.size());
 
 			record.completeExceptionally(new RuntimeException("pipeline failure"));
@@ -109,30 +124,157 @@ class PendingCommitProgressRegistryTest {
 	}
 
 	@Nested
-	@DisplayName("Sweep dangling records when catalog advances")
-	class SweepTest {
+	@DisplayName("Greedy-batch fan-out via completeChangesVisibleInRange")
+	class FanOutTest {
 
 		/**
-		 * The core watchdog scenario: a record was registered with version 5 but the transaction
-		 * pipeline dropped it on the floor (e.g. a missed completion branch, or an executor dropping
-		 * a scheduled async completion). The catalog later advances to version 10 — the sweep must
-		 * fail the dangling record so any client awaiting it is unblocked with a descriptive error
-		 * rather than hanging forever.
+		 * The hot-path scenario: trunk incorporation has just processed a greedy batch that advanced
+		 * the live catalog from `v=100` to `v=105`. Records for `v=101..105` are still in the
+		 * registry and semantically visible — the fan-out must complete their
+		 * {@link CommitBehavior#WAIT_FOR_CHANGES_VISIBLE} stage so clients are unblocked immediately.
 		 */
 		@Test
-		@DisplayName("should fail dangling record when catalog advances past its version")
-		void shouldFailDanglingRecordWhenCatalogAdvancesPastItsVersion()
+		@DisplayName("should complete WAIT_FOR_CHANGES_VISIBLE for every record in the range")
+		void shouldCompleteChangesVisibleForRecordsInRange() {
+			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
+			final CommitProgressRecord r101 = new CommitProgressRecord();
+			final CommitProgressRecord r105 = new CommitProgressRecord();
+			final CommitVersions v101 = new CommitVersions(101L, 1);
+			final CommitVersions v105 = new CommitVersions(105L, 1);
+
+			registry.register(101L, r101, v101);
+			registry.register(105L, r105, v105);
+			preCompleteUpstreamStages(r101, v101);
+			preCompleteUpstreamStages(r105, v105);
+
+			// batch advanced from v=100 to v=105 — fan out to (100, 105]
+			registry.completeChangesVisibleInRange(100L, 105L, SYNCHRONOUS);
+
+			assertTrue(
+				r101.isCompletedSuccessfully(),
+				"record at the lower bound of the range must be completed successfully"
+			);
+			assertTrue(
+				r105.isCompletedSuccessfully(),
+				"record at the upper bound of the range (inclusive) must also be completed"
+			);
+			assertEquals(
+				0, registry.size(),
+				"all fanned-out records must auto-deregister after completion"
+			);
+		}
+
+		@Test
+		@DisplayName("should exclude records at the lower bound (exclusive) and above the upper bound")
+		void shouldExcludeRecordsOutsideTheRange() {
+			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
+			final CommitProgressRecord lowBound = new CommitProgressRecord();
+			final CommitProgressRecord inside = new CommitProgressRecord();
+			final CommitProgressRecord aboveHigh = new CommitProgressRecord();
+			final CommitVersions vLow = new CommitVersions(100L, 1);
+			final CommitVersions vIn = new CommitVersions(103L, 1);
+			final CommitVersions vHigh = new CommitVersions(110L, 1);
+
+			registry.register(100L, lowBound, vLow);
+			registry.register(103L, inside, vIn);
+			registry.register(110L, aboveHigh, vHigh);
+			preCompleteUpstreamStages(inside, vIn);
+
+			registry.completeChangesVisibleInRange(100L, 105L, SYNCHRONOUS);
+
+			assertFalse(
+				lowBound.isDone(),
+				"record at the exclusive lower bound must not be touched — the current trunk task's " +
+					"record is completed separately and already auto-deregistered"
+			);
+			assertTrue(
+				inside.isCompletedSuccessfully(),
+				"record strictly inside the range must be completed"
+			);
+			assertFalse(
+				aboveHigh.isDone(),
+				"record above the upper bound must not be touched — those versions have not yet " +
+					"been incorporated"
+			);
+			assertEquals(
+				2, registry.size(),
+				"only the inside record should have been removed; boundary records remain registered"
+			);
+		}
+
+		@Test
+		@DisplayName("should be a no-op when the range is empty")
+		void shouldBeNoOpWhenRangeIsEmpty() {
+			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
+			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(5L, 1);
+
+			registry.register(5L, record, versions);
+
+			// identical bounds → empty range (exclusive lower == inclusive upper)
+			registry.completeChangesVisibleInRange(5L, 5L, SYNCHRONOUS);
+			// inverted bounds → empty range
+			registry.completeChangesVisibleInRange(10L, 5L, SYNCHRONOUS);
+
+			assertFalse(record.isDone(), "no record should be touched for an empty or inverted range");
+			assertEquals(1, registry.size());
+		}
+
+		/**
+		 * Idempotency matters because the publisher will still deliver trunk tasks for every version
+		 * in the batch, each of which calls `complete(WAIT_FOR_CHANGES_VISIBLE, ...)` on the same
+		 * record. {@link CommitProgressRecord} itself guards against double completion; the registry
+		 * just has to not blow up on already-done records in the range.
+		 */
+		@Test
+		@DisplayName("should be idempotent when the record is already completed")
+		void shouldBeIdempotentWhenRecordAlreadyCompleted() {
+			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
+			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(50L, 1);
+
+			registry.register(50L, record, versions);
+			// upstream pipeline completed the record ahead of our fan-out
+			record.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, versions, SYNCHRONOUS);
+			record.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, versions, SYNCHRONOUS);
+			record.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, versions, SYNCHRONOUS);
+			// auto-deregister already removed the entry, but we still want the call to be a no-op
+
+			registry.completeChangesVisibleInRange(0L, 100L, SYNCHRONOUS);
+
+			assertTrue(
+				record.isCompletedSuccessfully(),
+				"already-completed record must not be overwritten by a follow-up fan-out"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Time-bounded watchdog via sweepRecordsOlderThan")
+	class TimeBoundedSweepTest {
+
+		/**
+		 * Core watchdog scenario: a record has been pending for longer than the worst-case pipeline
+		 * latency. `maxAge = Duration.ZERO` asks the sweep to treat *every* registered record as
+		 * stale relative to the wall-clock — which is exactly what the periodic task does once a
+		 * record crosses its age threshold.
+		 */
+		@Test
+		@DisplayName("should fail records older than the supplied age")
+		void shouldFailRecordsOlderThanTheSuppliedAge()
 			throws InterruptedException, TimeoutException {
 			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
 			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(5L, 1);
 
-			registry.register(5L, record);
-			// catalog advances to version 10 without our record ever being completed
-			registry.sweepUpTo(10L);
+			registry.register(5L, record, versions);
+			// threshold of zero — every record is "older than now"
+			final int failed = registry.sweepRecordsOlderThan(Duration.ZERO);
 
+			assertEquals(1, failed, "sweep must report the single dangling record as failed");
 			assertTrue(
 				record.isCompletedExceptionally(),
-				"dangling record must be failed when the catalog advances past its version"
+				"dangling record must be failed once its pending age exceeds the threshold"
 			);
 			final CompletableFuture<CommitVersions> changesVisible =
 				record.onChangesVisible().toCompletableFuture();
@@ -153,54 +295,50 @@ class PendingCommitProgressRegistryTest {
 		}
 
 		@Test
-		@DisplayName("should only sweep records at or below the advance threshold")
-		void shouldOnlySweepRecordsAtOrBelowTheAdvanceThreshold() {
+		@DisplayName("should leave young records untouched")
+		void shouldLeaveYoungRecordsUntouched() {
 			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
-			final CommitProgressRecord lowRecord = new CommitProgressRecord();
-			final CommitProgressRecord equalRecord = new CommitProgressRecord();
-			final CommitProgressRecord highRecord = new CommitProgressRecord();
+			final CommitProgressRecord record = new CommitProgressRecord();
+			final CommitVersions versions = new CommitVersions(5L, 1);
 
-			registry.register(3L, lowRecord);
-			registry.register(5L, equalRecord);
-			registry.register(7L, highRecord);
+			registry.register(5L, record, versions);
+			// threshold of one day — everything registered during this test is way younger
+			final int failed = registry.sweepRecordsOlderThan(Duration.ofDays(1));
 
-			registry.sweepUpTo(5L);
-
-			assertTrue(
-				lowRecord.isCompletedExceptionally(),
-				"records below the threshold must be swept"
-			);
-			assertTrue(
-				equalRecord.isCompletedExceptionally(),
-				"records equal to the threshold must also be swept (the version is considered finalized)"
-			);
+			assertEquals(0, failed, "nothing should be failed when all records are younger than maxAge");
 			assertFalse(
-				highRecord.isDone(),
-				"records above the threshold must not be touched"
+				record.isDone(),
+				"record younger than the threshold must not be touched by the sweep"
 			);
 			assertEquals(
-				1,
-				registry.size(),
-				"only the above-threshold record should remain in the registry"
+				1, registry.size(),
+				"young records must remain registered for the next sweep cycle"
 			);
 		}
 
+		/**
+		 * If a record already completed between registration and sweep, the sweep should harvest the
+		 * stale entry without calling `completeExceptionally` — the record is already done, the
+		 * whenComplete auto-deregister callback may not have fired yet (observed between threads), or
+		 * the sweep raced with a late removal.
+		 */
 		@Test
-		@DisplayName("should not overwrite already-completed records during sweep")
-		void shouldNotOverwriteAlreadyCompletedRecordsDuringSweep() {
+		@DisplayName("should remove already-completed entries without overwriting them")
+		void shouldRemoveAlreadyCompletedEntriesWithoutOverwriting() {
 			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
 			final CommitProgressRecord record = new CommitProgressRecord();
-
-			registry.register(5L, record);
-			// complete the record successfully before the sweep happens (simulating a race where the
-			// record completes through the normal pipeline just before the sweep)
 			final CommitVersions versions = new CommitVersions(5L, 1);
+
+			registry.register(5L, record, versions);
+			// complete the record successfully before the sweep — the auto-deregister should have
+			// already removed it, but the test also verifies the sweep is robust to races
 			record.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, versions, SYNCHRONOUS);
 			record.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, versions, SYNCHRONOUS);
 			record.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, versions, SYNCHRONOUS);
 
-			registry.sweepUpTo(10L);
+			final int failed = registry.sweepRecordsOlderThan(Duration.ZERO);
 
+			assertEquals(0, failed, "already-completed record must not be counted as failed");
 			assertTrue(
 				record.isCompletedSuccessfully(),
 				"a record that completed successfully before the sweep must stay successful"
@@ -226,8 +364,8 @@ class PendingCommitProgressRegistryTest {
 			final CommitProgressRecord r1 = new CommitProgressRecord();
 			final CommitProgressRecord r2 = new CommitProgressRecord();
 
-			registry.register(3L, r1);
-			registry.register(7L, r2);
+			registry.register(3L, r1, new CommitVersions(3L, 1));
+			registry.register(7L, r2, new CommitVersions(7L, 1));
 
 			registry.failAllPending("the transaction manager is being closed");
 
@@ -250,9 +388,9 @@ class PendingCommitProgressRegistryTest {
 		void shouldNotOverwriteRecordsAlreadyCompletedBeforeFailAllPending() {
 			final PendingCommitProgressRegistry registry = new PendingCommitProgressRegistry();
 			final CommitProgressRecord record = new CommitProgressRecord();
-
-			registry.register(4L, record);
 			final CommitVersions versions = new CommitVersions(4L, 1);
+
+			registry.register(4L, record, versions);
 			record.complete(CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION, versions, SYNCHRONOUS);
 			record.complete(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE, versions, SYNCHRONOUS);
 			record.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, versions, SYNCHRONOUS);
