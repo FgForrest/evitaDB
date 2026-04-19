@@ -128,6 +128,11 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 	}
 
 	@Override
+	public int getPeakId() {
+		return this.keySequence.get();
+	}
+
+	@Override
 	public int hashCode() {
 		int result = this.entityType.hashCode();
 		result = 31 * result + this.idToKeyIndex.hashCode();

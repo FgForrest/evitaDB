@@ -126,4 +126,16 @@ public class AggregatedKeyCompressor implements io.evitadb.spi.store.catalog.per
 
 		return null;
 	}
+
+	@Override
+	public int getPeakId() {
+		int peak = 0;
+		for (KeyCompressor compressor : this.compressors) {
+			final int childPeak = compressor.getPeakId();
+			if (childPeak > peak) {
+				peak = childPeak;
+			}
+		}
+		return peak;
+	}
 }

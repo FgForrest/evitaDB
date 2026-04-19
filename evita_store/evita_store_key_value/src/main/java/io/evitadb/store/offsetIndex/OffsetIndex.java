@@ -483,13 +483,15 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns unmodifiable map of current index of compressed keys.
+	 * Returns an immutable snapshot of the current index of compressed keys. Callers that persist this map
+	 * (e.g. into `CatalogHeader` / `EntityCollectionFileHeader`) must see a copy rather than a live view, so
+	 * the persisted record is never affected by subsequent mutations of the write key compressor.
 	 *
-	 * @return unmodifiable map of current index of compressed keys
+	 * @return immutable snapshot of the current compressed keys
 	 */
 	@Nonnull
 	public Map<Integer, Object> getCompressedKeys() {
-		return Collections.unmodifiableMap(
+		return Map.copyOf(
 			this.fileOffsetDescriptor.getWriteKeyCompressor().getKeys()
 		);
 	}

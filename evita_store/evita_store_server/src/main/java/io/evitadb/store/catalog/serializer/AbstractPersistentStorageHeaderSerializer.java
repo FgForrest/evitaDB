@@ -55,16 +55,41 @@ abstract class AbstractPersistentStorageHeaderSerializer<T> extends Serializer<T
 
 	/**
 	 * Method is targeted to deserialize compressed keys to {@link PersistentStorageHeader#compressedKeys()}.
+	 * Callers that also need the highest observed id (for example when reconstructing a
+	 * {@link PersistentStorageHeader} which stores the peak explicitly) should use
+	 * {@link #deserializeKeysAndPeak(Input, Kryo)} instead — it tracks the peak during the single read pass
+	 * at no extra cost.
 	 */
 	protected Map<Integer, Object> deserializeKeys(@Nonnull Input input, @Nonnull Kryo kryo) {
+		return deserializeKeysAndPeak(input, kryo).keys();
+	}
+
+	/**
+	 * Reads the compressed-keys map from the given input and returns both the map and the highest id observed
+	 * in a single pass. The peak is captured while the entries are being read, so there is no second scan.
+	 */
+	@Nonnull
+	protected DeserializedKeys deserializeKeysAndPeak(@Nonnull Input input, @Nonnull Kryo kryo) {
 		final int keyCount = input.readVarInt(true);
 		final Map<Integer, Object> keys = CollectionUtils.createHashMap(keyCount);
+		int peak = 0;
 		for (int i = 1; i <= keyCount; i++) {
 			final int key = input.readVarInt(true);
 			final Object value = kryo.readClassAndObject(input);
 			keys.put(key, value);
+			if (key > peak) {
+				peak = key;
+			}
 		}
-		return keys;
+		return new DeserializedKeys(keys, peak);
+	}
+
+	/**
+	 * Pair of deserialized compressed keys and the highest id present in the map. Passed back to callers
+	 * that need to populate the `peakCompressedKeyId` of a {@link PersistentStorageHeader} or similar
+	 * record without performing a second scan of the map.
+	 */
+	protected record DeserializedKeys(@Nonnull Map<Integer, Object> keys, int peakId) {
 	}
 
 }

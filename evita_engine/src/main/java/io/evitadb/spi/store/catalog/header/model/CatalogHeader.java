@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -80,6 +81,16 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 	double activeRecordShare
 ) implements StoragePart {
 	@Serial private static final long serialVersionUID = 4115945765677481853L;
+
+	/**
+	 * Exposes `compressedKeys` as an unmodifiable view so the record's accessor cannot be used to mutate the
+	 * underlying map. All known callers either build a private `HashMap` that is never retained after hand-off
+	 * (deserializers) or pass a view over a backing map that is frozen after its owner's construction
+	 * ({@code ReadOnlyKeyCompressor}), so an O(1) wrap is sufficient — a full copy would not add protection.
+	 */
+	public CatalogHeader {
+		compressedKeys = Collections.unmodifiableMap(compressedKeys);
+	}
 
 	public CatalogHeader(@Nonnull UUID catalogId, @Nonnull String catalogName) {
 		this(

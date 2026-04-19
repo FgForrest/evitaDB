@@ -89,6 +89,14 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 		return this.dirty.getAndSet(false);
 	}
 
+	/**
+	 * Returns the highest id ever assigned by this compressor. Because ids are allocated from a monotonic
+	 * sequence and keys are append-only, this value equals `max(idToKeyIndex.keySet())` without iterating the map.
+	 */
+	public int getPeakId() {
+		return this.sequence.get();
+	}
+
 	@Override
 	public @Nonnull
 	Map<Integer, Object> getKeys() {
@@ -121,9 +129,20 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	@Override
 	public <T extends Comparable<T>> T getKeyForId(int id) {
 		final Object key = this.idToKeyIndex.get(id);
-		Assert.notNull(key, "There is no key for id " + id + "!");
+		Assert.isPremiseValid(key != null, () -> missingKeyDiagnostic(id));
 		//noinspection unchecked
 		return (T) key;
+	}
+
+	/**
+	 * Builds a diagnostic message for a missing id that includes the current compressor state. A miss here is
+	 * especially suspicious because ids are assigned via a monotonic sequence and never removed, so either the
+	 * caller is asking for an id that was never assigned, or the underlying map has been corrupted.
+	 */
+	@Nonnull
+	private String missingKeyDiagnostic(int id) {
+		return "There is no key for id " + id + "! Compressor size=" + this.idToKeyIndex.size() +
+			", peak=" + this.sequence.get();
 	}
 
 	@Nullable
