@@ -185,7 +185,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			this.subscription.cancel();
 			return;
 		}
-		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
+		this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
 		this.subscription.request(1);
 	}
 
@@ -277,7 +277,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			log.debug("Heartbeat send failed (stream likely finalized concurrently): {}", ex.getMessage());
 			return -1L;
 		}
-		this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
+		this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
 		// reschedule at the regular interval
 		return 0L;
 	}

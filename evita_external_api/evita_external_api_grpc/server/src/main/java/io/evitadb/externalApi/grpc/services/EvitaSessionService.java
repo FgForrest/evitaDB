@@ -781,7 +781,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 									this.lastUpdate = System.currentTimeMillis();
 								}
 								serviceContext.setRequestTimeout(
-									TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+									TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
 								);
 							}
 						}
@@ -2147,7 +2147,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						builder.addChangeCapture(event);
 						responseObserver.onNext(builder.build());
 						serviceContext.setRequestTimeout(
-							TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+							TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
 						);
 					}
 				);

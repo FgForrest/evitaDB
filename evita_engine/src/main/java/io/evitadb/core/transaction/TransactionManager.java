@@ -390,7 +390,6 @@ public class TransactionManager implements Closeable {
 			this::sweepDanglingCommitProgress,
 			sweepIntervalMs, TimeUnit.MILLISECONDS
 		);
-		this.pendingProgressSweepTask.schedule();
 	}
 
 	/**
