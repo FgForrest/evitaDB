@@ -169,8 +169,9 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onNext(RES itemResponse) {
-		// extend the response timeout for the next message
-		ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.streamingTimeout);
+		// restart the response deadline from now so a silent stream unblocks us within
+		// `streamingTimeout` of the last event, regardless of how many have arrived
+		ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.streamingTimeout);
 		// first item is always subscription acknowledge response
 		this.deserializeAcknowledgeResponse.apply(itemResponse)
 			.ifPresent(heartBeat -> {
