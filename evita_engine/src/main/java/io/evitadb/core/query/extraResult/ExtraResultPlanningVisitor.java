@@ -51,13 +51,13 @@ import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
-import io.evitadb.utils.Functions;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireInScopeTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceHistogramStatisticsTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyChildrenTranslator;
@@ -83,7 +83,6 @@ import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -106,12 +105,31 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
 /**
- * This {@link ConstraintVisitor} translates tree of {@link RequireConstraint} to a list of {@link ExtraResultProducer}.
- * Visitor represents the "planning" phase for the requirement resolution. The planning should be as light-weight as
- * possible.
+ * Entry-point of the "planning" phase for `require` clause evaluation. Walks the {@link RequireConstraint} tree
+ * produced by the query parser and dispatches each constraint to the matching {@link RequireConstraintTranslator}
+ * registered in the {@link #TRANSLATORS} map. Translators emit {@link ExtraResultProducer} instances that are
+ * collected and later executed against actual entity data during the fabrication phase.
+ *
+ * **Dispatch table** — the static `TRANSLATORS` map is populated once at class-load time and maps each require
+ * constraint class to a single shared translator instance. Adding support for a new require constraint means
+ * registering a new entry here.
+ *
+ * **Self-traversing translators** — translators that implement {@link SelfTraversingTranslator} are responsible
+ * for dispatching their own children. The visitor skips automatic child traversal for these containers and
+ * instead invokes `createProducer` directly, letting the translator decide when and how children are visited.
+ * This is used by `ReferenceSummary` and `ReferenceSummaryOfReference` so they can pre-register their producer
+ * before dispatching nested `histogramStatistics` children.
+ *
+ * **Processing scope stack** — the `scope` deque tracks contextual metadata (current requirement, active
+ * {@link io.evitadb.dataType.Scope}s, reference schema, entity schema) that changes as the visitor descends into
+ * nested containers. Translators push a new {@link ProcessingScope} via
+ * {@link #executeInContext(RequireConstraint, java.util.function.Supplier, java.util.function.Supplier, java.util.function.Supplier)}
+ * and pop it automatically on return. The root scope is initialised with the query's own active scopes and
+ * null schemas (top-level, no reference context).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@SuppressWarnings("deprecation")
 public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	private static final Map<Class<? extends RequireConstraint>, RequireConstraintTranslator<? extends RequireConstraint>>
 		TRANSLATORS;
@@ -124,6 +142,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		TRANSLATORS.put(FacetSummaryOfReference.class, new FacetSummaryOfReferenceTranslator());
 		TRANSLATORS.put(ReferenceSummary.class, new ReferenceSummaryTranslator());
 		TRANSLATORS.put(ReferenceSummaryOfReference.class, new ReferenceSummaryOfReferenceTranslator());
+		TRANSLATORS.put(ReferenceHistogramStatistics.class, new ReferenceHistogramStatisticsTranslator());
 		TRANSLATORS.put(AttributeHistogram.class, new AttributeHistogramTranslator());
 		TRANSLATORS.put(PriceHistogram.class, new PriceHistogramTranslator());
 		TRANSLATORS.put(HierarchyOfSelf.class, new HierarchyOfSelfTranslator());
@@ -178,17 +197,25 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	private final Deque<ProcessingScope> scope = new ArrayDeque<>(32);
 	/**
-	 * Performance optimization when multiple translators ask for the same (last) producer.
+	 * Performance shortcut: caches the last producer returned by {@link #findExistingProducer(Class, java.util.function.Predicate)}.
+	 * Avoids a full linear scan of {@link #extraResultProducers} when multiple translators ask for the same producer
+	 * during a single planning pass (the common case: reference-summary translator registers the producer, then histogram
+	 * child translators look it up immediately after).
 	 */
 	private ExtraResultProducer lastReturnedProducer;
 	/**
-	 * Contains {@link #getFilteringFormula()} without {@link UserFilterFormula} sub-trees. The field is initialized
-	 * lazily.
-	 **/
+	 * Lazily computed variant of {@link #filteringFormula} with all {@link UserFilterFormula} sub-trees removed.
+	 * Used by facet/reference-summary producers to compute statistics against the "base" filter (without the
+	 * user's own dynamic filter parts). Initialized on first access via
+	 * {@link #getFilteringFormulaWithoutUserFilter()}.
+	 */
 	private Formula filteringFormulaWithoutUserFilter;
 	/**
-	 * Contains cache of {@link FilterBy} varinants that are used to filter the results based on the statistics base
-	 * and reference schema.
+	 * Cache of rewritten {@link FilterBy} trees keyed by `(referenceName, statisticsBase)`. Each entry is produced
+	 * on the first call to one of the private `getFilterByWithout*` helpers and reused on subsequent calls.
+	 * Keys are {@link FormulaVariant} records; a `null` reference name means the filter applies to the queried
+	 * entity itself (no reference wrapping), while a non-null name wraps the filter in
+	 * `referenceHaving(entityHaving(...))`.
 	 */
 	private Map<FormulaVariant, FilterBy> formulaVariantCache;
 	/**
@@ -235,11 +262,25 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 	/**
 	 * Method finds existing {@link ExtraResultProducer} implementation of particular `producerClass` allowing multiple
-	 * translators to reuse (enrich) it.
+	 * translators to reuse (enrich) it. This overload uses the {@link #lastReturnedProducer} cache as a
+	 * performance shortcut when the same producer type is requested repeatedly during a planning pass.
 	 */
 	@Nullable
 	public <T extends ExtraResultProducer> T findExistingProducer(@Nonnull Class<T> producerClass) {
-		return findExistingProducer(producerClass, Functions.alwaysTrue());
+		// class-only lookup: safe to consult and update the cache because any producer of the
+		// matching class is acceptable — no per-call filtering narrows the set
+		if (producerClass.isInstance(this.lastReturnedProducer)) {
+			@SuppressWarnings("unchecked") final T cached = (T) this.lastReturnedProducer;
+			return cached;
+		}
+		for (final ExtraResultProducer extraResultProducer : this.extraResultProducers) {
+			if (producerClass.isInstance(extraResultProducer)) {
+				@SuppressWarnings("unchecked") final T candidate = (T) extraResultProducer;
+				this.lastReturnedProducer = extraResultProducer;
+				return candidate;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -248,6 +289,9 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * planner and the caller wants the one matching a specific internal state — e.g. when the same producer type
 	 * is parameterized with different adapters to emit the deprecated {@link FacetSummary} DTO alongside the canonical
 	 * {@link ReferenceSummary} DTO.
+	 *
+	 * This overload deliberately does NOT update the {@link #lastReturnedProducer} cache: doing so would poison
+	 * subsequent class-only lookups by making them skip earlier producers in favour of the predicate-selected one.
 	 *
 	 * @param producerClass the expected producer class (also matches subclasses via {@link Class#isInstance})
 	 * @param predicate     additional filter applied to every candidate; the first producer matching both wins
@@ -268,7 +312,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			if (producerClass.isInstance(extraResultProducer)) {
 				@SuppressWarnings("unchecked") final T candidate = (T) extraResultProducer;
 				if (predicate.test(candidate)) {
-					this.lastReturnedProducer = extraResultProducer;
 					return candidate;
 				}
 			}
@@ -434,14 +477,36 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Method registers the {@link ExtraResultProducer} instance.
+	 * Method registers the {@link ExtraResultProducer} instance. Idempotent — a subsequent call with
+	 * an already-registered producer is a no-op. This lets self-traversing translators publish their
+	 * producer before dispatching children (so the children can discover it via
+	 * {@link #findExistingProducer}) without risking a duplicate registration when the planner
+	 * eventually re-registers the same producer after {@code createProducer} returns.
 	 */
 	public void registerProducer(@Nullable ExtraResultProducer extraResultProducer) {
-		ofNullable(extraResultProducer).ifPresent(this.extraResultProducers::add);
+		if (extraResultProducer != null) {
+			this.extraResultProducers.add(extraResultProducer);
+		}
 	}
 
 	/**
-	 * Sets different {@link EntityIndex} to be used in scope of lambda.
+	 * Pushes a new {@link ProcessingScope} onto the scope stack for the duration of `lambda`, then pops it
+	 * in a `finally` block. The new scope inherits the active {@link io.evitadb.dataType.Scope} set from the
+	 * enclosing scope and overrides the reference and entity schema suppliers so that translators running inside
+	 * the lambda see the correct schema context.
+	 *
+	 * Used by self-traversing translators (e.g. `ReferenceSummaryOfReferenceTranslator`) before manually dispatching
+	 * child constraints, so that the child translators (e.g. `ReferenceHistogramStatisticsTranslator`) can retrieve
+	 * the active reference schema via {@link ProcessingScope#getReferenceSchema()}.
+	 *
+	 * @param requirement             the require constraint being processed — recorded in the scope and surfaced via
+	 *                                {@link #getEntityContentRequireChain(EntityContentRequire)}
+	 * @param referenceSchemaSupplier supplier that returns the reference schema for the current context, or `null`
+	 *                                when the context is not reference-scoped
+	 * @param entitySchemaSupplier    supplier that returns the entity schema for the current context, or `null`
+	 *                                when the context targets the queried entity
+	 * @param lambda                  code to execute within the new scope; its return value is forwarded to the caller
+	 * @return the value returned by `lambda`
 	 */
 	public final <T> T executeInContext(
 		@Nonnull RequireConstraint requirement,
@@ -539,25 +604,8 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				ConstraintCloneVisitor.clone(
 					it,
 					(visitor, constraint) -> {
-						final Function<FilterConstraint, FilterConstraint> wrapper = formulaVariant.referenceName() == null ?
-							Function.identity() :
-							filter -> new FilterBy(new ReferenceHaving(formulaVariant.referenceName(), entityHaving(filter)));
 						if (constraint instanceof HierarchyFilterConstraint hfc) {
-							final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
-							final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
-							if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
-								if (ArrayUtils.isEmpty(havingChildrenFilter)) {
-									return null;
-								} else if (havingChildrenFilter.length == 1) {
-									return wrapper.apply(havingChildrenFilter[0]);
-								} else {
-									return wrapper.apply(and(havingChildrenFilter));
-								}
-							} else if (excludedChildrenFilter.length == 1) {
-								return wrapper.apply(not(excludedChildrenFilter[0]));
-							} else {
-								return wrapper.apply(not(and(excludedChildrenFilter)));
-							}
+							return rewriteHierarchyFilter(hfc, formulaVariant);
 						} else {
 							return constraint;
 						}
@@ -583,24 +631,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 					it,
 					(visitor, constraint) -> {
 						if (constraint instanceof HierarchyFilterConstraint hfc) {
-							final Function<FilterConstraint, FilterConstraint> wrapper = formulaVariant.referenceName() == null ?
-								Function.identity() :
-								filter -> new FilterBy(new ReferenceHaving(formulaVariant.referenceName(), entityHaving(filter)));
-							final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
-							final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
-							if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
-								if (ArrayUtils.isEmpty(havingChildrenFilter)) {
-									return null;
-								} else if (havingChildrenFilter.length == 1) {
-									return wrapper.apply(havingChildrenFilter[0]);
-								} else {
-									return wrapper.apply(and(havingChildrenFilter));
-								}
-							} else if (excludedChildrenFilter.length == 1) {
-								return wrapper.apply(not(excludedChildrenFilter[0]));
-							} else {
-								return wrapper.apply(not(and(excludedChildrenFilter)));
-							}
+							return rewriteHierarchyFilter(hfc, formulaVariant);
 						} else if (constraint instanceof UserFilter) {
 							return null;
 						} else {
@@ -615,6 +646,37 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	}
 
 	/**
+	 * Rewrites a {@link HierarchyFilterConstraint} into an equivalent non-hierarchy filter that can be evaluated
+	 * against the current context. When `formulaVariant.referenceName()` is non-`null`, the rewritten filter is wrapped
+	 * inside a `referenceHaving(entityHaving(...))` so it targets the referenced entity. Returns `null` when the
+	 * hierarchy constraint carries no excluded or having-children filters and should be dropped entirely.
+	 */
+	@Nullable
+	private static FilterConstraint rewriteHierarchyFilter(
+		@Nonnull HierarchyFilterConstraint hfc,
+		@Nonnull FormulaVariant formulaVariant
+	) {
+		final Function<FilterConstraint, FilterConstraint> wrapper = formulaVariant.referenceName() == null ?
+			Function.identity() :
+			filter -> new FilterBy(new ReferenceHaving(formulaVariant.referenceName(), entityHaving(filter)));
+		final FilterConstraint[] excludedChildrenFilter = hfc.getExcludedChildrenFilter();
+		final FilterConstraint[] havingChildrenFilter = hfc.getHavingChildrenFilter();
+		if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
+			if (ArrayUtils.isEmpty(havingChildrenFilter)) {
+				return null;
+			} else if (havingChildrenFilter.length == 1) {
+				return wrapper.apply(havingChildrenFilter[0]);
+			} else {
+				return wrapper.apply(and(havingChildrenFilter));
+			}
+		} else if (excludedChildrenFilter.length == 1) {
+			return wrapper.apply(not(excludedChildrenFilter[0]));
+		} else {
+			return wrapper.apply(not(and(excludedChildrenFilter)));
+		}
+	}
+
+	/**
 	 * Returns the {@link #getFilterBy()} that is stripped of all {@link HierarchyWithin},
 	 * {@link HierarchyWithinRoot} constraints inside {@link UserFilter} parts only. Result of this method is cached
 	 * so that additional calls introduce no performance penalty.
@@ -626,17 +688,27 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				ConstraintCloneVisitor.clone(
 					it,
 					(visitor, constraint) -> {
+						final String variantReferenceName = formulaVariant.referenceName();
 						if (constraint instanceof HierarchyFilterConstraint hfc) {
-							if ((formulaVariant.referenceName() == null && hfc.getReferenceName().isEmpty()) ||
-								(formulaVariant.referenceName() != null &&
-									hfc.getReferenceName().map(refName -> refName.equals(formulaVariant.referenceName())).orElse(false)) &&
-									visitor.isWithin(UserFilter.class)) {
+							final boolean matchesUnnamedVariant =
+								variantReferenceName == null && hfc.getReferenceName().isEmpty();
+							final boolean matchesNamedVariantInsideUserFilter =
+								variantReferenceName != null
+									&& hfc.getReferenceName()
+										.map(refName -> refName.equals(variantReferenceName))
+										.orElse(false)
+									&& visitor.isWithin(UserFilter.class);
+							if (matchesUnnamedVariant || matchesNamedVariantInsideUserFilter) {
 								return null;
 							}
 						} else if (constraint instanceof FacetHaving fh) {
-							if ((formulaVariant.referenceName() == null && fh.getReferenceName().isEmpty()) ||
-								(formulaVariant.referenceName() != null && fh.getReferenceName().equals(formulaVariant.referenceName())) &&
-									visitor.isWithin(UserFilter.class)) {
+							final boolean matchesUnnamedVariant =
+								variantReferenceName == null && fh.getReferenceName().isEmpty();
+							final boolean matchesNamedVariantInsideUserFilter =
+								variantReferenceName != null
+									&& fh.getReferenceName().equals(variantReferenceName)
+									&& visitor.isWithin(UserFilter.class);
+							if (matchesUnnamedVariant || matchesNamedVariantInsideUserFilter) {
 								return null;
 							}
 						}
@@ -654,6 +726,29 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * Processing scope contains contextual information that could be overridden in {@link RequireConstraintTranslator}
 	 * implementations to exchange schema that is being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
+	 *
+	 * A new scope is pushed onto the visitor's stack by
+	 * {@link ExtraResultPlanningVisitor#executeInContext(RequireConstraint, Supplier, Supplier, Supplier)}
+	 * and popped on exit. The root scope (pushed in the visitor's constructor) has a null requirement and provides
+	 * the query's own entity/reference schemas.
+	 *
+	 * @param requirement             the require constraint being processed in this scope; `null` in the root scope
+	 *                                (no enclosing constraint). Surfaced via
+	 *                                {@link ExtraResultPlanningVisitor#getEntityContentRequireChain(EntityContentRequire)}
+	 *                                so translators can reconstruct the chain of enclosing requirements.
+	 * @param requiredScopes          stack of active {@link Scope} sets. The top element (peeked by
+	 *                                {@link #getScopes()}) is the effective scope set for the current context; the
+	 *                                stack grows when a translator calls {@link #doWithScope(Scope, Supplier)} to
+	 *                                temporarily narrow the active scope and shrinks automatically on return.
+	 * @param referenceSchemaAccessor supplier returning the {@link ReferenceSchemaContract} that is in effect for
+	 *                                the current scope, or `null` at top level where no reference is being processed.
+	 *                                Invoked lazily so translators can capture whichever reference they push without
+	 *                                eagerly resolving it at construction time.
+	 * @param entitySchemaAccessor    supplier returning the {@link EntitySchemaContract} that is in effect for the
+	 *                                current scope. Translators use this to resolve attribute and reference schemas
+	 *                                relative to whichever entity collection the nested require is being evaluated
+	 *                                against (which may differ from the query's target collection when resolving
+	 *                                referenced entities).
 	 */
 	public record ProcessingScope(
 		@Nullable RequireConstraint requirement,

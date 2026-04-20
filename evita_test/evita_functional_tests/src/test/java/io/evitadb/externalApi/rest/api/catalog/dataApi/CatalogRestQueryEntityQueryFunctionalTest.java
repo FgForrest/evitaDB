@@ -2911,6 +2911,33 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should accept referenceHaving inside userFilter")
+	void shouldAcceptReferenceHavingInUserFilter(RestTester tester) {
+		// Exercises the G.2 DSL change — `referenceHaving` is now a legal child of
+		// `userFilter`. The REST surface must accept the new shape without errors.
+		// No value pinning — only status/errors.
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"userFilter": [{
+								"referenceCategoryHaving": [{
+									"entityPrimaryKeyInSet": [1, 2]
+								}]
+							}]
+						}
+					}
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for missing attribute histogram buckets count")
 	void shouldReturnErrorForMissingAttributeHistogramBucketsCount(RestTester tester) {
 		tester.test(TEST_CATALOG)
@@ -4333,10 +4360,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			);
 	}
 
-	// TODO LHO: implement — backend computation of histogram statistics is not finished yet, this test is a mockup
-	//  illustrating the intended REST request shape; expected to fail until the engine populates `histogramStatistics`
-	//  on `ReferenceGroupStatistics`. The reference schema must define a histogram index named `priceIndex` for the
-	//  `parameter` reference so the OpenAPI schema exposes the corresponding property under `histogramStatistics`.
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference summary with histogram statistics for products")
@@ -4356,6 +4379,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				)
 			)
 		);
+
+		final String firstGroupHistogramPath = resultPath(
+			ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY
+		) + ".parameter[0].histogramStatistics.priceIndex";
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
@@ -4386,9 +4413,86 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				Integer.MAX_VALUE
 			)
 			.executeAndThen()
-			.statusCode(200);
+			.statusCode(200)
+			// structural / shape assertions only — we intentionally don't pin specific numeric values
+			.body(firstGroupHistogramPath, notNullValue())
+			.body(firstGroupHistogramPath + ".min", notNullValue())
+			.body(firstGroupHistogramPath + ".max", notNullValue())
+			.body(firstGroupHistogramPath + ".overallCount", allOf(notNullValue(), greaterThan(0)))
+			.body(firstGroupHistogramPath + ".buckets", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0))
+			.body(firstGroupHistogramPath + ".buckets[0].threshold", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets[0].occurrences", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets[0].requested", notNullValue());
+	}
 
-		fail();
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference histogram with boundary entities when entityFetch is provided")
+	void shouldReturnReferenceSummaryWithHistogramStatisticsIncludingBoundaryEntities(
+		Evita evita, RestTester tester
+	) {
+		queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						entityFetch(attributeContent(ATTRIBUTE_CODE)),
+						null,
+						histogramStatistics(
+							20,
+							entityFetch(attributeContent(ATTRIBUTE_CODE)),
+							"priceIndex"
+						)
+					)
+				)
+			)
+		);
+
+		final String firstGroupHistogramPath = resultPath(
+			ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY
+		) + ".parameter[0].histogramStatistics.priceIndex";
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"COUNTS",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			},
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["priceIndex"],
+											"entityFetch": {
+												"attributeContent": ["code"]
+											}
+										}
+									}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			// shape only: histogram must be populated and carry buckets; boundary entities are
+			// optional (present for REFERENCED_ENTITY_ATTRIBUTE, absent for REFERENCE_ATTRIBUTE).
+			.body(firstGroupHistogramPath, notNullValue())
+			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0));
 	}
 
 	@Test

@@ -97,7 +97,7 @@ public class ReferenceTypeCardinalityIndex
 	 * Helper bitmap that contains all referenced entity primary keys that are present in keys of
 	 * {@link #referencedPrimaryKeysIndex}.
 	 */
-	@Nullable private RoaringBitmap memoizedAllReferencedPrimaryKeys;
+	@Nullable private volatile RoaringBitmap memoizedAllReferencedPrimaryKeys;
 
 	public ReferenceTypeCardinalityIndex() {
 		this.dirty = new TransactionalBoolean();
@@ -224,6 +224,52 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
+	 * Returns all tracked referenced entity primary keys as a {@link Bitmap}. Outside of a transactional
+	 * context the underlying {@link RoaringBitmap} is memoized so repeated query-time calls (histogram
+	 * boundary resolution iterates this set for every surviving histogram) do not rebuild it.
+	 *
+	 * **Read-only contract** — the returned bitmap aliases the memoized snapshot; callers must not
+	 * mutate it. All production call sites (see
+	 * {@code ReferenceHistogramAccumulator.collectGroupedPending} for iteration and
+	 * {@code ReferenceHistogramAccumulator.pickBoundaryPk} for `RoaringBitmap.and` intersection) treat
+	 * it as immutable. A defensive copy on every call would negate the memoization benefit.
+	 *
+	 * @return bitmap of referenced entity primary keys, may be {@link EmptyBitmap#INSTANCE}
+	 */
+	@Nonnull
+	public Bitmap getAllTrackedReferencedEntityPrimaryKeysAsBitmap() {
+		if (this.referencedPrimaryKeysIndex.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		if (Transaction.isTransactionAvailable()) {
+			return new BaseBitmap(buildReferencedPrimaryKeysBitmap());
+		}
+		RoaringBitmap result = this.memoizedAllReferencedPrimaryKeys;
+		if (result == null) {
+			result = buildReferencedPrimaryKeysBitmap();
+			this.memoizedAllReferencedPrimaryKeys = result;
+		}
+		return new BaseBitmap(result);
+	}
+
+	/**
+	 * Builds a fresh {@link RoaringBitmap} snapshot from all keys currently present in
+	 * {@link #referencedPrimaryKeysIndex}. Called either to populate {@link #memoizedAllReferencedPrimaryKeys}
+	 * (outside a transaction) or to produce a one-shot bitmap within a transaction (where memoization is skipped
+	 * because the index contents may change before the bitmap is consumed).
+	 *
+	 * @return a new {@link RoaringBitmap} containing all referenced entity primary keys tracked by this index
+	 */
+	@Nonnull
+	private RoaringBitmap buildReferencedPrimaryKeysBitmap() {
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (final Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
+			writer.add(referencedEntityId);
+		}
+		return writer.get();
+	}
+
+	/**
 	 * Retrieves all reference indexes associated with the given referenced entity primary key.
 	 *
 	 * @param referencedEntityPrimaryKey the primary key of the referenced entity for which the indexes are to be retrieved
@@ -281,7 +327,7 @@ public class ReferenceTypeCardinalityIndex
 		if (referencedEntityPrimaryKeys.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		} else {
-			final RoaringBitmap allReferencedPrimaryKeys;
+			RoaringBitmap allReferencedPrimaryKeys;
 			if (Transaction.isTransactionAvailable()) {
 				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 				for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
@@ -289,14 +335,15 @@ public class ReferenceTypeCardinalityIndex
 				}
 				allReferencedPrimaryKeys = writer.get();
 			} else {
-				if (this.memoizedAllReferencedPrimaryKeys == null) {
+				allReferencedPrimaryKeys = this.memoizedAllReferencedPrimaryKeys;
+				if (allReferencedPrimaryKeys == null) {
 					final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 					for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
 						writer.add(referencedEntityId);
 					}
-					this.memoizedAllReferencedPrimaryKeys = writer.get();
+					allReferencedPrimaryKeys = writer.get();
+					this.memoizedAllReferencedPrimaryKeys = allReferencedPrimaryKeys;
 				}
-				allReferencedPrimaryKeys = this.memoizedAllReferencedPrimaryKeys;
 			}
 			final RoaringBitmap matchingReferencedEntityPks = RoaringBitmap.and(
 				allReferencedPrimaryKeys,

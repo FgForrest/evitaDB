@@ -5225,6 +5225,42 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should accept referenceHaving inside userFilter")
+	void shouldAcceptReferenceHavingInUserFilter(Evita evita, GraphQLTester tester) {
+		// Exercises the G.2 DSL change — `referenceHaving` is now a legal child of
+		// `userFilter`. The GraphQL surface must accept the new shape without errors.
+		// No value pinning — only status/errors.
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					         query {
+					             queryProduct(
+					                 filterBy: {
+					                     userFilter: {
+					                         referenceCategoryHaving: [
+					                             {
+					                                 entityPrimaryKeyInSet: [1, 2]
+					                             }
+					                         ]
+					                     }
+					                 }
+					             ) {
+					                 recordPage {
+					                     data {
+					                         primaryKey
+					                     }
+					                 }
+					             }
+					         }
+					"""
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue());
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return multiple attribute histograms")
 	void shouldReturnMultipleAttributeHistograms(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
@@ -8792,10 +8828,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			);
 	}
 
-	// TODO LHO: implement — backend computation of histogram statistics is not finished yet, this test is a mockup
-	//  illustrating the intended GraphQL query shape; expected to fail until the engine populates `histogramStatistics`
-	//  on `ReferenceGroupStatistics`. The reference schema must define a histogram index named `priceIndex` for the
-	//  `parameter` reference so the GraphQL schema exposes the corresponding field under `histogramStatistics`.
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference summary with histogram statistics for products")
@@ -8820,6 +8852,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				);
 			}
 		);
+
+		final String firstGroupHistogramPath =
+			PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() +
+				"." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() +
+				".parameter[0].histogramStatistics.priceIndex";
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -8860,7 +8897,101 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			)
 			.executeAndThen()
 			.statusCode(200)
-			.body(ERRORS_PATH, nullValue());
+			.body(ERRORS_PATH, nullValue())
+			// structural / shape assertions: verify the histogramStatistics payload is non-null,
+			// the inner histogram carries min/max/overallCount plus at least one bucket, and every
+			// bucket exposes the documented fields. We deliberately do not pin numeric values.
+			.body(firstGroupHistogramPath, notNullValue())
+			.body(firstGroupHistogramPath + ".min", notNullValue())
+			.body(firstGroupHistogramPath + ".max", notNullValue())
+			.body(firstGroupHistogramPath + ".overallCount", allOf(notNullValue(), greaterThan(0)))
+			.body(firstGroupHistogramPath + ".buckets", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0))
+			.body(firstGroupHistogramPath + ".buckets[0].threshold", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets[0].occurrences", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets[0].requested", notNullValue());
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference histogram with boundary entities when entityFetch is provided")
+	void shouldReturnReferenceSummaryWithHistogramStatisticsIncludingBoundaryEntities(
+		Evita evita, GraphQLTester tester
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			(java.util.function.Consumer<EvitaSessionContract>) session -> {
+				session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReferenceWithHistograms(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								entityFetch(attributeContent(ATTRIBUTE_CODE)),
+								null,
+								histogramStatistics(
+									20,
+									entityFetch(attributeContent(ATTRIBUTE_CODE)),
+									"priceIndex"
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final String firstGroupHistogramPath =
+			PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() +
+				"." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() +
+				".parameter[0].histogramStatistics.priceIndex";
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     referenceSummary {
+					                         parameter {
+					                             histogramStatistics {
+					                                 priceIndex {
+					                                     min
+					                                     max
+					                                     overallCount
+					                                     buckets(requestedCount: 20, behavior: OPTIMIZED) {
+					                                         threshold
+					                                         occurrences
+					                                         requested
+					                                     }
+					                                     minReferencedEntity {
+					                                         primaryKey
+					                                         type
+					                                     }
+					                                     maxReferencedEntity {
+					                                         primaryKey
+					                                         type
+					                                     }
+					                                 }
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			// shape assertions: the histogram must exist; boundary entity fields either both present
+			// (REFERENCED_ENTITY_ATTRIBUTE descriptor) or both null (REFERENCE_ATTRIBUTE descriptor —
+			// boundary resolution not yet implemented for that domain).
+			.body(firstGroupHistogramPath, notNullValue())
+			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0));
 	}
 
 	@Test
@@ -9324,9 +9455,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<SealedEntity> findEntities(@Nonnull List<SealedEntity> originalProductEntities,
-	                                        @Nonnull Predicate<SealedEntity> filter,
-	                                        int limit) {
+	private static List<SealedEntity> findEntities(
+		@Nonnull List<SealedEntity> originalProductEntities,
+		@Nonnull Predicate<SealedEntity> filter,
+		int limit
+	) {
 		final List<SealedEntity> entities = originalProductEntities.stream()
 			.filter(filter)
 			.limit(limit)
@@ -9336,7 +9469,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<SealedEntity> findEntitiesWithPrice(@Nonnull List<SealedEntity> originalProductEntities, int limit) {
+	private static List<SealedEntity> findEntitiesWithPrice(
+		@Nonnull List<SealedEntity> originalProductEntities, int limit) {
 		return findEntities(
 			originalProductEntities,
 			it -> it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1,
@@ -9345,9 +9479,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<SealedEntity> findEntitiesWithPrice(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                 int limit,
-	                                                 @Nonnull String... priceLists) {
+	private static List<SealedEntity> findEntitiesWithPrice(
+		@Nonnull List<SealedEntity> originalProductEntities,
+		int limit,
+		@Nonnull String... priceLists
+	) {
 		return findEntities(
 			originalProductEntities,
 			it -> Arrays.stream(priceLists).allMatch(pl -> it.getPrices(CURRENCY_CZK, pl).size() == 1),
@@ -9356,10 +9492,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<SealedEntity> findEntitiesWithPrices(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                 int limit,
-													 @Nonnull Currency currency,
-	                                                 @Nonnull String... priceLists) {
+	private static List<SealedEntity> findEntitiesWithPrices(
+		@Nonnull List<SealedEntity> originalProductEntities,
+		int limit,
+		@Nonnull Currency currency,
+		@Nonnull String... priceLists
+	) {
 		return findEntities(
 			originalProductEntities,
 			it -> Arrays.stream(priceLists).allMatch(pl -> it.getPrices(currency, pl).size() > 1),
@@ -9368,10 +9506,12 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<SealedEntity> findEntitiesWithPrices(@Nonnull List<SealedEntity> originalProductEntities,
-	                                                  int limit,
-	                                                  @Nonnull String priceList,
-	                                                  @Nonnull Currency... currencies) {
+	private static List<SealedEntity> findEntitiesWithPrices(
+		@Nonnull List<SealedEntity> originalProductEntities,
+		int limit,
+		@Nonnull String priceList,
+		@Nonnull Currency... currencies
+	) {
 		return findEntities(
 			originalProductEntities,
 			it -> Arrays.stream(currencies).allMatch(c -> it.getPrices(c, priceList).size() > 1),

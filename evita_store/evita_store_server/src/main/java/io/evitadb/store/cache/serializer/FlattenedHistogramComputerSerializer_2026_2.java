@@ -33,36 +33,27 @@ import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHis
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 
-import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link FlattenedFormula} from/to binary format.
+ * This {@link Serializer} implementation reads {@link FlattenedFormula} from binary format
+ * that was written before raw native-typed min/max were added to {@link CacheableHistogram}.
+ *
+ * Deserialized histograms carry only the {@link BigDecimal} min/max — the
+ * {@link CacheableHistogramContract#getRawMin()} / {@link CacheableHistogramContract#getRawMax()}
+ * values are {@code null}. Downstream consumers that depend on raw min/max (e.g. boundary-entity
+ * resolution in reference histograms) degrade gracefully: boundary entities are simply omitted
+ * until the cache entry is invalidated and recomputed in the new format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @deprecated This serializer is deprecated and should not be used for writing new data.
  */
-public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormulaSerializer<FlattenedHistogramComputer> {
+@Deprecated(since = "2026.2", forRemoval = true)
+public class FlattenedHistogramComputerSerializer_2026_2 extends AbstractFlattenedFormulaSerializer<FlattenedHistogramComputer> {
 
 	@Override
 	public void write(Kryo kryo, Output output, FlattenedHistogramComputer object) {
-		output.writeLong(object.getRecordHash());
-		output.writeLong(object.getTransactionalIdHash());
-		writeBitmapIds(output, object.getTransactionalDataIds());
-
-		final CacheableHistogramContract histogram = object.compute();
-		kryo.writeObject(output, histogram.getMax());
-		// raw native-typed min/max — written via writeClassAndObject so the attribute's original numeric
-		// type (Byte/Short/Integer/Long/BigDecimal) is preserved on the round-trip; null-tolerant because
-		// non-attribute histograms (e.g. price histograms) do not supply raw bounds
-		kryo.writeClassAndObject(output, histogram.getRawMin());
-		kryo.writeClassAndObject(output, histogram.getRawMax());
-		final CacheableBucket[] buckets = histogram.getBuckets();
-		output.writeVarInt(buckets.length, true);
-		for (CacheableBucket bucket : buckets) {
-			output.writeVarInt(bucket.occurrences(), true);
-			kryo.writeObject(output, bucket.threshold());
-			kryo.writeObject(output, bucket.relativeFrequency());
-		}
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -71,11 +62,9 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		final long transactionalIdHash = input.readLong();
 		final long[] bitmapIds = readBitmapIds(input);
 		final BigDecimal max = kryo.readObject(input, BigDecimal.class);
-		final Serializable rawMin = (Serializable) kryo.readClassAndObject(input);
-		final Serializable rawMax = (Serializable) kryo.readClassAndObject(input);
 		final int bucketCount = input.readVarInt(true);
 		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
-		for(int i = 0; i < bucketCount; i++) {
+		for (int i = 0; i < bucketCount; i++) {
 			final int occurrences = input.readVarInt(true);
 			final BigDecimal threshold = kryo.readObject(input, BigDecimal.class);
 			final BigDecimal relativeFrequency = kryo.readObject(input, BigDecimal.class);
@@ -84,7 +73,7 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 
 		return new FlattenedHistogramComputer(
 			originalHash, transactionalIdHash, bitmapIds,
-			new CacheableHistogram(buckets, max, rawMin, rawMax)
+			new CacheableHistogram(buckets, max)
 		);
 	}
 

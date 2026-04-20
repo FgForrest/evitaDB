@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.reference;
 
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
@@ -56,17 +57,39 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.*;
+import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.createFacetGroupPredicate;
+import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.createFacetGroupSorter;
+import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.createFacetPredicate;
+import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.createFacetSorter;
+import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.findLocale;
+import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.findOrCreateProducer;
 
 /**
- * This implementation of {@link RequireConstraintTranslator} converts {@link ReferenceSummary} to
- * {@link ReferenceSummaryProducer}.
- * The producer instance has all pointers necessary to compute result. All operations in this translator are relatively
- * cheap comparing to final result computation, that is deferred to
- * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
+ * Translates the all-references form of the reference-summary require constraint
+ * ({@link ReferenceSummary}) into a shared {@link ReferenceSummaryProducer} instance. Because the constraint
+ * can carry nested {@link io.evitadb.api.query.require.ReferenceHistogramStatistics} children, this translator
+ * implements {@link SelfTraversingTranslator}: the visitor skips automatic child traversal and this class is
+ * responsible for dispatching histogram children manually after the producer is pre-registered.
+ *
+ * The manual dispatch strategy is:
+ *
+ * 1. {@link #createProducer} resolves / creates the {@link ReferenceSummaryProducer} and immediately pre-registers
+ *    it via {@link ExtraResultPlanningVisitor#registerProducer} so that child translators can look it up.
+ * 2. Each {@link io.evitadb.api.query.require.ReferenceHistogramStatistics} child is dispatched via
+ *    {@link #dispatchHistogramToMatchingReferences}: the all-references form is strict and requires every
+ *    reference in the entity schema to define every requested histogram name in every active scope. Any gap
+ *    aborts query planning with {@link io.evitadb.exception.EvitaInvalidUsageException} — users who want the
+ *    computation limited to a subset of references must switch to
+ *    {@link ReferenceSummaryOfReferenceTranslator} (per-reference form), and users who want it limited to a
+ *    subset of scopes must wrap the histogram requirement in
+ *    {@link io.evitadb.api.query.require.RequireInScope}.
+ *
+ * All planning operations are cheap; the heavy lifting is deferred to
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@SuppressWarnings("deprecation")
 public class ReferenceSummaryTranslator
 	implements RequireConstraintTranslator<ReferenceSummary>, SelfTraversingTranslator {
 
@@ -268,7 +291,7 @@ public class ReferenceSummaryTranslator
 		@Nonnull ReferenceSummary referenceSummary,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
-		return createProducerInternal(
+		final ExtraResultProducer producer = createProducerInternal(
 			referenceSummary.getStatisticsDepth(),
 			referenceSummary.getReferenceEntityRequirement().orElse(null),
 			referenceSummary.getGroupEntityRequirement().orElse(null),
@@ -279,6 +302,53 @@ public class ReferenceSummaryTranslator
 			ReferenceSummaryAdapter.INSTANCE,
 			extraResultPlanner
 		);
+		// pre-register so histogram child translators can locate the producer via
+		// findExistingProducer; the planner's post-return registration via
+		// ExtraResultPlanningVisitor.visit becomes a no-op (registerProducer is idempotent)
+		extraResultPlanner.registerProducer(producer);
+		// dispatch nested histogramStatistics children to their translator. This container is a
+		// SelfTraversingTranslator, so children are not walked automatically. The all-references
+		// form is strict — every reference in the entity schema must define every requested
+		// histogram in every active scope; any gap throws EvitaInvalidUsageException.
+		final EntitySchemaContract schema = extraResultPlanner.getSchema();
+		for (final RequireConstraint child : referenceSummary.getChildren()) {
+			if (child instanceof ReferenceHistogramStatistics histogramConstraint) {
+				dispatchHistogramToMatchingReferences(
+					histogramConstraint, schema, extraResultPlanner
+				);
+			}
+		}
+		return producer;
+	}
+
+	/**
+	 * Dispatches the constraint to {@link ReferenceHistogramStatisticsTranslator} once per reference in
+	 * the entity schema. The translator's `resolveDescriptor` performs strict per-reference validation
+	 * — it throws {@link io.evitadb.exception.EvitaInvalidUsageException} when a requested histogram is
+	 * not defined on the current reference in any active scope. The loop therefore aborts at the first
+	 * offending reference, surfacing user typos and scope mismatches rather than silently skipping.
+	 *
+	 * Users who want the computation limited to a subset of references must switch to the per-reference
+	 * form {@link io.evitadb.api.query.require.ReferenceSummaryOfReference}; users who want it limited
+	 * to a subset of scopes must wrap the histogram requirement in
+	 * {@link io.evitadb.api.query.require.RequireInScope}.
+	 */
+	private static void dispatchHistogramToMatchingReferences(
+		@Nonnull ReferenceHistogramStatistics constraint,
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
+	) {
+		for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+			extraResultPlanner.executeInContext(
+				constraint,
+				() -> referenceSchema,
+				() -> null,
+				() -> {
+					constraint.accept(extraResultPlanner);
+					return null;
+				}
+			);
+		}
 	}
 
 }

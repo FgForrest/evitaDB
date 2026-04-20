@@ -36,7 +36,10 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
@@ -55,6 +58,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramInde
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
+import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -303,6 +308,26 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	}
 
 	/**
+	 * Returns all referenced entity (facet) primary keys tracked within this group index as a
+	 * {@link Bitmap}. This is the bitmap-typed companion to {@link #getReferencedEntityPrimaryKeys()},
+	 * used at query time by histogram boundary resolution to intersect with the source attribute's
+	 * {@link FilterIndex#getRecordsEqualToFormula} bitmap.
+	 *
+	 * @return bitmap of referenced entity primary keys within this group, may be {@link EmptyBitmap#INSTANCE}
+	 */
+	@Nonnull
+	public Bitmap getAllReferencedPrimaryKeys() {
+		if (this.referencedPrimaryKeysIndex.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (final Integer referencedPk : this.referencedPrimaryKeysIndex.keySet()) {
+			writer.add(referencedPk);
+		}
+		return new BaseBitmap(writer.get());
+	}
+
+	/**
 	 * Returns the bitmap of owner entity PKs that reference the given entity (facet) within this group, or `null`
 	 * if the referenced entity PK is not tracked in this group index.
 	 *
@@ -315,6 +340,39 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	@Nullable
 	public Bitmap getOwnerPKsForReferencedEntity(int referencedEntityPK) {
 		return this.referencedPrimaryKeysIndex.get(referencedEntityPK);
+	}
+
+	/**
+	 * Returns the subset of the given `reduced-index PKs` that are currently tracked as referenced
+	 * entity primary keys in this group. Mirror of
+	 * {@link io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex#getReferencedPrimaryKeysForIndexPks}
+	 * on RTEI, provided here for API parity so histogram boundary resolution can convert
+	 * {@link FilterIndex#getRecordsEqualTo} results uniformly on both grouped and non-grouped
+	 * source indexes.
+	 *
+	 * In RGEI the reference-attribute FilterIndex is keyed on referenced entity PK (the recordId
+	 * is swapped by {@code ReferenceIndexMutator} via `executeWithDifferentPrimaryKeyToIndex`).
+	 * The "reduced-index PK" thus coincides with the referenced entity PK for this index, making
+	 * this method a filter over {@link #referencedPrimaryKeysIndex} keys.
+	 *
+	 * @param indexPrimaryKeys bitmap produced by {@link FilterIndex#getRecordsEqualTo} against the
+	 *                         reference-attribute FilterIndex
+	 * @return bitmap of referenced entity PKs, never {@code null}, may be {@link EmptyBitmap#INSTANCE}
+	 */
+	@Nonnull
+	public Bitmap getReferencedPrimaryKeysForIndexPks(@Nonnull Bitmap indexPrimaryKeys) {
+		if (indexPrimaryKeys.isEmpty() || this.referencedPrimaryKeysIndex.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final RoaringBitmap indexPksRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(indexPrimaryKeys);
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (final Integer referencedPk : this.referencedPrimaryKeysIndex.keySet()) {
+			if (indexPksRoaring.contains(referencedPk)) {
+				writer.add(referencedPk);
+			}
+		}
+		final RoaringBitmap result = writer.get();
+		return result.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
 	}
 
 	/**
@@ -711,6 +769,17 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		return this.histogramIndexes.get(histogramName);
 	}
 
+	/**
+	 * Returns the {@link FilterIndex} backing the given histogram name and locale variant in this group index.
+	 * Used by {@link io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceHistogramAccumulator}
+	 * to obtain the source filter index for histogram bucket computation. Returns {@code null} when no histogram
+	 * data has been indexed for this (histogramName, locale) combination — the accumulator treats a `null` result
+	 * as "no data for this group" and skips the computation.
+	 *
+	 * @param histogramName the name of the histogram definition as registered on the reference schema
+	 * @param locale        the locale for localized histograms, or {@code null} for non-localized attributes
+	 * @return the filter index, or {@code null} if none exists for this combination
+	 */
 	@Nullable
 	@Override
 	public FilterIndex getHistogramFilterIndex(@Nonnull String histogramName, @Nullable Locale locale) {

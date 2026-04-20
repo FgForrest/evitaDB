@@ -31,7 +31,9 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -321,24 +323,25 @@ class ReducedGroupEntityIndexTest
 	class RemoveErrorHandlingTest {
 
 		@Test
-		@DisplayName("should fail when removing PK for non-existent referenced entity")
+		@DisplayName("should throw GenericEvitaInternalError when removing PK for non-existent referenced entity")
 		void shouldFailOnRemoveWithNonExistentReferencedPk() {
-			// no data inserted -- removing should trigger assertion
+			// no data inserted -- removing should trigger assertion with a specific exception type
 			assertThrows(
-				Exception.class,
+				GenericEvitaInternalError.class,
 				() -> ReducedGroupEntityIndexTest.this.index.removePrimaryKey(10, 999)
 			);
 		}
 
 		@Test
-		@DisplayName("should fail when removing PK that was never inserted")
+		@DisplayName("should throw GenericEvitaInternalError when removing PK that was never inserted")
 		void shouldFailOnRemoveWithNonExistentEntityPk() {
 			// insert entity 10 via reference to category 1
 			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
 
-			// try to remove entity 20 via reference to category 1 -- entity PK 20 has no cardinality
+			// try to remove entity 20 via reference to category 1 -- entity PK 20 has no cardinality;
+			// error type is asserted precisely so regressions that downgrade to a vague exception fail.
 			assertThrows(
-				Exception.class,
+				GenericEvitaInternalError.class,
 				() -> ReducedGroupEntityIndexTest.this.index.removePrimaryKey(20, 1)
 			);
 		}
@@ -1257,6 +1260,44 @@ class ReducedGroupEntityIndexTest
 			assertFalse(afterRemoval.contains(1));
 		}
 
+		@Test
+		@DisplayName("should return empty bitmap for a freshly created index")
+		void shouldReturnEmptyBitmapForFreshIndex() {
+			final Bitmap result = ReducedGroupEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("should return bitmap of all facet PKs present in the group")
+		void shouldReturnBitmapOfAllFacetPKsInGroup() {
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 2);
+			// second entity also references facet PK=1 — must still collapse to single entry
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(30, 1);
+
+			final Bitmap result = ReducedGroupEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
+
+			assertEquals(2, result.size());
+			assertTrue(result.contains(1));
+			assertTrue(result.contains(2));
+		}
+
+		@Test
+		@DisplayName("should drop facet PK from bitmap when all references to it are removed")
+		void shouldDropFacetPkFromBitmapWhenAllReferencesRemoved() {
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 2);
+			ReducedGroupEntityIndexTest.this.index.removePrimaryKey(10, 1);
+
+			final Bitmap result = ReducedGroupEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
+
+			assertEquals(1, result.size());
+			assertFalse(result.contains(1));
+			assertTrue(result.contains(2));
+		}
+
 	}
 
 	/**
@@ -1307,6 +1348,199 @@ class ReducedGroupEntityIndexTest
 					assertFalse(committedIndex.isEmpty(), "Committed index with histogram data should not be empty");
 				}
 			);
+		}
+
+		@Test
+		@DisplayName("should keep separate filter indexes for different locales")
+		void shouldKeepSeparateFilterIndexesPerLocale() {
+			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class
+			);
+			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, Locale.GERMAN, 43, 11, Integer.class
+			);
+
+			final FilterIndex englishFilter = ReducedGroupEntityIndexTest.this.index
+				.getHistogramFilterIndex(HISTOGRAM_NAME, Locale.ENGLISH);
+			final FilterIndex germanFilter = ReducedGroupEntityIndexTest.this.index
+				.getHistogramFilterIndex(HISTOGRAM_NAME, Locale.GERMAN);
+
+			assertNotNull(englishFilter, "English filter must be present");
+			assertNotNull(germanFilter, "German filter must be present");
+			assertTrue(englishFilter.getRecordsEqualTo(42).contains(10));
+			assertFalse(englishFilter.getRecordsEqualTo(43).contains(11),
+				"English filter must not carry German values");
+			assertTrue(germanFilter.getRecordsEqualTo(43).contains(11));
+		}
+
+		@Test
+		@DisplayName("should remove histogram index entirely after last value is removed")
+		void shouldRemoveHistogramIndexAfterLastValueRemoved() {
+			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, null, 42, 10, Integer.class
+			);
+			assertNotNull(
+				ReducedGroupEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null)
+			);
+
+			ReducedGroupEntityIndexTest.this.index.removeHistogramValue(HISTOGRAM_NAME, null, 42, 10);
+
+			// after removing the last value, the histogram index itself is cleaned up
+			assertNull(
+				ReducedGroupEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null),
+				"Filter index must be gone after last value removal"
+			);
+		}
+
+		@Test
+		@DisplayName("should return null for unknown histogram name")
+		void shouldReturnNullForUnknownHistogramName() {
+			assertNull(
+				ReducedGroupEntityIndexTest.this.index.getHistogramFilterIndex("unknownHist", null)
+			);
+		}
+	}
+
+	/**
+	 * Tests for atomic rollback semantics: a rollback must undo every mutation in the batch as a
+	 * single unit, even when multiple histogram values across different names/locales are inserted.
+	 */
+	@Nested
+	@DisplayName("STM rollback — atomic histogram batch")
+	class StmRollbackHistogramTest {
+
+		@Test
+		@DisplayName("should discard all histogram mutations in a batch on rollback")
+		void shouldDiscardAtomicHistogramBatchOnRollback() {
+			assertStateAfterRollback(
+				ReducedGroupEntityIndexTest.this.index,
+				original -> {
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 43, 11, Integer.class);
+					original.insertHistogramValue(
+						"other", Locale.ENGLISH, 99, 12, Integer.class
+					);
+				},
+				(original, committed) -> {
+					assertNull(
+						original.getHistogramFilterIndex(HISTOGRAM_NAME, null),
+						"Original must have no histogram data after rollback"
+					);
+					assertNull(
+						original.getHistogramFilterIndex("other", Locale.ENGLISH),
+						"Original must have no other-histogram data after rollback"
+					);
+					assertNull(committed, "Rollback must leave committed state null");
+				}
+			);
+		}
+	}
+
+	/**
+	 * Tests for the reverse lookup {@link ReducedGroupEntityIndex#getReferencedPrimaryKeysForIndexPks(Bitmap)}
+	 * which filters the supplied bitmap of reduced-index PKs down to those currently tracked as
+	 * referenced entity PKs in this group. Mirrors the method on
+	 * {@link io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex} and is used by histogram
+	 * boundary resolution for `REFERENCE_ATTRIBUTE` source histograms (the recordId stored in the
+	 * reference-attribute FilterIndex on RGEI is the referenced entity PK — swapped at insert time
+	 * via `ReferenceIndexMutator#executeWithDifferentPrimaryKeyToIndex`).
+	 */
+	@Nested
+	@DisplayName("Reverse referenced-PK lookup")
+	class ReverseReferencedPkLookupTest {
+
+		@Test
+		@DisplayName("should return EmptyBitmap.INSTANCE for empty input")
+		void shouldReturnEmptyForEmptyInput() {
+			// populate the index so we exercise the `indexPrimaryKeys.isEmpty()` short-circuit rather
+			// than the `referencedPrimaryKeysIndex.isEmpty()` branch
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 5);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 6);
+
+			final Bitmap result = ReducedGroupEntityIndexTest.this.index
+				.getReferencedPrimaryKeysForIndexPks(EmptyBitmap.INSTANCE);
+
+			assertSame(EmptyBitmap.INSTANCE, result,
+				"Empty input must short-circuit to the singleton EmptyBitmap");
+		}
+
+		@Test
+		@DisplayName("should return empty bitmap when RGEI has no referenced PKs yet")
+		void shouldReturnEmptyWhenRgeiHasNoReferencedPks() {
+			// fresh index — no insertions, no referenced PK tracking populated
+			final Bitmap result = ReducedGroupEntityIndexTest.this.index
+				.getReferencedPrimaryKeysForIndexPks(new BaseBitmap(1, 2, 3));
+
+			assertTrue(result.isEmpty(),
+				"Empty referenced-PK tracking must yield an empty result regardless of input");
+		}
+
+		@Test
+		@DisplayName("should return subset of input that matches tracked referenced PKs")
+		void shouldReturnSubsetOfInputThatMatchesTrackedReferencedPks() {
+			// entity 10 → referenced entity 5, entity 20 → referenced entity 6, entity 30 → referenced 7
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 5);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 6);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(30, 7);
+
+			// mix of matching (5, 6) and non-matching (99, 100) PKs
+			final Bitmap result = ReducedGroupEntityIndexTest.this.index
+				.getReferencedPrimaryKeysForIndexPks(new BaseBitmap(5, 6, 99, 100));
+
+			assertEquals(2, result.size(),
+				"Result must contain only the tracked referenced PKs present in the input");
+			assertTrue(result.contains(5));
+			assertTrue(result.contains(6));
+			assertFalse(result.contains(7),
+				"PK 7 is tracked but not present in the input — must be excluded");
+			assertFalse(result.contains(99));
+			assertFalse(result.contains(100));
+		}
+
+		@Test
+		@DisplayName("should return EmptyBitmap.INSTANCE when input bitmap has no overlap with tracked referenced PKs")
+		void shouldReturnEmptyBitmapSingletonWhenDisjoint() {
+			// populate the index with referenced PKs 5 and 6, then probe with a fully disjoint input
+			// (100, 200). The contract says the method returns the singleton `EmptyBitmap.INSTANCE`
+			// when the result is empty, not a freshly allocated empty bitmap — this pins down the
+			// allocation-free path that downstream callers rely on for identity comparisons.
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 5);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 6);
+
+			final Bitmap result = ReducedGroupEntityIndexTest.this.index
+				.getReferencedPrimaryKeysForIndexPks(new BaseBitmap(100, 200));
+
+			assertSame(EmptyBitmap.INSTANCE, result,
+				"Disjoint probe must return the singleton EmptyBitmap, not a new empty instance");
+		}
+
+		@Test
+		@DisplayName("should reflect removal in reverse lookup")
+		void shouldReflectRemovalInReverseLookup() {
+			// entity 10 and entity 20 both reference entity 5; entity 30 references entity 6
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 5);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 5);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(30, 6);
+
+			// both referenced PKs are tracked initially
+			final Bitmap before = ReducedGroupEntityIndexTest.this.index
+				.getReferencedPrimaryKeysForIndexPks(new BaseBitmap(5, 6));
+			assertEquals(2, before.size());
+			assertTrue(before.contains(5));
+			assertTrue(before.contains(6));
+
+			// remove all references pointing at entity 5 (both 10 → 5 and 20 → 5)
+			ReducedGroupEntityIndexTest.this.index.removePrimaryKey(10, 5);
+			ReducedGroupEntityIndexTest.this.index.removePrimaryKey(20, 5);
+
+			// entity 5 must have been evicted from the referenced-PK tracking since the last owner
+			// reference was removed
+			final Bitmap after = ReducedGroupEntityIndexTest.this.index
+				.getReferencedPrimaryKeysForIndexPks(new BaseBitmap(5, 6));
+			assertEquals(1, after.size());
+			assertFalse(after.contains(5),
+				"Referenced PK 5 must drop from the reverse lookup after all its references are removed");
+			assertTrue(after.contains(6));
 		}
 	}
 

@@ -697,7 +697,7 @@ public interface ReferenceIndexMutator {
 			)
 		);
 
-		executeWithProperPrimaryKey(
+		final Runnable applyToReducedIndex = () -> executeWithProperPrimaryKey(
 			executor,
 			referenceKey.primaryKey(),
 			attributeMutation.getAttributeKey().attributeName(),
@@ -713,6 +713,17 @@ public interface ReferenceIndexMutator {
 				true
 			)
 		);
+		// mirror the initial-population logic in `indexAllAttributes`: on grouped reduced indexes
+		// the reference-attribute FilterIndex is keyed on the referenced entity PK, so subsequent
+		// attribute updates must follow the same keying rule
+		if (indexForUpsert instanceof ReducedGroupEntityIndex
+			|| indexForRemoval instanceof ReducedGroupEntityIndex) {
+			executor.executeWithDifferentPrimaryKeyToIndex(
+				(indexType, target) -> referenceKey.primaryKey(), applyToReducedIndex
+			);
+		} else {
+			applyToReducedIndex.run();
+		}
 	}
 
 	/**
@@ -2500,7 +2511,13 @@ public interface ReferenceIndexMutator {
 				entitySchema, referenceSchema
 			);
 
-		existingDataSupplierFactory.getNormalizedReferenceAttributeValueSupplier(rrk)
+		// for grouped references (RGEI), key the reference-attribute FilterIndex records on the
+		// referenced entity PK instead of the owner PK — this is what enables REFERENCE_ATTRIBUTE
+		// histogram boundary resolution on grouped references (matches the RTEI scheme established
+		// in `referenceInsertPerComponent` where `executeWithDifferentPrimaryKeyToIndex` swaps the
+		// recordId to the reduced-index PK before inserting into the RTEI attribute FilterIndex)
+		final Runnable indexReferenceAttributes = () -> existingDataSupplierFactory
+			.getNormalizedReferenceAttributeValueSupplier(rrk)
 			.getAttributeValues()
 			.forEach(attribute ->
 				         executeWithProperPrimaryKey(
@@ -2523,6 +2540,13 @@ public interface ReferenceIndexMutator {
 					         )
 				         )
 			);
+		if (targetIndex instanceof ReducedGroupEntityIndex) {
+			executor.executeWithDifferentPrimaryKeyToIndex(
+				(indexType, target) -> rrk.primaryKey(), indexReferenceAttributes
+			);
+		} else {
+			indexReferenceAttributes.run();
+		}
 	}
 
 	/**
@@ -2765,7 +2789,9 @@ public interface ReferenceIndexMutator {
 
 		final ExistingAttributeValueSupplier referenceAttributeValueSupplier = existingDataSupplierFactory
 			.getNormalizedReferenceAttributeValueSupplier(rrk);
-		referenceAttributeValueSupplier
+		// mirror the RGEI re-keying performed during insert: reference-attribute FilterIndex records
+		// on grouped reduced indexes live under the referenced entity PK, not the owner PK
+		final Runnable removeReferenceAttributes = () -> referenceAttributeValueSupplier
 			.getAttributeValues()
 			.forEach(attribute ->
 				         executeWithProperPrimaryKey(
@@ -2787,6 +2813,13 @@ public interface ReferenceIndexMutator {
 					         )
 				         )
 			);
+		if (targetIndex instanceof ReducedGroupEntityIndex) {
+			executor.executeWithDifferentPrimaryKeyToIndex(
+				(indexType, target) -> rrk.primaryKey(), removeReferenceAttributes
+			);
+		} else {
+			removeReferenceAttributes.run();
+		}
 	}
 
 	/**

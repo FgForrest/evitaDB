@@ -32,10 +32,12 @@ import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.ReferenceHistogramStatistics;
 import io.evitadb.api.query.require.ReferenceSummaryOfReference;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
@@ -80,14 +82,30 @@ import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
 /**
- * This implementation of {@link RequireConstraintTranslator} converts {@link ReferenceSummaryOfReference} to
- * {@link ReferenceSummaryProducer}.
- * The producer instance has all pointers necessary to compute result. All operations in this translator are relatively
- * cheap comparing to final result computation, that is deferred to
- * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)} method.
+ * Translates the per-reference form of the reference-summary require constraint
+ * ({@link ReferenceSummaryOfReference}) into a shared {@link ReferenceSummaryProducer} instance. Because the
+ * constraint can carry nested {@link io.evitadb.api.query.require.ReferenceHistogramStatistics} children, this
+ * translator implements {@link SelfTraversingTranslator}: the visitor skips automatic child traversal and this
+ * class is responsible for dispatching histogram children manually after the producer is pre-registered.
+ *
+ * The manual dispatch strategy in {@link #createProducer} is:
+ *
+ * 1. Resolve / create the {@link ReferenceSummaryProducer} via the shared `createProducerInternal` helper.
+ * 2. Pre-register the producer via {@link ExtraResultPlanningVisitor#registerProducer} — `registerProducer` is
+ *    idempotent, so the planner's own post-return registration becomes a no-op. This must happen before children
+ *    are dispatched so that {@link ReferenceHistogramStatisticsTranslator} can look the producer up via
+ *    `findExistingProducer`.
+ * 3. Each {@link io.evitadb.api.query.require.ReferenceHistogramStatistics} child is dispatched inside a
+ *    reference-scoped context (created via `executeInContext`) that exposes the concrete reference schema. The
+ *    child translator validates the histogram index name strictly — it throws if the name is not defined on the
+ *    target reference in every active scope (strict, not lenient).
+ *
+ * All planning operations are cheap; the heavy lifting is deferred to
+ * {@link ExtraResultProducer#fabricate(io.evitadb.core.query.QueryExecutionContext)}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@SuppressWarnings("deprecation")
 public class ReferenceSummaryOfReferenceTranslator
 	implements RequireConstraintTranslator<ReferenceSummaryOfReference>, SelfTraversingTranslator {
 
@@ -345,7 +363,7 @@ public class ReferenceSummaryOfReferenceTranslator
 	 * @param extraResultPlanner     the extra result planning visitor
 	 * @return the created producer, or null
 	 */
-	@Nullable
+	@Nonnull
 	public static ExtraResultProducer createProducerInternal(
 		@Nonnull String referenceName,
 		@Nonnull FacetStatisticsDepth statisticsDepth,
@@ -370,9 +388,12 @@ public class ReferenceSummaryOfReferenceTranslator
 			() -> new ReferenceNotFacetedException(referenceName, entitySchema)
 		);
 
-		// collect all facet statistics
+		// collect all facet statistics — filter by scope so that only live/archived indexes
+		// requested by the enclosing `require(inScope(...))` participate, matching the behaviour of
+		// the sibling ReferenceSummaryTranslator
 		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
 		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
+			.filter(index -> scopes.contains(index.getIndexKey().scope()))
 			.map(EntityIndex::getFacetingEntities)
 			.collect(Collectors.toList());
 
@@ -392,32 +413,52 @@ public class ReferenceSummaryOfReferenceTranslator
 		} else {
 			groupEntityReq = null;
 		}
+		final IntPredicate facetPredicate = filterBy != null
+			? createFacetPredicate(extraResultPlanner, filterBy, referenceSchema, true)
+			: null;
+		final IntPredicate groupPredicate = filterGroupBy != null
+			? createFacetGroupPredicate(extraResultPlanner, filterGroupBy, referenceSchema, true)
+			: null;
+		final NestedContextSorter facetSorter = orderBy != null
+			? createFacetSorter(
+				extraResultPlanner, orderBy, findLocale(filterBy), extraResultPlanner, referenceSchema, true
+			)
+			: null;
+		final NestedContextSorter groupSorter = orderGroupBy != null
+			? createFacetGroupSorter(
+				extraResultPlanner, orderGroupBy, findLocale(filterGroupBy), extraResultPlanner, referenceSchema, true
+			)
+			: null;
 		referenceSummaryProducer.requireReferenceReferenceSummary(
 			referenceSchema,
 			statisticsDepth,
-			filterBy != null ? createFacetPredicate(extraResultPlanner, filterBy, referenceSchema, true) : null,
-			filterGroupBy != null ? createFacetGroupPredicate(extraResultPlanner, filterGroupBy, referenceSchema, true) : null,
-			orderBy != null ?
-				createFacetSorter(
-					extraResultPlanner, orderBy, findLocale(filterBy), extraResultPlanner, referenceSchema, true
-				) : null,
-			orderGroupBy != null ?
-				createFacetGroupSorter(
-					extraResultPlanner, orderGroupBy, findLocale(filterGroupBy), extraResultPlanner, referenceSchema, true
-				) : null,
+			facetPredicate,
+			groupPredicate,
+			facetSorter,
+			groupSorter,
 			facetEntityRequirement,
 			groupEntityReq
 		);
 		return referenceSummaryProducer;
 	}
 
+	/**
+	 * Creates or retrieves the shared {@link ReferenceSummaryProducer} for the named reference, then pre-registers
+	 * it and manually dispatches any nested {@link io.evitadb.api.query.require.ReferenceHistogramStatistics}
+	 * children.
+	 *
+	 * The pre-registration dance is necessary because this class is a {@link SelfTraversingTranslator}: the
+	 * visitor does not automatically walk children. Pre-registering before child dispatch ensures that
+	 * {@link ReferenceHistogramStatisticsTranslator} can locate the producer via `findExistingProducer` even
+	 * though the planner has not yet received the producer back from this method's return.
+	 */
 	@Nullable
 	@Override
 	public ExtraResultProducer createProducer(
 		@Nonnull ReferenceSummaryOfReference referenceSummaryOfReference,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
-		return createProducerInternal(
+		final ExtraResultProducer producer = createProducerInternal(
 			referenceSummaryOfReference.getReferenceName(),
 			referenceSummaryOfReference.getStatisticsDepth(),
 			referenceSummaryOfReference.getReferenceEntityRequirement().orElse(null),
@@ -429,6 +470,31 @@ public class ReferenceSummaryOfReferenceTranslator
 			ReferenceSummaryAdapter.INSTANCE,
 			extraResultPlanner
 		);
+		// pre-register the producer so nested histogram translators can look it up via
+		// findExistingProducer — registerProducer is idempotent, so the planner's own
+		// post-return registration via ExtraResultPlanningVisitor.visit becomes a no-op
+		extraResultPlanner.registerProducer(producer);
+		// dispatch nested histogramStatistics children to their translator — this container is
+		// a SelfTraversingTranslator, so children are not walked automatically
+		final ReferenceSchemaContract referenceSchema = extraResultPlanner.getSchema()
+			.getReference(referenceSummaryOfReference.getReferenceName())
+			.orElseThrow(() -> new ReferenceNotFoundException(
+				referenceSummaryOfReference.getReferenceName(), extraResultPlanner.getSchema()
+			));
+		for (final RequireConstraint child : referenceSummaryOfReference.getChildren()) {
+			if (child instanceof ReferenceHistogramStatistics) {
+				extraResultPlanner.executeInContext(
+					child,
+					() -> referenceSchema,
+					() -> null,
+					() -> {
+						child.accept(extraResultPlanner);
+						return null;
+					}
+				);
+			}
+		}
+		return producer;
 	}
 
 	/**

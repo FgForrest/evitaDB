@@ -351,6 +351,47 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			assertThrows(UnsupportedOperationException.class, () -> result.add(999));
 		}
+
+		@Test
+		@DisplayName("should return empty bitmap when no references tracked")
+		void shouldReturnEmptyBitmapWhenNoReferencesTracked() {
+			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
+
+			assertNotNull(result);
+			assertTrue(result.isEmpty());
+		}
+
+		@Test
+		@DisplayName("should return bitmap of all distinct referenced entity PKs")
+		void shouldReturnBitmapOfAllDistinctReferencedEntityPrimaryKeys() {
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 2);
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 2);
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(30, 3);
+
+			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
+
+			assertEquals(3, result.size());
+			assertTrue(result.contains(1));
+			assertTrue(result.contains(2));
+			assertTrue(result.contains(3));
+		}
+
+		@Test
+		@DisplayName("should reflect subsequent inserts after first call")
+		void shouldReflectSubsequentInsertsAfterFirstCall() {
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+
+			final Bitmap first = ReferencedTypeEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
+			assertEquals(1, first.size());
+
+			// insert a new referenced PK — memoization on the underlying cardinality index must be invalidated
+			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 7);
+
+			final Bitmap second = ReferencedTypeEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
+			assertEquals(2, second.size());
+			assertTrue(second.contains(7));
+		}
 	}
 
 	/**
@@ -550,29 +591,34 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		private AttributeSchemaContract stringAttrSchema;
 
 		/**
-		 * Lazily creates the reference schema mock.
+		 * Initializes fresh mock and attribute schema per test; eager initialization avoids the
+		 * subtle bugs where a lazily-built fixture races with test parallelization or differs
+		 * between the first-calling and later tests.
+		 */
+		@org.junit.jupiter.api.BeforeEach
+		void setUpAttributes() {
+			this.referenceSchema = mock(ReferenceSchemaContract.class);
+			this.stringAttrSchema = createFilterableAttributeSchema("code", String.class);
+		}
+
+		/**
+		 * Returns the eagerly-initialized reference schema mock. Retained for backwards
+		 * compatibility with tests below that call `getReferenceSchema()`.
 		 *
-		 * @return a mock {@link ReferenceSchemaContract}
+		 * @return the shared mock {@link ReferenceSchemaContract}
 		 */
 		@Nonnull
 		private ReferenceSchemaContract getReferenceSchema() {
-			if (this.referenceSchema == null) {
-				this.referenceSchema = mock(ReferenceSchemaContract.class);
-			}
 			return this.referenceSchema;
 		}
 
 		/**
-		 * Lazily creates the string attribute schema.
+		 * Returns the eagerly-initialized string attribute schema.
 		 *
-		 * @return a filterable String attribute schema named "code"
+		 * @return the shared filterable String attribute schema named "code"
 		 */
 		@Nonnull
 		private AttributeSchemaContract getStringAttrSchema() {
-			if (this.stringAttrSchema == null) {
-				this.stringAttrSchema =
-					createFilterableAttributeSchema("code", String.class);
-			}
 			return this.stringAttrSchema;
 		}
 
@@ -811,12 +857,22 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
-		@DisplayName("should create non-null proxy instance")
+		@DisplayName("should create non-null proxy instance bearing expected reference name")
 		void shouldCreateProxy() {
+			// The returned proxy extends `ReferencedTypeEntityIndex` by construction — asserting
+			// `instanceof` is tautological; instead verify that the proxy carries the expected
+			// identity so that a regression swapping the target class would be caught. Only
+			// `getIndexKey()` passes through the throwing classification; derive the reference
+			// name from the key's discriminator to avoid the throwing path.
 			final ReferencedTypeEntityIndex stub = createStub();
 
-			assertNotNull(stub);
-			assertInstanceOf(ReferencedTypeEntityIndex.class, stub);
+			assertNotNull(stub, "Stub must not be null");
+			assertEquals(REFERENCE_NAME, stub.getIndexKey().discriminator(),
+				"Stub must preserve the discriminator-derived reference name");
+			assertEquals(
+				EntityIndexType.REFERENCED_ENTITY_TYPE, stub.getIndexKey().type(),
+				"Stub must carry the REFERENCED_ENTITY_TYPE index-type identity"
+			);
 		}
 
 		@Test
@@ -1108,11 +1164,14 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			final int refPk = random.nextInt(20) + 1;
 
 			if (random.nextBoolean()) {
-				// insert
-				index.insertPrimaryKeyIfMissing(indexPk, refPk);
-				referenceModel
-					.computeIfAbsent(indexPk, k -> new HashSet<>(4))
-					.add(refPk);
+				// insert -- the production index tracks multiset cardinality; to keep the Set-based
+				// model in sync we skip duplicate inserts (they would increment the production
+				// cardinality without changing the Set, causing a diverging remove later)
+				final Set<Integer> refs =
+					referenceModel.computeIfAbsent(indexPk, k -> new HashSet<>(4));
+				if (refs.add(refPk)) {
+					index.insertPrimaryKeyIfMissing(indexPk, refPk);
+				}
 			} else {
 				// remove -- only if the exact (indexPk, refPk) pair exists
 				final Set<Integer> refs = referenceModel.get(indexPk);
@@ -1235,6 +1294,49 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 					assertNotNull(committed, "Committed copy must not be null");
 					assertFalse(committed.isEmpty(), "Committed index with histogram data should not be empty");
 				}
+			);
+		}
+
+		@Test
+		@DisplayName("should keep localized histogram data isolated per locale")
+		void shouldKeepLocalizedHistogramDataIsolatedPerLocale() {
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class
+			);
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, Locale.GERMAN, 42, 11, Integer.class
+			);
+
+			final FilterIndex englishFilter = ReferencedTypeEntityIndexTest.this.index
+				.getHistogramFilterIndex(HISTOGRAM_NAME, Locale.ENGLISH);
+			final FilterIndex germanFilter = ReferencedTypeEntityIndexTest.this.index
+				.getHistogramFilterIndex(HISTOGRAM_NAME, Locale.GERMAN);
+
+			assertNotNull(englishFilter);
+			assertNotNull(germanFilter);
+			assertTrue(englishFilter.getRecordsEqualTo(42).contains(10));
+			assertFalse(englishFilter.getRecordsEqualTo(42).contains(11));
+			assertTrue(germanFilter.getRecordsEqualTo(42).contains(11));
+			assertFalse(germanFilter.getRecordsEqualTo(42).contains(10));
+		}
+
+		@Test
+		@DisplayName("should dispose histogram filter index on last value removal")
+		void shouldDisposeHistogramFilterIndexOnLastValueRemoval() {
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, null, 42, 10, Integer.class
+			);
+			assertNotNull(
+				ReferencedTypeEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null)
+			);
+
+			ReferencedTypeEntityIndexTest.this.index.removeHistogramValue(
+				HISTOGRAM_NAME, null, 42, 10
+			);
+
+			assertNull(
+				ReferencedTypeEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null),
+				"Filter index must be gone once all histogram values are removed"
 			);
 		}
 	}

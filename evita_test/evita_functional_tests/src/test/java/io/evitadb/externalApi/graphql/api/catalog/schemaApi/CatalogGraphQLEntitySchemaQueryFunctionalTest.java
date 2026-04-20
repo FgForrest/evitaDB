@@ -1101,6 +1101,38 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getReferences().isEmpty());
 
+		final List<List<Map<String, Object>>> referencesWithBucketed = productSchema.getReferences()
+			.values()
+			.stream()
+			.map(r -> r.getAllHistogramIndexDefinitions().entrySet().stream()
+				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
+					.map(definition -> map()
+						.e("scope", scopeEntry.getKey().name())
+						.e("nameOfTheIndex", definition.nameOfTheIndex())
+						.e(
+							"valueExpression",
+							definition.valueExpression() != null
+								? definition.valueExpression().toExpressionString()
+								: null
+						)
+						.build()))
+				.collect(Collectors.toList()))
+			.toList();
+
+		final List<List<Map<String, Object>>> referencesWithBucketedPartially = productSchema.getReferences()
+			.values()
+			.stream()
+			.map(r -> r.getBucketedPartiallyInScopes().entrySet().stream()
+				.map(entry -> map()
+					.e("scope", entry.getKey().name())
+					.e(
+						"expression",
+						entry.getValue() != null ? entry.getValue().toExpressionString() : null
+					)
+					.build())
+				.collect(Collectors.toList()))
+			.toList();
+
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
 			.document(
@@ -1137,11 +1169,11 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			)
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.BUCKETED.name(),
-				everyItem(equalTo(List.of()))
+				containsInAnyOrder(referencesWithBucketed.toArray())
 			)
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_REFERENCES.name() + "." + ReferenceSchemaDescriptor.BUCKETED_PARTIALLY.name(),
-				everyItem(equalTo(List.of()))
+				containsInAnyOrder(referencesWithBucketedPartially.toArray())
 			);
 	}
 

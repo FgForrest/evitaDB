@@ -55,15 +55,35 @@ import java.util.Set;
  *
  * ## Forbidden Children
  *
- * The `userFilter` constraint prohibits certain child constraints that define fundamental query context or separate entity scopes:
+ * The `userFilter` constraint prohibits certain child constraints that define fundamental query context:
  *
  * - {@link EntityLocaleEquals}: locale is considered a mandatory context parameter
  * - {@link PriceInCurrency}, {@link PriceInPriceLists}, {@link PriceValidIn}: price context is mandatory for price calculations
  * - {@link HierarchyWithin}, {@link HierarchyWithinRoot}: hierarchy scope is considered mandatory
- * - {@link ReferenceHaving}: reference filtering defines a separate entity scope (implements {@link SeparateEntityScopeContainer})
  * - Nested {@link UserFilter}: prevents ambiguous nesting of user-controlled scopes
  *
  * These constraints must appear outside `userFilter` to ensure consistent query semantics.
+ *
+ * ## ReferenceHaving inside userFilter
+ *
+ * {@link ReferenceHaving} is **allowed** as a child of `userFilter` and is treated as an
+ * *always-applied* user-controlled constraint — identical to how {@link PriceBetween} is already
+ * handled. Concretely:
+ *
+ * - The constraint contributes to the query's filter formula and to the baseline entity set used
+ *   for facet summary computation. It is never "relaxed" during extra-result calculation.
+ * - Facet summary **impact** enumeration considers only {@link FacetHaving} children of
+ *   `userFilter`; `ReferenceHaving` is **not** enumerated as an impact candidate because it
+ *   does not represent a facet selection.
+ * - The canonical use case is narrowing attribute histograms computed over a reference: a
+ *   {@code userFilter(referenceHaving(refName, attributeBetween(attr, lo, hi)))} expresses
+ *   "the user is currently inspecting this range" and flips the per-bucket {@code requested}
+ *   flag to true for buckets whose threshold lies within {@code [lo, hi]} while leaving bucket
+ *   occurrences unchanged.
+ *
+ * Because the constraint is always applied, placing it inside `userFilter` is purely a
+ * language-level signal to downstream extra-result computations — query correctness is
+ * identical to placing it outside `userFilter`.
  *
  * ## Impact on Extra Result Computations
  *
@@ -154,7 +174,6 @@ public class UserFilter extends AbstractFilterConstraintContainer implements Gen
 		PriceValidIn.class,
 		HierarchyWithin.class,
 		HierarchyWithinRoot.class,
-		ReferenceHaving.class,
 		UserFilter.class
 	);
 
@@ -168,7 +187,6 @@ public class UserFilter extends AbstractFilterConstraintContainer implements Gen
 							  PriceValidIn.class,
 							  HierarchyWithin.class,
 							  HierarchyWithinRoot.class,
-							  ReferenceHaving.class,
 							  UserFilter.class
 						  }
                       )

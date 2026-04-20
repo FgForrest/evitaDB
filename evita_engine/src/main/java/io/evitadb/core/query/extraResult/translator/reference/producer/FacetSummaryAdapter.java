@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 
@@ -78,8 +79,11 @@ public final class FacetSummaryAdapter implements ReferenceSummaryResultAdapter<
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable EntityClassifier groupEntity,
 		int count,
-		@Nonnull Map<Integer, FacetStatistics> facetStatistics
+		@Nonnull Map<Integer, FacetStatistics> facetStatistics,
+		@Nonnull Map<String, HistogramContract> histogramStatistics
 	) {
+		// deprecated adapter keeps the legacy DTO shape — histogramStatistics are ignored here, the
+		// canonical ReferenceSummary adapter carries them forward instead
 		return new FacetGroupStatistics(
 			referenceSchema,
 			groupEntity,

@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -88,11 +89,14 @@ public interface ReferenceSummaryResultAdapter<T extends ReferenceGroupStatistic
 	 * {@link io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics}
 	 * subtype to preserve backward-compatible {@code instanceof} checks.
 	 *
-	 * @param referenceSchema the reference schema this group belongs to
-	 * @param groupEntity     the entity representing this group, or {@code null} for
-	 *                        non-grouped references
-	 * @param count           number of distinct entities possessing any reference in this group
-	 * @param facetStatistics per-facet statistics indexed by facet primary key
+	 * @param referenceSchema    the reference schema this group belongs to
+	 * @param groupEntity        the entity representing this group, or {@code null} for
+	 *                           non-grouped references
+	 * @param count              number of distinct entities possessing any reference in this group
+	 * @param facetStatistics    per-facet statistics indexed by facet primary key
+	 * @param histogramStatistics per-histogram-name histogram DTOs injected by
+	 *                           {@link io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceHistogramAccumulator};
+	 *                           empty map when no histogram requests were registered for this group
 	 * @return the created group statistics instance (never {@code null})
 	 */
 	@Nonnull
@@ -100,7 +104,8 @@ public interface ReferenceSummaryResultAdapter<T extends ReferenceGroupStatistic
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable EntityClassifier groupEntity,
 		int count,
-		@Nonnull Map<Integer, FacetStatistics> facetStatistics
+		@Nonnull Map<Integer, FacetStatistics> facetStatistics,
+		@Nonnull Map<String, HistogramContract> histogramStatistics
 	);
 
 	/**

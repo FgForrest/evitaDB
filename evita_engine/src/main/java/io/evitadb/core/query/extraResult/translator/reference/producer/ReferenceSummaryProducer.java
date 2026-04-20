@@ -24,11 +24,12 @@
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import io.evitadb.api.query.filter.FacetHaving;
-import io.evitadb.api.query.filter.UserFilter;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ReferenceSummary;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -39,9 +40,9 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -65,8 +66,21 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.*;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
@@ -82,20 +96,39 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
 
 /**
- * {@link ReferenceSummaryProducer} creates {@link ReferenceSummary} instance and does the heavy lifting to compute all
- * information necessary. The producer executes following logic:
+ * Performs the heavy computation for the reference-summary (and legacy facet-summary) extra result. Instances are
+ * created during the planning phase by {@link io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator}
+ * and {@link io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator}; the
+ * actual work is deferred to {@link #fabricate(io.evitadb.core.query.QueryExecutionContext)}.
  *
- * - from all gathered {@link FacetReferenceIndex} collect all facets organized into respective groups
- * - it merges all facets from all indexes by {@link OrFormula} so that it has full group-facet-entityId information
- * - each facet statistics is combined by {@link AndFormula} with {@link #filterFormula} that contains the output of the
- * filtered query excluding user-defined parts (e.g. without subtrees in {@link UserFilter} query)
- * - the result allows to list all facets that correspond to the result entities that returned as the query response
+ * **Facet statistics pipeline** (first phase of fabrication):
  *
- * When requested {@link RequestImpact} is computed for each facet that is not already requested and computes
- * potential the difference in the returned entities count should this facet be selected.
+ * - Gathers all {@link FacetReferenceIndex} entries from the query's target indexes.
+ * - Merges per-index data via {@link OrFormula} to produce a complete group-facet → entity PK mapping.
+ * - Intersects each facet's entity PK set with {@link #filterFormula} to count only entities in the current
+ *   result, and with {@link #filterFormulaWithoutUserFilter} to compute impact projections.
+ *
+ * **Histogram injection** (second phase — only when histogram requests are registered):
+ *
+ * - After the facet statistics map is assembled, {@link ReferenceHistogramAccumulator#injectHistograms} rebuilds
+ *   each reference's group-statistics collection to attach computed histogram DTOs.
+ * - For grouped references, one histogram is computed per {@link io.evitadb.index.ReducedGroupEntityIndex};
+ *   for non-grouped references, one histogram is computed from the
+ *   {@link io.evitadb.index.ReferencedTypeEntityIndex}.
+ * - Groups that have histogram data but no facets receive a synthetic {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics}
+ *   entry so they appear in the response.
+ *
+ * **Adapter pattern** — the concrete extra-result DTO ({@link ReferenceSummary} vs. the deprecated
+ * {@link io.evitadb.api.requestResponse.extraResult.FacetSummary}) is determined by {@link #resultAdapter},
+ * which is injected at construction time by the translator. A mixed request (both deprecated and canonical
+ * constraints in the same query) creates two independent producer instances, one per adapter.
+ *
+ * When requested, {@link RequestImpact} is computed for each facet that is not already requested and estimates
+ * the potential change in the returned entity count should that facet be added to the filter.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@SuppressWarnings("deprecation")
 public class ReferenceSummaryProducer implements ExtraResultProducer {
 	private static final String ERROR_SANITY_CHECK = "Sanity check!";
 
@@ -133,6 +166,14 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 */
 	@Nonnull
 	private final Map<String, ReferenceSummaryRequest> referenceSummaryRequests = createLinkedHashMap(16);
+	/**
+	 * Per-reference list of histogram requests registered by the {@code histogramStatistics} constraint translator.
+	 * The outer key is the reference name; the inner list preserves registration order so multiple requests
+	 * for the same reference (distinct histogram names) are evaluated deterministically. Duplicates for the
+	 * same histogram name on the same reference are rejected at translator time.
+	 */
+	@Nonnull
+	private final Map<String, List<HistogramRequest>> histogramRequests = createLinkedHashMap(8);
 	/**
 	 * Contains default settings for reference summary construction and entity fetching.
 	 */
@@ -251,6 +292,40 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		);
 	}
 
+	/**
+	 * Registers a histogram request for the given reference. Multiple requests for the same reference are
+	 * allowed (one per histogram index name); a second registration for the *same* `(referenceName, histogramName)`
+	 * pair whose configuration diverges from the existing one throws. Triggered by
+	 * {@link io.evitadb.core.query.extraResult.translator.reference.ReferenceHistogramStatisticsTranslator}.
+	 *
+	 * @param request the fully-resolved histogram request to register
+	 * @throws EvitaInvalidUsageException when a conflicting registration already exists
+	 */
+	public void addHistogramRequest(@Nonnull HistogramRequest request) {
+		final String referenceName = request.referenceSchema().getName();
+		final List<HistogramRequest> existing = this.histogramRequests.computeIfAbsent(
+			referenceName, k -> new ArrayList<>(4)
+		);
+		for (final HistogramRequest already : existing) {
+			if (already.histogramName().equals(request.histogramName())) {
+				if (already.bucketCount() != request.bucketCount()
+					|| already.behavior() != request.behavior()
+					|| !Objects.equals(already.entityFetch(), request.entityFetch())) {
+					throw new EvitaInvalidUsageException(
+						"Histogram `" + request.histogramName() + "` on reference `" + referenceName +
+							"` is requested with conflicting parameters (bucket count, behavior or entity fetch)."
+					);
+				}
+				return;
+			}
+		}
+		existing.add(request);
+	}
+
+	/**
+	 * Entry point for the fabrication phase. Delegates to {@link #doFabricate} which binds the wildcard
+	 * in {@link #resultAdapter} to a fresh type variable so the intermediate map stays statically typed.
+	 */
 	@Nonnull
 	@Override
 	public EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
@@ -262,11 +337,20 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
-	 * Type-capture helper for {@link #fabricate}. Binds the wildcard stored in
-	 * {@link #resultAdapter} to a fresh type variable {@code T} so the intermediate map
-	 * produced by {@link FacetGroupStatisticsCollector} is statically typed as
-	 * {@code Map<String, Collection<T>>}, matching the adapter's
-	 * {@link ReferenceSummaryResultAdapter#createResult} signature.
+	 * Type-capture helper for {@link #fabricate}. Executes the two-phase fabrication:
+	 *
+	 * **Phase 1 — facet statistics**: streams all {@link FacetReferenceIndex} entries through
+	 * {@link FacetGroupStatisticsCollector}, which computes per-facet entity counts and impact projections
+	 * and assembles the `Map<String, Collection<T>>` keyed by reference name.
+	 *
+	 * **Phase 2 — histogram injection**: when {@link #histogramRequests} is non-empty, delegates to
+	 * {@link ReferenceHistogramAccumulator#injectHistograms} to attach computed {@link io.evitadb.api.requestResponse.extraResult.HistogramContract}
+	 * DTOs to each matching group-statistics entry. Groups that have histogram data but no facets receive a
+	 * synthetic entry.
+	 *
+	 * The type variable {@code T} binds the wildcard captured from the {@link #resultAdapter} field so that the
+	 * intermediate map and the adapter's {@link ReferenceSummaryResultAdapter#createResult} signature align
+	 * without an unchecked cast.
 	 */
 	@Nonnull
 	private <T extends ReferenceGroupStatistics> EvitaResponseExtraResult doFabricate(
@@ -279,7 +363,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		);
 		// fabrication is a little transformation hell
 		final AtomicInteger counter = new AtomicInteger();
-		final Map<String, Collection<T>> statisticsByReferenceName = this.facetIndexes
+		Map<String, Collection<T>> statisticsByReferenceName = this.facetIndexes
 			.stream()
 			// we need Stream<FacetReferenceIndex>
 			.flatMap(it -> it.values().stream())
@@ -381,6 +465,18 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 						)
 					)
 				);
+		if (!this.histogramRequests.isEmpty()) {
+			statisticsByReferenceName = ReferenceHistogramAccumulator.injectHistograms(
+				statisticsByReferenceName,
+				this.histogramRequests,
+				this.filterFormulaWithoutUserFilter,
+				context,
+				resultAdapter,
+				referenceName -> ofNullable(this.referenceSummaryRequests.get(referenceName))
+					.map(ReferenceSummaryRequest::facetSorter)
+					.orElse(null)
+			);
+		}
 		return resultAdapter.createResult(statisticsByReferenceName);
 	}
 
@@ -829,12 +925,13 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 								referenceSchema,
 								groupEntity,
 								entityMatchingAnyOfGroupFacet,
-								facetStatistics
+								facetStatistics,
+								Map.of()
 							);
 						}
 					})
 					.filter(Objects::nonNull)
-					.filter(it -> !it.getFacetStatistics().isEmpty())
+					.filter(it -> !it.getFacetStatistics().isEmpty() || !it.getHistogramStatistics().isEmpty())
 					.collect(Collectors.toList());
 			};
 		}
@@ -972,7 +1069,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 * Contains bitmaps of all entity primary keys that posses this facet. All bitmaps need to be combined with OR
 		 * relation in order to get full entity primary key list.
 		 */
-		private List<Bitmap> facetEntityIds = new LinkedList<>();
+		private List<Bitmap> facetEntityIds = new ArrayList<>(4);
 
 		public FacetAccumulator(
 			@Nonnull ReferenceSchemaContract referenceSchema,
@@ -1167,6 +1264,50 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		@Nonnull FacetStatisticsDepth facetStatisticsDepth
 	) {
 
+	}
+
+	/**
+	 * Immutable descriptor of a single `histogramStatistics` request registered against a reference by the
+	 * translator. Holds everything the computer needs to derive bucket data at fabrication time without
+	 * having to re-inspect the request tree.
+	 *
+	 * @param referenceSchema  the reference on which this histogram is defined
+	 * @param histogramName    the histogram index name (must exist on the reference schema in every active scope)
+	 * @param bucketCount      number of buckets requested by the client
+	 * @param behavior         histogram-behavior flag controlling bucket layout and empty-bucket suppression
+	 * @param locale           locale used to pick the correct {@code FilterIndex} when the source attribute is
+	 *                         localized; `null` otherwise
+	 * @param valueDescriptor  resolved metadata about the source attribute (entity vs reference, type, default)
+	 * @param entityFetch      optional `EntityFetch` controlling boundary entity richness; `null` → plain
+	 *                         {@code EntityReference} classifier
+	 * @param requestedRange   optional `[lo, hi]` range extracted from
+	 *                         {@code userFilter → referenceHaving → entityHaving → attributeBetween}; feeds the
+	 *                         per-bucket {@code requested} flag. `null` means no range restriction was requested.
+	 */
+	public record HistogramRequest(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String histogramName,
+		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
+		@Nullable Locale locale,
+		@Nonnull HistogramValueDescriptor valueDescriptor,
+		@Nullable EntityFetch entityFetch,
+		@Nullable RequestedBucketRange requestedRange
+	) {
+	}
+
+	/**
+	 * Inclusive-exclusive numeric range `[from, to)` extracted from a
+	 * {@code userFilter → referenceHaving(refName, entityHaving(attributeBetween(from, to)))} subtree.
+	 * Used by the computer to flag per-bucket {@code requested} at bucket-value granularity.
+	 *
+	 * @param from lower bound (inclusive); `null` means "no lower bound"
+	 * @param to   upper bound (inclusive); `null` means "no upper bound"
+	 */
+	public record RequestedBucketRange(
+		@Nullable BigDecimal from,
+		@Nullable BigDecimal to
+	) {
 	}
 
 }

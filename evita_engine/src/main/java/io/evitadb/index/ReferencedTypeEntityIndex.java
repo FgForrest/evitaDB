@@ -84,7 +84,13 @@ import static java.util.Optional.ofNullable;
  * relation. We need this index to be able to navigate to {@link AbstractReducedEntityIndex} that were specially created to
  * speed up queries that involve the references.
  *
- * This index doesn't maintain the prices of entities - only the attributes present on relations.
+ * This index doesn't maintain the prices of entities — only the attributes present on relations.
+ *
+ * **Histogram support** — as of 2026 this index also implements {@link HistogramCapableEntityIndex}, which means
+ * it stores per-reference histogram data in a `histogramIndexes` map ({@code Map<String, HistogramIndex>}). These
+ * histogram indexes back the {@link io.evitadb.api.query.require.ReferenceHistogramStatistics} computation for
+ * non-grouped references: the accumulator calls {@link #getHistogramFilterIndex(String, Locale)} to obtain the
+ * source {@link io.evitadb.index.attribute.FilterIndex} and runs histogram bucket computation against it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -303,6 +309,19 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	@Nonnull
 	public Set<Integer> getAllTrackedReferencedEntityPrimaryKeys() {
 		return this.indexPrimaryKeyCardinality.getAllTrackedReferencedEntityPrimaryKeys();
+	}
+
+	/**
+	 * Returns all referenced entity primary keys tracked by this index as a {@link Bitmap}. This is the
+	 * bitmap-typed companion to {@link #getAllTrackedReferencedEntityPrimaryKeys()}. Used at query time
+	 * by histogram boundary resolution to intersect with the source attribute's
+	 * {@link FilterIndex#getRecordsEqualToFormula} bitmap.
+	 *
+	 * @return bitmap of all tracked referenced entity primary keys
+	 */
+	@Nonnull
+	public Bitmap getAllReferencedPrimaryKeys() {
+		return this.indexPrimaryKeyCardinality.getAllTrackedReferencedEntityPrimaryKeysAsBitmap();
 	}
 
 	/**

@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
@@ -65,13 +66,15 @@ public final class ReferenceSummaryAdapter implements ReferenceSummaryResultAdap
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable EntityClassifier groupEntity,
 		int count,
-		@Nonnull Map<Integer, FacetStatistics> facetStatistics
+		@Nonnull Map<Integer, FacetStatistics> facetStatistics,
+		@Nonnull Map<String, HistogramContract> histogramStatistics
 	) {
 		return new ReferenceGroupStatistics(
 			referenceSchema,
 			groupEntity,
 			count,
-			facetStatistics
+			facetStatistics,
+			histogramStatistics
 		);
 	}
 

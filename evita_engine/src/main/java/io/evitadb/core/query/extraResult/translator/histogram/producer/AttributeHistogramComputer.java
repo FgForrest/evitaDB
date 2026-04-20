@@ -45,6 +45,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -403,9 +404,17 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			);
 
 			if (histogramCruncher != null) {
+				// capture raw (native-typed) min/max from the narrowed buckets so downstream callers (e.g.
+				// ReferenceHistogramAccumulator resolving boundary entities via FilterIndex.getRecordsEqualTo)
+				// can look up by the exact stored value without BigDecimal ↔ native-type coercion, which would
+				// lose precision for BigDecimal attributes whose stored scale exceeds indexedDecimalPlaces
+				final Serializable rawMin = histogramBuckets[0].getValue();
+				final Serializable rawMax = histogramBuckets[histogramBuckets.length - 1].getValue();
 				this.memoizedResult = new CacheableHistogram(
 					histogramCruncher.getHistogram(),
-					histogramCruncher.getMaxValue()
+					histogramCruncher.getMaxValue(),
+					rawMin,
+					rawMax
 				);
 			} else {
 				this.memoizedResult = CacheableHistogramContract.EMPTY;

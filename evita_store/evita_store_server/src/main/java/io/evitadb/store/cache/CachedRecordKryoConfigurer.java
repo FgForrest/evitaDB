@@ -37,6 +37,7 @@ import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesAndFi
 import io.evitadb.store.cache.serializer.FlattenedFormulaWithFilteredPricesSerializer;
 import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer;
 import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer_2026_1;
+import io.evitadb.store.cache.serializer.FlattenedHistogramComputerSerializer_2026_2;
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import lombok.RequiredArgsConstructor;
 
@@ -61,7 +62,8 @@ class CachedRecordKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			FlattenedHistogramComputer.class,
 			new SerialVersionBasedSerializer<>(new FlattenedHistogramComputerSerializer(), FlattenedHistogramComputer.class)
-				.addBackwardCompatibleSerializer(4049228240087093145L, new FlattenedHistogramComputerSerializer_2026_1()),
+				.addBackwardCompatibleSerializer(4049228240087093145L, new FlattenedHistogramComputerSerializer_2026_1())
+				.addBackwardCompatibleSerializer(4049228240087093146L, new FlattenedHistogramComputerSerializer_2026_2()),
 			204
 		);
 	}

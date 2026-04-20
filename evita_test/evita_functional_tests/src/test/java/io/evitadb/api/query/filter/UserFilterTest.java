@@ -136,17 +136,6 @@ class UserFilterTest {
 		}
 
 		@Test
-		@DisplayName("should reject ReferenceHaving as child")
-		void shouldRejectReferenceHaving() {
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> new UserFilter(
-					referenceHaving("brand", attributeEquals("code", "nike"))
-				)
-			);
-		}
-
-		@Test
 		@DisplayName("should reject nested UserFilter as child")
 		void shouldRejectNestedUserFilter() {
 			assertThrows(
@@ -155,6 +144,80 @@ class UserFilterTest {
 					new UserFilter(attributeEquals("abc", "def"))
 				)
 			);
+		}
+
+		@Test
+		@DisplayName("should still forbid locale, price, hierarchy and self-nest one per class")
+		void shouldStillForbidLocalePriceHierarchyAndSelfNest() {
+			// EntityLocaleEquals
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(entityLocaleEquals(Locale.ENGLISH))
+			);
+			// PriceBetween is allowed — it's the textbook user-controlled constraint
+			// PriceInCurrency
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(priceInCurrency(Currency.getInstance("USD")))
+			);
+			// PriceInPriceLists
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(priceInPriceLists("basic"))
+			);
+			// PriceValidIn
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(priceValidInNow())
+			);
+			// HierarchyWithin
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(
+					hierarchyWithin("category", entityPrimaryKeyInSet(1))
+				)
+			);
+			// HierarchyWithinRoot
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(hierarchyWithinRoot("category"))
+			);
+			// UserFilter self-nest
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(
+					new UserFilter(attributeEquals("abc", "def"))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept ReferenceHaving inside userFilter")
+		void shouldAcceptReferenceHavingInsideUserFilter() {
+			// Lifted in G.2: ReferenceHaving is now allowed as an always-applied user-controlled
+			// constraint — it does NOT participate in facet-summary impact enumeration.
+			final UserFilter userFilter = new UserFilter(
+				referenceHaving("r", attributeBetween("a", 1, 10))
+			);
+			assertNotNull(userFilter);
+			assertEquals(1, userFilter.getChildrenCount());
+		}
+
+		@Test
+		@DisplayName("should accept nested ReferenceHaving inside userFilter")
+		void shouldAcceptNestedReferenceHavingInsideUserFilter() {
+			final UserFilter userFilter = new UserFilter(
+				and(
+					referenceHaving(
+						"r1", entityHaving(attributeBetween("a", 1, 10))
+					),
+					referenceHaving(
+						"r2", attributeBetween("b", 20, 30)
+					)
+				)
+			);
+			assertNotNull(userFilter);
+			assertEquals(1, userFilter.getChildrenCount());
 		}
 
 		@Test
@@ -256,7 +319,7 @@ class UserFilterTest {
 		void shouldReturnFilterConstraintClassAsType() {
 			final UserFilter userFilter = new UserFilter(attributeEquals("abc", "def"));
 
-			assertEquals(FilterConstraint.class, userFilter.getType());
+			assertSame(FilterConstraint.class, userFilter.getType());
 		}
 
 		@Test
