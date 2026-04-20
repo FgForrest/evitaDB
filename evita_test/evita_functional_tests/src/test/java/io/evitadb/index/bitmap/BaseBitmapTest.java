@@ -23,10 +23,12 @@
 
 package io.evitadb.index.bitmap;
 
-import io.evitadb.utils.Functions;
+import com.carrotsearch.hppc.predicates.IntPredicate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.roaringbitmap.RoaringBitmap;
 
 import java.util.PrimitiveIterator.OfInt;
@@ -342,7 +344,7 @@ class BaseBitmapTest {
 		@DisplayName("should remove none on small bitmap")
 		void shouldRemoveAllWithPredicateOnSmallBitmapRemovingNone() {
 			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.removeAll(Functions.intAlwaysFalse());
+			tested.removeAll((IntPredicate) value -> false);
 			assertEquals(4, tested.size());
 			assertArrayEquals(new int[]{3, 5, 8, 10}, tested.getArray());
 		}
@@ -438,7 +440,7 @@ class BaseBitmapTest {
 				large.add(i);
 			}
 			assertEquals(150, large.size());
-			large.removeAll(Functions.intAlwaysFalse());
+			large.removeAll((IntPredicate) value -> false);
 			assertEquals(150, large.size());
 			final int[] result = large.getArray();
 			for (int i = 0; i < result.length; i++) {
@@ -634,7 +636,7 @@ class BaseBitmapTest {
 		@DisplayName("should retain none on small bitmap")
 		void shouldRetainAllWithPredicateOnSmallBitmapRetainingNone() {
 			final BaseBitmap tested = new BaseBitmap(3, 5, 8, 10);
-			tested.retainAll(Functions.intAlwaysFalse());
+			tested.retainAll((IntPredicate) value -> false);
 			assertEquals(0, tested.size());
 			assertArrayEquals(new int[]{}, tested.getArray());
 		}
@@ -733,7 +735,7 @@ class BaseBitmapTest {
 				large.add(i);
 			}
 			assertEquals(150, large.size());
-			large.retainAll(Functions.intAlwaysFalse());
+			large.retainAll((IntPredicate) value -> false);
 			assertEquals(0, large.size());
 			assertArrayEquals(new int[]{}, large.getArray());
 		}
@@ -975,6 +977,198 @@ class BaseBitmapTest {
 			bitmap.retainAll(value -> value < 0);
 			assertEquals(2, bitmap.size());
 			assertArrayEquals(new int[]{-10, -5}, bitmap.getArray());
+		}
+	}
+
+	/**
+	 * Parameterized boundary-size tests covering container-boundary transitions of the underlying
+	 * {@link org.roaringbitmap.RoaringBitmap}. Three representative sizes — below container
+	 * threshold (16), at threshold (64), and well above it (1024) — are enough to catch bucket /
+	 * container-flip regressions; the 63/64/65 cadence is already covered by dedicated tests above.
+	 */
+	@Nested
+	@DisplayName("Parameterized boundary sizes")
+	class ParameterizedBoundarySizes {
+
+		@ParameterizedTest(name = "removeAll even values on bitmap of size {0}")
+		@ValueSource(ints = {16, 64, 1024})
+		@DisplayName("should remove even values correctly across representative sizes")
+		void shouldRemoveEvenValuesAtVariousSizes(int size) {
+			final BaseBitmap bitmap = new BaseBitmap();
+			int expectedOdd = 0;
+			for (int i = 1; i <= size; i++) {
+				bitmap.add(i);
+				if (i % 2 != 0) {
+					expectedOdd++;
+				}
+			}
+			assertEquals(size, bitmap.size());
+
+			bitmap.removeAll(value -> value % 2 == 0);
+
+			assertEquals(expectedOdd, bitmap.size(),
+				"All odd numbers in 1.." + size + " must remain");
+			for (final int value : bitmap.getArray()) {
+				assertNotEquals(0, value % 2, "Value " + value + " is even but should have been removed");
+			}
+		}
+
+		@ParameterizedTest(name = "retainAll divisible-by-3 values on bitmap of size {0}")
+		@ValueSource(ints = {16, 64, 1024})
+		@DisplayName("should retain divisible-by-3 values correctly across representative sizes")
+		void shouldRetainDivisibleByThreeAtVariousSizes(int size) {
+			final BaseBitmap bitmap = new BaseBitmap();
+			int expectedMatches = 0;
+			for (int i = 1; i <= size; i++) {
+				bitmap.add(i);
+				if (i % 3 == 0) {
+					expectedMatches++;
+				}
+			}
+
+			bitmap.retainAll(value -> value % 3 == 0);
+
+			assertEquals(expectedMatches, bitmap.size(),
+				"Only multiples of 3 in 1.." + size + " must remain");
+			for (final int value : bitmap.getArray()) {
+				assertEquals(0, value % 3,
+					"Value " + value + " is not a multiple of 3 but was retained");
+			}
+		}
+	}
+
+	/**
+	 * MAX/MIN boundary value tests. `BaseBitmap` stores ints in a `RoaringBitmap` whose cardinality
+	 * is backed by 32-bit container keys. These tests pin down behaviour at `Integer.MIN_VALUE` and
+	 * `Integer.MAX_VALUE` so any regression affecting sign-handling surfaces immediately.
+	 */
+	@Nested
+	@DisplayName("Integer boundary values")
+	class IntegerBoundaryValuesTest {
+
+		@Test
+		@DisplayName("should add and find Integer.MAX_VALUE")
+		void shouldAddAndFindIntegerMaxValue() {
+			final BaseBitmap bitmap = new BaseBitmap();
+			bitmap.add(Integer.MAX_VALUE);
+
+			assertEquals(1, bitmap.size());
+			assertTrue(bitmap.contains(Integer.MAX_VALUE));
+			assertEquals(Integer.MAX_VALUE, bitmap.getLast());
+			assertEquals(Integer.MAX_VALUE, bitmap.getFirst());
+		}
+
+		@Test
+		@DisplayName("should add and find Integer.MIN_VALUE")
+		void shouldAddAndFindIntegerMinValue() {
+			final BaseBitmap bitmap = new BaseBitmap();
+			bitmap.add(Integer.MIN_VALUE);
+
+			assertEquals(1, bitmap.size());
+			assertTrue(bitmap.contains(Integer.MIN_VALUE));
+		}
+
+		@Test
+		@DisplayName("should sort MIN, zero, MAX in signed order")
+		void shouldSortMinZeroMaxInSignedOrder() {
+			final BaseBitmap bitmap = new BaseBitmap(Integer.MAX_VALUE, -18, 0, 19, Integer.MIN_VALUE);
+
+			assertArrayEquals(
+				new int[]{Integer.MIN_VALUE, -18, 0, 19, Integer.MAX_VALUE},
+				bitmap.getArray(),
+				"BaseBitmap must produce a signed-sorted array"
+			);
+		}
+
+		@Test
+		@DisplayName("should return purely negative values in signed ascending order")
+		void shouldReturnPurelyNegativeInSignedOrder() {
+			final BaseBitmap bitmap = new BaseBitmap(-1, -10, -5);
+
+			assertArrayEquals(new int[]{-10, -5, -1}, bitmap.getArray());
+		}
+
+		@Test
+		@DisplayName("should handle wrap-around pair [-1, 0] in signed order")
+		void shouldHandleWrapAroundPairInSignedOrder() {
+			final BaseBitmap bitmap = new BaseBitmap(-1, 0);
+
+			assertArrayEquals(new int[]{-1, 0}, bitmap.getArray());
+		}
+
+		@Test
+		@DisplayName("should preserve signed order across the MAX_VALUE → MIN_VALUE boundary")
+		void shouldPreserveSignedOrderAcrossBoundary() {
+			final BaseBitmap bitmap = new BaseBitmap(
+				Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE - 1, Integer.MAX_VALUE
+			);
+
+			assertArrayEquals(
+				new int[]{Integer.MIN_VALUE, -1, 0, Integer.MAX_VALUE - 1, Integer.MAX_VALUE},
+				bitmap.getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("should remove MAX_VALUE when predicate targets it")
+		void shouldRemoveMaxValueWhenPredicateTargetsIt() {
+			final BaseBitmap bitmap = new BaseBitmap(1, 2, Integer.MAX_VALUE);
+
+			bitmap.removeAll(value -> value == Integer.MAX_VALUE);
+
+			assertEquals(2, bitmap.size());
+			assertFalse(bitmap.contains(Integer.MAX_VALUE));
+			assertArrayEquals(new int[]{1, 2}, bitmap.getArray());
+		}
+
+		@Test
+		@DisplayName("should retain MIN_VALUE when predicate targets only negatives")
+		void shouldRetainMinValueWhenPredicateTargetsNegatives() {
+			final BaseBitmap bitmap = new BaseBitmap(Integer.MIN_VALUE, -1, 0, 1);
+
+			bitmap.retainAll(value -> value < 0);
+
+			assertArrayEquals(new int[]{Integer.MIN_VALUE, -1}, bitmap.getArray());
+		}
+	}
+
+	/**
+	 * Tests for empty-varargs constructions. A bare `new BaseBitmap()` is already covered in the
+	 * `ConstructionTest` nested class; these tests pin the behaviour of explicit empty varargs arrays
+	 * and the zero-element `addAll` / `removeAll` paths, which share a separate code path.
+	 */
+	@Nested
+	@DisplayName("Empty varargs")
+	class EmptyVarargsTest {
+
+		@Test
+		@DisplayName("should create empty bitmap from explicit empty int array")
+		void shouldCreateEmptyBitmapFromEmptyArray() {
+			final BaseBitmap bitmap = new BaseBitmap(new int[0]);
+
+			assertTrue(bitmap.isEmpty());
+			assertEquals(0, bitmap.size());
+			assertArrayEquals(new int[0], bitmap.getArray());
+		}
+
+		@Test
+		@DisplayName("should no-op on addAll with empty varargs")
+		void shouldNoOpOnAddAllWithEmptyArray() {
+			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
+			bitmap.addAll(new int[0]);
+
+			assertEquals(3, bitmap.size());
+			assertArrayEquals(new int[]{1, 2, 3}, bitmap.getArray());
+		}
+
+		@Test
+		@DisplayName("should no-op on removeAll with empty varargs")
+		void shouldNoOpOnRemoveAllWithEmptyArray() {
+			final BaseBitmap bitmap = new BaseBitmap(1, 2, 3);
+			bitmap.removeAll(new int[0]);
+
+			assertEquals(3, bitmap.size());
+			assertArrayEquals(new int[]{1, 2, 3}, bitmap.getArray());
 		}
 	}
 

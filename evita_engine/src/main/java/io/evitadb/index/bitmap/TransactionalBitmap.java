@@ -382,8 +382,7 @@ public class TransactionalBitmap
 
 	@Override
 	public int[] getArray() {
-		final RoaringBitmap theBitmap = getTheCurrentBitmap();
-		return theBitmap.toArray();
+		return RoaringBitmapBackedBitmap.toSignedArray(getTheCurrentBitmap());
 	}
 
 	@Nonnull

@@ -1142,6 +1142,61 @@ class TransactionalBitmapTest implements TimeBoundedTestSupport {
 		}
 	}
 
+	/**
+	 * Signed-ordering tests specific to the transactional path. The non-transactional ordering
+	 * contract is already covered by {@code BaseBitmapTest}; these two tests pin the behaviours
+	 * that are unique to {@link TransactionalBitmap}: ordering preserved while a transaction is
+	 * still open (before commit/rollback) and after commit merges the transactional layer back
+	 * into the persistent bitmap.
+	 */
+	@Nested
+	@DisplayName("Signed ordering for getArray() — transactional paths")
+	class SignedOrderingTest {
+
+		@Test
+		@DisplayName("should return signed order for negatives added inside an open transaction")
+		void shouldReturnSignedOrderInsideTransaction() {
+			final TransactionalBitmap bitmap = new TransactionalBitmap(0, 5);
+
+			assertStateAfterRollback(
+				bitmap,
+				original -> {
+					original.add(-3);
+					original.add(-1);
+					assertArrayEquals(
+						new int[]{-3, -1, 0, 5},
+						original.getArray(),
+						"In-transaction getArray must expose signed order"
+					);
+				},
+				(original, discarded) -> assertArrayEquals(
+					new int[]{0, 5},
+					original.getArray(),
+					"Post-rollback getArray must expose the original signed order"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should return signed order after committed negative additions")
+		void shouldReturnSignedOrderAfterCommit() {
+			final TransactionalBitmap bitmap = new TransactionalBitmap(0, 5);
+
+			assertStateAfterCommit(
+				bitmap,
+				original -> {
+					original.add(-3);
+					original.add(Integer.MIN_VALUE);
+				},
+				(original, committed) -> assertArrayEquals(
+					new int[]{Integer.MIN_VALUE, -3, 0, 5},
+					committed.getArray(),
+					"Post-commit getArray must expose signed order"
+				)
+			);
+		}
+	}
+
 	@Nested
 	@DisplayName("BitmapChanges memoization")
 	class BitmapChangesMemoizationTest {

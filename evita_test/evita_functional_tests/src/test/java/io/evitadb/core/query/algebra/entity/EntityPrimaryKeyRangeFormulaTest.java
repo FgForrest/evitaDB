@@ -324,8 +324,7 @@ class EntityPrimaryKeyRangeFormulaTest {
 
 			final Bitmap result = formula.compute();
 
-			// RoaringBitmap returns values in unsigned order: positives first, then negatives
-			assertArrayEquals(new int[]{0, 1, 3, -3, -1}, result.getArray());
+			assertArrayEquals(new int[]{-3, -1, 0, 1, 3}, result.getArray());
 		}
 
 		@Test
@@ -364,8 +363,7 @@ class EntityPrimaryKeyRangeFormulaTest {
 
 			final Bitmap result = formula.compute();
 
-			// RoaringBitmap returns values in unsigned order: positives first, then negatives
-			assertArrayEquals(new int[]{0, 1, -1}, result.getArray());
+			assertArrayEquals(new int[]{-1, 0, 1}, result.getArray());
 		}
 
 		@Test
@@ -425,10 +423,8 @@ class EntityPrimaryKeyRangeFormulaTest {
 
 			final Bitmap result = formula.compute();
 
-			// RoaringBitmap returns values in unsigned order:
-			// 0, 1, MAX_VALUE (low unsigned), MIN_VALUE, -1 (high unsigned)
 			assertArrayEquals(
-				new int[]{0, 1, Integer.MAX_VALUE, Integer.MIN_VALUE, -1},
+				new int[]{Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE},
 				result.getArray()
 			);
 		}
@@ -459,8 +455,7 @@ class EntityPrimaryKeyRangeFormulaTest {
 
 			final Bitmap result = formula.compute();
 
-			// RoaringBitmap returns values in unsigned order: 0 first, then -1
-			assertArrayEquals(new int[]{0, -1}, result.getArray());
+			assertArrayEquals(new int[]{-1, 0}, result.getArray());
 		}
 
 		@Test
