@@ -1056,13 +1056,23 @@ public class EvitaParameterResolver
 									evitaServer = openWebApi(evita, apiOptions);
 								}
 								// call method that initializes the dataset
-								final Object testClassInstance = extensionContext.getRequiredTestInstance();
 								final Object methodResult;
 								final CatalogInitMethod catalogInitMethod = dataSetInfo.initMethod();
 								if (catalogInitMethod == null) {
 									methodResult = null;
 								} else {
 									final Method initMethod = catalogInitMethod.method();
+									// when the current test lives in a @Nested class, getRequiredTestInstance()
+									// returns the nested-class instance; the @DataSet method may be declared on
+									// an outer/abstract enclosing class. Locate the instance whose class matches
+									// the declaring class so Method.invoke does not fail with
+									// "object is not an instance of declaring class".
+									final Class<?> declaringClass = initMethod.getDeclaringClass();
+									final Optional<?> enclosingInstance = extensionContext.getTestInstances()
+										.flatMap(instances -> instances.findInstance(declaringClass));
+									final Object testClassInstance = enclosingInstance.isPresent()
+										? enclosingInstance.get()
+										: extensionContext.getRequiredTestInstance();
 									final LinkedHashMap<String, Object> argumentDictionary = createLinkedHashMap(
 										property(DATA_NAME_EVITA, evita),
 										property(DATA_NAME_CATALOG_NAME, dataSetInfo.catalogName()),
