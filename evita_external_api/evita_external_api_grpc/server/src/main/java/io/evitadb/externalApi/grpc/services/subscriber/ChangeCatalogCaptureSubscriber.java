@@ -31,14 +31,12 @@ import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.utils.VersionUtils.SemVer;
-import io.grpc.stub.StreamObserver;
+import io.grpc.stub.ServerCallStreamObserver;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.Flow.Subscription;
 import java.util.function.LongSupplier;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
@@ -66,8 +64,7 @@ public class ChangeCatalogCaptureSubscriber
 	public ChangeCatalogCaptureSubscriber(
 		@Nonnull Scheduler scheduler,
 		@Nonnull String catalogName,
-		@Nonnull StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver,
-		@Nonnull CompletableFuture<Subscription> subscriptionFuture,
+		@Nonnull ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver,
 		@Nullable SemVer clientVersion,
 		@Nonnull LongSupplier versionSupplier,
 		@Nonnull ServiceRequestContext serviceContext
@@ -77,7 +74,6 @@ public class ChangeCatalogCaptureSubscriber
 			catalogName,
 			"Subscriber Heartbeat",
 			responseObserver,
-			subscriptionFuture,
 			versionSupplier,
 			serviceContext
 		);

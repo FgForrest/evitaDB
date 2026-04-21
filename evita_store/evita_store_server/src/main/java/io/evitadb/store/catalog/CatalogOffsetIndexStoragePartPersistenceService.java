@@ -53,6 +53,7 @@ import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.utils.Assert;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -73,6 +74,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndexStoragePartPersistenceService
 	implements CatalogStoragePartPersistenceService<LogFileRecordReference, CollectionFileReference, PersistentStorageDescriptor> {
 
@@ -153,6 +155,20 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	) {
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = previous.getCatalogHeader(catalogVersion);
 		final OffsetIndex previousOffsetIndex = previous.offsetIndex;
+		// detection probe: the new persistence service's compressors are seeded from the cached catalog header,
+		// which should never lag behind the live write compressor (keys are append-only, and every storeHeader
+		// refreshes the cached header). If the cached seed is smaller than what the previous offset index
+		// currently knows, the new service would start with fewer keys than the old one — which would then
+		// surface later as a "There is no key for id N!" failure against a record written with those missing ids
+		final int seedSize = catalogHeader.compressedKeys().size();
+		final int liveSize = previousOffsetIndex.getCompressedKeys().size();
+		if (seedSize < liveSize) {
+			log.error(
+				"KeyCompressor seed regression while creating persistence service for catalog `{}`: " +
+					"cached header seed size={} < previous live write-compressor size={} (catalogVersion={})",
+				catalogName, seedSize, liveSize, catalogVersion
+			);
+		}
 		final OffsetIndexDescriptor offsetIndexDescriptor = new OffsetIndexDescriptor(
 			previousOffsetIndex.getVersion(),
 			previousOffsetIndex.getFileOffsetIndexLocation(),

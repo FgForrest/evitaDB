@@ -1812,7 +1812,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 						"In warming-up mode no transaction is expected to be opened!"
 					);
 					final ProgressingFuture<Void> flushFuture = this.catalog.flush();
-					flushFuture.execute(this.evita.getTransactionExecutor());
+					// register the completion callback BEFORE dispatching to the executor — otherwise a
+					// synchronous RejectedExecutionException (e.g. during evitaDB shutdown) would escape
+					// without the callback ever being attached, leaving `commitProgress` pending forever
 					flushFuture.whenComplete(
 							(__, throwable) -> {
 								if (throwable == null) {
@@ -1824,7 +1826,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 												this.catalog.getSchema().version()
 											)
 										);
-									} catch (Exception ex) {
+									} catch (Throwable ex) {
+										// catch Throwable, not just Exception — anything escaping
+										// this callback would land on the returned CompletionStage
+										// (which we discard), silently leaving commitProgress
+										// pending forever. Route every escape, including Errors,
+										// to completeExceptionally so waiters are unblocked
 										this.commitProgress.completeExceptionally(ex);
 									}
 								} else {
@@ -1832,6 +1839,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 								}
 							}
 						);
+					try {
+						flushFuture.execute(this.evita.getTransactionExecutor());
+					} catch (Throwable ex) {
+						// execute() threw synchronously (e.g. RejectedExecutionException from a shut-down
+						// executor) — the flush will never run, so we must fail the progress record
+						// ourselves to unblock any client awaiting it
+						this.commitProgress.completeExceptionally(ex);
+						throw ex;
+					}
 				} else {
 					if (transaction != null) {
 						// close transaction at the end of this block

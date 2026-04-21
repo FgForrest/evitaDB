@@ -884,8 +884,9 @@ public class EvitaClient implements EvitaContract {
 								this.catalogSchemaVersion = grpcResponse.getCatalogSchemaVersion().getValue();
 							}
 
-							// postpone timeout with each message received
-							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, streamingTimeout);
+							// restart the response deadline from now so a silent stream unblocks the caller
+							// within `streamingTimeout` of the last event, regardless of how many have arrived
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, streamingTimeout);
 
 							if (progressObserver != null) {
 								progressObserver.accept(grpcResponse.getProgressInPercent());

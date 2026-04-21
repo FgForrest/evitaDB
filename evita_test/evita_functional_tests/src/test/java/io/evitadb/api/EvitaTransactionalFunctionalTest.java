@@ -911,15 +911,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				assertEquals(
 					replaceTimeStampsAndUuids(
 						"""
-							Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME(3 mutations, 1 KB):
+							Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME (3 mutations, 1 KB):
 								 - changes in `PRODUCT`: 3 upserted entities
-							Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 54, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 1 KB):
+							Catalog version: 54, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 54, committed at REPLACED_OFFSET_DATE_TIME (4 mutations, 1 KB):
 								 - changes in `PRODUCT`: 4 upserted entities
-							Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 50, committed at REPLACED_OFFSET_DATE_TIME(3 mutations, 1 KB):
+							Catalog version: 50, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 50, committed at REPLACED_OFFSET_DATE_TIME (3 mutations, 1 KB):
 								 - changes in `PRODUCT`: 3 upserted entities
-							Catalog version: 45, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 45, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+							Catalog version: 45, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 45, committed at REPLACED_OFFSET_DATE_TIME (4 mutations, 2 KB):
 								 - changes in `PRODUCT`: 4 upserted entities
-							Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 41, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+							Catalog version: 41, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 41, committed at REPLACED_OFFSET_DATE_TIME (4 mutations, 2 KB):
 								 - changes in `PRODUCT`: 4 upserted entities"""
 					),
 					replaceTimeStampsAndUuids(
@@ -933,17 +933,17 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				assertEquals(
 					replaceTimeStampsAndUuids(
 						"""
-							Catalog version: 42, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 42, committed at REPLACED_OFFSET_DATE_TIME(5 mutations, 2 KB):
+							Catalog version: 42, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 42, committed at REPLACED_OFFSET_DATE_TIME (5 mutations, 2 KB):
 								 - changes in `PRODUCT`: 5 upserted entities
-							Catalog version: 43, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 43, committed at REPLACED_OFFSET_DATE_TIME(1 mutations, 566 B):
+							Catalog version: 43, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 43, committed at REPLACED_OFFSET_DATE_TIME (1 mutations, 566 B):
 								 - changes in `PRODUCT`: 1 upserted entities
-							Catalog version: 51, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 51, committed at REPLACED_OFFSET_DATE_TIME(2 mutations, 1 KB):
+							Catalog version: 51, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 51, committed at REPLACED_OFFSET_DATE_TIME (2 mutations, 1 KB):
 								 - changes in `PRODUCT`: 2 upserted entities
-							Catalog version: 55, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 55, committed at REPLACED_OFFSET_DATE_TIME(1 mutations, 590 B):
+							Catalog version: 55, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 55, committed at REPLACED_OFFSET_DATE_TIME (1 mutations, 590 B):
 								 - changes in `PRODUCT`: 1 upserted entities
-							Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME(3 mutations, 1 KB):
+							Catalog version: 59, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 59, committed at REPLACED_OFFSET_DATE_TIME (3 mutations, 1 KB):
 								 - changes in `PRODUCT`: 3 upserted entities
-							Catalog version: 46, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 46, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+							Catalog version: 46, processed at REPLACED_OFFSET_DATE_TIME in reversible transaction REPLACED_UUID, changes: Transaction to version: 46, committed at REPLACED_OFFSET_DATE_TIME (4 mutations, 2 KB):
 								 - changes in `PRODUCT`: 4 upserted entities"""
 					),
 					replaceTimeStampsAndUuids(
@@ -964,15 +964,15 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				assertEquals(
 					replaceTimeStampsAndUuids(
 						"""
-							Catalog version: 36, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 36, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+							Catalog version: 36, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 36, committed at REPLACED_OFFSET_DATE_TIME (4 mutations, 2 KB):
 								 - changes in `PRODUCT`: 4 upserted entities
-							Catalog version: 32, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 32, committed at REPLACED_OFFSET_DATE_TIME(5 mutations, 2 KB):
+							Catalog version: 32, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 32, committed at REPLACED_OFFSET_DATE_TIME (5 mutations, 2 KB):
 								 - changes in `PRODUCT`: 5 upserted entities
-							Catalog version: 27, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 27, committed at REPLACED_OFFSET_DATE_TIME(1 mutations, 606 B):
+							Catalog version: 27, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 27, committed at REPLACED_OFFSET_DATE_TIME (1 mutations, 606 B):
 								 - changes in `PRODUCT`: 1 upserted entities
-							Catalog version: 23, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 23, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+							Catalog version: 23, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 23, committed at REPLACED_OFFSET_DATE_TIME (4 mutations, 2 KB):
 								 - changes in `PRODUCT`: 4 upserted entities
-							Catalog version: 18, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 18, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+							Catalog version: 18, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 18, committed at REPLACED_OFFSET_DATE_TIME (4 mutations, 2 KB):
 								 - changes in `PRODUCT`: 4 upserted entities"""
 					),
 					replaceTimeStampsAndUuids(
@@ -994,11 +994,11 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				assertEquals(
 					replaceTimeStampsAndUuids(
 						"""
-							Catalog version: 14, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 14, committed at REPLACED_OFFSET_DATE_TIME(4 mutations, 2 KB):
+							Catalog version: 14, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 14, committed at REPLACED_OFFSET_DATE_TIME (4 mutations, 2 KB):
 								 - changes in `PRODUCT`: 4 upserted entities
-							Catalog version: 9, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 9, committed at REPLACED_OFFSET_DATE_TIME(2 mutations, 1019 B):
+							Catalog version: 9, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 9, committed at REPLACED_OFFSET_DATE_TIME (2 mutations, 1019 B):
 								 - changes in `PRODUCT`: 2 upserted entities
-							Catalog version: 4, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 4, committed at REPLACED_OFFSET_DATE_TIME(2 mutations, 1 KB):
+							Catalog version: 4, processed at REPLACED_OFFSET_DATE_TIME in transaction REPLACED_UUID, changes: Transaction to version: 4, committed at REPLACED_OFFSET_DATE_TIME (2 mutations, 1 KB):
 								 - changes in `PRODUCT`: 2 upserted entities"""
 					),
 					replaceTimeStampsAndUuids(

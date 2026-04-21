@@ -30,14 +30,12 @@ import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
 import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
-import io.grpc.stub.StreamObserver;
+import io.grpc.stub.ServerCallStreamObserver;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.Flow.Subscription;
 import java.util.function.LongSupplier;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
@@ -57,8 +55,7 @@ public class ChangeSystemCaptureSubscriber
 
 	public ChangeSystemCaptureSubscriber(
 		@Nonnull Scheduler scheduler,
-		@Nonnull StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver,
-		@Nonnull CompletableFuture<Subscription> subscriptionFuture,
+		@Nonnull ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver,
 		@Nonnull LongSupplier versionSupplier,
 		@Nonnull ServiceRequestContext serviceContext
 	) {
@@ -67,7 +64,6 @@ public class ChangeSystemCaptureSubscriber
 			null,
 			"System Subscriber Heartbeat",
 			responseObserver,
-			subscriptionFuture,
 			versionSupplier,
 			serviceContext
 		);

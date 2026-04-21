@@ -106,4 +106,13 @@ public interface KeyCompressor extends Serializable {
 	@Nullable
 	<T extends Comparable<T>> T getKeyForIdIfExists(int id);
 
+	/**
+	 * Returns the highest id currently assigned in this compressor, or `0` when none has been assigned yet.
+	 * The next key registered via {@link #getId(Comparable)} will obtain `getPeakId() + 1`.
+	 *
+	 * Implementations must answer from their own bookkeeping (a sequence counter, a pre-computed field, or
+	 * aggregating children) rather than iterating {@link #getKeys()} on every call.
+	 */
+	int getPeakId();
+
 }

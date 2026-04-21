@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction;
 
+import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -196,6 +197,15 @@ public class TransactionManager implements Closeable {
 	 */
 	private final DelayedAsyncTask walDrainingTask;
 	/**
+	 * Periodic watchdog that fails entries in {@link #pendingCommitProgressRegistry} whose progress
+	 * has been pending for longer than the worst-case pipeline latency. Acts as the last line of
+	 * defence against dangling commit progress records during live operation — the normal
+	 * completion path is handled by the stages themselves; this task is only triggered when a
+	 * record is somehow dropped on the floor (e.g. an executor drained an async completion task
+	 * before it could run, or an unhandled exception skipped a completion path).
+	 */
+	private final DelayedAsyncTask pendingProgressSweepTask;
+	/**
 	 * Lock used for conflict resolution.
 	 */
 	private final ReentrantLock conflictResolutionLock = new ReentrantLock(true);
@@ -217,6 +227,13 @@ public class TransactionManager implements Closeable {
 	 * that is usually empty.
 	 */
 	private final Deque<ModifyCatalogSchemaMutationWithCatalogVersion> engineMutationsQueue = new LinkedList<>();
+	/**
+	 * Watchdog registry that tracks in-flight {@link CommitProgressRecord}s by assigned catalog version
+	 * and fails any record that the transaction pipeline drops on the floor once the catalog advances
+	 * past its version. Exposed so the stages can register their records and the propagation path can
+	 * trigger the sweep.
+	 */
+	@Getter private final PendingCommitProgressRegistry pendingCommitProgressRegistry = new PendingCommitProgressRegistry();
 	/**
 	 * Conflict ring buffer that holds the conflict keys for recent catalog versions.
 	 */
@@ -363,6 +380,15 @@ public class TransactionManager implements Closeable {
 			scheduler,
 			this::drainWal,
 			1000, TimeUnit.MILLISECONDS
+		);
+		// watchdog runs at half the transaction-acceptance timeout so a truly dangling record gets
+		// flagged within one or two ticks of crossing the age threshold
+		final long sweepIntervalMs = Math.max(5_000L, this.transactionAcceptanceTimeout / 2);
+		this.pendingProgressSweepTask = new DelayedAsyncTask(
+			catalog.getName(), "Pending commit progress sweep task",
+			scheduler,
+			this::sweepDanglingCommitProgress,
+			sweepIntervalMs, TimeUnit.MILLISECONDS
 		);
 	}
 
@@ -1187,8 +1213,14 @@ public class TransactionManager implements Closeable {
 		IOUtils.closeQuietly(
 			this.transactionalPipeline::close,
 			this.changeObserver::close,
-			this.walDrainingTask::close
+			this.walDrainingTask::close,
+			this.pendingProgressSweepTask::close
 		);
+		// fail any still-registered commit progress records so clients waiting on their
+		// CompletionStages are unblocked with a descriptive exception rather than hanging forever
+		// (e.g. when the request executor accepted an async completion task that shutdownNow
+		// then drained before it could run, or when a transaction was in-flight at shutdown)
+		this.pendingCommitProgressRegistry.failAllPending("the transaction manager is being closed");
 		this.livingCatalog.set(null);
 		this.lastFinalizedCatalog.set(null);
 	}
@@ -1252,6 +1284,48 @@ public class TransactionManager implements Closeable {
 		}
 		// pause the task
 		return -1;
+	}
+
+	/**
+	 * Periodic watchdog body for {@link #pendingProgressSweepTask}. Fails every record in
+	 * {@link #pendingCommitProgressRegistry} whose pending age exceeds a safety threshold derived
+	 * from the configured transaction-acceptance timeout — if a record has been pending that long
+	 * the pipeline has certainly dropped it and any client awaiting it is better served by a
+	 * descriptive exception than by silence.
+	 *
+	 * The task pauses when the registry drains and re-schedules itself as soon as a new record is
+	 * registered (via {@link #registerPendingCommitProgress}).
+	 *
+	 * @return `0` to re-schedule with the default delay when the registry is non-empty, `-1` to
+	 * pause when there is nothing left to watch over
+	 */
+	private long sweepDanglingCommitProgress() {
+		// five times the acceptance timeout gives ample headroom for back-pressure spikes and
+		// executor queue drain times; a floor of 60s keeps the threshold sensible on deployments
+		// that tune the acceptance timeout very low
+		final long acceptanceTimeoutMs = this.configuration.transaction().waitForTransactionAcceptanceInMillis();
+		final long maxAgeMs = Math.max(60_000L, acceptanceTimeoutMs * 5);
+		this.pendingCommitProgressRegistry.sweepRecordsOlderThan(Duration.ofMillis(maxAgeMs));
+		return this.pendingCommitProgressRegistry.size() > 0 ? 0L : -1L;
+	}
+
+	/**
+	 * Registers a commit progress record in the pending registry and schedules the time-bounded
+	 * watchdog so it starts running while at least one record is in flight. The sweep task will
+	 * pause itself automatically once the registry drains again.
+	 *
+	 * @param catalogVersion catalog version assigned by conflict resolution
+	 * @param record         the progress record waiting for pipeline completion
+	 * @param commitVersions versions captured at registration time, used by the trunk stage's
+	 *                       greedy-batch fan-out to supply the termination callback
+	 */
+	public void registerPendingCommitProgress(
+		long catalogVersion,
+		@Nonnull CommitProgressRecord record,
+		@Nonnull CommitVersions commitVersions
+	) {
+		this.pendingCommitProgressRegistry.register(catalogVersion, record, commitVersions);
+		this.pendingProgressSweepTask.schedule();
 	}
 
 	/**

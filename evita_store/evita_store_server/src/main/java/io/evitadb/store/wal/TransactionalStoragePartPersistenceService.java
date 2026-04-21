@@ -117,10 +117,12 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		this.targetFile = storageSettings.transactionWorkDirectory()
 			.resolve(transactionId.toString())
 			.resolve(name + ".tmp");
+		final KeyCompressor delegateReadOnlyKeys = this.delegate.getReadOnlyKeyCompressor();
 		this.offsetIndex = new OffsetIndex(
 			catalogVersion + 1,
 			new OffsetIndexDescriptor(
-				new PersistentStorageHeader(1L, FileLocation.EMPTY, this.delegate.getReadOnlyKeyCompressor().getKeys()),
+				// the delegate's read-only compressor tracks the peak intrinsically, so we avoid rescanning the keys map
+				new PersistentStorageHeader(1L, FileLocation.EMPTY, delegateReadOnlyKeys.getKeys(), delegateReadOnlyKeys.getPeakId()),
 				kryoFactory,
 				// we don't care here
 				1.0, 0L

@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -83,7 +84,17 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 	int lastEntityCollectionPrimaryKey,
 	double activeRecordShare
 ) implements StoragePart {
-	@Serial private static final long serialVersionUID = 7238461925034817563L;
+	@Serial private static final long serialVersionUID = 4115945765677481853L;
+
+	/**
+	 * Exposes `compressedKeys` as an unmodifiable view so the record's accessor cannot be used to mutate the
+	 * underlying map. All known callers either build a private `HashMap` that is never retained after hand-off
+	 * (deserializers) or pass a view over a backing map that is frozen after its owner's construction
+	 * ({@code ReadOnlyKeyCompressor}), so an O(1) wrap is sufficient — a full copy would not add protection.
+	 */
+	public CatalogHeader {
+		compressedKeys = Collections.unmodifiableMap(compressedKeys);
+	}
 
 	/**
 	 * Convenience constructor for a brand-new, empty catalog that has never been persisted.
@@ -111,31 +122,12 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 		);
 	}
 
-	/**
-	 * Returns the fixed storage-part primary key for the catalog header.
-	 *
-	 * There is always exactly one `CatalogHeader` per catalog data file, so its PK is hardcoded to `1L`. The
-	 * uniqueness constraint of {@link StoragePart} is satisfied because no other `StoragePart` type of this class
-	 * can exist in the same file.
-	 *
-	 * @return always `1L`
-	 */
 	@Nonnull
 	@Override
 	public Long getStoragePartPK() {
 		return 1L;
 	}
 
-	/**
-	 * Assigns and returns the fixed unique part identifier for the catalog header.
-	 *
-	 * Because the catalog header is a singleton within its data file, no key compression is needed and the method
-	 * simply returns `1L` without consulting the provided `keyCompressor`. The `keyCompressor` parameter is accepted
-	 * only to satisfy the {@link StoragePart} contract.
-	 *
-	 * @param keyCompressor not used; present only to satisfy the {@link StoragePart} contract
-	 * @return always `1L`
-	 */
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		return 1L;
