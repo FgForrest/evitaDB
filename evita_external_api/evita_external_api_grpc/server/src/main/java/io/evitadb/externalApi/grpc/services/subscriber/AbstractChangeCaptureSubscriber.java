@@ -33,7 +33,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcHeartBeat;
 import io.evitadb.utils.IOUtils;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
+import io.grpc.stub.ServerCallStreamObserver;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -54,13 +54,28 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
 /**
  * Abstract base for {@link Subscriber} implementations that bridge an evitaDB
  * change-capture publisher (system-level or catalog-level) to a gRPC client via
- * a typed {@link StreamObserver}.
+ * a typed {@link ServerCallStreamObserver}.
  *
  * Handles all shared concerns:
  * - Single-shot stream finalisation across every termination path
- *   ({@link #onError}, {@link #onComplete}, {@link #close}).
+ *   ({@link #onError}, {@link #onComplete}, {@link #close}, transport-level
+ *   cancel or close).
  * - Periodic heartbeat emission (kept alive by extending the Armeria request
- *   timeout after every successful send).
+ *   timeout after every successful send). The heartbeat polls
+ *   {@link ServerCallStreamObserver#isCancelled()} as an authoritative
+ *   transport-level check that bypasses the dispatch lag between the inner
+ *   {@code call.cancelled} field and the listener-driven
+ *   {@code observer.cancelled} field.
+ * - Convergent cleanup via {@link #markStreamDead(Throwable)} — invoked by
+ *   every path that discovers the stream is no longer writable (direct
+ *   termination, client cancel, server-initiated close, or an emit that threw
+ *   {@link ClosedGrpcStreamException}). Registers both
+ *   {@link ServerCallStreamObserver#setOnCancelHandler} (client-initiated
+ *   cancellation: RST_STREAM, deadline expired, channel abort) and
+ *   {@link ServerCallStreamObserver#setOnCloseHandler} (server-initiated close:
+ *   an interceptor calling {@code ServerCall.close(...)}, framework shutdown,
+ *   our own {@code onCompleted/onError} being transmitted) so both transport
+ *   lifecycle edges are observed.
  * - Graceful handling of client-side cancellation races — both in
  *   {@link #onSubscribe} (where the subscription lives inside a
  *   {@link java.util.concurrent.ConcurrentHashMap#computeIfAbsent} callback,
@@ -79,19 +94,20 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 	implements Subscriber<CAPTURE>, AutoCloseable {
 
 	/**
-	 * Flag ensuring the gRPC stream is finalized (via `onError` or `onCompleted`) exactly once
-	 * across all termination paths ({@link #onError}, {@link #onComplete}, {@link #close}).
+	 * Flag ensuring the gRPC stream is finalized (state-wise) exactly once across all termination
+	 * paths. Flipping this to {@code true} means: heartbeat task is closed, the upstream
+	 * subscription is cancelled, and subsequent {@link #onNext} calls are dropped. Callers that
+	 * also need to push a terminal frame to the client (i.e. {@link #onError},
+	 * {@link #onComplete}, {@link #close}) should use the return value of
+	 * {@link #markStreamDead(Throwable)} to guard the emit.
 	 */
 	private final AtomicBoolean streamFinalized = new AtomicBoolean(false);
 	/**
-	 * The gRPC stream observer used to send responses to the client.
+	 * The gRPC stream observer used to send responses to the client. Typed to
+	 * {@link ServerCallStreamObserver} so we can register transport lifecycle handlers and poll
+	 * {@link ServerCallStreamObserver#isCancelled()} for the authoritative cancellation signal.
 	 */
-	private final StreamObserver<RESPONSE> responseObserver;
-	/**
-	 * Future completed when the subscription is established, allowing the gRPC cancel
-	 * handler to obtain the subscription reference for cancellation.
-	 */
-	private final CompletableFuture<Subscription> subscriptionFuture;
+	private final ServerCallStreamObserver<RESPONSE> responseObserver;
 	/**
 	 * Supplier that provides the current version for heartbeat messages.
 	 */
@@ -122,20 +138,21 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 	private final AtomicLong index = new AtomicLong(0L);
 	/**
 	 * The active subscription from the publisher, set during {@link #onSubscribe(Subscription)}.
+	 * Read by {@link #markStreamDead(Throwable)} from arbitrary threads (transport callbacks,
+	 * scheduler, publisher thread), so writes happen-before reads via the
+	 * {@link #streamFinalized} CAS.
 	 */
-	private Subscription subscription;
+	private volatile Subscription subscription;
 
 	protected AbstractChangeCaptureSubscriber(
 		@Nonnull Scheduler scheduler,
 		@Nullable String taskOwner,
 		@Nonnull String taskName,
-		@Nonnull StreamObserver<RESPONSE> responseObserver,
-		@Nonnull CompletableFuture<Subscription> subscriptionFuture,
+		@Nonnull ServerCallStreamObserver<RESPONSE> responseObserver,
 		@Nonnull LongSupplier versionSupplier,
 		@Nonnull ServiceRequestContext serviceContext
 	) {
 		this.responseObserver = responseObserver;
-		this.subscriptionFuture = subscriptionFuture;
 		this.versionSupplier = versionSupplier;
 		this.serviceContext = serviceContext;
 		this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
@@ -150,24 +167,43 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			this.heartBeatDelay,
 			TimeUnit.MILLISECONDS
 		);
+
+		// register both transport lifecycle handlers BEFORE scheduling the heartbeat so no
+		// early transport edge can slip through unobserved. setOnCancelHandler covers
+		// client-initiated cancellation (RST_STREAM, deadline, channel abort — listener.onCancel);
+		// setOnCloseHandler covers server-initiated close (interceptors calling
+		// ServerCall.close, framework shutdown, our own onError/onCompleted reaching the client —
+		// listener.onComplete). The two are mutually exclusive in gRPC-Java.
+		this.responseObserver.setOnCancelHandler(() -> markStreamDead(null));
+		this.responseObserver.setOnCloseHandler(() -> markStreamDead(null));
+
 		this.heartBeatTask.schedule();
 	}
 
 	@Override
 	public final void onSubscribe(Subscription subscription) {
+		// Reactive Streams Rule 1.3 / 2.12 forbids a second onSubscribe, but if a misbehaving
+		// publisher calls us twice anyway, cancel the second subscription and keep the first
+		// active. Cheap defensive guard; never triggered by compliant publishers.
+		if (this.subscription != null) {
+			subscription.cancel();
+			return;
+		}
+		// If the stream has already been finalized (e.g. transport closed before the publisher
+		// called onSubscribe), don't bother emitting the ACK — just cancel the late subscription.
+		if (this.streamFinalized.get()) {
+			subscription.cancel();
+			return;
+		}
 		this.subscription = subscription;
-		this.subscriptionFuture.complete(subscription);
 		try {
 			emitOnNext(buildAcknowledgementResponse(currentSubscriptionId(), buildHeartBeatMessage()));
 		} catch (ClosedGrpcStreamException ex) {
 			log.debug("CDC acknowledgement failed (stream already terminated): {}", ex.getMessage());
-			if (this.streamFinalized.compareAndSet(false, true)) {
-				IOUtils.closeQuietly(this.heartBeatTask::close);
-			}
-			// Defer cancellation — this method is called from the DefaultChangeCaptureSubscription
-			// constructor inside ConcurrentHashMap.computeIfAbsent; synchronous cancel would
-			// re-enter the map.
-			CompletableFuture.runAsync(subscription::cancel);
+			// defer — this method runs inside DefaultChangeCaptureSubscription's constructor
+			// which is itself inside ConcurrentHashMap.computeIfAbsent; a synchronous
+			// subscription.cancel() would re-enter the map and deadlock.
+			CompletableFuture.runAsync(() -> markStreamDead(ex));
 			return;
 		}
 		subscription.request(1);
@@ -182,7 +218,7 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			emitOnNext(buildCaptureResponse(item));
 		} catch (ClosedGrpcStreamException ex) {
 			log.debug("CDC onNext failed (stream likely finalized concurrently): {}", ex.getMessage());
-			this.subscription.cancel();
+			markStreamDead(ex);
 			return;
 		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
@@ -191,26 +227,30 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 
 	@Override
 	public final void onError(Throwable throwable) {
-		if (this.streamFinalized.compareAndSet(false, true)) {
-			IOUtils.closeQuietly(this.heartBeatTask::close);
-			this.subscriptionFuture.completeExceptionally(throwable);
-			this.responseObserver.onError(throwable);
+		if (markStreamDead(throwable)) {
+			try {
+				this.responseObserver.onError(throwable);
+			} catch (Exception ex) {
+				log.debug("Failed to emit onError to CDC client: {}", ex.getMessage(), ex);
+			}
 		}
 	}
 
 	@Override
 	public final void onComplete() {
-		if (this.streamFinalized.compareAndSet(false, true)) {
-			IOUtils.closeQuietly(this.heartBeatTask::close);
-			this.responseObserver.onCompleted();
+		if (markStreamDead(null)) {
+			try {
+				this.responseObserver.onCompleted();
+			} catch (Exception ex) {
+				log.debug("Failed to emit onCompleted to CDC client: {}", ex.getMessage(), ex);
+			}
 		}
 	}
 
 	@Override
 	public final void close() {
 		// signal the gRPC client that the stream was forcibly terminated
-		if (this.streamFinalized.compareAndSet(false, true)) {
-			IOUtils.closeQuietly(this.heartBeatTask::close);
+		if (markStreamDead(null)) {
 			try {
 				this.responseObserver.onError(
 					Status.UNAVAILABLE
@@ -263,18 +303,63 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 	);
 
 	/**
+	 * Marks the stream as finalized exactly once and tears down the subscriber-owned resources
+	 * (heartbeat task, upstream subscription). Does NOT emit any terminal frame on the observer —
+	 * callers that need to push {@code onError}/{@code onCompleted} MUST gate that on the return
+	 * value of this method so the emit happens only on the first finalisation. Safe to call from
+	 * any thread; invoked from the publisher thread ({@link #onNext}), the scheduler thread
+	 * ({@link #sendHeartbeat}), transport callbacks registered via
+	 * {@link ServerCallStreamObserver#setOnCancelHandler}/{@link ServerCallStreamObserver#setOnCloseHandler},
+	 * and direct termination paths ({@link #onError}, {@link #onComplete}, {@link #close}).
+	 *
+	 * @param cause optional cause for debug-logging (the exception that exposed the dead stream,
+	 *              or {@code null} if the finaliser itself does not have one)
+	 * @return {@code true} if this call was the first to finalize the stream (caller owns the
+	 *         terminal frame emit), {@code false} if the stream was already finalized (caller
+	 *         MUST NOT emit).
+	 */
+	private boolean markStreamDead(@Nullable Throwable cause) {
+		if (this.streamFinalized.compareAndSet(false, true)) {
+			if (cause != null) {
+				log.debug("CDC stream finalized after exception: {}", cause.getMessage());
+			}
+			IOUtils.closeQuietly(this.heartBeatTask::close);
+			final Subscription sub = this.subscription;
+			if (sub != null) {
+				try {
+					sub.cancel();
+				} catch (Exception ex) {
+					log.debug("Subscription cancel threw during stream finalization: {}", ex.getMessage(), ex);
+				}
+			}
+			return true;
+		}
+		return false;
+	}
+
+	/**
 	 * Sends a heartbeat response to the client and schedules the next heartbeat.
+	 * Package-private so tests can drive a single heartbeat tick without racing the scheduler.
 	 *
 	 * @return `0` to reschedule at the regular interval, `-1` to stop the heartbeat task
 	 */
-	private long sendHeartbeat() {
+	long sendHeartbeat() {
 		if (this.streamFinalized.get()) {
+			return -1L;
+		}
+		// authoritative transport-level check — bypasses the dispatch lag between the
+		// inner call.cancelled field (flipped synchronously on transport cancel) and the
+		// listener-driven observer.cancelled field (flipped only after listener.onCancel is
+		// dispatched, which may queue behind the serialized executor).
+		if (this.responseObserver.isCancelled()) {
+			markStreamDead(null);
 			return -1L;
 		}
 		try {
 			emitOnNext(buildHeartbeatResponse(currentSubscriptionId(), buildHeartBeatMessage()));
 		} catch (ClosedGrpcStreamException ex) {
 			log.debug("Heartbeat send failed (stream likely finalized concurrently): {}", ex.getMessage());
+			markStreamDead(ex);
 			return -1L;
 		}
 		this.serviceContext.setRequestTimeout(TimeoutMode.SET_FROM_NOW, Duration.ofMillis(this.responseTimeoutMillis));
@@ -316,10 +401,14 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 		} catch (StatusRuntimeException ex) {
 			// client-initiated cancellation surfaces here as Status.CANCELLED from
 			// ServerCallStreamObserverImpl.onNext when the RPC was cancelled before the
-			// server wrote anything
+			// server wrote anything — wrap and let the caller handle it via markStreamDead.
 			if (ex.getStatus() != null && ex.getStatus().getCode() == Status.Code.CANCELLED) {
 				throw new ClosedGrpcStreamException(ex);
 			}
+			// any other gRPC status from the observer means the stream is broken too
+			// (the call is either already closed or about to be); finalize before re-throwing
+			// so we stop feeding a dead consumer, then surface the original error to the caller.
+			markStreamDead(ex);
 			throw ex;
 		}
 	}
