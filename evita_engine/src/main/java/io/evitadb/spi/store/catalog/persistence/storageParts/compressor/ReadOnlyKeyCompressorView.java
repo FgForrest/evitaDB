@@ -68,6 +68,11 @@ public class ReadOnlyKeyCompressorView implements KeyCompressor {
 		this.delegate = delegate;
 	}
 
+	@Override
+	public int getPeakId() {
+		return this.delegate.getPeakId();
+	}
+
 	@Nonnull
 	@Override
 	public Map<Integer, Object> getKeys() {
