@@ -30,6 +30,9 @@ import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.HistogramRequest;
+import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.RequestedBucketRange;
+import io.evitadb.core.query.filter.translator.histogram.ResolvedHistogramHaving;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -46,15 +49,20 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -160,13 +168,48 @@ class ReferenceHistogramStatisticsTranslatorTest {
 		}
 	}
 
+	/**
+	 * Reflectively invokes the private static `extractRequestedBucketRanges` helper. The helper now
+	 * takes the planning-context's pre-resolved `histogramHaving` registry directly — no filter tree,
+	 * no resolver — so tests construct the registry list in the shape the filter translator would have
+	 * produced.
+	 *
+	 * @param resolvedHistogramHavings the pre-resolved registry entries
+	 * @param referenceName            the reference the histogram belongs to
+	 * @param histogramName            the histogram slot name
+	 * @return the per-group range map (empty when no registered entry targets the slot)
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	private static Map<Integer, RequestedBucketRange> invokeExtractRequestedBucketRanges(
+		@Nonnull List<ResolvedHistogramHaving> resolvedHistogramHavings,
+		@Nonnull String referenceName,
+		@Nonnull String histogramName
+	) throws Exception {
+		final Method method = ReferenceHistogramStatisticsTranslator.class.getDeclaredMethod(
+			"extractRequestedBucketRanges",
+			List.class, String.class, String.class
+		);
+		method.setAccessible(true);
+		try {
+			return (Map<Integer, RequestedBucketRange>) method.invoke(
+				null, resolvedHistogramHavings, referenceName, histogramName
+			);
+		} catch (final InvocationTargetException ite) {
+			if (ite.getCause() instanceof RuntimeException re) {
+				throw re;
+			}
+			throw ite;
+		}
+	}
+
 	@Nested
 	@DisplayName("Guard against misuse")
 	class GuardAgainstMisuse {
 
 		@Test
-		@DisplayName("should throw internal error when enclosing reference scope is missing")
-		void shouldThrowWhenReferenceScopeMissing() {
+		@DisplayName("should throw GenericEvitaInternalError when translator runs outside a reference-summary scope")
+		void shouldThrowGenericEvitaInternalErrorWhenEnclosingReferenceScopeMissing() {
 			final ReferenceHistogramStatistics constraint =
 				new ReferenceHistogramStatistics(10, HIST_NAME);
 			final ExtraResultPlanningVisitor planner = mock(ExtraResultPlanningVisitor.class);
@@ -175,7 +218,7 @@ class ReferenceHistogramStatisticsTranslatorTest {
 
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> translator.createProducer(constraint, planner)
+				() -> ReferenceHistogramStatisticsTranslatorTest.this.translator.createProducer(constraint, planner)
 			);
 			assertNotNull(error.getMessage());
 			assertTrue(
@@ -185,9 +228,9 @@ class ReferenceHistogramStatisticsTranslatorTest {
 		}
 
 		@Test
-		@DisplayName("should throw internal error when enclosing reference-summary producer is missing")
+		@DisplayName("should throw GenericEvitaInternalError when enclosing ReferenceSummaryProducer is absent")
 		@SuppressWarnings({"rawtypes", "unchecked"})
-		void shouldThrowWhenProducerMissing() {
+		void shouldThrowGenericEvitaInternalErrorWhenReferenceSummaryProducerAbsent() {
 			final ReferenceHistogramStatistics constraint =
 				new ReferenceHistogramStatistics(10, HIST_NAME);
 			final ReferenceSchemaContract referenceSchema = mock(ReferenceSchemaContract.class);
@@ -204,7 +247,7 @@ class ReferenceHistogramStatisticsTranslatorTest {
 
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> translator.createProducer(constraint, planner)
+				() -> ReferenceHistogramStatisticsTranslatorTest.this.translator.createProducer(constraint, planner)
 			);
 			assertTrue(
 				error.getMessage().contains("ReferenceSummaryProducer"),
@@ -266,8 +309,8 @@ class ReferenceHistogramStatisticsTranslatorTest {
 
 		@ParameterizedTest(name = "divergent {0}")
 		@MethodSource("divergentDescriptorPairs")
-		@DisplayName("should throw when descriptors diverge on any field")
-		void shouldThrowOnDescriptorDivergence(
+		@DisplayName("should throw when descriptors diverge on the given field")
+		void shouldThrowWhenDescriptorsDivergeOnGivenField(
 			@Nonnull String axis,
 			@Nonnull HistogramValueDescriptor live,
 			@Nonnull HistogramValueDescriptor archived
@@ -281,6 +324,189 @@ class ReferenceHistogramStatisticsTranslatorTest {
 				error.getMessage().contains("incompatible value expressions"),
 				"Error must surface the cross-scope-divergence contract, was: " + error.getMessage()
 			);
+		}
+	}
+
+	/**
+	 * Pins the `extractRequestedBucketRanges` helper contract: it consumes the planning-context's
+	 * pre-resolved `histogramHaving` registry (populated by `HistogramHavingTranslator` during filter
+	 * translation) and returns a per-group map of `[from, to]` ranges keyed by resolved group PK.
+	 * The extractor has no filter-tree walker or group-selector resolver of its own — all of that
+	 * work has already been paid during filter translation.
+	 *
+	 * These tests build `ResolvedHistogramHaving` entries directly, mirroring the shape the filter
+	 * translator would have produced. The single-histogram-name shorthand (null `histogramName` at
+	 * the DSL surface) is resolved upstream in `HistogramHavingTranslator#resolveDescriptor`, so the
+	 * extractor only ever sees entries whose `histogramName` is a concrete non-null value — there is
+	 * no "match any slot" case here.
+	 */
+	@Nested
+	@DisplayName("extractRequestedBucketRanges — slot filtering and bound handling")
+	class ExtractRequestedBucketRange {
+
+		@Nonnull
+		private static ResolvedHistogramHaving ungrouped(
+			@Nonnull String referenceName,
+			@Nonnull String histogramName,
+			@Nullable BigDecimal from,
+			@Nullable BigDecimal to
+		) {
+			return new ResolvedHistogramHaving(
+				referenceName, histogramName, ResolvedHistogramHaving.NON_GROUPED_SENTINEL, from, to
+			);
+		}
+
+		@Test
+		@DisplayName("should return an empty map when the resolved-histogramHaving registry is empty")
+		void shouldReturnEmptyMapWhenRegistryIsEmpty() throws Exception {
+			final Map<Integer, RequestedBucketRange> result = invokeExtractRequestedBucketRanges(
+				List.of(), REF_NAME, HIST_NAME
+			);
+			assertNotNull(result);
+			assertTrue(result.isEmpty(), "Empty registry yields an empty map");
+		}
+
+		@Test
+		@DisplayName("should return an empty map when no registry entry matches the (reference, histogram) slot")
+		void shouldReturnEmptyMapWhenNoRegistryEntryMatchesSlot() throws Exception {
+			final Map<Integer, RequestedBucketRange> result = invokeExtractRequestedBucketRanges(
+				List.of(ungrouped("otherRef", "otherHist", new BigDecimal("10"), new BigDecimal("50"))),
+				REF_NAME, HIST_NAME
+			);
+			assertNotNull(result);
+			assertTrue(result.isEmpty(), "Non-matching entries yield an empty map");
+		}
+
+		@Test
+		@DisplayName("should extract the [from, to] range of a matching ungrouped entry under the sentinel key")
+		void shouldExtractRangeFromMatchingUngroupedEntryUnderSentinelKey() throws Exception {
+			final Map<Integer, RequestedBucketRange> result = invokeExtractRequestedBucketRanges(
+				List.of(ungrouped(REF_NAME, HIST_NAME, new BigDecimal("10"), new BigDecimal("50"))),
+				REF_NAME, HIST_NAME
+			);
+			assertEquals(1, result.size());
+			final RequestedBucketRange range = result.get(HistogramRequest.NON_GROUPED_SENTINEL);
+			assertNotNull(range, "Matching ungrouped entry keys the sentinel slot");
+			assertEquals(new BigDecimal("10"), range.from());
+			assertEquals(new BigDecimal("50"), range.to());
+		}
+
+		@Test
+		@DisplayName("should surface a null `to` when the registry entry has an open-ended upper bound")
+		void shouldSurfaceNullUpperBoundWhenRegistryEntryIsOpenEnded() throws Exception {
+			final Map<Integer, RequestedBucketRange> result = invokeExtractRequestedBucketRanges(
+				List.of(ungrouped(REF_NAME, HIST_NAME, new BigDecimal("10"), null)),
+				REF_NAME, HIST_NAME
+			);
+			final RequestedBucketRange range = result.get(HistogramRequest.NON_GROUPED_SENTINEL);
+			assertNotNull(range);
+			assertEquals(new BigDecimal("10"), range.from());
+			assertNull(range.to(), "Open-ended upper bound must surface as null `to`");
+		}
+
+		@Test
+		@DisplayName("should surface a null `from` when the registry entry has an open-ended lower bound")
+		void shouldSurfaceNullLowerBoundWhenRegistryEntryIsOpenEnded() throws Exception {
+			final Map<Integer, RequestedBucketRange> result = invokeExtractRequestedBucketRanges(
+				List.of(ungrouped(REF_NAME, HIST_NAME, null, new BigDecimal("50"))),
+				REF_NAME, HIST_NAME
+			);
+			final RequestedBucketRange range = result.get(HistogramRequest.NON_GROUPED_SENTINEL);
+			assertNotNull(range);
+			assertNull(range.from(), "Open-ended lower bound must surface as null `from`");
+			assertEquals(new BigDecimal("50"), range.to());
+		}
+
+		@Test
+		@DisplayName("should skip registry entries whose reference name does not match the queried slot")
+		void shouldSkipRegistryEntriesWithMismatchingReferenceName() throws Exception {
+			final Map<Integer, RequestedBucketRange> result = invokeExtractRequestedBucketRanges(
+				List.of(ungrouped("otherRef", HIST_NAME, new BigDecimal("10"), new BigDecimal("50"))),
+				REF_NAME, HIST_NAME
+			);
+			assertNotNull(result);
+			assertTrue(result.isEmpty(), "Different reference name must not match");
+		}
+
+		@Test
+		@DisplayName("should skip registry entries whose histogram name does not match the queried slot")
+		void shouldSkipRegistryEntriesWithMismatchingHistogramName() throws Exception {
+			final Map<Integer, RequestedBucketRange> result = invokeExtractRequestedBucketRanges(
+				List.of(ungrouped(REF_NAME, "otherHist", new BigDecimal("10"), new BigDecimal("50"))),
+				REF_NAME, HIST_NAME
+			);
+			assertNotNull(result);
+			assertTrue(result.isEmpty(), "Different histogram name must not match");
+		}
+
+		@Test
+		@DisplayName("should throw EvitaInvalidUsageException when two entries target the same (refName, histName, groupPk) slot")
+		void shouldThrowEvitaInvalidUsageExceptionWhenTwoEntriesTargetSameSlot() {
+			final List<ResolvedHistogramHaving> registry = List.of(
+				ungrouped(REF_NAME, HIST_NAME, new BigDecimal("10"), new BigDecimal("50")),
+				ungrouped(REF_NAME, HIST_NAME, new BigDecimal("20"), new BigDecimal("60"))
+			);
+			final EvitaInvalidUsageException error = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> invokeExtractRequestedBucketRanges(registry, REF_NAME, HIST_NAME),
+				"Two registry entries addressing the same slot must be rejected"
+			);
+			assertNotNull(error.getMessage());
+			assertTrue(
+				error.getMessage().contains(HIST_NAME)
+					&& error.getMessage().contains(REF_NAME),
+				"Error must surface the offending slot, was: " + error.getMessage()
+			);
+		}
+	}
+
+	/**
+	 * Pins the per-group bucket-range extraction contract: when several registry entries address
+	 * different group slots of the same `(referenceName, histogramName)` pair, the extractor must
+	 * return a per-group map keyed by resolved group PK (not a single flattened range). The
+	 * consumer (`PendingHistogram.materialize`) then looks up the range matching the actual group
+	 * PK of the histogram being materialized — so the "height" group's histogram flags `requested`
+	 * only inside its own `[50, 120]` slider range and the "weight" group's histogram flags
+	 * `requested` only inside its own `[90, 140]` slider range.
+	 *
+	 * Regression guard: the earlier implementation returned only the first document-order match's
+	 * range and applied it to every group's histogram — a silent cross-group contamination. A test
+	 * on the new per-group map protects against a future flattening regression.
+	 */
+	@Nested
+	@DisplayName("extractRequestedBucketRanges — per-group keying (no cross-contamination)")
+	class ExtractRequestedBucketRangesPerGroup {
+
+		@Test
+		@DisplayName("should key ranges by resolved group PK when sibling entries target different groups")
+		void shouldKeyRangesByResolvedGroupPkWhenSiblingEntriesTargetDifferentGroups() throws Exception {
+			// two registry entries address different group slots — extractor must surface a per-group
+			// map keyed by resolved PK so each group's histogram gets its OWN range applied
+			final List<ResolvedHistogramHaving> registry = List.of(
+				new ResolvedHistogramHaving(REF_NAME, HIST_NAME, 7, new BigDecimal("50"), new BigDecimal("120")),
+				new ResolvedHistogramHaving(REF_NAME, HIST_NAME, 11, new BigDecimal("90"), new BigDecimal("140"))
+			);
+
+			final Map<Integer, RequestedBucketRange> rangesByGroupPk =
+				invokeExtractRequestedBucketRanges(registry, REF_NAME, HIST_NAME);
+
+			assertNotNull(rangesByGroupPk, "Per-group extraction must yield a map, not null");
+			assertEquals(2, rangesByGroupPk.size(),
+				"Both group slots must be represented in the per-group map");
+
+			final RequestedBucketRange heightRange = rangesByGroupPk.get(7);
+			assertNotNull(heightRange, "Height group (PK=7) must have an entry");
+			assertEquals(new BigDecimal("50"), heightRange.from(),
+				"Height slider lower bound must be 50 — no cross-contamination from weight");
+			assertEquals(new BigDecimal("120"), heightRange.to(),
+				"Height slider upper bound must be 120 — no cross-contamination from weight");
+
+			final RequestedBucketRange weightRange = rangesByGroupPk.get(11);
+			assertNotNull(weightRange, "Weight group (PK=11) must have an entry");
+			assertEquals(new BigDecimal("90"), weightRange.from(),
+				"Weight slider lower bound must be 90 — no cross-contamination from height");
+			assertEquals(new BigDecimal("140"), weightRange.to(),
+				"Weight slider upper bound must be 140 — no cross-contamination from height");
 		}
 	}
 }

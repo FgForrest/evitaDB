@@ -357,6 +357,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitFacetHavingConstraint(EvitaQLParser.FacetHavingConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code histogramHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitHistogramHavingConstraint(EvitaQLParser.HistogramHavingConstraintContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code facetIncludingChildrenConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
@@ -1505,6 +1512,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitClassifierWithTwoFilterConstraintArgs(EvitaQLParser.ClassifierWithTwoFilterConstraintArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithHistogramHavingArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClassifierWithHistogramHavingArgs(EvitaQLParser.ClassifierWithHistogramHavingArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#facetGroupRelationArgs}.
 	 * @param ctx the parse tree

@@ -43,8 +43,11 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
+import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
@@ -466,10 +469,19 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 					)
 				);
 		if (!this.histogramRequests.isEmpty()) {
+			// peel attribute-range carriers so a slider does not contract its own `[min, max]` span;
+			// facet and price carriers stay so the histogram still reflects those picks. Relaxer's
+			// EmptyFormula sentinel means every carrier was peeled — map to null so the accumulator
+			// spans the catalog-wide superset instead of AND-ing against an empty bitmap.
+			final Formula relaxedBaseline = UserFilterRelaxer.relax(
+				this.filterFormula, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+			);
+			final Formula histogramBaseline = relaxedBaseline == EmptyFormula.INSTANCE
+				? null : relaxedBaseline;
 			statisticsByReferenceName = ReferenceHistogramAccumulator.injectHistograms(
 				statisticsByReferenceName,
 				this.histogramRequests,
-				this.filterFormulaWithoutUserFilter,
+				histogramBaseline,
 				context,
 				resultAdapter,
 				referenceName -> ofNullable(this.referenceSummaryRequests.get(referenceName))
@@ -1278,11 +1290,12 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 * @param locale           locale used to pick the correct {@code FilterIndex} when the source attribute is
 	 *                         localized; `null` otherwise
 	 * @param valueDescriptor  resolved metadata about the source attribute (entity vs reference, type, default)
-	 * @param entityFetch      optional `EntityFetch` controlling boundary entity richness; `null` → plain
-	 *                         {@code EntityReference} classifier
-	 * @param requestedRange   optional `[lo, hi]` range extracted from
-	 *                         {@code userFilter → referenceHaving → entityHaving → attributeBetween}; feeds the
-	 *                         per-bucket {@code requested} flag. `null` means no range restriction was requested.
+	 * @param entityFetch              optional `EntityFetch` controlling boundary entity richness; `null` → plain
+	 *                                 {@code EntityReference} classifier
+	 * @param requestedRangesByGroupPk optional `[lo, hi]` ranges extracted from `userFilter → histogramHaving(...)`
+	 *                                 siblings, keyed by resolved group PK. The sentinel key
+	 *                                 {@link #NON_GROUPED_SENTINEL} is reserved for a `histogramHaving` without a
+	 *                                 `groupSelector`. An empty map means no range restriction was requested.
 	 */
 	public record HistogramRequest(
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -1292,8 +1305,13 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		@Nullable Locale locale,
 		@Nonnull HistogramValueDescriptor valueDescriptor,
 		@Nullable EntityFetch entityFetch,
-		@Nullable RequestedBucketRange requestedRange
+		@Nonnull Map<Integer, RequestedBucketRange> requestedRangesByGroupPk
 	) {
+		/**
+		 * Sentinel group PK used as the map key for a `histogramHaving` that omits its `groupSelector`. Negative
+		 * value keeps the sentinel disjoint from every legitimate entity PK.
+		 */
+		public static final int NON_GROUPED_SENTINEL = -1;
 	}
 
 	/**

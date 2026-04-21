@@ -78,6 +78,7 @@ filterConstraint
     | 'priceValidIn'                        args = valueArgs                                                # priceValidInConstraint
     | 'priceBetween'                        args = betweenValuesArgs                                        # priceBetweenConstraint
     | 'facetHaving'                         args = classifierWithTwoFilterConstraintArgs                    # facetHavingConstraint
+    | 'histogramHaving'                     args = classifierWithHistogramHavingArgs                        # histogramHavingConstraint
     | 'includingChildren'                   emptyArgs                                                       # facetIncludingChildrenConstraint
     | 'includingChildrenHaving'             args = filterConstraintArgs                                     # facetIncludingChildrenHavingConstraint
     | 'includingChildrenExcept'             args = filterConstraintArgs                                     # facetIncludingChildrenExceptConstraint
@@ -288,6 +289,8 @@ classifierListArgs :                                argsOpening classifiers = va
 classifierWithFilterConstraintArgs :                argsOpening classifier = valueToken ARGS_DELIMITER filter = filterConstraint argsClosing ;
 
 classifierWithTwoFilterConstraintArgs :             argsOpening classifier = valueToken ARGS_DELIMITER filter1 = filterConstraint (ARGS_DELIMITER filter2 = filterConstraint)? argsClosing ;
+
+classifierWithHistogramHavingArgs :                  argsOpening classifier = valueToken (ARGS_DELIMITER histogramName = valueToken)? (ARGS_DELIMITER valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken)? (ARGS_DELIMITER groupSelector = filterConstraint)? argsClosing ;
 
 facetGroupRelationArgs :                            argsOpening classifier = valueToken (ARGS_DELIMITER facetGroupRelationLevel = valueToken)? (ARGS_DELIMITER filter = filterConstraint)? argsClosing ;
 

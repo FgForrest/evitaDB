@@ -46,15 +46,9 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.referenceSummary;
-import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReference;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -88,7 +82,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Reference summary — scope filtering (BUG-1 regression)")
+@DisplayName("Reference summary must not leak facets across scopes")
 class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 
 	private static final String DIR_NAME = "referenceSummaryScopeLeakTest";
@@ -249,7 +243,7 @@ class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 		void shouldIncludeOnlyLiveFacetsWhenQueryRequestsLiveScope() {
 			ReferenceSummaryScopeLeakTest.this.evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -280,7 +274,7 @@ class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 		void shouldIncludeOnlyArchivedFacetsWhenQueryRequestsArchivedScope() {
 			ReferenceSummaryScopeLeakTest.this.evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -308,10 +302,10 @@ class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("should include facets from both scopes when query requests scope(LIVE, ARCHIVED)")
-		void shouldIncludeFacetsFromBothScopesForMultiScopeQuery() {
+		void shouldIncludeFacetsFromBothScopesWhenQueryRequestsBothScopes() {
 			ReferenceSummaryScopeLeakTest.this.evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -340,10 +334,10 @@ class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("should include only LIVE facets on every reference when query requests scope(LIVE)")
-		void shouldIncludeOnlyLiveFacetsAcrossAllReferences() {
+		void shouldIncludeOnlyLiveFacetsAcrossAllReferencesWhenQueryRequestsLiveScope() {
 			ReferenceSummaryScopeLeakTest.this.evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -377,10 +371,10 @@ class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("should include only ARCHIVED facets on every reference when query requests scope(ARCHIVED)")
-		void shouldIncludeOnlyArchivedFacetsAcrossAllReferences() {
+		void shouldIncludeOnlyArchivedFacetsAcrossAllReferencesWhenQueryRequestsArchivedScope() {
 			ReferenceSummaryScopeLeakTest.this.evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),

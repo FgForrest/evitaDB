@@ -26,9 +26,6 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.facet.UserFilterFormula;
-import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
@@ -72,9 +69,10 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	private final Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback;
 	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
-	 * sorting.
+	 * sorting. A null value means "no mandatory filter applies" — the histogram spans all records reachable through
+	 * the attribute indexes.
 	 */
-	@Nonnull private final Formula filterFormula;
+	@Nullable private final Formula filterFormula;
 	/**
 	 * Bucket count contains desired count of histogram columns=buckets. Output histogram bucket count must never exceed
 	 * this value, but might be optimized to lower count when there are big gaps between columns.
@@ -133,6 +131,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * Method creates instance of histogram data cruncher that computes optimal histogram for the attribute.
 	 * Returns either {@link HistogramDataCruncher} or {@link EqualizedHistogramDataCruncher} based on behavior.
 	 */
+	@SuppressWarnings("unchecked")
 	@Nullable
 	private static <T extends Comparable<T>> HistogramDataCruncherContract<?> createHistogramDataCruncher(
 		@Nonnull AttributeHistogramComputer histogramComputer,
@@ -150,7 +149,8 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			final String histogramName = " attribute `" + histogramComputer.getAttributeName() + "` histogram";
 
 			return switch (behavior) {
-				case STANDARD -> new HistogramDataCruncher<>(
+				case STANDARD ->
+					new HistogramDataCruncher<>(
 					histogramName,
 					bucketCount,
 					decimalPlaces,
@@ -231,7 +231,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	public AttributeHistogramComputer(
 		@Nonnull String attributeName,
-		@Nonnull Formula filterFormula,
+		@Nullable Formula filterFormula,
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
 		@Nonnull AttributeHistogramRequest request
@@ -242,7 +242,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	private AttributeHistogramComputer(
 		@Nonnull String attributeName,
 		@Nullable Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback,
-		@Nonnull Formula filterFormula,
+		@Nullable Formula filterFormula,
 		int bucketCount,
 		@Nonnull HistogramBehavior behavior,
 		@Nonnull AttributeHistogramRequest request
@@ -259,7 +259,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				LongStream.of(
 					bucketCount,
 					behavior.ordinal(),
-					filterFormula.getHash()
+					filterFormula == null ? 0L : filterFormula.getHash()
 				),
 				LongStream.of(
 					request.attributeIndexes()
@@ -271,7 +271,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			).toArray()
 		);
 		this.transactionalIds = LongStream.concat(
-			LongStream.of(filterFormula.gatherTransactionalIds()),
+			filterFormula == null ? LongStream.empty() : LongStream.of(filterFormula.gatherTransactionalIds()),
 			request.attributeIndexes()
 				.stream()
 				.mapToLong(FilterIndex::getId)
@@ -282,7 +282,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				.sorted()
 				.toArray()
 		);
-		this.estimatedCost = filterFormula.getEstimatedCost() +
+		this.estimatedCost = (filterFormula == null ? 0L : filterFormula.getEstimatedCost()) +
 			getAttributeIndexes()
 				.stream()
 				.map(FilterIndex::getAllRecordsFormula)
@@ -329,7 +329,9 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	@Override
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		this.context = executionContext;
-		this.filterFormula.initialize(executionContext);
+		if (this.filterFormula != null) {
+			this.filterFormula.initialize(executionContext);
+		}
 	}
 
 	@Override
@@ -359,7 +361,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			if (this.memoizedResult == null) {
 				return Long.MAX_VALUE;
 			} else {
-				this.cost = this.filterFormula.getCost() +
+				this.cost = (this.filterFormula == null ? 0L : this.filterFormula.getCost()) +
 					Arrays.stream(computeNarrowedHistogramBuckets(this, this.filterFormula, this.request.comparator()))
 						.mapToInt(it -> it.getRecordIds().size())
 						.sum() * getOperationCost();
@@ -425,42 +427,20 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		return this.memoizedResult;
 	}
 
+	/**
+	 * Collects histogram buckets intersected with the computer's {@link #filterFormula}. The input formula is expected
+	 * to already have all {@link io.evitadb.core.query.algebra.filter.AttributeRangeCarrierFormula} carriers relaxed
+	 * by the caller (typically via
+	 * {@link io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer}) so this method performs no
+	 * additional formula-tree surgery — it simply threads the filter through the bucket-array combiner.
+	 */
 	private ValueToRecordBitmap[] computeNarrowedHistogramBuckets(
 		@Nonnull AttributeHistogramComputer histogramComputer,
-		@Nonnull Formula filterFormula,
+		@Nullable Formula filterFormula,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
 	) {
 		if (this.memoizedNarrowedBuckets == null) {
-			// create formula clone without formula targeting current attribute
-			final Formula optimizedFormula = FormulaCloner.clone(
-				filterFormula, (visitor, theFormula) -> {
-					if (theFormula instanceof UserFilterFormula) {
-						// we need to reconstruct the user filter formula
-						final Formula updatedUserFilterFormula = Objects.requireNonNull(
-							FormulaCloner.clone(
-								theFormula,
-								innerFormula -> {
-									if (innerFormula instanceof SelectionFormula) {
-										return shouldBeExcluded(((SelectionFormula) innerFormula).getDelegate()) ? null : innerFormula;
-									} else {
-										return shouldBeExcluded(innerFormula) ? null : innerFormula;
-									}
-								}
-							)
-						);
-						if (updatedUserFilterFormula.getInnerFormulas().length == 0) {
-							// if there is no formula left in the user filter container, leave it out entirely
-							return null;
-						} else {
-							return updatedUserFilterFormula;
-						}
-					} else {
-						return theFormula;
-					}
-				}
-			);
-
-			// now collect all INDEX histogram subsets that will be used for the computation
+			// collect all INDEX histogram subsets that will be used for the computation
 			final ValueToRecordBitmap[][] attributeIndexes = histogramComputer
 				.getAttributeIndexes()
 				.stream()
@@ -469,17 +449,10 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				.toArray(ValueToRecordBitmap[][]::new);
 
 			this.memoizedNarrowedBuckets = AttributeHistogramProducer.getCombinedAndFilteredBucketArray(
-				optimizedFormula, attributeIndexes, comparator
+				filterFormula, attributeIndexes, comparator
 			);
 		}
 		return this.memoizedNarrowedBuckets;
-	}
-
-	/**
-	 * Returns true if passed `formula` represents the formula targeting this attribute.
-	 */
-	private boolean shouldBeExcluded(@Nonnull Formula formula) {
-		return this.request.attributeFormulas().contains(formula);
 	}
 
 }

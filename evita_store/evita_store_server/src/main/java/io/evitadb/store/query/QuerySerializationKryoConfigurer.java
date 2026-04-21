@@ -48,6 +48,7 @@ import java.util.function.Consumer;
  * This {@link Consumer} implementation takes default Kryo instance and registers additional serializers that are
  * required to (de)serialize {@link io.evitadb.api.query.Query}.
  */
+@SuppressWarnings("deprecation")
 public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 	private static final int QUERY_BASE = 1000;
 	public static final QuerySerializationKryoConfigurer INSTANCE = new QuerySerializationKryoConfigurer();
@@ -194,6 +195,8 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(EntityPrimaryKeyLessThan.class, new EntityPrimaryKeyLessThanSerializer(), index++);
 		kryo.register(EntityPrimaryKeyLessThanEquals.class, new EntityPrimaryKeyLessThanEqualsSerializer(), index++);
 		kryo.register(EntityPrimaryKeyBetween.class, new EntityPrimaryKeyBetweenSerializer(), index++);
+
+		kryo.register(HistogramHaving.class, new HistogramHavingSerializer(), index++);
 
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}

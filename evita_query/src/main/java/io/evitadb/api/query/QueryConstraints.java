@@ -1183,6 +1183,158 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * Narrows a reference histogram to a specific `[from, to]` range. Inside `userFilter` it both narrows the result
+	 * set and acts as a range carrier so the histogram's own baseline does not contract under the user's slider
+	 * handles. Outside `userFilter` it behaves identically to a `referenceHaving(...)` rewrite.
+	 *
+	 * This overload targets a reference that hosts exactly one histogram and has no group slot. Use the overloads
+	 * with `histogramName` / `groupSelector` to disambiguate multi-histogram references or to select a specific
+	 * group slot (e.g. `height` vs. `weight` on `parameterValues`).
+	 *
+	 * ```evitaql
+	 * userFilter(
+	 *     histogramHaving("price-range", 50, 120)
+	 * )
+	 * ```
+	 *
+	 * At least one of {@code from} / {@code to} must be non-null; the factory returns {@code null} when the
+	 * reference name is missing or both bounds are null, allowing call-sites to pass this through conditional
+	 * filter assembly.
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
+	 *
+	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
+	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
+	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
+	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
+	 * @see io.evitadb.api.query.filter.HistogramHaving
+	 */
+	@Nullable
+	static <T extends Serializable> HistogramHaving histogramHaving(
+		@Nullable String referenceName,
+		@Nullable T from,
+		@Nullable T to
+	) {
+		if (referenceName == null || (from == null && to == null)) {
+			return null;
+		}
+		return new HistogramHaving(referenceName, null, from, to, null);
+	}
+
+	/**
+	 * Narrows a reference histogram identified by {@code histogramName} to a specific `[from, to]` range.
+	 *
+	 * Use this overload when the reference hosts multiple histograms distinguished by name (e.g. `basicUnitValue`
+	 * for product parameter values). Inside `userFilter` it both narrows the result set and acts as a range carrier
+	 * so the histogram's own baseline does not contract.
+	 *
+	 * ```evitaql
+	 * userFilter(
+	 *     histogramHaving("parameterValues", "basicUnitValue", 50, 120)
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
+	 *
+	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
+	 * @param histogramName the histogram name within the reference; may be null for single-histogram references
+	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
+	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
+	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
+	 * @see io.evitadb.api.query.filter.HistogramHaving
+	 */
+	@Nullable
+	static <T extends Serializable> HistogramHaving histogramHaving(
+		@Nullable String referenceName,
+		@Nullable String histogramName,
+		@Nullable T from,
+		@Nullable T to
+	) {
+		if (referenceName == null || (from == null && to == null)) {
+			return null;
+		}
+		return new HistogramHaving(referenceName, histogramName, from, to, null);
+	}
+
+	/**
+	 * Narrows a reference histogram to a specific `[from, to]` range within the group slot identified by the given
+	 * group selector.
+	 *
+	 * Use this overload for grouped histograms when the reference hosts a single histogram per group (no
+	 * histogram-name disambiguation needed). The group selector must be a single {@code entityHaving(...)}
+	 * constraint that resolves to exactly one group entity.
+	 *
+	 * ```evitaql
+	 * userFilter(
+	 *     histogramHaving("parameterValues", 50, 120,
+	 *         entityHaving(attributeEquals("code", "height")))
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
+	 *
+	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
+	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
+	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
+	 * @param groupSelector optional single {@code entityHaving} constraint selecting the group slot; may be null
+	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
+	 * @see io.evitadb.api.query.filter.HistogramHaving
+	 */
+	@Nullable
+	static <T extends Serializable> HistogramHaving histogramHaving(
+		@Nullable String referenceName,
+		@Nullable T from,
+		@Nullable T to,
+		@Nullable FilterConstraint groupSelector
+	) {
+		if (referenceName == null || (from == null && to == null)) {
+			return null;
+		}
+		return new HistogramHaving(referenceName, null, from, to, groupSelector);
+	}
+
+	/**
+	 * Narrows a reference histogram identified by {@code histogramName} to a specific `[from, to]` range within the
+	 * group slot identified by the given group selector. This is the full-arity form of {@code histogramHaving}.
+	 *
+	 * Two independent ranges on the same reference are expressed by placing two `histogramHaving` siblings inside
+	 * the same `userFilter`, each targeting a different group. Inside `userFilter` each call acts as a range
+	 * carrier so a slider never contracts the `[min, max]` span of its sibling sliders.
+	 *
+	 * ```evitaql
+	 * userFilter(
+	 *     histogramHaving("parameterValues", "basicUnitValue", 50, 120,
+	 *         entityHaving(attributeEquals("code", "height"))),
+	 *     histogramHaving("parameterValues", "basicUnitValue", 90, 140,
+	 *         entityHaving(attributeEquals("code", "weight")))
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#histogram-having)
+	 *
+	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
+	 * @param histogramName the histogram name within the reference; may be null for single-histogram references
+	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
+	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
+	 * @param groupSelector optional single {@code entityHaving} constraint selecting the group slot; may be null
+	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
+	 * @see io.evitadb.api.query.filter.HistogramHaving
+	 */
+	@Nullable
+	static <T extends Serializable> HistogramHaving histogramHaving(
+		@Nullable String referenceName,
+		@Nullable String histogramName,
+		@Nullable T from,
+		@Nullable T to,
+		@Nullable FilterConstraint groupSelector
+	) {
+		if (referenceName == null || (from == null && to == null)) {
+			return null;
+		}
+		return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
+	}
+
+	/**
 	 * Modifies `facetHaving` to include not just entities directly referencing a hierarchical facet (e.g., a category), but also those referencing any of its descendants. Use only with hierarchical references; errors if used otherwise.
 	 *
 	 * ```evitaql

@@ -38,7 +38,10 @@ import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.filter.AttributeRangeCarrierFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
+import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
+import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
@@ -121,8 +124,17 @@ final class ReferenceHistogramAccumulator {
 	 *                                       entries are rebuilt in-place and histogram-only groups are appended
 	 * @param histogramRequestsByReference   per-reference list of {@link HistogramRequest}s registered by the
 	 *                                       histogram translator during planning; outer key is reference name
-	 * @param filterFormulaWithoutUserFilter base filter formula (user-filter parts removed) used as the entity-set
-	 *                                       scope for histogram bucket computation
+	 * @param attributeHistogramBaselineFormula baseline filter formula against which each reference histogram is
+	 *                                          computed — carriers tagged with {@link AttributeRangeCarrierFormula}
+	 *                                          (the attribute-family slider picks) have been stripped by the caller
+	 *                                          via {@link UserFilterRelaxer}
+	 *                                          with {@link RangeCarrierGroup#ATTRIBUTE_HISTOGRAM};
+	 *                                          facet and price-range carriers remain applied so each reference
+	 *                                          histogram still reflects the user's facet / price narrowings.
+	 *                                          {@code null} signals "no mandatory filter remains / all records pass"
+	 *                                          — the relaxer collapsed the whole tree (e.g. filterBy consisted of
+	 *                                          nothing but peeled attribute-range carriers); each histogram spans
+	 *                                          the catalog-wide superset in that case
 	 * @param context                        the execution context providing access to entity collections and
 	 *                                       entity-fetch infrastructure
 	 * @param resultAdapter                  adapter that creates the correct {@link ReferenceGroupStatistics}
@@ -133,10 +145,10 @@ final class ReferenceHistogramAccumulator {
 	 *                                       accumulator then falls back to the lowest-PK rule.
 	 */
 	@Nonnull
-	static <T extends ReferenceGroupStatistics> Map<String, Collection<T>> injectHistograms(
+	 static <T extends ReferenceGroupStatistics> Map<String, Collection<T>> injectHistograms(
 		@Nonnull Map<String, Collection<T>> statisticsByReferenceName,
 		@Nonnull Map<String, List<HistogramRequest>> histogramRequestsByReference,
-		@Nonnull Formula filterFormulaWithoutUserFilter,
+		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nonnull ReferenceSummaryResultAdapter<T> resultAdapter,
 		@Nonnull Function<String, NestedContextSorter> facetSorterByReferenceName
@@ -155,7 +167,7 @@ final class ReferenceHistogramAccumulator {
 			final NestedContextSorter facetSorter = facetSorterByReferenceName.apply(referenceName);
 			final Collection<T> rebuilt = computeForReference(
 				referenceSchema, requests, existing,
-				filterFormulaWithoutUserFilter, context, resultAdapter, facetSorter
+				attributeHistogramBaselineFormula, context, resultAdapter, facetSorter
 			);
 			result.put(referenceName, rebuilt);
 		}
@@ -180,7 +192,7 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull List<HistogramRequest> requests,
 		@Nonnull Collection<T> existing,
-		@Nonnull Formula filterFormulaWithoutUserFilter,
+		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nonnull ReferenceSummaryResultAdapter<T> resultAdapter,
 		@Nullable NestedContextSorter facetSorter
@@ -191,13 +203,10 @@ final class ReferenceHistogramAccumulator {
 		final String entityType = Objects.requireNonNull(context.getQueryContext().getEntityType());
 		final Set<Scope> scopes = context.getQueryContext().getScopes();
 
-		// Stage 1: compute cacheable histograms + resolve boundary PKs (without fetching yet).
-		// RGEIs and RTEIs are not part of TargetIndexes — they belong to the entity collection's
-		// own index catalog. We locate them per scope via QueryPlanningContext#getEntityIndex.
-		// Non-grouped case produces exactly one PH per req × scope (when the RTEI exists) — that's
-		// the tight upper bound; grouped case grows from this floor as per-group RGEIs are found.
-		// Estimate via the first request/scope's RTEI group count when grouped, and clamp to a
-		// sanity cap so pathological group counts do not blow the heap.
+		// Stage 1: compute cacheable histograms + resolve boundary PKs (no fetch yet). RGEIs/RTEIs
+		// live on the entity collection, located per scope via QueryPlanningContext#getEntityIndex.
+		// Sizing: non-grouped = req × scope (floor); grouped grows by per-group RGEIs — probe the
+		// RTEI's group count and clamp to a sanity cap against pathological group counts.
 		final int pendingEstimate;
 		if (grouped) {
 			int groupsProbe = 0;
@@ -220,8 +229,7 @@ final class ReferenceHistogramAccumulator {
 			pendingEstimate = Math.min(requests.size() * scopes.size(), PENDING_SANITY_CAP);
 		}
 		final List<PendingHistogram> pending = new ArrayList<>(pendingEstimate);
-		// Resolve schema + comparator once per request — both depend only on the request, not on
-		// the scope or group, so hoisting out of the inner loop avoids O(groups) redundant lookups.
+		// hoisted out of the scope × group loop — both depend only on the request
 		final List<ResolvedRequest> resolved = new ArrayList<>(requests.size());
 		for (final HistogramRequest req : requests) {
 			final AttributeSchemaContract attributeSchema = resolveSourceAttributeSchema(req, context);
@@ -241,12 +249,12 @@ final class ReferenceHistogramAccumulator {
 				if (grouped) {
 					collectGroupedPending(
 						resolvedReq, entityType, referenceName, scope,
-						filterFormulaWithoutUserFilter, context, facetSorter, pending
+						attributeHistogramBaselineFormula, context, facetSorter, pending
 					);
 				} else {
 					collectNonGroupedPending(
 						resolvedReq, entityType, referenceName, scope,
-						filterFormulaWithoutUserFilter, context, facetSorter, pending
+						attributeHistogramBaselineFormula, context, facetSorter, pending
 					);
 				}
 			}
@@ -259,9 +267,8 @@ final class ReferenceHistogramAccumulator {
 		// Stage 2: batch-fetch boundary entities by (entityType, entityFetch) tuple
 		final BoundaryEntityCache entityCache = BoundaryEntityCache.prefetch(pending, context);
 
-		// Stage 3: materialize HistogramContract DTOs and attach to their groups.
-		// Non-grouped collapses everything to the `0` sentinel — exactly one outer entry.
-		// Grouped is bounded by `pending.size()` (each PH carries a groupPk; distinct PKs ≤ that).
+		// Stage 3: materialize HistogramContract DTOs. Non-grouped collapses to the `0` sentinel
+		// (single outer entry); grouped is bounded by distinct groupPks ≤ pending.size()
 		final Map<Integer, Map<String, HistogramContract>> histogramsByGroupKey = createLinkedHashMap(
 			Math.min(grouped ? pending.size() : 1, HISTOGRAM_GROUP_MAP_SANITY_CAP)
 		);
@@ -287,7 +294,7 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull String entityType,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
-		@Nonnull Formula filterFormulaWithoutUserFilter,
+		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nullable NestedContextSorter facetSorter,
 		@Nonnull List<PendingHistogram> pending
@@ -322,7 +329,7 @@ final class ReferenceHistogramAccumulator {
 				final ReducedGroupEntityIndex rgei = context.getQueryContext()
 					.getEntityIndexByPrimaryKey(rgeiPk, ReducedGroupEntityIndex.class);
 				computePendingHistogram(
-					resolved, rgei, groupPk, filterFormulaWithoutUserFilter, context, facetSorter
+					resolved, rgei, groupPk, attributeHistogramBaselineFormula, context, facetSorter
 				).ifPresent(pending::add);
 			}
 		}
@@ -338,7 +345,7 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull String entityType,
 		@Nonnull String referenceName,
 		@Nonnull Scope scope,
-		@Nonnull Formula filterFormulaWithoutUserFilter,
+		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nullable NestedContextSorter facetSorter,
 		@Nonnull List<PendingHistogram> pending
@@ -352,7 +359,7 @@ final class ReferenceHistogramAccumulator {
 		if (rtei == null) {
 			return;
 		}
-		computePendingHistogram(resolved, rtei, 0, filterFormulaWithoutUserFilter, context, facetSorter)
+		computePendingHistogram(resolved, rtei, 0, attributeHistogramBaselineFormula, context, facetSorter)
 			.ifPresent(pending::add);
 	}
 
@@ -373,7 +380,7 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull ResolvedRequest resolved,
 		@Nonnull EntityIndex sourceIndex,
 		int groupPk,
-		@Nonnull Formula filterFormulaWithoutUserFilter,
+		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nullable NestedContextSorter facetSorter
 	) {
@@ -383,7 +390,7 @@ final class ReferenceHistogramAccumulator {
 			return Optional.empty();
 		}
 		final CacheableHistogramContract cacheable = computeCacheable(
-			resolved, filterIndex, filterFormulaWithoutUserFilter, context
+			resolved, filterIndex, attributeHistogramBaselineFormula, context
 		);
 		final Serializable rawMin = cacheable.getRawMin();
 		final Serializable rawMax = cacheable.getRawMax();
@@ -431,18 +438,17 @@ final class ReferenceHistogramAccumulator {
 	private static CacheableHistogramContract computeCacheable(
 		@Nonnull ResolvedRequest resolved,
 		@Nonnull FilterIndex filterIndex,
-		@Nonnull Formula filterFormulaWithoutUserFilter,
+		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context
 	) {
 		final HistogramRequest req = resolved.request();
 		final AttributeHistogramRequest histRequest = new AttributeHistogramRequest(
 			resolved.attributeSchema(),
 			resolved.comparator(),
-			List.of(filterIndex),
-			Set.of()
+			List.of(filterIndex)
 		);
 		final AttributeHistogramComputer computer = new AttributeHistogramComputer(
-			req.histogramName(), filterFormulaWithoutUserFilter,
+			req.histogramName(), attributeHistogramBaselineFormula,
 			req.bucketCount(), req.behavior(), histRequest
 		);
 		computer.initialize(context);
@@ -705,13 +711,9 @@ final class ReferenceHistogramAccumulator {
 			return null;
 		}
 		if (facetSorter != null) {
-			// Honour the reference's configured orderBy — the sorter is bound to the referenced
-			// entity's collection, so the intersection bitmap (referenced PKs) is the right input.
-			// PERFORMANCE: NestedContextSorter#sortAndSlice currently sorts the entire intersection
-			// and we discard everything but [0]. When the intersection is large (large groups) this
-			// is wasteful. A bounded `sortAndSlice(Bitmap, int limit)` overload should be added —
-			// tracked separately, this method is already constrained to Stage-1 boundary resolution
-			// which runs at most 2× per histogram request.
+			// honours the reference's configured orderBy; PERFORMANCE: sortAndSlice sorts the full
+			// intersection and we keep only [0] — a bounded `sortAndSlice(Bitmap, int limit)` overload
+			// would avoid the waste on large groups. Bounded to ≤ 2× per histogram request.
 			final int[] sorted = facetSorter.sortAndSlice(new BaseBitmap(intersection));
 			if (sorted.length > 0) {
 				return sorted[0];
@@ -898,7 +900,14 @@ final class ReferenceHistogramAccumulator {
 		 */
 		@Nonnull
 		HistogramContract materialize(@Nonnull BoundaryEntityCache entityCache) {
-			final Predicate<BigDecimal> predicate = requestedBucketPredicate(this.request.requestedRange());
+			// fall back to NON_GROUPED_SENTINEL for groupSelector-less histogramHaving; absent on both
+			// keys means no slider was registered — requestedBucketPredicate returns always-false
+			final Map<Integer, RequestedBucketRange> rangesByGroupPk = this.request.requestedRangesByGroupPk();
+			RequestedBucketRange range = rangesByGroupPk.get(this.groupPk);
+			if (range == null) {
+				range = rangesByGroupPk.get(HistogramRequest.NON_GROUPED_SENTINEL);
+			}
+			final Predicate<BigDecimal> predicate = requestedBucketPredicate(range);
 			final SealedEntity minEntity = entityCache.resolve(this.boundaryPks.entityType(), this.boundaryPks.minPk());
 			final SealedEntity maxEntity = entityCache.resolve(this.boundaryPks.entityType(), this.boundaryPks.maxPk());
 			if (minEntity == null || maxEntity == null) {

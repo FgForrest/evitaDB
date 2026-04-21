@@ -47,6 +47,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -235,7 +236,7 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	}
 
 	// ---------------------------------------------------------------------
-	// small-fixture schema + seed
+	// small-fixture entity builders (used by seedSmallData above)
 	// ---------------------------------------------------------------------
 
 	/**
@@ -381,7 +382,7 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	}
 
 	// ---------------------------------------------------------------------
-	// large-fixture schema + seed
+	// large-fixture oracle helpers (drive boundary-resolution assertions)
 	// ---------------------------------------------------------------------
 
 	/**
@@ -464,7 +465,76 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	}
 
 	// ---------------------------------------------------------------------
-	// Shared helper types + helpers
+	// Bespoke-schema test scaffolding
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Builds the standard {@link EvitaConfiguration} used by bespoke-schema tests:
+	 * disabled session inactivity timeout plus dedicated per-test storage and export
+	 * directories rooted under {@link #getTestDirectory()}.
+	 */
+	@Nonnull
+	protected EvitaConfiguration createEvitaConfiguration(
+		@Nonnull String storageDir,
+		@Nonnull String exportDir
+	) {
+		return EvitaConfiguration.builder()
+			.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
+			.storage(
+				StorageOptions.builder()
+					.storageDirectory(getTestDirectory().resolve(storageDir))
+					.build()
+			)
+			.export(
+				FileSystemExportOptions.builder()
+					.directory(getTestDirectory().resolve(exportDir))
+					.build()
+			)
+			.build();
+	}
+
+	/**
+	 * Scaffolds a bespoke-schema test: cleans a pair of per-test directories, spins up a
+	 * fresh {@link Evita} instance bound to them, applies the schema definition, optionally
+	 * seeds data, and hands the running instance to the caller's assertions. Both
+	 * directories are cleaned again on exit so tests do not leak disk state into siblings.
+	 *
+	 * The storage directory name is {@code dirPrefix} and the export directory is derived
+	 * as {@code dirPrefix + "_export"} so each test only supplies a single prefix.
+	 *
+	 * @param dirPrefix        unique prefix identifying the test (storage dir name — the
+	 *                         export dir is {@code dirPrefix + "_export"})
+	 * @param schemaDefinition callback that installs the bespoke schema
+	 * @param seed             optional callback that seeds data (run after the schema);
+	 *                         pass {@code null} when no seeding is required
+	 * @param assertions       callback invoked with the live Evita instance
+	 */
+	protected void runWithInlineSchema(
+		@Nonnull String dirPrefix,
+		@Nonnull Consumer<EvitaSessionContract> schemaDefinition,
+		@Nullable Consumer<EvitaSessionContract> seed,
+		@Nonnull Consumer<Evita> assertions
+	) {
+		final String exportDir = dirPrefix + "_export";
+		cleanTestSubDirectoryWithRethrow(dirPrefix);
+		cleanTestSubDirectoryWithRethrow(exportDir);
+		try (
+			Evita evita = new Evita(createEvitaConfiguration(dirPrefix, exportDir))
+		) {
+			evita.defineCatalog(TEST_CATALOG);
+			evita.updateCatalog(TEST_CATALOG, schemaDefinition);
+			if (seed != null) {
+				evita.updateCatalog(TEST_CATALOG, seed);
+			}
+			assertions.accept(evita);
+		} finally {
+			cleanTestSubDirectoryWithRethrow(dirPrefix);
+			cleanTestSubDirectoryWithRethrow(exportDir);
+		}
+	}
+
+	// ---------------------------------------------------------------------
+	// @DataSet provisioning methods (invoked by EvitaParameterResolver)
 	// ---------------------------------------------------------------------
 
 	/**
@@ -558,39 +628,28 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		private static final String DIR_REMOVAL_EXPORT = "referenceHistogramE2E_removal_export";
 
 		/**
+		 * The {@link FixtureCtx} is identical for every OverlapFixture variant — the fixtures
+		 * only differ in their seed data, not in the entity/reference/histogram triple under
+		 * test.
+		 */
+		private static final FixtureCtx FIXTURE_CTX = new FixtureCtx(
+			ENTITY_PRODUCT, REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE
+		);
+
+		/**
 		 * Provisions a two-group fixture where `SHARED_PV` is referenced from products in
 		 * BOTH group 1 and group 2 with different marketShare values per group — group 1
 		 * pins the low value, group 2 pins the high value. Also places additional distinct
 		 * PVs in each group so the histogram actually has buckets.
 		 */
 		static void runWithOverlapFixture(@Nonnull FixtureTest test) {
-			final OverlapFixture fixture = new OverlapFixture();
-			fixture.cleanTestSubDirectoryWithRethrow(DIR_OVERLAP);
-			fixture.cleanTestSubDirectoryWithRethrow(DIR_OVERLAP_EXPORT);
-			try (
-				Evita evita = new Evita(
-					fixture.getEvitaConfiguration(DIR_OVERLAP, DIR_OVERLAP_EXPORT)
-				)
-			) {
-				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(
-					TEST_CATALOG, session -> {
-						defineSchema(session);
-						seedOverlap(session);
-						session.goLiveAndClose();
-					}
-				);
-				final FixtureCtx ctx = new FixtureCtx(
-					ENTITY_PRODUCT, REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE
-				);
-				evita.queryCatalog(
+			runFixture(
+				DIR_OVERLAP, DIR_OVERLAP_EXPORT, OverlapFixture::seedOverlap,
+				evita -> evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) session -> test.run(session, ctx)
-				);
-			} finally {
-				fixture.cleanTestSubDirectoryWithRethrow(DIR_OVERLAP);
-				fixture.cleanTestSubDirectoryWithRethrow(DIR_OVERLAP_EXPORT);
-			}
+					(Consumer<EvitaSessionContract>) session -> test.run(session, FIXTURE_CTX)
+				)
+			);
 		}
 
 		/**
@@ -601,28 +660,10 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		 * resolution both before and after the mutation.
 		 */
 		static void runWithUpdateFixture(@Nonnull MutationFixtureTest test) {
-			final OverlapFixture fixture = new OverlapFixture();
-			fixture.cleanTestSubDirectoryWithRethrow(DIR_UPDATE);
-			fixture.cleanTestSubDirectoryWithRethrow(DIR_UPDATE_EXPORT);
-			try (Evita evita = new Evita(
-				fixture.getEvitaConfiguration(DIR_UPDATE, DIR_UPDATE_EXPORT)
-			)) {
-				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(
-					TEST_CATALOG, session -> {
-						defineSchema(session);
-						seedUpdate(session);
-						session.goLiveAndClose();
-					}
-				);
-				final FixtureCtx ctx = new FixtureCtx(
-					ENTITY_PRODUCT, REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE
-				);
-				test.run(evita, ctx);
-			} finally {
-				fixture.cleanTestSubDirectoryWithRethrow(DIR_UPDATE);
-				fixture.cleanTestSubDirectoryWithRethrow(DIR_UPDATE_EXPORT);
-			}
+			runFixture(
+				DIR_UPDATE, DIR_UPDATE_EXPORT, OverlapFixture::seedUpdate,
+				evita -> test.run(evita, FIXTURE_CTX)
+			);
 		}
 
 		/**
@@ -633,28 +674,10 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		 * re-query to verify the boundary no longer returns the removed PV.
 		 */
 		static void runWithRemovalFixture(@Nonnull MutationFixtureTest test) {
-			final OverlapFixture fixture = new OverlapFixture();
-			fixture.cleanTestSubDirectoryWithRethrow(DIR_REMOVAL);
-			fixture.cleanTestSubDirectoryWithRethrow(DIR_REMOVAL_EXPORT);
-			try (Evita evita = new Evita(
-				fixture.getEvitaConfiguration(DIR_REMOVAL, DIR_REMOVAL_EXPORT)
-			)) {
-				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(
-					TEST_CATALOG, session -> {
-						defineSchema(session);
-						seedRemoval(session);
-						session.goLiveAndClose();
-					}
-				);
-				final FixtureCtx ctx = new FixtureCtx(
-					ENTITY_PRODUCT, REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE
-				);
-				test.run(evita, ctx);
-			} finally {
-				fixture.cleanTestSubDirectoryWithRethrow(DIR_REMOVAL);
-				fixture.cleanTestSubDirectoryWithRethrow(DIR_REMOVAL_EXPORT);
-			}
+			runFixture(
+				DIR_REMOVAL, DIR_REMOVAL_EXPORT, OverlapFixture::seedRemoval,
+				evita -> test.run(evita, FIXTURE_CTX)
+			);
 		}
 
 		/**
@@ -662,31 +685,46 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		 * min marketShare — forces the facet-sorter tie-breaker into active duty.
 		 */
 		static void runWithTieFixture(@Nonnull FixtureTest test) {
+			runFixture(
+				DIR_TIE, DIR_TIE_EXPORT, OverlapFixture::seedTie,
+				evita -> evita.queryCatalog(
+					TEST_CATALOG,
+					(Consumer<EvitaSessionContract>) session -> test.run(session, FIXTURE_CTX)
+				)
+			);
+		}
+
+		/**
+		 * Scaffolds an OverlapFixture variant: cleans a pair of per-fixture directories,
+		 * spins up a fresh {@link Evita} bound to them, installs the shared overlap schema,
+		 * applies the variant-specific seed, calls `goLiveAndClose`, and hands the running
+		 * instance to the caller's body. Both directories are cleaned again on exit so
+		 * variants do not leak disk state into siblings.
+		 */
+		private static void runFixture(
+			@Nonnull String dir,
+			@Nonnull String exportDir,
+			@Nonnull Consumer<EvitaSessionContract> seed,
+			@Nonnull Consumer<Evita> body
+		) {
 			final OverlapFixture fixture = new OverlapFixture();
-			fixture.cleanTestSubDirectoryWithRethrow(DIR_TIE);
-			fixture.cleanTestSubDirectoryWithRethrow(DIR_TIE_EXPORT);
-			try (Evita evita = new Evita(
-				fixture.getEvitaConfiguration(DIR_TIE, DIR_TIE_EXPORT)
-			)) {
+			fixture.cleanTestSubDirectoryWithRethrow(dir);
+			fixture.cleanTestSubDirectoryWithRethrow(exportDir);
+			try (
+				Evita evita = new Evita(fixture.getEvitaConfiguration(dir, exportDir))
+			) {
 				evita.defineCatalog(TEST_CATALOG);
 				evita.updateCatalog(
 					TEST_CATALOG, session -> {
 						defineSchema(session);
-						seedTie(session);
+						seed.accept(session);
 						session.goLiveAndClose();
 					}
 				);
-				final FixtureCtx ctx = new FixtureCtx(
-					ENTITY_PRODUCT, REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE
-				);
-				evita.queryCatalog(
-					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) session ->
-						test.run(session, ctx)
-				);
+				body.accept(evita);
 			} finally {
-				fixture.cleanTestSubDirectoryWithRethrow(DIR_TIE);
-				fixture.cleanTestSubDirectoryWithRethrow(DIR_TIE_EXPORT);
+				fixture.cleanTestSubDirectoryWithRethrow(dir);
+				fixture.cleanTestSubDirectoryWithRethrow(exportDir);
 			}
 		}
 

@@ -33,6 +33,7 @@ import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
+import io.evitadb.core.query.algebra.attribute.BetweenAttributeFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -42,7 +43,6 @@ import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBi
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.NumberRange;
@@ -291,8 +291,8 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 
 		final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
 		if (NumberRange.class.isAssignableFrom(attributeType)) {
-			final BigDecimal fromBigDecimal = EvitaDataTypes.toTargetType(from, BigDecimal.class);
-			final BigDecimal toBigDecimal = EvitaDataTypes.toTargetType(to, BigDecimal.class);
+			final BigDecimal fromBigDecimal = toTargetType(from, BigDecimal.class);
+			final BigDecimal toBigDecimal = toTargetType(to, BigDecimal.class);
 			if (attributeSchema.getIndexedDecimalPlaces() > 0) {
 				comparableFrom = getBigDecimalComparable(fromBigDecimal, attributeSchema.getIndexedDecimalPlaces(), Long.MIN_VALUE);
 				comparableTo = getBigDecimalComparable(toBigDecimal, attributeSchema.getIndexedDecimalPlaces(), Long.MAX_VALUE);
@@ -309,7 +309,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			throw new GenericEvitaInternalError("Unexpected Range type!");
 		}
 		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-		return new AttributeFormula(
+		return new BetweenAttributeFormula(
 			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
 			filterByVisitor.applyOnFilterIndexes(
@@ -440,17 +440,17 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 				);
 			} else {
 				if (Number.class.isAssignableFrom(attributeType)) {
-					final BigDecimal fromBigDecimal = EvitaDataTypes.toTargetType(from, BigDecimal.class);
-					final BigDecimal toBigDecimal = EvitaDataTypes.toTargetType(to, BigDecimal.class);
+					final BigDecimal fromBigDecimal = toTargetType(from, BigDecimal.class);
+					final BigDecimal toBigDecimal = toTargetType(to, BigDecimal.class);
 					requestedPredicate = createBigDecimalPredicate(fromBigDecimal, toBigDecimal);
 				} else {
 					requestedPredicate = null;
 				}
 
 				final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-				final Serializable convertedFrom = EvitaDataTypes.toTargetType(from, attributeType);
-				final Serializable convertedTo = EvitaDataTypes.toTargetType(to, attributeType);
-				filteringFormula = new AttributeFormula(
+				final Serializable convertedFrom = toTargetType(from, attributeType);
+				final Serializable convertedTo = toTargetType(to, attributeType);
+				filteringFormula = new BetweenAttributeFormula(
 					attributeSchema instanceof GlobalAttributeSchemaContract,
 					attributeKey,
 					filterByVisitor.applyOnFilterIndexes(

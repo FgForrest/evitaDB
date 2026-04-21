@@ -53,6 +53,7 @@ import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
@@ -79,6 +80,7 @@ import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanTr
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
+import io.evitadb.core.query.filter.translator.histogram.HistogramHavingTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceInCurrencyTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceInPriceListsTranslator;
@@ -175,7 +177,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
-		TRANSLATORS = createHashMap(40);
+		TRANSLATORS = createHashMap(64);
 		TRANSLATORS.put(FilterBy.class, new FilterByTranslator());
 		TRANSLATORS.put(And.class, new AndTranslator());
 		TRANSLATORS.put(Or.class, new OrTranslator());
@@ -209,18 +211,20 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(HierarchyWithin.class, new HierarchyWithinTranslator());
 		TRANSLATORS.put(HierarchyWithinRoot.class, new HierarchyWithinRootTranslator());
 		TRANSLATORS.put(FacetHaving.class, new FacetHavingTranslator());
+		TRANSLATORS.put(HistogramHaving.class, new HistogramHavingTranslator());
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
 		TRANSLATORS.put(FilterInScope.class, new FilterInScopeTranslator());
 		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
 
-		CONJUNCTIVE_FORMULAS = new HashSet<>();
+		CONJUNCTIVE_FORMULAS = new HashSet<>(16);
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
 		CONJUNCTIVE_FORMULAS.add(UserFilterFormula.class);
 		CONJUNCTIVE_FORMULAS.add(SelectionFormula.class);
 		CONJUNCTIVE_FORMULAS.add(AttributeFormula.class);
 		CONJUNCTIVE_FORMULAS.add(ScopeContainerFormula.class);
+		CONJUNCTIVE_FORMULAS.add(FacetHavingFormula.class);
 
-		CONJUNCTIVE_CONSTRAINTS = new HashSet<>();
+		CONJUNCTIVE_CONSTRAINTS = new HashSet<>(16);
 		CONJUNCTIVE_CONSTRAINTS.add(And.class);
 		CONJUNCTIVE_CONSTRAINTS.add(UserFilter.class);
 		CONJUNCTIVE_CONSTRAINTS.add(FilterInScope.class);
@@ -1734,6 +1738,30 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		public void popConstraint() {
 			this.processedConstraints.pop();
+		}
+
+		/**
+		 * Returns an {@link Iterable} over the parent chain of the currently processed constraint,
+		 * ordered from innermost parent to outermost. The currently processed constraint itself
+		 * (the head of the processed-constraints stack) is NOT included in the iteration — callers
+		 * only observe its ancestors.
+		 *
+		 * Intended for translators that must validate their constraint's nesting context at plan
+		 * time, e.g. to detect pathological parent combinations that cannot be caught at
+		 * constraint-construction time because they depend on the surrounding container.
+		 *
+		 * @return iterable over the parent chain, innermost first, excluding the current constraint
+		 */
+		@Nonnull
+		public Iterable<FilterConstraint> getProcessedConstraintParents() {
+			return () -> {
+				final Iterator<FilterConstraint> it = this.processedConstraints.iterator();
+				if (it.hasNext()) {
+					// skip the currently processed constraint — callers want ancestors only
+					it.next();
+				}
+				return it;
+			};
 		}
 
 		/**

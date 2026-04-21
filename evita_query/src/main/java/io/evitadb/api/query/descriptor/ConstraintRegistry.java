@@ -48,6 +48,7 @@ import java.util.Set;
  * @see ConstraintDescriptorProvider
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@SuppressWarnings("deprecation")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 class ConstraintRegistry {
 
@@ -114,6 +115,7 @@ class ConstraintRegistry {
 		HierarchyWithinRoot.class,
 		// facet
 		FacetHaving.class,
+		HistogramHaving.class,
 		FacetIncludingChildren.class,
 		FacetIncludingChildrenExcept.class,
 

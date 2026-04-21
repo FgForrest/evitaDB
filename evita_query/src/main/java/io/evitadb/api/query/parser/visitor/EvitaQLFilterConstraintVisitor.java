@@ -39,6 +39,7 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConst
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -563,6 +564,38 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 						ctx.args.filter1.accept(this)
 					);
 				}
+			}
+		);
+	}
+
+	@Override
+	public FilterConstraint visitHistogramHavingConstraint(EvitaQLParser.HistogramHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String referenceName = ctx.args.classifier
+					.accept(this.stringValueTokenVisitor)
+					.asString();
+				final String histogramName = ctx.args.histogramName == null
+					? null
+					: ctx.args.histogramName.accept(this.stringValueTokenVisitor).asString();
+				final Serializable from;
+				final Serializable to;
+				if (ctx.args.valueFrom != null && ctx.args.valueTo != null) {
+					from = ctx.args.valueFrom
+						.accept(this.comparableValueTokenVisitor)
+						.asSerializableAndComparable();
+					to = ctx.args.valueTo
+						.accept(this.comparableValueTokenVisitor)
+						.asSerializableAndComparable();
+				} else {
+					from = null;
+					to = null;
+				}
+				final FilterConstraint groupSelector = ctx.args.groupSelector == null
+					? null
+					: visitChildConstraint(ctx.args.groupSelector, FilterConstraint.class);
+				return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
 			}
 		);
 	}

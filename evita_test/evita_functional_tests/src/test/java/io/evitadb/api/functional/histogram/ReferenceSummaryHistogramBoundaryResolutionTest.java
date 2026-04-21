@@ -43,29 +43,19 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyNatural;
-import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
-import static io.evitadb.api.query.QueryConstraints.orderBy;
-import static io.evitadb.api.query.QueryConstraints.page;
-import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceWithHistograms;
-import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
-import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the Phase G.1 behavior for `REFERENCE_ATTRIBUTE` histograms: min/max boundary referenced
- * entities are resolved from the reference's own attribute FilterIndex on RGEI (which is keyed on
- * the referenced entity PK via `executeWithDifferentPrimaryKeyToIndex` during insert) and mapped
- * back through
+ * Pins the boundary-resolution behavior for `REFERENCE_ATTRIBUTE` histograms: min/max boundary
+ * referenced entities are resolved from the reference's own attribute FilterIndex on RGEI (which
+ * is keyed on the referenced entity PK via `executeWithDifferentPrimaryKeyToIndex` during insert)
+ * and mapped back through
  * {@link io.evitadb.index.ReducedGroupEntityIndex#getReferencedPrimaryKeysForIndexPks}.
  *
  * The selection rule is: when an `orderBy` is configured on the enclosing
@@ -89,16 +79,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractReferenceSummaryHistogramFunctionalTest {
 
 	@Nested
-	@DisplayName("REFERENCE_ATTRIBUTE boundary resolution")
+	@DisplayName("Read-path — selection rules and group isolation")
 	class ReferenceAttributeBoundaryResolution {
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should respect facet sorter when multiple referenced PKs carry the boundary value")
-		void shouldRespectFacetSorterForReferenceAttributeBoundaryTie(@Nonnull Evita evita) {
+		@DisplayName("should pick a candidate carrying the min marketShare and honor DESC sorter when a tie happens")
+		void shouldPickMinMarketShareCandidateAndHonorSorterOnTies(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					// Query with orderBy(entityPrimaryKeyNatural(DESC)) on the enclosing
 					// referenceSummaryOfReferenceWithHistograms — when multiple candidates carry the
 					// boundary marketShare, the facetSorter must break the tie picking the *highest*
@@ -154,8 +144,10 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 								minCandidates.add(c);
 							}
 						}
-						assertTrue(!minCandidates.isEmpty(),
-							"Fixture must contain at least one candidate with the histogram min value for group " + groupPk);
+						assertFalse(
+							minCandidates.isEmpty(),
+							"Fixture must contain at least one candidate with the histogram min value for group " + groupPk
+						);
 
 						final int resolvedMinPk = histogram.getMinReferencedEntity().get().getPrimaryKey();
 						// The resolved PK must be among the min-value candidates
@@ -212,7 +204,7 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 		void shouldFallBackToLowestPkWhenNoFacetSorter(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					// All-references fan-out has no per-reference orderBy wiring so no facetSorter
 					// is attached — boundary resolution must fall back to the lowest-PK rule.
 					final EvitaResponse<EntityReferenceContract> result = session.query(
@@ -280,13 +272,13 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
 		@DisplayName("should set boundary EntityReference type to the referenced entity type, not the group type")
 		void shouldReturnReferencedEntityTypeNotGroupTypeForBoundary(@Nonnull Evita evita) {
-			// Pins Phase G.1 contract: REFERENCE_ATTRIBUTE boundary resolution must emit the
+			// Pins the REFERENCE_ATTRIBUTE boundary-resolution contract: it must emit the
 			// *referenced* entity type (parameterValue) on the boundary EntityReference, NOT the group
 			// type (parameter). Previous implementations copy-pasted from REFERENCED_ENTITY_ATTRIBUTE
 			// mistakenly emitted the group type here — this test guards against that regression.
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -408,7 +400,7 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 		 */
 		@Test
 		@DisplayName("should pick highest-PK via facet sorter when multiple referenced PKs tie on the boundary value")
-		void shouldRespectFacetSorterForReferenceAttributeBoundaryTieDedicated() {
+		void shouldPickHighestPkViaFacetSorterWhenReferencedPksTieOnBoundaryValue() {
 			OverlapFixture.runWithTieFixture((session, ctx) -> {
 				final EvitaResponse<EntityReferenceContract> result = session.query(
 					query(
@@ -468,7 +460,7 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 	 * `OverlapFixture#runWithRemovalFixture`) so no test ordering dependency is introduced.
 	 */
 	@Nested
-	@DisplayName("REFERENCE_ATTRIBUTE mutation paths")
+	@DisplayName("Write-path — RGEI re-keying across attribute update and reference removal")
 	class ReferenceAttributeMutationPaths {
 
 		@Test
@@ -501,7 +493,7 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 				// Re-query and assert new min is 5.0 with PV 100 still resolved as the boundary.
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
+					readSession -> {
 						final HistogramContract histogram = queryGroupHistogram(readSession, ctx, 1);
 						assertEquals(0, new BigDecimal("5.00").compareTo(histogram.getMin()),
 							"After updating PV 100's marketShare to 5.0, the histogram min must "
@@ -551,7 +543,7 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 				// now the sole remaining reference so it must be both the min and max boundary.
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) readSession -> {
+					readSession -> {
 						final HistogramContract histogram = queryGroupHistogram(readSession, ctx, 1);
 						assertTrue(histogram.getMinReferencedEntity().isPresent(),
 							"minReferencedEntity must still be populated after one reference removal");
@@ -575,7 +567,7 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 		 * `minReferencedEntity`. Shared between update and removal tests so the
 		 * mutation-specific assertions can focus on the post-mutation state.
 		 */
-		private void assertInitialMin(
+		private static void assertInitialMin(
 			@Nonnull Evita evita,
 			@Nonnull OverlapFixture.FixtureCtx ctx,
 			int expectedMinPk,
@@ -583,7 +575,7 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 		) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) readSession -> {
+				readSession -> {
 					final HistogramContract histogram = queryGroupHistogram(readSession, ctx, 1);
 					assertEquals(0, expectedMinValue.compareTo(histogram.getMin()),
 						"Initial histogram min must be " + expectedMinValue + " but was: " + histogram.getMin());
@@ -602,7 +594,7 @@ public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractRef
 		 * between pre/post-mutation queries are purely in the assertions.
 		 */
 		@Nonnull
-		private HistogramContract queryGroupHistogram(
+		private static HistogramContract queryGroupHistogram(
 			@Nonnull EvitaSessionContract session,
 			@Nonnull OverlapFixture.FixtureCtx ctx,
 			int groupPk

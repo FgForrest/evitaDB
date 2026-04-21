@@ -34,8 +34,11 @@ import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredOutPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
+import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.utils.Functions;
@@ -46,8 +49,6 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
@@ -93,76 +94,75 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	@Nullable
 	@Override
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
-		// contains flag whether there was at least one formula with price predicate that filtered out some entity pks
-		final AtomicBoolean filteredRecordsFound = new AtomicBoolean();
-		final AtomicReference<Predicate<BigDecimal>> requestedPricePredicate = new AtomicReference<>();
-		final Formula formulaWithFilteredOutResults = getFormulaWithFilteredOutResults(requestedPricePredicate, filteredRecordsFound);
+		// harvested now because UserFilterRelaxer is about to peel the price-between carrier that owns this predicate;
+		// it drives the per-bucket `requested` flag on the output DTO
+		final Predicate<BigDecimal> requestedPricePredicate = extractRequestedPricePredicate();
 
-		final PriceHistogramComputer computer = new PriceHistogramComputer(
-			this.bucketCount,
-			this.behavior,
-			this.queryContext.getSchema().getIndexedPricePlaces(),
-			this.queryContext.getQueryPriceMode(),
-			this.filteringFormula,
-			filteredRecordsFound.get() ? formulaWithFilteredOutResults : null,
-			this.filteredPriceRecordAccessors, this.priceRecordsLookupResult
+		// peel price-between carriers so the baseline does not contract under the user's own price handles; attribute
+		// and facet carriers stay, so the histogram still narrows by slider and facet picks. The relaxed formula is the
+		// "what prices would be reachable if the user cleared the price slider" set — the span the histogram needs.
+		final Formula relaxedBaseline = UserFilterRelaxer.relax(
+			this.filteringFormula, RangeCarrierGroup.PRICE_HISTOGRAM
 		);
+		final PriceHistogramComputer computer = getPriceHistogramComputer(relaxedBaseline);
 		computer.initialize(context);
 		final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 		if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 			return null;
 		} else {
-			// create histogram DTO for the output
 			return new PriceHistogram(
 				optimalHistogram.convertToHistogram(
-					ofNullable(requestedPricePredicate.get())
-						.orElseGet(Functions::alwaysTrue)
+					ofNullable(requestedPricePredicate).orElseGet(Functions::alwaysTrue)
 				)
 			);
 		}
 	}
 
 	/**
-	 * Create clone of the current formula in a such way that all price termination formulas within user filter
-	 * that filtered out entity primary keys based on price predicate (price between query) produce just
-	 * the excluded records - this way we can compute remainder to the current filtering result and get all data
-	 * for price histogram ignoring the price between filtering query.
-	 *
-	 * @param requestedPricePredicate The atomic reference to the predicate that determines the requested price.
-	 * @param filteredRecordsFound    The atomic boolean that indicates whether filtered records were found.
-	 * @return The formula with filtered out results.
+	 * Wires the {@link PriceHistogramComputer} with the original {@link #filteringFormula} plus an
+	 * optional supplementation formula that widens the histogram range beyond the user's price
+	 * slider. The supplementation is set to `null` when `relaxedBaseline` is the same reference
+	 * (no price-between carriers to peel) or {@link EmptyFormula#INSTANCE} (whole tree collapsed);
+	 * otherwise the relaxed tree is passed through.
 	 */
 	@Nonnull
-	private Formula getFormulaWithFilteredOutResults(@Nonnull AtomicReference<Predicate<BigDecimal>> requestedPricePredicate, @Nonnull AtomicBoolean filteredRecordsFound) {
-		return FormulaCloner.clone(
-			this.filteringFormula, (formulaCloner, theFormula) -> {
-				if (theFormula instanceof UserFilterFormula) {
-					// we need to reconstruct the user filter formula
-					final Formula updatedUserFilterFormula = FormulaCloner.clone(
-						theFormula,
-						innerFormula -> {
-							if (innerFormula instanceof FilteredOutPriceRecordAccessor filteredOutPriceRecordAccessor) {
-								ofNullable(filteredOutPriceRecordAccessor.getRequestedPredicate())
-									.ifPresent(requestedPricePredicate::set);
-								final Formula theResult = filteredOutPriceRecordAccessor.getCloneWithPricePredicateFilteredOutResults();
-								filteredRecordsFound.set(theResult != EmptyFormula.INSTANCE);
-								return theResult;
-							} else {
-								return innerFormula;
-							}
-						}
-					);
-					if (updatedUserFilterFormula.getInnerFormulas().length == 0) {
-						// if there is no formula left in tue user filter container, leave it out entirely
-						return null;
-					} else {
-						return updatedUserFilterFormula;
-					}
-				} else {
-					return theFormula;
+	private PriceHistogramComputer getPriceHistogramComputer(@Nonnull Formula relaxedBaseline) {
+		final Formula filteringFormulaWithFilteredOutRecords;
+		if (relaxedBaseline == this.filteringFormula || relaxedBaseline == EmptyFormula.INSTANCE) {
+			filteringFormulaWithFilteredOutRecords = null;
+		} else {
+			filteringFormulaWithFilteredOutRecords = relaxedBaseline;
+		}
+
+		return new PriceHistogramComputer(
+			this.bucketCount,
+			this.behavior,
+			this.queryContext.getSchema().getIndexedPricePlaces(),
+			this.queryContext.getQueryPriceMode(),
+			this.filteringFormula,
+			filteringFormulaWithFilteredOutRecords,
+			this.filteredPriceRecordAccessors, this.priceRecordsLookupResult
+		);
+	}
+
+	/**
+	 * Walks every {@link UserFilterFormula} in {@link #filteringFormula} looking for
+	 * {@link FilteredOutPriceRecordAccessor} instances and returns the first non-null requested predicate it
+	 * finds. Used to drive the per-bucket `requested` flag on the output histogram independent of the
+	 * PRICE_HISTOGRAM relaxation that peels the underlying price-between carrier from the baseline formula.
+	 */
+	@Nullable
+	private Predicate<BigDecimal> extractRequestedPricePredicate() {
+		for (final UserFilterFormula userFilter : FormulaFinder.find(this.filteringFormula, UserFilterFormula.class, LookUp.DEEP)) {
+			for (final FilteredOutPriceRecordAccessor accessor
+					: FormulaFinder.find(userFilter, FilteredOutPriceRecordAccessor.class, LookUp.DEEP)) {
+				final Predicate<BigDecimal> predicate = accessor.getRequestedPredicate();
+				if (predicate != null) {
+					return predicate;
 				}
 			}
-		);
+		}
+		return null;
 	}
 
 	@Nonnull

@@ -53,26 +53,12 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.and;
-import static io.evitadb.api.query.QueryConstraints.attributeBetween;
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.facetHaving;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
-import static io.evitadb.api.query.QueryConstraints.page;
-import static io.evitadb.api.query.QueryConstraints.referenceContent;
-import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceWithHistograms;
-import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.userFilter;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -108,7 +94,7 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		void shouldPopulateReferencedEntityAttributeHistogramPerGroup(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -170,7 +156,7 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		void shouldPopulateReferenceAttributeHistogramPerGroup(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -198,10 +184,10 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 						final HistogramContract histogram = group.getHistogramStatistics(HISTOGRAM_MARKET_SHARE);
 						assertNotNull(histogram);
 						assertTrue(histogram.getBuckets().length > 0);
-						// Phase G.1 landed REFERENCE_ATTRIBUTE boundary resolution: the
-						// reference-attribute FilterIndex on RGEI is now keyed on the referenced
-						// entity PK (via `executeWithDifferentPrimaryKeyToIndex` during insert),
-						// so `getRecordsEqualTo(value)` resolves boundary PKs directly.
+						// REFERENCE_ATTRIBUTE boundary resolution: the reference-attribute
+						// FilterIndex on RGEI is keyed on the referenced entity PK (via
+						// `executeWithDifferentPrimaryKeyToIndex` during insert), so
+						// `getRecordsEqualTo(value)` resolves boundary PKs directly.
 						assertTrue(histogram.getMinReferencedEntity().isPresent(),
 							"REFERENCE_ATTRIBUTE histogram must populate minReferencedEntity for group " + groupPk);
 						assertTrue(histogram.getMaxReferencedEntity().isPresent(),
@@ -217,7 +203,7 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		void shouldPopulateBothHistogramsInSingleRequest(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -250,11 +236,11 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should compute histogram via lenient all-references fan-out")
-		void shouldComputeHistogramViaLenientFanOut(@Nonnull Evita evita) {
+		@DisplayName("should compute histogram via the all-references referenceSummary form")
+		void shouldComputeHistogramViaAllReferencesFanOut(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -275,7 +261,8 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					assertNotNull(group1);
 					assertNotNull(
 						group1.getHistogramStatistics(HISTOGRAM_PRICE),
-						"Lenient all-references dispatch must still populate the histogram"
+						"All-references fan-out must still populate the histogram for the sole reference "
+							+ "that carries it"
 					);
 				}
 			);
@@ -293,13 +280,13 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		@ParameterizedTest(name = "behavior={0}")
 		@EnumSource(HistogramBehavior.class)
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("overallCount must be invariant across bucket behaviors")
-		void shouldKeepOverallCountInvariantAcrossBehaviors(
+		@DisplayName("bucket occurrences must sum to overallCount for every HistogramBehavior")
+		void shouldHaveBucketSumEqualOverallCountForEveryBehavior(
 			@Nonnull HistogramBehavior behavior, @Nonnull Evita evita
 		) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -316,8 +303,9 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 					assertNotNull(referenceSummary);
 
-					// gather all histograms across groups — overallCount must match the
-					// engine's internal count (buckets sum) for each behavior
+					// For each group, verify that the sum of per-bucket occurrences equals
+					// `overallCount`. The check runs for every HistogramBehavior value so a
+					// behavior that double-counts or drops buckets would immediately fail here.
 					for (int groupPk = 1; groupPk <= GROUP_COUNT; groupPk++) {
 						final HistogramContract histogram = referenceSummary
 							.getReferenceGroupStatistics(REF_PARAM_VALUES, groupPk)
@@ -345,20 +333,22 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should shrink histogram overallCount when base filter narrows products")
-		void shouldShrinkHistogramOverallCountWhenBaseFilterNarrows(@Nonnull Evita evita) {
+		@DisplayName("should not grow histogram overallCount when a base filter narrows the product set")
+		void shouldNotGrowHistogramOverallCountWhenBaseFilterNarrows(@Nonnull Evita evita) {
 			final Map<Integer, Integer> unfiltered = runAndCollectOverallCounts(evita, null);
-			// narrow via a base attribute filter (product quantity band) — histograms must
-			// reflect the narrower entity set; not empty for at least one group
+			// Narrow via a base attribute filter (product quantity band). The histograms must
+			// reflect the narrower product set — per group, the filtered count can never exceed
+			// the unfiltered count. Strict shrinkage is NOT asserted because some groups may
+			// contain no products inside the quantity band and simply match the unfiltered count.
 			final Map<Integer, Integer> filtered = runAndCollectOverallCounts(
 				evita,
 				filterBy(attributeBetween(ATTR_QUANTITY, new BigDecimal("1"), new BigDecimal("50")))
 			);
-			// every group's filtered count must be <= unfiltered count
-			for (final Integer groupPk : unfiltered.keySet()) {
+			for (final Entry<Integer, Integer> entry : unfiltered.entrySet()) {
+				final Integer groupPk = entry.getKey();
 				final Integer filteredCount = filtered.getOrDefault(groupPk, 0);
 				assertTrue(
-					filteredCount <= unfiltered.get(groupPk),
+					filteredCount <= entry.getValue(),
 					"Narrowed histogram overallCount must be <= unfiltered for group " + groupPk
 				);
 			}
@@ -366,8 +356,8 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should be independent of page size")
-		void shouldBeIndependentOfPageSize(@Nonnull Evita evita) {
+		@DisplayName("should produce identical histogram overallCount regardless of page size")
+		void shouldProduceIdenticalOverallCountRegardlessOfPageSize(@Nonnull Evita evita) {
 			final Map<Integer, Integer> page1 = runAndCollectOverallCounts(evita, null, 1, 5);
 			final Map<Integer, Integer> pageAll = runAndCollectOverallCounts(evita, null, 1, Integer.MAX_VALUE);
 			assertEquals(pageAll, page1,
@@ -376,10 +366,10 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should narrow histogram via userFilter facet selection")
-		void shouldNarrowViaUserFilterFacetSelection(@Nonnull Evita evita) {
-			// pick a handful of parameter values in group 1 and assert that the histogram
-			// for group 1 shrinks, while other groups are not grown
+		@DisplayName("should not grow group 1 histogram overallCount when a userFilter facet selection is applied")
+		void shouldNotGrowGroup1HistogramOverallCountUnderUserFilterFacet(@Nonnull Evita evita) {
+			// Pick a handful of parameter values in group 1 and assert that the histogram for
+			// group 1 does not grow under the facet selection (it may shrink or stay equal).
 			final Integer[] selectedPvs = new Integer[]{1, 2};
 			final Map<Integer, Integer> unfiltered = runAndCollectOverallCounts(evita, null);
 			final Map<Integer, Integer> withFacet = runAndCollectOverallCounts(
@@ -399,14 +389,14 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		}
 
 		@Nonnull
-		private Map<Integer, Integer> runAndCollectOverallCounts(
+		private static Map<Integer, Integer> runAndCollectOverallCounts(
 			@Nonnull Evita evita, @Nullable FilterConstraint filterByConstraint
 		) {
 			return runAndCollectOverallCounts(evita, filterByConstraint, 1, Integer.MAX_VALUE);
 		}
 
 		@Nonnull
-		private Map<Integer, Integer> runAndCollectOverallCounts(
+		private static Map<Integer, Integer> runAndCollectOverallCounts(
 			@Nonnull Evita evita,
 			@Nullable FilterConstraint filterByConstraint,
 			int pageNumber,
@@ -472,11 +462,11 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should match a hand-computed REFERENCED_ENTITY_ATTRIBUTE histogram bucket sums per group")
-		void shouldMatchHandComputedBucketSums(@Nonnull Evita evita) {
+		@DisplayName("should match hand-computed REFERENCED_ENTITY_ATTRIBUTE bucket sums and min/max per group")
+		void shouldMatchHandComputedBucketSumsAndMinMax(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -532,7 +522,7 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		}
 
 		@Nonnull
-		private Map<Integer, Integer> computeExpectedReferenceCountsPerGroup(
+		private static Map<Integer, Integer> computeExpectedReferenceCountsPerGroup(
 			@Nonnull EvitaSessionContract session
 		) {
 			final Map<Integer, Integer> counts = new LinkedHashMap<>();
@@ -554,7 +544,7 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		}
 
 		@Nonnull
-		private List<BigDecimal> collectReferencedPrices(
+		private static List<BigDecimal> collectReferencedPrices(
 			@Nonnull EvitaSessionContract session, int groupPk
 		) {
 			final List<BigDecimal> prices = new ArrayList<>();
@@ -591,11 +581,11 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should work with a compound filterBy that combines attribute + userFilter")
-		void shouldWorkWithCompoundFilter(@Nonnull Evita evita) {
+		@DisplayName("should still populate at least one group histogram under attributeBetween + userFilter facet")
+		void shouldPopulateHistogramUnderCompoundAttributeAndUserFilter(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -619,7 +609,8 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					);
 					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 					assertNotNull(referenceSummary);
-					// the query must not throw; at least one group should have a populated histogram
+					// At least one group must carry a populated histogram — the compound filter
+					// narrows products but cannot empty every group in the large fixture.
 					boolean any = false;
 					for (int groupPk = 1; groupPk <= GROUP_COUNT; groupPk++) {
 						final ReferenceGroupStatistics group =
@@ -794,8 +785,8 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
-		@DisplayName("should keep group with histogram data even when no facet statistics survive")
-		void shouldKeepHistogramOnlyGroup(@Nonnull Evita evita) {
+		@DisplayName("every group exposes the requested histogram on an unfiltered query")
+		void shouldEmitHistogramForEveryGroupWhenUnfiltered(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -813,8 +804,8 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					);
 					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 					assertNotNull(referenceSummary);
-					// both groups must appear — even the one whose facet statistics might be trivially empty
-					// is preserved by the histogram-only survival rule
+					// without filterBy, every reference contributes facets AND histogram data,
+					// so both groups must be present and each must expose the requested histogram
 					final ReferenceGroupStatistics group1 = referenceSummary.getReferenceGroupStatistics(
 						REF_PARAM_VALUES, 1
 					);
@@ -854,10 +845,10 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
 		@DisplayName("should have min equal to first bucket threshold and max no smaller than last threshold")
-		void shouldHaveSymmetricMinMax(@Nonnull Evita evita) {
+		void shouldAnchorMinToFirstBucketAndMaxAtOrAboveLastBucket(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),

@@ -23,23 +23,13 @@
 
 package io.evitadb.core.query.extraResult.translator.reference;
 
-import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.ConstraintContainer;
-import io.evitadb.api.query.FilterConstraint;
-import io.evitadb.api.query.filter.AttributeBetween;
-import io.evitadb.api.query.filter.EntityHaving;
-import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.filter.ReferenceHaving;
-import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ReferenceHistogramStatistics;
-import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptorFactory;
-import io.evitadb.core.expression.trigger.HistogramValueSource;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -48,21 +38,18 @@ import io.evitadb.core.query.extraResult.translator.reference.producer.Reference
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.HistogramRequest;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.RequestedBucketRange;
-import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.core.query.filter.translator.histogram.ResolvedHistogramHaving;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.io.Serializable;
-import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * Translator for the {@link ReferenceHistogramStatistics} require constraint. Resolves the enclosing
@@ -102,7 +89,7 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 	 *    plain type, and localization flag);
 	 * 5. if the resolved attribute is localized, the query must carry a locale.
 	 *
-	 * After validation, {@link #extractRequestedBucketRange} is called to extract the optional filter range used
+	 * After validation, {@link #extractRequestedBucketRanges} is called to extract the optional filter range used
 	 * to flag per-bucket {@code requested} at fabrication time.
 	 *
 	 * @return the same {@link ReferenceSummaryProducer} that was found, enriched with the new histogram request
@@ -137,7 +124,11 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 		final HistogramBehavior behavior = constraint.getBehavior();
 		final EntityFetch entityFetch = constraint.getEntityFetch().orElse(null);
 
-		final FilterBy filterBy = extraResultPlanner.getFilterBy();
+		// snapshot the resolved `histogramHaving` registry once per translator invocation — the filter
+		// translator has already done all the walking, descriptor resolution, and group-selector bitmap
+		// computation so we just read back the pre-computed tuples
+		final List<ResolvedHistogramHaving> resolvedHistogramHavings =
+			extraResultPlanner.getQueryContext().getResolvedHistogramHavings();
 		for (final String histogramName : constraint.getIndexNames()) {
 			final HistogramValueDescriptor descriptor = resolveDescriptor(
 				referenceSchema, referenceName, histogramName, scopes, extraResultPlanner
@@ -157,8 +148,8 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 				effectiveLocale = null;
 			}
 
-			final RequestedBucketRange requestedRange = extractRequestedBucketRange(
-				filterBy, referenceName, histogramName, descriptor
+			final Map<Integer, RequestedBucketRange> requestedRangesByGroupPk = extractRequestedBucketRanges(
+				resolvedHistogramHavings, referenceName, histogramName
 			);
 
 			producer.addHistogramRequest(
@@ -170,7 +161,7 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 					effectiveLocale,
 					descriptor,
 					entityFetch,
-					requestedRange
+					requestedRangesByGroupPk
 				)
 			);
 		}
@@ -179,164 +170,67 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 	}
 
 	/**
-	 * Walks the query's {@link FilterBy} looking for a
-	 * `userFilter → referenceHaving(referenceName, …)` subtree whose inner `attributeBetween` matches the
-	 * descriptor's source attribute. Produces the `[from, to]` range used to flag per-bucket
-	 * {@code requested} at fabrication time. Returns {@code null} when no matching subtree exists in the filter
-	 * tree (e.g. the filter is absent, has no `userFilter`, or targets a different reference / attribute).
+	 * Filters the planning context's pre-resolved `histogramHaving` registry for entries addressing the
+	 * `(referenceName, histogramName)` slot and materialises them into a per-group map of
+	 * {@link RequestedBucketRange}. Each group's histogram consumes the entry matching its own group PK
+	 * at fabrication time to flag per-bucket {@code requested} — siblings addressing different group slots
+	 * therefore cannot contaminate each other's flagging.
 	 *
-	 * Both `from` and `to` within a returned {@link RequestedBucketRange} may be `null` independently: a `null`
-	 * `from` means "no lower bound" and a `null` `to` means "no upper bound", mirroring the semantics of
-	 * {@link io.evitadb.api.query.filter.AttributeBetween}.
+	 * Because the filter translator has already resolved every `histogramHaving` (descriptor + group PK)
+	 * once, this method does nothing beyond a linear scan and a linked-map assembly — no filter-tree walk,
+	 * no bitmap computation, no duplicate schema lookups.
 	 *
-	 * For {@link HistogramValueSource#REFERENCE_ATTRIBUTE} the `attributeBetween` may live anywhere inside
-	 * {@link ReferenceHaving} (except nested `EntityHaving` or nested `ReferenceHaving` — those point at a
-	 * different attribute domain). For {@link HistogramValueSource#REFERENCED_ENTITY_ATTRIBUTE} the
-	 * `attributeBetween` must sit inside an {@link EntityHaving} container.
+	 * Returns an empty map (never `null`) when the registry contains no entries targeting this slot.
 	 *
-	 * Throws when multiple independent `attributeBetween` subtrees target the same attribute on the same
-	 * reference — the contract expects a single range per (reference, histogram) pair.
-	 */
-	@Nullable
-	private static RequestedBucketRange extractRequestedBucketRange(
-		@Nullable FilterBy filterBy,
-		@Nonnull String referenceName,
-		@Nonnull String histogramName,
-		@Nonnull HistogramValueDescriptor descriptor
-	) {
-		if (filterBy == null) {
-			return null;
-		}
-		final UserFilter userFilter = FinderVisitor.findConstraint(filterBy, UserFilter.class::isInstance);
-		if (userFilter == null) {
-			return null;
-		}
-		final List<ReferenceHaving> referenceHavings = FinderVisitor.findConstraints(
-			userFilter,
-			c -> c instanceof ReferenceHaving rh && referenceName.equals(rh.getReferenceName())
-		);
-		if (referenceHavings.isEmpty()) {
-			return null;
-		}
-		AttributeBetween matched = null;
-		for (final ReferenceHaving refHaving : referenceHavings) {
-			final List<AttributeBetween> candidates = findAttributeBetweenInScope(refHaving, descriptor);
-			for (final AttributeBetween candidate : candidates) {
-				if (matched != null) {
-					throw new EvitaInvalidUsageException(
-						"Histogram `" + histogramName + "` on reference `" + referenceName +
-							"` has multiple `attributeBetween` subtrees targeting attribute `" +
-							descriptor.sourceAttributeName() + "` inside `userFilter` — a single range per" +
-							" (reference, histogram) pair is required."
-					);
-				}
-				matched = candidate;
-			}
-		}
-		if (matched == null) {
-			return null;
-		}
-		return new RequestedBucketRange(
-			toBigDecimalOrNull(matched.getFrom()),
-			toBigDecimalOrNull(matched.getTo())
-		);
-	}
-
-	/**
-	 * Collects `attributeBetween` candidates inside the given `referenceHaving`, obeying the descriptor's
-	 * attribute-domain classification:
+	 * **Map keying.** Each entry is keyed by its pre-resolved group PK, or by
+	 * {@link HistogramRequest#NON_GROUPED_SENTINEL} when the originating `histogramHaving` carried no
+	 * `groupSelector`. The consumer falls back to the sentinel entry when no per-group entry matches the
+	 * current group.
 	 *
-	 * - For {@link HistogramValueSource#REFERENCE_ATTRIBUTE} candidates live outside any nested
-	 *   {@link EntityHaving} or nested {@link ReferenceHaving} — those descend into a different
-	 *   attribute domain and must be skipped.
-	 * - For {@link HistogramValueSource#REFERENCED_ENTITY_ATTRIBUTE} candidates live inside an
-	 *   {@link EntityHaving} attached directly to this `referenceHaving`; nested `ReferenceHaving` inside
-	 *   the `EntityHaving` is skipped for the same reason.
+	 * **Duplicate detection.** Two registry entries with identical `(referenceName, histogramName, groupPk)`
+	 * tuples address the exact same slot; the contract is one range per slot, so the second entry throws
+	 * {@link EvitaInvalidUsageException}. Entries sharing the slot's reference/histogram pair but carrying
+	 * different group PKs address different group slots and are legal — each contributes one entry to the
+	 * returned map.
+	 *
+	 * @param resolvedHistogramHavings the planning-context registry populated by
+	 *                                 {@code HistogramHavingTranslator}
+	 * @param referenceName            the reference hosting the histogram slot
+	 * @param histogramName            the histogram slot name
+	 * @return per-group map of resolved ranges; empty when no registered `histogramHaving` targets the slot
 	 */
 	@Nonnull
-	private static List<AttributeBetween> findAttributeBetweenInScope(
-		@Nonnull ReferenceHaving referenceHaving,
-		@Nonnull HistogramValueDescriptor descriptor
+	private static Map<Integer, RequestedBucketRange> extractRequestedBucketRanges(
+		@Nonnull List<ResolvedHistogramHaving> resolvedHistogramHavings,
+		@Nonnull String referenceName,
+		@Nonnull String histogramName
 	) {
-		final String attributeName = descriptor.sourceAttributeName();
-		final List<AttributeBetween> results = new ArrayList<>(2);
-		if (descriptor.source() == HistogramValueSource.REFERENCE_ATTRIBUTE) {
-			for (final FilterConstraint child : referenceHaving.getChildren()) {
-				collectAttributeBetween(child, attributeName, results,
-					c -> c instanceof EntityHaving || c instanceof ReferenceHaving);
-			}
-		} else {
-			for (final FilterConstraint child : referenceHaving.getChildren()) {
-				collectAttributeBetweenInEntityHaving(child, attributeName, results);
-			}
+		if (resolvedHistogramHavings.isEmpty()) {
+			return Map.of();
 		}
-		return results;
-	}
-
-	/**
-	 * Looks for {@link EntityHaving} containers within the subtree and, once inside, collects
-	 * {@link AttributeBetween} leaves targeting the given attribute. Nested `ReferenceHaving` inside the
-	 * `EntityHaving` is skipped because it would point at a different reference's attributes.
-	 */
-	private static void collectAttributeBetweenInEntityHaving(
-		@Nonnull FilterConstraint node,
-		@Nonnull String attributeName,
-		@Nonnull List<AttributeBetween> results
-	) {
-		if (node instanceof EntityHaving entityHaving) {
-			for (final FilterConstraint child : entityHaving.getChildren()) {
-				collectAttributeBetween(child, attributeName, results, ReferenceHaving.class::isInstance);
+		// lazy allocation — most histograms have no matching carrier in the registry
+		Map<Integer, RequestedBucketRange> rangesByGroupPk = null;
+		for (final ResolvedHistogramHaving entry : resolvedHistogramHavings) {
+			if (!referenceName.equals(entry.referenceName())
+				|| !histogramName.equals(entry.histogramName())) {
+				continue;
 			}
-			return;
-		}
-		// keep walking until we either hit EntityHaving or run out of containers; do not
-		// descend into ReferenceHaving (different reference scope)
-		if (node instanceof ReferenceHaving) {
-			return;
-		}
-		if (node instanceof ConstraintContainer<?> container) {
-			for (final Constraint<?> child : container.getChildren()) {
-				if (child instanceof FilterConstraint filterChild) {
-					collectAttributeBetweenInEntityHaving(filterChild, attributeName, results);
-				}
+			if (rangesByGroupPk == null) {
+				rangesByGroupPk = CollectionUtils.createLinkedHashMap(resolvedHistogramHavings.size());
+			}
+			final RequestedBucketRange previous = rangesByGroupPk.put(
+				entry.groupPk(),
+				new RequestedBucketRange(entry.from(), entry.to())
+			);
+			if (previous != null) {
+				throw new EvitaInvalidUsageException(
+					"Histogram `" + histogramName + "` on reference `" + referenceName +
+						"` has multiple `histogramHaving` siblings addressing the same group slot" +
+						" — a single `[from, to]` range per slot is required."
+				);
 			}
 		}
-	}
-
-	/**
-	 * Walks the subtree rooted at {@code node} collecting {@link AttributeBetween} leaves that target the
-	 * specified attribute. Descent is pruned when {@code stopAt} matches so nested scopes that point at a
-	 * different attribute domain are not traversed.
-	 */
-	private static void collectAttributeBetween(
-		@Nonnull FilterConstraint node,
-		@Nonnull String attributeName,
-		@Nonnull List<AttributeBetween> results,
-		@Nonnull Predicate<Constraint<?>> stopAt
-	) {
-		if (stopAt.test(node)) {
-			return;
-		}
-		if (node instanceof AttributeBetween ab && attributeName.equals(ab.getAttributeName())) {
-			results.add(ab);
-			return;
-		}
-		if (node instanceof ConstraintContainer<?> container) {
-			for (final Constraint<?> child : container.getChildren()) {
-				if (child instanceof FilterConstraint filterChild) {
-					collectAttributeBetween(filterChild, attributeName, results, stopAt);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Converts the raw bound extracted from an {@link AttributeBetween} argument to {@link BigDecimal}. A
-	 * {@code null} bound is allowed and means "no bound on this side".
-	 */
-	@Nullable
-	private static BigDecimal toBigDecimalOrNull(@Nullable Serializable value) {
-		return value == null ? null : EvitaDataTypes.toTargetType(value, BigDecimal.class);
+		return rangesByGroupPk == null ? Map.of() : rangesByGroupPk;
 	}
 
 	/**

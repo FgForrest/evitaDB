@@ -61,6 +61,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.reference.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.filter.translator.histogram.ResolvedHistogramHaving;
 import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.DefaultPolicy;
 import io.evitadb.core.query.policy.PlanningPolicy;
@@ -218,6 +219,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see #computeOnlyOnce(List, FilterConstraint, Supplier, long...) for more details
 	 */
 	private Map<InternalCacheKey, Formula> internalCache;
+	/**
+	 * Plan-time registry of resolved `histogramHaving` carriers. Populated by
+	 * {@link io.evitadb.core.query.filter.translator.histogram.HistogramHavingTranslator} during filter
+	 * translation and consumed by `ReferenceHistogramStatisticsTranslator` during extra-result planning —
+	 * this pre-resolution avoids a second filter-tree walk and a redundant group-selector bitmap
+	 * computation in the extractor.
+	 */
+	@Nonnull private final List<ResolvedHistogramHaving> resolvedHistogramHavings = new ArrayList<>(4);
 
 
 	public <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
@@ -854,6 +863,31 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				entityIndexes, constraint, formulaSupplier, additionalCacheKeys
 			);
 		}
+	}
+
+	/**
+	 * Appends a plan-time resolution of a `histogramHaving` carrier to this context's registry. Called
+	 * exactly once per `histogramHaving` in the query by
+	 * {@link io.evitadb.core.query.filter.translator.histogram.HistogramHavingTranslator} during filter
+	 * translation — the translator already pays for the descriptor resolution and the group-selector
+	 * bitmap computation, so stashing the resolved tuple here lets downstream consumers skip both.
+	 *
+	 * @param entry the fully resolved tuple describing the histogram slot and its `[from, to]` range
+	 */
+	public void registerResolvedHistogramHaving(@Nonnull ResolvedHistogramHaving entry) {
+		this.resolvedHistogramHavings.add(entry);
+	}
+
+	/**
+	 * Returns an unmodifiable view of all `histogramHaving` carriers resolved during filter translation.
+	 * Consumers filter the list by their own `(referenceName, histogramName)` tuple to locate the slot(s)
+	 * they care about.
+	 *
+	 * @return the resolved carriers in document order; empty when the query has no `histogramHaving`
+	 */
+	@Nonnull
+	public List<ResolvedHistogramHaving> getResolvedHistogramHavings() {
+		return Collections.unmodifiableList(this.resolvedHistogramHavings);
 	}
 
 	/**

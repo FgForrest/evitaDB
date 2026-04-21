@@ -36,7 +36,6 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
@@ -147,42 +146,41 @@ class UserFilterTest {
 		}
 
 		@Test
-		@DisplayName("should still forbid locale, price, hierarchy and self-nest one per class")
-		void shouldStillForbidLocalePriceHierarchyAndSelfNest() {
-			// EntityLocaleEquals
+		@DisplayName("should reject every baseline forbidden child in one regression guard")
+		void shouldRejectEveryBaselineForbiddenChildInOneRegressionGuard() {
+			// Baseline regression guard: the forbidden-children list was churned while wiring
+			// `histogramHaving` in as the range carrier, so this test re-asserts the full
+			// existing blacklist (locale, all three price-binding constraints, both hierarchy
+			// constraints, and self-nesting) as a single failure-loud safety net. If any entry
+			// is accidentally dropped from `FORBIDDEN_CHILDREN`, this test fails even when
+			// every sibling micro-test above still passes. `PriceBetween` is intentionally
+			// absent — it is the textbook user-controlled constraint and remains allowed.
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> new UserFilter(entityLocaleEquals(Locale.ENGLISH))
 			);
-			// PriceBetween is allowed — it's the textbook user-controlled constraint
-			// PriceInCurrency
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> new UserFilter(priceInCurrency(Currency.getInstance("USD")))
 			);
-			// PriceInPriceLists
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> new UserFilter(priceInPriceLists("basic"))
 			);
-			// PriceValidIn
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> new UserFilter(priceValidInNow())
 			);
-			// HierarchyWithin
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> new UserFilter(
 					hierarchyWithin("category", entityPrimaryKeyInSet(1))
 				)
 			);
-			// HierarchyWithinRoot
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> new UserFilter(hierarchyWithinRoot("category"))
 			);
-			// UserFilter self-nest
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> new UserFilter(
@@ -192,29 +190,26 @@ class UserFilterTest {
 		}
 
 		@Test
-		@DisplayName("should accept ReferenceHaving inside userFilter")
-		void shouldAcceptReferenceHavingInsideUserFilter() {
-			// Lifted in G.2: ReferenceHaving is now allowed as an always-applied user-controlled
-			// constraint — it does NOT participate in facet-summary impact enumeration.
-			final UserFilter userFilter = new UserFilter(
-				referenceHaving("r", attributeBetween("a", 1, 10))
+		@DisplayName("should reject ReferenceHaving inside userFilter")
+		void shouldRejectReferenceHavingInsideUserFilter() {
+			// `ReferenceHaving` is back in `FORBIDDEN_CHILDREN` — the only legitimate range
+			// carrier inside `userFilter` is `histogramHaving`. Passing a `referenceHaving`
+			// directly must fail at constructor time.
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> new UserFilter(
+					referenceHaving("r", attributeBetween("a", 1, 10))
+				)
 			);
-			assertNotNull(userFilter);
-			assertEquals(1, userFilter.getChildrenCount());
 		}
 
 		@Test
-		@DisplayName("should accept nested ReferenceHaving inside userFilter")
-		void shouldAcceptNestedReferenceHavingInsideUserFilter() {
+		@DisplayName("should accept HistogramHaving inside userFilter")
+		void shouldAcceptHistogramHavingInsideUserFilter() {
+			// `histogramHaving` is the first-class range carrier for slider-driven
+			// per-histogram range selection and is allowed as a direct child of `userFilter`.
 			final UserFilter userFilter = new UserFilter(
-				and(
-					referenceHaving(
-						"r1", entityHaving(attributeBetween("a", 1, 10))
-					),
-					referenceHaving(
-						"r2", attributeBetween("b", 20, 30)
-					)
-				)
+				histogramHaving("parameterValues", "basic", 50, 120)
 			);
 			assertNotNull(userFilter);
 			assertEquals(1, userFilter.getChildrenCount());

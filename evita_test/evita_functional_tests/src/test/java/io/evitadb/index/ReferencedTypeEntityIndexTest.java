@@ -353,8 +353,8 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
-		@DisplayName("should return empty bitmap when no references tracked")
-		void shouldReturnEmptyBitmapWhenNoReferencesTracked() {
+		@DisplayName("getAllReferencedPrimaryKeys should return an empty non-null bitmap when no references are tracked")
+		void shouldReturnEmptyBitmapFromGetAllReferencedPrimaryKeysWhenIndexIsFresh() {
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
 
 			assertNotNull(result);
@@ -362,8 +362,9 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
-		@DisplayName("should return bitmap of all distinct referenced entity PKs")
-		void shouldReturnBitmapOfAllDistinctReferencedEntityPrimaryKeys() {
+		@DisplayName("getAllReferencedPrimaryKeys should deduplicate and return each distinct referenced PK exactly once")
+		void shouldDeduplicateDistinctReferencedPksInGetAllReferencedPrimaryKeys() {
+			// owner 10 references 1 and 2; owner 20 also references 2 (duplicate); owner 30 references 3
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 2);
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 2);
@@ -371,6 +372,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
 
+			// three distinct referenced PKs expected — PK=2 must not appear twice
 			assertEquals(3, result.size());
 			assertTrue(result.contains(1));
 			assertTrue(result.contains(2));
@@ -378,14 +380,16 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
-		@DisplayName("should reflect subsequent inserts after first call")
-		void shouldReflectSubsequentInsertsAfterFirstCall() {
+		@DisplayName("getAllReferencedPrimaryKeys should invalidate the cardinality-index memo when a new referenced PK is inserted after first read")
+		void shouldInvalidateCardinalityIndexMemoWhenNewReferencedPkInsertedAfterFirstRead() {
+			// first read memoizes the snapshot on ReferenceTypeCardinalityIndex
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
 
 			final Bitmap first = ReferencedTypeEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
 			assertEquals(1, first.size());
 
-			// insert a new referenced PK — memoization on the underlying cardinality index must be invalidated
+			// insert a new referenced PK — the second read must reflect it, which requires the
+			// cardinality-index memo to have been invalidated by the mutation.
 			ReferencedTypeEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 7);
 
 			final Bitmap second = ReferencedTypeEntityIndexTest.this.index.getAllReferencedPrimaryKeys();
@@ -591,9 +595,10 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		private AttributeSchemaContract stringAttrSchema;
 
 		/**
-		 * Initializes fresh mock and attribute schema per test; eager initialization avoids the
-		 * subtle bugs where a lazily-built fixture races with test parallelization or differs
-		 * between the first-calling and later tests.
+		 * Initializes a fresh mock `ReferenceSchemaContract` and a filterable `String` attribute
+		 * schema named "code" before each test. Eager setup (rather than the previous lazy init)
+		 * guarantees every test starts with pristine, independent fixture state — stale mock
+		 * interactions from a prior test cannot leak across test boundaries.
 		 */
 		@org.junit.jupiter.api.BeforeEach
 		void setUpAttributes() {
@@ -602,10 +607,10 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		/**
-		 * Returns the eagerly-initialized reference schema mock. Retained for backwards
-		 * compatibility with tests below that call `getReferenceSchema()`.
+		 * Returns the per-test reference schema mock initialized by `setUpAttributes`. Kept as a
+		 * private accessor to preserve existing call sites without exposing the field.
 		 *
-		 * @return the shared mock {@link ReferenceSchemaContract}
+		 * @return the per-test mock {@link ReferenceSchemaContract}
 		 */
 		@Nonnull
 		private ReferenceSchemaContract getReferenceSchema() {
@@ -613,9 +618,11 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		/**
-		 * Returns the eagerly-initialized string attribute schema.
+		 * Returns the per-test filterable `String` attribute schema named "code" initialized by
+		 * `setUpAttributes`. Kept as a private accessor to preserve existing call sites without
+		 * exposing the field.
 		 *
-		 * @return the shared filterable String attribute schema named "code"
+		 * @return the per-test filterable `String` attribute schema named "code"
 		 */
 		@Nonnull
 		private AttributeSchemaContract getStringAttrSchema() {
@@ -857,13 +864,14 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
-		@DisplayName("should create non-null proxy instance bearing expected reference name")
-		void shouldCreateProxy() {
+		@DisplayName("createThrowingStub should return a proxy whose index key preserves the configured reference name and type")
+		void shouldCreateThrowingStubWithPreservedIndexKeyIdentity() {
 			// The returned proxy extends `ReferencedTypeEntityIndex` by construction — asserting
-			// `instanceof` is tautological; instead verify that the proxy carries the expected
-			// identity so that a regression swapping the target class would be caught. Only
-			// `getIndexKey()` passes through the throwing classification; derive the reference
-			// name from the key's discriminator to avoid the throwing path.
+			// `instanceof` would be tautological. Instead verify that the proxy carries the
+			// expected identity so a regression that swaps the target class would be caught.
+			// Only `getIndexKey()` is safe to call on the throwing stub; every other accessor
+			// would trigger the "this should not be called" classification, so we derive the
+			// reference name from the key's discriminator rather than from a dedicated getter.
 			final ReferencedTypeEntityIndex stub = createStub();
 
 			assertNotNull(stub, "Stub must not be null");
@@ -1298,8 +1306,8 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
-		@DisplayName("should keep localized histogram data isolated per locale")
-		void shouldKeepLocalizedHistogramDataIsolatedPerLocale() {
+		@DisplayName("should isolate histogram values per locale so one locale's records never leak into another")
+		void shouldIsolateHistogramValuesPerLocale() {
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
 				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class
 			);
@@ -1321,8 +1329,8 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
-		@DisplayName("should dispose histogram filter index on last value removal")
-		void shouldDisposeHistogramFilterIndexOnLastValueRemoval() {
+		@DisplayName("should dispose the histogram filter index once the last value under a given name/locale is removed")
+		void shouldDisposeHistogramFilterIndexWhenLastValueRemoved() {
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
 				HISTOGRAM_NAME, null, 42, 10, Integer.class
 			);

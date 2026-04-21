@@ -76,7 +76,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Reference histogram — gRPC conversion")
+@DisplayName("Reference-histogram gRPC serialization")
 class GrpcReferenceHistogramConversionTest {
 
 	private static final String REF_PARAMETER = "parameter";
@@ -99,7 +99,7 @@ class GrpcReferenceHistogramConversionTest {
 	 * {@code minReferencedEntity} / {@code maxReferencedEntity} payloads.
 	 */
 	@Test
-	@DisplayName("should serialize anchor entities alongside buckets")
+	@DisplayName("Should serialize min/max anchor entities alongside buckets")
 	void shouldSerializeHistogramWithAnchorEntities() {
 		final SealedEntity minEntity = createFacetEntity(TYPE_PARAMETER_VALUE, 101, "lowest");
 		final SealedEntity maxEntity = createFacetEntity(TYPE_PARAMETER_VALUE, 202, "highest");
@@ -125,7 +125,7 @@ class GrpcReferenceHistogramConversionTest {
 	 * unset — the absence must be distinguishable from the presence case.
 	 */
 	@Test
-	@DisplayName("should leave anchor entity fields unset when histogram has none")
+	@DisplayName("Should leave anchor entity fields unset when histogram has none")
 	void shouldOmitAnchorEntitiesWhenHistogramHasNone() {
 		final Histogram histogram = new Histogram(BUCKETS, new BigDecimal("10.00"));
 		final GrpcHistogram grpc = GrpcHistogramBuilder.buildHistogram(histogram, null);
@@ -141,7 +141,7 @@ class GrpcReferenceHistogramConversionTest {
 	 * form, keyed by histogram index name, independently per group.
 	 */
 	@Test
-	@DisplayName("should serialize per-group histogramStatistics map into gRPC form")
+	@DisplayName("Should serialize per-group histogramStatistics map keyed by histogram index name")
 	void shouldSerializeHistogramStatisticsPerGroup() {
 		final ReferenceSchema paramSchema = buildParameterReferenceSchema();
 

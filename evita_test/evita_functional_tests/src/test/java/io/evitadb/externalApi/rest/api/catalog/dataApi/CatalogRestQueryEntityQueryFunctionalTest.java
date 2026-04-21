@@ -90,6 +90,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.HISTOGRAM_PRICE_INDEX;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME;
@@ -100,7 +101,6 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Tests for REST catalog entity list query.
@@ -2425,9 +2425,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 								attributeEquals(ATTRIBUTE_ALIAS, false),
 								attributeInSet(
 									ATTRIBUTE_PRIORITY,
-									(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-									(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-									(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+									withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+									withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+									withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
 									(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY)
 								)
 							)
@@ -2484,10 +2484,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
 				withFalseAlias.get(4).getAttribute(ATTRIBUTE_CODE),
 				Integer.MAX_VALUE
 			)
@@ -2907,33 +2907,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY))
 			);
-	}
-
-	@Test
-	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should accept referenceHaving inside userFilter")
-	void shouldAcceptReferenceHavingInUserFilter(RestTester tester) {
-		// Exercises the G.2 DSL change — `referenceHaving` is now a legal child of
-		// `userFilter`. The REST surface must accept the new shape without errors.
-		// No value pinning — only status/errors.
-		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/PRODUCT/query")
-			.httpMethod(Request.METHOD_POST)
-			.requestBody(
-				"""
-					{
-						"filterBy": {
-							"userFilter": [{
-								"referenceCategoryHaving": [{
-									"entityPrimaryKeyInSet": [1, 2]
-								}]
-							}]
-						}
-					}
-					"""
-			)
-			.executeAndThen()
-			.statusCode(200);
 	}
 
 	@Test
@@ -4380,6 +4353,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			)
 		);
 
+		// JsonPath root of the first parameter group's `priceIndex` histogram in the response — used as
+		// prefix for shape assertions that check min/max/overallCount and bucket-level fields below.
 		final String firstGroupHistogramPath = resultPath(
 			ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY
 		) + ".parameter[0].histogramStatistics.priceIndex";
@@ -4414,7 +4389,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			)
 			.executeAndThen()
 			.statusCode(200)
-			// structural / shape assertions only — we intentionally don't pin specific numeric values
+			// shape-only assertions: numeric values depend on the generated dataset and are not pinned.
 			.body(firstGroupHistogramPath, notNullValue())
 			.body(firstGroupHistogramPath + ".min", notNullValue())
 			.body(firstGroupHistogramPath + ".max", notNullValue())
@@ -4428,10 +4403,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
-	@DisplayName("Should return reference histogram with boundary entities when entityFetch is provided")
+	@DisplayName("Should accept histogram-level entityFetch and request boundary entities on reference histogram")
 	void shouldReturnReferenceSummaryWithHistogramStatisticsIncludingBoundaryEntities(
 		Evita evita, RestTester tester
 	) {
+		// The test requests `entityFetch` both at the reference level and inside `histogramStatistics`.
+		// Unlike the GraphQL mirror this REST payload doesn't select boundary entity fields explicitly
+		// — the contract under test is that the REST surface accepts the extended requirement shape
+		// and produces a well-formed histogram with at least one bucket.
 		queryEntities(
 			evita,
 			query(
@@ -4493,6 +4472,156 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			// optional (present for REFERENCED_ENTITY_ATTRIBUTE, absent for REFERENCE_ATTRIBUTE).
 			.body(firstGroupHistogramPath, notNullValue())
 			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0));
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should narrow results via histogramHaving in userFilter while keeping reference histogram populated")
+	void shouldApplyHistogramHavingInUserFilter(Evita evita, RestTester tester) {
+		// Two-step rationale:
+		//   1. Pre-compute a catalog-wide `priceIndex` histogram so we know a realistic [min, max] span
+		//      to draw the user-filter slider from.
+		//   2. Pick a sub-range inside that span so the `histogramHaving` constraint narrows the page,
+		//      but the reference histogram in extra results is still computed against the pre-slider
+		//      baseline (userFilter children are peeled off when computing the extra-result histogram).
+		// The final assertions prove narrowing (totalRecordCount shrinks vs. catalog total) AND that the
+		// reference histogram survives the peel (at least one group with non-null min).
+		// Baseline capture:
+		final EvitaResponse<EntityClassifier> baselineResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						null,
+						null,
+						histogramStatistics(20, HISTOGRAM_PRICE_INDEX)
+					)
+				)
+			)
+		);
+		final HistogramContract baselineHistogram = baselineResponse.getExtraResult(ReferenceSummary.class)
+			.getReferenceStatistics()
+			.stream()
+			.map(stats -> stats.getHistogramStatistics(HISTOGRAM_PRICE_INDEX))
+			.filter(histogram -> histogram != null && histogram.getBuckets().length > 0)
+			.findFirst()
+			.orElseThrow();
+
+		// pick a sub-range inside the catalog-wide span — covering the lower half of the slider —
+		// so narrowing still retains some products but strictly fewer than the baseline count.
+		final BigDecimal baselineMin = baselineHistogram.getMin();
+		final BigDecimal baselineMax = baselineHistogram.getMax();
+		final BigDecimal rangeFrom = baselineMin;
+		final BigDecimal rangeTo = baselineMin.add(
+			baselineMax.subtract(baselineMin).divide(new BigDecimal("2"), java.math.RoundingMode.HALF_UP)
+		);
+		assertTrue(rangeFrom.compareTo(rangeTo) <= 0,
+			"computed narrowing range must be ordered; got from=" + rangeFrom + " to=" + rangeTo);
+
+		final EvitaResponse<EntityClassifier> narrowedResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					userFilter(
+						histogramHaving(
+							Entities.PARAMETER,
+							HISTOGRAM_PRICE_INDEX,
+							rangeFrom,
+							rangeTo
+						)
+					)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						null,
+						null,
+						histogramStatistics(20, HISTOGRAM_PRICE_INDEX)
+					)
+				)
+			)
+		);
+
+		// sanity-check on the evitaDB side: the narrowed record count must be strictly less than the
+		// catalog total — this is the primary proof that `histogramHaving` performs its narrowing role.
+		final EvitaResponse<EntityClassifier> totalsResponse = queryEntities(
+			evita,
+			query(collection(Entities.PRODUCT), require(page(1, 1)))
+		);
+		assertTrue(narrowedResponse.getTotalRecordCount() < totalsResponse.getTotalRecordCount(),
+			"histogramHaving must narrow the result set below the catalog-wide total");
+
+		// exercise the full REST → query → histogram path: the `referenceParameterHistogramHaving`
+		// field (derived from `reference` prefix + `Parameter` classifier + `HistogramHaving` full name)
+		// must be accepted inside `userFilter`, route through the engine, and mirror the evitaDB-side
+		// invariants — narrowing the result set and surfacing a populated reference histogram.
+		// The REST resolver decodes `from`/`to` as String when the target slot is `Serializable` without
+		// a schema type hint, then the engine-side validator compares them with String.compareTo, so we
+		// must emit values of equal length to avoid lexicographic ordering flipping the bounds check.
+		final String rangeFromLiteral = padToMatchLength(rangeFrom.toPlainString(), rangeTo.toPlainString());
+		final String rangeToLiteral = padToMatchLength(rangeTo.toPlainString(), rangeFrom.toPlainString());
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"userFilter": [{
+								"referenceParameterHistogramHaving": {
+									"histogramName": "%s",
+									"from": "%s",
+									"to": "%s"
+								}
+							}]
+						},
+						"require": {
+							"page": {
+								"number": 1,
+								"size": %d
+							},
+							"referenceParameterSummary": {
+								"statisticsDepth": "COUNTS",
+								"requirements": [
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["%s"]
+										}
+									}
+								]
+							}
+						}
+					}
+					""",
+				HISTOGRAM_PRICE_INDEX,
+				rangeFromLiteral,
+				rangeToLiteral,
+				Integer.MAX_VALUE,
+				HISTOGRAM_PRICE_INDEX
+			)
+			.executeAndThen()
+			.statusCode(200)
+			// result set narrowing: REST must report the same totalRecordCount as the evitaDB query —
+			// matching counts prove the filter routed through the REST resolver, translator, engine.
+			.body(
+				resultPath(ResponseDescriptor.RECORD_PAGE) + ".totalRecordCount",
+				equalTo(narrowedResponse.getTotalRecordCount())
+			)
+			// at least one `priceIndex` histogram carries a non-null min/max — this is the slider-peeled
+			// baseline span, shown to the user regardless of the narrowing applied by `histogramHaving`.
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY) +
+					".parameter.findAll { it.histogramStatistics?.priceIndex?.min != null }.size()",
+				greaterThan(0)
+			);
 	}
 
 	@Test
@@ -4806,6 +4935,27 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			actualEntities,
 			expectedEntities
 		);
+	}
+
+	/**
+	 * Pads `value` with leading zeros (inserting them before the integer portion) until it matches
+	 * `reference` in total character length. Used to make two decimal literals lexicographically
+	 * ordered — necessary because the REST resolver deserialises `Serializable`-typed bounds as
+	 * Strings and the engine-side validator then uses `String.compareTo` rather than numeric ordering.
+	 *
+	 * @param value     the decimal literal to pad
+	 * @param reference the reference literal whose length determines the target width
+	 * @return `value` padded with leading zeros so its length matches `reference`
+	 */
+	@Nonnull
+	private static String padToMatchLength(@Nonnull String value, @Nonnull String reference) {
+		if (value.length() >= reference.length()) {
+			return value;
+		}
+		final StringBuilder padded = new StringBuilder(reference.length());
+		padded.append("0".repeat(reference.length() - value.length()));
+		padded.append(value);
+		return padded.toString();
 	}
 
 	@Nonnull

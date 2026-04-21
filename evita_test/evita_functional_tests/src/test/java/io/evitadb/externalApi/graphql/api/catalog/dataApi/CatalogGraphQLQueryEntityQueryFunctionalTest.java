@@ -4528,9 +4528,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 											attributeEquals(ATTRIBUTE_ALIAS, false),
 											attributeInSet(
 												ATTRIBUTE_PRIORITY,
-												(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-												(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-												(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+												withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+												withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+												withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
 												(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY)
 											)
 										)
@@ -4592,10 +4592,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
 				withFalseAlias.get(4).getAttribute(ATTRIBUTE_CODE),
 				Integer.MAX_VALUE
 			)
@@ -5221,42 +5221,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(expectedHistogram)
 			);
-	}
-
-	@Test
-	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should accept referenceHaving inside userFilter")
-	void shouldAcceptReferenceHavingInUserFilter(Evita evita, GraphQLTester tester) {
-		// Exercises the G.2 DSL change — `referenceHaving` is now a legal child of
-		// `userFilter`. The GraphQL surface must accept the new shape without errors.
-		// No value pinning — only status/errors.
-		tester.test(TEST_CATALOG)
-			.document(
-				"""
-					         query {
-					             queryProduct(
-					                 filterBy: {
-					                     userFilter: {
-					                         referenceCategoryHaving: [
-					                             {
-					                                 entityPrimaryKeyInSet: [1, 2]
-					                             }
-					                         ]
-					                     }
-					                 }
-					             ) {
-					                 recordPage {
-					                     data {
-					                         primaryKey
-					                     }
-					                 }
-					             }
-					         }
-					"""
-			)
-			.executeAndThen()
-			.statusCode(200)
-			.body(ERRORS_PATH, nullValue());
 	}
 
 	@Test
@@ -8853,6 +8817,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			}
 		);
 
+		// JsonPath root of the first parameter group's `priceIndex` histogram in the response — used as
+		// prefix for shape assertions that check min/max/overallCount and bucket-level fields below.
 		final String firstGroupHistogramPath =
 			PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() +
 				"." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() +
@@ -8914,13 +8880,18 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
-	@DisplayName("Should return reference histogram with boundary entities when entityFetch is provided")
+	@DisplayName("Should accept minReferencedEntity/maxReferencedEntity selections on reference histogram")
 	void shouldReturnReferenceSummaryWithHistogramStatisticsIncludingBoundaryEntities(
 		Evita evita, GraphQLTester tester
 	) {
+		// The test pairs `entityFetch` at two levels (reference-level and histogram-level) with a GraphQL
+		// selection for `minReferencedEntity` / `maxReferencedEntity`. We assert only that the API accepts
+		// the shape and that the histogram is populated — the boundary entity fields themselves may be
+		// either both present (REFERENCED_ENTITY_ATTRIBUTE domain) or both null (REFERENCE_ATTRIBUTE
+		// domain — boundary resolution not yet implemented there), so we do not pin their presence.
 		evita.queryCatalog(
 			TEST_CATALOG,
-			(java.util.function.Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.query(
 					query(
 						collection(Entities.PRODUCT),
@@ -8987,11 +8958,178 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			// shape assertions: the histogram must exist; boundary entity fields either both present
-			// (REFERENCED_ENTITY_ATTRIBUTE descriptor) or both null (REFERENCE_ATTRIBUTE descriptor —
-			// boundary resolution not yet implemented for that domain).
+			// shape-only assertions: boundary-entity presence is domain-dependent, see method javadoc.
 			.body(firstGroupHistogramPath, notNullValue())
 			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should narrow results via histogramHaving in userFilter while keeping reference histogram populated")
+	void shouldApplyHistogramHavingInUserFilter(
+		Evita evita, GraphQLTester tester
+	) {
+		// Two-step rationale:
+		//   1. Pre-compute a catalog-wide `priceIndex` histogram so we know a realistic [min, max] span
+		//      to draw the user-filter slider from.
+		//   2. Pick a sub-range inside that span so the `histogramHaving` constraint narrows the page,
+		//      but the reference histogram in extra results is still computed against the pre-slider
+		//      baseline (userFilter children are peeled off when computing the extra-result histogram).
+		// The final REST/GraphQL assertions prove narrowing (totalRecordCount shrinks vs. catalog total)
+		// AND that the reference histogram survives the peel (at least one group with non-null min).
+		// Baseline capture:
+		final EvitaResponse<EntityReference> baselineResponse = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReferenceWithHistograms(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								null,
+								null,
+								histogramStatistics(20, HISTOGRAM_PRICE_INDEX)
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		// Pick the first non-empty group's histogram — we only need its [min, max] span as the slider's
+		// envelope; individual bucket content is irrelevant to this test.
+		final HistogramContract baselineHistogram = baselineResponse.getExtraResult(ReferenceSummary.class)
+			.getReferenceStatistics()
+			.stream()
+			.map(stats -> stats.getHistogramStatistics(HISTOGRAM_PRICE_INDEX))
+			.filter(histogram -> histogram != null && histogram.getBuckets().length > 0)
+			.findFirst()
+			.orElseThrow();
+
+		// pick a sub-range inside the catalog-wide span — covering the lower half of the slider — so the
+		// narrowing still retains some products but strictly fewer than the full catalog count.
+		final BigDecimal baselineMin = baselineHistogram.getMin();
+		final BigDecimal baselineMax = baselineHistogram.getMax();
+		final BigDecimal rangeFrom = baselineMin;
+		final BigDecimal rangeTo = baselineMin.add(
+			baselineMax.subtract(baselineMin).divide(new BigDecimal("2"), java.math.RoundingMode.HALF_UP)
+		);
+
+		final EvitaResponse<EntityReference> narrowedResponse = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								histogramHaving(
+									Entities.PARAMETER,
+									HISTOGRAM_PRICE_INDEX,
+									rangeFrom,
+									rangeTo
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							referenceSummaryOfReferenceWithHistograms(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								null,
+								null,
+								histogramStatistics(20, HISTOGRAM_PRICE_INDEX)
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		// sanity-check expected invariants on the evitaDB side before asserting the GraphQL mirror:
+		// the narrowed record count must be strictly less than the catalog total (proof of narrowing).
+		final EvitaResponse<EntityReference> totalsResponse = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(collection(Entities.PRODUCT), require(page(1, 1))),
+					EntityReference.class
+				);
+			}
+		);
+		final int totalProducts = totalsResponse.getTotalRecordCount();
+		assertTrue(narrowedResponse.getTotalRecordCount() < totalProducts,
+			"histogramHaving must narrow the result set below the catalog-wide total");
+
+		// exercise the full GraphQL → query → histogram path: the `referenceParameterHistogramHaving` field
+		// (derived from `reference` prefix + `Parameter` classifier + `HistogramHaving` full name) must be
+		// accepted inside `userFilter`, route through the engine, and mirror the evitaDB-side invariants.
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(
+							filterBy: {
+								userFilter: {
+									referenceParameterHistogramHaving: {
+										histogramName: "%s",
+										from: "%s",
+										to: "%s"
+									}
+								}
+							}
+						) {
+							recordPage(size: %d) {
+								totalRecordCount
+							}
+							extraResults {
+								referenceSummary {
+									parameter {
+										histogramStatistics {
+											priceIndex {
+												min
+												max
+												overallCount
+												buckets(requestedCount: 20, behavior: OPTIMIZED) {
+													threshold
+													occurrences
+													requested
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+					""",
+				HISTOGRAM_PRICE_INDEX,
+				rangeFrom.toPlainString(),
+				rangeTo.toPlainString(),
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			// result set narrowing: GraphQL must report the same totalRecordCount as the evitaDB query.
+			// Matching the evitaDB-computed count proves the `referenceParameterHistogramHaving` field
+			// is wired end-to-end through the filter resolver, translator, and engine.
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." +
+					DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+				equalTo(narrowedResponse.getTotalRecordCount())
+			)
+			// at least one `priceIndex` histogram carries a non-null min/max — this is the slider-peeled
+			// baseline span, shown to the user regardless of the narrowing applied by `histogramHaving`.
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() +
+					"." + ExtraResultsDescriptor.REFERENCE_SUMMARY.name() +
+					".parameter.findAll { it.histogramStatistics?.priceIndex?.min != null }.size()",
+				greaterThan(0)
+			);
 	}
 
 	@Test
@@ -9491,6 +9629,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 	}
 
+	/* TODO LHO - unused? */
 	@Nonnull
 	private static List<SealedEntity> findEntitiesWithPrices(
 		@Nonnull List<SealedEntity> originalProductEntities,
@@ -9505,6 +9644,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 	}
 
+	/* TODO LHO - unused? */
 	@Nonnull
 	private static List<SealedEntity> findEntitiesWithPrices(
 		@Nonnull List<SealedEntity> originalProductEntities,

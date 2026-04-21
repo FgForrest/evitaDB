@@ -24,21 +24,14 @@
 package io.evitadb.api.functional.histogram;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -50,14 +43,12 @@ import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.and;
-import static io.evitadb.api.query.QueryConstraints.attributeBetween;
 import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.histogramHaving;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceWithHistograms;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.userFilter;
@@ -68,17 +59,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Behavioral coverage of the {@code userFilter → referenceHaving → [entityHaving →] attributeBetween}
- * walker that flips per-bucket `requested` flags on histograms returned by
- * {@code referenceSummary` / `referenceSummaryOfReference`. Groups the positive paths
- * (reference-attribute and referenced-entity-attribute ranges, open-ended bounds) with negative
- * paths that must not flip any bucket (mismatched attribute, mismatched reference, multiple
- * independent matches, coexistence with `facetHaving`).
+ * Behavioral coverage of the {@code userFilter → histogramHaving} walker that flips per-bucket
+ * `requested` flags on histograms returned by
+ * {@code referenceSummary} / {@code referenceSummaryOfReference}. Groups the positive paths
+ * (reference-attribute and referenced-entity-attribute histograms, open-ended bounds) with
+ * negative paths that must not flip any bucket (mismatched histogram name, multiple independent
+ * matches, coexistence with `facetHaving`).
  *
- * All but one test share the {@link #REFERENCE_HISTOGRAM_SMALL} fixture. The
- * `shouldNotFlipRequestedWhenReferenceNameDoesNotMatch` test requires a second plain reference
- * that the small fixture does not carry — it uses a bespoke schema installed into a dedicated
- * Evita instance created inline.
+ * All tests share the {@link #REFERENCE_HISTOGRAM_SMALL} fixture.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -95,11 +83,11 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
-		@DisplayName("should leave all `requested` false when userFilter carries no matching attributeBetween")
+		@DisplayName("should leave all `requested` false when userFilter carries no matching histogramHaving")
 		void shouldLeaveBucketsRequestedFalseWhenUserFilterDoesNotMatch(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -137,14 +125,14 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 
 	/**
 	 * Verifies the positive paths where a
-	 * {@code userFilter(referenceHaving(refName, [entityHaving(]attributeBetween(lo, hi){)}))}
-	 * subtree flips the per-bucket {@code requested} flag for buckets whose threshold lies in
-	 * `[lo, hi]`. Exercises both histogram source types (REFERENCE_ATTRIBUTE and
+	 * {@code userFilter(histogramHaving(refName, histogramName, lo, hi))} subtree flips the
+	 * per-bucket {@code requested} flag for buckets whose threshold lies in `[lo, hi]`.
+	 * Exercises both histogram source types (REFERENCE_ATTRIBUTE and
 	 * REFERENCED_ENTITY_ATTRIBUTE) and open-ended ranges.
 	 */
 	@Nested
-	@DisplayName("Requested flag from userFilter → referenceHaving")
-	class RequestedFlagFromUserFilterReferenceHaving {
+	@DisplayName("Requested flag from userFilter → histogramHaving")
+	class RequestedFlagFromUserFilterHistogramHaving {
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
@@ -152,7 +140,7 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 		void shouldMarkRequestedBucketsForReferenceAttributeRange(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					// baseline: no userFilter — every bucket must be requested=false, capture occurrences
 					final EvitaResponse<EntityReferenceContract> baseline = session.query(
 						query(
@@ -175,15 +163,14 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 						assertFalse(b.requested(), "Baseline buckets must all be requested=false");
 					}
 
-					// requested range [10, 50] on the reference-level attribute
+					// requested range [10, 50] on the reference-level histogram (REFERENCE_ATTRIBUTE source)
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
 							filterBy(
 								userFilter(
-									referenceHaving(
-										REF_PARAM_VALUES,
-										attributeBetween(ATTR_MARKET_SHARE, 10, 50)
+									histogramHaving(
+										REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE, 10, 50
 									)
 								)
 							),
@@ -230,18 +217,15 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 		void shouldMarkRequestedBucketsForReferencedEntityAttributeRange(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
-					// requested range [10, 20] on the REFERENCED_ENTITY_ATTRIBUTE `basicUnitValue`
+				session -> {
+					// requested range [10, 20] on the REFERENCED_ENTITY_ATTRIBUTE histogram (sources basicUnitValue)
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
 							filterBy(
 								userFilter(
-									referenceHaving(
-										REF_PARAM_VALUES,
-										entityHaving(
-											attributeBetween(ATTR_BASIC_UNIT_VALUE, 10, 20)
-										)
+									histogramHaving(
+										REF_PARAM_VALUES, HISTOGRAM_PRICE, 10, 20
 									)
 								)
 							),
@@ -283,20 +267,20 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
-		@DisplayName("should mark requested buckets for open-ended range (lower bound only)")
-		void shouldMarkRequestedBucketsForOpenEndedRange(@Nonnull Evita evita) {
+		@DisplayName("should mark buckets requested for an open-ended range with lower bound only")
+		void shouldMarkRequestedBucketsForLowerBoundOnlyRange(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
-					// open-ended requested range [50, +∞) on reference-level `marketShare`
+				session -> {
+					// open-ended requested range [50, +∞) on reference-level histogram
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
 							filterBy(
 								userFilter(
-									referenceHaving(
-										REF_PARAM_VALUES,
-										attributeBetween(ATTR_MARKET_SHARE, 50, null)
+									histogramHaving(
+										REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE,
+										50, (Integer) null
 									)
 								)
 							),
@@ -350,104 +334,31 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 	// ==========================================================================================
 
 	/**
-	 * Negative / cross-scenario coverage for `userFilter → referenceHaving` behaviour: mismatched
-	 * reference names, mismatched attribute names, duplicate ranges on the same (reference, histogram)
+	 * Negative / cross-scenario coverage for `userFilter → histogramHaving` behaviour: mismatched
+	 * reference names, mismatched histogram names, duplicate ranges on the same (reference, histogram)
 	 * pair, and coexistence with a `facetHaving` in the same `userFilter`.
 	 */
 	@Nested
-	@DisplayName("Negative paths for userFilter → referenceHaving")
-	class NegativePathsForUserFilterReferenceHaving {
-
-		private static final String DIR_NEG = "referenceSummaryHistogramRequestedFlag_negRefName";
-		private static final String DIR_NEG_EXPORT = "referenceSummaryHistogramRequestedFlag_negRefName_export";
-
-		@Test
-		@DisplayName("should not flip requested when reference name does not match")
-		void shouldNotFlipRequestedWhenReferenceNameDoesNotMatch() {
-			// This test needs a bespoke schema with a second plain reference `categories` so the
-			// referenceHaving("otherRef", ...) subtree is a valid (non-matching) constraint rather
-			// than a parse error. The small dataset does not carry that reference, so we spin up a
-			// dedicated Evita instance inline.
-			cleanTestSubDirectoryWithRethrow(DIR_NEG);
-			cleanTestSubDirectoryWithRethrow(DIR_NEG_EXPORT);
-			final Evita evita = new Evita(
-				EvitaConfiguration.builder()
-					.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-					.storage(StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(DIR_NEG))
-						.build())
-					.export(FileSystemExportOptions.builder()
-						.directory(getTestDirectory().resolve(DIR_NEG_EXPORT))
-						.build())
-					.build()
-			);
-			try {
-				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(TEST_CATALOG, session -> {
-					defineSchemaWithExtraPlainReferenceAndMarketShare(session);
-					seedSmallData(session);
-				});
-				evita.queryCatalog(
-					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) session -> {
-						final EvitaResponse<EntityReferenceContract> result = session.query(
-							query(
-								collection(ENTITY_PRODUCT),
-								filterBy(
-									userFilter(
-										referenceHaving(
-											REF_CATEGORIES,
-											attributeBetween(ATTR_MARKET_SHARE, 10, 50)
-										)
-									)
-								),
-								require(
-									referenceSummaryOfReferenceWithHistograms(
-										REF_PARAM_VALUES, null, null, null,
-										histogramStatistics(5, HISTOGRAM_MARKET_SHARE)
-									)
-								)
-							),
-							EntityReferenceContract.class
-						);
-						final ReferenceSummary summary = result.getExtraResult(ReferenceSummary.class);
-						assertNotNull(summary);
-						final ReferenceGroupStatistics group1 = summary.getReferenceGroupStatistics(
-							REF_PARAM_VALUES, 1
-						);
-						assertNotNull(group1);
-						final HistogramContract histogram = group1.getHistogramStatistics(HISTOGRAM_MARKET_SHARE);
-						assertNotNull(histogram);
-						for (final Bucket bucket : histogram.getBuckets()) {
-							assertFalse(bucket.requested(),
-								"referenceHaving on a different reference must not flip any bucket");
-						}
-					}
-				);
-			} finally {
-				evita.close();
-				cleanTestSubDirectoryWithRethrow(DIR_NEG);
-				cleanTestSubDirectoryWithRethrow(DIR_NEG_EXPORT);
-			}
-		}
+	@DisplayName("Negative paths for userFilter → histogramHaving")
+	class NegativePathsForUserFilterHistogramHaving {
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
-		@DisplayName("should not flip requested when attribute name does not match the histogram source")
-		void shouldNotFlipRequestedWhenAttributeNameDoesNotMatch(@Nonnull Evita evita) {
+		@DisplayName("should not flip requested when histogram name does not match the requested histogram")
+		void shouldNotFlipRequestedWhenHistogramNameDoesNotMatch(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
-					// Asking for histogram `priceBucket` (sources `basicUnitValue`) while
-					// attributeBetween targets `marketShare` — no flip expected.
+				session -> {
+					// Asking for histogram `priceBucket` (sources `basicUnitValue`) while the
+					// histogramHaving targets the `marketShareBucket` slot — no flip expected
+					// on the requested `priceBucket` histogram.
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
 							filterBy(
 								userFilter(
-									referenceHaving(
-										REF_PARAM_VALUES,
-										attributeBetween(ATTR_MARKET_SHARE, 10, 50)
+									histogramHaving(
+										REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE, 10, 50
 									)
 								)
 							),
@@ -470,7 +381,7 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 					assertNotNull(histogram);
 					for (final Bucket bucket : histogram.getBuckets()) {
 						assertFalse(bucket.requested(),
-							"attributeBetween on non-source attribute must not flip any bucket");
+							"histogramHaving targeting a different histogram must not flip any bucket");
 					}
 				}
 			);
@@ -490,13 +401,11 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 							filterBy(
 								userFilter(
 									and(
-										referenceHaving(
-											REF_PARAM_VALUES,
-											attributeBetween(ATTR_MARKET_SHARE, 10, 50)
+										histogramHaving(
+											REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE, 10, 50
 										),
-										referenceHaving(
-											REF_PARAM_VALUES,
-											attributeBetween(ATTR_MARKET_SHARE, 60, 90)
+										histogramHaving(
+											REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE, 60, 90
 										)
 									)
 								)
@@ -511,7 +420,7 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 						EntityReferenceContract.class
 					)
 				),
-				"Multiple `attributeBetween` subtrees targeting the same (reference, histogram) must throw"
+				"Multiple `histogramHaving` subtrees targeting the same (reference, histogram, group) must throw"
 			);
 		}
 
@@ -521,7 +430,7 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 		void shouldCoexistWithFacetHavingInSameUserFilter(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -532,9 +441,8 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 											REF_PARAM_VALUES,
 											entityPrimaryKeyInSet(1, 2)
 										),
-										referenceHaving(
-											REF_PARAM_VALUES,
-											attributeBetween(ATTR_MARKET_SHARE, 10, 50)
+										histogramHaving(
+											REF_PARAM_VALUES, HISTOGRAM_MARKET_SHARE, 10, 50
 										)
 									)
 								)
@@ -576,75 +484,10 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 					// result must be non-empty (products 1, 2, 4 in group 1 reference PV #1 or #2
 					// with marketShare in {10, 20, 40, 50}).
 					assertTrue(result.getTotalRecordCount() > 0,
-						"Query must return entities matching both facetHaving and referenceHaving");
+						"Query must return entities matching both facetHaving and histogramHaving");
 				}
 			);
 		}
 	}
 
-	// ==========================================================================================
-	// bespoke-schema helper used by `shouldNotFlipRequestedWhenReferenceNameDoesNotMatch`
-	// ==========================================================================================
-
-	/**
-	 * Variant of {@link AbstractReferenceSummaryHistogramFunctionalTest#defineSmallSchema} that
-	 * adds an extra plain reference {@link #REF_CATEGORIES} in addition to the marketShare-enabled
-	 * {@link #REF_PARAM_VALUES}. Used by the negative test that asserts a `referenceHaving` on a
-	 * different reference name does not flip the histogram `requested` flag — the "otherRef" must
-	 * actually exist in the schema for the query DSL to accept the constraint.
-	 */
-	private static void defineSchemaWithExtraPlainReferenceAndMarketShare(
-		@Nonnull EvitaSessionContract session
-	) {
-		session.defineEntitySchema(ENTITY_PARAMETER)
-			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
-			.updateVia(session);
-
-		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
-			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
-			.withAttribute(
-				ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
-				whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
-			)
-			.updateVia(session);
-
-		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withReferenceToEntity(
-				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringAndPartitioning()
-					.indexedWithComponents(ReferenceIndexedComponents.values())
-					.faceted()
-					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
-					.withAttribute(
-						ATTR_MARKET_SHARE, BigDecimal.class,
-						thatIs -> thatIs.filterable().indexDecimalPlaces(2).nullable()
-					)
-					.bucketed(
-						HISTOGRAM_PRICE,
-						ExpressionFactory.parse(
-							"$reference.referencedEntity?.attributes['basicUnitValue']"
-						)
-					)
-					.bucketed(
-						HISTOGRAM_MARKET_SHARE,
-						ExpressionFactory.parse(
-							"$reference.attributes['" + ATTR_MARKET_SHARE + "']"
-						)
-					)
-			)
-			.withReferenceToEntity(
-				REF_CATEGORIES, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringAndPartitioning()
-					// reuse the same attribute name so the negative test exercises a real
-					// `referenceHaving("otherRef", attributeBetween("marketShare", ...))` shape
-					// rather than hitting a schema-lookup error.
-					.withAttribute(
-						ATTR_MARKET_SHARE, BigDecimal.class,
-						thatIs -> thatIs.filterable().indexDecimalPlaces(2).nullable()
-					)
-			)
-			.updateVia(session);
-	}
 }

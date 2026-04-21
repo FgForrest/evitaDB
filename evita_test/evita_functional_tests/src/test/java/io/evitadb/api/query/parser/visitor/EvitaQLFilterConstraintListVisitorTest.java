@@ -82,7 +82,6 @@ class EvitaQLFilterConstraintListVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintList("attributeEqualsTrue('product'),collection('code')"));
     }
 
-
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraintListUnit"
      *

@@ -85,8 +85,8 @@ class CacheableHistogramTest {
 	class ConstructorValidation {
 
 		@Test
-		@DisplayName("should throw when buckets array is empty")
-		void shouldThrowWhenBucketsAreEmpty() {
+		@DisplayName("should throw IllegalArgumentException when buckets array is empty")
+		void shouldThrowIllegalArgumentExceptionWhenBucketsAreEmpty() {
 			assertThrows(
 				IllegalArgumentException.class,
 				() -> new CacheableHistogram(new CacheableBucket[0], BigDecimal.TEN)
@@ -94,8 +94,8 @@ class CacheableHistogramTest {
 		}
 
 		@Test
-		@DisplayName("should throw when last bucket threshold exceeds max")
-		void shouldThrowWhenLastThresholdExceedsMax() {
+		@DisplayName("should throw IllegalArgumentException when last bucket threshold exceeds max")
+		void shouldThrowIllegalArgumentExceptionWhenLastThresholdExceedsMax() {
 			final CacheableBucket[] buckets = new CacheableBucket[]{
 				new CacheableBucket(new BigDecimal("1"), 1, BigDecimal.ZERO),
 				new CacheableBucket(new BigDecimal("100"), 1, BigDecimal.ZERO)
@@ -107,8 +107,8 @@ class CacheableHistogramTest {
 		}
 
 		@Test
-		@DisplayName("should throw when thresholds are not strictly monotonic")
-		void shouldThrowWhenThresholdsNotMonotonic() {
+		@DisplayName("should throw IllegalArgumentException when two adjacent thresholds are equal")
+		void shouldThrowIllegalArgumentExceptionWhenAdjacentThresholdsAreEqual() {
 			final CacheableBucket[] buckets = new CacheableBucket[]{
 				new CacheableBucket(new BigDecimal("5"), 1, BigDecimal.ZERO),
 				new CacheableBucket(new BigDecimal("5"), 1, BigDecimal.ZERO)
@@ -120,8 +120,8 @@ class CacheableHistogramTest {
 		}
 
 		@Test
-		@DisplayName("should throw when thresholds are decreasing")
-		void shouldThrowWhenThresholdsDecreasing() {
+		@DisplayName("should throw IllegalArgumentException when thresholds are decreasing")
+		void shouldThrowIllegalArgumentExceptionWhenThresholdsDecreasing() {
 			final CacheableBucket[] buckets = new CacheableBucket[]{
 				new CacheableBucket(new BigDecimal("10"), 1, BigDecimal.ZERO),
 				new CacheableBucket(new BigDecimal("5"), 1, BigDecimal.ZERO)
@@ -151,8 +151,8 @@ class CacheableHistogramTest {
 	class ConvertToHistogramSimple {
 
 		@Test
-		@DisplayName("should preserve thresholds, occurrences and max")
-		void shouldPreserveBucketContents() {
+		@DisplayName("should preserve thresholds, occurrences and max when converting to HistogramContract")
+		void shouldPreserveBucketContentsWhenConverting() {
 			final CacheableHistogram source = sampleHistogram();
 
 			final HistogramContract result = source.convertToHistogram(NEVER_REQUESTED);
@@ -204,8 +204,8 @@ class CacheableHistogramTest {
 	class ConvertToHistogramWithBoundaryEntities {
 
 		@Test
-		@DisplayName("should not attach boundary entities when both are null")
-		void shouldNotAttachWhenBothNull() {
+		@DisplayName("should not attach boundary entities when both arguments are null")
+		void shouldNotAttachBoundaryEntitiesWhenBothNull() {
 			final CacheableHistogram source = sampleHistogram();
 
 			final HistogramContract result = source.convertToHistogram(NEVER_REQUESTED, null, null);
@@ -218,8 +218,8 @@ class CacheableHistogramTest {
 		}
 
 		@Test
-		@DisplayName("should attach both boundary entities when supplied")
-		void shouldAttachBothBoundaryEntities() {
+		@DisplayName("should expose both boundary entities on the result when supplied")
+		void shouldExposeBothBoundaryEntitiesWhenSupplied() {
 			final CacheableHistogram source = sampleHistogram();
 			final SealedEntity minEntity = mock(SealedEntity.class);
 			final SealedEntity maxEntity = mock(SealedEntity.class);
@@ -235,8 +235,8 @@ class CacheableHistogramTest {
 		}
 
 		@Test
-		@DisplayName("should preserve bucket contents when boundary entities are attached")
-		void shouldPreserveBucketContentsWithBoundaryEntities() {
+		@DisplayName("should preserve bucket contents alongside attached boundary entities")
+		void shouldPreserveBucketContentsAlongsideBoundaryEntities() {
 			final CacheableHistogram source = sampleHistogram();
 			final SealedEntity minEntity = mock(SealedEntity.class);
 			final SealedEntity maxEntity = mock(SealedEntity.class);
@@ -273,7 +273,7 @@ class CacheableHistogramTest {
 		 * @throws Exception propagated I/O or class-load failures
 		 */
 		@Nonnull
-		private CacheableHistogram roundTrip(@Nonnull CacheableHistogram source) throws Exception {
+		private static CacheableHistogram roundTrip(@Nonnull CacheableHistogram source) throws Exception {
 			final ByteArrayOutputStream baos = new ByteArrayOutputStream(256);
 			try (ObjectOutputStream oos = new ObjectOutputStream(baos)) {
 				oos.writeObject(source);

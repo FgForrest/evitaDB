@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
@@ -95,7 +96,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@SuppressWarnings("JUnitMalformedDeclaration")
+@SuppressWarnings({"SuspiciousArrayCast"})
 @Slf4j
 public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForAttributeTesting";
@@ -338,13 +339,15 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 									attributeElement(ATTRIBUTE_PRIORITY, DESC, OrderBehaviour.NULLS_LAST),
 									attributeElement(ATTRIBUTE_CREATED, ASC, OrderBehaviour.NULLS_FIRST)
 								)
-								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, whichIs -> whichIs.filterable())
+								.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, AttributeSchemaEditor::filterable)
 								.withReferenceToEntity(
 									Entities.BRAND,
 									Entities.BRAND,
 									Cardinality.ZERO_OR_ONE,
 									whichIs -> whichIs
-										.withAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C, Boolean.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_BRAND_VISIBLE_FOR_B2C, Boolean.class,
+										               AttributeSchemaEditor::filterable
+										)
 										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class, thatIs -> thatIs.filterable().sortable())
 										.withAttribute(ATTRIBUTE_FOUNDED, OffsetDateTime.class, thatIs -> thatIs.filterable().sortable())
 								)
@@ -353,7 +356,9 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 									Entities.STORE,
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs
-										.withAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class, thatIs -> thatIs.filterable())
+										.withAttribute(ATTRIBUTE_STORE_VISIBLE_FOR_B2C, Boolean.class,
+										               AttributeSchemaEditor::filterable
+										)
 										.withAttribute(ATTRIBUTE_CAPACITY, Long.class, thatIs -> thatIs.filterable().nullable().sortable())
 								).updateAndFetchVia(session);
 						}
@@ -1963,7 +1968,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.map(it -> (String) it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
 			.filter(Objects::nonNull)
 			.findFirst()
-			.get();
+			.orElseThrow();
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -2091,7 +2096,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.filter(it -> rnd.nextInt(100) > 85)
 			.filter(it -> it.getAttribute(ATTRIBUTE_PRIORITY) != null && it.getAttribute(ATTRIBUTE_ALIAS) != null)
 			.findFirst()
-			.get();
+			.orElseThrow();
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -3941,7 +3946,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.filter(it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null && it.getLocales().contains(Locale.ENGLISH) && it.getLocales().contains(CZECH_LOCALE))
 			.filter(it -> rnd.nextInt(100) > 85)
 			.findFirst()
-			.get();
+			.orElseThrow();
 		final String urlAttribute = selectedEntity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
 
 		evita.queryCatalog(
@@ -4052,7 +4057,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 			.filter(it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null && it.getLocales().contains(Locale.ENGLISH) && it.getLocales().contains(CZECH_LOCALE))
 			.filter(it -> rnd.nextInt(100) > 85)
 			.findFirst()
-			.get();
+			.orElseThrow();
 		final String urlAttribute = selectedEntity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
 
 		evita.queryCatalog(
@@ -5206,10 +5211,9 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_ALIAS) != null).toList();
 
 				// verify our test works
-				final Predicate<SealedEntity> attributePredicate = quantityAttributePredicate;
 				assertTrue(
-					filteredProducts.size() > filteredProducts.stream().filter(attributePredicate).count(),
-					"Price between query didn't filter out any products. Test is not testing anything!"
+					filteredProducts.size() > filteredProducts.stream().filter(quantityAttributePredicate).count(),
+					"Attribute between query didn't filter out any products. Test is not testing anything!"
 				);
 
 				// the attribute `between(ATTRIBUTE_QUANTITY, 100, 900)` query must be ignored while computing its histogram
@@ -5224,7 +5228,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	@DisplayName("Should return attribute histogram for returned products excluding constraints targeting that attribute")
+	@DisplayName("Should return two attribute histograms whose spans are unaffected by EITHER of the two sibling userFilter sliders")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldReturnAttributeHistogramWithoutBeingAffectedByAttributeFilter(Evita evita, List<SealedEntity> originalProductEntities) {
@@ -5268,20 +5272,21 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 				final Predicate<SealedEntity> attributePredicate = priorityAttributePredicate.or(quantityAttributePredicate);
 				assertTrue(
 					filteredProducts.size() > filteredProducts.stream().filter(attributePredicate).count(),
-					"Price between query didn't filter out any products. Test is not testing anything!"
+					"Attribute between query didn't filter out any products. Test is not testing anything!"
 				);
 
-				// the attribute `between(ATTRIBUTE_QUANTITY, 100, 900)` query must be ignored while computing its histogram
+				// both sibling `attributeBetween` carriers inside `userFilter` are peeled uniformly,
+				// so neither histogram contracts under the other's slider — both span every product
+				// matching only the mandatory `attributeIsNotNull(ALIAS)` filter outside userFilter
 				assertHistogramIntegrity(
 					result,
-					filteredProducts.stream().filter(priorityAttributePredicate).collect(Collectors.toList()),
+					filteredProducts,
 					ATTRIBUTE_QUANTITY, new BigDecimal("100"), new BigDecimal("900")
 				);
 
-				// the attribute `between(ATTRIBUTE_PRIORITY, 15000, 90000)` query must be ignored while computing its histogram
 				assertHistogramIntegrity(
 					result,
-					filteredProducts.stream().filter(quantityAttributePredicate).collect(Collectors.toList()),
+					filteredProducts,
 					ATTRIBUTE_PRIORITY, new BigDecimal("15000"), new BigDecimal("90000")
 				);
 
@@ -5813,10 +5818,8 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 					originalProductEntities,
 					sealedEntity -> {
 						final Boolean alias = sealedEntity.getAttribute(ATTRIBUTE_ALIAS);
-						final Long priority = (Long) sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
-						return Boolean.TRUE.equals(alias) &&
-							priority != null &&
-							(!(priority > priorityAttribute) || priority < priorityAttribute);
+						final Long priority = sealedEntity.getAttribute(ATTRIBUTE_PRIORITY);
+						return Boolean.TRUE.equals(alias) && priority != null && !(priority > priorityAttribute);
 					},
 					result.getRecordData()
 				);
@@ -5895,7 +5898,7 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
-	private EvitaResponse<EntityReference> getByAttributeSize(EvitaSessionContract session, int size) {
+	private static EvitaResponse<EntityReference> getByAttributeSize(EvitaSessionContract session, int size) {
 		return session.query(
 			query(
 				collection(Entities.PRODUCT),
@@ -5913,14 +5916,17 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+	private static <T extends Serializable> T getRandomAttributeValue(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
 		return getRandomAttributeValue(originalProductEntities, attributeName, 10);
 	}
 
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private <T extends Serializable> T getRandomAttributeValue(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+	private static <T extends Serializable> T getRandomAttributeValue(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+		//noinspection unchecked
 		return originalProductEntities
 			.stream()
 			.map(it -> (T) it.getAttribute(attributeName))
@@ -5933,14 +5939,16 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+	private static AttributeValue getRandomAttributeValueObject(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
 		return getRandomAttributeValueObject(originalProductEntities, attributeName, 10);
 	}
 
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+	private static AttributeValue getRandomAttributeValueObject(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
 		return originalProductEntities
 			.stream()
 			.flatMap(it -> it.getAttributeValues(attributeName).stream())
@@ -5953,7 +5961,9 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	/**
 	 * Returns value of "random" value in the dataset.
 	 */
-	private <T extends Serializable> T[] getRandomAttributeValueArray(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+	private static <T extends Serializable> T[] getRandomAttributeValueArray(
+		@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+		//noinspection unchecked
 		return originalProductEntities
 			.stream()
 			.map(it -> (T[]) it.getAttributeArray(attributeName))

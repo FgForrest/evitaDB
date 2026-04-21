@@ -572,3 +572,68 @@ have changed accordingly:
 </LS>
 
 </Note>
+
+## Histogram having
+
+```evitaql-syntax
+histogramHaving(
+    argument:string!,
+    argument:string?,
+    argument:any?,
+    argument:any?,
+    filterConstraint:entityHaving?
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity reference](../../use/schema.md#reference) that hosts the histogram to be narrowed
+    </dd>
+    <dt>argument:string?</dt>
+    <dd>
+        optional histogram name within the reference; may be omitted (or passed as `null` / empty string) when
+        the reference hosts exactly one histogram
+    </dd>
+    <dt>argument:any?</dt>
+    <dd>
+        optional inclusive lower bound (`from`) of the range; `null` leaves the range open-ended on the lower side
+    </dd>
+    <dt>argument:any?</dt>
+    <dd>
+        optional inclusive upper bound (`to`) of the range; `null` leaves the range open-ended on the upper side;
+        at least one of `from` / `to` must be non-null
+    </dd>
+    <dt>filterConstraint:entityHaving?</dt>
+    <dd>
+        optional single [`entityHaving`](#entity-having) constraint selecting the **group** entity for a grouped
+        histogram slot (for example "the `height` parameter" within the `parameterValues` reference); omitted for
+        non-grouped slots
+    </dd>
+</dl>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HistogramHaving.java</SourceClass></LS> constraint narrows a reference histogram to a specific `[from, to]` range. It is the first-class carrier for
+slider-driven range selection on **references** — for example, a product's `parameterValues` reference that hosts one
+histogram per parameter (`height`, `weight`, `depth`, …). A single `histogramHaving` identifies one
+`(referenceName, histogramName, groupSelector, [from, to])` tuple.
+
+Inside the [`userFilter`](behavioral.md#user-filter) container, `histogramHaving` plays a dual role:
+
+1. it is applied to the filter formula like any other `userFilter` child — the result set is narrowed by the range;
+2. it is registered as a **range carrier** so the histogram's own `[min, max]` baseline cloner peels it out when
+   computing the histogram — moving one slider does not contract the `[min, max]` span of sibling sliders (see the
+   [three-group invariant in behavioral filtering](behavioral.md#sliders-do-not-contract-under-their-own-handles)).
+
+Outside `userFilter`, `histogramHaving` behaves like an equivalent [`referenceHaving`](#reference-having) rewrite —
+it narrows the result set and does not participate in histogram baseline relaxation.
+
+### Expressing independent ranges on the same reference
+
+Two `histogramHaving` siblings inside one `userFilter` express independent per-histogram ranges that are combined as
+a logical AND — each slider has its own `(histogramName, groupSelector, from, to)` tuple:
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Two `histogramHaving` siblings on the same reference](/documentation/user/en/query/filtering/examples/references/histogram-having.evitaql)
+
+</SourceCodeTabs>

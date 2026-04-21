@@ -1,0 +1,34 @@
+TODO JNO - this is wrong example
+query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "e-readers")
+        ),
+        userFilter(
+            histogramHaving(
+                "parameterValues", "basicUnitValue",
+                50, 120,
+                entityHaving(attributeEquals("code", "height"))
+            ),
+            histogramHaving(
+                "parameterValues", "basicUnitValue",
+                90, 140,
+                entityHaving(attributeEquals("code", "weight"))
+            ),
+            facetHaving(
+                "brand",
+                entityHaving(attributeInSet("code", "amazon"))
+            ),
+            priceBetween(100, 500)
+        )
+    ),
+    require(
+        facetSummaryOfReference(
+            "brand",
+            IMPACT,
+            entityFetch(attributeContent("code"))
+        )
+    )
+)

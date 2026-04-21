@@ -85,8 +85,8 @@ class ReferenceHistogramAccumulatorTest {
 	class RequestedBucketPredicate {
 
 		@Test
-		@DisplayName("should always return false when range is null")
-		void shouldReturnFalseWhenRangeNull() throws Exception {
+		@DisplayName("should produce an always-false predicate when range is null")
+		void shouldProduceAlwaysFalsePredicateWhenRangeIsNull() throws Exception {
 			final Predicate<BigDecimal> predicate = requestedPredicate(null);
 
 			assertFalse(predicate.test(BigDecimal.ZERO));
@@ -95,8 +95,8 @@ class ReferenceHistogramAccumulatorTest {
 		}
 
 		@Test
-		@DisplayName("should return true only within closed [from, to] range")
-		void shouldReturnTrueWithinClosedRange() throws Exception {
+		@DisplayName("should accept values inside a closed [from, to] range (both bounds inclusive)")
+		void shouldAcceptValuesInsideClosedRangeWithBothBoundsInclusive() throws Exception {
 			final Predicate<BigDecimal> predicate = requestedPredicate(
 				new RequestedBucketRange(new BigDecimal("10"), new BigDecimal("20"))
 			);
@@ -109,8 +109,8 @@ class ReferenceHistogramAccumulatorTest {
 		}
 
 		@Test
-		@DisplayName("should accept everything <= to when from is null")
-		void shouldAcceptAllLessThanOrEqualToWhenFromNull() throws Exception {
+		@DisplayName("should accept any value <= `to` when `from` bound is null (open lower bound)")
+		void shouldAcceptAnyValueBelowOrEqualToUpperBoundWhenFromIsNull() throws Exception {
 			final Predicate<BigDecimal> predicate = requestedPredicate(
 				new RequestedBucketRange(null, new BigDecimal("20"))
 			);
@@ -121,8 +121,8 @@ class ReferenceHistogramAccumulatorTest {
 		}
 
 		@Test
-		@DisplayName("should accept everything >= from when to is null")
-		void shouldAcceptAllGreaterThanOrEqualToWhenToNull() throws Exception {
+		@DisplayName("should accept any value >= `from` when `to` bound is null (open upper bound)")
+		void shouldAcceptAnyValueAboveOrEqualToLowerBoundWhenToIsNull() throws Exception {
 			final Predicate<BigDecimal> predicate = requestedPredicate(
 				new RequestedBucketRange(new BigDecimal("10"), null)
 			);
@@ -133,8 +133,8 @@ class ReferenceHistogramAccumulatorTest {
 		}
 
 		@Test
-		@DisplayName("should accept any value when both bounds are null")
-		void shouldAcceptEveryValueWhenBothBoundsNull() throws Exception {
+		@DisplayName("should accept any value when both bounds are null (fully open range)")
+		void shouldAcceptAnyValueWhenBothBoundsAreNull() throws Exception {
 			final Predicate<BigDecimal> predicate = requestedPredicate(
 				new RequestedBucketRange(null, null)
 			);
@@ -160,8 +160,8 @@ class ReferenceHistogramAccumulatorTest {
 	class DefensiveDispatch {
 
 		@Test
-		@DisplayName("`referencedPrimaryKeys` throws for unknown EntityIndex subtype")
-		void shouldThrowOnReferencedPrimaryKeysForUnknownIndex() throws Exception {
+		@DisplayName("should throw GenericEvitaInternalError from `referencedPrimaryKeys` for an unknown EntityIndex subtype")
+		void shouldThrowGenericEvitaInternalErrorFromReferencedPrimaryKeysForUnknownEntityIndexSubtype() throws Exception {
 			final Method method = ReferenceHistogramAccumulator.class.getDeclaredMethod(
 				"referencedPrimaryKeys", EntityIndex.class
 			);

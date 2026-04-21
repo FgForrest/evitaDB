@@ -24,9 +24,6 @@
 package io.evitadb.api.functional.histogram;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -36,10 +33,10 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -51,25 +48,8 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.attributeBetween;
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetch;
-import static io.evitadb.api.query.QueryConstraints.entityHaving;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
-import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceWithHistograms;
-import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.scope;
-import static io.evitadb.api.query.QueryConstraints.userFilter;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Validation and edge-case coverage for `referenceSummary` / `referenceSummaryOfReference`
@@ -91,8 +71,171 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 	// Validation — small fixture
 	// ==========================================================================================
 
+	/**
+	 * Schema variant where ENTITY_PRODUCT carries TWO references — the bucketed
+	 * {@link #REF_PARAM_VALUES} and an additional plain {@link #REF_CATEGORIES} that has no
+	 * histogram index defined. Used by the validation test asserting strict all-references
+	 * dispatch refuses to proceed when any reference in the schema lacks the requested histogram.
+	 */
+	private static void defineSchemaWithExtraPlainReference(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(ENTITY_PARAMETER)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.withAttribute(
+				ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+				whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
+			)
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withReferenceToEntity(
+				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
+					.faceted()
+					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+					.bucketed(
+						HISTOGRAM_PRICE,
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['basicUnitValue']"
+						)
+					)
+			)
+			.withReferenceToEntity(
+				REF_CATEGORIES, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
+			)
+			.updateVia(session);
+	}
+
+	// ==========================================================================================
+	// Validation — multiple histograms on the same reference
+	// ==========================================================================================
+
+	/**
+	 * Schema variant where the reference is indexed in both LIVE and ARCHIVED scopes but the
+	 * histogram is declared only in LIVE. Used by the validation test asserting a query in the
+	 * ARCHIVED scope aborts fast with a "histogram not defined on reference" error.
+	 */
+	private static void defineSchemaWithHistogramOnlyInLiveScope(
+		@Nonnull EvitaSessionContract session
+	) {
+		session.defineEntitySchema(ENTITY_PARAMETER)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.withAttribute(
+				ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+				whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
+			)
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withReferenceToEntity(
+				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					// index and facet in both scopes so the ARCHIVED query reaches histogram
+					// resolution — without this, the facet-summary pre-check fires first
+					.indexedForFilteringAndPartitioningInScope(Scope.values())
+					.indexedWithComponents(ReferenceIndexedComponents.values())
+					.facetedInScope(Scope.values())
+					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+					// histogram is declared ONLY in LIVE — ARCHIVED query must fail fast
+					.bucketedInScope(
+						Scope.LIVE,
+						HISTOGRAM_PRICE,
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['basicUnitValue']"
+						)
+					)
+			)
+			.updateVia(session);
+	}
+
+	// ==========================================================================================
+	// Edge cases — bespoke inline schemas
+	// ==========================================================================================
+
+	/**
+	 * Schema variant where ENTITY_PRODUCT carries a **non-grouped** reference to parameter
+	 * values together with a histogram index. Non-grouped references trigger the
+	 * `collectNonGroupedPending` path in the accumulator and the synthetic DTO path in
+	 * `mergeWithExisting` when there are no facet statistics to merge.
+	 */
+	private static void defineSchemaWithNonGroupedReferenceAndHistogram(
+		@Nonnull EvitaSessionContract session
+	) {
+		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.withAttribute(
+				ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+				whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
+			)
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withReferenceToEntity(
+				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					// `.faceted()` is required so `referenceSummaryOfReference` accepts the reference;
+					// no `.withGroupTypeRelatedToEntity(...)` keeps the reference non-grouped.
+					.faceted()
+					.bucketed(
+						HISTOGRAM_PRICE,
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['basicUnitValue']"
+						)
+					)
+			)
+			.updateVia(session);
+	}
+
+	// ==========================================================================================
+	// Validation — large fixture
+	// ==========================================================================================
+
+	/**
+	 * Seeds data for the non-grouped reference variant: a small set of parameter values with
+	 * varied `basicUnitValue`s plus a handful of products each referencing one or more values.
+	 */
+	private static void seedNonGroupedData(@Nonnull EvitaSessionContract session) {
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+			.setAttribute(ATTR_NAME, "10cm")
+			.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("10"))
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+			.setAttribute(ATTR_NAME, "20cm")
+			.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("20"))
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, 3)
+			.setAttribute(ATTR_NAME, "30cm")
+			.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("30"))
+			.upsertVia(session);
+
+		session.createNewEntity(ENTITY_PRODUCT, 1)
+			.setReference(REF_PARAM_VALUES, 1)
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_PRODUCT, 2)
+			.setReference(REF_PARAM_VALUES, 2)
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_PRODUCT, 3)
+			.setReference(REF_PARAM_VALUES, 3)
+			.upsertVia(session);
+	}
+
+	// ==========================================================================================
+	// Bespoke-schema helpers used by the inline tests above
+	// ==========================================================================================
+
 	@Nested
-	@DisplayName("Validation (small fixture)")
+	@DisplayName("Validation — query planning guards (small fixture + bespoke schemas)")
 	class ValidationSmall {
 
 		@Test
@@ -156,7 +299,7 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
 		@DisplayName("should throw when all-references form requests an unknown histogram name")
-		void shouldThrowForUnknownHistogramNameViaAllReferencesReferenceSummary(@Nonnull Evita evita) {
+		void shouldThrowForUnknownHistogramNameInAllReferencesForm(@Nonnull Evita evita) {
 			// The all-references `referenceSummary` form must fail fast when the user requests a
 			// histogram name that is not defined on any reference in the entity schema — the
 			// constraint would otherwise silently produce no histograms, masking the typo.
@@ -188,92 +331,55 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 			// LIVE must surface a clear error when the query targets ARCHIVED — the resolution
 			// must fail fast with a reference/scope-specific message rather than silently
 			// producing an empty histogram.
-			final String dir = "referenceSummaryHistogramValidation_liveOnly";
-			final String dirExport = "referenceSummaryHistogramValidation_liveOnly_export";
-			cleanTestSubDirectoryWithRethrow(dir);
-			cleanTestSubDirectoryWithRethrow(dirExport);
-			final Evita evita = new Evita(
-				EvitaConfiguration.builder()
-					.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-					.storage(StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(dir))
-						.build())
-					.export(FileSystemExportOptions.builder()
-						.directory(getTestDirectory().resolve(dirExport))
-						.build())
-					.build()
-			);
-			try {
-				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(
-					TEST_CATALOG,
-					ReferenceSummaryHistogramValidationTest::defineSchemaWithHistogramOnlyInLiveScope
-				);
-
-				final EvitaInvalidUsageException error = assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> evita.queryCatalog(
-						TEST_CATALOG,
-						(Consumer<EvitaSessionContract>) session -> session.query(
-							query(
-								collection(ENTITY_PRODUCT),
-								filterBy(scope(Scope.ARCHIVED)),
-								require(
-									referenceSummaryOfReferenceWithHistograms(
-										REF_PARAM_VALUES, null, null, null,
-										histogramStatistics(10, HISTOGRAM_PRICE)
+			runWithInlineSchema(
+				"referenceSummaryHistogramValidation_liveOnly",
+				ReferenceSummaryHistogramValidationTest::defineSchemaWithHistogramOnlyInLiveScope,
+				null,
+				evita -> {
+					final EvitaInvalidUsageException error = assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> evita.queryCatalog(
+							TEST_CATALOG,
+							(Consumer<EvitaSessionContract>) session -> session.query(
+								query(
+									collection(ENTITY_PRODUCT),
+									filterBy(scope(Scope.ARCHIVED)),
+									require(
+										referenceSummaryOfReferenceWithHistograms(
+											REF_PARAM_VALUES, null, null, null,
+											histogramStatistics(10, HISTOGRAM_PRICE)
+										)
 									)
-								)
-							),
-							EntityReferenceContract.class
-						)
-					),
-					"ARCHIVED-scope query must abort when histogram is undeclared in that scope"
-				);
-				assertTrue(
-					error.getMessage().contains("is not defined on reference"),
-					"Error must surface the missing-histogram-in-scope contract, was: " + error.getMessage()
-				);
-				assertTrue(
-					error.getMessage().contains("ARCHIVED"),
-					"Error must name the offending scope, was: " + error.getMessage()
-				);
-			} finally {
-				evita.close();
-				cleanTestSubDirectoryWithRethrow(dir);
-				cleanTestSubDirectoryWithRethrow(dirExport);
-			}
+								),
+								EntityReferenceContract.class
+							)
+						),
+						"ARCHIVED-scope query must abort when histogram is undeclared in that scope"
+					);
+					assertTrue(
+						error.getMessage().contains("is not defined on reference"),
+						"Error must surface the missing-histogram-in-scope contract, was: " + error.getMessage()
+					);
+					assertTrue(
+						error.getMessage().contains("ARCHIVED"),
+						"Error must name the offending scope, was: " + error.getMessage()
+					);
+				}
+			);
 		}
 
 		@Test
 		@DisplayName("should throw when a reference in the schema does not define the requested histogram (all-references form)")
-		void shouldThrowWhenHistogramDefinedOnSubsetOfReferencesViaAllReferences() {
+		void shouldThrowWhenAnyReferenceInSchemaLacksRequestedHistogram() {
 			// Strict semantics for the all-references form: every reference in the entity schema
 			// must define every requested histogram in every active scope. Here REF_CATEGORIES
 			// exists without any histogram, so the dispatch must refuse rather than silently skip
 			// that reference and emit histograms for REF_PARAM_VALUES only.
-			final String dir = "referenceSummaryHistogramValidation_partialCoverage";
-			final String dirExport = "referenceSummaryHistogramValidation_partialCoverage_export";
-			cleanTestSubDirectoryWithRethrow(dir);
-			cleanTestSubDirectoryWithRethrow(dirExport);
-			final Evita evita = new Evita(
-				EvitaConfiguration.builder()
-					.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-					.storage(StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(dir))
-						.build())
-					.export(FileSystemExportOptions.builder()
-						.directory(getTestDirectory().resolve(dirExport))
-						.build())
-					.build()
-			);
-			try {
-				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(
-					TEST_CATALOG,
-					ReferenceSummaryHistogramValidationTest::defineSchemaWithExtraPlainReference
-				);
-				assertThrows(
+			runWithInlineSchema(
+				"referenceSummaryHistogramValidation_partialCoverage",
+				ReferenceSummaryHistogramValidationTest::defineSchemaWithExtraPlainReference,
+				null,
+				evita -> assertThrows(
 					EvitaInvalidUsageException.class,
 					() -> evita.queryCatalog(
 						TEST_CATALOG,
@@ -291,21 +397,13 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 						)
 					),
 					"All-references form must throw when any reference lacks the requested histogram"
-				);
-			} finally {
-				evita.close();
-				cleanTestSubDirectoryWithRethrow(dir);
-				cleanTestSubDirectoryWithRethrow(dirExport);
-			}
+				)
+			);
 		}
 	}
 
-	// ==========================================================================================
-	// Validation — multiple histograms on the same reference
-	// ==========================================================================================
-
 	/**
-	 * Scenarios involving multiple histograms declared on the same reference. The plan must
+	 * Scenarios involving multiple histograms declared on the same reference. The engine must
 	 * accept a request that asks for several histogram names in a single `histogramStatistics`
 	 * call and must fail fast when any of the names is undefined on the schema.
 	 */
@@ -339,19 +437,15 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 		}
 	}
 
-	// ==========================================================================================
-	// Edge cases — bespoke inline schemas
-	// ==========================================================================================
-
 	/**
 	 * Pins behaviour that is hard to exercise with the default datasets but easy to trigger with
 	 * a narrowed query or a purpose-built schema variant:
 	 *
 	 * - one-bucket degenerate case where the histogram's `min` equals `max`;
 	 * - non-grouped reference histogram — synthesizes a DTO via `mergeWithExisting` with
-	 *   `groupEntity == null`;
+	 * `groupEntity == null`;
 	 * - trailing-zero BigDecimal boundaries against an `indexDecimalPlaces > 0` attribute to pin
-	 *   the `FilterIndex`-side normalization contract.
+	 * the `FilterIndex`-side normalization contract.
 	 */
 	@Nested
 	@DisplayName("Edge cases — degenerate buckets, non-grouped, decimal-places")
@@ -396,22 +490,32 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 					assertNotNull(histogram, "Group 2 must carry the priceBucket histogram");
 
 					// min == max (single value 100.00) is the invariant being pinned
-					assertEquals(new BigDecimal("100.00"), histogram.getMin(),
-						"Histogram min must be 100 (single-value group)");
-					assertEquals(new BigDecimal("100.00"), histogram.getMax(),
-						"Histogram max must also be 100 (single-value group)");
-					assertEquals(0, histogram.getMin().compareTo(histogram.getMax()),
-						"min must equal max for single-value histogram");
+					assertEquals(
+						new BigDecimal("100.00"), histogram.getMin(),
+						"Histogram min must be 100 (single-value group)"
+					);
+					assertEquals(
+						new BigDecimal("100.00"), histogram.getMax(),
+						"Histogram max must also be 100 (single-value group)"
+					);
+					assertEquals(
+						0, histogram.getMin().compareTo(histogram.getMax()),
+						"min must equal max for single-value histogram"
+					);
 
 					// Both boundary entities must resolve to PV #4 because that's the only candidate
 					final Optional<io.evitadb.api.requestResponse.data.SealedEntity> minEntity = histogram.getMinReferencedEntity();
 					final Optional<io.evitadb.api.requestResponse.data.SealedEntity> maxEntity = histogram.getMaxReferencedEntity();
 					assertTrue(minEntity.isPresent(), "Min boundary entity must resolve");
 					assertTrue(maxEntity.isPresent(), "Max boundary entity must resolve");
-					assertEquals(4, minEntity.get().getPrimaryKey(),
-						"Min entity must be PV #4 (the only carrier of value 100 in group 2)");
-					assertEquals(4, maxEntity.get().getPrimaryKey(),
-						"Max entity must be the same PV #4 (max==min shortcut)");
+					assertEquals(
+						4, minEntity.get().getPrimaryKey(),
+						"Min entity must be PV #4 (the only carrier of value 100 in group 2)"
+					);
+					assertEquals(
+						4, maxEntity.get().getPrimaryKey(),
+						"Max entity must be the same PV #4 (max==min shortcut)"
+					);
 					return null;
 				}
 			);
@@ -434,15 +538,10 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 							collection(ENTITY_PRODUCT),
 							filterBy(
 								userFilter(
-									referenceHaving(
-										REF_PARAM_VALUES,
-										entityHaving(
-											attributeBetween(
-												ATTR_BASIC_UNIT_VALUE,
-												new BigDecimal("10.00"),
-												new BigDecimal("30.00")
-											)
-										)
+									histogramHaving(
+										REF_PARAM_VALUES, HISTOGRAM_PRICE,
+										new BigDecimal("10.00"),
+										new BigDecimal("30.00")
 									)
 								)
 							),
@@ -491,35 +590,13 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 			// Uses a schema variant where the parameter-value reference is NOT grouped — the
 			// accumulator's `mergeWithExisting` path must synthesize a DTO with `groupEntity == null`
 			// when the reference has histogram data but no facets carry it.
-			final String dir = "referenceSummaryHistogramValidation_nonGrouped";
-			final String dirExport = "referenceSummaryHistogramValidation_nonGrouped_export";
-			cleanTestSubDirectoryWithRethrow(dir);
-			cleanTestSubDirectoryWithRethrow(dirExport);
-			final Evita evita = new Evita(
-				EvitaConfiguration.builder()
-					.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-					.storage(StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(dir))
-						.build())
-					.export(FileSystemExportOptions.builder()
-						.directory(getTestDirectory().resolve(dirExport))
-						.build())
-					.build()
-			);
-			try {
-				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(
+			runWithInlineSchema(
+				"referenceSummaryHistogramValidation_nonGrouped",
+				ReferenceSummaryHistogramValidationTest::defineSchemaWithNonGroupedReferenceAndHistogram,
+				ReferenceSummaryHistogramValidationTest::seedNonGroupedData,
+				evita -> evita.queryCatalog(
 					TEST_CATALOG,
-					ReferenceSummaryHistogramValidationTest::defineSchemaWithNonGroupedReferenceAndHistogram
-				);
-				evita.updateCatalog(
-					TEST_CATALOG,
-					ReferenceSummaryHistogramValidationTest::seedNonGroupedData
-				);
-
-				evita.queryCatalog(
-					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) session -> {
+					session -> {
 						final EvitaResponse<EntityReferenceContract> result = session.query(
 							query(
 								collection(ENTITY_PRODUCT),
@@ -556,18 +633,10 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 							"Histogram must be attached to the non-grouped (groupEntity == null) DTO"
 						);
 					}
-				);
-			} finally {
-				evita.close();
-				cleanTestSubDirectoryWithRethrow(dir);
-				cleanTestSubDirectoryWithRethrow(dirExport);
-			}
+				)
+			);
 		}
 	}
-
-	// ==========================================================================================
-	// Validation — large fixture
-	// ==========================================================================================
 
 	@Nested
 	@DisplayName("Validation (large fixture)")
@@ -575,8 +644,8 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should throw when strict dispatch receives an unknown histogram name")
-		void shouldThrowForUnknownHistogramNameInStrictDispatch(@Nonnull Evita evita) {
+		@DisplayName("should throw when referenceSummaryOfReference requests an unknown histogram name")
+		void shouldThrowForUnknownHistogramNameInReferenceSummaryOfReference(@Nonnull Evita evita) {
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> evita.queryCatalog(
@@ -601,16 +670,11 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
 		@DisplayName("should throw when all-references fan-out receives an unknown histogram name (strict per reference)")
 		void shouldThrowForUnknownHistogramNameInAllReferencesFanOut(@Nonnull Evita evita) {
-			// The implementation plan (Phase B) describes
-			// `ReferenceSummaryTranslator.dispatchHistogramToMatchingReferences` as a **lenient
-			// fan-out that silently skips references which don't define the histogram** — but the
-			// landed code (see the JavaDoc at `ReferenceSummaryTranslator#dispatchHistogramToMatchingReferences`
-			// and the comment inside `createProducer`) implements it **strictly**: each reference
-			// is dispatched to `ReferenceHistogramStatisticsTranslator`, which throws on the first
-			// reference that doesn't define the histogram in every active scope.
-			//
-			// This test pins the **as-implemented** behavior. If the engine is later relaxed to
-			// match the plan, this test should flip to assertThat(no exception is thrown).
+			// `ReferenceSummaryTranslator.dispatchHistogramToMatchingReferences` implements strict
+			// fan-out: each reference is dispatched to `ReferenceHistogramStatisticsTranslator`, which
+			// throws on the first reference that doesn't define the histogram in every active scope.
+			// This test pins the as-implemented behavior; if the engine is later relaxed to skip
+			// references silently, flip this assertion to assertDoesNotThrow.
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> evita.queryCatalog(
@@ -628,159 +692,8 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 						EntityReferenceContract.class
 					)
 				),
-				"All-references fan-out is currently strict; the plan's 'lenient' wording is misleading"
+				"All-references fan-out is strict — an unknown histogram name must raise immediately"
 			);
 		}
-	}
-
-	// ==========================================================================================
-	// Bespoke-schema helpers used by the inline tests above
-	// ==========================================================================================
-
-	/**
-	 * Schema variant where ENTITY_PRODUCT carries TWO references — the bucketed
-	 * {@link #REF_PARAM_VALUES} and an additional plain {@link #REF_CATEGORIES} that has no
-	 * histogram index defined. Used by the validation test asserting strict all-references
-	 * dispatch refuses to proceed when any reference in the schema lacks the requested histogram.
-	 */
-	private static void defineSchemaWithExtraPlainReference(@Nonnull EvitaSessionContract session) {
-		session.defineEntitySchema(ENTITY_PARAMETER)
-			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
-			.updateVia(session);
-
-		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
-			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
-			.withAttribute(
-				ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
-				whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
-			)
-			.updateVia(session);
-
-		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withReferenceToEntity(
-				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringAndPartitioning()
-					.indexedWithComponents(ReferenceIndexedComponents.values())
-					.faceted()
-					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
-					.bucketed(
-						HISTOGRAM_PRICE,
-						ExpressionFactory.parse(
-							"$reference.referencedEntity?.attributes['basicUnitValue']"
-						)
-					)
-			)
-			.withReferenceToEntity(
-				REF_CATEGORIES, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioning()
-			)
-			.updateVia(session);
-	}
-
-	/**
-	 * Schema variant where the reference is indexed in both LIVE and ARCHIVED scopes but the
-	 * histogram is declared only in LIVE. Used by the validation test asserting a query in the
-	 * ARCHIVED scope aborts fast with a "histogram not defined on reference" error.
-	 */
-	private static void defineSchemaWithHistogramOnlyInLiveScope(
-		@Nonnull EvitaSessionContract session
-	) {
-		session.defineEntitySchema(ENTITY_PARAMETER)
-			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
-			.updateVia(session);
-
-		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
-			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
-			.withAttribute(
-				ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
-				whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
-			)
-			.updateVia(session);
-
-		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withReferenceToEntity(
-				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					// index and facet in both scopes so the ARCHIVED query reaches histogram
-					// resolution — without this, the facet-summary pre-check fires first
-					.indexedForFilteringAndPartitioningInScope(Scope.values())
-					.indexedWithComponents(ReferenceIndexedComponents.values())
-					.facetedInScope(Scope.values())
-					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
-					// histogram is declared ONLY in LIVE — ARCHIVED query must fail fast
-					.bucketedInScope(
-						Scope.LIVE,
-						HISTOGRAM_PRICE,
-						ExpressionFactory.parse(
-							"$reference.referencedEntity?.attributes['basicUnitValue']"
-						)
-					)
-			)
-			.updateVia(session);
-	}
-
-	/**
-	 * Schema variant where ENTITY_PRODUCT carries a **non-grouped** reference to parameter
-	 * values together with a histogram index. Non-grouped references trigger the
-	 * `collectNonGroupedPending` path in the accumulator and the synthetic DTO path in
-	 * `mergeWithExisting` when there are no facet statistics to merge.
-	 */
-	private static void defineSchemaWithNonGroupedReferenceAndHistogram(
-		@Nonnull EvitaSessionContract session
-	) {
-		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
-			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
-			.withAttribute(
-				ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
-				whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
-			)
-			.updateVia(session);
-
-		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withReferenceToEntity(
-				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringAndPartitioning()
-					// `.faceted()` is required so `referenceSummaryOfReference` accepts the reference;
-					// no `.withGroupTypeRelatedToEntity(...)` keeps the reference non-grouped.
-					.faceted()
-					.bucketed(
-						HISTOGRAM_PRICE,
-						ExpressionFactory.parse(
-							"$reference.referencedEntity?.attributes['basicUnitValue']"
-						)
-					)
-			)
-			.updateVia(session);
-	}
-
-	/**
-	 * Seeds data for the non-grouped reference variant: a small set of parameter values with
-	 * varied `basicUnitValue`s plus a handful of products each referencing one or more values.
-	 */
-	private static void seedNonGroupedData(@Nonnull EvitaSessionContract session) {
-		session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
-			.setAttribute(ATTR_NAME, "10cm")
-			.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("10"))
-			.upsertVia(session);
-		session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
-			.setAttribute(ATTR_NAME, "20cm")
-			.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("20"))
-			.upsertVia(session);
-		session.createNewEntity(ENTITY_PARAMETER_VALUE, 3)
-			.setAttribute(ATTR_NAME, "30cm")
-			.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("30"))
-			.upsertVia(session);
-
-		session.createNewEntity(ENTITY_PRODUCT, 1)
-			.setReference(REF_PARAM_VALUES, 1)
-			.upsertVia(session);
-		session.createNewEntity(ENTITY_PRODUCT, 2)
-			.setReference(REF_PARAM_VALUES, 2)
-			.upsertVia(session);
-		session.createNewEntity(ENTITY_PRODUCT, 3)
-			.setReference(REF_PARAM_VALUES, 3)
-			.upsertVia(session);
 	}
 }

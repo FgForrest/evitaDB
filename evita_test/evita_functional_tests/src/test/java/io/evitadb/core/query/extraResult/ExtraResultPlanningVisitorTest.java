@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.extraResult;
 
+import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -91,10 +93,8 @@ class ExtraResultPlanningVisitorTest {
 		}
 
 		@Override
-		public <T extends Serializable> io.evitadb.api.requestResponse.EvitaResponseExtraResult fabricate(
-			@Nonnull io.evitadb.core.query.QueryExecutionContext context
-		) {
-			return null;
+		public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
+			throw new UnsupportedOperationException("Not implemented for test double");
 		}
 
 		@Nonnull
@@ -105,12 +105,12 @@ class ExtraResultPlanningVisitorTest {
 	}
 
 	@Nested
-	@DisplayName("predicate overload must not poison class-only cache")
-	class CachePoisoning {
+	@DisplayName("Predicate overload must not poison the class-only lookup cache")
+	class CacheIsolationBetweenOverloads {
 
 		@Test
-		@DisplayName("class-only lookup returns the first registered producer after a predicate narrowed to the second")
-		void shouldReturnFirstProducerForClassOnlyLookupAfterPredicateSelectedSecond() {
+		@DisplayName("should return the first registered producer on class-only lookup even after a narrow predicate selected the second")
+		void shouldReturnFirstRegisteredProducerOnClassOnlyLookupWhenPredicateEarlierSelectedSecond() {
 			final ExtraResultPlanningVisitor visitor = buildVisitor();
 			final TaggedProducer first = new TaggedProducer(1);
 			final TaggedProducer second = new TaggedProducer(2);
@@ -130,8 +130,8 @@ class ExtraResultPlanningVisitorTest {
 		}
 
 		@Test
-		@DisplayName("class-only lookup with cached match still returns the cached instance")
-		void shouldReturnCachedInstanceOnClassOnlyLookupWhenAlreadyCached() {
+		@DisplayName("should return the cached instance on repeated class-only lookups for a single registered producer")
+		void shouldReturnCachedInstanceOnRepeatedClassOnlyLookupsForSingleProducer() {
 			final ExtraResultPlanningVisitor visitor = buildVisitor();
 			final TaggedProducer only = new TaggedProducer(1);
 			visitor.registerProducer(only);
@@ -142,8 +142,8 @@ class ExtraResultPlanningVisitorTest {
 		}
 
 		@Test
-		@DisplayName("predicate lookup returns null when no producer matches and leaves cache unchanged")
-		void shouldReturnNullForUnmatchedPredicateAndKeepCache() {
+		@DisplayName("should return null and keep the class-only cache intact when predicate matches no producer")
+		void shouldReturnNullAndKeepClassOnlyCacheIntactWhenPredicateMatchesNoProducer() {
 			final ExtraResultPlanningVisitor visitor = buildVisitor();
 			final TaggedProducer first = new TaggedProducer(1);
 			final TaggedProducer second = new TaggedProducer(2);

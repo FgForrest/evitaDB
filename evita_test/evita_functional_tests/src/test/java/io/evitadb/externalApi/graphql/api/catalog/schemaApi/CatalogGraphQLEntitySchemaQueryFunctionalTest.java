@@ -1101,6 +1101,10 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 		).orElseThrow();
 		assertFalse(productSchema.getReferences().isEmpty());
 
+		// Build the expected GraphQL payload for the `bucketed` field: one sub-list per reference, containing
+		// one entry for every (scope, histogram index definition) pair. The GraphQL `bucketed` field projects
+		// `scope`, `nameOfTheIndex`, and the optional `valueExpression` — we mirror the same shape from the
+		// server-side schema so the assertion matches field-for-field.
 		final List<List<Map<String, Object>>> referencesWithBucketed = productSchema.getReferences()
 			.values()
 			.stream()
@@ -1119,6 +1123,9 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 				.collect(Collectors.toList()))
 			.toList();
 
+		// Build the expected GraphQL payload for the `bucketedPartially` field: one sub-list per reference,
+		// containing one entry per scope that opts into partial bucketing. The GraphQL field exposes only
+		// `scope` and the optional gating `expression`.
 		final List<List<Map<String, Object>>> referencesWithBucketedPartially = productSchema.getReferences()
 			.values()
 			.stream()

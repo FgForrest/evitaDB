@@ -1143,19 +1143,19 @@ class TransactionalBitmapTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Signed-ordering tests specific to the transactional path. The non-transactional ordering
-	 * contract is already covered by {@code BaseBitmapTest}; these two tests pin the behaviours
-	 * that are unique to {@link TransactionalBitmap}: ordering preserved while a transaction is
-	 * still open (before commit/rollback) and after commit merges the transactional layer back
-	 * into the persistent bitmap.
+	 * Pins the `getArray()` signed-ordering contract on the two paths unique to
+	 * `TransactionalBitmap`: reading the bitmap while a transaction is still open (values live
+	 * in the overlay layer, merged with the persistent bitmap on-the-fly) and reading after the
+	 * commit has merged the transactional layer back into the persistent bitmap. The
+	 * non-transactional ordering contract itself is covered in `BaseBitmapTest`.
 	 */
 	@Nested
-	@DisplayName("Signed ordering for getArray() — transactional paths")
+	@DisplayName("STM signed ordering — transactional overlay and post-commit layers")
 	class SignedOrderingTest {
 
 		@Test
-		@DisplayName("should return signed order for negatives added inside an open transaction")
-		void shouldReturnSignedOrderInsideTransaction() {
+		@DisplayName("should expose signed order through the STM overlay when negatives are added inside a transaction")
+		void shouldExposeSignedOrderInOverlayWhenNegativesAddedInsideTransaction() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap(0, 5);
 
 			assertStateAfterRollback(
@@ -1178,8 +1178,8 @@ class TransactionalBitmapTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("should return signed order after committed negative additions")
-		void shouldReturnSignedOrderAfterCommit() {
+		@DisplayName("should expose signed order on the persistent bitmap after committing negative additions")
+		void shouldExposeSignedOrderOnPersistentBitmapAfterCommit() {
 			final TransactionalBitmap bitmap = new TransactionalBitmap(0, 5);
 
 			assertStateAfterCommit(

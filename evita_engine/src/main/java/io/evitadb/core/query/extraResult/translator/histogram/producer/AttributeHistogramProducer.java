@@ -34,12 +34,14 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
-import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
+import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.extraResult.translator.histogram.FilterFormulaAttributeOptimizeVisitor;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -49,6 +51,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
 import org.roaringbitmap.RoaringBitmap;
 
@@ -57,14 +60,11 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -116,27 +116,24 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 			return new ValueToRecordBitmap[0];
 		}
 
-		// prepare filtering bitmap
 		final RoaringBitmap filteredRecordIds;
 		if (filteringFormula == null) {
 			filteredRecordIds = null;
 		} else {
 			filteredRecordIds = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
 		}
-		// prepare output elastic array
 		final CompositeObjectArray<ValueToRecordBitmap> finalBuckets = new CompositeObjectArray<>(ValueToRecordBitmap.class, false);
 
-		// now create utility arrays that get reused during computation
 		if (histogramBitmaps.length > 1) {
-			// indexes contain last index visited in each input ValueToRecordBitmap array
+			// per-input cursor into the ValueToRecordBitmap arrays; -1 marks exhausted
 			final int[] indexes = new int[histogramBitmaps.length];
-			// incIndexes contains index in `indexes` array that should be incremented at the end of the loop
+			// positions in `indexes` that must advance after the current iteration
 			final int[] incIndexes = new int[histogramBitmaps.length];
-			// combination pack contains histogram buckets with same value which records should be combined
+			// buckets sharing the current minimum value, to be merged into one output bucket
 			final ValueToRecordBitmap[] combinationPack = new ValueToRecordBitmap[histogramBitmaps.length];
 
 			do {
-				// this peek signalizes index of the last position in incIndexes / combinationPack that are filled with data
+				// last filled position in combinationPack / incIndexes
 				int combinationPackPeek = 0;
 				Serializable minValue = null;
 				for (int i = 0; i < indexes.length; i++) {
@@ -145,40 +142,33 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 						final ValueToRecordBitmap examinedBucket = histogramBitmaps[i][index];
 						final Serializable histogramValue = examinedBucket.getValue();
 
-						// is the value same as min value found in this iteration?
 						//noinspection unchecked
 						final int comparisonResult = minValue == null ? -1 : comparator.compare(histogramValue, minValue);
-						// we found new `minValue` int the loop
 						if (comparisonResult < 0) {
-							// reset peek variable to zero (start writing from scratch)
+							// new minimum — restart the combination pack
 							combinationPackPeek = 0;
-							// remember min value
 							minValue = examinedBucket.getValue();
-							// add this bucket as first bucket of combination pack
 							combinationPack[combinationPackPeek] = examinedBucket;
-							// remember we need to increase index in `indexes` for this bucket array at the end of the loop
 							incIndexes[combinationPackPeek] = i;
 						} else if (comparisonResult == 0) {
-							// we found same value as current min value
-							// add this bucket as next bucket of combination pack
+							// tie with current minimum — append to the combination pack
 							combinationPack[++combinationPackPeek] = examinedBucket;
-							// remember we need to increase index in `indexes` for this bucket array at the end of the loop
 							incIndexes[combinationPackPeek] = i;
 						}
 					}
 				}
-				// if the peek value is zero - we have only one bucket with the distinct value
 				if (combinationPackPeek == 0) {
+					// single bucket with the distinct min value
 					addBucket(filteredRecordIds, finalBuckets, combinationPack[0]);
 					incrementBitmapIndex(histogramBitmaps, indexes, incIndexes[0]);
 				} else {
-					// if larger than zero we need to combine multiple buckets, but no more than current combination pack peek
+					// multiple buckets share the min value and must be combined
 					addBucket(filteredRecordIds, finalBuckets, Arrays.copyOfRange(combinationPack, 0, combinationPackPeek + 1));
 					incrementBitmapIndex(histogramBitmaps, indexes, Arrays.copyOfRange(incIndexes, 0, combinationPackPeek + 1));
 				}
 			} while (endNotReached(indexes));
 		} else if (histogramBitmaps.length == 1) {
-			// go the fast route
+			// single input — no merging needed
 			for (ValueToRecordBitmap bucket : histogramBitmaps[0]) {
 				addBucket(filteredRecordIds, finalBuckets, bucket);
 			}
@@ -201,22 +191,21 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 
 	/**
 	 * Method combines all `theBucket` into a single bucket with shared distinct {@link ValueToRecordBitmap#getValue()}.
-	 * Record ids are combined by OR relation and then filtered by AND relation with `filteredRecordIds`.
+	 * Record ids are combined by OR relation and then filtered by AND relation with `filteredRecordIds` (when
+	 * `filteredRecordIds` is `null` the combined OR result is used as-is).
 	 */
 	private static void addBucket(
-		@Nonnull RoaringBitmap filteredRecordIds,
+		@Nullable RoaringBitmap filteredRecordIds,
 		@Nonnull CompositeObjectArray<ValueToRecordBitmap> finalBuckets,
 		@Nonnull ValueToRecordBitmap[] theBucket
 	) {
+		final RoaringBitmap[] bucketBitmaps = new RoaringBitmap[theBucket.length];
+		for (int i = 0; i < theBucket.length; i++) {
+			bucketBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket[i].getRecordIds());
+		}
+		final RoaringBitmap combined = RoaringBitmap.or(bucketBitmaps);
 		final BaseBitmap recordIds = new BaseBitmap(
-			RoaringBitmap.and(
-				filteredRecordIds,
-				RoaringBitmap.or(
-					Arrays.stream(theBucket)
-						.map(it -> RoaringBitmapBackedBitmap.getRoaringBitmap(it.getRecordIds()))
-						.toArray(RoaringBitmap[]::new)
-				)
-			)
+			filteredRecordIds == null ? combined : RoaringBitmap.and(filteredRecordIds, combined)
 		);
 		if (!recordIds.isEmpty()) {
 			finalBuckets.add(
@@ -344,23 +333,14 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	public void addAttributeHistogramRequest(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
-		@Nonnull List<FilterIndex> attributeIndexes,
-		@Nullable List<AttributeFormula> attributeFormulas
+		@Nonnull List<FilterIndex> attributeIndexes
 	) {
-		final Set<Formula> formulaSet;
-		if (attributeFormulas == null) {
-			formulaSet = Collections.emptySet();
-		} else {
-			formulaSet = Collections.newSetFromMap(new IdentityHashMap<>());
-			formulaSet.addAll(attributeFormulas);
-		}
 		this.histogramRequests.put(
 			attributeSchema.getName(),
 			new AttributeHistogramRequest(
 				attributeSchema,
 				comparator,
-				attributeIndexes,
-				formulaSet
+				attributeIndexes
 			)
 		);
 	}
@@ -368,43 +348,44 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	@Nullable
 	@Override
 	public EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
-		// create optimized formula that offers best memoized intermediate results reuse
+		// optimize for best reuse of memoized intermediate results
 		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(this.filterFormula, this.histogramRequests.keySet());
 
-		// create clone of the optimized formula without user filter contents
-		final Map<String, Predicate<BigDecimal>> userFilterFormulaPredicates = new HashMap<>();
-		final Formula baseFormulaWithoutUserFilter = FormulaCloner.clone(
-			optimizedFormula,
-			formula -> {
-				if (formula instanceof UserFilterFormula) {
-					FormulaFinder.find(formula, AttributeFormula.class, LookUp.DEEP)
-						.forEach(attributeFormula -> ofNullable(attributeFormula.getRequestedPredicate())
-							.ifPresent(it -> userFilterFormulaPredicates.put(attributeFormula.getAttributeName(), it)));
-					return null;
-				} else {
-					return formula;
-				}
-			}
+		// harvest requested-bucket predicates set by AttributeBetweenTranslator on BetweenAttributeFormula instances
+		// — they feed the per-bucket `requested` flag on the output DTO; only histogram attributes are read back
+		final Map<String, Predicate<BigDecimal>> userFilterFormulaPredicates = CollectionUtils.createHashMap(
+			this.histogramRequests.size()
 		);
+		for (final UserFilterFormula userFilter : FormulaFinder.find(optimizedFormula, UserFilterFormula.class, LookUp.DEEP)) {
+			for (final AttributeFormula attributeFormula : FormulaFinder.find(userFilter, AttributeFormula.class, LookUp.DEEP)) {
+				ofNullable(attributeFormula.getRequestedPredicate())
+					.ifPresent(it -> userFilterFormulaPredicates.put(attributeFormula.getAttributeName(), it));
+			}
+		}
 
-		// compute attribute histogram
+		// peel attribute-range carriers from userFilter so the baseline does not contract under the user's own slider
+		// picks; facet (FACET_IMPACT) and price-range (PRICE_HISTOGRAM) carriers stay, so the histogram still reflects
+		// those narrowings. Relaxer's EmptyFormula sentinel means every carrier was peeled — map it to null so the
+		// histogram spans the entire catalog.
+		final Formula relaxedBaseline = UserFilterRelaxer.relax(
+			optimizedFormula, RangeCarrierGroup.ATTRIBUTE_HISTOGRAM
+		);
+		final Formula histogramBaselineFormula = relaxedBaseline == EmptyFormula.INSTANCE ? null : relaxedBaseline;
+
 		return new AttributeHistogram(
-			// for each histogram request
 			this.histogramRequests.entrySet()
 				.stream()
-				// check whether it produces any results with mandatory filter, and if not skip its production
-				.filter(entry -> hasSenseWithMandatoryFilter(baseFormulaWithoutUserFilter, entry.getValue()))
+				.filter(entry -> hasSenseWithMandatoryFilter(histogramBaselineFormula, entry.getValue()))
 				.map(entry -> {
 					final AttributeHistogramRequest histogramRequest = entry.getValue();
 					final AttributeHistogramComputer computer = new AttributeHistogramComputer(
 						histogramRequest.getAttributeName(),
-						optimizedFormula, this.bucketCount, this.behavior, histogramRequest
+						histogramBaselineFormula, this.bucketCount, this.behavior, histogramRequest
 					);
 					final CacheableHistogramContract optimalHistogram = context.analyse(computer).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 						return null;
 					} else {
-						// create histogram DTO for the output
 						return new AttributeHistogramWrapper(
 							entry.getKey(),
 							optimalHistogram.convertToHistogram(
@@ -437,16 +418,14 @@ public class AttributeHistogramProducer implements ExtraResultProducer {
 	/**
 	 * DTO that aggregates all data necessary for computing histogram for single attribute.
 	 *
-	 * @param attributeSchema   Refers to attribute schema.
-	 * @param comparator        Comparator to use for manipulation with {@link ValueToRecordBitmap#getValue()} values.
-	 * @param attributeIndexes  Refers to all filter indexes that map entity primary keys and their associated values for this attribute.
-	 * @param attributeFormulas Contains set of formulas in current filtering query that target this attribute.
+	 * @param attributeSchema  Refers to attribute schema.
+	 * @param comparator       Comparator to use for manipulation with {@link ValueToRecordBitmap#getValue()} values.
+	 * @param attributeIndexes Refers to all filter indexes that map entity primary keys and their associated values for this attribute.
 	 */
 	public record AttributeHistogramRequest(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
-		@Nonnull List<FilterIndex> attributeIndexes,
-		@Nonnull Set<Formula> attributeFormulas
+		@Nonnull List<FilterIndex> attributeIndexes
 	) {
 		/**
 		 * Returns name of the attribute.

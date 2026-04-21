@@ -581,6 +581,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitFacetHavingConstraint(EvitaQLParser.FacetHavingConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code histogramHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterHistogramHavingConstraint(EvitaQLParser.HistogramHavingConstraintContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code histogramHavingConstraint}
+	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitHistogramHavingConstraint(EvitaQLParser.HistogramHavingConstraintContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code facetIncludingChildrenConstraint}
 	 * labeled alternative in {@link EvitaQLParser#filterConstraint}.
 	 * @param ctx the parse tree
@@ -2542,6 +2554,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitClassifierWithTwoFilterConstraintArgs(EvitaQLParser.ClassifierWithTwoFilterConstraintArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#classifierWithHistogramHavingArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterClassifierWithHistogramHavingArgs(EvitaQLParser.ClassifierWithHistogramHavingArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#classifierWithHistogramHavingArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitClassifierWithHistogramHavingArgs(EvitaQLParser.ClassifierWithHistogramHavingArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#facetGroupRelationArgs}.
 	 * @param ctx the parse tree
