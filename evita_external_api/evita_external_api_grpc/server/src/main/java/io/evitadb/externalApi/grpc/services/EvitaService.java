@@ -612,6 +612,21 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> serverCallObserver =
 			(ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver;
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
+
+		// Construct the subscriber synchronously on the service-method thread so the transport
+		// lifecycle handlers can bind directly to it — gRPC's ServerCallStreamObserverImpl
+		// rejects setOnCancelHandler/setOnCloseHandler if called after the service method
+		// returns (which is what happens on the worker thread that executeWithClientContext
+		// dispatches to).
+		final ChangeSystemCaptureSubscriber subscriber = new ChangeSystemCaptureSubscriber(
+			this.evita.getServiceExecutor(),
+			serverCallObserver,
+			() -> this.evita.getEngineState().version(),
+			serviceRequestContext
+		);
+		serverCallObserver.setOnCancelHandler(subscriber::onTransportTerminated);
+		serverCallObserver.setOnCloseHandler(subscriber::onTransportTerminated);
+
 		executeWithClientContext(
 			() -> this.evita.registerSystemChangeCapture(
 				new ChangeSystemCaptureRequest(
@@ -619,14 +634,7 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 					request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
 					toCaptureContent(request.getContent())
 				)
-			).subscribe(
-				new ChangeSystemCaptureSubscriber(
-					this.evita.getServiceExecutor(),
-					serverCallObserver,
-					() -> this.evita.getEngineState().version(),
-					serviceRequestContext
-				)
-			),
+			).subscribe(subscriber),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.context

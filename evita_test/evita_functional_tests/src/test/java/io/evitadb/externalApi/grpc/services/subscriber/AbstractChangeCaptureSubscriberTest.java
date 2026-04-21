@@ -40,7 +40,6 @@ import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
-import org.mockito.InOrder;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -64,7 +63,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -450,9 +448,9 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 		@Test
 		@DisplayName("onSubscribe after transport close cancels the late subscription without emitting ACK")
 		void shouldCancelLateSubscriptionWhenOnSubscribeArrivesAfterTransportClose() {
-			// Transport closes BEFORE the publisher delivers onSubscribe.
-			final Runnable onCloseHandler = captureOnCloseHandler();
-			onCloseHandler.run();
+			// Transport closes BEFORE the publisher delivers onSubscribe — simulated by invoking
+			// the public termination callback that the service layer wires to both handlers.
+			AbstractChangeCaptureSubscriberTest.this.subscriber.onTransportTerminated();
 
 			AbstractChangeCaptureSubscriberTest.this.subscriber.onSubscribe(AbstractChangeCaptureSubscriberTest.this.subscription);
 
@@ -464,34 +462,30 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 	}
 
 	@Nested
-	@DisplayName("Transport handlers")
-	class TransportHandlers {
+	@DisplayName("Transport termination (onTransportTerminated)")
+	class TransportTermination {
 
 		@Test
-		@DisplayName("registers both transport handlers before scheduling the heartbeat")
-		void shouldRegisterBothTransportHandlersInConstructor() {
-			// setUp already created a fresh subscriber; assert both were set
-			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, times(1)).setOnCancelHandler(any(Runnable.class));
-			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, times(1)).setOnCloseHandler(any(Runnable.class));
+		@DisplayName("constructor must NOT register gRPC handlers (registration belongs to the service layer)")
+		void shouldNotRegisterGrpcHandlersInSubscriberConstructor() {
+			// Anti-regression guard. gRPC's ServerCallStreamObserverImpl rejects
+			// setOnCancelHandler/setOnCloseHandler called after the service method returns
+			// ("Cannot alter onCancelHandler after initialization"). Since the subscriber is
+			// typically constructed on a worker thread by executeWithClientContext, any such
+			// call from the constructor would blow up in production. The service layer must
+			// register the handlers synchronously and route them to onTransportTerminated().
+			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, never())
+				.setOnCancelHandler(any(Runnable.class));
+			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, never())
+				.setOnCloseHandler(any(Runnable.class));
 		}
 
 		@Test
-		@DisplayName("registers onCancelHandler before onCloseHandler (pinned order)")
-		void shouldRegisterOnCancelBeforeOnCloseHandler() {
-			// pins the order documented in AbstractChangeCaptureSubscriber's constructor:
-			// onCancel then onClose, so a change in registration order is flagged for review.
-			final InOrder order = inOrder(AbstractChangeCaptureSubscriberTest.this.responseObserver);
-			order.verify(AbstractChangeCaptureSubscriberTest.this.responseObserver).setOnCancelHandler(any(Runnable.class));
-			order.verify(AbstractChangeCaptureSubscriberTest.this.responseObserver).setOnCloseHandler(any(Runnable.class));
-		}
-
-		@Test
-		@DisplayName("onCancelHandler firing cancels subscription, finalizes the stream, and suppresses subsequent close()")
-		void shouldFinalizeSubscriberWhenOnCancelHandlerFires() {
-			final Runnable onCancelHandler = captureOnCancelHandler();
+		@DisplayName("onTransportTerminated cancels subscription, finalizes the stream, and suppresses subsequent close()")
+		void shouldFinalizeSubscriberWhenOnTransportTerminatedFires() {
 			AbstractChangeCaptureSubscriberTest.this.subscriber.onSubscribe(AbstractChangeCaptureSubscriberTest.this.subscription);
 
-			onCancelHandler.run();
+			AbstractChangeCaptureSubscriberTest.this.subscriber.onTransportTerminated();
 
 			verify(AbstractChangeCaptureSubscriberTest.this.subscription, times(1)).cancel();
 
@@ -505,27 +499,24 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 		}
 
 		@Test
-		@DisplayName("onCloseHandler firing cancels subscription and finalizes the stream")
-		void shouldFinalizeSubscriberWhenOnCloseHandlerFires() {
-			final Runnable onCloseHandler = captureOnCloseHandler();
+		@DisplayName("onTransportTerminated is idempotent")
+		void shouldBeIdempotentWhenOnTransportTerminatedFiresRepeatedly() {
 			AbstractChangeCaptureSubscriberTest.this.subscriber.onSubscribe(AbstractChangeCaptureSubscriberTest.this.subscription);
 
-			onCloseHandler.run();
+			AbstractChangeCaptureSubscriberTest.this.subscriber.onTransportTerminated();
+			AbstractChangeCaptureSubscriberTest.this.subscriber.onTransportTerminated();
+			AbstractChangeCaptureSubscriberTest.this.subscriber.onTransportTerminated();
 
 			verify(AbstractChangeCaptureSubscriberTest.this.subscription, times(1)).cancel();
-			AbstractChangeCaptureSubscriberTest.this.subscriber.close();
 			verify(AbstractChangeCaptureSubscriberTest.this.responseObserver, never()).onError(any());
 		}
 
 		@Test
-		@DisplayName("subscription cancelled at most once when all handlers and close() fire")
-		void shouldCancelSubscriptionAtMostOnceWhenAllHandlersAndCloseFire() {
-			final Runnable onCancelHandler = captureOnCancelHandler();
-			final Runnable onCloseHandler = captureOnCloseHandler();
+		@DisplayName("subscription cancelled at most once when transport fires and close() follows")
+		void shouldCancelSubscriptionAtMostOnceWhenTransportAndCloseRaceSerially() {
 			AbstractChangeCaptureSubscriberTest.this.subscriber.onSubscribe(AbstractChangeCaptureSubscriberTest.this.subscription);
 
-			onCancelHandler.run();
-			onCloseHandler.run();
+			AbstractChangeCaptureSubscriberTest.this.subscriber.onTransportTerminated();
 			AbstractChangeCaptureSubscriberTest.this.subscriber.close();
 
 			verify(AbstractChangeCaptureSubscriberTest.this.subscription, times(1)).cancel();
@@ -686,26 +677,6 @@ class AbstractChangeCaptureSubscriberTest implements TestConstants {
 		if (thrown != null) {
 			throw new AssertionError("race thread threw uncaught exception", thrown);
 		}
-	}
-
-	/**
-	 * Captures the {@link Runnable} registered via {@link ServerCallStreamObserver#setOnCancelHandler}.
-	 */
-	@Nonnull
-	private Runnable captureOnCancelHandler() {
-		final ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-		verify(this.responseObserver).setOnCancelHandler(captor.capture());
-		return captor.getValue();
-	}
-
-	/**
-	 * Captures the {@link Runnable} registered via {@link ServerCallStreamObserver#setOnCloseHandler}.
-	 */
-	@Nonnull
-	private Runnable captureOnCloseHandler() {
-		final ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-		verify(this.responseObserver).setOnCloseHandler(captor.capture());
-		return captor.getValue();
 	}
 
 	/**
