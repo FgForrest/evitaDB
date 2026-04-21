@@ -70,7 +70,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Flow.Subscription;
 import java.util.function.IntConsumer;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
@@ -610,40 +609,24 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		GrpcRegisterSystemChangeCaptureRequest request,
 		StreamObserver<GrpcRegisterSystemChangeCaptureResponse> responseObserver
 	) {
-		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
-		((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>)responseObserver).setOnCancelHandler(
-			// cancel handler runs on the event loop thread — must not block
-			() -> subscriptionFuture.whenComplete((subscription, ex) -> {
-				if (subscription != null) {
-					subscription.cancel();
-				}
-			})
-		);
-
+		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> serverCallObserver =
+			(ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver;
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
 		executeWithClientContext(
-			() -> {
-				try {
-					this.evita.registerSystemChangeCapture(
-						new ChangeSystemCaptureRequest(
-							request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
-							request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
-							toCaptureContent(request.getContent())
-						)
-					).subscribe(
-						new ChangeSystemCaptureSubscriber(
-							this.evita.getServiceExecutor(),
-							responseObserver,
-							subscriptionFuture,
-							() -> this.evita.getEngineState().version(),
-							serviceRequestContext
-						)
-					);
-				} catch (RuntimeException e) {
-					subscriptionFuture.completeExceptionally(e);
-					throw e;
-				}
-			},
+			() -> this.evita.registerSystemChangeCapture(
+				new ChangeSystemCaptureRequest(
+					request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
+					request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
+					toCaptureContent(request.getContent())
+				)
+			).subscribe(
+				new ChangeSystemCaptureSubscriber(
+					this.evita.getServiceExecutor(),
+					serverCallObserver,
+					() -> this.evita.getEngineState().version(),
+					serviceRequestContext
+				)
+			),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.context

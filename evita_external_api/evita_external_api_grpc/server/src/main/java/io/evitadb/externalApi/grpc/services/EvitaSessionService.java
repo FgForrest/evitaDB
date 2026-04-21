@@ -125,8 +125,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -548,7 +546,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	) {
 		if (positionalQueryParamsList.isEmpty() && namedQueryParamsMap.isEmpty()) {
 			return sourceQuery;
-		} else if (positionalQueryParamsList.isEmpty()) {
+		} else if (namedQueryParamsMap.isEmpty()) {
 			final StringBuilder sb = new StringBuilder(sourceQuery);
 			sb.append("\n");
 			for (int i = 0; i < positionalQueryParamsList.size(); i++) {
@@ -2206,16 +2204,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		GrpcRegisterChangeCatalogCaptureRequest request,
 		StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver
 	) {
-		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
-		((ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver).setOnCancelHandler(
-			// cancel handler runs on the event loop thread — must not block
-			() -> subscriptionFuture.whenComplete((subscription, ex) -> {
-				if (subscription != null) {
-					subscription.cancel();
-				}
-			})
-		);
-
+		final ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> serverCallObserver =
+			(ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver;
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
 		final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
 		executeWithClientContext(
@@ -2227,8 +2217,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					new ChangeCatalogCaptureSubscriber(
 						this.evita.getServiceExecutor(),
 						catalogName,
-						responseObserver,
-						subscriptionFuture,
+						serverCallObserver,
 						clientVersion,
 						() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
 						serviceRequestContext
