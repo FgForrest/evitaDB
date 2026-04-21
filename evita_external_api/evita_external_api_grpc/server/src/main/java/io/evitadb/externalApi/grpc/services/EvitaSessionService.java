@@ -2208,22 +2208,31 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			(ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver;
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
 		final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+
+		// Construct the subscriber synchronously on the service-method thread so the transport
+		// lifecycle handlers can bind directly to it — gRPC's ServerCallStreamObserverImpl
+		// rejects setOnCancelHandler/setOnCloseHandler if called after the service method
+		// returns (which is what happens on the worker thread that executeWithClientContext
+		// dispatches to). The session is available synchronously here via the gRPC
+		// Context.Key set by ServerSessionInterceptor, so we can obtain the catalog name
+		// without entering the async block.
+		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
+		final String catalogName = session.getCatalogName();
+		final ChangeCatalogCaptureSubscriber subscriber = new ChangeCatalogCaptureSubscriber(
+			this.evita.getServiceExecutor(),
+			catalogName,
+			serverCallObserver,
+			clientVersion,
+			() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
+			serviceRequestContext
+		);
+		serverCallObserver.setOnCancelHandler(subscriber::onTransportTerminated);
+		serverCallObserver.setOnCloseHandler(subscriber::onTransportTerminated);
+
 		executeWithClientContext(
-			session -> {
-				final String catalogName = session.getCatalogName();
-				session.registerChangeCatalogCapture(
-					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
-				).subscribe(
-					new ChangeCatalogCaptureSubscriber(
-						this.evita.getServiceExecutor(),
-						catalogName,
-						serverCallObserver,
-						clientVersion,
-						() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
-						serviceRequestContext
-					)
-				);
-			},
+			s -> s.registerChangeCatalogCapture(
+				ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
+			).subscribe(subscriber),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.tracingContext

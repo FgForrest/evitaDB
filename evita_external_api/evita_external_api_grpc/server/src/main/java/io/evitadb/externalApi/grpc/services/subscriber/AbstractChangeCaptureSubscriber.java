@@ -69,13 +69,19 @@ import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrp
  * - Convergent cleanup via {@link #markStreamDead(Throwable)} — invoked by
  *   every path that discovers the stream is no longer writable (direct
  *   termination, client cancel, server-initiated close, or an emit that threw
- *   {@link ClosedGrpcStreamException}). Registers both
+ *   {@link ClosedGrpcStreamException}). Transport-level termination is delivered
+ *   by the service layer through {@link #onTransportTerminated()}, which the
+ *   service binds to both
  *   {@link ServerCallStreamObserver#setOnCancelHandler} (client-initiated
  *   cancellation: RST_STREAM, deadline expired, channel abort) and
  *   {@link ServerCallStreamObserver#setOnCloseHandler} (server-initiated close:
  *   an interceptor calling {@code ServerCall.close(...)}, framework shutdown,
- *   our own {@code onCompleted/onError} being transmitted) so both transport
- *   lifecycle edges are observed.
+ *   our own {@code onCompleted/onError} being transmitted). Handler registration
+ *   must happen synchronously on the service method's invoking thread (gRPC's
+ *   {@code ServerCallStreamObserverImpl} rejects late registration), which is
+ *   why the subscriber exposes the callback rather than installing the handlers
+ *   itself — the subscriber is typically constructed asynchronously on a worker
+ *   thread via {@code executeWithClientContext}.
  * - Graceful handling of client-side cancellation races — both in
  *   {@link #onSubscribe} (where the subscription lives inside a
  *   {@link java.util.concurrent.ConcurrentHashMap#computeIfAbsent} callback,
@@ -168,16 +174,28 @@ public abstract class AbstractChangeCaptureSubscriber<CAPTURE, RESPONSE>
 			TimeUnit.MILLISECONDS
 		);
 
-		// register both transport lifecycle handlers BEFORE scheduling the heartbeat so no
-		// early transport edge can slip through unobserved. setOnCancelHandler covers
-		// client-initiated cancellation (RST_STREAM, deadline, channel abort — listener.onCancel);
-		// setOnCloseHandler covers server-initiated close (interceptors calling
-		// ServerCall.close, framework shutdown, our own onError/onCompleted reaching the client —
-		// listener.onComplete). The two are mutually exclusive in gRPC-Java.
-		this.responseObserver.setOnCancelHandler(() -> markStreamDead(null));
-		this.responseObserver.setOnCloseHandler(() -> markStreamDead(null));
-
 		this.heartBeatTask.schedule();
+	}
+
+	/**
+	 * Called by the service layer's transport lifecycle handlers
+	 * ({@link ServerCallStreamObserver#setOnCancelHandler} for client-initiated cancellation —
+	 * RST_STREAM, deadline, channel abort — and {@link ServerCallStreamObserver#setOnCloseHandler}
+	 * for server-initiated close: interceptors calling {@code ServerCall.close}, framework
+	 * shutdown, our own {@code onError}/{@code onCompleted} reaching the client). The two
+	 * lifecycle edges are mutually exclusive in gRPC-Java and together cover every terminal
+	 * transport transition.
+	 *
+	 * Must be called from the service layer (not the subscriber constructor) because gRPC's
+	 * {@code ServerCallStreamObserverImpl} requires handlers to be registered synchronously on
+	 * the thread that invoked the service method, before that method returns. The subscriber is
+	 * typically constructed asynchronously from {@code executeWithClientContext}, which runs on
+	 * a worker thread — too late for {@code setOnCancelHandler}.
+	 *
+	 * Idempotent — safe to invoke repeatedly; internal CAS ensures single-shot finalisation.
+	 */
+	public final void onTransportTerminated() {
+		markStreamDead(null);
 	}
 
 	@Override
