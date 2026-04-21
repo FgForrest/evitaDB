@@ -995,6 +995,45 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldEvictLocalSessionsWhenCatalogIsDeletedViaSameClient(EvitaClient evitaClient) {
+		final String someCatalogName = "evictOnDelete";
+		try {
+			evitaClient.defineCatalog(someCatalogName).updateViaNewSession(evitaClient);
+			final EvitaSessionContract leakedSession = evitaClient.createReadWriteSession(someCatalogName);
+			assertTrue(leakedSession.isActive());
+			assertTrue(evitaClient.getSessionById(leakedSession.getId()).isPresent());
+
+			evitaClient.deleteCatalogIfExists(someCatalogName);
+
+			assertFalse(leakedSession.isActive());
+			assertFalse(evitaClient.getSessionById(leakedSession.getId()).isPresent());
+		} finally {
+			evitaClient.deleteCatalogIfExists(someCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldEvictLocalSessionsWhenCatalogIsRenamedViaSameClient(EvitaClient evitaClient) {
+		final String originalName = "evictOnRenameSource";
+		final String renamedName = "evictOnRenameTarget";
+		try {
+			evitaClient.defineCatalog(originalName).updateViaNewSession(evitaClient);
+			final EvitaSessionContract leakedSession = evitaClient.createReadWriteSession(originalName);
+			assertTrue(leakedSession.isActive());
+
+			evitaClient.renameCatalog(originalName, renamedName);
+
+			assertFalse(leakedSession.isActive());
+			assertFalse(evitaClient.getSessionById(leakedSession.getId()).isPresent());
+		} finally {
+			evitaClient.deleteCatalogIfExists(originalName);
+			evitaClient.deleteCatalogIfExists(renamedName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldAllowCreatingCatalogAndEntityCollectionsInPrototypingMode(EvitaClient evitaClient) {
 		final String someCatalogName = "differentCatalog";
 		try {
@@ -2071,7 +2110,8 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@UseDataSet(value = EVITA_CLIENT_DATA_SET, destroyAfterTest = true)
 	void shouldRestoreAndFetchExistingCustomEntity(
-		EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories) {
+		EvitaClient evitaClient, Map<Integer, SealedEntity> originalCategories
+	) {
 		final AtomicInteger newProductId = new AtomicInteger();
 		final AtomicReference<SealedEntity> theEntity = new AtomicReference<>();
 		evitaClient.updateCatalog(

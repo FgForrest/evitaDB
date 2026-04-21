@@ -47,7 +47,7 @@ public record ClientTimeoutOptions(
 ) {
 	public static final long DEFAULT_TIMEOUT = 5;
 	public static final TimeUnit DEFAULT_TIMEOUT_UNIT = TimeUnit.SECONDS;
-	public static final long DEFAULT_STREAMING_TIMEOUT = 3600;
+	public static final long DEFAULT_STREAMING_TIMEOUT = 300;
 	public static final TimeUnit DEFAULT_STREAMING_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
 	/**

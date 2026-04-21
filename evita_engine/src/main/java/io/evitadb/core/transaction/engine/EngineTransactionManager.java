@@ -224,24 +224,31 @@ public class EngineTransactionManager implements Closeable {
 			)
 			.collect(Collectors.toSet());
 
-		// on completion remove the mutation conflicting keys from the processed mutations
-		final Runnable onFinalize = () -> conflictKeys.forEach(this.processedEngineMutations::remove);
-
+		UUID transactionId = null;
+		boolean keysRegistered = false;
 		try {
 			if (this.engineStateLock.tryLock(this.engineMutationWaitIntervalInMillis, TimeUnit.MILLISECONDS)) {
-				final UUID transactionId = UUIDUtil.randomUUID();
+				transactionId = UUIDUtil.randomUUID();
 				this.engineStateLock.lock();
 				try {
 					// verify that we can perform the mutation
 					verifyEngineMutationIsNotInConflictWithOthers(engineMutation, conflictKeys);
 					// verify that we can perform the mutation
 					engineMutation.verifyApplicability(this.evita);
-					// append the mutation to the WAL
-					conflictKeys.forEach(key -> this.processedEngineMutations.put(key, transactionId));
+					// register conflict keys for this transaction so concurrent mutations can detect conflicts
+					final UUID registeredTxId = transactionId;
+					conflictKeys.forEach(key -> this.processedEngineMutations.put(key, registeredTxId));
+					keysRegistered = true;
 				} finally {
 					this.engineStateLock.unlock();
 				}
 
+				// value-sensitive removal — guarantees we never evict another transaction's entry
+				// even when its conflict key collides with ours
+				final UUID finalTxId = transactionId;
+				final Runnable onFinalize = () -> conflictKeys.forEach(
+					key -> this.processedEngineMutations.remove(key, finalTxId)
+				);
 				return applyMutationInternal(
 					transactionId,
 					engineMutation,
@@ -256,8 +263,13 @@ public class EngineTransactionManager implements Closeable {
 				);
 			}
 		} catch (RuntimeException e) {
-			// when exception is thrown, cleanup the processed mutations
-			onFinalize.run();
+			// only clean up keys this transaction actually registered — otherwise we would
+			// silently drop the conflict guard of a different in-flight transaction that
+			// happens to share a conflict key with us
+			if (keysRegistered) {
+				final UUID finalTxId = transactionId;
+				conflictKeys.forEach(key -> this.processedEngineMutations.remove(key, finalTxId));
+			}
 			throw e;
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();

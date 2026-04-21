@@ -788,6 +788,9 @@ public class EvitaClient implements EvitaContract {
 				if (progress == 100) {
 					this.entitySchemaCache.remove(catalogName);
 					this.entitySchemaCache.remove(newCatalogName);
+					// server has already closed sessions bound to the old catalog name;
+					// drop our stale references so callers do not leak them
+					evictLocalSessionsForCatalog(catalogName);
 				}
 			}
 		);
@@ -803,6 +806,11 @@ public class EvitaClient implements EvitaContract {
 				if (progress == 100) {
 					this.entitySchemaCache.remove(catalogNameToBeReplaced);
 					this.entitySchemaCache.remove(catalogNameToBeReplacedWith);
+					// both names become unusable on the server — the source catalog is gone
+					// (it has been renamed onto the target), and sessions opened against the
+					// replaced catalog have been terminated by the replace operation
+					evictLocalSessionsForCatalog(catalogNameToBeReplaced);
+					evictLocalSessionsForCatalog(catalogNameToBeReplacedWith);
 				}
 			}
 		);
@@ -819,6 +827,9 @@ public class EvitaClient implements EvitaContract {
 					progress -> {
 						if (progress == 100) {
 							this.entitySchemaCache.remove(catalogName);
+							// server has already closed sessions bound to the removed catalog;
+							// drop our stale references so callers do not leak them
+							evictLocalSessionsForCatalog(catalogName);
 						}
 					}
 				)
@@ -1164,6 +1175,26 @@ public class EvitaClient implements EvitaContract {
 	protected void assertActive() {
 		if (!this.active.get()) {
 			throw new InstanceTerminatedException("client instance");
+		}
+	}
+
+	/**
+	 * Force-closes any `EvitaClientSession` bound to `catalogName` without issuing a server
+	 * round-trip. Called after a top-level catalog mutation (delete, rename, replace) initiated
+	 * through *this* client completes on the server — at that point the server has already
+	 * terminated matching sessions via `closeAllActiveSessionsAndSuspend`, so the only work
+	 * left is to evict the now-dead instances from `activeSessions` and flip their
+	 * `isActive()` flag so subsequent calls fail fast.
+	 *
+	 * Only the sessions living in this client instance can be cleaned up this way; sessions
+	 * opened by other `EvitaClient` instances (or the server itself deleting a catalog) stay
+	 * stale until their next failing RPC.
+	 */
+	private void evictLocalSessionsForCatalog(@Nonnull String catalogName) {
+		for (final EvitaSessionContract session : this.activeSessions.values()) {
+			if (catalogName.equals(session.getCatalogName()) && session instanceof EvitaClientSession clientSession) {
+				clientSession.terminateLocally();
+			}
 		}
 	}
 
