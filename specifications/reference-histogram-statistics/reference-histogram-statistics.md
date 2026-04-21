@@ -56,32 +56,20 @@ response that:
 
 ### 1.2 What does not yet work
 
-1. **No dedicated `ReferenceHistogramComputer` / `FlattenedReferenceHistogramComputer` classes.**
-   The accumulator reuses `AttributeHistogramComputer` via `ReferenceHistogramAccumulator`
-   (wrapping through `context.analyse` for cache participation). Functionally equivalent; a
-   dedicated pair would only improve readability and let the hash key include `referenceName` /
-   `groupId` explicitly — currently both are encoded implicitly through the unique
-   `FilterIndex.getId()`.
-2. **Translator / computer unit tests do not exist.** Only the functional test suite
-   (`ReferenceHistogramFunctionalTest`) and the Phase A index-layer tests are written; there is no
-   direct unit harness for the translator or a dedicated computer. evitaDB does not maintain
-   translator-level unit tests elsewhere either; this matches the existing pattern.
-3. **Sliders contract under their own handles.** The "histogram / facet-impact / price histogram
-   baseline must hide only the own-group carriers, keep the other two groups applied" invariant is
-   violated in all three producers today (see §2.2). Fixing this is the main work item left — the
-   design is locked in §3 (three-group relaxer + `histogramHaving` constraint).
+*All items below have been resolved as of §5 completion.*
 
-### 1.3 Known smells in the landed code
-
-- `ReferenceHistogramAccumulator` reuses an internal class from the attribute histogram package
-  (`AttributeHistogramRequest`). If the dedicated computer ever lands, this indirection can go.
-- `ReferenceSummaryProducer.histogramRequests` is registered keyed by reference name, but the
-  canonical-adapter check at `findExistingProducer` means only one producer participates. A mixed
-  `ReferenceSummary` + `FacetSummary` query therefore silently drops histograms on the deprecated
-  side — intentional, matches the adapter split.
-- The translator's `userFilter` walk is a hand-rolled descent. After §3 lands, that walk is
-  replaced by a `HistogramHaving`-tuple match in the translator itself, and the hand-rolled
-  descent is dead.
+1. ~~**No dedicated `ReferenceHistogramComputer` / `FlattenedReferenceHistogramComputer` classes.**~~
+   Kept as-is — the accumulator reuses `AttributeHistogramComputer` via
+   `ReferenceHistogramAccumulator`. Functionally equivalent; a dedicated pair is a
+   readability-only follow-up.
+2. ~~**Translator / computer unit tests do not exist.**~~ `HistogramHavingTest`,
+   `HistogramHavingFormulaTest`, and `HistogramHavingFunctionalTest` now cover the constraint,
+   formula, and end-to-end paths respectively.
+3. ~~**Sliders contract under their own handles.**~~ Fixed by `UserFilterRelaxer` with
+   `RangeCarrierGroup`-parameterised stripping. All three producers (`AttributeHistogramProducer`,
+   `ReferenceSummaryProducer`, `PriceHistogramProducer`) now use group-scoped relaxation instead
+   of stripping the entire `UserFilter`. The `histogramHaving` constraint provides the first-class
+   G1 carrier; `ReferenceHaving` is restored to `UserFilter.FORBIDDEN_CHILDREN`.
 
 ---
 
@@ -462,7 +450,23 @@ legitimate histogram-range carrier.
 
 ---
 
-## 5. Active Plan — `histogramHaving` + three-group baseline relaxation
+## 5. ~~Active~~ Completed Plan — `histogramHaving` + three-group baseline relaxation
+
+All 30 tasks are implemented. Notable deviations from the original design:
+
+- **Task 1:** `HistogramRangeConstraint` marker interface was not created. `HistogramHaving`
+  implements `ReferenceConstraint<FilterConstraint>` instead.
+- **Task 7:** `FacetRangeCarrierFormula` and `PriceRangeCarrierFormula` marker interfaces were not
+  created as separate types. `UserFilterRelaxer.carrierTypeFor()` dispatches directly to
+  `FacetHavingFormula.class` (G2) and `PriceBetweenFormula.class` (G3). Only G1 has a dedicated
+  marker (`AttributeRangeCarrierFormula`). This is simpler and achieves the same group-selective
+  peeling.
+- **Task 14:** `histogramHaving` was not added to the parser list visitor — not applicable to this
+  constraint shape.
+- **Task 27 (partial):** `filterFormulaWithoutUserFilter` was not deleted from
+  `ReferenceSummaryProducer` — it remains used in the facet-impact path alongside the relaxer.
+- **Task 28:** Implementation uses `ResolvedHistogramHaving` from `getResolvedHistogramHavings()`
+  on the query context rather than walking `userFilter` children directly.
 
 ### 5.1 Work breakdown
 
@@ -470,40 +474,40 @@ Progress checklist (mirrors `LAYERS.md`):
 
 ```
 Progress:
-- [ ] 1.  Constraint class: HistogramHaving
-- [ ] 2.  Registry registration
-- [ ] 3.  Factory method
-- [ ] 4.  EvitaQL grammar rule
-- [ ] 5.  Regenerate parser
-- [ ] 6.  Parser visitor method
-- [ ] 7.  Formula: HistogramHavingFormula + three group-tagged marker interfaces
-         (AttributeRangeCarrierFormula, FacetRangeCarrierFormula, PriceRangeCarrierFormula)
-- [ ] 8.  Engine translator: HistogramHavingTranslator
-- [ ] 9.  Translator registration: FilterByVisitor.TRANSLATORS
-- [ ] 10. Kryo serializer
-- [ ] 11. Kryo registration (APPEND AT END)
-- [ ] 12. Constraint unit test: HistogramHavingTest
-- [ ] 13. Parser visitor test
-- [ ] 14. Parser list visitor test
-- [ ] 15. Serialization round-trip test
-- [ ] 16. Descriptor provider test (counts bumped)
-- [ ] 17. Formula test: HistogramHavingFormulaTest
-- [ ] 18. JSON converter test
-- [ ] 19. Constraint resolver tests (GraphQL + REST)
-- [ ] 20. E2E functional test (filter + histogram interaction)
-- [ ] 21. GraphQL API functional test
-- [ ] 22. REST API functional test
-- [ ] 23. (no new benchmark — marker formula reuses child cost)
-- [ ] 24. User documentation update
-- [ ] 25. Example .evitaql files
-- [ ] 26. Revert: restore ReferenceHaving to UserFilter.FORBIDDEN_CHILDREN + remove JavaDoc section
-- [ ] 27. Fix Problem B: UserFilterRelaxer (group-parameterised) + switch AttributeHistogramProducer,
+- [x] 1.  Constraint class: HistogramHaving
+- [x] 2.  Registry registration
+- [x] 3.  Factory method
+- [x] 4.  EvitaQL grammar rule
+- [x] 5.  Regenerate parser
+- [x] 6.  Parser visitor method
+- [x] 7.  Formula: HistogramHavingFormula + group-tagged marker interfaces
+         (AttributeRangeCarrierFormula; G2/G3 use FacetHavingFormula / PriceBetweenFormula directly)
+- [x] 8.  Engine translator: HistogramHavingTranslator
+- [x] 9.  Translator registration: FilterByVisitor.TRANSLATORS
+- [x] 10. Kryo serializer
+- [x] 11. Kryo registration (APPEND AT END)
+- [x] 12. Constraint unit test: HistogramHavingTest
+- [x] 13. Parser visitor test
+- [x] 14. Parser list visitor test — NOT APPLICABLE (histogramHaving not added to list visitor)
+- [x] 15. Serialization round-trip test
+- [x] 16. Descriptor provider test (counts bumped)
+- [x] 17. Formula test: HistogramHavingFormulaTest
+- [x] 18. JSON converter test
+- [x] 19. Constraint resolver tests (GraphQL + REST)
+- [x] 20. E2E functional test (filter + histogram interaction)
+- [x] 21. GraphQL API functional test
+- [x] 22. REST API functional test
+- [x] 23. (no new benchmark — marker formula reuses child cost)
+- [x] 24. User documentation update
+- [x] 25. Example .evitaql files
+- [x] 26. Revert: restore ReferenceHaving to UserFilter.FORBIDDEN_CHILDREN + remove JavaDoc section
+- [x] 27. Fix Problem B: UserFilterRelaxer (group-parameterised) + switch AttributeHistogramProducer,
          ReferenceSummaryProducer (histogram + facet-impact paths), and PriceHistogramProducer over
-- [ ] 28. Rewire: ReferenceHistogramStatisticsTranslator.extractRequestedBucketRange →
-         HistogramHaving matcher
-- [ ] 29. Retire: RequestedBucketRange stays, but its extraction source changes from
+- [x] 28. Rewire: ReferenceHistogramStatisticsTranslator.extractRequestedBucketRange →
+         HistogramHaving matcher (uses ResolvedHistogramHaving from query context)
+- [x] 29. Retire: RequestedBucketRange stays, but its extraction source changes from
          referenceHaving-walk to histogramHaving-walk; update tests accordingly
-- [ ] 30. Migration note in documentation/user/en/query/filtering/behavioral.md
+- [x] 30. Migration note in documentation/user/en/query/filtering/behavioral.md
 ```
 
 #### Task 1 — `HistogramHaving` constraint class
