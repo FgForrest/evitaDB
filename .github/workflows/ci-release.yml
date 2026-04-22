@@ -177,6 +177,25 @@ jobs:
         latest: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
         commitish: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
 
+    # Defensive sanity check: release-drafter has been observed to occasionally
+    # create a draft whose tag_name ends up as the URL-slug placeholder
+    # ("untagged-<sha>") instead of the resolved v$VERSION. When that draft is
+    # later published, GitHub creates a literal `untagged-<sha>` git tag and
+    # the real v$VERSION tag is lost. Fail loudly here so the pipeline never
+    # hands downstream consumers (DockerHub-deploy, release-asset uploads) a
+    # corrupted release.
+    - name: Verify release tag_name
+      if: success()
+      env:
+        EXPECTED: ${{ steps.release_version.outputs.version }}
+        ACTUAL: ${{ steps.create_release.outputs.tag_name }}
+      run: |
+        if [ "$ACTUAL" != "$EXPECTED" ]; then
+          echo "::error::release-drafter produced tag_name='$ACTUAL', expected '$EXPECTED'"
+          exit 1
+        fi
+        echo "Release tag_name verified: $ACTUAL"
+
     # Resolve previous release tag and milestone for the release-notes skill.
     # This is best-effort: failures must not block the release pipeline.
     - name: Resolve release notes inputs
