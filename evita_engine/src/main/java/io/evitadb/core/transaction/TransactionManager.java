@@ -366,8 +366,46 @@ public class TransactionManager implements Closeable {
 
 		Assert.isPremiseValid(
 			this.lastWrittenCatalogVersion.get() >= this.lastAssignedCatalogVersion.get(),
-			"The last finalized catalog version must be greater or equal to last assigned catalog version!"
+			"The last written catalog version must be greater or equal to last assigned catalog version!"
 		);
+
+		// baseline INFO log - always emitted so operators have an anchor point for "normal"
+		// bootstrap state; any subsequent runtime divergence can be correlated against this line
+		final long walLastWrittenVersion = catalog.getLastCatalogVersionInMutationStream();
+		final long walFirstWrittenVersion = catalog.getFirstCatalogVersionInMutationStream();
+		log.info(
+			"TransactionManager bootstrapping catalog `{}`: catalogVersion={}, " +
+				"walFirstVersionInCurrentFile={}, walLastWrittenVersion={}, " +
+				"catalogSchemaVersion={}.",
+			this.catalogName,
+			catalogVersion,
+			walFirstWrittenVersion,
+			walLastWrittenVersion,
+			this.lastCatalogSchemaVersion.get()
+		);
+
+		// sanity-check the bootstrap catalog version against the WAL: the catalog header
+		// should never claim a version higher than the last TransactionMutation actually
+		// persisted in the WAL - that would mean the WAL is truncated / lost / replaced
+		// under a materialized catalog and downstream recovery would silently skip
+		// transactions. The reverse (WAL ahead of the catalog version) is expected -
+		// those transactions are replayed by processEntireWriteAheadLog().
+		if (walLastWrittenVersion > 0L && catalogVersion > walLastWrittenVersion) {
+			log.error(
+				"Catalog `{}` is being bootstrapped with catalog version {} which is " +
+					"ahead of the last version {} written to the Write-Ahead Log " +
+					"(first version in current WAL file: {}). " +
+					"This indicates a WAL/bootstrap-record inconsistency - transactions " +
+					"between {} and {} will be missing from the mutation stream and " +
+					"cannot be replayed. Check bootstrap file integrity and WAL retention.",
+				this.catalogName,
+				catalogVersion,
+				walLastWrittenVersion,
+				walFirstWrittenVersion,
+				walLastWrittenVersion,
+				catalogVersion
+			);
+		}
 
 		this.conflictRingBuffer = new ConflictRingBuffer(
 			this.catalogName,
