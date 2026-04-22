@@ -88,7 +88,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
@@ -789,9 +788,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 * Returns TRUE if facet with `facetId` of specified `referenceName` was requested by the user.
 		 */
 		public boolean isRequested(@Nonnull String referenceName, int facetId) {
-			return ofNullable(this.requestedFacets.get(referenceName))
-				.map(it -> it.contains(facetId))
-				.orElse(false);
+			final Bitmap bitmap = this.requestedFacets.get(referenceName);
+			return bitmap != null && bitmap.contains(facetId);
 		}
 
 		@Override
@@ -829,7 +827,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 							)
 						);
 						// create fct that can resolve whether the facet is requested for this entity type
-						final IntFunction<Boolean> isRequestedResolver = facetId -> isRequested(referenceName, facetId);
+						final IntPredicate isRequestedResolver = facetId -> isRequested(referenceName, facetId);
 						// now go through all facets in the index and register their statistics
 						final Stream<FacetIdIndex> facetIndexStream = groupIx.getFacetIdIndexes()
 							.values()
@@ -1004,7 +1002,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 */
 		public void addStatistics(
 			@Nonnull FacetIdIndex facetIx,
-			@Nonnull IntFunction<Boolean> requestedResolver
+			@Nonnull IntPredicate requestedResolver
 		) {
 			this.facetStatistics.compute(
 				facetIx.getFacetId(),
@@ -1013,7 +1011,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 						this.referenceSchema,
 						fId,
 						this.groupId,
-						requestedResolver.apply(fId),
+						requestedResolver.test(fId),
 						facetIx.getRecords(),
 						this.countCalculator,
 						this.impactCalculator
@@ -1082,6 +1080,11 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 * relation in order to get full entity primary key list.
 		 */
 		private List<Bitmap> facetEntityIds = new ArrayList<>(4);
+		/**
+		 * Cached snapshot of {@link #facetEntityIds} converted to an array. Invalidated whenever {@link #facetEntityIds}
+		 * is mutated — currently only in {@link #combine(FacetAccumulator)}.
+		 */
+		@Nullable private Bitmap[] facetEntityIdsArray;
 
 		public FacetAccumulator(
 			@Nonnull ReferenceSchemaContract referenceSchema,
@@ -1111,9 +1114,24 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				getCount(),
 				this.impactCalculator.calculateImpact(
 					this.referenceSchema, this.facetId, this.facetGroupId, this.requested,
-					this.facetEntityIds.toArray(EMPTY_BITMAP)
+					getEntityIdsArray()
 				)
 			);
+		}
+
+		/**
+		 * Returns a lazily memoized array view of {@link #facetEntityIds}. The array is cached to avoid repeated
+		 * allocation on hot paths ({@link #getCount()} and {@link #toFacetStatistics}) and is only invalidated when
+		 * the backing list is mutated.
+		 */
+		@Nonnull
+		private Bitmap[] getEntityIdsArray() {
+			Bitmap[] array = this.facetEntityIdsArray;
+			if (array == null) {
+				array = this.facetEntityIds.toArray(EMPTY_BITMAP);
+				this.facetEntityIdsArray = array;
+			}
+			return array;
 		}
 
 		/**
@@ -1124,6 +1142,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			Assert.isPremiseValid(this.facetId == otherAccumulator.facetId, ERROR_SANITY_CHECK);
 			Assert.isPremiseValid(this.requested == otherAccumulator.requested, ERROR_SANITY_CHECK);
 			this.facetEntityIds.addAll(otherAccumulator.getFacetEntityIds());
+			this.facetEntityIdsArray = null;
 			return this;
 		}
 
@@ -1143,7 +1162,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				// of entity primary keys that haven't passed the filter logic
 				this.resultFormula = this.countCalculator.createCountFormula(
 					this.referenceSchema, this.facetId, this.facetGroupId,
-					this.facetEntityIds.toArray(EMPTY_BITMAP)
+					getEntityIdsArray()
 				);
 			}
 			// this is the most expensive call in this very class
