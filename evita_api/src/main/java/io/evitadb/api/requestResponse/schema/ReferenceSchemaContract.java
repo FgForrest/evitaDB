@@ -46,6 +46,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -454,6 +455,27 @@ public interface ReferenceSchemaContract extends
 	 */
 	@Nullable
 	HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope, @Nonnull String name);
+
+	/**
+	 * Returns the bucketed histogram definition for the given scope and histogram name
+	 * translated through the given {@link NamingConvention}, or an empty {@link Optional}
+	 * if no histogram with the given variant name exists in that scope.
+	 *
+	 * Kept in the schema because translating a name to a specific convention is
+	 * computationally expensive and lossy in reverse — we memoize it alongside the
+	 * canonical name.
+	 *
+	 * @param scope the scope to get the definition for
+	 * @param name the variant name of the histogram index
+	 * @param namingConvention the naming convention under which {@code name} is expressed
+	 * @return the histogram definition, or empty if not found in the given scope
+	 */
+	@Nonnull
+	Optional<HistogramIndexDefinition> getHistogramIndexDefinitionByName(
+		@Nonnull Scope scope,
+		@Nonnull String name,
+		@Nonnull NamingConvention namingConvention
+	);
 
 	/**
 	 * Returns all named histogram definitions for the given scope. If the reference is not

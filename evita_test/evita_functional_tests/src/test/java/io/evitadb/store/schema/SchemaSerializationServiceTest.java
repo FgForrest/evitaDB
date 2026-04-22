@@ -201,6 +201,76 @@ class SchemaSerializationServiceTest {
 	}
 
 	/**
+	 * Verifies that the {@link HistogramIndexDefinition#nameVariants()} map survives a full Kryo
+	 * round-trip of the enclosing entity schema — not just the canonical name. This guards against
+	 * regressions in {@code EntitySchemaSerializer.writeBucketedHistogramMap} /
+	 * {@code readBucketedHistogramMap} where an accidental omission of the variants block would
+	 * leave the deserialized definition with stale or empty variants and break name-variant lookup
+	 * (e.g. {@code getHistogramIndexDefinitionByName}).
+	 *
+	 * The assertion compares the deserialized variant map against the authoritative
+	 * {@link NamingConvention#generate(String)} output as well as variant-by-variant, so that a
+	 * future addition of a naming convention surfaces in this test instead of silently passing.
+	 */
+	@Test
+	void shouldPreserveHistogramNameVariantsOnRoundTrip() {
+		final Kryo kryo = createKryo();
+		final Expression priceExpr = ExpressionFactory.parse("$price * 1.21");
+		final String canonicalName = "priceHistogram";
+
+		final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
+			.verifySchemaButAllow(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_REFERENCES)
+			.withReferenceToEntity(
+				Entities.BRAND,
+				Entities.BRAND,
+				Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.faceted()
+					.bucketed(canonicalName, priceExpr)
+			)
+			.toInstance();
+
+		final EntitySchema deserialized = roundTripEntitySchema(kryo, createdSchema);
+
+		final ReferenceSchemaContract brandRef =
+			deserialized.getReference(Entities.BRAND).orElseThrow();
+		final HistogramIndexDefinition priceDef =
+			brandRef.getHistogramIndexDefinition(Scope.LIVE, canonicalName);
+		assertNotNull(priceDef, "priceHistogram should survive round-trip");
+
+		// full map equality against the canonical generator — catches any silently-dropped entry
+		final Map<NamingConvention, String> expectedVariants = NamingConvention.generate(canonicalName);
+		assertEquals(
+			expectedVariants, priceDef.nameVariants(),
+			"nameVariants must match NamingConvention.generate output after Kryo round-trip"
+		);
+
+		// per-convention assertion: ensures the accessor contract works, not just map equality
+		for (final NamingConvention convention : NamingConvention.values()) {
+			assertEquals(
+				expectedVariants.get(convention),
+				priceDef.getNameVariant(convention),
+				"Variant for " + convention + " must survive round-trip unchanged"
+			);
+		}
+
+		// end-to-end lookup proof: the deserialized reference must resolve the histogram by every
+		// convention variant — this is what downstream external APIs actually rely on.
+		for (final NamingConvention convention : NamingConvention.values()) {
+			final String variant = expectedVariants.get(convention);
+			assertEquals(
+				canonicalName,
+				brandRef.getHistogramIndexDefinitionByName(Scope.LIVE, variant, convention)
+					.orElseThrow(() -> new AssertionError(
+						"Expected to resolve variant `" + variant + "` under " + convention
+					))
+					.nameOfTheIndex(),
+				"Lookup by variant `" + variant + "` under " + convention + " must resolve to the canonical histogram"
+			);
+		}
+	}
+
+	/**
 	 * Verifies round-trip serialization of a {@link ReflectedReferenceSchema} with explicit
 	 * bucketed state.
 	 */
@@ -211,7 +281,7 @@ class SchemaSerializationServiceTest {
 		final Expression partiallyExpression = ExpressionFactory.parse("1 > 0");
 
 		final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes = new EnumMap<>(Scope.class);
-		bucketedInScopes.put(Scope.LIVE, Map.of("refIdx", new HistogramIndexDefinition("refIdx", valueExpression)));
+		bucketedInScopes.put(Scope.LIVE, Map.of("refIdx", HistogramIndexDefinition.of("refIdx", valueExpression)));
 
 		final Map<Scope, Expression> bucketedPartiallyInScopes = new EnumMap<>(Scope.class);
 		bucketedPartiallyInScopes.put(Scope.LIVE, partiallyExpression);

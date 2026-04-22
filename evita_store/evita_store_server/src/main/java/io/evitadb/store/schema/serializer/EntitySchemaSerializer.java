@@ -288,10 +288,12 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 			final Map<String, HistogramIndexDefinition> innerMap = outerEntry.getValue();
 			output.writeVarInt(innerMap.size(), true);
 			for (final Entry<String, HistogramIndexDefinition> innerEntry : innerMap.entrySet()) {
-				output.writeString(innerEntry.getValue().nameOfTheIndex());
-				if (innerEntry.getValue().valueExpression() != null) {
+				final HistogramIndexDefinition definition = innerEntry.getValue();
+				output.writeString(definition.nameOfTheIndex());
+				writeNameVariants(output, definition.nameVariants());
+				if (definition.valueExpression() != null) {
 					output.writeBoolean(true);
-					kryo.writeObject(output, innerEntry.getValue().valueExpression());
+					kryo.writeObject(output, definition.valueExpression());
 				} else {
 					output.writeBoolean(false);
 				}
@@ -322,9 +324,13 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 				new LinkedHashMap<>(innerCount);
 			for (int j = 0; j < innerCount; j++) {
 				final String nameOfTheIndex = input.readString();
+				final Map<NamingConvention, String> nameVariants = readNameVariants(input);
 				final Expression valueExpression = input.readBoolean()
 					? kryo.readObject(input, Expression.class) : null;
-				innerMap.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+				innerMap.put(
+					nameOfTheIndex,
+					new HistogramIndexDefinition(nameOfTheIndex, nameVariants, valueExpression)
+				);
 			}
 			bucketedHistogramMap.put(scope, innerMap);
 		}

@@ -112,7 +112,7 @@ class ReflectedReferenceSchemaTest {
 	private static ReferenceSchema createOriginalReferenceWithBucketed() {
 		final Expression bucketedPartiallyExpr = ExpressionFactory.parse("$active == 1");
 		final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
-		bucketedMap.put(Scope.LIVE, Map.of("priceHist", new HistogramIndexDefinition("priceHist", ExpressionFactory.parse("$price"))));
+		bucketedMap.put(Scope.LIVE, Map.of("priceHist", HistogramIndexDefinition.of("priceHist", ExpressionFactory.parse("$price"))));
 		return ReferenceSchema._internalBuild(
 			"productRef",
 			NamingConvention.generate("productRef"),
@@ -1814,7 +1814,7 @@ class ReflectedReferenceSchemaTest {
 			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
 			bucketedMap.put(
 				Scope.LIVE,
-				Map.of("priceHist", new HistogramIndexDefinition("priceHist", null))
+				Map.of("priceHist", HistogramIndexDefinition.of("priceHist", null))
 			);
 
 			assertThrows(

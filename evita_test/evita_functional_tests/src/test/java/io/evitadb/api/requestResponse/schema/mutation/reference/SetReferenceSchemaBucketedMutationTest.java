@@ -209,7 +209,7 @@ class SetReferenceSchemaBucketedMutationTest {
 	private static ReflectedReferenceSchema createExplicitBucketedReflectedSchema() {
 		final ReflectedReferenceSchema base = createInheritedReflectedReferenceSchema();
 		return (ReflectedReferenceSchema) base.withBucketed(
-			Map.of(Scope.LIVE, Map.of(INDEX_NAME, new HistogramIndexDefinition(INDEX_NAME, null)))
+			Map.of(Scope.LIVE, Map.of(INDEX_NAME, HistogramIndexDefinition.of(INDEX_NAME, null)))
 		);
 	}
 

@@ -116,6 +116,14 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	 */
 	protected final Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes;
 	/**
+	 * Per-scope index allowing O(1) lookup of a {@link HistogramIndexDefinition} by the index
+	 * name expressed in any {@link NamingConvention}. The inner map key is the variant string
+	 * in some convention; the value is an array of size {@link NamingConvention#values()} where
+	 * the definition is placed on the index matching the convention. Scopes with no bucketed
+	 * histograms are omitted.
+	 */
+	@Nonnull private final Map<Scope, Map<String, HistogramIndexDefinition[]>> histogramNameVariantIndexInScopes;
+	/**
 	 * Per-scope expressions that narrow which entities participate in bucketed histogram
 	 * computation. Only meaningful for scopes where the reference is bucketed.
 	 * An empty map means all bucketed entities participate.
@@ -364,6 +372,36 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	}
 
 	/**
+	 * Builds a per-scope index for looking up {@link HistogramIndexDefinition} by any name
+	 * variant. Within each scope, the inner map is produced by
+	 * {@link EntitySchema#_internalGenerateNameVariantIndex(Collection, Function)} against the
+	 * scope's histogram definitions, so the key is a variant string in some naming convention
+	 * and the value is an array sized {@link NamingConvention#values()} with the definition
+	 * placed at the matching convention ordinal.
+	 *
+	 * @param bucketedInScopes the authoritative per-scope histogram-name → definition map
+	 * @return the per-scope variant lookup index, empty when no scope has histograms
+	 */
+	@Nonnull
+	private static Map<Scope, Map<String, HistogramIndexDefinition[]>> toHistogramNameVariantIndexInScopes(
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> bucketedInScopes
+	) {
+		if (bucketedInScopes.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		final EnumMap<Scope, Map<String, HistogramIndexDefinition[]>> result = new EnumMap<>(Scope.class);
+		for (final Entry<Scope, Map<String, HistogramIndexDefinition>> entry : bucketedInScopes.entrySet()) {
+			result.put(
+				entry.getKey(),
+				_internalGenerateNameVariantIndex(
+					entry.getValue().values(), HistogramIndexDefinition::getNameVariants
+				)
+			);
+		}
+		return Collections.unmodifiableMap(result);
+	}
+
+	/**
 	 * Wraps a nested scope-to-name-to-definition map in unmodifiable views for both
 	 * the outer and all inner maps. Returns {@link Collections#emptyMap()} when the
 	 * input is empty.
@@ -426,7 +464,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 				.computeIfAbsent(entry.scope(), k -> new LinkedHashMap<>())
 				.put(
 					entry.nameOfTheIndex(),
-					new HistogramIndexDefinition(entry.nameOfTheIndex(), entry.valueExpression())
+					HistogramIndexDefinition.of(entry.nameOfTheIndex(), entry.valueExpression())
 				);
 			if (previous != null) {
 				throw new InvalidSchemaMutationException(
@@ -808,6 +846,7 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 		this.facetedInScopes = CollectionUtils.toUnmodifiableSet(facetedInScopes);
 		this.facetedPartiallyInScopes = CollectionUtils.toUnmodifiableMap(facetedPartiallyInScopes);
 		this.bucketedInScopes = toUnmodifiableNestedMap(bucketedInScopes);
+		this.histogramNameVariantIndexInScopes = toHistogramNameVariantIndexInScopes(this.bucketedInScopes);
 		this.bucketedPartiallyInScopes = CollectionUtils.toUnmodifiableMap(bucketedPartiallyInScopes);
 		this.attributes = Collections.unmodifiableMap(
 			attributes.entrySet()
@@ -970,6 +1009,21 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	public HistogramIndexDefinition getHistogramIndexDefinition(@Nonnull Scope scope, @Nonnull String name) {
 		final Map<String, HistogramIndexDefinition> scopeMap = this.bucketedInScopes.get(scope);
 		return scopeMap != null ? scopeMap.get(name) : null;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<HistogramIndexDefinition> getHistogramIndexDefinitionByName(
+		@Nonnull Scope scope,
+		@Nonnull String name,
+		@Nonnull NamingConvention namingConvention
+	) {
+		final Map<String, HistogramIndexDefinition[]> scopeIndex = this.histogramNameVariantIndexInScopes.get(scope);
+		if (scopeIndex == null) {
+			return Optional.empty();
+		}
+		final HistogramIndexDefinition[] byConvention = scopeIndex.get(name);
+		return byConvention != null ? Optional.ofNullable(byConvention[namingConvention.ordinal()]) : Optional.empty();
 	}
 
 	@Nonnull

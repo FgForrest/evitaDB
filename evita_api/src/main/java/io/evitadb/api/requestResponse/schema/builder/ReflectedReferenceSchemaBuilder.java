@@ -604,7 +604,7 @@ public final class ReflectedReferenceSchemaBuilder
 		}
 		final Map<Scope, Expression> filteredPartially = new EnumMap<>(Scope.class);
 		allBucketed.computeIfAbsent(scope, k -> new LinkedHashMap<>(8))
-			.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+			.put(nameOfTheIndex, HistogramIndexDefinition.of(nameOfTheIndex, valueExpression));
 		// filter partially to retained scopes
 		final Map<Scope, Expression> currentPartially = this.getBucketedPartiallyInScopes();
 		for (final Map.Entry<Scope, Expression> entry : currentPartially.entrySet()) {
