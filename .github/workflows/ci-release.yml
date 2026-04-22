@@ -84,6 +84,7 @@ jobs:
       id: release_version
       env:
         ARTIFACT_VERSION: ${{ steps.read_version.outputs.version }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Check if version was already read from workflow artifact (before checkout wiped it)
         if [ -n "$ARTIFACT_VERSION" ]; then
@@ -99,15 +100,32 @@ jobs:
           MAJOR_MINOR=$(echo "$BRANCH_NAME" | sed 's/release_//' | sed 's/-/./')
           echo "Extracted major.minor: $MAJOR_MINOR"
 
-          # Get all tags matching this major.minor version
           git fetch --tags
-          TAGS=$(git tag -l "v${MAJOR_MINOR}.*" | sort -V)
-          echo "Found tags: $TAGS"
+
+          # Published versions — git tags on remote.
+          TAG_VERSIONS=$(git tag -l "v${MAJOR_MINOR}.*")
+
+          # Draft versions — releases that have not yet been published, so
+          # their git tag does not exist on remote. Without this, a failed
+          # partial run (draft created, but Maven deploy or asset upload
+          # failed later) would recompute the same version on the next push
+          # and collide with artefacts already deployed to Maven Central.
+          DRAFT_VERSIONS=$(gh api "/repos/${{ github.repository }}/releases?per_page=100" \
+            --jq '.[] | select(.draft == true) | .name, .tag_name' 2>/dev/null \
+            | grep -E "^v${MAJOR_MINOR}\.[0-9]+$" || true)
+
+          ALL_VERSIONS=$(printf "%s\n%s\n" "$TAG_VERSIONS" "$DRAFT_VERSIONS" \
+            | sort -V -u | grep -v '^$' || true)
+          echo "Known versions (tags + drafts):"
+          printf "%s\n" "$ALL_VERSIONS"
 
           # Extract patch numbers and find the max
           MAX_PATCH=-1
-          for tag in $TAGS; do
-            PATCH=$(echo "$tag" | sed 's/.*\.//')
+          for tag in $ALL_VERSIONS; do
+            PATCH="${tag##*.}"
+            case "$PATCH" in
+              ''|*[!0-9]*) continue ;;
+            esac
             if [ "$PATCH" -gt "$MAX_PATCH" ]; then
               MAX_PATCH=$PATCH
             fi
@@ -223,10 +241,12 @@ jobs:
         cat release-notes-skeleton.md
         echo "--- end ---"
 
-    # Create the draft release directly via the GitHub API. Body is the
-    # skeleton from the previous step when available, otherwise a minimal
-    # placeholder. Outputs `id`, `upload_url`, `html_url` mirror what the
-    # downstream asset-upload and PATCH steps expect.
+    # Create (or update) the draft release directly via the GitHub API.
+    # Body is the skeleton from the previous step when available, otherwise
+    # a minimal placeholder. Outputs `id`, `upload_url`, `html_url` feed the
+    # downstream asset-upload and body-PATCH steps. Idempotent: if a draft
+    # for this version already exists (left behind by a previous partial
+    # run), it is updated in place instead of creating a duplicate.
     - name: Create release
       id: create_release
       env:
@@ -247,16 +267,43 @@ jobs:
           printf "Release %s — release notes are being generated.\n" "$VERSION" > "$BODY_FILE"
         fi
 
+        # Detect existing release for this version. Match on either
+        # `tag_name` (happy path) or `name` (covers drafts still holding
+        # the `untagged-<sha>` placeholder as tag_name).
+        ALL_RELEASES=$(gh api "/repos/${{ github.repository }}/releases?per_page=100")
+        EXISTING=$(jq --arg v "$VERSION" \
+          'map(select(.tag_name == $v or .name == $v)) | first // {}' <<<"$ALL_RELEASES")
+        EXISTING_ID=$(jq -r '.id // empty' <<<"$EXISTING")
+        EXISTING_DRAFT=$(jq -r '.draft // empty' <<<"$EXISTING")
+
+        if [ -n "$EXISTING_ID" ] && [ "$EXISTING_DRAFT" != "true" ]; then
+          echo "::error::release $VERSION already exists and is published (id=$EXISTING_ID) — refusing to overwrite"
+          exit 1
+        fi
+
+        # Build the JSON payload with jq so booleans stay booleans. Mixing
+        # `-F` (raw) and `-f` flags on `gh api` forces form-encoding and
+        # makes `draft: true` arrive as the string `"true"`, which the
+        # GitHub API rejects with HTTP 422.
+        COMMON=$(jq -n \
+          --arg tag "$VERSION" \
+          --arg target "$TARGET" \
+          --arg name "$VERSION" \
+          --rawfile body "$BODY_FILE" \
+          --arg latest "$MAKE_LATEST" \
+          '{tag_name:$tag, target_commitish:$target, name:$name, body:$body, make_latest:$latest}')
+
         RESPONSE=$(mktemp)
-        gh api --method POST "/repos/${{ github.repository }}/releases" \
-          -F tag_name="$VERSION" \
-          -F target_commitish="$TARGET" \
-          -F name="$VERSION" \
-          -F body=@"$BODY_FILE" \
-          -F make_latest="$MAKE_LATEST" \
-          -f draft=true \
-          -f prerelease=true \
-          > "$RESPONSE"
+        if [ -n "$EXISTING_ID" ]; then
+          echo "Updating existing draft release id=$EXISTING_ID in place"
+          gh api --method PATCH "/repos/${{ github.repository }}/releases/$EXISTING_ID" \
+            --input - <<<"$COMMON" > "$RESPONSE"
+        else
+          echo "Creating new draft release for $VERSION"
+          jq '. + {draft: true, prerelease: true}' <<<"$COMMON" \
+            | gh api --method POST "/repos/${{ github.repository }}/releases" --input - \
+            > "$RESPONSE"
+        fi
 
         RELEASE_ID=$(jq -r .id "$RESPONSE")
         HTML_URL=$(jq -r .html_url "$RESPONSE")
@@ -270,7 +317,7 @@ jobs:
           echo "tag_name=$STORED_TAG"
         } >> "$GITHUB_OUTPUT"
 
-        echo "Created draft release id=$RELEASE_ID tag_name=$STORED_TAG"
+        echo "Release id=$RELEASE_ID tag_name=$STORED_TAG"
         echo "  html_url=$HTML_URL"
 
         # Self-heal: GitHub occasionally persists `tag_name=untagged-<sha>`
@@ -280,8 +327,9 @@ jobs:
         # Re-PATCHing sticks reliably; no-op when already correct.
         if [ "$STORED_TAG" != "$VERSION" ]; then
           echo "::warning::stored tag_name='$STORED_TAG' differs from '$VERSION' — normalizing via PATCH"
-          gh api --method PATCH "/repos/${{ github.repository }}/releases/$RELEASE_ID" \
-            -F tag_name="$VERSION" > /dev/null
+          jq -n --arg v "$VERSION" '{tag_name: $v}' \
+            | gh api --method PATCH "/repos/${{ github.repository }}/releases/$RELEASE_ID" --input - \
+            > /dev/null
           ACTUAL=$(gh api "/repos/${{ github.repository }}/releases/$RELEASE_ID" --jq '.tag_name')
           if [ "$ACTUAL" != "$VERSION" ]; then
             echo "::error::PATCH did not stick: tag_name='$ACTUAL'"
