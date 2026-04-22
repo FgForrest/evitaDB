@@ -1346,15 +1346,17 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		@Nonnull Map<Integer, RequestedBucketRange> requestedRangesByGroupPk
 	) {
 		/**
-		 * Sentinel group PK used as the map key for a `histogramHaving` that omits its `groupSelector`. Negative
-		 * value keeps the sentinel disjoint from every legitimate entity PK.
+		 * Sentinel group PK used as the map key for a `histogramHaving` that omits its `groupSelector`. evitaDB
+		 * reserves the value `0` as the non-grouped sentinel across the entire reference histogram subsystem —
+		 * client-supplied group entity PKs of `0` collide with this slot and are rejected by
+		 * `ReferenceHistogramAccumulator` with a hard throw.
 		 */
-		public static final int NON_GROUPED_SENTINEL = -1;
+		public static final int NON_GROUPED_SENTINEL = 0;
 	}
 
 	/**
-	 * Inclusive-exclusive numeric range `[from, to)` extracted from a
-	 * {@code userFilter → referenceHaving(refName, entityHaving(attributeBetween(from, to)))} subtree.
+	 * Inclusive numeric range `[from, to]` extracted from a
+	 * {@code userFilter → histogramHaving(refName, histName, from, to, groupSelector?)} constraint.
 	 * Used by the computer to flag per-bucket {@code requested} at bucket-value granularity.
 	 *
 	 * @param from lower bound (inclusive); `null` means "no lower bound"

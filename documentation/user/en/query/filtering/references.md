@@ -612,6 +612,17 @@ histogramHaving(
     </dd>
 </dl>
 
+<Note type="warning">
+
+**Group primary key `0` is reserved.** Reference histograms use the value `0` as a reserved non-grouped sentinel
+across the entire subsystem (in `histogramHaving` range maps, in the grouped-vs-non-grouped slot key, and in the
+`ResolvedHistogramHaving` carrier). Because evitaDB accepts client-supplied primary keys of any `int` value
+(including negatives), you **must not** use `0` as a primary key for any entity that may appear as the **group**
+of a reference hosting a histogram. A real group entity with PK `0` will be rejected with an internal error at
+query time. Use any non-zero integer (positive or negative) for such entities.
+
+</Note>
+
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HistogramHaving.java</SourceClass></LS> constraint narrows a reference histogram to a specific `[from, to]` range. It is the first-class carrier for
 slider-driven range selection on **references** — for example, a product's `parameterValues` reference that hosts one
 histogram per parameter (`height`, `weight`, `depth`, …). A single `histogramHaving` identifies one
