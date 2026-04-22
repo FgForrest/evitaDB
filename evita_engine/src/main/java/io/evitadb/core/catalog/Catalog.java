@@ -1620,6 +1620,16 @@ public final class Catalog
 	}
 
 	/**
+	 * Retrieves the first catalog version present in the current WAL file segment. Primarily useful for diagnostic
+	 * logging that needs to pin down the lower bound of the replay window reachable from the current WAL file.
+	 *
+	 * @return the first catalog version in the current WAL file, or `-1` if the current WAL file is empty
+	 */
+	public long getFirstCatalogVersionInMutationStream() {
+		return this.persistenceService.getFirstCatalogVersionInMutationStream();
+	}
+
+	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage.
 	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
 	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed

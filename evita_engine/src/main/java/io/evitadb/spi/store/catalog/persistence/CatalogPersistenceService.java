@@ -453,6 +453,16 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	long getLastCatalogVersionInMutationStream();
 
 	/**
+	 * Retrieves the first catalog version present in the current WAL file segment. This is the lowest catalog version
+	 * that can still be replayed from the live WAL without consulting rotated-out or purged WAL files. Primarily used
+	 * for diagnostic / observability purposes - tells operators the lower bound of the replay window reachable from
+	 * the current WAL file.
+	 *
+	 * @return the first catalog version in the current WAL file, or `-1` if the current WAL file is empty
+	 */
+	long getFirstCatalogVersionInMutationStream();
+
+	/**
 	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated
 	 * in the final state). Usually the data written by {@link #getStoragePartPersistenceService(long)}  are immediately
 	 * written to the disk and are volatile until {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}
