@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.query.require.EntityFetch;
@@ -49,13 +50,11 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
 import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.sort.NestedContextSorter;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.collection.IntegerIntoBitmapCollector;
-import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
@@ -82,7 +81,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -92,8 +90,8 @@ import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
 
@@ -139,9 +137,13 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	 * plain {@link EntityReference} type containing only the data in the input of the function.
 	 */
 	private static final TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> ENTITY_REFERENCE_CONVERTER =
-		(context, entityType, facetIds) -> Arrays.stream(facetIds)
-			.mapToObj(it -> new EntityReference(entityType, it))
-			.toArray(EntityClassifier[]::new);
+		(context, entityType, facetIds) -> {
+			final EntityClassifier[] result = new EntityClassifier[facetIds.length];
+			for (int i = 0; i < facetIds.length; i++) {
+				result[i] = new EntityReference(entityType, facetIds[i]);
+			}
+			return result;
+		};
 
 	/**
 	 * Filter formula produces all entity ids that are going to be returned by current query (including user-defined
@@ -382,84 +384,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 								context,
 								// translates Facet#type to EntitySchema#reference#groupType
 								referenceName -> context.getSchema().getReferenceOrThrowException(referenceName),
-								referenceSchema -> ofNullable(this.referenceSummaryRequests.get(referenceSchema.getName()))
-									.map(referenceRequest -> {
-										if (this.defaultRequest == null) {
-											return referenceRequest;
-										}
-										final EntityFetch combinedFacetEntityRequirement = ofNullable(referenceRequest.facetEntityRequirement())
-											.map(it -> it.combineWith(this.defaultRequest.facetEntityRequirement()))
-											.orElse(this.defaultRequest.facetEntityRequirement());
-										final EntityGroupFetch combinedGroupEntityRequirement = ofNullable(referenceRequest.groupEntityRequirement())
-											.map(it -> it.combineWith(this.defaultRequest.groupEntityRequirement()))
-											.orElse(this.defaultRequest.groupEntityRequirement());
-										return new ReferenceSummaryRequest(
-											referenceRequest.order(),
-											referenceRequest.referenceSchema(),
-											ofNullable(referenceRequest.facetPredicate())
-												.orElseGet(
-													() -> ofNullable(this.defaultRequest.facetPredicate())
-														.map(refPredicate -> refPredicate.apply(referenceRequest.referenceSchema()))
-														.orElse(null)
-												),
-											ofNullable(referenceRequest.groupPredicate())
-												.orElseGet(
-													() -> ofNullable(this.defaultRequest.groupPredicate())
-														.map(refPredicate -> refPredicate.apply(referenceRequest.referenceSchema()))
-														.orElse(null)
-												),
-											ofNullable(referenceRequest.facetSorter())
-												.orElseGet(
-													() -> ofNullable(this.defaultRequest.facetSorter())
-														.map(refPredicate -> refPredicate.apply(referenceRequest.referenceSchema()))
-														.orElse(null)
-												),
-											ofNullable(referenceRequest.groupSorter())
-												.orElseGet(
-													() -> ofNullable(this.defaultRequest.groupSorter())
-														.map(refPredicate -> refPredicate.apply(referenceRequest.referenceSchema()))
-														.orElse(null)
-												),
-											combinedFacetEntityRequirement,
-											combinedGroupEntityRequirement,
-											referenceRequest.facetStatisticsDepth()
-										);
-									})
-									.orElseGet(
-										() -> {
-											final Optional<DefaultReferenceSummaryRequest> defaultRequestOpt = ofNullable(this.defaultRequest);
-											final EntityFetch facetEntityRequirement = defaultRequestOpt
-												.map(DefaultReferenceSummaryRequest::facetEntityRequirement)
-												.orElse(null);
-											final EntityGroupFetch groupEntityRequirement = defaultRequestOpt
-												.map(DefaultReferenceSummaryRequest::groupEntityRequirement)
-												.orElse(null);
-											return new ReferenceSummaryRequest(
-												this.referenceSummaryRequests.size() + counter.incrementAndGet(),
-												referenceSchema,
-												defaultRequestOpt
-													.map(DefaultReferenceSummaryRequest::facetPredicate)
-													.map(refPredicate -> refPredicate.apply(referenceSchema))
-													.orElse(null),
-												defaultRequestOpt
-													.map(DefaultReferenceSummaryRequest::groupPredicate)
-													.map(refPredicate -> refPredicate.apply(referenceSchema))
-													.orElse(null),
-												defaultRequestOpt
-													.map(DefaultReferenceSummaryRequest::facetSorter)
-													.map(refPredicate -> refPredicate.apply(referenceSchema))
-													.orElse(null),
-												defaultRequestOpt
-													.map(DefaultReferenceSummaryRequest::groupSorter)
-													.map(refPredicate -> refPredicate.apply(referenceSchema))
-													.orElse(null),
-												facetEntityRequirement,
-												groupEntityRequirement,
-												defaultRequestOpt
-													.map(DefaultReferenceSummaryRequest::facetStatisticsDepth)
-													.orElse(FacetStatisticsDepth.COUNTS)
-											);
-										}),
+								referenceSchema -> resolveReferenceRequest(referenceSchema, counter),
 								this.requestedFacets,
 								universalCalculator,
 								universalCalculator
@@ -489,6 +414,107 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			);
 		}
 		return resultAdapter.createResult(statisticsByReferenceName);
+	}
+
+	/**
+	 * Resolves the effective {@link ReferenceSummaryRequest} for a given reference schema by merging the
+	 * explicit per-reference request (if registered) with the {@link #defaultRequest} fallback.
+	 */
+	@Nonnull
+	private ReferenceSummaryRequest resolveReferenceRequest(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AtomicInteger counter
+	) {
+		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(
+			referenceSchema.getName()
+		);
+		if (specific != null) {
+			return this.defaultRequest == null ? specific : mergeSpecificWithDefault(specific);
+		}
+		return buildFromDefault(referenceSchema, counter);
+	}
+
+	/**
+	 * Overlays the reference-specific request onto {@link #defaultRequest}, combining entity fetches and
+	 * falling back to per-schema predicates/sorters derived from the default whenever the specific request
+	 * does not supply its own.
+	 */
+	@Nonnull
+	private ReferenceSummaryRequest mergeSpecificWithDefault(
+		@Nonnull ReferenceSummaryRequest specific
+	) {
+		// caller in resolveReferenceRequest guards against null defaultRequest; pin the invariant here
+		final DefaultReferenceSummaryRequest fallback = Objects.requireNonNull(this.defaultRequest);
+		final ReferenceSchemaContract schema = specific.referenceSchema();
+
+		// combine entity-fetch requirements: specific extends default when both exist, else use default's
+		final EntityFetch combinedFacetEntityRequirement = specific.facetEntityRequirement() == null
+			? fallback.facetEntityRequirement()
+			: specific.facetEntityRequirement().combineWith(fallback.facetEntityRequirement());
+		final EntityGroupFetch combinedGroupEntityRequirement = specific.groupEntityRequirement() == null
+			? fallback.groupEntityRequirement()
+			: specific.groupEntityRequirement().combineWith(fallback.groupEntityRequirement());
+
+		final IntPredicate facetPredicate = specific.facetPredicate() != null
+			? specific.facetPredicate()
+			: applyToSchema(fallback.facetPredicate(), schema);
+		final IntPredicate groupPredicate = specific.groupPredicate() != null
+			? specific.groupPredicate()
+			: applyToSchema(fallback.groupPredicate(), schema);
+		final NestedContextSorter facetSorter = specific.facetSorter() != null
+			? specific.facetSorter()
+			: applyToSchema(fallback.facetSorter(), schema);
+		final NestedContextSorter groupSorter = specific.groupSorter() != null
+			? specific.groupSorter()
+			: applyToSchema(fallback.groupSorter(), schema);
+
+		return new ReferenceSummaryRequest(
+			specific.order(),
+			schema,
+			facetPredicate,
+			groupPredicate,
+			facetSorter,
+			groupSorter,
+			combinedFacetEntityRequirement,
+			combinedGroupEntityRequirement,
+			specific.facetStatisticsDepth()
+		);
+	}
+
+	/**
+	 * Builds a {@link ReferenceSummaryRequest} for a reference that has no explicit per-reference entry,
+	 * deriving predicates/sorters from {@link #defaultRequest} via its per-schema functions. Reachable only
+	 * when {@link #defaultRequest} is non-null — the upstream filter guarantees that invariant.
+	 */
+	@Nonnull
+	private ReferenceSummaryRequest buildFromDefault(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AtomicInteger counter
+	) {
+		final DefaultReferenceSummaryRequest fallback = Objects.requireNonNull(this.defaultRequest);
+		return new ReferenceSummaryRequest(
+			this.referenceSummaryRequests.size() + counter.incrementAndGet(),
+			referenceSchema,
+			applyToSchema(fallback.facetPredicate(), referenceSchema),
+			applyToSchema(fallback.groupPredicate(), referenceSchema),
+			applyToSchema(fallback.facetSorter(), referenceSchema),
+			applyToSchema(fallback.groupSorter(), referenceSchema),
+			fallback.facetEntityRequirement(),
+			fallback.groupEntityRequirement(),
+			fallback.facetStatisticsDepth()
+		);
+	}
+
+	/**
+	 * Applies a nullable per-schema resolver to the given schema, returning `null` when the resolver is
+	 * absent. Lets the merge/build helpers express predicate and sorter fallbacks uniformly.
+	 */
+	@Nullable
+	private static <R> R applyToSchema(
+		@Nullable Function<ReferenceSchemaContract, R> resolver,
+		@Nonnull ReferenceSchemaContract schema
+	) {
+		return resolver == null ? null : resolver.apply(schema);
 	}
 
 	@Nonnull
@@ -553,31 +579,30 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			@Nonnull QueryExecutionContext context,
 			@Nonnull Entry<String, List<GroupAccumulator>> entry
 		) {
-			final int[] groupIds = entry.getValue()
-				.stream()
-				.map(GroupAccumulator::getGroupId)
-				.filter(Objects::nonNull)
-				.mapToInt(it -> it)
-				.toArray();
-			if (ArrayUtils.isEmpty(groupIds)) {
-				return Collections.emptyMap();
-			} else {
-				final GroupAccumulator groupAcc = entry.getValue()
-					.stream()
-					.findFirst()
-					.orElseThrow(() -> new GenericEvitaInternalError(ERROR_SANITY_CHECK));
-				return Arrays.stream(
-						groupAcc.getReferenceSummaryRequest()
-							.getGroupEntityFetcher(context, groupAcc.getReferenceSchema())
-							.apply(groupIds)
-					)
-					.collect(
-						Collectors.toMap(
-							EntityClassifier::getPrimaryKey,
-							Function.identity()
-						)
-					);
+			final List<GroupAccumulator> accs = entry.getValue();
+			// Collectors.groupingBy never emits an empty bucket, so accs.get(0) matches the original findFirst() semantics
+			final GroupAccumulator groupAcc = accs.get(0);
+			// single pass: size the buffer optimistically and trim only if nulls were skipped
+			final int[] buffer = new int[accs.size()];
+			int count = 0;
+			for (GroupAccumulator acc : accs) {
+				final Integer groupId = acc.getGroupId();
+				if (groupId != null) {
+					buffer[count++] = groupId;
+				}
 			}
+			if (count == 0) {
+				return Collections.emptyMap();
+			}
+			final int[] groupIds = count == buffer.length ? buffer : Arrays.copyOf(buffer, count);
+			final EntityClassifier[] fetched = groupAcc.getReferenceSummaryRequest()
+				.getGroupEntityFetcher(context, groupAcc.getReferenceSchema())
+				.apply(groupIds);
+			final Map<Integer, EntityClassifier> result = createLinkedHashMap(fetched.length);
+			for (final EntityClassifier classifier : fetched) {
+				result.put(classifier.getPrimaryKey(), classifier);
+			}
+			return result;
 		}
 
 		/**
@@ -589,34 +614,28 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			@Nonnull QueryExecutionContext context,
 			@Nonnull Entry<String, List<GroupAccumulator>> entry
 		) {
-			final int[] facetIds = entry.getValue()
-				.stream()
-				.map(GroupAccumulator::getFacetStatistics)
-				.map(Map::values)
-				.flatMap(Collection::stream)
-				.mapToInt(FacetAccumulator::getFacetId)
-				.distinct()
-				.toArray();
-
-			if (ArrayUtils.isEmpty(facetIds)) {
-				return Collections.emptyMap();
-			} else {
-				final GroupAccumulator groupAcc = entry.getValue()
-					.stream()
-					.findFirst()
-					.orElseThrow(() -> new GenericEvitaInternalError(ERROR_SANITY_CHECK));
-				return Arrays.stream(
-						groupAcc.getReferenceSummaryRequest()
-							.getFacetEntityFetcher(context, groupAcc.getReferenceSchema())
-							.apply(facetIds)
-					)
-					.collect(
-						Collectors.toMap(
-							EntityClassifier::getPrimaryKey,
-							Function.identity()
-						)
-					);
+			final List<GroupAccumulator> accs = entry.getValue();
+			// Collectors.groupingBy never emits an empty bucket, so accs.get(0) matches the original findFirst() semantics
+			final GroupAccumulator groupAcc = accs.get(0);
+			// collect distinct facet ids as primitives to avoid the Stream#distinct auto-boxing pipeline
+			final IntHashSet distinctFacetIds = new IntHashSet(32);
+			for (GroupAccumulator acc : accs) {
+				for (final FacetAccumulator facetAcc : acc.getFacetStatistics().values()) {
+					distinctFacetIds.add(facetAcc.getFacetId());
+				}
 			}
+			if (distinctFacetIds.isEmpty()) {
+				return Collections.emptyMap();
+			}
+			final int[] facetIds = distinctFacetIds.toArray();
+			final EntityClassifier[] fetched = groupAcc.getReferenceSummaryRequest()
+				.getFacetEntityFetcher(context, groupAcc.getReferenceSchema())
+				.apply(facetIds);
+			final Map<Integer, EntityClassifier> result = createLinkedHashMap(fetched.length);
+			for (final EntityClassifier classifier : fetched) {
+				result.put(classifier.getPrimaryKey(), classifier);
+			}
+			return result;
 		}
 
 		/**
@@ -668,19 +687,19 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			@Nonnull QueryExecutionContext context,
 			@Nonnull Collection<GroupAccumulator> entityAcc
 		) {
-			return entityAcc
-				.stream()
-				.collect(
-					Collectors.groupingBy(it -> it.getReferenceSchema().getName())
-				)
-				.entrySet()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						Entry::getKey,
-						it -> FacetGroupStatisticsCollector.fetchFacetEntities(context, it)
-					)
-				);
+			// group accumulators by reference name in a single pass, then fetch once per group
+			final Map<String, List<GroupAccumulator>> accByReference = createHashMap(entityAcc.size());
+			for (final GroupAccumulator acc : entityAcc) {
+				accByReference.computeIfAbsent(acc.getReferenceSchema().getName(), k -> new ArrayList<>()).add(acc);
+			}
+			if (accByReference.isEmpty()) {
+				return Map.of();
+			}
+			final Map<String, Map<Integer, EntityClassifier>> result = createHashMap(accByReference.size());
+			for (final Entry<String, List<GroupAccumulator>> entry : accByReference.entrySet()) {
+				result.put(entry.getKey(), fetchFacetEntities(context, entry));
+			}
+			return result;
 		}
 
 		/**
@@ -693,20 +712,22 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			@Nonnull QueryExecutionContext context,
 			@Nonnull Collection<GroupAccumulator> accumulators
 		) {
-			return accumulators
-				.stream()
-				.filter(it -> it.getGroupId() != null)
-				.collect(
-					Collectors.groupingBy(it -> it.getReferenceSchema().getName())
-				)
-				.entrySet()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						Entry::getKey,
-						it -> FacetGroupStatisticsCollector.fetchGroups(context, it)
-					)
-				);
+			// group accumulators with a non-null group id by reference name in a single pass, then fetch once per group
+			final Map<String, List<GroupAccumulator>> accByReference = createHashMap(accumulators.size());
+			for (final GroupAccumulator acc : accumulators) {
+				if (acc.getGroupId() == null) {
+					continue;
+				}
+				accByReference.computeIfAbsent(acc.getReferenceSchema().getName(), k -> new ArrayList<>()).add(acc);
+			}
+			if (accByReference.isEmpty()) {
+				return Map.of();
+			}
+			final Map<String, Map<Integer, EntityClassifier>> result = createHashMap(accByReference.size());
+			for (final Entry<String, List<GroupAccumulator>> entry : accByReference.entrySet()) {
+				result.put(entry.getKey(), fetchGroups(context, entry));
+			}
+			return result;
 		}
 
 		/**
@@ -723,11 +744,11 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			@Nonnull Map<Integer, FacetAccumulator> theFacetStatistics,
 			@Nonnull NestedContextSorter sorter
 		) {
-			// if the sorter is defined, sort them
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-			// collect all entity primary keys
-			theFacetStatistics.keySet().forEach(writer::add);
-			// create sorted array using the sorter
+			// iterate the accumulators directly to read the facet id as primitive int — avoids boxing each Integer key
+			for (final FacetAccumulator facetAcc : theFacetStatistics.values()) {
+				writer.add(facetAcc.getFacetId());
+			}
 			return sorter.sortAndSlice(new BaseBitmap(writer.get()));
 		}
 
@@ -800,49 +821,41 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		@Override
 		public BiConsumer<LinkedHashMap<Integer, GroupAccumulator>, FacetReferenceIndex> accumulator() {
 			return (acc, facetEntityTypeIndex) -> {
-				final ReferenceSchemaContract referenceSchema = this.referenceSchemaLocator.apply(
-					facetEntityTypeIndex.getReferenceName()
-				);
+				final String referenceName = facetEntityTypeIndex.getReferenceName();
+				final ReferenceSchemaContract referenceSchema = this.referenceSchemaLocator.apply(referenceName);
 				final ReferenceSummaryRequest referenceSummaryRequest = this.referenceRequestLocator.apply(referenceSchema);
+				final IntPredicate groupPredicate = referenceSummaryRequest.groupPredicate();
+				final IntPredicate facetPredicate = referenceSummaryRequest.facetPredicate();
+				final IntPredicate isRequestedResolver = facetId -> isRequested(referenceName, facetId);
 
-				final Stream<FacetGroupIndex> groupIndexesAsStream = ofNullable(referenceSummaryRequest.groupPredicate())
-					.map(
-						predicate -> facetEntityTypeIndex.getFacetGroupIndexesAsStream()
-							.filter(groupIx -> ofNullable(groupIx.getGroupId()).map(predicate::test).orElse(false))
-					)
-					.orElseGet(facetEntityTypeIndex::getFacetGroupIndexesAsStream);
-
-				groupIndexesAsStream
-					.forEach(groupIx -> {
-						final String referenceName = facetEntityTypeIndex.getReferenceName();
-						// get or create separate accumulator for the group statistics
-						final GroupAccumulator groupAcc = acc.computeIfAbsent(
-							groupIx.getGroupId(),
-							gId -> new GroupAccumulator(
-								referenceSchema,
-								referenceSummaryRequest,
-								gId,
-								this.countCalculator,
-								this.impactCalculator
-							)
-						);
-						// create fct that can resolve whether the facet is requested for this entity type
-						final IntPredicate isRequestedResolver = facetId -> isRequested(referenceName, facetId);
-						// now go through all facets in the index and register their statistics
-						final Stream<FacetIdIndex> facetIndexStream = groupIx.getFacetIdIndexes()
-							.values()
-							.stream();
-						ofNullable(referenceSummaryRequest.facetPredicate())
-							.ifPresentOrElse(
-								predicate ->
-									facetIndexStream
-										.filter(facetIx -> predicate.test(facetIx.getFacetId()))
-										.forEach(facetIx -> groupAcc.addStatistics(facetIx, isRequestedResolver)),
-								() ->
-									facetIndexStream
-										.forEach(facetIx -> groupAcc.addStatistics(facetIx, isRequestedResolver))
-							);
-					});
+				// only a stream-based accessor is exposed on FacetReferenceIndex; iterate it imperatively to avoid the
+				// nested Optional/Stream filter allocations present in the previous implementation
+				facetEntityTypeIndex.getFacetGroupIndexesAsStream().forEach(groupIx -> {
+					if (groupPredicate != null) {
+						final Integer groupId = groupIx.getGroupId();
+						// preserve the original `ofNullable(groupId).map(predicate::test).orElse(false)` semantics:
+						// a group without a group id is skipped when a predicate is supplied
+						if (groupId == null || !groupPredicate.test(groupId)) {
+							return;
+						}
+					}
+					final GroupAccumulator groupAcc = acc.computeIfAbsent(
+						groupIx.getGroupId(),
+						gId -> new GroupAccumulator(
+							referenceSchema,
+							referenceSummaryRequest,
+							gId,
+							this.countCalculator,
+							this.impactCalculator
+						)
+					);
+					for (final FacetIdIndex facetIx : groupIx.getFacetIdIndexes().values()) {
+						if (facetPredicate != null && !facetPredicate.test(facetIx.getFacetId())) {
+							continue;
+						}
+						groupAcc.addStatistics(facetIx, isRequestedResolver);
+					}
+				});
 			};
 		}
 
@@ -863,86 +876,92 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				final Map<String, Map<Integer, EntityClassifier>> facetEntities =
 					getFacetEntitiesIndexedByReferenceName(this.context, entityAcc.values());
 				final Map<String, Bitmap> groupIdIndex = getGroupIdsByReferenceName(entityAcc);
-
 				final Map<String, int[]> sortedGroupIds = new HashMap<>(groupIdIndex.size());
-				final Stream<GroupAccumulator> groupStream = entityAcc
-					.values()
-					.stream()
-					.sorted((o1, o2) -> compareFacetGroupSummaries(groupIdIndex, sortedGroupIds, o1, o2));
 
-				return groupStream
-					.<T>map(groupAcc -> {
-						final Map<Integer, FacetAccumulator> theFacetStatistics = groupAcc.getFacetStatistics();
-						if (theFacetStatistics.isEmpty()) {
-							return null;
-						} else {
-							final ReferenceSchemaContract referenceSchema = groupAcc.getReferenceSchema();
-							// compute overall count for group
-							final Formula entityMatchingAnyOfGroupFacetFormula = this.countCalculator.createGroupCountFormula(
-								referenceSchema, groupAcc.getGroupId(),
-								groupAcc.getFacetStatistics()
-									.values()
-									.stream()
-									.flatMap(it -> it.getFacetEntityIds().stream())
-									.toArray(Bitmap[]::new)
-							);
-							final int entityMatchingAnyOfGroupFacet = entityMatchingAnyOfGroupFacetFormula.compute().size();
-							if (entityMatchingAnyOfGroupFacet == 0) {
-								return null;
-							}
+				final GroupAccumulator[] sortedGroups = entityAcc.values().toArray(new GroupAccumulator[0]);
+				Arrays.sort(sortedGroups, (o1, o2) -> compareFacetGroupSummaries(groupIdIndex, sortedGroupIds, o1, o2));
 
-							// collect all facet statistics
-							final Map<Integer, EntityClassifier> facetEntitiesIndex =
-								Objects.requireNonNull(facetEntities.get(referenceSchema.getName()));
-							final Stream<FacetAccumulator> facetStream = ofNullable(groupAcc.getReferenceSummaryRequest().facetSorter())
-								.map(
-									sorter -> Arrays.stream(getSortedFacets(theFacetStatistics, sorter))
-										.mapToObj(theFacetStatistics::get)
-								)
-								.orElseGet(
-									() -> theFacetStatistics.values()
-										.stream()
-										.sorted(Comparator.comparingInt(FacetAccumulator::getFacetId))
-								);
+				final List<T> result = new ArrayList<>(sortedGroups.length);
+				for (final GroupAccumulator groupAcc : sortedGroups) {
+					final Map<Integer, FacetAccumulator> theFacetStatistics = groupAcc.getFacetStatistics();
+					if (theFacetStatistics.isEmpty()) {
+						continue;
+					}
+					final ReferenceSchemaContract referenceSchema = groupAcc.getReferenceSchema();
 
-							final Map<Integer, FacetStatistics> facetStatistics = facetStream
-								.filter(Objects::nonNull)
-								// exclude those that has no results after base formula application
-								.filter(FacetAccumulator::hasAnyResults)
-								.map(
-									it -> ofNullable(facetEntitiesIndex.get(it.getFacetId()))
-										.map(it::toFacetStatistics)
-										.orElse(null)
-								)
-								.filter(Objects::nonNull)
-								.collect(
-									Collectors.toMap(
-										it -> it.getFacetEntity().getPrimaryKey(),
-										Function.identity(),
-										(o, o2) -> {
-											throw new IllegalStateException("Unexpectedly found two facets in stream!");
-										},
-										// we need to maintain the order in map
-										LinkedHashMap::new
-									)
-								);
-
-							// create facet group statistics
-							final Map<Integer, EntityClassifier> groupEntitiesIndex = groupEntities.get(referenceSchema.getName());
-							final EntityClassifier groupEntity = getGroupEntity(groupAcc, referenceSchema, groupEntitiesIndex);
-
-							return this.resultAdapter.createGroupStatistics(
-								referenceSchema,
-								groupEntity,
-								entityMatchingAnyOfGroupFacet,
-								facetStatistics,
-								Map.of()
-							);
+					// flatten per-facet entity id bitmaps into a sized array — replaces the allocation-heavy
+					// flatMap+toArray pipeline used previously
+					int totalBitmapCount = 0;
+					for (final FacetAccumulator fa : theFacetStatistics.values()) {
+						totalBitmapCount += fa.getFacetEntityIds().size();
+					}
+					final Bitmap[] allFacetEntityIds = new Bitmap[totalBitmapCount];
+					int bitmapIdx = 0;
+					for (final FacetAccumulator fa : theFacetStatistics.values()) {
+						for (final Bitmap bitmap : fa.getFacetEntityIds()) {
+							allFacetEntityIds[bitmapIdx++] = bitmap;
 						}
-					})
-					.filter(Objects::nonNull)
-					.filter(it -> !it.getFacetStatistics().isEmpty() || !it.getHistogramStatistics().isEmpty())
-					.collect(Collectors.toList());
+					}
+
+					final Formula entityMatchingAnyOfGroupFacetFormula = this.countCalculator.createGroupCountFormula(
+						referenceSchema, groupAcc.getGroupId(), allFacetEntityIds
+					);
+					final int entityMatchingAnyOfGroupFacet = entityMatchingAnyOfGroupFacetFormula.compute().size();
+					if (entityMatchingAnyOfGroupFacet == 0) {
+						continue;
+					}
+
+					final Map<Integer, EntityClassifier> facetEntitiesIndex =
+						Objects.requireNonNull(facetEntities.get(referenceSchema.getName()));
+					final NestedContextSorter facetSorter = groupAcc.getReferenceSummaryRequest().facetSorter();
+
+					// materialize the facet iteration order without wrapping each facet in an Optional; when a sorter
+					// supplies an id missing from the map we preserve the prior `filter(Objects::nonNull)` behaviour
+					// by leaving a null slot in the array and skipping it below
+					final FacetAccumulator[] orderedFacets;
+					if (facetSorter != null) {
+						final int[] sortedIds = getSortedFacets(theFacetStatistics, facetSorter);
+						orderedFacets = new FacetAccumulator[sortedIds.length];
+						for (int i = 0; i < sortedIds.length; i++) {
+							orderedFacets[i] = theFacetStatistics.get(sortedIds[i]);
+						}
+					} else {
+						orderedFacets = theFacetStatistics.values().toArray(new FacetAccumulator[0]);
+						Arrays.sort(orderedFacets, Comparator.comparingInt(FacetAccumulator::getFacetId));
+					}
+
+					final LinkedHashMap<Integer, FacetStatistics> facetStatistics = createLinkedHashMap(orderedFacets.length);
+					for (final FacetAccumulator fa : orderedFacets) {
+						if (fa == null) {
+							continue;
+						}
+						if (!fa.hasAnyResults()) {
+							continue;
+						}
+						final EntityClassifier ec = facetEntitiesIndex.get(fa.getFacetId());
+						if (ec == null) {
+							continue;
+						}
+						final FacetStatistics stats = fa.toFacetStatistics(ec);
+						if (facetStatistics.put(stats.getFacetEntity().getPrimaryKey(), stats) != null) {
+							throw new IllegalStateException("Unexpectedly found two facets in stream!");
+						}
+					}
+
+					final Map<Integer, EntityClassifier> groupEntitiesIndex = groupEntities.get(referenceSchema.getName());
+					final EntityClassifier groupEntity = getGroupEntity(groupAcc, referenceSchema, groupEntitiesIndex);
+					final T groupStats = this.resultAdapter.createGroupStatistics(
+						referenceSchema,
+						groupEntity,
+						entityMatchingAnyOfGroupFacet,
+						facetStatistics,
+						Map.of()
+					);
+					if (!groupStats.getFacetStatistics().isEmpty() || !groupStats.getHistogramStatistics().isEmpty()) {
+						result.add(groupStats);
+					}
+				}
+				return result;
 			};
 		}
 
