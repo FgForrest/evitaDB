@@ -47,7 +47,7 @@ Run the orchestrator and capture stdout. Use `--milestone` only when in MAJOR mo
 ./tools/generate-release-notes.sh --version "<VERSION>" --base "<BASE>" [--milestone "<MILESTONE>"]
 ```
 
-If the orchestrator exits non-zero, abort the skill and report the error. The CI workflow will treat this as a soft failure and keep the release-drafter body untouched.
+If the orchestrator exits non-zero, abort the skill and report the error. The CI workflow will treat this as a soft failure and keep the skeleton body already attached to the draft release.
 
 The skeleton always begins with `## What's Changed` and ends with a `**Full Changelog**: ...` line. Between them are zero or more of these sections, in this fixed order:
 
