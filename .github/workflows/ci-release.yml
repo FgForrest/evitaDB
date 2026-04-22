@@ -168,36 +168,8 @@ jobs:
         filename: 'dist.tar.gz'
         path: './dist'
 
-    - name: Create release
-      id: create_release
-      uses: release-drafter/release-drafter@6a93d829887aa2e0748befe2e808c66c0ec6e4c7 # v6.4.0
-      with:
-        version: ${{ steps.release_version.outputs.version }}
-        publish: false
-        latest: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
-        commitish: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
-
-    # Defensive sanity check: release-drafter has been observed to occasionally
-    # create a draft whose tag_name ends up as the URL-slug placeholder
-    # ("untagged-<sha>") instead of the resolved v$VERSION. When that draft is
-    # later published, GitHub creates a literal `untagged-<sha>` git tag and
-    # the real v$VERSION tag is lost. Fail loudly here so the pipeline never
-    # hands downstream consumers (DockerHub-deploy, release-asset uploads) a
-    # corrupted release.
-    - name: Verify release tag_name
-      if: success()
-      env:
-        EXPECTED: ${{ steps.release_version.outputs.version }}
-        ACTUAL: ${{ steps.create_release.outputs.tag_name }}
-      run: |
-        if [ "$ACTUAL" != "$EXPECTED" ]; then
-          echo "::error::release-drafter produced tag_name='$ACTUAL', expected '$EXPECTED'"
-          exit 1
-        fi
-        echo "Release tag_name verified: $ACTUAL"
-
-    # Resolve previous release tag and milestone for the release-notes skill.
-    # This is best-effort: failures must not block the release pipeline.
+    # Resolve previous release tag and milestone. Used both to build the
+    # skeleton body below and later by the release-notes enrichment skill.
     - name: Resolve release notes inputs
       id: notes_inputs
       if: success()
@@ -215,7 +187,7 @@ jobs:
         echo "Resolved previous tag: ${PREV:-<none>}"
 
         # Milestone is only set for MAJOR releases (triggered by workflow_run
-        # from CI Master); patch releases use commit-only mode in the skill.
+        # from CI Master); patch releases use commit-only mode.
         if [ "$IS_MAJOR" = "true" ]; then
           MILESTONE="${VERSION#v}"
           MILESTONE="${MILESTONE%.0}"
@@ -224,6 +196,99 @@ jobs:
         fi
         echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
         echo "Resolved milestone: ${MILESTONE:-<none>}"
+
+    # Produce the deterministic skeleton (categorised bullet list from
+    # commits and — for MAJORs — issues). This is the body we hand to
+    # GitHub when creating the draft. The Claude-enriched body PATCHes
+    # this later; if enrichment is skipped or fails, the skeleton
+    # remains as a sane fallback. `generate-release-notes.sh` expects
+    # `VERSION` to exist as a git tag, so we create a lightweight local
+    # tag on HEAD first (runner VM is ephemeral — the tag never leaves
+    # this job).
+    - name: Generate skeleton release notes
+      id: skeleton
+      if: success()
+      continue-on-error: true
+      env:
+        VERSION: ${{ steps.release_version.outputs.version }}
+        BASE_VERSION: ${{ steps.notes_inputs.outputs.prev_tag }}
+        MILESTONE: ${{ steps.notes_inputs.outputs.milestone }}
+      run: |
+        git tag -f "$VERSION" HEAD
+        ARGS=(--version "$VERSION")
+        [ -n "$BASE_VERSION" ] && ARGS+=(--base "$BASE_VERSION")
+        [ -n "$MILESTONE" ]    && ARGS+=(--milestone "$MILESTONE")
+        ./tools/generate-release-notes.sh "${ARGS[@]}" > release-notes-skeleton.md
+        echo "--- skeleton ---"
+        cat release-notes-skeleton.md
+        echo "--- end ---"
+
+    # Create the draft release directly via the GitHub API. Body is the
+    # skeleton from the previous step when available, otherwise a minimal
+    # placeholder. Outputs `id`, `upload_url`, `html_url` mirror what the
+    # downstream asset-upload and PATCH steps expect.
+    - name: Create release
+      id: create_release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.release_version.outputs.version }}
+        COMMITISH: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
+        MAKE_LATEST: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
+        SKELETON_OK: ${{ steps.skeleton.outcome == 'success' }}
+      run: |
+        # GitHub API wants a plain branch name, not a full `refs/heads/*` ref.
+        TARGET="${COMMITISH#refs/heads/}"
+
+        if [ "$SKELETON_OK" = "true" ] && [ -s release-notes-skeleton.md ]; then
+          BODY_FILE=release-notes-skeleton.md
+        else
+          echo "::warning::skeleton step did not produce a body — using minimal placeholder"
+          BODY_FILE=$(mktemp)
+          printf "Release %s — release notes are being generated.\n" "$VERSION" > "$BODY_FILE"
+        fi
+
+        RESPONSE=$(mktemp)
+        gh api --method POST "/repos/${{ github.repository }}/releases" \
+          -F tag_name="$VERSION" \
+          -F target_commitish="$TARGET" \
+          -F name="$VERSION" \
+          -F body=@"$BODY_FILE" \
+          -F make_latest="$MAKE_LATEST" \
+          -f draft=true \
+          -f prerelease=true \
+          > "$RESPONSE"
+
+        RELEASE_ID=$(jq -r .id "$RESPONSE")
+        HTML_URL=$(jq -r .html_url "$RESPONSE")
+        UPLOAD_URL=$(jq -r .upload_url "$RESPONSE")
+        STORED_TAG=$(jq -r .tag_name "$RESPONSE")
+
+        {
+          echo "id=$RELEASE_ID"
+          echo "html_url=$HTML_URL"
+          echo "upload_url=$UPLOAD_URL"
+          echo "tag_name=$STORED_TAG"
+        } >> "$GITHUB_OUTPUT"
+
+        echo "Created draft release id=$RELEASE_ID tag_name=$STORED_TAG"
+        echo "  html_url=$HTML_URL"
+
+        # Self-heal: GitHub occasionally persists `tag_name=untagged-<sha>`
+        # on brand-new draft releases whose git tag does not yet exist. If
+        # such a draft is later published, GitHub creates a literal
+        # `untagged-<sha>` git tag and loses the intended v$VERSION.
+        # Re-PATCHing sticks reliably; no-op when already correct.
+        if [ "$STORED_TAG" != "$VERSION" ]; then
+          echo "::warning::stored tag_name='$STORED_TAG' differs from '$VERSION' — normalizing via PATCH"
+          gh api --method PATCH "/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+            -F tag_name="$VERSION" > /dev/null
+          ACTUAL=$(gh api "/repos/${{ github.repository }}/releases/$RELEASE_ID" --jq '.tag_name')
+          if [ "$ACTUAL" != "$VERSION" ]; then
+            echo "::error::PATCH did not stick: tag_name='$ACTUAL'"
+            exit 1
+          fi
+          echo "Release tag_name normalized to $VERSION"
+        fi
 
     # Cache the Claude Code CLI binary so we don't re-download it on every
     # release run. The cache key is pinned to CLAUDE_CODE_VERSION below; bump
@@ -252,10 +317,10 @@ jobs:
       run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
     # Generate enriched release notes via the .claude/skills/release-notes
-    # skill. The release-drafter draft from the previous step is the safety
-    # net — this step is allowed to fail without affecting the release build.
-    # Uses Sonnet (cheaper than Opus) because release-notes enrichment is a
-    # straightforward summarise/rewrite task.
+    # skill. The skeleton draft from the Create release step is the
+    # safety net — this step is allowed to fail without affecting the
+    # release build. Uses Sonnet (cheaper than Opus) because release-notes
+    # enrichment is a straightforward summarise/rewrite task.
     - name: Generate enriched release notes with Claude
       id: claude_notes
       if: success()
@@ -310,8 +375,8 @@ jobs:
         path: release-notes.md
 
     # Patch the drafted release body with the enriched notes if Claude
-    # produced them. Soft failure: missing file or API error is logged and
-    # ignored — the release-drafter draft remains in place as a fallback.
+    # produced them. Soft failure: missing file or API error is logged
+    # and ignored — the skeleton body stays in place as a fallback.
     - name: Update draft release body with enriched notes
       if: steps.claude_notes.outcome == 'success'
       continue-on-error: true
@@ -320,11 +385,11 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         if [ ! -s release-notes.md ]; then
-          echo "release-notes.md missing or empty — keeping release-drafter body."
+          echo "release-notes.md missing or empty — keeping skeleton body."
           exit 0
         fi
         echo "Patching release $RELEASE_ID with enriched notes from release-notes.md"
-        gh api --method PATCH "/repos/FgForrest/evitaDB/releases/$RELEASE_ID" \
+        gh api --method PATCH "/repos/${{ github.repository }}/releases/$RELEASE_ID" \
           --field body=@release-notes.md
         echo "Release body updated."
 
