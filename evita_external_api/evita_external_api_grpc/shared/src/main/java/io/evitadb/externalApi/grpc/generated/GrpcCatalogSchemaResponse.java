@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2026
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -105,6 +105,37 @@ private static final long serialVersionUID = 0L;
     return catalogSchema_ == null ? io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.getDefaultInstance() : catalogSchema_;
   }
 
+  public static final int CATALOGVERSION_FIELD_NUMBER = 2;
+  private long catalogVersion_ = 0L;
+  /**
+   * <pre>
+   * The current catalog version (data version, incremented with each transaction commit).
+   * Zero for catalogs that are in the warming-up state.
+   * </pre>
+   *
+   * <code>int64 catalogVersion = 2;</code>
+   * @return The catalogVersion.
+   */
+  @java.lang.Override
+  public long getCatalogVersion() {
+    return catalogVersion_;
+  }
+
+  public static final int CATALOGSCHEMAVERSION_FIELD_NUMBER = 3;
+  private int catalogSchemaVersion_ = 0;
+  /**
+   * <pre>
+   * The current catalog schema version.
+   * </pre>
+   *
+   * <code>int32 catalogSchemaVersion = 3;</code>
+   * @return The catalogSchemaVersion.
+   */
+  @java.lang.Override
+  public int getCatalogSchemaVersion() {
+    return catalogSchemaVersion_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -122,6 +153,12 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       output.writeMessage(1, getCatalogSchema());
     }
+    if (catalogVersion_ != 0L) {
+      output.writeInt64(2, catalogVersion_);
+    }
+    if (catalogSchemaVersion_ != 0) {
+      output.writeInt32(3, catalogSchemaVersion_);
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -134,6 +171,14 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(1, getCatalogSchema());
+    }
+    if (catalogVersion_ != 0L) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt64Size(2, catalogVersion_);
+    }
+    if (catalogSchemaVersion_ != 0) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeInt32Size(3, catalogSchemaVersion_);
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -155,6 +200,10 @@ private static final long serialVersionUID = 0L;
       if (!getCatalogSchema()
           .equals(other.getCatalogSchema())) return false;
     }
+    if (getCatalogVersion()
+        != other.getCatalogVersion()) return false;
+    if (getCatalogSchemaVersion()
+        != other.getCatalogSchemaVersion()) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -170,6 +219,11 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + CATALOGSCHEMA_FIELD_NUMBER;
       hash = (53 * hash) + getCatalogSchema().hashCode();
     }
+    hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getCatalogVersion());
+    hash = (37 * hash) + CATALOGSCHEMAVERSION_FIELD_NUMBER;
+    hash = (53 * hash) + getCatalogSchemaVersion();
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -316,6 +370,8 @@ private static final long serialVersionUID = 0L;
         catalogSchemaBuilder_.dispose();
         catalogSchemaBuilder_ = null;
       }
+      catalogVersion_ = 0L;
+      catalogSchemaVersion_ = 0;
       return this;
     }
 
@@ -355,6 +411,12 @@ private static final long serialVersionUID = 0L;
             ? catalogSchema_
             : catalogSchemaBuilder_.build();
         to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000002) != 0)) {
+        result.catalogVersion_ = catalogVersion_;
+      }
+      if (((from_bitField0_ & 0x00000004) != 0)) {
+        result.catalogSchemaVersion_ = catalogSchemaVersion_;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -406,6 +468,12 @@ private static final long serialVersionUID = 0L;
       if (other.hasCatalogSchema()) {
         mergeCatalogSchema(other.getCatalogSchema());
       }
+      if (other.getCatalogVersion() != 0L) {
+        setCatalogVersion(other.getCatalogVersion());
+      }
+      if (other.getCatalogSchemaVersion() != 0) {
+        setCatalogSchemaVersion(other.getCatalogSchemaVersion());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -439,6 +507,16 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000001;
               break;
             } // case 10
+            case 16: {
+              catalogVersion_ = input.readInt64();
+              bitField0_ |= 0x00000002;
+              break;
+            } // case 16
+            case 24: {
+              catalogSchemaVersion_ = input.readInt32();
+              bitField0_ |= 0x00000004;
+              break;
+            } // case 24
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -600,7 +678,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema catalogSchema = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema.Builder, io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaOrBuilder> 
         getCatalogSchemaFieldBuilder() {
       if (catalogSchemaBuilder_ == null) {
         catalogSchemaBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -611,6 +689,97 @@ private static final long serialVersionUID = 0L;
         catalogSchema_ = null;
       }
       return catalogSchemaBuilder_;
+    }
+
+    private long catalogVersion_ ;
+    /**
+     * <pre>
+     * The current catalog version (data version, incremented with each transaction commit).
+     * Zero for catalogs that are in the warming-up state.
+     * </pre>
+     *
+     * <code>int64 catalogVersion = 2;</code>
+     * @return The catalogVersion.
+     */
+    @java.lang.Override
+    public long getCatalogVersion() {
+      return catalogVersion_;
+    }
+    /**
+     * <pre>
+     * The current catalog version (data version, incremented with each transaction commit).
+     * Zero for catalogs that are in the warming-up state.
+     * </pre>
+     *
+     * <code>int64 catalogVersion = 2;</code>
+     * @param value The catalogVersion to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogVersion(long value) {
+
+      catalogVersion_ = value;
+      bitField0_ |= 0x00000002;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The current catalog version (data version, incremented with each transaction commit).
+     * Zero for catalogs that are in the warming-up state.
+     * </pre>
+     *
+     * <code>int64 catalogVersion = 2;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogVersion() {
+      bitField0_ = (bitField0_ & ~0x00000002);
+      catalogVersion_ = 0L;
+      onChanged();
+      return this;
+    }
+
+    private int catalogSchemaVersion_ ;
+    /**
+     * <pre>
+     * The current catalog schema version.
+     * </pre>
+     *
+     * <code>int32 catalogSchemaVersion = 3;</code>
+     * @return The catalogSchemaVersion.
+     */
+    @java.lang.Override
+    public int getCatalogSchemaVersion() {
+      return catalogSchemaVersion_;
+    }
+    /**
+     * <pre>
+     * The current catalog schema version.
+     * </pre>
+     *
+     * <code>int32 catalogSchemaVersion = 3;</code>
+     * @param value The catalogSchemaVersion to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCatalogSchemaVersion(int value) {
+
+      catalogSchemaVersion_ = value;
+      bitField0_ |= 0x00000004;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * The current catalog schema version.
+     * </pre>
+     *
+     * <code>int32 catalogSchemaVersion = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCatalogSchemaVersion() {
+      bitField0_ = (bitField0_ & ~0x00000004);
+      catalogSchemaVersion_ = 0;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(
