@@ -29,13 +29,17 @@ import io.evitadb.api.query.expression.visitor.ElementPathItem;
 import io.evitadb.api.query.expression.visitor.IdentifierPathItem;
 import io.evitadb.api.query.expression.visitor.PathItem;
 import io.evitadb.api.query.expression.visitor.VariablePathItem;
+import io.evitadb.api.requestResponse.schema.NamedContract;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Immutable definition of a bucketed histogram configuration for a reference schema.
@@ -43,21 +47,70 @@ import java.util.List;
  * specifying the histogram index name and the optional value expression used to
  * compute the bucket value for each referenced entity.
  *
+ * The record also exposes the index name in all supported {@link NamingConvention naming
+ * conventions} via the {@link NamedContract} super-interface. Name variants are always
+ * server-generated from the index name by {@link NamingConvention#generate(String)} —
+ * callers never supply them.
+ *
  * @param nameOfTheIndex  the name identifying the histogram index, must not be null
+ * @param nameVariants    pre-computed variants of {@code nameOfTheIndex} in all naming conventions
  * @param valueExpression the expression computing the histogram bucket value, or null if not specified
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record HistogramIndexDefinition(
 	@Nonnull String nameOfTheIndex,
+	@Nonnull Map<NamingConvention, String> nameVariants,
 	@Nullable Expression valueExpression
-) implements Serializable {
+) implements NamedContract {
 
 	/**
-	 * Compact constructor that validates the name is not null and not blank.
+	 * Compact constructor that validates the name is not null and not blank, and wraps the
+	 * name-variants map in an unmodifiable view.
 	 */
 	public HistogramIndexDefinition {
 		Assert.notNull(nameOfTheIndex, "Name of the index must not be null!");
 		Assert.isTrue(!nameOfTheIndex.isBlank(), "Name of the index must not be blank!");
+		Assert.notNull(nameVariants, "Name variants must not be null!");
+		nameVariants = Collections.unmodifiableMap(nameVariants);
+	}
+
+	/**
+	 * Convenience factory that auto-generates the name variants from {@code nameOfTheIndex}
+	 * using {@link NamingConvention#generate(String)}. This is the canonical constructor
+	 * used by server-side code — variants are never user-supplied.
+	 *
+	 * @param nameOfTheIndex  the name identifying the histogram index
+	 * @param valueExpression the expression computing the histogram bucket value, or null
+	 * @return a new {@link HistogramIndexDefinition} with auto-generated name variants
+	 */
+	@Nonnull
+	public static HistogramIndexDefinition of(
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression
+	) {
+		return new HistogramIndexDefinition(
+			nameOfTheIndex,
+			NamingConvention.generate(nameOfTheIndex),
+			valueExpression
+		);
+	}
+
+	@Nonnull
+	@Override
+	public String getName() {
+		return this.nameOfTheIndex;
+	}
+
+	@Nonnull
+	@Override
+	public Map<NamingConvention, String> getNameVariants() {
+		return this.nameVariants;
+	}
+
+	@Nonnull
+	@Override
+	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
+		return this.nameVariants.get(namingConvention);
 	}
 
 	/**

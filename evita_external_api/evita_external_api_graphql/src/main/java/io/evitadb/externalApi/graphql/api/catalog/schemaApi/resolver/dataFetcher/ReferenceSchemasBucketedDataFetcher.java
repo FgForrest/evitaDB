@@ -81,13 +81,15 @@ public class ReferenceSchemasBucketedDataFetcher implements DataFetcher<List<Map
 		final List<Map<String, Object>> result = new ArrayList<>(totalEntries);
 		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedInScopes.entrySet()) {
 			for (final Map.Entry<String, HistogramIndexDefinition> entry : scopeEntry.getValue().entrySet()) {
-				final Map<String, Object> map = createHashMap(3);
+				final HistogramIndexDefinition definition = entry.getValue();
+				final Map<String, Object> map = createHashMap(4);
 				map.put("scope", scopeEntry.getKey());
-				map.put("nameOfTheIndex", entry.getValue().nameOfTheIndex());
+				map.put("nameOfTheIndex", definition.nameOfTheIndex());
+				map.put("nameVariants", definition.nameVariants());
 				map.put(
 					"valueExpression",
-					entry.getValue().valueExpression() != null
-						? entry.getValue().valueExpression().toExpressionString()
+					definition.valueExpression() != null
+						? definition.valueExpression().toExpressionString()
 						: null
 				);
 				result.add(map);

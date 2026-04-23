@@ -72,11 +72,60 @@ public interface GrpcScopedHistogramIndexDefinitionOrBuilder extends
 
   /**
    * <pre>
+   * Server-generated variants of nameOfTheIndex in different naming conventions.
+   * Populated only on schema output; ignored when present on mutation input.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariants = 3;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcNameVariant> 
+      getNameVariantsList();
+  /**
+   * <pre>
+   * Server-generated variants of nameOfTheIndex in different naming conventions.
+   * Populated only on schema output; ignored when present on mutation input.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariants = 3;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariant getNameVariants(int index);
+  /**
+   * <pre>
+   * Server-generated variants of nameOfTheIndex in different naming conventions.
+   * Populated only on schema output; ignored when present on mutation input.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariants = 3;</code>
+   */
+  int getNameVariantsCount();
+  /**
+   * <pre>
+   * Server-generated variants of nameOfTheIndex in different naming conventions.
+   * Populated only on schema output; ignored when present on mutation input.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariants = 3;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder> 
+      getNameVariantsOrBuilderList();
+  /**
+   * <pre>
+   * Server-generated variants of nameOfTheIndex in different naming conventions.
+   * Populated only on schema output; ignored when present on mutation input.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcNameVariant nameVariants = 3;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcNameVariantOrBuilder getNameVariantsOrBuilder(
+      int index);
+
+  /**
+   * <pre>
    * The expression computing the histogram bucket value for each referenced entity.
    * When absent (not set), no value expression is defined for this scope.
    * </pre>
    *
-   * <code>.google.protobuf.StringValue valueExpression = 3;</code>
+   * <code>.google.protobuf.StringValue valueExpression = 4;</code>
    * @return Whether the valueExpression field is set.
    */
   boolean hasValueExpression();
@@ -86,7 +135,7 @@ public interface GrpcScopedHistogramIndexDefinitionOrBuilder extends
    * When absent (not set), no value expression is defined for this scope.
    * </pre>
    *
-   * <code>.google.protobuf.StringValue valueExpression = 3;</code>
+   * <code>.google.protobuf.StringValue valueExpression = 4;</code>
    * @return The valueExpression.
    */
   com.google.protobuf.StringValue getValueExpression();
@@ -96,7 +145,7 @@ public interface GrpcScopedHistogramIndexDefinitionOrBuilder extends
    * When absent (not set), no value expression is defined for this scope.
    * </pre>
    *
-   * <code>.google.protobuf.StringValue valueExpression = 3;</code>
+   * <code>.google.protobuf.StringValue valueExpression = 4;</code>
    */
   com.google.protobuf.StringValueOrBuilder getValueExpressionOrBuilder();
 }

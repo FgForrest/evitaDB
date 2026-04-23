@@ -406,7 +406,7 @@ public final class ReferenceSchemaBuilder
 			allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
 		}
 		allBucketed.computeIfAbsent(scope, k -> new LinkedHashMap<>(8))
-			.put(nameOfTheIndex, new HistogramIndexDefinition(nameOfTheIndex, valueExpression));
+			.put(nameOfTheIndex, HistogramIndexDefinition.of(nameOfTheIndex, valueExpression));
 		// compute complete bucketedPartially: filter existing to retained scopes
 		final Map<Scope, Expression> filteredPartially = filterBucketedPartiallyToScopes(allBucketed.keySet());
 		return emitBucketedMutationWithAutoIndex(

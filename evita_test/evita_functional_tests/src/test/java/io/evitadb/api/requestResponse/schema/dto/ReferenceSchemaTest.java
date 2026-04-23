@@ -920,7 +920,7 @@ class ReferenceSchemaTest {
 		@DisplayName("should reject bucketed in non-indexed scope")
 		void shouldRejectBucketedInNonIndexedScope() {
 			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, Map.of("hist", new HistogramIndexDefinition("hist", null)));
+			bucketedMap.put(Scope.LIVE, Map.of("hist", HistogramIndexDefinition.of("hist", null)));
 
 			assertThrows(
 				InvalidSchemaMutationException.class,
@@ -949,7 +949,7 @@ class ReferenceSchemaTest {
 			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
 			bucketedMap.put(
 				Scope.LIVE,
-				Map.of("priceHistogram", new HistogramIndexDefinition("priceHistogram", valueExpr))
+				Map.of("priceHistogram", HistogramIndexDefinition.of("priceHistogram", valueExpr))
 			);
 
 			final ReferenceSchema schema = ReferenceSchema._internalBuild(
@@ -1043,7 +1043,7 @@ class ReferenceSchemaTest {
 		@DisplayName("should build with null value expression")
 		void shouldBuildWithNullValueExpression() {
 			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, Map.of("hist", new HistogramIndexDefinition("hist", null)));
+			bucketedMap.put(Scope.LIVE, Map.of("hist", HistogramIndexDefinition.of("hist", null)));
 
 			final ReferenceSchema schema = ReferenceSchema._internalBuild(
 				"brand",
@@ -1112,8 +1112,8 @@ class ReferenceSchemaTest {
 			bucketedMap.put(
 				Scope.LIVE,
 				Map.of(
-					"priceHistogram", new HistogramIndexDefinition("priceHistogram", priceExpr),
-					"quantityHistogram", new HistogramIndexDefinition("quantityHistogram", quantityExpr)
+					"priceHistogram", HistogramIndexDefinition.of("priceHistogram", priceExpr),
+					"quantityHistogram", HistogramIndexDefinition.of("quantityHistogram", quantityExpr)
 				)
 			);
 
@@ -1171,7 +1171,7 @@ class ReferenceSchemaTest {
 		@DisplayName("should include bucketed in equality check")
 		void shouldIncludeBucketedInEquality() {
 			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, Map.of("hist", new HistogramIndexDefinition("hist", null)));
+			bucketedMap.put(Scope.LIVE, Map.of("hist", HistogramIndexDefinition.of("hist", null)));
 
 			final ReferenceSchema withBucketed = ReferenceSchema._internalBuild(
 				"brand",
@@ -1292,7 +1292,7 @@ class ReferenceSchemaTest {
 		void shouldIncludeBucketedPartiallyInEquality() {
 			final Expression expression = ExpressionFactory.parse("$status == 1");
 			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
-			bucketedMap.put(Scope.LIVE, Map.of("hist", new HistogramIndexDefinition("hist", null)));
+			bucketedMap.put(Scope.LIVE, Map.of("hist", HistogramIndexDefinition.of("hist", null)));
 
 			final ReferenceSchema withPartially = ReferenceSchema._internalBuild(
 				"brand",
@@ -1451,6 +1451,346 @@ class ReferenceSchemaTest {
 			// null and empty input should return empty maps
 			assertTrue(ReferenceSchema.toBucketedPartiallyMap(null).isEmpty());
 			assertTrue(ReferenceSchema.toBucketedPartiallyMap(ScopedBucketedPartially.EMPTY).isEmpty());
+		}
+	}
+
+	@Nested
+	@DisplayName("getHistogramIndexDefinitionByName (name-variant lookup)")
+	class HistogramIndexDefinitionByNameTest {
+
+		/**
+		 * Verifies that a histogram registered under a camelCase canonical name is resolvable via
+		 * every known {@link NamingConvention} using the variant produced by
+		 * {@link NamingConvention#generate(String)}. This is the core happy-path test for the new
+		 * variant-indexed lookup — it exercises every convention in one test so the assertion does
+		 * not silently drift if a new convention is added.
+		 */
+		@Test
+		@DisplayName("should resolve histogram by every naming convention")
+		void shouldResolveHistogramByEveryNamingConvention() {
+			final String canonicalName = "priceHistogram";
+			final ReferenceSchema schema = createSchemaWithLiveHistograms(canonicalName);
+			final Map<NamingConvention, String> expectedVariants = NamingConvention.generate(canonicalName);
+
+			for (final NamingConvention convention : NamingConvention.values()) {
+				final String variant = expectedVariants.get(convention);
+				final Optional<HistogramIndexDefinition> found =
+					schema.getHistogramIndexDefinitionByName(Scope.LIVE, variant, convention);
+
+				assertTrue(
+					found.isPresent(),
+					"Lookup for variant `" + variant + "` in convention " + convention + " must succeed"
+				);
+				assertEquals(
+					canonicalName, found.get().nameOfTheIndex(),
+					"Lookup for variant `" + variant + "` must return the canonical histogram"
+				);
+			}
+		}
+
+		/**
+		 * Verifies that looking up a histogram via the correct variant string but the wrong
+		 * naming convention returns empty. For example, the snake_case variant "price_histogram"
+		 * under convention KEBAB_CASE must not match anything. This pins down the array-indexed
+		 * nature of the lookup (variant string → per-convention slot), which is critical because
+		 * the canonical name is often identical in multiple conventions (e.g. single-word names).
+		 */
+		@Test
+		@DisplayName("should return empty when convention does not match variant slot")
+		void shouldReturnEmptyWhenConventionDoesNotMatchVariantSlot() {
+			final String canonicalName = "priceHistogram";
+			final ReferenceSchema schema = createSchemaWithLiveHistograms(canonicalName);
+			final Map<NamingConvention, String> expectedVariants = NamingConvention.generate(canonicalName);
+			final String snakeVariant = expectedVariants.get(NamingConvention.SNAKE_CASE);
+
+			// the snake_case variant stored under the SNAKE_CASE slot — it must NOT resolve when
+			// the caller asks for it under the KEBAB_CASE slot (provided the two casings differ).
+			if (!snakeVariant.equals(expectedVariants.get(NamingConvention.KEBAB_CASE))) {
+				final Optional<HistogramIndexDefinition> found =
+					schema.getHistogramIndexDefinitionByName(Scope.LIVE, snakeVariant, NamingConvention.KEBAB_CASE);
+
+				assertTrue(
+					found.isEmpty(),
+					"Looking up snake_case variant under KEBAB_CASE slot must return empty"
+				);
+			}
+		}
+
+		/**
+		 * Verifies that a lookup in a scope that is not bucketed at all returns empty (not null
+		 * and no NPE). This covers the early-exit branch inside the implementation when the
+		 * per-scope map is absent.
+		 */
+		@Test
+		@DisplayName("should return empty for scope without any histograms")
+		void shouldReturnEmptyForScopeWithoutAnyHistograms() {
+			final ReferenceSchema schema = createSchemaWithLiveHistograms("priceHistogram");
+
+			final Optional<HistogramIndexDefinition> found = schema.getHistogramIndexDefinitionByName(
+				Scope.ARCHIVED, "priceHistogram", NamingConvention.CAMEL_CASE
+			);
+
+			assertNotNull(found, "Method must never return a null Optional");
+			assertTrue(found.isEmpty(), "Looking up in a non-bucketed scope must return empty");
+		}
+
+		/**
+		 * Verifies that an unknown name returns empty. This exercises the case where the scope
+		 * map exists but does not contain the requested key.
+		 */
+		@Test
+		@DisplayName("should return empty for unknown histogram name")
+		void shouldReturnEmptyForUnknownHistogramName() {
+			final ReferenceSchema schema = createSchemaWithLiveHistograms("priceHistogram");
+
+			final Optional<HistogramIndexDefinition> found = schema.getHistogramIndexDefinitionByName(
+				Scope.LIVE, "completelyUnknown", NamingConvention.CAMEL_CASE
+			);
+
+			assertTrue(found.isEmpty(), "Unknown histogram name must resolve to empty");
+		}
+
+		/**
+		 * Verifies that two histograms sharing a scope are each independently resolvable by their
+		 * own variants and do not collide in the name-variant index. The variant strings of the
+		 * two distinct canonical names must route to different definitions.
+		 */
+		@Test
+		@DisplayName("should resolve each of two same-scope histograms independently")
+		void shouldResolveEachOfTwoSameScopeHistogramsIndependently() {
+			final Expression priceExpr = ExpressionFactory.parse("$price");
+			final Expression quantityExpr = ExpressionFactory.parse("$quantity");
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(
+				Scope.LIVE,
+				Map.of(
+					"priceHistogram", HistogramIndexDefinition.of("priceHistogram", priceExpr),
+					"quantityHistogram", HistogramIndexDefinition.of("quantityHistogram", quantityExpr)
+				)
+			);
+
+			final ReferenceSchema schema = buildBucketedSchema(bucketedMap);
+
+			final String priceKebab = NamingConvention.generate("priceHistogram").get(NamingConvention.KEBAB_CASE);
+			final String quantityKebab = NamingConvention.generate("quantityHistogram").get(NamingConvention.KEBAB_CASE);
+
+			final Optional<HistogramIndexDefinition> priceFound =
+				schema.getHistogramIndexDefinitionByName(Scope.LIVE, priceKebab, NamingConvention.KEBAB_CASE);
+			final Optional<HistogramIndexDefinition> quantityFound =
+				schema.getHistogramIndexDefinitionByName(Scope.LIVE, quantityKebab, NamingConvention.KEBAB_CASE);
+
+			assertTrue(priceFound.isPresent(), "Price histogram must be resolvable by its kebab variant");
+			assertEquals("priceHistogram", priceFound.get().nameOfTheIndex());
+			assertEquals(
+				priceExpr.toExpressionString(),
+				priceFound.get().valueExpression().toExpressionString(),
+				"Resolved price histogram must carry the price expression"
+			);
+
+			assertTrue(quantityFound.isPresent(), "Quantity histogram must be resolvable by its kebab variant");
+			assertEquals("quantityHistogram", quantityFound.get().nameOfTheIndex());
+			assertEquals(
+				quantityExpr.toExpressionString(),
+				quantityFound.get().valueExpression().toExpressionString(),
+				"Resolved quantity histogram must carry the quantity expression"
+			);
+
+			// sanity: neither variant cross-resolves to the other definition
+			assertNotEquals(priceFound.get(), quantityFound.get());
+		}
+
+		/**
+		 * Verifies that a multi-scope schema keeps per-scope variant indexes isolated — a histogram
+		 * defined only in LIVE must not leak into an ARCHIVED lookup and vice versa.
+		 */
+		@Test
+		@DisplayName("should keep per-scope histogram indexes isolated")
+		void shouldKeepPerScopeHistogramIndexesIsolated() {
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, Map.of("liveOnly", HistogramIndexDefinition.of("liveOnly", null)));
+			bucketedMap.put(Scope.ARCHIVED, Map.of("archivedOnly", HistogramIndexDefinition.of("archivedOnly", null)));
+
+			final ReferenceSchema schema = buildBucketedSchemaForScopes(bucketedMap, Scope.LIVE, Scope.ARCHIVED);
+
+			// liveOnly must resolve only in LIVE
+			assertTrue(
+				schema.getHistogramIndexDefinitionByName(
+					Scope.LIVE, "liveOnly", NamingConvention.CAMEL_CASE
+				).isPresent()
+			);
+			assertTrue(
+				schema.getHistogramIndexDefinitionByName(
+					Scope.ARCHIVED, "liveOnly", NamingConvention.CAMEL_CASE
+				).isEmpty(),
+				"liveOnly histogram must NOT leak into ARCHIVED scope"
+			);
+
+			// archivedOnly must resolve only in ARCHIVED
+			assertTrue(
+				schema.getHistogramIndexDefinitionByName(
+					Scope.ARCHIVED, "archivedOnly", NamingConvention.CAMEL_CASE
+				).isPresent()
+			);
+			assertTrue(
+				schema.getHistogramIndexDefinitionByName(
+					Scope.LIVE, "archivedOnly", NamingConvention.CAMEL_CASE
+				).isEmpty(),
+				"archivedOnly histogram must NOT leak into LIVE scope"
+			);
+		}
+
+		/**
+		 * Verifies the critical cross-scope invariant: two different histograms registered under the
+		 * same canonical name in different scopes must each resolve to their own definition — not
+		 * to a merged / either-one-wins result. The value expression is the distinguishing fact.
+		 */
+		@Test
+		@DisplayName("should resolve same-name histograms in different scopes to distinct definitions")
+		void shouldResolveSameNameHistogramsInDifferentScopesToDistinctDefinitions() {
+			final Expression liveExpr = ExpressionFactory.parse("$price");
+			final Expression archivedExpr = ExpressionFactory.parse("$quantity");
+
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(Scope.LIVE, Map.of("hist", HistogramIndexDefinition.of("hist", liveExpr)));
+			bucketedMap.put(Scope.ARCHIVED, Map.of("hist", HistogramIndexDefinition.of("hist", archivedExpr)));
+
+			final ReferenceSchema schema = buildBucketedSchemaForScopes(bucketedMap, Scope.LIVE, Scope.ARCHIVED);
+
+			final Optional<HistogramIndexDefinition> inLive =
+				schema.getHistogramIndexDefinitionByName(Scope.LIVE, "hist", NamingConvention.CAMEL_CASE);
+			final Optional<HistogramIndexDefinition> inArchived =
+				schema.getHistogramIndexDefinitionByName(Scope.ARCHIVED, "hist", NamingConvention.CAMEL_CASE);
+
+			assertTrue(inLive.isPresent(), "LIVE `hist` must resolve");
+			assertTrue(inArchived.isPresent(), "ARCHIVED `hist` must resolve");
+
+			assertEquals(
+				liveExpr.toExpressionString(),
+				inLive.get().valueExpression().toExpressionString(),
+				"LIVE `hist` must carry the live-scope expression"
+			);
+			assertEquals(
+				archivedExpr.toExpressionString(),
+				inArchived.get().valueExpression().toExpressionString(),
+				"ARCHIVED `hist` must carry the archived-scope expression"
+			);
+			assertNotEquals(
+				inLive.get(), inArchived.get(),
+				"Same canonical name in different scopes must not collapse to one definition"
+			);
+		}
+
+		/**
+		 * Verifies consistency between the scope-only lookup and the variant-aware lookup: for a
+		 * histogram's canonical name under the CAMEL_CASE convention, both accessors must return
+		 * the exact same {@link HistogramIndexDefinition} instance.
+		 */
+		@Test
+		@DisplayName("should agree with scope-only lookup for canonical camelCase name")
+		void shouldAgreeWithScopeOnlyLookupForCanonicalCamelCaseName() {
+			final String canonicalName = "priceHistogram";
+			final ReferenceSchema schema = createSchemaWithLiveHistograms(canonicalName);
+
+			final HistogramIndexDefinition viaScopeOnly =
+				schema.getHistogramIndexDefinition(Scope.LIVE, canonicalName);
+			final Optional<HistogramIndexDefinition> viaVariant =
+				schema.getHistogramIndexDefinitionByName(Scope.LIVE, canonicalName, NamingConvention.CAMEL_CASE);
+
+			assertNotNull(viaScopeOnly, "scope-only lookup must find the histogram");
+			assertTrue(viaVariant.isPresent(), "variant-aware lookup must find the histogram");
+			assertSame(
+				viaScopeOnly, viaVariant.get(),
+				"Both lookup paths must return the same definition instance"
+			);
+		}
+
+		/**
+		 * Builds a minimally-valid {@link ReferenceSchema} with a single LIVE-scope histogram that
+		 * uses {@link HistogramIndexDefinition#of(String, Expression)} under the given canonical name.
+		 *
+		 * @param canonicalName the canonical histogram name to register under LIVE
+		 * @return the newly built schema
+		 */
+		@Nonnull
+		private static ReferenceSchema createSchemaWithLiveHistograms(@Nonnull String canonicalName) {
+			final EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap = new EnumMap<>(Scope.class);
+			bucketedMap.put(
+				Scope.LIVE,
+				Map.of(canonicalName, HistogramIndexDefinition.of(canonicalName, null))
+			);
+			return buildBucketedSchema(bucketedMap);
+		}
+
+		/**
+		 * Builds a single-LIVE-scope bucketed schema from a pre-built bucketed map. The reference is
+		 * `brand`, zero-or-one cardinality, indexed FOR_FILTERING in LIVE only.
+		 *
+		 * @param bucketedMap the per-scope bucketed histogram map
+		 * @return the newly built schema
+		 */
+		@Nonnull
+		private static ReferenceSchema buildBucketedSchema(
+			@Nonnull EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap
+		) {
+			return ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING),
+				ReferenceSchema.defaultIndexedComponents(
+					Map.of(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+		}
+
+		/**
+		 * Builds a multi-scope bucketed schema. Every provided scope is indexed FOR_FILTERING so
+		 * that the bucketed state passes validation. The bucketed map is passed through verbatim.
+		 *
+		 * @param bucketedMap the per-scope bucketed histogram map
+		 * @param scopes      the scopes to register as indexed FOR_FILTERING
+		 * @return the newly built schema
+		 */
+		@Nonnull
+		private static ReferenceSchema buildBucketedSchemaForScopes(
+			@Nonnull EnumMap<Scope, Map<String, HistogramIndexDefinition>> bucketedMap,
+			@Nonnull Scope... scopes
+		) {
+			final EnumMap<Scope, ReferenceIndexType> indexedInScopes = new EnumMap<>(Scope.class);
+			for (final Scope scope : scopes) {
+				indexedInScopes.put(scope, ReferenceIndexType.FOR_FILTERING);
+			}
+			return ReferenceSchema._internalBuild(
+				"brand",
+				NamingConvention.generate("brand"),
+				null, null, Cardinality.ZERO_OR_ONE,
+				"Brand",
+				Collections.emptyMap(),
+				true,
+				null,
+				Collections.emptyMap(),
+				false,
+				indexedInScopes,
+				ReferenceSchema.defaultIndexedComponents(indexedInScopes),
+				Collections.emptySet(),
+				Collections.emptyMap(),
+				bucketedMap,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
 		}
 	}
 }

@@ -315,13 +315,15 @@ final class ReferenceHistogramAccumulator {
 		final PrimitiveIterator.OfInt groupPkIt = groupPks.iterator();
 		while (groupPkIt.hasNext()) {
 			final int groupPk = groupPkIt.nextInt();
-			// invariant: group PK `0` is reserved as the non-grouped sentinel in the downstream
-			// `histogramsByGroupKey` map and in `buildGroupEntity`; a real group PK of `0` would
-			// collide with that slot and silently swallow the grouped histogram
+			// invariant: group PK `0` is reserved as the non-grouped sentinel across the reference
+			// histogram subsystem (both in `histogramsByGroupKey` / `buildGroupEntity` here and in
+			// `HistogramRequest.NON_GROUPED_SENTINEL` / `ResolvedHistogramHaving.NON_GROUPED_SENTINEL`
+			// on the request side); a real group PK of `0` would collide with that slot and silently
+			// swallow the grouped histogram
 			if (groupPk == 0) {
 				throw new GenericEvitaInternalError(
-					"Group primary key must be a positive integer — PK `0` is reserved as the " +
-						"non-grouped sentinel. Got: 0 for reference `" + referenceName + "`."
+					"Group primary key must be non-zero — PK `0` is reserved as the non-grouped " +
+						"sentinel. Got: 0 for reference `" + referenceName + "`."
 				);
 			}
 			final int[] rgeiPks = rtei.getAllReferenceIndexes(groupPk);
@@ -963,18 +965,26 @@ final class ReferenceHistogramAccumulator {
 			// collect (entityType, entityFetchKey) → RoaringBitmapWriter of PKs; entityFetchKey is
 			// the EntityFetch reference (or a sentinel) so identical fetches collapse to one call
 			final Map<FetchTuple, RoaringBitmapWriter<RoaringBitmap>> pksByTuple = new LinkedHashMap<>();
+			// defensive tracker: detects the contract violation where the same (entityType, pk) is
+			// registered under two different EntityFetch references — would otherwise cause the
+			// second fetch to clobber the first entry in the output map and potentially under-fetch
+			final Map<String, Map<Integer, FetchTuple>> firstTupleByTypeAndPk = new HashMap<>();
 			for (final PendingHistogram ph : pending) {
 				final BoundaryPks bounds = ph.boundaryPks();
 				if (bounds.entityType() == null) {
 					continue;
 				}
 				final FetchTuple tuple = new FetchTuple(bounds.entityType(), ph.request().entityFetch());
+				final Map<Integer, FetchTuple> seenForType = firstTupleByTypeAndPk
+					.computeIfAbsent(tuple.entityType(), k -> new HashMap<>());
 				if (bounds.minPk() != null) {
+					assertSameFetchTuple(seenForType, tuple, bounds.minPk());
 					pksByTuple.computeIfAbsent(tuple, k -> RoaringBitmapBackedBitmap.buildWriter())
 						.add(bounds.minPk());
 				}
 				if (bounds.maxPk() != null
 					&& (bounds.minPk() == null || bounds.maxPk().intValue() != bounds.minPk().intValue())) {
+					assertSameFetchTuple(seenForType, tuple, bounds.maxPk());
 					pksByTuple.computeIfAbsent(tuple, k -> RoaringBitmapBackedBitmap.buildWriter())
 						.add(bounds.maxPk());
 				}
@@ -1022,6 +1032,31 @@ final class ReferenceHistogramAccumulator {
 			}
 			final Map<Integer, SealedEntity> byPk = this.byTypeThenPk.get(entityType);
 			return byPk == null ? null : byPk.get(pk);
+		}
+
+		/**
+		 * Defensive guard: enforces the translator-level contract that within a single reference summary
+		 * fabrication the same `(entityType, pk)` pair must never appear under two different
+		 * {@link FetchTuple}s. Since {@code FetchTuple} uses reference-identity semantics on
+		 * {@link EntityFetch}, a collision means the same boundary PK was registered twice with
+		 * structurally distinct fetch requirements — which would silently clobber one fetch's entity
+		 * under the other in {@link #byTypeThenPk} and potentially under-fetch. Throws immediately so
+		 * the contract breach surfaces at the first violating histogram rather than as mystery data loss.
+		 */
+		private static void assertSameFetchTuple(
+			@Nonnull Map<Integer, FetchTuple> seenForType,
+			@Nonnull FetchTuple tuple,
+			int pk
+		) {
+			final FetchTuple prior = seenForType.putIfAbsent(pk, tuple);
+			if (prior != null && prior.entityFetch() != tuple.entityFetch()) {
+				throw new GenericEvitaInternalError(
+					"Boundary PK " + pk + " for entity type `" + tuple.entityType() +
+						"` is registered under two distinct EntityFetch instances — the histogram " +
+						"translator contract requires identical entityFetch references for duplicate " +
+						"registrations."
+				);
+			}
 		}
 
 		/**

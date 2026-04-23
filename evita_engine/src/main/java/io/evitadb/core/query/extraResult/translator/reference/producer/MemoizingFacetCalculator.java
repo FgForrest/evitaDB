@@ -36,7 +36,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.util.Arrays;
 
 /**
  * Single implementation of both interfaces {@link FacetCalculator} and {@link ImpactCalculator}. The class computes
@@ -109,8 +108,9 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	@Nullable
 	@Override
 	public RequestImpact calculateImpact(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, boolean required, @Nonnull Bitmap[] facetEntityIds) {
+		final ImpactFormulaGenerator generator = this.impactFormulaGenerator;
 		// create formula that would capture the requested facet selected
-		final Formula hypotheticalFormula = this.impactFormulaGenerator.generateFormula(
+		final Formula hypotheticalFormula = generator.generateFormula(
 			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);
 		// initialize the formula
@@ -123,7 +123,7 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 			difference,
 			hypotheticalCount,
 			hypotheticalCount > 0 &&
-				(difference != 0 || this.impactFormulaGenerator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
+				(difference != 0 || generator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
 		);
 	}
 
@@ -142,11 +142,13 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 	@Nonnull
 	@Override
 	public Formula createGroupCountFormula(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer facetGroupId, @Nonnull Bitmap[] facetEntityIds) {
-		final Formula allFacetEntityIds = FormulaFactory.or(
-			Arrays.stream(facetEntityIds)
-				.map(ConstantFormula::new)
-				.toArray(Formula[]::new)
-		);
+		// build ConstantFormula[] with a sized loop — avoids Stream + Spliterator + lambda allocations on the hot path
+		final int facetEntityIdsLength = facetEntityIds.length;
+		final Formula[] constants = new Formula[facetEntityIdsLength];
+		for (int i = 0; i < facetEntityIdsLength; i++) {
+			constants[i] = new ConstantFormula(facetEntityIds[i]);
+		}
+		final Formula allFacetEntityIds = FormulaFactory.or(constants);
 		final Formula hypotheticalFormula;
 		if (this.baseFormulaWithoutUserFilter == null) {
 			hypotheticalFormula = allFacetEntityIds;

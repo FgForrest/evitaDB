@@ -551,12 +551,17 @@ public class EntitySchemaConverter {
 		if (!bucketedInScopes.isEmpty()) {
 			for (final Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedInScopes.entrySet()) {
 				for (final Entry<String, HistogramIndexDefinition> entry : scopeEntry.getValue().entrySet()) {
+					final HistogramIndexDefinition definition = entry.getValue();
 					final GrpcScopedHistogramIndexDefinition.Builder bhBuilder = GrpcScopedHistogramIndexDefinition.newBuilder()
 						.setScope(EvitaEnumConverter.toGrpcScope(scopeEntry.getKey()))
-						.setNameOfTheIndex(entry.getValue().nameOfTheIndex());
-					if (entry.getValue().valueExpression() != null) {
+						.setNameOfTheIndex(definition.nameOfTheIndex());
+					definition.nameVariants().forEach(
+						(namingConvention, nameVariant) ->
+							bhBuilder.addNameVariants(toGrpcNameVariant(namingConvention, nameVariant))
+					);
+					if (definition.valueExpression() != null) {
 						bhBuilder.setValueExpression(
-							StringValue.of(entry.getValue().valueExpression().toExpressionString())
+							StringValue.of(definition.valueExpression().toExpressionString())
 						);
 					}
 					builder.addBucketed(bhBuilder);

@@ -56,9 +56,11 @@ public record ResolvedHistogramHaving(
 
 	/**
 	 * Sentinel group primary key used when a `histogramHaving` omits its `groupSelector`. Kept in sync with
-	 * {@code ReferenceSummaryProducer.HistogramRequest#NON_GROUPED_SENTINEL}; a negative value guarantees
-	 * disjointness from any legitimate entity primary key (entity PKs are non-negative).
+	 * {@code ReferenceSummaryProducer.HistogramRequest#NON_GROUPED_SENTINEL}. evitaDB reserves the value `0`
+	 * as the non-grouped sentinel across the entire reference histogram subsystem — client-supplied primary
+	 * keys (which may otherwise be any `int`, including negatives) must never be `0` when used as a group
+	 * entity PK, and the accumulator enforces this with a hard throw.
 	 */
-	public static final int NON_GROUPED_SENTINEL = -1;
+	public static final int NON_GROUPED_SENTINEL = 0;
 
 }

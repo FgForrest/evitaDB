@@ -243,13 +243,18 @@ public abstract class SchemaJsonSerializer {
 			referenceSchema.getAllHistogramIndexDefinitions();
 		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> scopeEntry : bucketedHistogramDefinitions.entrySet()) {
 			for (final Map.Entry<String, HistogramIndexDefinition> entry : scopeEntry.getValue().entrySet()) {
+				final HistogramIndexDefinition definition = entry.getValue();
 				final ObjectNode bucketedHistogramNode = this.objectJsonSerializer.objectNode();
 				bucketedHistogramNode.put(ScopedDataDescriptor.SCOPE.name(), scopeEntry.getKey().name());
 				bucketedHistogramNode.put(
 					ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(),
-					entry.getValue().nameOfTheIndex()
+					definition.nameOfTheIndex()
 				);
-				final Expression valueExpression = entry.getValue().valueExpression();
+				bucketedHistogramNode.set(
+					ScopedHistogramIndexDefinitionDescriptor.NAME_VARIANTS.name(),
+					serializeNameVariants(definition.nameVariants())
+				);
+				final Expression valueExpression = definition.valueExpression();
 				if (valueExpression != null) {
 					bucketedHistogramNode.put(
 						ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),

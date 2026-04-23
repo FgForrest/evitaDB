@@ -31,10 +31,15 @@ import java.util.List;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullRef;
 
 /**
  * Descriptor representing scope-specific bucketed histogram configuration of a reference.
  * It is used to represent both input ({@link ScopedHistogramIndexDefinition}) in mutations and output in schemas.
+ *
+ * The output variant additionally exposes {@code nameVariants} — server-generated name
+ * translations in all supported naming conventions. Name variants are never accepted from
+ * clients, so they do not appear on the input variant.
  *
  * Note: this descriptor has static structure.
  *
@@ -49,6 +54,18 @@ public interface ScopedHistogramIndexDefinitionDescriptor extends ScopedDataDesc
 			in queries and must be unique within the scope of the reference schema.
 			""")
 		.type(nonNull(String.class))
+		.build();
+
+	PropertyDescriptor NAME_VARIANTS = PropertyDescriptor.builder()
+		.name("nameVariants")
+		.description("""
+			Map contains the `nameOfTheIndex` variants in different naming conventions. The name
+			is guaranteed to be unique among other histogram indexes in same convention. These names
+			are used to quickly translate to / from names used in different protocols. Each API
+			protocol prefers names in different naming conventions. Server-generated — never
+			accepted from client input.
+			""")
+		.type(nonNullRef(NameVariantsDescriptor.THIS))
 		.build();
 
 	PropertyDescriptor VALUE_EXPRESSION = PropertyDescriptor.builder()
@@ -66,10 +83,12 @@ public interface ScopedHistogramIndexDefinitionDescriptor extends ScopedDataDesc
 		.description("""
 			Represents combination of a bucketed histogram configuration and the entity scope it applies to.
 			""")
-		.staticProperties(List.of(SCOPE, NAME_OF_THE_INDEX, VALUE_EXPRESSION))
+		.staticProperties(List.of(SCOPE, NAME_OF_THE_INDEX, NAME_VARIANTS, VALUE_EXPRESSION))
 		.build();
 
-	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS)
+	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
 		.name("InputScopedHistogramIndexDefinition")
+		.description(THIS.description())
+		.staticProperties(List.of(SCOPE, NAME_OF_THE_INDEX, VALUE_EXPRESSION))
 		.build();
 }

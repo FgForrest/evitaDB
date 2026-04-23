@@ -472,6 +472,16 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 							def.nameOfTheIndex()
 						)
 						.e(
+							ScopedHistogramIndexDefinitionDescriptor.NAME_VARIANTS.name(),
+							map()
+								.e(NameVariantsDescriptor.CAMEL_CASE.name(), def.getNameVariant(NamingConvention.CAMEL_CASE))
+								.e(NameVariantsDescriptor.PASCAL_CASE.name(), def.getNameVariant(NamingConvention.PASCAL_CASE))
+								.e(NameVariantsDescriptor.SNAKE_CASE.name(), def.getNameVariant(NamingConvention.SNAKE_CASE))
+								.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), def.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
+								.e(NameVariantsDescriptor.KEBAB_CASE.name(), def.getNameVariant(NamingConvention.KEBAB_CASE))
+								.build()
+						)
+						.e(
 							ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
 							valueExpression != null ? valueExpression.toExpressionString() : null
 						)

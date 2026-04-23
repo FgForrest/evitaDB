@@ -46,7 +46,6 @@ import java.util.Objects;
 
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
-import static java.util.Optional.ofNullable;
 
 /**
  * This implementation contains the heavy part of {@link ImpactCalculator} interface implementation. It computes
@@ -95,10 +94,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		final String referenceName = referenceSchema.getName();
 		// when facetGroupId is null, we use Integer.MIN_VALUE as a placeholder because IntSet can't work with nulls
 		// we're risking that someone will have facet group with such id, but it's very unlikely
-		final int normalizedFacetGroupId = ofNullable(facetGroupId).orElse(Integer.MIN_VALUE);
-		boolean found = ofNullable(this.facetGroupsInUserFilter.get(referenceName))
-			.map(it -> it.contains(normalizedFacetGroupId))
-			.orElse(false);
+		final int normalizedFacetGroupId = facetGroupId == null ? Integer.MIN_VALUE : facetGroupId;
+		final IntSet groupsForReference = this.facetGroupsInUserFilter.get(referenceName);
+		final boolean found = groupsForReference != null && groupsForReference.contains(normalizedFacetGroupId);
 
 		// if we didn't find the facet group in the user filter, we can use the generic formula
 		final CacheKey key = found ?
@@ -121,9 +119,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 			);
 			// the generation may have been the first time we've seen the formula, so the facetGroupsInUserFilter
 			// may not contain the referenceName yet, and we have to repeat the look-up
-			boolean foundAtLast = ofNullable(this.facetGroupsInUserFilter.get(referenceName))
-				.map(it -> it.contains(normalizedFacetGroupId))
-				.orElse(false);
+			final IntSet groupsForReferenceAtLast = this.facetGroupsInUserFilter.get(referenceName);
+			final boolean foundAtLast = groupsForReferenceAtLast != null
+				&& groupsForReferenceAtLast.contains(normalizedFacetGroupId);
 			final CacheKey cacheKey = foundAtLast ?
 				new CacheKey(referenceName, relationType, normalizedFacetGroupId) :
 				new CacheKey(null, relationType, null);
@@ -136,11 +134,12 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	protected boolean handleFormula(@Nonnull Formula formula) {
 		// if the examined formula is facet group formula matching the same facet `entityType` and `facetGroupId`
 		if (isInsideUserFilter() && formula instanceof FacetGroupFormula oldFacetGroupFormula) {
-			// register the facet group formula in the index
+			// register the facet group formu   la in the index
+			final Integer oldFacetGroupId = oldFacetGroupFormula.getFacetGroupId();
 			this.facetGroupsInUserFilter.computeIfAbsent(
 				oldFacetGroupFormula.getReferenceName(),
 				s -> new IntHashSet(16)
-			).add(ofNullable(oldFacetGroupFormula.getFacetGroupId()).orElse(Integer.MIN_VALUE));
+			).add(oldFacetGroupId == null ? Integer.MIN_VALUE : oldFacetGroupId);
 
 			// now process it for current facet as well
 			if (Objects.equals(this.referenceSchema.getName(), oldFacetGroupFormula.getReferenceName()) &&
@@ -163,9 +162,10 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 
 	@Override
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
-		final Boolean wasFoundInTheUserFilter = ofNullable(this.facetGroupsInUserFilter.get(this.referenceSchema.getName()))
-			.map(it -> it.contains(ofNullable(this.facetGroupId).orElse(Integer.MIN_VALUE)))
-			.orElse(false);
+		final IntSet groupsForReference = this.facetGroupsInUserFilter.get(this.referenceSchema.getName());
+		final int normalizedFacetGroupId = this.facetGroupId == null ? Integer.MIN_VALUE : this.facetGroupId;
+		final boolean wasFoundInTheUserFilter = groupsForReference != null
+			&& groupsForReference.contains(normalizedFacetGroupId);
 
 		if (wasFoundInTheUserFilter) {
 			// we've already enriched existing formula with new formula - let the logic continue without modification

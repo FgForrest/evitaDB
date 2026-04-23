@@ -499,9 +499,12 @@ message GrpcScopedHistogramIndexDefinition {
   GrpcEntityScope scope = 1;
   // The name identifying the histogram index.
   string nameOfTheIndex = 2;
+  // Server-generated variants of nameOfTheIndex in different naming conventions.
+  // Populated only on schema output; ignored when present on mutation input.
+  repeated GrpcNameVariant nameVariants = 3;
   // The expression computing the histogram bucket value for each referenced entity.
   // When absent (not set), no value expression is defined for this scope.
-  google.protobuf.StringValue valueExpression = 3;
+  google.protobuf.StringValue valueExpression = 4;
 }
 
 // Message representing a per-scope expression that narrows which entities participate
