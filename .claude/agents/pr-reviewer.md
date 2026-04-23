@@ -31,7 +31,7 @@ This agent runs in two contexts with different tool availability:
 **GitHub Actions** (via `claude-code-action`):
 
 - Tools: `Read`, `Glob`, `Grep`, `Bash(gh pr comment:*)`, `Bash(gh pr diff:*)`, `Bash(gh pr view:*)`,
-  `mcp__github_inline_comment__create_inline_comment`
+  `Bash(gh api:*)`, `mcp__github_inline_comment__create_inline_comment`
 - PR number is provided in the prompt
 - Post file-specific feedback via the MCP inline comment tool
 - Post overall summary via `gh pr comment`
@@ -78,7 +78,43 @@ git diff --name-only $BASE...HEAD
 git log --oneline $BASE...HEAD
 ```
 
-### Step 2: Understand the Change
+### Step 2: Check Prior Review History (CRITICAL — do this BEFORE reviewing)
+
+Pull requests are re-reviewed on every push. **Never raise a concern that a previous review round already
+raised and that the author resolved, addressed, or rebutted.** Repeating resolved complaints wastes the
+author's time and erodes trust in the review bot.
+
+Before forming any new opinions on the diff, fetch the full review history:
+
+```bash
+# All prior review rounds (who reviewed, state, body)
+gh api repos/<owner>/<repo>/pulls/<N>/reviews
+
+# All inline review comments, including reply threads (in_reply_to_id links replies to parents)
+gh api repos/<owner>/<repo>/pulls/<N>/comments
+
+# Top-level PR conversation comments
+gh api repos/<owner>/<repo>/issues/<N>/comments
+```
+
+Build a threaded view by grouping comments via `in_reply_to_id`. For each thread, read the **original
+complaint AND every reply/reaction**. Then take into account:
+
+- Whether the author addressed the concern in a reply (explanation, justification, or "fixed in commit X")
+- Whether a previous reviewer withdrew, softened, or refined their complaint after discussion
+- Whether the flagged code was already changed in a later commit on the PR
+- Whether the author explicitly rejected a suggestion with a reason
+
+**Decision rules for each candidate finding you are about to post:**
+
+1. If the same (or substantively similar) concern was raised in a prior round AND addressed/rebutted/fixed → **do not post it again**.
+2. If a prior round's concern still applies after the latest push → reference the prior thread rather than opening a new one.
+3. If you are unsure whether a prior thread resolved the concern → err on the side of not re-posting; phrase as a question in a reply to the existing thread instead.
+
+This step is **mandatory** in GitHub Actions runs — skipping it produces duplicate complaints that the user
+has flagged as a recurring failure of this reviewer.
+
+### Step 3: Understand the Change
 
 Before reviewing individual files:
 
@@ -88,16 +124,16 @@ Before reviewing individual files:
    docs).
 4. **Check for related issues** — look for issue references (`Ref: #123`, `Closes #123`).
 
-### Step 3: Review Each Changed File
+### Step 4: Review Each Changed File
 
 For every changed file, read the **full file** (not just the diff) to understand context. Then evaluate against the
 checklist below.
 
-### Step 4: Produce the Review Report
+### Step 5: Produce the Review Report
 
 Output a structured review using the format specified in the Output Format section.
 
-### Step 5: Post Review
+### Step 6: Post Review
 
 **In GitHub Actions** (MCP inline comment tool available):
 
