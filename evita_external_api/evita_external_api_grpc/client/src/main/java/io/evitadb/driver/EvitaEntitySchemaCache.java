@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -90,6 +91,13 @@ class EvitaEntitySchemaCache {
 	 */
 	private final AtomicInteger lastKnownCatalogSchemaVersion = new AtomicInteger(0);
 	/**
+	 * Tracks whether the cache has ever been populated with values retrieved from the server.
+	 * Zero is a legitimate catalog version for a catalog in the warming-up state, so the value
+	 * alone cannot distinguish "uninitialized" from "a genuine zero"; callers use this flag to
+	 * force the first server round-trip when no request has updated the cache yet.
+	 */
+	private final AtomicBoolean initialized = new AtomicBoolean(false);
+	/**
 	 * Contains the references to entity schemas indexed by their {@link EntitySchema#getName()}.
 	 */
 	private final Map<SchemaCacheKey, SchemaWrapper> cachedSchemas = new ConcurrentHashMap<>(64);
@@ -113,6 +121,7 @@ class EvitaEntitySchemaCache {
 	 */
 	public void updateLastKnownCatalogVersion(long version) {
 		this.lastKnownCatalogVersion.set(version);
+		this.initialized.set(true);
 	}
 
 	/**
@@ -123,6 +132,7 @@ class EvitaEntitySchemaCache {
 	public void updateLastKnownCatalogVersion(long version, int catalogSchemaVersion) {
 		this.lastKnownCatalogVersion.set(version);
 		this.lastKnownCatalogSchemaVersion.set(catalogSchemaVersion);
+		this.initialized.set(true);
 	}
 
 	/**
@@ -132,6 +142,24 @@ class EvitaEntitySchemaCache {
 	 */
 	public long getLastKnownCatalogVersion() {
 		return this.lastKnownCatalogVersion.get();
+	}
+
+	/**
+	 * Returns the last known catalog schema version.
+	 *
+	 * @return the last known catalog schema version
+	 */
+	public int getLastKnownCatalogSchemaVersion() {
+		return this.lastKnownCatalogSchemaVersion.get();
+	}
+
+	/**
+	 * Returns TRUE when the cache has ever been populated with values retrieved from the server.
+	 * Used to decide whether `getCatalogVersion` and related accessors need to force a server
+	 * round-trip before returning cached values.
+	 */
+	public boolean isInitialized() {
+		return this.initialized.get();
 	}
 
 	/**

@@ -176,6 +176,11 @@ message GrpcGetCatalogSchemaRequest {
 message GrpcCatalogSchemaResponse {
   // The current catalog schema.
   GrpcCatalogSchema catalogSchema = 1;
+  // The current catalog version (data version, incremented with each transaction commit).
+  // Zero for catalogs that are in the warming-up state.
+  int64 catalogVersion = 2;
+  // The current catalog schema version.
+  int32 catalogSchemaVersion = 3;
 }
 
 // Request for acquiring the schema of a specific entity type.

@@ -25,6 +25,7 @@ package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.core.transaction.stage.ConflictResolutionAndWalAppendingTransactionStage.ConflictResolutionAndWalAppendingTransactionTask;
@@ -173,11 +174,20 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 			return null;
 		}).when(synchronousExecutor).execute(any(Runnable.class));
 
+		// the stage's diagnostic logging on the failure path reads first/last WAL versions through
+		// the living catalog; getLivingCatalog() is @Nonnull so we must return a real (mocked)
+		// Catalog, and the two mutation-stream accessors must return sane numeric values
+		final Catalog livingCatalog = mock(Catalog.class);
+		when(livingCatalog.getFirstCatalogVersionInMutationStream()).thenAnswer(inv -> -1L);
+		when(livingCatalog.getLastCatalogVersionInMutationStream()).thenAnswer(inv -> lastWritten.get());
+
 		final TransactionManager tm = mock(TransactionManager.class);
 		when(tm.getCatalogName()).thenReturn(CATALOG_NAME);
 		when(tm.getLastAssignedCatalogVersion()).thenAnswer(inv -> lastAssigned.get());
 		when(tm.getNextCatalogVersionToAssign()).thenAnswer(inv -> lastAssigned.incrementAndGet());
 		when(tm.getLastWrittenCatalogVersion()).thenAnswer(inv -> lastWritten.get());
+		when(tm.getLastFinalizedCatalogVersion()).thenAnswer(inv -> lastWritten.get());
+		when(tm.getLivingCatalog()).thenReturn(livingCatalog);
 		when(tm.addDeltaAndEstimateCatalogSchemaVersion(anyInt())).thenReturn(0);
 		when(tm.getRequestExecutor()).thenReturn(synchronousExecutor);
 		// registerPendingCommitProgress is a void method on a mock — Mockito's default behaviour is

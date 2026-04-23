@@ -355,19 +355,82 @@ public class TransactionManager implements Closeable {
 		this.lastFinalizedCatalog = new AtomicReference<>(catalog);
 		this.livingCatalog = new AtomicReference<>(catalog);
 		this.catalogName = catalog.getName();
-		// fetch from the persistence store initially - might be greater than current version
-		this.lastAssignedCatalogVersion = new AtomicLong(catalogVersion);
+
+		// The WAL is the source of truth for "what catalog versions have been written". The persisted
+		// catalog header (catalogVersion) only tracks the last *finalized* version. If the server
+		// crashed after a transaction was appended to the WAL but before the trunk-incorporation
+		// stage could persist the new header, the WAL will be ahead. In that case we must seed
+		// lastAssigned / lastWritten from the WAL — otherwise processEntireWriteAheadLog() advances
+		// only lastFinalized, leaving lastAssigned / lastWritten stuck at the header version, and the
+		// very next user transaction reserves a version that is already durable in the WAL, tripping
+		// the "Invalid catalog version / expected N+1, got N" assertion in CurrentMutationLogFile.
+		final long walLastWrittenVersion = catalog.getLastCatalogVersionInMutationStream();
+		final long walFirstWrittenVersion = catalog.getFirstCatalogVersionInMutationStream();
+		final long bootstrapAssignedVersion = Math.max(catalogVersion, walLastWrittenVersion);
+
+		this.lastAssignedCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
 		this.lastCatalogSchemaVersion = new AtomicInteger(catalog.getSchema().version());
 		this.accumulatedCatalogSchemaVersionDelta = new AtomicInteger(0);
-		this.lastWrittenCatalogVersion = new AtomicLong(this.lastAssignedCatalogVersion.get());
-		// this is the catalog version really used (propagated in indexes)
+		this.lastWrittenCatalogVersion = new AtomicLong(bootstrapAssignedVersion);
+		// this is the catalog version really used (propagated in indexes) - WAL replay will advance
+		// this to match lastWritten before any new transactions can be accepted
 		this.lastFinalizedCatalogVersion = new AtomicLong(catalog.getVersion());
 		this.lastFinalizedCatalogVersionSchemaDelta = new ConcurrentSkipListSet<>();
 
 		Assert.isPremiseValid(
 			this.lastWrittenCatalogVersion.get() >= this.lastAssignedCatalogVersion.get(),
-			"The last finalized catalog version must be greater or equal to last assigned catalog version!"
+			"The last written catalog version must be greater or equal to last assigned catalog version!"
 		);
+
+		// baseline INFO log - always emitted so operators have an anchor point for "normal"
+		// bootstrap state; any subsequent runtime divergence can be correlated against this line
+		log.info(
+			"TransactionManager bootstrapping catalog `{}`: catalogVersion={}, " +
+				"walFirstVersionInCurrentFile={}, walLastWrittenVersion={}, " +
+				"seededLastAssigned={}, catalogSchemaVersion={}.",
+			this.catalogName,
+			catalogVersion,
+			walFirstWrittenVersion,
+			walLastWrittenVersion,
+			bootstrapAssignedVersion,
+			this.lastCatalogSchemaVersion.get()
+		);
+
+		// highlight the "WAL ahead of header" case so the replay/seeding is visible in ops logs
+		if (walLastWrittenVersion > catalogVersion) {
+			log.warn(
+				"Catalog `{}` header version {} is behind the WAL (last written version {}). " +
+					"{} transaction(s) will be replayed and the assigned/written counters have " +
+					"been seeded from the WAL to avoid re-using versions already persisted there.",
+				this.catalogName,
+				catalogVersion,
+				walLastWrittenVersion,
+				walLastWrittenVersion - catalogVersion
+			);
+		}
+
+		// sanity-check the bootstrap catalog version against the WAL: the catalog header
+		// should never claim a version higher than the last TransactionMutation actually
+		// persisted in the WAL - that would mean the WAL is truncated / lost / replaced
+		// under a materialized catalog and downstream recovery would silently skip
+		// transactions. The reverse (WAL ahead of the catalog version) is expected -
+		// those transactions are replayed by processEntireWriteAheadLog().
+		if (walLastWrittenVersion > 0L && catalogVersion > walLastWrittenVersion) {
+			log.error(
+				"Catalog `{}` is being bootstrapped with catalog version {} which is " +
+					"ahead of the last version {} written to the Write-Ahead Log " +
+					"(first version in current WAL file: {}). " +
+					"This indicates a WAL/bootstrap-record inconsistency - transactions " +
+					"between {} and {} will be missing from the mutation stream and " +
+					"cannot be replayed. Check bootstrap file integrity and WAL retention.",
+				this.catalogName,
+				catalogVersion,
+				walLastWrittenVersion,
+				walFirstWrittenVersion,
+				walLastWrittenVersion,
+				catalogVersion
+			);
+		}
 
 		this.conflictRingBuffer = new ConflictRingBuffer(
 			this.catalogName,
@@ -607,6 +670,27 @@ public class TransactionManager implements Closeable {
 		this.lastFinalizedCatalogVersionSchemaDelta.add(
 			new FinalizedCatalogVersion(lastFinalizedCatalogVersion, incorporatedCatalogSchemaVersionDelta)
 		);
+
+		// invariant: lastFinalized must never outrun lastWritten. If it does, the TM's bookkeeping
+		// has drifted away from the WAL — typically because lastWritten was seeded only from the
+		// persisted catalog header at bootstrap, and WAL replay advanced lastFinalized without
+		// advancing lastAssigned / lastWritten. Emit a loud one-liner so the next occurrence is
+		// diagnosable without having to reconstruct the state from a pile of surrounding logs.
+		final long theLastWrittenCatalogVersion = getLastWrittenCatalogVersion();
+		if (theLastWrittenCatalogVersion < lastFinalizedCatalogVersion) {
+			log.error(
+				"Catalog `{}` version bookkeeping invariant violated: lastFinalized advanced to {} " +
+					"while lastWritten is still {} (lastAssigned={}). Any subsequent user transaction " +
+					"will reserve a catalog version already durable in the WAL and fail with " +
+					"CatalogWriteAheadLastTransactionMismatchException. This typically means " +
+					"lastWritten/lastAssigned were not seeded from the WAL at bootstrap or a " +
+					"replay path updated lastFinalized without keeping the other counters in sync.",
+				this.catalogName,
+				lastFinalizedCatalogVersion,
+				theLastWrittenCatalogVersion,
+				getLastAssignedCatalogVersion()
+			);
+		}
 	}
 
 	/**

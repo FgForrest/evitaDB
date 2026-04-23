@@ -28,6 +28,7 @@ import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.metric.event.transaction.TransactionAcceptedEvent;
 import io.evitadb.core.metric.event.transaction.TransactionAppendedToWalEvent;
 import io.evitadb.core.metric.event.transaction.TransactionQueuedEvent;
@@ -114,19 +115,30 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 			final CommitVersions commitVersions = resolveConflicts(task, expectedCatalogVersion);
 			droppedCatalogVersions = 1;
 			droppedCatalogSchemaVersionDelta = task.catalogSchemaVersionDelta();
-			try {
-				// then append the transaction to the shared WAL
-				appendToSharedWal(task, commitVersions);
-			} catch (CatalogWriteAheadLastTransactionMismatchException walMismatch) {
-				// the WAL is further ahead than the transaction manager believes — close the whole gap
-				droppedCatalogVersions = Math.toIntExact(
-					walMismatch.getCurrentTransactionVersion() - this.transactionManager.getLastWrittenCatalogVersion()
-				);
-				throw walMismatch;
-			}
-			// WAL append succeeded — the reserved version is now durable
+			// create the WAL append event up-front so it spans the actual append operation;
+			// it is finalized and committed only after the reservation has been cleared below
+			final TransactionAppendedToWalEvent walAppendEvent = new TransactionAppendedToWalEvent(task.catalogName());
+			// then append the transaction to the shared WAL - a CatalogWriteAheadLastTransactionMismatchException
+			// thrown here means the WAL is ahead of the transaction manager and is handled in the outer catch
+			final long writtenLength = appendToSharedWal(task, commitVersions);
+			// WAL append succeeded — the reserved version is now durable, clear the rollback
+			// accounting BEFORE running any post-append bookkeeping (client notification,
+			// last-written-version bump, event commit, push to next stage). Those side-effects
+			// must not trigger a rollback if they fail, because the WAL itself is already durable
+			// and the version cannot be reclaimed without corrupting the mutation stream
 			droppedCatalogVersions = 0;
 			droppedCatalogSchemaVersionDelta = 0;
+			// notify client at this moment that the transaction is safely written to the WAL
+			// the push to next stage might fail, but the WAL is already written
+			task.commitProgress()
+				.complete(
+					CommitBehavior.WAIT_FOR_WAL_PERSISTENCE,
+					commitVersions,
+					this.transactionManager.getRequestExecutor()
+				);
+			this.transactionManager.updateLastWrittenCatalogVersion(commitVersions.catalogVersion());
+			// emit the event
+			walAppendEvent.finish(task.mutationCount() + 1, writtenLength).commit();
 			// and continue with trunk incorporation
 			push(
 				task,
@@ -140,17 +152,158 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				this.publisher
 			);
 		} catch (RuntimeException ex) {
-			// rollback any conflict keys that were tentatively assigned
-			this.transactionManager.rollbackConflictKeys(expectedCatalogVersion);
-			// release the catalog version and schema delta reserved for this transaction (if any)
-			if (droppedCatalogVersions > 0 || droppedCatalogSchemaVersionDelta > 0) {
-				this.transactionManager.notifyCatalogVersionDropped(
-					droppedCatalogVersions,
-					droppedCatalogSchemaVersionDelta
-				);
-			}
+			rollbackFailedTask(
+				task,
+				expectedCatalogVersion,
+				droppedCatalogVersions,
+				droppedCatalogSchemaVersionDelta,
+				ex
+			);
 			// rethrow the exception to be handled by the exception handler
 			throw ex;
+		}
+	}
+
+	/**
+	 * Releases every side-effect accumulated by a task whose processing threw between conflict
+	 * resolution and completion of the WAL append (conflict keys, a reserved catalog version
+	 * and a pending catalog-schema-version delta), and emits a descriptive ERROR line so the
+	 * failure is diagnosable from logs alone.
+	 *
+	 * The rollback is intentionally split across three independent steps (conflict-key release,
+	 * diagnostic log, catalog-version release) that are guarded against each other:
+	 *
+	 * 1. Conflict-key release is unconditional — it never throws and has no dependency on
+	 *    the reservation counters.
+	 * 2. The diagnostic log fires FIRST so that a subsequent failure inside the rollback call
+	 *    (e.g. `Assert.isPremiseValid` in `notifyCatalogVersionDropped` tripping when the TM
+	 *    counters have drifted out of sync with the living catalog) cannot silently replace
+	 *    `ex` and strip the only evidence of the real cause.
+	 * 3. `notifyCatalogVersionDropped` is wrapped in its own try/catch so a secondary failure
+	 *    surfaces as a distinct log line rather than masking the primary exception.
+	 *
+	 * @param task the failed task
+	 * @param expectedCatalogVersion the catalog version the task had tentatively reserved
+	 * @param droppedCatalogVersions the number of versions to release (0 if the task failed
+	 *                               before the reservation was made)
+	 * @param droppedCatalogSchemaVersionDelta the schema-version delta to release
+	 * @param ex the exception that terminated task processing
+	 */
+	private void rollbackFailedTask(
+		@Nonnull ConflictResolutionAndWalAppendingTransactionTask task,
+		long expectedCatalogVersion,
+		int droppedCatalogVersions,
+		int droppedCatalogSchemaVersionDelta,
+		@Nonnull RuntimeException ex
+	) {
+		this.transactionManager.rollbackConflictKeys(expectedCatalogVersion);
+
+		final int adjustedDroppedVersions = widenDroppedVersionsForWalMismatch(droppedCatalogVersions, ex);
+		if (adjustedDroppedVersions > 0 || droppedCatalogSchemaVersionDelta > 0) {
+			logRollbackDiagnostic(task, expectedCatalogVersion, adjustedDroppedVersions, droppedCatalogSchemaVersionDelta, ex);
+			releaseReservedCatalogVersion(task, adjustedDroppedVersions, droppedCatalogSchemaVersionDelta);
+		}
+	}
+
+	/**
+	 * Widens the reservation rollback to cover the whole gap between the TM's `lastWritten`
+	 * counter and the WAL's head whenever the failure was caused by a
+	 * `CatalogWriteAheadLastTransactionMismatchException` — a signal that the WAL is further
+	 * ahead than the TM's bookkeeping believes. For any other exception the caller's original
+	 * count is returned unchanged.
+	 *
+	 * @param currentDroppedVersions the reservation count accumulated before the failure
+	 * @param ex the exception that terminated task processing
+	 * @return the potentially widened number of catalog versions to drop
+	 */
+	private int widenDroppedVersionsForWalMismatch(int currentDroppedVersions, @Nonnull RuntimeException ex) {
+		if (ex instanceof CatalogWriteAheadLastTransactionMismatchException walMismatch) {
+			return Math.toIntExact(
+				walMismatch.getCurrentTransactionVersion() - this.transactionManager.getLastWrittenCatalogVersion()
+			);
+		}
+		return currentDroppedVersions;
+	}
+
+	/**
+	 * Emits a single ERROR line carrying the full TM/WAL state snapshot so the reason for the
+	 * reservation rollback is diagnosable from logs alone. Guarded by its own try/catch: a
+	 * failure in log-argument evaluation (or a logger misconfiguration) must never mask the
+	 * original exception nor prevent the caller's subsequent rollback call from running.
+	 */
+	private void logRollbackDiagnostic(
+		@Nonnull ConflictResolutionAndWalAppendingTransactionTask task,
+		long expectedCatalogVersion,
+		int droppedCatalogVersions,
+		int droppedCatalogSchemaVersionDelta,
+		@Nonnull RuntimeException ex
+	) {
+		try {
+			final Catalog livingCatalog = this.transactionManager.getLivingCatalog();
+			log.error(
+				"Conflict-resolution/WAL-append stage failed for transaction {} on catalog `{}` " +
+					"(reservedCatalogVersion={}, mutationCount={}, walSizeInBytes={}, " +
+					"commitStartTime={}, catalogSchemaVersionDelta={}) - rolling back {} catalog " +
+					"version(s) and {} catalog schema version delta(s); TransactionManager state " +
+					"is lastAssigned={}, lastWritten={}, lastFinalized={}; living catalog version={}; " +
+					"current WAL file holds versions [{}..{}].",
+				task.transactionId(),
+				task.catalogName(),
+				expectedCatalogVersion,
+				task.mutationCount(),
+				task.walSizeInBytes(),
+				task.commitProgress().getCommitStartTime(),
+				task.catalogSchemaVersionDelta(),
+				droppedCatalogVersions,
+				droppedCatalogSchemaVersionDelta,
+				this.transactionManager.getLastAssignedCatalogVersion(),
+				this.transactionManager.getLastWrittenCatalogVersion(),
+				this.transactionManager.getLastFinalizedCatalogVersion(),
+				livingCatalog.getVersion(),
+				livingCatalog.getFirstCatalogVersionInMutationStream(),
+				livingCatalog.getLastCatalogVersionInMutationStream(),
+				ex
+			);
+		} catch (Throwable logFailure) {
+			// the diagnostic itself failed - emit a minimal fallback so the failure path is
+			// still recorded and the logging error does not mask the real exception
+			log.error(
+				"Conflict-resolution/WAL-append stage failed for transaction {} on catalog `{}`; " +
+					"diagnostic logging itself threw, see suppressed exception.",
+				task.transactionId(), task.catalogName(), ex
+			);
+			log.error("Diagnostic logging failure:", logFailure);
+		}
+	}
+
+	/**
+	 * Releases the catalog-version and catalog-schema-version-delta reservation on the
+	 * transaction manager. Guarded by its own try/catch: a secondary failure here (e.g. the
+	 * `lastAssigned < livingCatalog.version` assertion inside `notifyCatalogVersionDropped`,
+	 * the classic "TM drifted below the living catalog" sign) surfaces as a distinct log
+	 * line instead of replacing the original exception in flight.
+	 */
+	private void releaseReservedCatalogVersion(
+		@Nonnull ConflictResolutionAndWalAppendingTransactionTask task,
+		int droppedCatalogVersions,
+		int droppedCatalogSchemaVersionDelta
+	) {
+		try {
+			this.transactionManager.notifyCatalogVersionDropped(
+				droppedCatalogVersions,
+				droppedCatalogSchemaVersionDelta
+			);
+		} catch (Throwable rollbackFailure) {
+			log.error(
+				"Failed to roll back {} reserved catalog version(s) / {} schema delta(s) after " +
+					"the conflict-resolution failure above for transaction {} on catalog `{}`; " +
+					"TransactionManager counters may now be inconsistent with the WAL.",
+				droppedCatalogVersions,
+				droppedCatalogSchemaVersionDelta,
+				task.transactionId(),
+				task.catalogName(),
+				rollbackFailure
+			);
 		}
 	}
 
@@ -218,25 +371,25 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 
 	/**
 	 * Appends a transaction to the shared Write-Ahead Log (WAL) and discards the isolated WAL contents.
-	 * This method ensures the transaction data is safely persisted to the WAL and updates the transaction
-	 * manager's state.
+	 * This method performs only the durable append; post-append bookkeeping (notifying the client,
+	 * bumping the last-written catalog version, committing the WAL-append metric event and pushing
+	 * the task to the next stage) is handled by the caller after the rollback accounting has been
+	 * cleared, so that a failure in those steps does not wrongly roll back a version that is already
+	 * durable in the WAL.
 	 *
 	 * @param task the {@link ConflictResolutionAndWalAppendingTransactionTask} containing details of the transaction,
 	 *             including catalog name, transaction ID, mutation count, WAL reference, and commit progress
+	 * @return the number of bytes written to the WAL
 	 */
-	private void appendToSharedWal(
+	private long appendToSharedWal(
 		@Nonnull ConflictResolutionAndWalAppendingTransactionTask task,
 		@Nonnull CommitVersions commitVersions
 	) {
-		// create WALL appending event
-		final TransactionAppendedToWalEvent walAppendEvent = new TransactionAppendedToWalEvent(task.catalogName());
-
-		log.debug("Appending transaction {} to WAL for catalog {}.", task.transactionId(), task.catalogName());
-
 		// append WAL and discard the contents of the isolated WAL
-		final long writtenLength;
 		try {
-			writtenLength = this.transactionManager.appendWalAndDiscard(
+			log.debug("Appending transaction {} to WAL for catalog {}.", task.transactionId(), task.catalogName());
+
+			return this.transactionManager.appendWalAndDiscard(
 				task.commitProgress().getCommitStartTime(),
 				new TransactionMutation(
 					task.transactionId(),
@@ -248,32 +401,29 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				task.walReference()
 			);
 		} catch (CatalogWriteAheadLastTransactionMismatchException ex) {
+			final Catalog livingCatalog = this.transactionManager.getLivingCatalog();
 			log.error(
-				"Transaction mismatch between transaction manager and WAL {} vs. {} in catalog {}.",
-				ex.getCurrentTransactionVersion(),
-				this.transactionManager.getLastWrittenCatalogVersion(),
+				"Transaction/WAL version mismatch in catalog `{}` - transaction {} (reserved " +
+					"catalogVersion={}, mutationCount={}, walSizeInBytes={}, commitStartTime={}) " +
+					"could not be appended because the WAL reports currentTransactionVersion={} " +
+					"while TransactionManager state is lastAssigned={}, lastWritten={}, " +
+					"lastFinalized={}; current WAL file holds versions [{}..{}].",
 				task.catalogName(),
+				task.transactionId(),
+				commitVersions.catalogVersion(),
+				task.mutationCount(),
+				task.walSizeInBytes(),
+				task.commitProgress().getCommitStartTime(),
+				ex.getCurrentTransactionVersion(),
+				this.transactionManager.getLastAssignedCatalogVersion(),
+				this.transactionManager.getLastWrittenCatalogVersion(),
+				this.transactionManager.getLastFinalizedCatalogVersion(),
+				livingCatalog.getFirstCatalogVersionInMutationStream(),
+				livingCatalog.getLastCatalogVersionInMutationStream(),
 				ex
 			);
 			throw ex;
 		}
-
-		// notify client at this moment that the transaction is safely written to the WAL
-		// the push to next stage might fail, but the WAL is already written
-		task.commitProgress()
-			.complete(
-				CommitBehavior.WAIT_FOR_WAL_PERSISTENCE,
-				commitVersions,
-				this.transactionManager.getRequestExecutor()
-			);
-
-		this.transactionManager.updateLastWrittenCatalogVersion(commitVersions.catalogVersion());
-
-		// emit the event
-		walAppendEvent.finish(
-			task.mutationCount() + 1,
-			writtenLength
-		).commit();
 	}
 
 	/**

@@ -2164,6 +2164,15 @@ public class DefaultCatalogPersistenceService
 	}
 
 	@Override
+	public long getFirstCatalogVersionInMutationStream() {
+		if (this.catalogWal == null) {
+			return -1L;
+		} else {
+			return this.catalogWal.getFirstVersionOfCurrentWalFile();
+		}
+	}
+
+	@Override
 	public void forgetVolatileData() {
 		this.catalogStoragePartPersistenceService.values()
 			.forEach(OffsetIndexStoragePartPersistenceService::forgetVolatileData);

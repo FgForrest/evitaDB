@@ -421,6 +421,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public long getCatalogVersion() {
 		assertActive();
+		// the cache is lazy - when no request has yet brought catalog/schema versions back
+		// from the server (e.g. a brand new client that has only opened a read-only session
+		// and has not issued any schema/query/transaction call), zero would be returned even
+		// for a fully populated catalog; force a server round-trip to populate the cache
+		if (!this.schemaCache.isInitialized()) {
+			fetchCatalogSchema();
+		}
 		return this.schemaCache.getLastKnownCatalogVersion();
 	}
 
@@ -2698,6 +2705,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	/**
 	 * This internal method will physically call over the network and fetch actual {@link CatalogSchema}.
+	 * The response also carries current catalog and catalog schema versions, which are fed back into
+	 * the shared {@link EvitaEntitySchemaCache} so that subsequent calls to {@link #getCatalogVersion()}
+	 * can be served from the cache.
 	 */
 	@Nonnull
 	private CatalogSchema fetchCatalogSchema() {
@@ -2706,6 +2716,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 				evitaSessionService.getCatalogSchema(
 					GrpcGetCatalogSchemaRequest.newBuilder().build()
 				)
+		);
+		this.schemaCache.updateLastKnownCatalogVersion(
+			grpcResponse.getCatalogVersion(),
+			grpcResponse.getCatalogSchemaVersion()
 		);
 		return CatalogSchemaConverter.convert(
 			grpcResponse.getCatalogSchema(), this.clientEntitySchemaAccessor

@@ -1182,10 +1182,11 @@ public final class Catalog
 				transactionMutation -> {
 					final long start = System.nanoTime();
 					final long firstNonProcessedTxVersion = transactionMutation.getVersion();
-					final long nonProcessedTxCount = lastTxVersionRecorded - firstNonProcessedTxVersion;
+					// range [first..last] is inclusive on both ends, so the count is last - first + 1
+					final long nonProcessedTxCount = lastTxVersionRecorded - firstNonProcessedTxVersion + 1;
 					log.info(
-						"Non-processed WAL transaction(s) found for catalog `{}`: {}. Processing it now ...",
-						this.getName(), nonProcessedTxCount
+						"Non-processed WAL transaction(s) found for catalog `{}`: {} (versions {}..{}). Processing it now ...",
+						this.getName(), nonProcessedTxCount, firstNonProcessedTxVersion, lastTxVersionRecorded
 					);
 					final Optional<ProcessResult> processResult = this.transactionManager.processEntireWriteAheadLog(
 						firstNonProcessedTxVersion,
@@ -1214,9 +1215,21 @@ public final class Catalog
 					processResult.ifPresent(
 						pr -> {
 							final Catalog newCatalog = pr.catalog();
+							// post-replay state snapshot: any drift between lastAssigned/lastWritten
+							// and lastFinalized/WAL head after this line is a smoking gun - new user
+							// transactions will immediately collide with the WAL if lastWritten lags
+							// behind either lastFinalized or the WAL's head
 							log.info(
-								"WAL of `{}` catalog was processed in {}.", this.getName(),
-								StringUtils.formatNano(System.nanoTime() - start)
+								"WAL of `{}` catalog was processed in {}. Post-replay state: " +
+									"lastAssigned={}, lastWritten={}, lastFinalized={}, " +
+									"walFirstVersionInCurrentFile={}, walLastWrittenVersion={}.",
+								this.getName(),
+								StringUtils.formatNano(System.nanoTime() - start),
+								this.transactionManager.getLastAssignedCatalogVersion(),
+								this.transactionManager.getLastWrittenCatalogVersion(),
+								this.transactionManager.getLastFinalizedCatalogVersion(),
+								newCatalog.getFirstCatalogVersionInMutationStream(),
+								newCatalog.getLastCatalogVersionInMutationStream()
 							);
 							newCatalog.persistenceService.verifyIntegrity();
 							newCatalog.persistenceService.purgeAllObsoleteFiles();
@@ -1683,6 +1696,16 @@ public final class Catalog
 	 */
 	public long getLastCatalogVersionInMutationStream() {
 		return this.persistenceService.getLastCatalogVersionInMutationStream();
+	}
+
+	/**
+	 * Retrieves the first catalog version present in the current WAL file segment. Primarily useful for diagnostic
+	 * logging that needs to pin down the lower bound of the replay window reachable from the current WAL file.
+	 *
+	 * @return the first catalog version in the current WAL file, or `-1` if the current WAL file is empty
+	 */
+	public long getFirstCatalogVersionInMutationStream() {
+		return this.persistenceService.getFirstCatalogVersionInMutationStream();
 	}
 
 	/**
