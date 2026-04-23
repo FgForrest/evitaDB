@@ -39,7 +39,8 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated Use {@link ReferenceSummary} instead.
  */
-@Deprecated
+// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
+@Deprecated(since = "2026.2", forRemoval = true)
 public class FacetSummary extends ReferenceSummary {
 	@Serial private static final long serialVersionUID = -5622027322997919409L;
 
@@ -134,7 +135,8 @@ public class FacetSummary extends ReferenceSummary {
 	 *
 	 * @deprecated Use {@link ReferenceSummary.ReferenceGroupStatistics} instead.
 	 */
-	@Deprecated
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
+	@Deprecated(since = "2026.2", forRemoval = true)
 	public static class FacetGroupStatistics extends ReferenceGroupStatistics {
 		@Serial private static final long serialVersionUID = 6527695818988488639L;
 

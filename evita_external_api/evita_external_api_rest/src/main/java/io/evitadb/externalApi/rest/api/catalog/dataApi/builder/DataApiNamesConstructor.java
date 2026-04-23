@@ -150,7 +150,7 @@ public class DataApiNamesConstructor {
 		return HistogramStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
 	}
 
-	// TODO: remove when FacetSummary constraint is removed
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538) constraint is removed
 	@Nonnull
 	public static String constructFacetGroupStatisticsObjectName(@Nonnull EntitySchemaContract entitySchema,
 	                                                             @Nonnull ReferenceSchemaContract referenceSchema,
@@ -165,7 +165,7 @@ public class DataApiNamesConstructor {
 		return EntityFacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema, getLocalizedSuffix(localized));
 	}
 
-	// TODO: remove when FacetSummary constraint is removed
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538) constraint is removed
 	@Nonnull
 	public static String constructFacetSummaryObjectName(@Nonnull EntitySchemaContract entitySchema, boolean localized) {
 		return FacetSummaryDescriptor.THIS.name(entitySchema, getLocalizedSuffix(localized));

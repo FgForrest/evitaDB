@@ -143,7 +143,7 @@ import java.util.Optional;
  * )
  * ```
  *
- * TODO lho link?
+ * TODO JNO link?
  * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
  *
  * @see ReferenceSummaryOfReference
@@ -158,7 +158,7 @@ import java.util.Optional;
 @ConstraintDefinition(
 	name = "summary",
 	shortDescription = "The constraint triggers computation of reference summary statistics for all faceted references in the query scope with shared fetching settings.",
-	// TODO lho link?
+	// TODO JNO link?
 	userDocsLink = "/documentation/query/requirements/facet#facet-summary"
 )
 public class ReferenceSummary extends AbstractRequireConstraintContainer

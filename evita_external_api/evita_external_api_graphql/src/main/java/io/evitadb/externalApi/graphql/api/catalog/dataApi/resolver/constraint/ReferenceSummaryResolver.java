@@ -116,7 +116,7 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 		final List<SelectedField> referenceSummaryFields = extraResultsSelectionSet.getImmediateFields(
 			Set.of(
 				ExtraResultsDescriptor.REFERENCE_SUMMARY.name(),
-				ExtraResultsDescriptor.FACET_SUMMARY.name() // TODO: remove this line after FacetSummary constraint is removed
+				ExtraResultsDescriptor.FACET_SUMMARY.name() // TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 			)
 		);
 		if (referenceSummaryFields.isEmpty()) {

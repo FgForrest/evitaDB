@@ -154,7 +154,8 @@ import java.util.Optional;
  * @deprecated Use {@link ReferenceSummary} instead. ReferenceSummary is extended version of the FacetSummary constraint.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Deprecated
+// TOBEDONE: deprecated - remove (https://github.com/FgForrest/evitaDB/issues/538)
+@Deprecated(since = "2026.2", forRemoval = true)
 @ConstraintDefinition(
 	name = "summary",
 	shortDescription = "The constraint triggers computation of facet summary statistics for all faceted references in the query scope with shared fetching settings.",

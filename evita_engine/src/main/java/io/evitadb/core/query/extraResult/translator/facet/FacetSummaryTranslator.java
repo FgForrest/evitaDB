@@ -48,6 +48,7 @@ import javax.annotation.Nullable;
  * @deprecated can be removed after FacetSummary constraint is removed
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 @Deprecated(since = "2026.2", forRemoval = true)
 public class FacetSummaryTranslator implements RequireConstraintTranslator<FacetSummary>, SelfTraversingTranslator {
 

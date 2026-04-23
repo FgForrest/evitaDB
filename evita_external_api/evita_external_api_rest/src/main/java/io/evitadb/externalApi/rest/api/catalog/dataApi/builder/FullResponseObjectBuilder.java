@@ -481,7 +481,7 @@ public class FullResponseObjectBuilder {
 		return histogramIndexNames;
 	}
 
-	// TODO: remove when FacetSummary constraint is removed
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private Optional<OpenApiProperty> buildFacetSummaryProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                            boolean localized) {
@@ -498,7 +498,7 @@ public class FullResponseObjectBuilder {
 		);
 	}
 
-	// TODO: remove when FacetSummary constraint is removed
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private Optional<OpenApiTypeReference> buildFacetSummaryObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                               boolean localized) {
@@ -523,7 +523,7 @@ public class FullResponseObjectBuilder {
 		return Optional.of(this.buildingContext.registerType(facetSummaryObjectBuilder.build()));
 	}
 
-	// TODO: remove when FacetSummary constraint is removed
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private OpenApiProperty buildFacetGroupStatisticsProperty(@Nonnull EntitySchemaContract entitySchema,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema,
@@ -548,7 +548,7 @@ public class FullResponseObjectBuilder {
 			.build();
 	}
 
-	// TODO: remove when FacetSummary constraint is removed
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private OpenApiTypeReference buildFacetGroupStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                             @Nonnull ReferenceSchemaContract referenceSchema,

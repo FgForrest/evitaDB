@@ -690,7 +690,7 @@ public class FullResponseObjectBuilder {
 		return new BuiltFieldDescriptor(groupEntityField, null);
 	}
 
-	// TODO: can be removed when FacetSummary constraint is deprecated
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private Optional<BuiltFieldDescriptor> buildFacetSummaryField(@Nonnull EntitySchemaContract entitySchema) {
 		final Optional<GraphQLObjectType> facetSummaryObject = buildFacetSummaryObject(entitySchema);
@@ -709,7 +709,7 @@ public class FullResponseObjectBuilder {
 		));
 	}
 
-	// TODO: can be removed when FacetSummary constraint is deprecated
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private Optional<GraphQLObjectType> buildFacetSummaryObject(@Nonnull EntitySchemaContract entitySchema) {
 		final List<ReferenceSchemaContract> referenceSchemas = entitySchema
@@ -746,7 +746,7 @@ public class FullResponseObjectBuilder {
 		return Optional.of(facetSummaryObjectBuilder.build());
 	}
 
-	// TODO: can be removed when FacetSummary constraint is deprecated
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private BuiltFieldDescriptor buildFacetGroupStatisticsField(@Nonnull EntitySchemaContract entitySchema,
 	                                                            @Nonnull ReferenceSchemaContract referenceSchema) {
@@ -790,7 +790,7 @@ public class FullResponseObjectBuilder {
 		);
 	}
 
-	// TODO: can be removed when FacetSummary constraint is deprecated
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private GraphQLObjectType buildFacetGroupStatisticsObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                          @Nonnull ReferenceSchemaContract referenceSchema) {
@@ -817,7 +817,7 @@ public class FullResponseObjectBuilder {
 		return facetGroupStatisticsBuilder.build();
 	}
 
-	// TODO: can be removed when FacetSummary constraint is deprecated
+	// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	@Nonnull
 	private BuiltFieldDescriptor buildFacetGroupEntityField(@Nonnull ReferenceSchemaContract referenceSchema) {
 		final EntitySchemaContract groupEntitySchema = referenceSchema.isReferencedGroupTypeManaged() ?
@@ -842,7 +842,7 @@ public class FullResponseObjectBuilder {
 	private BuiltFieldDescriptor buildFacetStatisticsField(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		boolean buildObject // TODO: remove when FacetSummary constraint is removed
+		boolean buildObject // TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	) {
 		final DataLocator facetEntityDataLocator = new EntityDataLocator(
 			referenceSchema.isReferencedEntityTypeManaged()
@@ -871,7 +871,7 @@ public class FullResponseObjectBuilder {
 	private GraphQLOutputType buildFacetStatisticsObject(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		boolean buildObject // TODO: remove when FacetSummary constraint is removed
+		boolean buildObject // TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 	) {
 		if (!buildObject) {
 			return typeRef(EntityFacetStatisticsDescriptor.THIS.name(entitySchema, referenceSchema));

@@ -10315,7 +10315,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("b279b48460da86ca232260da30de183a")
 	@Nonnull
 	static FacetSummary facetSummary() {
@@ -10339,7 +10339,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("6ff5fd5e9ef298d9ab371bfaaf0be53c")
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
@@ -10366,7 +10366,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("4d4f1aa0bdd23775ff9f60cd5608a03b")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10395,7 +10395,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("8870f732516794e5e107ae2f82afbd23")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10428,7 +10428,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("fbbadb7b5d37c1b91cad13a085c3512f")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10461,7 +10461,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("97bddd46753aaae340ebc2fbcb26b981")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10494,7 +10494,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("7ce163f20df1005cca5377b605daab3c")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10525,7 +10525,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("0a62e26c5b95a6aa2016b7f9fc0f9ce8")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10555,7 +10555,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("416fb7edd4896b0417f769d1c2585548")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10585,7 +10585,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("fc3b488b188fc7604b7c1f708df3fbff")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10610,7 +10610,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("7b7c4d485c3aa82d284d7c27bf913bcc")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10629,7 +10629,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("cf7b1db1de2e1172f996696cb59fee5f")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10656,7 +10656,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("6a263c4a352c2bbf289d8331c03aa160")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10677,7 +10677,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("7613d65b0566b0f38bb96b7c559445c2")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10708,7 +10708,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("943d0318a23a9bbc45252550352fb47d")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10738,7 +10738,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("e51ff0f5dabcfcfb48740903b6583070")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10771,7 +10771,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("4c88bb0086094051cfd0dca10969c8a5")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10816,7 +10816,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("eb5f7cca528cde1d94fac7368dda1b63")
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable EntityFetchRequire... requirements) {
@@ -10839,7 +10839,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("4f94a019e1179ee56779f5a8056826e2")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10857,7 +10857,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("2f32030f266096c171cd31b0e05d2124")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10888,7 +10888,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("8b3c2e198f6187dc45a93a26becd98d6")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10919,7 +10919,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("0a58ffb6515ee08d750599e11201c1be")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10948,7 +10948,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("f9d53f9ecd3487f6afa338477df4722d")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10978,7 +10978,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("f4d86828957f8b15f13364d7024cc351")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -10997,7 +10997,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("e1871e1bf32ae260c57f403fb7a4de4b")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11025,7 +11025,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c4762843267c315836c65b05e9558d67")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11052,7 +11052,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("735697c3bfa23f9c815f657787ace946")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11070,7 +11070,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("a088b97fb0147df77153b6fcf7e4975a")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11095,7 +11095,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("1ebd4c7d2fe7d841e5b043c9bd6d2176")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11123,7 +11123,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("64b5751fa5425f656a8b0f55a040b7fa")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11152,7 +11152,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c6ee01706e5e912dc76ab256ce5a4f02")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11179,7 +11179,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("91839eb46ddb6234b40eac61e0c0f33c")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11209,7 +11209,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummary
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c6de73febd52604de3cbb21f8844bdcb")
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -11241,7 +11241,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("4e78aea8ee1ee28e8902026726e66c9b")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityFetchRequire... requirements) {
@@ -11266,7 +11266,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("5428761dbfd45b28757eda959aba0f9e")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityFetchRequire... requirements) {
@@ -11297,7 +11297,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("6ab9542b9d85af05d91b60366c8a9f65")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11332,7 +11332,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("ede4b947263da7ce86196d6c60e0357f")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11368,7 +11368,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("d0617b06c20ac9a3e2d0f13bcb4b26c5")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11401,7 +11401,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("176b2cdd5fc52b3f5a1ad62f8462afc0")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11437,7 +11437,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("73f6e0a71ebf0b693819dff4a0cd0780")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11472,7 +11472,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("5ef41365a00ff03111ceb4881cd13d82")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11494,7 +11494,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("8c892f31d6e474ce5e89a913ea06e24e")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11525,7 +11525,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("1a58d772bd7fbf065ea3c99431655b24")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11546,7 +11546,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("35fd4a069541bd5f7274f0fabe2009b9")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11567,7 +11567,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("af266a1d02473f5b090094185517ab59")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11588,7 +11588,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("d7c25389f3bdb9bb2dcc8cf95c42f7ad")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11621,7 +11621,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c6b5a5ac705187d90d04b303747a2449")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11655,7 +11655,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c58b1640e014dab92defe49ec6fe08ce")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11689,7 +11689,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("426705d57190ebf38a205f0dc0236ce0")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11725,7 +11725,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("dcfe8f70833591fb61121d4bca919a25")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11777,7 +11777,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("905fb2301a5afb116c26e9449495add1")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11810,7 +11810,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("486a5b3c38a00683af151e5bb61143d4")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11831,7 +11831,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("12ecd008112f34be1dfd9f310c9e2232")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11864,7 +11864,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("5de1172be901e054d321545897f1620a")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11886,7 +11886,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("b93463f355149ed7151e950b091ec8e6")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11908,7 +11908,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("418c09ce1e225ce245964b05e749ded5")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11928,7 +11928,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("cc63437a2bf6810996f3d4af9d62adad")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11949,7 +11949,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("c64dd53142a228f969efbe2f09512ee0")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11969,7 +11969,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("e7fb5befe389be22453a614a76ff05a5")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -11998,7 +11998,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("a3263ecefbb83a89e409012c13a66fdf")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12018,7 +12018,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("26ec2cd37ebe49e23f82ec5f306c167b")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12038,7 +12038,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("0d722532dc70ce0b4a414e2442a6013e")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12059,7 +12059,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("467570c5c779d8c4cc8feb9902abac4d")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12080,7 +12080,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("cc477fcbfb6476dd21cf22770ee9d791")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -12112,7 +12112,7 @@ public interface QueryConstraints {
 	 * @see io.evitadb.api.query.require.FacetSummaryOfReference
 	 * @deprecated Use {@code referenceSummary} instead. ReferenceSummary is an extended version of the FacetSummary constraint.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SourceHash("89334d19a21bd5d49286428fbce66549")
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(

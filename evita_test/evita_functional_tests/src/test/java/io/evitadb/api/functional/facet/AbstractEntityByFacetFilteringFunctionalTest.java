@@ -105,6 +105,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+// TOBEDONE: deprecated - remove all facetSummary tests when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 @Slf4j
 public abstract class AbstractEntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
@@ -1422,7 +1423,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnProductsWithHierarchicalFacetSubTreeUsingReferenceSummary} instead. Remove this
 	* method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching hierarchical facet including all its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -1519,7 +1520,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnProductsWithPartialHierarchicalFacetSubTreeUsingReferenceSummary} instead.
 	* Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching hierarchical facet including some of its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -1597,7 +1598,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnProductsWithHierarchicalFacetSubTreeExcludingSomeUsingReferenceSummary} instead.
 	* Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching hierarchical facet excluding some of its children")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -1675,7 +1676,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSet} instead. Remove this method once FacetSummary is
 	* removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -1717,7 +1718,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithPriceFilter} instead. Remove this method once
 	* FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set when price filter is set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -1779,7 +1780,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForPriceAndFacetInUserFilter} instead. Remove this
 	* method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with impact when both price filter and facet selection are in user filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -1842,7 +1843,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForAttributeInUserFilter} instead. Remove this method
 	* once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with impact when attribute filter is in user filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -1894,7 +1895,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryWithImpactForPriceAttributeAndFacetInUserFilter} instead. Remove
 	* this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with impact when price, attribute and facet filters coexist in user filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -1962,7 +1963,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnSortedReferenceStatisticsByPredecessorAttribute} instead. Remove this method
 	* once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return sorted facet statistics by predecessor attribute")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2036,7 +2037,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnProductsWithFacetMatchingConditionInEntireSetUsingReferenceSummary} instead.
 	* Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching facets identified by filter")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2113,7 +2114,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForFilteredSet} instead. Remove this method once FacetSummary is
 	* removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for filtered set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2162,7 +2163,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForFacetFilteredSet} instead. Remove this method once
 	* FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for facet filtered set")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2218,7 +2219,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTree} instead. Remove this method once FacetSummary
 	* is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for hierarchy tree")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2301,7 +2302,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeWithStatistics} instead. Remove this method once
 	* FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for hierarchy with statistics")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2356,7 +2357,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatistics} instead. Remove
 	* this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2389,7 +2390,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForHierarchyTreeWithStatisticsAndInvertedInterFacetRelation}
 	* instead. Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for hierarchy with statistics and inverted inter facet relation")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2447,7 +2448,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedInterFacetRelation} instead.
 	* Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics " +
 		"with inverted inter facet relation")
@@ -2502,7 +2503,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndInvertedFacetGroupRelation} instead.
 	* Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics " +
 		"with inverted facet group relation")
@@ -2565,7 +2566,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* #shouldReturnReferenceSummaryForHierarchyTreeAndParameterFacetWithStatisticsAndNegatedGroupImpact} instead. Remove
 	* this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary with parameter selection for hierarchy with statistics " +
 		"with negated meaning of group")
@@ -2602,7 +2603,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithGroupEntities} instead. Remove this method once
 	* FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with group entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2661,7 +2662,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFacetEntities} instead. Remove this method once
 	* FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with facet entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2720,7 +2721,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithParameterEntities} instead. Remove this method
 	* once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with parameter entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2793,7 +2794,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntitySetWithFacetEntitiesForParameters} instead. Remove this
 	* method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with facet entities for parameters")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2866,7 +2867,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacets} instead. Remove this
 	* method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with filtered and ordered facets")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -2958,7 +2959,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithFilteredAndOrderedFacetGroups} instead. Remove
 	* this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with filtered and ordered facet groups")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -3053,7 +3054,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* #shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirementsWithOnlyDefaultRequirements} instead. Remove
 	* this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with complex entity requirements with only default " +
 		"requirements")
@@ -3125,7 +3126,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnReferenceSummaryForEntireSetWithComplexEntityRequirements} instead. Remove this
 	* method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return facet summary for entire set with complex entity requirements")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -3211,7 +3212,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* #shouldReturnProductsWithSpecifiedFacetGroupExclusiveCombinationInEntireSetUsingReferenceSummary} instead. Remove
 	* this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products matching group EXCLUSIVE combination of facet")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -3295,7 +3296,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	* @deprecated Use {@link #shouldReturnProductsUsingDifferentDefaultFacetRulesUsingReferenceSummary} instead. Remove
 	* this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	@SuppressWarnings("deprecation")
 	@DisplayName("Should return products using different default facet rules")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
@@ -3367,7 +3368,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 *
 	 * @deprecated Use {@link #assertReferenceSummary} instead. Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	private void assertFacetSummary(@Nonnull FacetSummaryWithResultCount expectedSummary,
 	                                @Nullable FacetSummary actualFacetSummary) {
 		assertFacetSummary(
@@ -3383,7 +3384,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 *
 	 * @deprecated Use {@link #assertReferenceSummary} instead. Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	private void assertFacetSummary(
 		@Nonnull FacetSummaryWithResultCount expectedSummary,
 		@Nullable FacetSummary actualFacetSummary,
@@ -3401,7 +3402,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 *
 	 * @deprecated Use {@link #assertReferenceSummary} instead. Remove this method once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	private void assertFacetSummary(
 		@Nonnull FacetSummaryWithResultCount expectedSummary,
 		@Nullable FacetSummary actualFacetSummary,
@@ -3430,7 +3431,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * @deprecated Use {@link #assertReferenceSummaryEntities} instead. Remove this method once FacetSummary is removed.
 	 *
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	private void assertFacetSummaryEntities(
 		@Nonnull FacetSummary facetSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
@@ -3455,7 +3456,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * @deprecated Use {@link #queryParameterReferences} instead. Remove this method once FacetSummary is removed.
 	 *
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	private int queryParameterFacets(
 		EntitySchemaContract productSchema,
 		List<SealedEntity> originalProductEntities,
@@ -3507,14 +3508,14 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * @deprecated Use {@link #ReferenceSummaryWithResultCount} instead. Remove this record once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	private record FacetSummaryWithResultCount(int entityCount, FacetSummary facetSummary) {
 	}
 
 	/**
 	 * @deprecated Use {@link #ReferenceSummaryToStringWrapper} instead. Remove this record once FacetSummary is removed.
 	 */
-	@Deprecated
+	@Deprecated(since = "2026.2", forRemoval = true)
 	private record FacetSummaryToStringWrapper(
 		@Nonnull FacetSummary facetSummary,
 		@Nonnull Function<FacetGroupStatistics, String> groupRenderer,

@@ -53,7 +53,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @deprecated Delete together with {@link FacetSummaryOfReference}. The equivalent tests for
  *             the canonical constraint live in {@code ReferenceSummaryOfReferenceTest}.
  */
-@Deprecated
+// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
+@Deprecated(since = "2026.2", forRemoval = true)
 @DisplayName("FacetSummaryOfReference constraint (deprecated)")
 class FacetSummaryOfReferenceTest {
 
