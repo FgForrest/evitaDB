@@ -145,7 +145,7 @@ final class ReferenceHistogramAccumulator {
 	 *                                       accumulator then falls back to the lowest-PK rule.
 	 */
 	@Nonnull
-	 static <T extends ReferenceGroupStatistics> Map<String, Collection<T>> injectHistograms(
+	static <T extends ReferenceGroupStatistics> Map<String, Collection<T>> injectHistograms(
 		@Nonnull Map<String, Collection<T>> statisticsByReferenceName,
 		@Nonnull Map<String, List<HistogramRequest>> histogramRequestsByReference,
 		@Nullable Formula attributeHistogramBaselineFormula,
@@ -711,6 +711,11 @@ final class ReferenceHistogramAccumulator {
 		final RoaringBitmap intersection = RoaringBitmap.and(candidatesRoaring, inScopeRoaring);
 		if (intersection.isEmpty()) {
 			return null;
+		}
+		// short-circuit when only one PK survives the intersection — the sorter cannot reorder a
+		// single element, so skipping the allocation + sortAndSlice call is a straight win
+		if (intersection.getLongCardinality() == 1L) {
+			return intersection.first();
 		}
 		if (facetSorter != null) {
 			// honours the reference's configured orderBy; PERFORMANCE: sortAndSlice sorts the full

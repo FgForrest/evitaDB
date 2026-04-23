@@ -54,7 +54,6 @@ import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.bitmap.collection.IntegerIntoBitmapCollector;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
@@ -365,33 +364,49 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		final MemoizingFacetCalculator universalCalculator = new MemoizingFacetCalculator(
 			context, this.filterFormula, this.filterFormulaWithoutUserFilter
 		);
-		// fabrication is a little transformation hell
 		final AtomicInteger counter = new AtomicInteger();
-		Map<String, Collection<T>> statisticsByReferenceName = this.facetIndexes
-			.stream()
-			// we need Stream<FacetReferenceIndex>
-			.flatMap(it -> it.values().stream())
-			.filter(it -> this.defaultRequest != null || this.referenceSummaryRequests.containsKey(it.getReferenceName()))
-			.collect(
-				Collectors.groupingBy(
-					// group them by Facet#type
-					FacetReferenceIndex::getReferenceName,
-					// reduce and transform data from indexes to ReferenceGroupStatistics
-					Collectors.mapping(
-						Function.identity(),
-						new FacetGroupStatisticsCollector<>(
-								resultAdapter,
-								context,
-								// translates Facet#type to EntitySchema#reference#groupType
-								referenceName -> context.getSchema().getReferenceOrThrowException(referenceName),
-								referenceSchema -> resolveReferenceRequest(referenceSchema, counter),
-								this.requestedFacets,
-								universalCalculator,
-								universalCalculator
-							)
-						)
-					)
+		final FacetGroupStatisticsCollector<T> collector = new FacetGroupStatisticsCollector<>(
+			resultAdapter,
+			context,
+			// translates Facet#type to EntitySchema#reference#groupType
+			referenceName -> context.getSchema().getReferenceOrThrowException(referenceName),
+			referenceSchema -> resolveReferenceRequest(referenceSchema, counter),
+			this.requestedFacets,
+			universalCalculator,
+			universalCalculator
+		);
+		// drive the collector imperatively: partition FacetReferenceIndex entries by reference name
+		// into per-reference GroupAccumulator maps (matches Collectors.groupingBy semantics — each bucket
+		// gets its own fresh supplier state), then run the collector's finisher on each bucket. Avoids
+		// the Stream+Collectors.groupingBy+Collectors.mapping pipeline's lambda captures, spliterator
+		// state, and collector container allocations on the hot fabrication path.
+		final BiConsumer<LinkedHashMap<Integer, GroupAccumulator>, FacetReferenceIndex> accumulator =
+			collector.accumulator();
+		final Map<String, LinkedHashMap<Integer, GroupAccumulator>> accByReference = createHashMap(
+			this.referenceSummaryRequests.isEmpty() ? 8 : this.referenceSummaryRequests.size()
+		);
+		for (final Map<String, FacetReferenceIndex> facetIndex : this.facetIndexes) {
+			for (final FacetReferenceIndex ix : facetIndex.values()) {
+				final String referenceName = ix.getReferenceName();
+				if (this.defaultRequest == null && !this.referenceSummaryRequests.containsKey(referenceName)) {
+					continue;
+				}
+				accumulator.accept(
+					accByReference.computeIfAbsent(referenceName, k -> new LinkedHashMap<>()),
+					ix
 				);
+			}
+		}
+		Map<String, Collection<T>> statisticsByReferenceName;
+		if (accByReference.isEmpty()) {
+			statisticsByReferenceName = new HashMap<>();
+		} else {
+			final Function<LinkedHashMap<Integer, GroupAccumulator>, Collection<T>> finisher = collector.finisher();
+			statisticsByReferenceName = createHashMap(accByReference.size());
+			for (final Entry<String, LinkedHashMap<Integer, GroupAccumulator>> entry : accByReference.entrySet()) {
+				statisticsByReferenceName.put(entry.getKey(), finisher.apply(entry.getValue()));
+			}
+		}
 		if (!this.histogramRequests.isEmpty()) {
 			// peel attribute-range carriers so a slider does not contract its own `[min, max]` span;
 			// facet and price carriers stay so the histogram still reflects those picks. Relaxer's
@@ -666,15 +681,30 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 */
 		@Nonnull
 		private static Map<String, Bitmap> getGroupIdsByReferenceName(@Nonnull Map<Integer, GroupAccumulator> entityAcc) {
-			return entityAcc.values()
-				.stream()
-				.filter(it -> it.getGroupId() != null)
-				.collect(
-					Collectors.groupingBy(
-						it -> it.getReferenceSchema().getName(),
-						Collectors.mapping(GroupAccumulator::getGroupId, IntegerIntoBitmapCollector.INSTANCE)
-					)
-				);
+			// in practice all accumulators within a single per-reference bucket share the same reference
+			// schema, so the map usually holds a single entry — still keyed by reference name for callers
+			// that rely on the grouped shape
+			Map<String, RoaringBitmapWriter<RoaringBitmap>> writers = null;
+			for (final GroupAccumulator acc : entityAcc.values()) {
+				final Integer groupId = acc.getGroupId();
+				if (groupId == null) {
+					continue;
+				}
+				if (writers == null) {
+					writers = createHashMap(1);
+				}
+				writers
+					.computeIfAbsent(acc.getReferenceSchema().getName(), k -> RoaringBitmapBackedBitmap.buildWriter())
+					.add(groupId);
+			}
+			if (writers == null) {
+				return Map.of();
+			}
+			final Map<String, Bitmap> result = createHashMap(writers.size());
+			for (final Entry<String, RoaringBitmapWriter<RoaringBitmap>> entry : writers.entrySet()) {
+				result.put(entry.getKey(), new BaseBitmap(entry.getValue().get()));
+			}
+			return result;
 		}
 
 		/**

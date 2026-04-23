@@ -48,6 +48,9 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
 
@@ -55,6 +58,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -347,16 +352,31 @@ public class HistogramHavingTranslator
 
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final FilterBy groupFilterBy = filterBy(innerSelector);
-		final Formula groupFormula = FilterByVisitor.createFormulaForTheFilter(
-			queryContext,
-			scopes,
-			Objects.requireNonNull(groupFilterBy),
-			null,
-			groupEntityType,
-			() -> "resolving `histogramHaving` group selector on `" + groupEntityType + "`"
+		// collect the global entity indexes for the group type across active scopes; they form the
+		// `computeOnlyOnce` cache key alongside `innerSelector` so a repeated group selector (duplicate
+		// `histogramHaving` with the same selector, or planner retries) reuses the memoised formula
+		final List<EntityIndex> groupEntityIndexes = new ArrayList<>(scopes.size());
+		for (final Scope scope : scopes) {
+			queryContext.getEntityIndex(
+				groupEntityType, new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class
+			).ifPresent(groupEntityIndexes::add);
+		}
+		// plan-time resolution is necessary because the rewrite embeds the resolved PK as a constant
+		// (`entityPrimaryKeyInSet(resolvedGroupPk)`) and the single-match assertion must surface as a
+		// user-facing validation before execution; route through `computeOnlyOnce` so the formula is
+		// built, initialised, and cached — avoiding redundant work across planner retries
+		final Formula groupFormula = queryContext.computeOnlyOnce(
+			groupEntityIndexes,
+			innerSelector,
+			() -> FilterByVisitor.createFormulaForTheFilter(
+				queryContext,
+				scopes,
+				Objects.requireNonNull(groupFilterBy),
+				null,
+				groupEntityType,
+				() -> "resolving `histogramHaving` group selector on `" + groupEntityType + "`"
+			)
 		);
-		// initialize + compute the bitmap at plan time so the single-PK assertion is enforceable here
-		groupFormula.initialize(queryContext.getInternalExecutionContext());
 		final Bitmap resolved = groupFormula.compute();
 		final int size = resolved.size();
 		if (size == 0) {

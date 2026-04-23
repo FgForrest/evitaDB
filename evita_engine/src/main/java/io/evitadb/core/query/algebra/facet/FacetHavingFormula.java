@@ -26,7 +26,6 @@ package io.evitadb.core.query.algebra.facet;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
@@ -103,10 +102,8 @@ public class FacetHavingFormula extends AbstractFormula implements ChildrenDepen
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
-		if (this.innerFormulas.length == 1) {
-			return this.innerFormulas[0].compute();
-		}
-		throw new GenericEvitaInternalError(ERROR_SINGLE_FORMULA_EXPECTED);
+		// single-formula invariant is guaranteed by the constructor and getCloneWithInnerFormulas
+		return this.innerFormulas[0].compute();
 	}
 
 	@Override

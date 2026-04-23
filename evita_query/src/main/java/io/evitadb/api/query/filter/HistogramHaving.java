@@ -32,6 +32,7 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.descriptor.annotation.Value;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -286,6 +287,14 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 				Assert.isTrue(
 					fromCmp.compareTo(to) <= 0,
 					"HistogramHaving requires `from` to be less than or equal to `to`!"
+				);
+			} else {
+				// @Value(requiresPlainType = true) guarantees all plain types are Comparable; this branch
+				// is unreachable under normal operation. Surface it as a programming error per the project's
+				// defensive-design rule rather than silently accepting unordered bounds.
+				throw new GenericEvitaInternalError(
+					"HistogramHaving bound type `" + from.getClass().getSimpleName() +
+						"` is not Comparable — plain types are always Comparable."
 				);
 			}
 		}
