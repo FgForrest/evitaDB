@@ -130,7 +130,6 @@ public class ArrayMethodAccessor implements ObjectMethodAccessor {
 		validateRequiredNumberOfArgs(methodName, args, 1);
 		final ExpressionNode predicate = args.get(0);
 
-		// todo lho verify implementation
 		if (object instanceof Object[] array) {
 			for (final Object element : array) {
 				final boolean result = computePredicateArgument(context, element, predicate);

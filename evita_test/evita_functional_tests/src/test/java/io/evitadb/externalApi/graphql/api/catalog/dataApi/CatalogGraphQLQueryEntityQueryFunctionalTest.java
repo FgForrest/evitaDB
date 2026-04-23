@@ -9629,36 +9629,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 	}
 
-	/* TODO LHO - unused? */
-	@Nonnull
-	private static List<SealedEntity> findEntitiesWithPrices(
-		@Nonnull List<SealedEntity> originalProductEntities,
-		int limit,
-		@Nonnull Currency currency,
-		@Nonnull String... priceLists
-	) {
-		return findEntities(
-			originalProductEntities,
-			it -> Arrays.stream(priceLists).allMatch(pl -> it.getPrices(currency, pl).size() > 1),
-			limit
-		);
-	}
-
-	/* TODO LHO - unused? */
-	@Nonnull
-	private static List<SealedEntity> findEntitiesWithPrices(
-		@Nonnull List<SealedEntity> originalProductEntities,
-		int limit,
-		@Nonnull String priceList,
-		@Nonnull Currency... currencies
-	) {
-		return findEntities(
-			originalProductEntities,
-			it -> Arrays.stream(currencies).allMatch(c -> it.getPrices(c, priceList).size() > 1),
-			limit
-		);
-	}
-
 	@Nonnull
 	private static Map<String, Object> createBasicPageResponse(
 		@Nonnull List<SealedEntity> entities,
@@ -9882,50 +9852,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			)
 			.orElseThrow(() -> new IllegalStateException(
 				"Facet summary must contain facet group statistics for reference " + referenceName));
-	}
-
-	/* TODO LHO - unused method?! */
-	@Nonnull
-	private static List<Map<String, Object>> createFacetSummaryWithImpactsDto(
-		@Nonnull EvitaResponse<EntityReference> response,
-		@Nonnull String referenceName
-	) {
-		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
-
-		return facetSummary.getReferenceStatistics()
-			.stream()
-			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
-			.map(groupStatistics ->
-				map()
-					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
-					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
-					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
-						.stream()
-						.map(facetStatistics ->
-							map()
-								.e(
-									FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
-									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
-									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
-									.e(
-										AttributesProviderDescriptor.ATTRIBUTES.name(), map()
-										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
-										.build())
-									.build())
-								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(
-									FacetStatisticsDescriptor.IMPACT.name(), map()
-									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
-									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
-									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
-									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
-									.build())
-								.build())
-						.toList())
-					.build()
-			)
-			.toList();
 	}
 
 	@Nonnull

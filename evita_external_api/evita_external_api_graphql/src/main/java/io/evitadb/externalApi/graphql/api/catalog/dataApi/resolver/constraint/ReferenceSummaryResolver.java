@@ -286,11 +286,8 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 			.forEach(histogramStatisticsField -> {
 				// each named histogram index field lives directly under the wrapper
 				for (final SelectedField histogramIndexField : SelectionSetAggregator.getImmediateFields(histogramStatisticsField.getSelectionSet())) {
-					// todo lho we must pass the naming convention here
-					final HistogramIndexDefinition histogramIndexDefinition = Optional.ofNullable(
-							referenceSchema
-								.getHistogramIndexDefinition(effectiveScope, histogramIndexField.getName())
-						)
+					final HistogramIndexDefinition histogramIndexDefinition = referenceSchema
+						.getHistogramIndexDefinitionByName(effectiveScope, histogramIndexField.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 						.orElseThrow(() -> new GraphQLQueryResolvingInternalError(
 							"Missing histogram index definition for `" + histogramIndexField.getName() + "` in reference `" + referenceSchema.getName() + "`."
 						));
