@@ -1,0 +1,7 @@
+{
+  "network": {
+	"domainWhitelist": [
+	  "demo.evitadb.io"
+	]
+  }
+}
