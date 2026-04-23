@@ -25,6 +25,8 @@ package io.evitadb.api.query.visitor;
 
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -35,36 +37,130 @@ import static io.evitadb.api.query.filter.AttributeSpecialValue.NOT_NULL;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static java.util.Objects.requireNonNull;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies expected behaviour of {@link PrettyPrintingVisitor}.
+ * Tests for {@link PrettyPrintingVisitor} verifying constraint pretty printing functionality.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("PrettyPrintingVisitor functionality")
 class PrettyPrintingVisitorTest {
 
-	@Test
-	void shouldPrettyPrintSimpleConstraint() {
-		assertEquals("entityFetch()", PrettyPrintingVisitor.toString(new EntityFetch(), ""));
+	@Nested
+	@DisplayName("Basic printing")
+	class BasicPrintingTest {
+
+		@Test
+		@DisplayName("Should pretty print simple constraint without children")
+		void shouldPrettyPrintSimpleConstraint() {
+			assertEquals("entityFetch()", PrettyPrintingVisitor.toString(new EntityFetch(), ""));
+		}
+
+		@Test
+		@DisplayName("Should pretty print constraint with default indentation")
+		void shouldPrettyPrintConstraintWithDefaultIndentation() {
+			final String result = PrettyPrintingVisitor.toString(
+				and(
+					attributeEquals("a", "b"),
+					attributeEquals("c", "d")
+				)
+			);
+
+			assertNotNull(result);
+			assertTrue(result.contains("and("));
+			assertTrue(result.contains("attributeEquals('a', 'b')"));
+			assertTrue(result.contains("attributeEquals('c', 'd')"));
+		}
+
+		@Test
+		@DisplayName("Should pretty print complex nested constraint")
+		void shouldPrettyPrintComplexConstraint() {
+			assertEquals(
+				"""
+				and(
+					attributeEquals('a', 'b'),
+					or(
+						attributeIs('def', NOT_NULL),
+						attributeBetween('c', 1, 78),
+						not(
+							attributeEquals('utr', true)
+						),
+						hierarchyWithin(
+							'd',
+							entityPrimaryKeyInSet(1),
+							directRelation()
+						),
+						hierarchyWithin(
+							'e',
+							entityPrimaryKeyInSet(1)
+						)
+					)
+				)""",
+				PrettyPrintingVisitor.toString(
+					requireNonNull(
+						and(
+							attributeEquals("a", "b"),
+							or(
+								attributeIsNotNull("def"),
+								attributeBetween("c", 1, 78),
+								not(
+									attributeEqualsTrue("utr")
+								),
+								hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
+								hierarchyWithin("e", entityPrimaryKeyInSet(1))
+							)
+						)
+					),
+					"\t"
+				)
+			);
+		}
 	}
 
-	@Test
-	void shouldPrettyPrintContainerWithAdditionalChildren() {
-		assertEquals(
-			"""
-				referenceContent(
-				\t'stock',
-				\tfilterBy(
-				\t\tentityPrimaryKeyInSet(10)
-				\t),
-				\tentityFetch(
-				\t\tattributeContent('code')
-				\t)
-				)""",
-			PrettyPrintingVisitor.toString(
-				referenceContent(
+	@Nested
+	@DisplayName("Container with additional children")
+	class ContainerWithAdditionalChildrenTest {
+
+		@Test
+		@DisplayName("Should pretty print container with additional children")
+		void shouldPrettyPrintContainerWithAdditionalChildren() {
+			assertEquals(
+				"""
+					referenceContent(
+					\t'stock',
+					\tfilterBy(
+					\t\tentityPrimaryKeyInSet(10)
+					\t),
+					\tentityFetch(
+					\t\tattributeContent('code')
+					\t)
+					)""",
+				PrettyPrintingVisitor.toString(
+					referenceContent(
+						"stock",
+						filterBy(
+							entityPrimaryKeyInSet(10)
+						),
+						entityFetch(
+							attributeContent("code")
+						)
+					),
+					"\t"
+				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Parameter extraction")
+	class ParameterExtractionTest {
+
+		@Test
+		@DisplayName("Should extract parameters from container with additional children")
+		void shouldPrettyPrintContainerWithAdditionalChildrenAndParameters() {
+			final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
+				"\t", referenceContent(
 					"stock",
 					filterBy(
 						entityPrimaryKeyInSet(10)
@@ -72,69 +168,32 @@ class PrettyPrintingVisitorTest {
 					entityFetch(
 						attributeContent("code")
 					)
-				),
-				"\t"
-			)
-		);
-	}
-
-	@Test
-	void shouldPrettyPrintContainerWithAdditionalChildrenAndParameters() {
-		final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
-			"\t", referenceContent(
-				"stock",
-				filterBy(
-					entityPrimaryKeyInSet(10)
-				),
-				entityFetch(
-					attributeContent("code")
 				)
-			)
-		);
-		assertEquals(
-			"""
-				referenceContent(
-				\t?,
-				\tfilterBy(
-				\t\tentityPrimaryKeyInSet(?)
-				\t),
-				\tentityFetch(
-				\t\tattributeContent(?)
-				\t)
-				)""",
-			result.query()
-		);
-		assertArrayEquals(
-			new Serializable[]{"stock", 10, "code"},
-			result.parameters().toArray(new Serializable[0])
-		);
-	}
+			);
+			assertEquals(
+				"""
+					referenceContent(
+					\t?,
+					\tfilterBy(
+					\t\tentityPrimaryKeyInSet(?)
+					\t),
+					\tentityFetch(
+					\t\tattributeContent(?)
+					\t)
+					)""",
+				result.query()
+			);
+			assertArrayEquals(
+				new Serializable[]{"stock", 10, "code"},
+				result.parameters().toArray(new Serializable[0])
+			);
+		}
 
-	@Test
-	void shouldPrettyPrintComplexConstraint() {
-		assertEquals(
-			"""
-			and(
-				attributeEquals('a', 'b'),
-				or(
-					attributeIs('def', NOT_NULL),
-					attributeBetween('c', 1, 78),
-					not(
-						attributeEquals('utr', true)
-					),
-					hierarchyWithin(
-						'd',
-						entityPrimaryKeyInSet(1),
-						directRelation()
-					),
-					hierarchyWithin(
-						'e',
-						entityPrimaryKeyInSet(1)
-					)
-				)
-			)""",
-			PrettyPrintingVisitor.toString(
-				requireNonNull(
+		@Test
+		@DisplayName("Should extract parameters from complex constraint")
+		void shouldPrettyPrintComplexConstraintWithParameterExtraction() {
+			final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
+				"\t", requireNonNull(
 					and(
 						attributeEquals("a", "b"),
 						or(
@@ -147,99 +206,178 @@ class PrettyPrintingVisitorTest {
 							hierarchyWithin("e", entityPrimaryKeyInSet(1))
 						)
 					)
-				),
-				"\t"
-			)
-		);
-	}
-
-	@Test
-	void shouldPrettyPrintComplexConstraintWithParameterExtraction() {
-		final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
-			"\t", requireNonNull(
+				)
+			);
+			assertEquals(
+				"""
 				and(
-					attributeEquals("a", "b"),
+					attributeEquals(?, ?),
 					or(
-						attributeIsNotNull("def"),
-						attributeBetween("c", 1, 78),
+						attributeIs(?, ?),
+						attributeBetween(?, ?, ?),
 						not(
-							attributeEqualsTrue("utr")
+							attributeEquals(?, ?)
 						),
-						hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
-						hierarchyWithin("e", entityPrimaryKeyInSet(1))
+						hierarchyWithin(
+							?,
+							entityPrimaryKeyInSet(?),
+							directRelation()
+						),
+						hierarchyWithin(
+							?,
+							entityPrimaryKeyInSet(?)
+						)
 					)
-				)
-			)
-		);
-		assertEquals(
-			"""				
-			and(
-				attributeEquals(?, ?),
-				or(
-					attributeIs(?, ?),
-					attributeBetween(?, ?, ?),
-					not(
-						attributeEquals(?, ?)
-					),
-					hierarchyWithin(
-						?,
-						entityPrimaryKeyInSet(?),
-						directRelation()
-					),
-					hierarchyWithin(
-						?,
-						entityPrimaryKeyInSet(?)
-					)
-				)
-			)""",
-			result.query()
-		);
-		assertArrayEquals(
-			new Serializable[]{"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1},
-			result.parameters().toArray(new Serializable[0])
-		);
+				)""",
+				result.query()
+			);
+			assertArrayEquals(
+				new Serializable[]{"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1},
+				result.parameters().toArray(new Serializable[0])
+			);
+		}
 	}
 
-	@Test
-	void shouldPrettyPrintEntireQuery() {
-		final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
-			query(
-				collection("PRODUCT"),
-				filterBy(
-					and(
-						attributeEquals("a", "b"),
-						or(
-							attributeIsNotNull("def"),
-							attributeBetween("c", 1, 78),
-							not(
-								attributeEqualsTrue("utr")
+	@Nested
+	@DisplayName("Complete query printing")
+	class CompleteQueryTest {
+
+		@Test
+		@DisplayName("Should pretty print entire query with all parts")
+		void shouldPrettyPrintEntireQuery() {
+			final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
+				query(
+					collection("PRODUCT"),
+					filterBy(
+						and(
+							attributeEquals("a", "b"),
+							or(
+								attributeIsNotNull("def"),
+								attributeBetween("c", 1, 78),
+								not(
+									attributeEqualsTrue("utr")
+								),
+								hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
+								hierarchyWithin("e", entityPrimaryKeyInSet(1))
+							)
+						)
+					),
+					orderBy(
+						attributeNatural("x")
+					),
+					require(
+						hierarchyOfReference(
+							"CATEGORY",
+							fromRoot(
+								"megaMenu",
+								entityFetch(attributeContent()),
+								statistics()
+							)
+						),
+						page(1, 100)
+					)
+				),
+				"\t"
+			);
+			assertEquals(
+				"""
+					query(
+						collection(?),
+						filterBy(
+							and(
+								attributeEquals(?, ?),
+								or(
+									attributeIs(?, ?),
+									attributeBetween(?, ?, ?),
+									not(
+										attributeEquals(?, ?)
+									),
+									hierarchyWithin(
+										?,
+										entityPrimaryKeyInSet(?),
+										directRelation()
+									),
+									hierarchyWithin(
+										?,
+										entityPrimaryKeyInSet(?)
+									)
+								)
+							)
+						),
+						orderBy(
+							attributeNatural(?, ?)
+						),
+						require(
+							hierarchyOfReference(
+								?,
+								fromRoot(
+									?,
+									entityFetch(
+										attributeContentAll()
+									),
+									statistics()
+								)
 							),
-							hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
-							hierarchyWithin("e", entityPrimaryKeyInSet(1))
+							page(?, ?)
+						)
+					)""",
+				result.query()
+			);
+			assertArrayEquals(
+				new Serializable[]{
+					"PRODUCT",
+					"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1,
+					"x", ASC,
+					"CATEGORY", "megaMenu", 1, 100
+				},
+				result.parameters().toArray(new Serializable[0])
+			);
+		}
+
+		@Test
+		@DisplayName("Should pretty print query with only collection constraint")
+		void shouldPrettyPrintQueryWithOnlyCollection() {
+			final String result = PrettyPrintingVisitor.toString(
+				query(
+					collection("PRODUCT")
+				),
+				"\t"
+			);
+
+			assertEquals(
+				"""
+				query(
+					collection('PRODUCT')
+				)""",
+				result
+			);
+		}
+
+		@Test
+		@DisplayName("Should pretty print query with missing parts")
+		void shouldPrettyPrintEntireQueryWithMissingParts() {
+			final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
+				query(
+					filterBy(
+						and(
+							attributeEquals("a", "b"),
+							or(
+								attributeIsNotNull("def"),
+								attributeBetween("c", 1, 78),
+								not(
+									attributeEqualsTrue("utr")
+								),
+								hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
+								hierarchyWithin("e", entityPrimaryKeyInSet(1))
+							)
 						)
 					)
 				),
-				orderBy(
-					attributeNatural("x")
-				),
-				require(
-					hierarchyOfReference(
-						"CATEGORY",
-						fromRoot(
-							"megaMenu",
-							entityFetch(attributeContent()),
-							statistics()
-						)
-					),
-					page(1, 100)
-				)
-			),
-			"\t"
-		);
-		assertEquals(
-			"""
+				"\t"
+			);
+			assertEquals(
+				"""
 				query(
-					collection(?),
 					filterBy(
 						and(
 							attributeEquals(?, ?),
@@ -260,144 +398,76 @@ class PrettyPrintingVisitorTest {
 								)
 							)
 						)
-					),
-					orderBy(
-						attributeNatural(?, ?)
-					),
+					)
+				)""",
+				result.query()
+			);
+			assertArrayEquals(
+				new Serializable[]{
+					"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1
+				},
+				result.parameters().toArray(new Serializable[0])
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Implicit children handling")
+	class ImplicitChildrenTest {
+
+		@Test
+		@DisplayName("Should pretty print query with implicit children")
+		void shouldPrettyPrintQueryWithImplicitChildren() {
+			final String result = PrettyPrintingVisitor.toString(
+				query(
+					collection("PRODUCT"),
 					require(
-						hierarchyOfReference(
-							?,
-							fromRoot(
-								?,
-								entityFetch(
-									attributeContentAll()
-								),
-								statistics()
-							)
-						),
-						page(?, ?)
-					)
-				)""",
-			result.query()
-		);
-		assertArrayEquals(
-			new Serializable[]{
-				"PRODUCT",
-				"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1,
-				"x", ASC,
-				"CATEGORY", "megaMenu", 1, 100
-			},
-			result.parameters().toArray(new Serializable[0])
-		);
-	}
-
-	@Test
-	void shouldPrettyPrintQueryWithImplicitChildren() {
-		final String result = PrettyPrintingVisitor.toString(
-			query(
-				collection("PRODUCT"),
-				require(
-					referenceContentWithAttributes(
-						"brand",
-						filterBy(
-							attributeIs("visible", NULL)
-						)
-					)
-				)
-			),
-			"\t"
-		);
-		assertEquals(
-			"""
-            query(
-            \tcollection('PRODUCT'),
-            \trequire(
-            \t\treferenceContentWithAttributes(
-            \t\t\t'brand',
-            \t\t\tfilterBy(
-            \t\t\t\tattributeIs('visible', NULL)
-            \t\t\t)
-            \t\t)
-            \t)
-            )""",
-			result
-		);
-	}
-
-	@Test
-	void shouldPrettyPrintEntireQueryWithMissingParts() {
-		final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
-			query(
-				filterBy(
-					and(
-						attributeEquals("a", "b"),
-						or(
-							attributeIsNotNull("def"),
-							attributeBetween("c", 1, 78),
-							not(
-								attributeEqualsTrue("utr")
-							),
-							hierarchyWithin("d", entityPrimaryKeyInSet(1), directRelation()),
-							hierarchyWithin("e", entityPrimaryKeyInSet(1))
-						)
-					)
-				)
-			),
-			"\t"
-		);
-		assertEquals(
-			"""
-			query(
-				filterBy(
-					and(
-						attributeEquals(?, ?),
-						or(
-							attributeIs(?, ?),
-							attributeBetween(?, ?, ?),
-							not(
-								attributeEquals(?, ?)
-							),
-							hierarchyWithin(
-								?,
-								entityPrimaryKeyInSet(?),
-								directRelation()
-							),
-							hierarchyWithin(
-								?,
-								entityPrimaryKeyInSet(?)
+						referenceContentWithAttributes(
+							"brand",
+							filterBy(
+								attributeIs("visible", NULL)
 							)
 						)
-					)
-				)
-			)""",
-			result.query()
-		);
-		assertArrayEquals(
-			new Serializable[]{
-				"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1
-			},
-			result.parameters().toArray(new Serializable[0])
-		);
-	}
-
-	@Test
-	void shouldPrettyPrintWithoutImplicitChildren() {
-		assertEquals(
-			"""
-				require(
-				\tentityFetch(
-				\t\treferenceContentAllWithAttributes()
-				\t)
-				)""",
-			PrettyPrintingVisitor.toString(
-				require(
-					entityFetch(
-						referenceContentAllWithAttributes()
 					)
 				),
 				"\t"
-			)
-		);
-	}
+			);
+			assertEquals(
+				"""
+	            query(
+	            \tcollection('PRODUCT'),
+	            \trequire(
+	            \t\treferenceContentWithAttributes(
+	            \t\t\t'brand',
+	            \t\t\tfilterBy(
+	            \t\t\t\tattributeIs('visible', NULL)
+	            \t\t\t)
+	            \t\t)
+	            \t)
+	            )""",
+				result
+			);
+		}
 
+		@Test
+		@DisplayName("Should pretty print without unnecessary implicit children")
+		void shouldPrettyPrintWithoutImplicitChildren() {
+			assertEquals(
+				"""
+					require(
+					\tentityFetch(
+					\t\treferenceContentAllWithAttributes()
+					\t)
+					)""",
+				PrettyPrintingVisitor.toString(
+					require(
+						entityFetch(
+							referenceContentAllWithAttributes()
+						)
+					),
+					"\t"
+				)
+			);
+		}
+	}
 }

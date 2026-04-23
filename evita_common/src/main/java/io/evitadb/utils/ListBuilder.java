@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -54,7 +55,7 @@ public class ListBuilder {
 	}
 
 	@Nonnull
-	public ListBuilder i(@Nonnull Object element) {
+	public ListBuilder i(@Nullable Object element) {
 		if (element instanceof MapBuilder mapBuilder) {
 			this.list.add(mapBuilder.build());
 		} else if (element instanceof ListBuilder listBuilder) {

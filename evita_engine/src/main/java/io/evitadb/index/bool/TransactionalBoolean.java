@@ -40,10 +40,10 @@ import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLaye
 /**
  * This class envelopes simple primitive boolean and makes it transactional. This means, that the boolean can be updated
  * by multiple writers and also multiple readers can read its original value without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * in transactional access. Each transaction is bound to the same thread and different threads don't see changes in
+ * other threads.
  *
- * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
+ * If no transaction is opened, changes are applied directly to the delegate boolean. In such case the class is not thread
  * safe for multiple writers!
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -73,13 +73,14 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	/**
 	 * Creates a new transactional layer initialized with the current value of this boolean.
 	 */
+	@Nonnull
 	@Override
 	public BooleanChanges createLayer() {
 		return new BooleanChanges(this.value);
 	}
 
 	/**
-	 * Sets the value to TRUE in a transactional safe way (if transaction is available).
+	 * Sets the value to TRUE in a transaction-safe way (if transaction is available).
 	 */
 	public void setToTrue() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
@@ -91,7 +92,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	}
 
 	/**
-	 * Sets the value to FALSE in a transactional safe way (if transaction is available).
+	 * Sets the value to FALSE in a transaction-safe way (if transaction is available).
 	 */
 	public void setToFalse() {
 		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
@@ -103,7 +104,7 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	}
 
 	/**
-	 * Returns the current boolean value in a transactional safe way (if transaction is available).
+	 * Returns the current boolean value in a transaction-safe way (if transaction is available).
 	 */
 	public boolean isTrue() {
 		final BooleanChanges layer = getTransactionalMemoryLayerIfExists(this);
@@ -115,17 +116,12 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 	}
 
 	/**
-	 * Resets the value to false in a transactional safe way (if transaction is available).
+	 * Resets the value to false in a transaction-safe way (if transaction is available).
 	 * Functionally equivalent to {@link #setToFalse()}, provided for semantic clarity at call
 	 * sites where "reset" better conveys intent.
 	 */
 	public void reset() {
-		final BooleanChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
-		if (layer == null) {
-			this.value = false;
-		} else {
-			layer.setToFalse();
-		}
+		this.setToFalse();
 	}
 
 	/*
@@ -134,7 +130,10 @@ public class TransactionalBoolean implements TransactionalLayerProducer<BooleanC
 
 	@Nonnull
 	@Override
-	public Boolean createCopyWithMergedTransactionalMemory(@Nullable BooleanChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public Boolean createCopyWithMergedTransactionalMemory(
+		@Nullable BooleanChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		return layer == null ? this.value : layer.isTrue();
 	}
 

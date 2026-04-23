@@ -65,6 +65,7 @@ import io.evitadb.dataType.PlainChunk;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -328,6 +329,12 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			merged.add(rm);
 		}
 		return merged;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaContract getSchema() {
+		return this.entitySchema;
 	}
 
 	ExistingReferencesBuilder(
@@ -1474,7 +1481,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
                 referenceName,
                 theBundle,
                 this.removedReferences == null ?
-                    ref -> true :
+                    Functions.alwaysTrue() :
                     ref -> !this.removedReferences.contains(new FullyComparableReferenceKey(ref.getReferenceKey()))
             )
 		);

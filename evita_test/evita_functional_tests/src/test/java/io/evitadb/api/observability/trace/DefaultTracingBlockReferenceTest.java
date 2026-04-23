@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * {@link TracingBlockReference} contract without throwing
  * exceptions or producing side effects.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DefaultTracingBlockReference - no-op tracing")
 class DefaultTracingBlockReferenceTest {

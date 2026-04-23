@@ -44,26 +44,48 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * This `facetGroupsNegation` require constraint allows specifying facet relation on particular level (within group
- * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
- * group, secondary optional argument allows defining the level for which the negation is defined, third optional
- * argument defines one more facet group ids which facets should be considered negative with other facets either
- * in same group or different groups (depending on level argument).
+ * The `facetGroupsNegation` requirement **inverts** the meaning of facet selection for the specified groups of a
+ * reference. Instead of returning entities that **have** a reference to the selected facet entity, the query returns
+ * entities that **do not have** a reference to it — a logical NOT (negation).
  *
- * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
- * constraint (or all). Instead of returning only those items that have a reference to that particular faceted entity,
- * the query result will return only those items that don't have a reference to it.
+ * This is the evitaDB equivalent of "show me everything *except* products with this property", which is useful for
+ * filtering out unwanted characteristics (e.g. "exclude discontinued items", "exclude out-of-stock sizes").
  *
- * Example:
+ * ## Arguments
  *
- * <pre>
+ * - **referenceName** *(mandatory)* — the name of the faceted reference this constraint applies to (e.g.
+ *   `"parameterValues"`, `"brand"`)
+ * - **facetGroupRelationLevel** *(optional, default `WITH_DIFFERENT_FACETS_IN_GROUP`)* — the level at which
+ *   negation is applied:
+ *   - `WITH_DIFFERENT_FACETS_IN_GROUP` — negation applies to individual facets within the same group; each selected
+ *     facet independently excludes matching entities
+ *   - `WITH_DIFFERENT_GROUPS` — negation applies at the group level, across different groups of this reference
+ * - **filterBy** *(optional)* — a {@link FilterBy} constraint targeting properties of the **group entity** to select
+ *   which groups negation applies to; when omitted, negation applies to all groups of the reference
+ *
+ * ## Effect on impact calculations
+ *
+ * This constraint affects both actual filtering (when facets are selected inside `userFilter`) and the impact
+ * predictions computed by {@link FacetSummary} / {@link FacetSummaryOfReference}. Because negated groups effectively
+ * exclude a subset of entities, predicted result counts for negated facets are typically **much larger** than counts
+ * produced by the default inclusive behaviour — the predicted count represents "how many results remain after
+ * excluding this facet", which is often close to the full result set.
+ *
+ * ## Relationship to FacetCalculationRules
+ *
+ * {@link FacetCalculationRules} can set the global default relation type including `NEGATION`. `facetGroupsNegation`
+ * takes precedence over that global default for the specific groups it targets.
+ *
+ * ## Example
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     require(
  *         facetSummaryOfReference(
  *             "parameterValues",
  *             IMPACT,
- *             filterBy(attributeContains("code", "4")),
+ *             filterBy(attributeContains("code", "memory")),
  *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
  *             entityFetch(attributeContent("code")),
  *             entityGroupFetch(attributeContent("code"))
@@ -71,36 +93,44 @@ import java.util.Optional;
  *         facetGroupsNegation(
  *             "parameterValues",
  *             WITH_DIFFERENT_GROUPS,
- *             filterBy(
- *               attributeInSet("code", "ram-memory")
- *             )
+ *             filterBy(attributeInSet("code", "ram-memory"))
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
- * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
- * default behavior predicts only a dozen of them.
+ * With this setting, selecting a RAM memory option predicts returning products that do **not** have that RAM size.
+ * The predicted counts will be high (most products lack a specific RAM value), while the ROM group with default
+ * behaviour predicts only a small subset.
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation)
  *
  * @see FacetGroupRelationLevel
+ * @see FacetGroupsConjunction
+ * @see FacetGroupsDisjunction
+ * @see FacetGroupsExclusivity
+ * @see FacetCalculationRules
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupsNegation",
-	shortDescription = "[Negates](https://en.wikipedia.org/wiki/Negation) the meaning of selected facets in specified " +
-		"facet groups in the sense that their selection would return entities that don't have any of those facets.",
+	shortDescription = "The constraint negates facet selection for specified reference groups — selecting a facet returns entities that do NOT have that facet.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-negation"
 )
-public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
+public class FacetGroupsNegation extends AbstractRequireConstraintContainer
+	implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 3993873252481237893L;
 
-	private FacetGroupsNegation(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
+	private FacetGroupsNegation(
+		@Nonnull Serializable[] arguments,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(arguments, NO_CHILDREN, additionalChildren);
 		for (Constraint<?> child : additionalChildren) {
-			Assert.isPremiseValid(child instanceof FilterBy, "Only FilterBy constraints are allowed in FacetGroupsConjunction.");
+			Assert.isPremiseValid(
+				child instanceof FilterBy,
+				"Only FilterBy constraints are allowed in FacetGroupsNegation."
+			);
 		}
 	}
 
@@ -178,7 +208,10 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isPremiseValid(ArrayUtils.isEmpty(children), "Children must be empty");
 		return new FacetGroupsNegation(getArguments(), additionalChildren);
 	}

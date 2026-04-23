@@ -38,7 +38,7 @@ import java.io.Serial;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class FlattenedHistogramComputer extends CachePayloadHeader implements TransactionalDataRelatedStructure, EvitaResponseExtraResultComputer<CacheableHistogramContract> {
-	@Serial private static final long serialVersionUID = 4049228240087093146L;
+	@Serial private static final long serialVersionUID = 4049228240087093147L;
 	/**
 	 * Contains originally computed histogram.
 	 */

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -68,9 +68,13 @@ public record StorageRecord<T>(
 	@Nonnull FileLocation fileLocation
 ) {
 	/**
-	 * CRC not covered head 5B: length(int), control (byte), generationId (long)
+	 * Size of record length field (int) and control byte: 4 + 1 = 5 bytes.
 	 */
-	public static final int CRC_NOT_COVERED_HEAD = 4 + 1 + 8;
+	public static final int RECORD_LENGTH_CONTROL_SIZE = 4 + 1;
+	/**
+	 * CRC not covered head 13B: length(int), control (byte), generationId (long)
+	 */
+	public static final int CRC_NOT_COVERED_HEAD = RECORD_LENGTH_CONTROL_SIZE + 8;
 	/**
 	 * CRC not covered part 13B: length(int), control (byte), crc itself (long)
 	 */
@@ -104,12 +108,20 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Constructor that is used for READING unknown record from the input stream. Constructor should be used for sequential
-	 * reading of the data store contents when file offset index has been already read and we know locations of active
-	 * records as well as their type.
+	 * Reads an unknown record from the input stream using sequential reading approach.
+	 * This method should be used when file offset index has already been read and we know locations
+	 * of active records as well as their type.
 	 *
-	 * This constructor excepts that it is possible to resolve any file location to record type. If type cannot be resolved
-	 * it is assumed record is "dead" and reading it's contents is skipped entirely.
+	 * This method expects that it is possible to resolve any file location to record type.
+	 * If type cannot be resolved, it is assumed the record is "dead" and reading its contents
+	 * is skipped entirely.
+	 *
+	 * @param kryo         the Kryo instance used for deserialization
+	 * @param input        the observable input stream to read from
+	 * @param typeResolver function that resolves file location to the expected payload class type,
+	 *                     returns null if the record is obsolete
+	 * @param <T>          the type of the payload
+	 * @return the storage record read from the input stream
 	 */
 	@Nonnull
 	public static <T> StorageRecord<T> read(
@@ -128,8 +140,9 @@ public record StorageRecord<T>(
 			final Class<T> payloadType = typeResolver.apply(location);
 
 			if (payloadType == null) {
-				// record is obsolete - it cannot be mapped to any know type
-				input.skip(recordLength);
+				// record is obsolete - it cannot be mapped to any known type
+				// skip remaining bytes (length field and control byte already read)
+				input.skip(recordLength - RECORD_LENGTH_CONTROL_SIZE);
 				final boolean closesGeneration = isBitSet(control, GENERATION_CLOSING_BIT);
 				return new StorageRecord<>(
 					-1L, closesGeneration, null, location
@@ -156,8 +169,16 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
-	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
+	 * Reads a known record from the input stream at a known file location using random access reading.
+	 * This method should be used for random access reading of arbitrary records or reading lead record
+	 * for the file offset index.
+	 *
+	 * @param input    the observable input stream to read from
+	 * @param location the file location specifying position and expected length of the record
+	 * @param reader   function that reads the payload from the input stream, receiving the input,
+	 *                 record length, and control byte
+	 * @param <T>      the type of the payload
+	 * @return the storage record read from the specified file location
 	 */
 	@Nonnull
 	public static <T> StorageRecord<T> read(
@@ -176,7 +197,7 @@ public record StorageRecord<T>(
 				input,
 				new FileLocation(location.startingPosition(), recordLength),
 				control,
-				fileLocation -> verifyExpectedLength(location, fileLocation),
+				location,
 				payloadReader
 			);
 		} catch (RuntimeException ex) {
@@ -188,40 +209,77 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Checks if the length of the underlying input stream is sufficient for the specified file location range.
-	 * Logs an error and suppresses a {@link PrematureEndOfFileException} to the provided exception if the file
-	 * size is not sufficient. Logs any exceptions encountered while retrieving the input stream length.
+	 * Reads a known record from the input stream at a known file location using random access reading
+	 * and calculates a cumulative CRC32C checksum over the entire record.
 	 *
-	 * @param input the observable input stream to be checked, must not be null
-	 * @param location the file location containing the start position, end position, and record length, must not be null
-	 * @param ex the runtime exception to which suppressed exceptions may be added, must not be null
+	 * The method wraps the reading process with {@link ObservableInput#markCumulativeChecksumStart()}
+	 * and {@link ObservableInput#markCumulativeChecksumEnd()} to compute a checksum that covers the
+	 * entire record, including parts not covered by the payload checksum (such as the header and
+	 * the record payload checksum itself). This cumulative checksum can be used for calculating an
+	 * aggregated checksum that covers an entire file (e.g., WAL) up to a certain position, enabling
+	 * integrity verification of the complete file content.
+	 *
+	 * @param input    the observable input stream to read from
+	 * @param location the file location specifying position and expected length of the record
+	 * @param reader   function that reads the payload from the input stream, receiving the input,
+	 *                 record length, and control byte
+	 * @param <T>      the type of the payload
+	 * @return a {@link StorageRecordWithChecksum} containing the storage record and its cumulative checksum
 	 */
-	private static void checkUnderlyingInputStreamLength(
+	@Nonnull
+	public static <T> StorageRecordWithChecksum<T> readWithChecksum(
 		@Nonnull ObservableInput<?> input,
 		@Nonnull FileLocation location,
-		@Nonnull RuntimeException ex
+		@Nonnull TriFunction<ObservableInput<?>, Integer, Byte, T> reader
 	) {
 		try {
-			final long maxLength = input.getLength();
-			if (location.endPosition() > maxLength) {
-				log.error("Attempt to read record at position {} with length {}B, but the file size is only {}B. " +
-					"This may indicate a corrupted file or an attempt to read beyond the end of the file.",
-					location.startingPosition(),
-					location.recordLength(),
-					maxLength
-				);
-				ex.addSuppressed(
-					new PrematureEndOfFileException(
-						maxLength,
-						location.startingPosition(),
-						location.endPosition()
-					)
-				);
-			}
-		} catch (Exception nested) {
-			// just log
-			log.error("Error getting length of input stream: {}", nested.getMessage(), nested);
+			input.seek(location);
+			input.markStart();
+			input.markCumulativeChecksumStart();
+			final int recordLength = input.readInt();
+			byte control = input.readByte();
+
+			final Supplier<T> payloadReader = () -> reader.apply(input, recordLength, control);
+			final StorageRecord<T> theRecord = doReadStorageRecord(
+				input,
+				new FileLocation(location.startingPosition(), recordLength),
+				control,
+				location,
+				payloadReader
+			);
+			final long checksum = input.markCumulativeChecksumEnd();
+			return new StorageRecordWithChecksum<>(theRecord, checksum);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			checkUnderlyingInputStreamLength(input, location, ex);
+			throw ex;
 		}
+	}
+
+	/**
+	 * Reads a known record from the input stream at the current position and calculates a cumulative checksum.
+	 * This method should be used for sequential access reading of arbitrary records or reading lead record
+	 * for the file offset index.
+	 *
+	 * The method calculates an overall checksum for the entire record, including parts which are not covered
+	 * by the payload checksum (such as header and the record payload checksum itself). This cumulative checksum
+	 * can be used for calculating an aggregated checksum that covers an entire file up to a certain position.
+	 *
+	 * @param input  the observable input stream to read from
+	 * @param reader function that reads the payload from the input stream, receiving the input and record length
+	 * @param <T>    the type of the payload
+	 * @return a {@link StorageRecordWithChecksum} containing the storage record and its cumulative checksum
+	 */
+	@Nonnull
+	public static <T> StorageRecordWithChecksum<T> readWithChecksum(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull BiFunction<ObservableInput<?>, Integer, T> reader
+	) {
+		input.markCumulativeChecksumStart();
+		final StorageRecord<T> record = read(input, reader);
+		final long checksum = input.markCumulativeChecksumEnd();
+		return new StorageRecordWithChecksum<>(record, checksum);
 	}
 
 	/**
@@ -253,11 +311,16 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
-	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
+	 * Reads raw record data from the input stream at the current position without decompressing the payload.
+	 * This method should be used for random access reading of arbitrary records or reading lead record
+	 * for the file offset index.
 	 *
-	 * This method overrides the control byte to indicate that the record should be read as uncompressed. The payload
-	 * can be read only as a byte array and will contain compressed data of the original record
+	 * This method overrides the control byte to indicate that the record should be read as uncompressed.
+	 * The payload can only be read as a byte array and will contain compressed data of the original record
+	 * (if the original record was compressed).
+	 *
+	 * @param input the observable input stream to read from
+	 * @return a {@link RawRecord} containing the file location, control byte, generation id, and raw payload data
 	 */
 	@Nonnull
 	public static RawRecord readRaw(@Nonnull ObservableInput<?> input) {
@@ -392,8 +455,14 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Constructor that is used for READING known record from the input stream on known start position. Constructor
-	 * should be used for sequential access reading of arbitrary records o reading lead record for the file offset index.
+	 * Reads a known record from the input stream at the current position using sequential access reading.
+	 * This method should be used for sequential access reading of arbitrary records or reading lead record
+	 * for the file offset index.
+	 *
+	 * @param input  the observable input stream to read from
+	 * @param reader function that reads the payload from the input stream, receiving the input and record length
+	 * @param <T>    the type of the payload
+	 * @return the storage record read from the input stream
 	 */
 	@Nonnull
 	public static <T> StorageRecord<T> read(
@@ -458,8 +527,16 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Method allows to write raw data to the output stream. The method is used for writing data that were read using
-	 * {@link #readRaw(ObservableInput)} method.
+	 * Writes raw data to the output stream without applying compression.
+	 * This method is used for writing data that were previously read using {@link #readRaw(ObservableInput)} method,
+	 * preserving the original compressed state of the data.
+	 *
+	 * @param output       the observable output stream to write to
+	 * @param control      the control byte containing metadata flags (compression, CRC32, etc.)
+	 * @param generationId the generation id of the record
+	 * @param rawData      the raw payload data to write (possibly compressed)
+	 * @return the {@link FileLocation} specifying the position and length of the written record
+	 * @throws CorruptedRecordException if the written record length differs from expected
 	 */
 	@Nonnull
 	public static FileLocation writeRaw(
@@ -495,6 +572,44 @@ public record StorageRecord<T>(
 	}
 
 	/**
+	 * Checks if the length of the underlying input stream is sufficient for the specified file location range.
+	 * Logs an error and suppresses a {@link PrematureEndOfFileException} to the provided exception if the file
+	 * size is not sufficient. Logs any exceptions encountered while retrieving the input stream length.
+	 *
+	 * @param input    the observable input stream to be checked, must not be null
+	 * @param location the file location containing the start position, end position, and record length, must not be null
+	 * @param ex       the runtime exception to which suppressed exceptions may be added, must not be null
+	 */
+	private static void checkUnderlyingInputStreamLength(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation location,
+		@Nonnull RuntimeException ex
+	) {
+		try {
+			final long maxLength = input.getLength();
+			if (location.endPosition() > maxLength) {
+				log.error(
+					"Attempt to read record at position {} with length {}B, but the file size is only {}B. " +
+						"This may indicate a corrupted file or an attempt to read beyond the end of the file.",
+					location.startingPosition(),
+					location.recordLength(),
+					maxLength
+				);
+				ex.addSuppressed(
+					new PrematureEndOfFileException(
+						maxLength,
+						location.startingPosition(),
+						location.endPosition()
+					)
+				);
+			}
+		} catch (Exception nested) {
+			// just log
+			log.error("Error getting length of input stream: {}", nested.getMessage(), nested);
+		}
+	}
+
+	/**
 	 * Verifies that the record length of the calculated file location matches the expected record length
 	 * of the input file location. If the lengths differ, an exception is thrown indicating a corrupted record.
 	 *
@@ -502,7 +617,10 @@ public record StorageRecord<T>(
 	 * @param calculatedLocation The {@code FileLocation} representing the calculated record location and length.
 	 * @throws CorruptedRecordException If the record lengths do not match, indicating a potential corruption.
 	 */
-	private static void verifyExpectedLength(@Nonnull FileLocation inputLocation, @Nonnull FileLocation calculatedLocation) {
+	private static void verifyExpectedLength(
+		@Nonnull FileLocation inputLocation,
+		@Nonnull FileLocation calculatedLocation
+	) {
 		//noinspection StringConcatenationMissingWhitespace
 		Assert.isPremiseValid(
 			inputLocation.recordLength() == calculatedLocation.recordLength(),
@@ -517,12 +635,12 @@ public record StorageRecord<T>(
 	/**
 	 * Reads a storage record from the input stream.
 	 *
-	 * @param input         The input stream to read from.
-	 * @param location      The file location of the record.
-	 * @param control       The control byte of the record.
-	 * @param assertion     An optional assertion to be performed on the file location.
-	 * @param payloadReader A supplier for reading the payload of the record.
-	 * @param <T>           The type of the payload.
+	 * @param input            The input stream to read from.
+	 * @param location         The file location of the record.
+	 * @param control          The control byte of the record.
+	 * @param expectedLocation An optional file location to be verified against the read location.
+	 * @param payloadReader    A supplier for reading the payload of the record.
+	 * @param <T>              The type of the payload.
 	 * @return The storage record read from the input stream.
 	 */
 	@Nonnull
@@ -530,7 +648,7 @@ public record StorageRecord<T>(
 		@Nonnull ObservableInput<?> input,
 		@Nonnull FileLocation location,
 		byte control,
-		@Nullable Consumer<FileLocation> assertion,
+		@Nullable FileLocation expectedLocation,
 		@Nonnull Supplier<T> payloadReader
 	) {
 		if (isBitSet(control, CONTINUATION_BIT)) {
@@ -551,8 +669,8 @@ public record StorageRecord<T>(
 
 			final FileLocation fileLocation = new FileLocation(context.getStartPosition(), context.getRecordLength());
 
-			if (assertion != null) {
-				assertion.accept(fileLocation);
+			if (expectedLocation != null) {
+				verifyExpectedLength(expectedLocation, fileLocation);
 			}
 
 			return new StorageRecord<>(
@@ -679,7 +797,8 @@ public record StorageRecord<T>(
 				// finally, write payload
 				final T thePayload = payloadWriter.apply(output);
 				// compute crc32 and fill in record length
-				final FileLocation theFileLocation = output.markEnd(setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration));
+				final FileLocation theFileLocation = output.markEnd(
+					setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration));
 				// return both
 				return new PayloadWithFileLocation<>(thePayload, theFileLocation);
 			}
@@ -707,7 +826,8 @@ public record StorageRecord<T>(
 		@Nonnull T payload
 	) {
 		try {
-			final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
+			final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(
+				FileLocationPointer.INITIAL);
 			return output.doWithOnBufferOverflowHandler(
 				new OnBufferOverflowHandler<>(recordLocations, output, generationId),
 				() -> {
@@ -783,10 +903,6 @@ public record StorageRecord<T>(
 			Objects.equals(this.payload, that.payload) &&
 			Objects.equals(this.fileLocation, that.fileLocation);
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	@Override
 	public int hashCode() {
@@ -946,7 +1062,10 @@ public record StorageRecord<T>(
 	 * OnBufferOverflowHandler is used to handle situation when the payload can't fit into the buffer and needs
 	 * to be written into multiple records.
 	 *
-	 * @param <OO> the type of the ObservableOutput used in the record
+	 * @param recordLocations atomic reference holding the chain of file location pointers for continuous records
+	 * @param output          the output stream to write the continuation records to
+	 * @param generationId    the generation id of the record being written
+	 * @param <OO>            the type of the ObservableOutput used in the record
 	 */
 	private record OnBufferOverflowHandler<OO extends ObservableOutput<?>>(
 		@Nonnull AtomicReference<FileLocationPointer> recordLocations,
@@ -970,21 +1089,41 @@ public record StorageRecord<T>(
 	 * This is a lower-level structure typically utilized for operations that work directly
 	 * with unprocessed data within file locations.
 	 *
-	 * Instances of this record encapsulate the following:
-	 * 1. A {@link FileLocation} object indicating the location of the record in a file.
-	 * 2. A control byte which provides metadata or flags about the record.
-	 * 3. A byte array containing the raw data payload associated with the record.
-	 *
 	 * This class is most commonly utilized for handling operations that bypass higher-level
 	 * abstractions in the data storage layer. It is used internally for seeking, reading, or
 	 * writing raw storage segments and may also carry additional contextual information
 	 * in its `control` byte about the record.
+	 *
+	 * @param location     the {@link FileLocation} indicating the position and length of the record in a file
+	 * @param control      the control byte containing metadata flags about the record (compression, CRC32, etc.)
+	 * @param generationId the generation id that groups multiple records into a single generation
+	 * @param rawData      the byte array containing the raw (possibly compressed) payload data
 	 */
 	public record RawRecord(
 		@Nonnull FileLocation location,
 		byte control,
 		long generationId,
 		byte[] rawData
+	) {
+	}
+
+	/**
+	 * A wrapper record that pairs a {@link StorageRecord} with its cumulative CRC32C checksum.
+	 * This checksum covers the entire record including parts that are not covered by the payload
+	 * checksum (such as header and the record payload checksum itself).
+	 *
+	 * The cumulative checksum is used for calculating an aggregated checksum that covers an entire
+	 * file (e.g., WAL - Write-Ahead Log) up to a certain position, enabling integrity verification
+	 * of the complete file content.
+	 *
+	 * @param record   the storage record containing the payload and file location information
+	 * @param checksum the cumulative CRC32C checksum calculated over the entire record
+	 * @param <T>      the type of the payload stored in the record
+	 * @see #readWithChecksum(ObservableInput, BiFunction)
+	 */
+	public record StorageRecordWithChecksum<T>(
+		@Nonnull StorageRecord<T> record,
+		long checksum
 	) {}
 
 }

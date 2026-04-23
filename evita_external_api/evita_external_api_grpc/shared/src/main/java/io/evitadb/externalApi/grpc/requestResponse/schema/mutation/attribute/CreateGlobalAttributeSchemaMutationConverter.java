@@ -53,38 +53,10 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 
 	@Nonnull
 	public CreateGlobalAttributeSchemaMutation convert(@Nonnull GrpcCreateGlobalAttributeSchemaMutation mutation) {
-		final ScopedAttributeUniquenessType[] uniqueInScopes = mutation.getUniqueInScopesList().isEmpty() ?
-			new ScopedAttributeUniquenessType[]{
-				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(mutation.getUnique()))
-			}
-			:
-			mutation.getUniqueInScopesList()
-				.stream()
-				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
-				.toArray(ScopedAttributeUniquenessType[]::new);
-		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = mutation.getUniqueGloballyInScopesList().isEmpty() ?
-			new ScopedGlobalAttributeUniquenessType[]{
-				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(mutation.getUniqueGlobally()))
-			}
-			:
-			mutation.getUniqueGloballyInScopesList()
-				.stream()
-				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
-				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
-		final Scope[] filterableInScopes = mutation.getFilterableInScopesList().isEmpty() ?
-			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			mutation.getFilterableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
-		final Scope[] sortableInScopes = mutation.getSortableInScopesList().isEmpty() ?
-			(mutation.getSortable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			mutation.getSortableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
+		final ScopedAttributeUniquenessType[] uniqueInScopes = toScopedAttributeUniquenessTypes(mutation.getUniqueInScopesList(), mutation.getUnique());
+		final ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes = toScopedGlobalAttributeUniquenessTypes(mutation.getUniqueGloballyInScopesList(), mutation.getUniqueGlobally());
+		final Scope[] filterableInScopes = toBooleanScopes(mutation.getFilterableInScopesList(), mutation.getFilterable());
+		final Scope[] sortableInScopes = toBooleanScopes(mutation.getSortableInScopesList(), mutation.getSortable());
 
 		return new CreateGlobalAttributeSchemaMutation(
 			mutation.getName(),

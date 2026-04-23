@@ -35,7 +35,8 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
@@ -110,10 +111,29 @@ class CreateReflectedReferenceSchemaMutationTest {
 		}
 
 		@Test
-		@DisplayName("should not generate indexed mutation when indexed scopes are unchanged")
-		void shouldNotGenerateIndexedMutationWhenIndexedScopesAreUnchanged() {
-			// Create a mutation with DIFFERENT description but the SAME indexed/faceted scopes
-			// as the existing reflected reference
+		@DisplayName("should not generate indexed/faceted mutations when inheritance status matches")
+		void shouldNotGenerateIndexedOrFacetedMutationsWhenInheritanceMatches() {
+			// Create a fully inherited existing reflected reference (all null indexed/faceted/components)
+			final ReflectedReferenceSchema existingReflected = ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME,
+				"reflectedDescription",
+				"reflectedDeprecationNotice",
+				REFERENCE_TYPE,
+				REFLECTED_REFERENCE_NAME,
+				Cardinality.ZERO_OR_MORE,
+				// inherited indexed scopes
+				null,
+				null,
+				// inherited faceted scopes
+				null,
+				null, null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+				null
+			);
+			// Create a mutation with DIFFERENT description but same inherited
+			// indexed/faceted/components
 			final CreateReflectedReferenceSchemaMutation mutation =
 				new CreateReflectedReferenceSchemaMutation(
 					REFERENCE_NAME,
@@ -121,18 +141,13 @@ class CreateReflectedReferenceSchemaMutationTest {
 					Cardinality.ZERO_OR_MORE,
 					REFERENCE_TYPE,
 					REFLECTED_REFERENCE_NAME,
-					// same indexed scopes as the existing reflected reference
-					new ScopedReferenceIndexType[]{
-						new ScopedReferenceIndexType(
-							Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING
-						)
-					},
-					// same faceted scopes as the existing reflected reference
-					new Scope[]{Scope.LIVE},
+					// inherited (null) — matching existing
+					null,
+					null,
+					null,
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 					null
 				);
-			final ReflectedReferenceSchema existingReflected = createExistingReflectedReferenceSchema();
 			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
 				.thenReturn(of(existingReflected));
@@ -153,20 +168,76 @@ class CreateReflectedReferenceSchemaMutationTest {
 			// Since description is different, there should be a description mutation
 			assertTrue(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof ModifyReferenceSchemaDescriptionMutation),
+					.anyMatch(ModifyReferenceSchemaDescriptionMutation.class::isInstance),
 				"Should generate description mutation since description differs"
 			);
-			// Since indexed and faceted scopes are the same, there should be NO
-			// SetReferenceSchemaIndexedMutation or SetReferenceSchemaFacetedMutation
+			// Since indexed scopes, components, and faceted are all inherited in both
+			// versions, there should be NO SetReferenceSchemaIndexedMutation or
+			// SetReferenceSchemaFacetedMutation
 			assertFalse(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof SetReferenceSchemaIndexedMutation),
-				"Should not generate SetReferenceSchemaIndexedMutation when indexed scopes are unchanged"
+					.anyMatch(SetReferenceSchemaIndexedMutation.class::isInstance),
+				"Should not generate SetReferenceSchemaIndexedMutation when inheritance matches"
 			);
 			assertFalse(
 				Arrays.stream(result.current())
-					.anyMatch(m -> m instanceof SetReferenceSchemaFacetedMutation),
-				"Should not generate SetReferenceSchemaFacetedMutation when faceted scopes are unchanged"
+					.anyMatch(SetReferenceSchemaFacetedMutation.class::isInstance),
+				"Should not generate SetReferenceSchemaFacetedMutation when inheritance matches"
+			);
+		}
+
+		@Test
+		@DisplayName("should generate indexed components mutation when components change")
+		void shouldGenerateIndexedComponentsMutationWhenComponentsChange() {
+			// Create a mutation with explicit indexed components
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"reflectedDescription", "reflectedDeprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					// same indexed scopes as the existing reflected reference
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING
+						)
+					},
+					// explicit indexed components — the existing reflected reference has inherited (null)
+					new ScopedReferenceIndexedComponents[]{
+						new ScopedReferenceIndexedComponents(
+							Scope.DEFAULT_SCOPE,
+							new ReferenceIndexedComponents[]{
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							}
+						)
+					},
+					new Scope[]{Scope.LIVE},
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			// The existing reflected reference has inherited (null) indexed components
+			final ReflectedReferenceSchema existingReflected = createExistingReflectedReferenceSchema();
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(existingReflected));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			assertNotNull(result.current());
+			// Since indexed components differ (explicit vs inherited), a SetReferenceSchemaIndexedMutation
+			// should be generated
+			assertTrue(
+				Arrays.stream(result.current())
+					.anyMatch(SetReferenceSchemaIndexedMutation.class::isInstance),
+				"Should generate SetReferenceSchemaIndexedMutation when indexed components change"
 			);
 		}
 
@@ -249,6 +320,117 @@ class CreateReflectedReferenceSchemaMutationTest {
 				);
 
 			assertNull(result);
+		}
+
+		/**
+		 * Verifies that when a reflected reference with bucketed config is
+		 * combined with a remove mutation against an existing reflected reference
+		 * without bucketing, the result contains a SetReferenceSchemaBucketedMutation.
+		 */
+		@Test
+		@DisplayName("should emit bucketed mutation when remove+create reflected with different bucketed")
+		void shouldEmitBucketedMutationWhenRemoveAndCreateReflectedWithDifferentBucketed() {
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"reflectedDescription", "reflectedDeprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					},
+					null,
+					new Scope[]{Scope.LIVE},
+					null,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+					},
+					null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			// existing reflected reference has inherited bucketing (no explicit bucketed)
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(createExistingReflectedReferenceSchema()));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			assertTrue(
+				Arrays.stream(result.current())
+					.anyMatch(SetReferenceSchemaBucketedMutation.class::isInstance),
+				"Should emit SetReferenceSchemaBucketedMutation when bucketed config differs"
+			);
+		}
+
+		/**
+		 * Verifies that when both created and existing reflected references have
+		 * inherited bucketed (null), no SetReferenceSchemaBucketedMutation is emitted.
+		 */
+		@Test
+		@DisplayName("should not emit bucketed mutation when bucketed inheritance matches")
+		void shouldNotEmitBucketedMutationWhenBucketedInheritanceMatches() {
+			final ReflectedReferenceSchema existingReflected = ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME,
+				"reflectedDescription",
+				"reflectedDeprecationNotice",
+				REFERENCE_TYPE,
+				REFLECTED_REFERENCE_NAME,
+				Cardinality.ZERO_OR_MORE,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null, null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+				null
+			);
+			// Create mutation with inherited bucketed (both null)
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"newDescription", "reflectedDeprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					},
+					null,
+					new Scope[]{Scope.LIVE},
+					null,
+					null,
+					null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(existingReflected));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result =
+				mutation.combineWith(
+					Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+				);
+
+			assertNotNull(result);
+			assertFalse(
+				Arrays.stream(result.current())
+					.anyMatch(SetReferenceSchemaBucketedMutation.class::isInstance),
+				"Should not emit SetReferenceSchemaBucketedMutation when both versions have inherited bucketing"
+			);
 		}
 	}
 
@@ -336,6 +518,53 @@ class CreateReflectedReferenceSchemaMutationTest {
 				)
 			);
 		}
+
+		/**
+		 * Verifies that the 14-arg constructor with explicit bucketed histogram
+		 * data produces a reflected reference schema where bucketed is not
+		 * inherited and the histogram definition is retrievable.
+		 */
+		@Test
+		@DisplayName("should create reflected reference with bucketed histogram")
+		void shouldCreateReflectedReferenceWithBucketedHistogram() {
+			final io.evitadb.dataType.expression.Expression expression =
+				io.evitadb.api.query.expression.ExpressionFactory.parse("1 > 0");
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null,
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					null,
+					new Scope[]{Scope.LIVE},
+					null,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", expression)
+					},
+					new ScopedBucketedPartially[]{
+						new ScopedBucketedPartially(Scope.LIVE, expression)
+					},
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			assertInstanceOf(ReflectedReferenceSchemaContract.class, referenceSchema);
+			assertTrue(referenceSchema.isBucketedInScope(Scope.LIVE));
+			assertEquals(
+				"priceHistogram",
+				referenceSchema.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram").nameOfTheIndex()
+			);
+			assertNotNull(referenceSchema.getBucketedPartiallyInScope(Scope.LIVE));
+		}
+
 	}
 
 	@Nested
@@ -469,6 +698,60 @@ class CreateReflectedReferenceSchemaMutationTest {
 			assertTrue(result.contains(REFERENCE_NAME));
 			assertTrue(result.contains(REFERENCE_TYPE));
 			assertTrue(result.contains(REFLECTED_REFERENCE_NAME));
+		}
+
+		/**
+		 * Verifies that toString output includes bucketed state information
+		 * for all three states: inherited, not bucketed, and bucketed in scopes.
+		 */
+		@Test
+		@DisplayName("should include bucketed in toString")
+		void shouldIncludeBucketedInToString() {
+			// cleared bucketed (null)
+			final CreateReflectedReferenceSchemaMutation clearedBucketed =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null, null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null, null, null, null,
+					null, null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			assertTrue(clearedBucketed.toString().contains("bucketed=(not bucketed)"));
+
+			// not bucketed (empty array)
+			final CreateReflectedReferenceSchemaMutation notBucketed =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null, null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null, null, null, null,
+					ScopedHistogramIndexDefinition.EMPTY,
+					ScopedBucketedPartially.EMPTY,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			assertTrue(notBucketed.toString().contains("bucketed=(not bucketed)"));
+
+			// bucketed in scopes
+			final CreateReflectedReferenceSchemaMutation bucketed =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null, null,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					null, null, null, null,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+					},
+					null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			assertTrue(bucketed.toString().contains("bucketed=(bucketed in scopes"));
 		}
 
 		@Test

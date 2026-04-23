@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.trafficRecording.TrafficRecording;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.api.requestResponse.trafficRecording.TransientTrafficRecording;
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
@@ -204,7 +205,9 @@ public class SessionTraffic implements Closeable {
 					}
 				}
 			),
-			writeBuffer
+			writeBuffer,
+			Checksum.NO_OP,
+			null
 		);
 	}
 

@@ -606,6 +606,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterHistogramHavingConstraint(EvitaQLParser.HistogramHavingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitHistogramHavingConstraint(EvitaQLParser.HistogramHavingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterFacetIncludingChildrenConstraint(EvitaQLParser.FacetIncludingChildrenConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -769,6 +781,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitEntityHavingConstraint(EvitaQLParser.EntityHavingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterGroupHavingConstraint(EvitaQLParser.GroupHavingConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitGroupHavingConstraint(EvitaQLParser.GroupHavingConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
@@ -1698,6 +1722,246 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterReferenceSummary1Constraint(EvitaQLParser.ReferenceSummary1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary1Constraint(EvitaQLParser.ReferenceSummary1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary2Constraint(EvitaQLParser.ReferenceSummary2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary2Constraint(EvitaQLParser.ReferenceSummary2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary3Constraint(EvitaQLParser.ReferenceSummary3ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary3Constraint(EvitaQLParser.ReferenceSummary3ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary4Constraint(EvitaQLParser.ReferenceSummary4ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary4Constraint(EvitaQLParser.ReferenceSummary4ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary5Constraint(EvitaQLParser.ReferenceSummary5ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary5Constraint(EvitaQLParser.ReferenceSummary5ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary6Constraint(EvitaQLParser.ReferenceSummary6ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary6Constraint(EvitaQLParser.ReferenceSummary6ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary7Constraint(EvitaQLParser.ReferenceSummary7ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary7Constraint(EvitaQLParser.ReferenceSummary7ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryWithHistograms1Constraint(EvitaQLParser.ReferenceSummaryWithHistograms1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryWithHistograms1Constraint(EvitaQLParser.ReferenceSummaryWithHistograms1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryWithHistograms2Constraint(EvitaQLParser.ReferenceSummaryWithHistograms2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryWithHistograms2Constraint(EvitaQLParser.ReferenceSummaryWithHistograms2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryWithHistograms3Constraint(EvitaQLParser.ReferenceSummaryWithHistograms3ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryWithHistograms3Constraint(EvitaQLParser.ReferenceSummaryWithHistograms3ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryWithHistograms4Constraint(EvitaQLParser.ReferenceSummaryWithHistograms4ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryWithHistograms4Constraint(EvitaQLParser.ReferenceSummaryWithHistograms4ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryWithHistograms5Constraint(EvitaQLParser.ReferenceSummaryWithHistograms5ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryWithHistograms5Constraint(EvitaQLParser.ReferenceSummaryWithHistograms5ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryWithHistograms6Constraint(EvitaQLParser.ReferenceSummaryWithHistograms6ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryWithHistograms6Constraint(EvitaQLParser.ReferenceSummaryWithHistograms6ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryWithHistograms7Constraint(EvitaQLParser.ReferenceSummaryWithHistograms7ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryWithHistograms7Constraint(EvitaQLParser.ReferenceSummaryWithHistograms7ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryOfReference1Constraint(EvitaQLParser.ReferenceSummaryOfReference1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryOfReference1Constraint(EvitaQLParser.ReferenceSummaryOfReference1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryOfReference2Constraint(EvitaQLParser.ReferenceSummaryOfReference2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryOfReference2Constraint(EvitaQLParser.ReferenceSummaryOfReference2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryOfReferenceWithHistograms1Constraint(EvitaQLParser.ReferenceSummaryOfReferenceWithHistograms1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryOfReferenceWithHistograms1Constraint(EvitaQLParser.ReferenceSummaryOfReferenceWithHistograms1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryOfReferenceWithHistograms2Constraint(EvitaQLParser.ReferenceSummaryOfReferenceWithHistograms2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryOfReferenceWithHistograms2Constraint(EvitaQLParser.ReferenceSummaryOfReferenceWithHistograms2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterHistogramStatistics1Constraint(EvitaQLParser.HistogramStatistics1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitHistogramStatistics1Constraint(EvitaQLParser.HistogramStatistics1ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterHistogramStatistics2Constraint(EvitaQLParser.HistogramStatistics2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitHistogramStatistics2Constraint(EvitaQLParser.HistogramStatistics2ConstraintContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterFacetGroupsConjunctionConstraint(EvitaQLParser.FacetGroupsConjunctionConstraintContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -2370,6 +2634,18 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterClassifierWithHistogramHavingArgs(EvitaQLParser.ClassifierWithHistogramHavingArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitClassifierWithHistogramHavingArgs(EvitaQLParser.ClassifierWithHistogramHavingArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterFacetGroupRelationArgs(EvitaQLParser.FacetGroupRelationArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
@@ -2917,6 +3193,138 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary1Args(EvitaQLParser.ReferenceSummary1ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary1Args(EvitaQLParser.ReferenceSummary1ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary2Args(EvitaQLParser.ReferenceSummary2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary2Args(EvitaQLParser.ReferenceSummary2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary3Args(EvitaQLParser.ReferenceSummary3ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary3Args(EvitaQLParser.ReferenceSummary3ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary4Args(EvitaQLParser.ReferenceSummary4ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary4Args(EvitaQLParser.ReferenceSummary4ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary5Args(EvitaQLParser.ReferenceSummary5ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary5Args(EvitaQLParser.ReferenceSummary5ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary6Args(EvitaQLParser.ReferenceSummary6ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary6Args(EvitaQLParser.ReferenceSummary6ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummary7Args(EvitaQLParser.ReferenceSummary7ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummary7Args(EvitaQLParser.ReferenceSummary7ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryOfReference2Args(EvitaQLParser.ReferenceSummaryOfReference2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryOfReference2Args(EvitaQLParser.ReferenceSummaryOfReference2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterReferenceSummaryRequirementsArgs(EvitaQLParser.ReferenceSummaryRequirementsArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitReferenceSummaryRequirementsArgs(EvitaQLParser.ReferenceSummaryRequirementsArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterHistogramStatistics1Args(EvitaQLParser.HistogramStatistics1ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitHistogramStatistics1Args(EvitaQLParser.HistogramStatistics1ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterHistogramStatistics2Args(EvitaQLParser.HistogramStatistics2ArgsContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitHistogramStatistics2Args(EvitaQLParser.HistogramStatistics2ArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *

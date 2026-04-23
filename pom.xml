@@ -130,7 +130,7 @@
 		<jackson.annotations.version>2.21</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
 		<roaringbitmap.version>1.6.12</roaringbitmap.version>
-		<junit.jupiter.version>6.0.3</junit.jupiter.version>
+		<junit.jupiter.version>6.1.0-M1</junit.jupiter.version>
 		<mockito.junit.version>5.22.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.15.0</maven.compiler.version>
@@ -421,7 +421,6 @@
 							<groups>functional</groups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>true</useUnlimitedThreads>
-							<argLine>-Xmx5g</argLine>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -436,7 +435,6 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<groups>documentation</groups>
-							<argLine>-Xmx5g</argLine>
 						</configuration>
 					</plugin>
 				</plugins>
@@ -457,6 +455,12 @@
 						</configuration>
 					</plugin>
 				</plugins>
+			</build>
+		</profile>
+		<profile>
+			<id>intellij-idea-only</id>
+			<build>
+				<directory>${project.basedir}/out</directory>
 			</build>
 		</profile>
 	</profiles>
@@ -507,7 +511,7 @@
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<argLine>${surefireArgLine} -Xmx4g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<argLine>${surefireArgLine} -Xmx5g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -673,6 +677,9 @@
 					<llmUrl>https://api.openai.com/v1</llmUrl>
 					<llmToken>${OPENAI_API_KEY}</llmToken>
 					<llmModel>gpt-4.1</llmModel>
+					<customFrontMatter>
+						<translated>true</translated>
+					</customFrontMatter>
 					<sourceDir>documentation/user/en</sourceDir>
 					<targets>
 						<target>

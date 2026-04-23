@@ -651,7 +651,18 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 					final Stream<EntityAttributeSchemaContract> attributes = entitySchema.getAttributes().values().stream();
 					return (localizedQuery ? attributes.filter(AttributeSchemaContract::isLocalized) : attributes)
 						.map(AttributeSchemaContract::getName)
-						.filter(attrName -> entityStreamAccessor.get().anyMatch(entity -> entity.getAttributeValue(attrName).isPresent()));
+						.filter(attrName -> {
+							// localized attributes without locale context cannot be checked
+							// via getAttributeValue - they will be handled by transformLocalizedAttributes
+							if (!localizedQuery && entitySchema.getAttribute(attrName)
+								.map(AttributeSchemaContract::isLocalized)
+								.orElse(false)) {
+								return true;
+							}
+							return entityStreamAccessor.get().anyMatch(
+								entity -> entity.getAttributeValue(attrName).isPresent()
+							);
+						});
 				} else {
 					return Arrays.stream(attributeContent.getAttributeNames());
 				}

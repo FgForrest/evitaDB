@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link ComparableLocale} verifying comparison,
  * equality, toString, and serialization behavior.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ComparableLocale functionality")
 class ComparableLocaleTest {

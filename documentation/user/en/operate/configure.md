@@ -1172,7 +1172,7 @@ This allows you to set common settings for all endpoints in one place.
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Default:** `false`</p>
-        <p>It enables / disables [mutual authentication](tls.md#mutual-tls-for-http) for a particular API.</p>
+        <p>It enables / disables [mutual authentication](tls.md#mutual-tls) for a particular API.</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>

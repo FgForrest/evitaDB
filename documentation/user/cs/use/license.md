@@ -8,6 +8,7 @@ date: '22.10.2024'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 commit: '21a5e24c2e0820f1bca79eb810e72b21dfee0332'
+translated: true
 ---
 
 evitaDB je licencována pod [Business Source License 1.1](https://github.com/FgForrest/evitaDB/blob/dev/LICENSE). 

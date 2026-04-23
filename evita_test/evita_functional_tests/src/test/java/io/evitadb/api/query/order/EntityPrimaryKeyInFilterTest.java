@@ -23,42 +23,134 @@
 
 package io.evitadb.api.query.order;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInFilter;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Test verifies contract of {@link EntityPrimaryKeyInFilter} ordering constraint.
+ * Tests for {@link EntityPrimaryKeyInFilter} verifying construction, applicability,
+ * cloning, visitor support, string representation, and equality contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@DisplayName("EntityPrimaryKeyInFilter constraint")
 class EntityPrimaryKeyInFilterTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		assertNotNull(entityPrimaryKeyInFilter());
+	@Nested
+	@DisplayName("Construction and factory methods")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should create via no-arg factory method")
+		void shouldCreateViaFactory() {
+			final EntityPrimaryKeyInFilter constraint = entityPrimaryKeyInFilter();
+
+			assertNotNull(constraint);
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertTrue(entityPrimaryKeyInFilter().isApplicable());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should always be applicable")
+		void shouldAlwaysBeApplicable() {
+			assertTrue(entityPrimaryKeyInFilter().isApplicable());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final EntityPrimaryKeyInFilter entityPrimaryKeyInFilter = entityPrimaryKeyInFilter();
-		assertEquals("entityPrimaryKeyInFilter()", entityPrimaryKeyInFilter.toString());
+	@Nested
+	@DisplayName("Type and visitor support")
+	class TypeAndVisitorTest {
+
+		@Test
+		@DisplayName("should return OrderConstraint class as type")
+		void shouldReturnCorrectType() {
+			assertEquals(OrderConstraint.class, entityPrimaryKeyInFilter().getType());
+		}
+
+		@Test
+		@DisplayName("should accept visitor and call visit method")
+		void shouldAcceptVisitor() {
+			final EntityPrimaryKeyInFilter constraint = entityPrimaryKeyInFilter();
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			constraint.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> c) {
+					visited.set(c);
+				}
+			});
+
+			assertSame(constraint, visited.get());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(entityPrimaryKeyInFilter(), entityPrimaryKeyInFilter());
-		assertEquals(entityPrimaryKeyInFilter(), entityPrimaryKeyInFilter());
-		assertEquals(entityPrimaryKeyInFilter().hashCode(), entityPrimaryKeyInFilter().hashCode());
+	@Nested
+	@DisplayName("Clone operations")
+	class CloningTest {
+
+		@Test
+		@DisplayName("should produce equal but not same instance via cloneWithArguments with empty args")
+		void shouldCloneWithEmptyArguments() {
+			final EntityPrimaryKeyInFilter original = entityPrimaryKeyInFilter();
+			final OrderConstraint clone = original.cloneWithArguments(new Serializable[]{});
+
+			assertEquals(original, clone);
+			assertNotSame(original, clone);
+			assertInstanceOf(EntityPrimaryKeyInFilter.class, clone);
+		}
+
+		@Test
+		@DisplayName("should throw when cloneWithArguments receives non-empty arguments")
+		void shouldThrowWhenCloneWithNonEmptyArgs() {
+			final EntityPrimaryKeyInFilter constraint = entityPrimaryKeyInFilter();
+			final EvitaInvalidUsageException exception = assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> constraint.cloneWithArguments(new Serializable[]{"unexpected"})
+			);
+
+			assertTrue(exception.getMessage().contains("EntityPrimaryKeyInFilter"));
+		}
 	}
 
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce correct string representation")
+		void shouldToString() {
+			assertEquals("entityPrimaryKeyInFilter()", entityPrimaryKeyInFilter().toString());
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should be equal for two instances")
+		void shouldBeEqualForTwoInstances() {
+			assertNotSame(entityPrimaryKeyInFilter(), entityPrimaryKeyInFilter());
+			assertEquals(entityPrimaryKeyInFilter(), entityPrimaryKeyInFilter());
+		}
+
+		@Test
+		@DisplayName("should have consistent hashCode")
+		void shouldHaveConsistentHashCode() {
+			assertEquals(entityPrimaryKeyInFilter().hashCode(), entityPrimaryKeyInFilter().hashCode());
+		}
+	}
 }

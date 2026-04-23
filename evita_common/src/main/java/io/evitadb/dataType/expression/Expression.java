@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024-2025
+ *   Copyright (c) 2024-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,9 +29,9 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
 import io.evitadb.exception.ExpressionEvaluationException;
 import lombok.EqualsAndHashCode;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -43,18 +43,35 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
 @EqualsAndHashCode
-public class Expression implements ExpressionNode {
+public class Expression implements UnaryExpressionNode {
 	@Serial private static final long serialVersionUID = 661548006498130632L;
 	/**
 	 * The root node of the expression tree to which all operations are delegated.
 	 */
 	private final ExpressionNode root;
+	@EqualsAndHashCode.Exclude private final ExpressionNode[] children;
+
+	public Expression(@Nonnull ExpressionNode root) {
+		this.root = root;
+		this.children = new ExpressionNode[]{this.root};
+	}
 
 	@Nonnull
 	@Override
-	public Serializable compute(@Nonnull PredicateEvaluationContext context) throws ExpressionEvaluationException {
+	public ExpressionNode getOperand() {
+		return this.root;
+	}
+
+	@Nullable
+	@Override
+	public ExpressionNode[] getChildren() {
+		return this.children;
+	}
+
+	@Nullable
+	@Override
+	public Serializable compute(@Nonnull ExpressionEvaluationContext context) throws ExpressionEvaluationException {
 		return this.root.compute(context);
 	}
 
@@ -62,6 +79,23 @@ public class Expression implements ExpressionNode {
 	@Override
 	public BigDecimalNumberRange determinePossibleRange() throws UnsupportedDataTypeException {
 		return this.root.determinePossibleRange();
+	}
+
+	@Override
+	public void accept(@Nonnull ExpressionNodeVisitor visitor) {
+		visitor.visit(this);
+	}
+
+	/**
+	 * Returns the raw expression string without any EvitaDataTypes formatting.
+	 * This is useful for external API serialization where the expression text
+	 * should be round-trippable through `ExpressionFactory.parse()`.
+	 *
+	 * @return the raw expression text
+	 */
+	@Nonnull
+	public String toExpressionString() {
+		return this.root.toString();
 	}
 
 	@Override

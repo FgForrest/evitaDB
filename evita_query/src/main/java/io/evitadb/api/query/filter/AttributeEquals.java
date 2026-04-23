@@ -35,30 +35,49 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `equals` is query that compares value of the attribute with name passed in first argument with the value passed
- * in the second argument. First argument must be {@link String}, second argument may be any of {@link Comparable} type.
- * Type of the attribute value and second argument must be convertible one to another otherwise `equals` function
- * returns false.
+ * Filters entities by exact equality of a named attribute value to a specified comparable value. This is the most
+ * fundamental attribute comparison constraint in the query language, used for precise matching against filterable or
+ * unique attributes stored in the entity schema.
  *
- * Function returns true if both values are equal.
+ * The constraint performs type-safe equality comparison between the attribute value and the provided comparison value.
+ * Both values must be convertible to a common comparable type via {@link io.evitadb.dataType.EvitaDataTypes}, or the
+ * constraint evaluates to false. String comparisons are case-sensitive and follow natural ordering or locale-specific
+ * collation rules for localized attributes. Range types compare using left boundary first, then right boundary.
+ * Boolean values are treated as numeric (true=1, false=0) for comparison purposes.
  *
- * Example:
+ * **EvitaQL syntax:**
  *
- * <pre>
- * equals("code", "abc")
- * </pre>
+ * ```
+ * attributeEquals(attributeName:string!, value:comparable!)
+ * ```
  *
- * Function supports attribute arrays and when attribute is of array type `equals` returns true if any of attribute values
- * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
- * match:
+ * **Constraint classification:**
  *
- * <pre>
- * equals("code","A")
- * equals("code","B")
- * equals("code","C")
- * </pre>
+ * - Implements {@link FilterConstraint} - usable in filterBy clauses
+ * - Implements {@link io.evitadb.api.query.AttributeConstraint} - operates on named attributes
+ * - Supported in: {@link ConstraintDomain#ENTITY}, {@link ConstraintDomain#REFERENCE},
+ *   {@link ConstraintDomain#INLINE_REFERENCE}
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
+ * **Array attribute handling:**
+ *
+ * When the attribute is array-typed, the constraint matches if **any** element in the array equals the comparison
+ * value. For example, given `code=["A", "B", "C"]`, all of these constraints match:
+ *
+ * ```
+ * attributeEquals("code", "A")
+ * attributeEquals("code", "B")
+ * attributeEquals("code", "C")
+ * ```
+ *
+ * **Common use cases:**
+ *
+ * - Filtering by unique identifiers: `attributeEquals("sku", "PROD-12345")`
+ * - Exact status matching: `attributeEquals("status", "PUBLISHED")`
+ * - Boolean flags: `attributeEquals("featured", true)`
+ * - Numeric exact matches: `attributeEquals("quantity", 0)`
+ * - Enum value filtering: `attributeEquals("color", "RED")`
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/comparable#attribute-equals)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -72,7 +91,7 @@ import java.io.Serializable;
 public class AttributeEquals extends AbstractAttributeFilterComparisonConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 3928023999412612529L;
 
-	private AttributeEquals(Serializable... arguments) {
+	private AttributeEquals(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
@@ -83,7 +102,7 @@ public class AttributeEquals extends AbstractAttributeFilterComparisonConstraint
 	}
 
 	/**
-	 * Returns value that must be equals to attribute value.
+	 * Returns value that must be equal to the attribute value.
 	 */
 	@Nonnull
 	public <T extends Serializable> T getAttributeValue() {

@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: needed
 preferredLang: evitaql
 commit: cabcf999e7be5b00e0b13e1228a76a8d9e91cb78
+translated: 'true'
 ---
 ## Vlastnost reference
 
@@ -29,7 +30,7 @@ referenceProperty(
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují řazení podle atributu reference
+        jedno nebo více [řadicích omezení](natural.md), která určují řazení podle atributu reference
     </dd>
 </dl>
 
@@ -150,7 +151,7 @@ pickFirstByEntityProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují pořadí referencí, ze kterých se vybírá první
+        jedno nebo více [řadicích omezení](natural.md), která určují pořadí referencí, ze kterých se vybírá první
         z referencí na stejnou entitu, která bude použita pro řazení pomocí `referenceProperty`
     </dd>
 </dl>
@@ -247,7 +248,7 @@ traverseByEntityProperty(
     </dd>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která mění pořadí procházení referencí
+        jedno nebo více [řadicích omezení](natural.md), která mění pořadí procházení referencí
         řazené entity před aplikací řadicího omezení `referenceProperty`
     </dd>
 </dl>
@@ -359,7 +360,7 @@ entityProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují řazení podle atributů referencované entity
+        jedno nebo více [řadicích omezení](natural.md), která určují řazení podle atributů referencované entity
     </dd>
 </dl>
 
@@ -412,7 +413,7 @@ entityGroupProperty(
 <dl>
     <dt>constraint:orderingConstraint+</dt>
     <dd>
-        jedno nebo více [řadicích omezení](./natural.md), která určují řazení podle atributů skupiny referencované entity
+        jedno nebo více [řadicích omezení](natural.md), která určují řazení podle atributů skupiny referencované entity
     </dd>
 </dl>
 

@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -110,6 +111,33 @@ class ConstraintProcessorTest {
 				ConstraintWithConstructorAndFactoryMethod.def(),
 				descriptors2.get(1).creator().instantiateConstraint(new Object[]{}, "")
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Deprecated constraint processing")
+	class DeprecatedConstraintTest {
+
+		@Test
+		@DisplayName("should propagate deprecated reason from annotation")
+		void shouldPropagateDeprecatedReason() {
+			final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(
+				Set.of(DeprecatedConstraint.class)
+			);
+			assertEquals(1, descriptors.size());
+			final ConstraintDescriptor descriptor = descriptors.iterator().next();
+			assertEquals("Use xyz instead.", descriptor.deprecated());
+		}
+
+		@Test
+		@DisplayName("should set deprecated to null when annotation has empty value")
+		void shouldSetDeprecatedToNullForNonDeprecated() {
+			final Set<ConstraintDescriptor> descriptors = new ConstraintProcessor().process(
+				Set.of(ConstraintAWithoutSuffix.class)
+			);
+			assertEquals(1, descriptors.size());
+			final ConstraintDescriptor descriptor = descriptors.iterator().next();
+			assertNull(descriptor.deprecated());
 		}
 	}
 
@@ -277,6 +305,7 @@ class ConstraintProcessorTest {
 			"something",
 			"This is a constraint.",
 			"/link",
+			null,
 			Set.of(ConstraintDomain.GENERIC),
 			null,
 			new ConstraintCreator(
@@ -303,6 +332,7 @@ class ConstraintProcessorTest {
 			"somethingDefault",
 			"This is a constraint.",
 			"/link",
+			null,
 			Set.of(ConstraintDomain.GENERIC),
 			null,
 			new ConstraintCreator(
@@ -322,6 +352,7 @@ class ConstraintProcessorTest {
 			"and",
 			"This is a constraint.",
 			"/link",
+			null,
 			Set.of(ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE),
 			null,
 			new ConstraintCreator(
@@ -351,6 +382,7 @@ class ConstraintProcessorTest {
 			"startsWith",
 			"This is a constraint.",
 			"/link",
+			null,
 			Set.of(ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE),
 			new SupportedValues(
 				Set.of(String.class),
@@ -383,6 +415,7 @@ class ConstraintProcessorTest {
 			"within",
 			"This is a constraint.",
 			"/link",
+			null,
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			new ConstraintCreator(
@@ -422,6 +455,7 @@ class ConstraintProcessorTest {
 			"withinSelf",
 			"This is a constraint.",
 			"/link",
+			null,
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			new ConstraintCreator(
@@ -908,6 +942,26 @@ class ConstraintProcessorTest {
 			@Nonnull Require require,
 			@Nonnull Require require2
 		) {
+		}
+
+		@Nonnull
+		@Override
+		public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
+			//noinspection ReturnOfNull,DataFlowIssue
+			return null;
+		}
+	}
+
+	@ConstraintDefinition(
+		name = "something",
+		shortDescription = "This is a deprecated constraint.",
+		userDocsLink = "/link",
+		deprecated = "Use xyz instead."
+	)
+	private static class DeprecatedConstraint extends AbstractAttributeFilterConstraintLeaf {
+
+		@Creator
+		public DeprecatedConstraint() {
 		}
 
 		@Nonnull

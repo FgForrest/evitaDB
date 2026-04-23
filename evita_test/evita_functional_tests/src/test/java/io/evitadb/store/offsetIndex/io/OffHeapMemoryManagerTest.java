@@ -24,6 +24,7 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("CatalogOffHeapMemoryManager off-heap regions and stream semantics")
 class OffHeapMemoryManagerTest {
 	private final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
-		TestConstants.TEST_CATALOG, 1024, 16);
+		TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
+	);
 
 	/**
 	 * Verifies that a region output stream can be acquired, written to, and read back
@@ -165,7 +167,7 @@ class OffHeapMemoryManagerTest {
 	void shouldReleaseRegionAndIncreaseFreeRegionsWhenStreamIsReleased() {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
-				TestConstants.TEST_CATALOG, 1024, 16
+				TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
 			);
 			final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()
 		) {
@@ -196,7 +198,7 @@ class OffHeapMemoryManagerTest {
 	void shouldThrowExceptionWhenReleasingAlreadyReleasedRegion() {
 		try (
 			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
-				TestConstants.TEST_CATALOG, 1024, 16
+				TestConstants.TEST_CATALOG, 1024, 16, ChecksumFactory.NO_OP
 			);
 			final OffHeapMemoryOutputStream outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()
 		) {

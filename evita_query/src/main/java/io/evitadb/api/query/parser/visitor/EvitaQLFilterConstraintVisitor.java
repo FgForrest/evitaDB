@@ -34,10 +34,12 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenC
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenExceptConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FacetIncludingChildrenHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.FilterInScopeConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.GroupHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -567,6 +569,38 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	}
 
 	@Override
+	public FilterConstraint visitHistogramHavingConstraint(EvitaQLParser.HistogramHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> {
+				final String referenceName = ctx.args.classifier
+					.accept(this.stringValueTokenVisitor)
+					.asString();
+				final String histogramName = ctx.args.histogramName == null
+					? null
+					: ctx.args.histogramName.accept(this.stringValueTokenVisitor).asString();
+				final Serializable from;
+				final Serializable to;
+				if (ctx.args.valueFrom != null && ctx.args.valueTo != null) {
+					from = ctx.args.valueFrom
+						.accept(this.comparableValueTokenVisitor)
+						.asSerializableAndComparable();
+					to = ctx.args.valueTo
+						.accept(this.comparableValueTokenVisitor)
+						.asSerializableAndComparable();
+				} else {
+					from = null;
+					to = null;
+				}
+				final FilterConstraint groupSelector = ctx.args.groupSelector == null
+					? null
+					: visitChildConstraint(ctx.args.groupSelector, FilterConstraint.class);
+				return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
+			}
+		);
+	}
+
+	@Override
 	public FilterConstraint visitFacetIncludingChildrenConstraint(FacetIncludingChildrenConstraintContext ctx) {
 		return parse(ctx, FacetIncludingChildren::new);
 	}
@@ -727,6 +761,14 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		return parse(
 			ctx,
 			() -> new EntityHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
+		);
+	}
+
+	@Override
+	public FilterConstraint visitGroupHavingConstraint(GroupHavingConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new GroupHaving(visitChildConstraint(ctx.args.filter, FilterConstraint.class))
 		);
 	}
 

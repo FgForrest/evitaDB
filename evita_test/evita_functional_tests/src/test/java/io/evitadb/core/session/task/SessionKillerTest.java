@@ -34,6 +34,7 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,6 +76,7 @@ class SessionKillerTest implements EvitaTestSupport {
 						.storageDirectory(getTestDirectory().resolve(SUB_DIRECTORY))
 						.build()
 				)
+				.export(FileSystemExportOptions.temporary())
 				.server(
 					ServerOptions.builder()
 						.closeSessionsAfterSecondsOfInactivity(1)

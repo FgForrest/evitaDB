@@ -35,20 +35,33 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The level constraint can only be used within the stopAt container and limits the hierarchy traversal to stop when
- * the actual level of the traversed node is equal to a specified constant. The "virtual" top invisible node has level
- * zero, the top nodes (nodes with NULL parent) have level one, their children have level two, and so on.
+ * Specifies an absolute level in the hierarchy at which traversal should stop. The level is an absolute depth
+ * measured from the virtual invisible top root:
  *
- * See the following figure:
+ * - Level 0: the virtual root (never a real node)
+ * - Level 1: top-level nodes (nodes with no parent)
+ * - Level 2: children of top-level nodes
+ * - Level N: nodes N steps below the virtual root
  *
- * <pre>
+ * Traversal halts when the currently visited node resides at the specified level — the node at that level is
+ * included in the output, but its children are not. The level value must be greater than zero (level 0 would
+ * represent the virtual root, which is never a traversable node).
+ *
+ * This constraint can only be used as the single inner constraint of a {@link HierarchyStopAt} container.
+ * It is the right choice when you need a uniformly capped tree regardless of where the pivot node sits — for
+ * example, "always show me the top two levels of the hierarchy for the mega-menu", regardless of whether the user
+ * is browsing from the root or from a deep node.
+ *
+ * Contrast with {@link HierarchyDistance}, which expresses a _relative_ number of steps from the pivot node, and
+ * {@link HierarchyNode}, which stops dynamically based on a filter condition.
+ *
+ * **Example — top two levels of the hierarchy for a mega-menu:**
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "audio")
- *         )
+ *         hierarchyWithin("categories", attributeEquals("code", "audio"))
  *     ),
  *     require(
  *         hierarchyOfReference(
@@ -61,18 +74,15 @@ import java.io.Serializable;
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * The query lists products in Audio category and its subcategories. Along with the products returned, it
- * also returns a computed megaMenu data structure that lists top two levels of the entire hierarchy.
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#level">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#level)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "level",
-	shortDescription = "The constraint limits the traversing in stop at container at specified level from root.",
+	shortDescription = "The constraint limits hierarchy traversal to a specified absolute depth level measured from the root.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#level",
 	supportedIn = ConstraintDomain.HIERARCHY
 )

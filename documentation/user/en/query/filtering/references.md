@@ -33,9 +33,10 @@ referenceHaving(
 
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/ReferenceHaving.cs</SourceClass></LS> constraint
 eliminates entities which has no reference of particular name satisfying set of filtering constraints. You can examine
-either the attributes specified on the relation itself or wrap the filtering constraint
-in [`entityHaving`](#entity-having)
-constraint to examine the attributes of the referenced entity. The constraint is similar to
+either the attributes specified on the relation itself, wrap the filtering constraint
+in [`entityHaving`](#entity-having) constraint to examine the attributes of the referenced entity,
+or in [`groupHaving`](#group-having) constraint to examine the attributes of the group entity associated
+with the reference. The constraint is similar to
 SQL [`EXISTS`](https://www.w3schools.com/sql/sql_exists.asp) operator.
 
 To demonstrate how the `referenceHaving` constraint works, let's query for products that have at least one alternative
@@ -211,6 +212,73 @@ Which returns the following result:
 <LS to="r">
 
 <MDInclude>[Products referencing `brand` of with code `apple`](/documentation/user/en/query/filtering/examples/references/entity-having.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+## Group having
+
+```evitaql-syntax
+groupHaving(
+    filterConstraint:any+
+)
+```
+
+<dl>
+    <dt>filterConstraint:any+</dt>
+    <dd>
+        one or more filter constraints that must be satisfied by the group entity of any of the source
+        entity references identified by the parent `referenceHaving` constraint
+    </dd>
+</dl>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/GroupHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/GroupHaving.cs</SourceClass></LS> constraint
+is used to examine the attributes or other filterable properties of the group entity associated with a reference.
+It can only be used within the [`referenceHaving`](#reference-having) constraint, which defines the name of the entity
+reference whose group entity will be subjected to the filtering restrictions in the `groupHaving` constraint. The
+filtering constraints for the group entity can use entire range of [filtering operators](../basics.md#filter-by).
+
+This constraint requires the reference to be configured with a group type and to have
+the `REFERENCED_GROUP_ENTITY` [indexed component](../../use/schema.md#reference) enabled. Without `groupHaving`,
+filtering constraints within `referenceHaving` apply to the reference relation attributes; with
+[`entityHaving`](#entity-having), they apply to the referenced entity attributes; and with `groupHaving`, they apply
+to the group entity attributes.
+
+Let's use our previous example to query for products that have a `brand` reference whose group entity (a `Store`)
+has a particular attribute `code`:
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Products referencing `brand` with group (store) having particular code](/documentation/user/en/query/filtering/examples/references/group-having.evitaql)
+
+</SourceCodeTabs>
+
+Which returns the following result:
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Products with `brand` reference grouped by a store with specific code
+
+</NoteTitle>
+
+<LS to="e,j,c">
+
+<MDInclude>[Products referencing `brand` with group (store) having particular code](/documentation/user/en/query/filtering/examples/references/group-having.evitaql.md)</MDInclude>
+
+</LS>
+
+<LS to="g">
+
+<MDInclude>[Products referencing `brand` with group (store) having particular code](/documentation/user/en/query/filtering/examples/references/group-having.graphql.json.md)</MDInclude>
+
+</LS>
+
+<LS to="r">
+
+<MDInclude>[Products referencing `brand` with group (store) having particular code](/documentation/user/en/query/filtering/examples/references/group-having.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -504,3 +572,79 @@ have changed accordingly:
 </LS>
 
 </Note>
+
+## Histogram having
+
+```evitaql-syntax
+histogramHaving(
+    argument:string!,
+    argument:string?,
+    argument:any?,
+    argument:any?,
+    filterConstraint:entityHaving?
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        the name of the [entity reference](../../use/schema.md#reference) that hosts the histogram to be narrowed
+    </dd>
+    <dt>argument:string?</dt>
+    <dd>
+        optional histogram name within the reference; may be omitted (or passed as `null` / empty string) when
+        the reference hosts exactly one histogram
+    </dd>
+    <dt>argument:any?</dt>
+    <dd>
+        optional inclusive lower bound (`from`) of the range; `null` leaves the range open-ended on the lower side
+    </dd>
+    <dt>argument:any?</dt>
+    <dd>
+        optional inclusive upper bound (`to`) of the range; `null` leaves the range open-ended on the upper side;
+        at least one of `from` / `to` must be non-null
+    </dd>
+    <dt>filterConstraint:entityHaving?</dt>
+    <dd>
+        optional single [`entityHaving`](#entity-having) constraint selecting the **group** entity for a grouped
+        histogram slot (for example "the `height` parameter" within the `parameterValues` reference); omitted for
+        non-grouped slots
+    </dd>
+</dl>
+
+<Note type="warning">
+
+**Group primary key `0` is reserved.** Reference histograms use the value `0` as a reserved non-grouped sentinel
+across the entire subsystem (in `histogramHaving` range maps, in the grouped-vs-non-grouped slot key, and in the
+`ResolvedHistogramHaving` carrier). Because evitaDB accepts client-supplied primary keys of any `int` value
+(including negatives), you **must not** use `0` as a primary key for any entity that may appear as the **group**
+of a reference hosting a histogram. A real group entity with PK `0` will be rejected with an internal error at
+query time. Use any non-zero integer (positive or negative) for such entities.
+
+</Note>
+
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HistogramHaving.java</SourceClass></LS> constraint narrows a reference histogram to a specific `[from, to]` range. It is the first-class carrier for
+slider-driven range selection on **references** — for example, a product's `parameterValues` reference that hosts one
+histogram per parameter (`height`, `weight`, `depth`, …). A single `histogramHaving` identifies one
+`(referenceName, histogramName, groupSelector, [from, to])` tuple.
+
+Inside the [`userFilter`](behavioral.md#user-filter) container, `histogramHaving` plays a dual role:
+
+1. it is applied to the filter formula like any other `userFilter` child — the result set is narrowed by the range;
+2. it is registered as a **range carrier** so the histogram's own `[min, max]` baseline cloner peels it out when
+   computing the histogram — moving one slider does not contract the `[min, max]` span of sibling sliders (see the
+   [three-group invariant in behavioral filtering](behavioral.md#sliders-do-not-contract-under-their-own-handles)).
+
+Outside `userFilter`, `histogramHaving` behaves like an equivalent [`referenceHaving`](#reference-having) rewrite —
+it narrows the result set and does not participate in histogram baseline relaxation.
+
+### Expressing independent ranges on the same reference
+
+Two `histogramHaving` siblings inside one `userFilter` express independent per-histogram ranges that are combined as
+a logical AND — each slider has its own `(histogramName, groupSelector, from, to)` tuple:
+
+<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Two `histogramHaving` siblings on the same reference](/documentation/user/en/query/filtering/examples/references/histogram-having.evitaql)
+
+</SourceCodeTabs>

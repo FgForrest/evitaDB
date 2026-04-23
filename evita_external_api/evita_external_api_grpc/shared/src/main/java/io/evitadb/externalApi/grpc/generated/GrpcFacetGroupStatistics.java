@@ -30,11 +30,12 @@ package io.evitadb.externalApi.grpc.generated;
 /**
  * <pre>
  * This DTO contains information about single facet group and statistics of the facets that relates to it.
+ * TOBEDONE: remove when FacetSummary constraint is removed
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics}
  */
-public final class GrpcFacetGroupStatistics extends
+@java.lang.Deprecated public final class GrpcFacetGroupStatistics extends
     com.google.protobuf.GeneratedMessageV3 implements
     // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics)
     GrpcFacetGroupStatisticsOrBuilder {
@@ -483,6 +484,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * This DTO contains information about single facet group and statistics of the facets that relates to it.
+   * TOBEDONE: remove when FacetSummary constraint is removed
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics}

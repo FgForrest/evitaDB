@@ -38,29 +38,131 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's
- * similar to the "where" clause in SQL. FilterBy container might contain one or more sub-constraints, that are combined
- * by logical disjunction (AND).
+ * The root container for all filtering constraints in a query. This constraint acts as the top-level filter section,
+ * analogous to the `WHERE` clause in SQL, and determines which entities from the target collection are included in
+ * the query result set.
  *
- * Example:
+ * **Purpose**
  *
- * <pre>
- * filterBy(
- *    isNotNull("code"),
- *    or(
- *       equals("code", "ABCD"),
- *       startsWith("title", "Knife")
- *    )
+ * `FilterBy` serves as the mandatory root container for all filtering logic. It groups one or more child filter
+ * constraints that define the selection criteria for entities. All evitaDB queries that need to filter results must
+ * use `filterBy` to specify the filtering conditions.
+ *
+ * **Default Conjunction Semantics**
+ *
+ * When multiple child constraints are specified directly within `filterBy`, they are implicitly combined using
+ * **logical conjunction (AND)**. All child constraints must be satisfied for an entity to match. This means:
+ * - `filterBy(a, b, c)` is equivalent to `filterBy(and(a, b, c))`
+ * - All conditions a, b, and c must evaluate to true for the entity to be included in the result
+ *
+ * To use different logical combinations (OR, NOT), you must explicitly nest the appropriate logical operators
+ * ({@link And}, {@link Or}, {@link Not}) within `filterBy`.
+ *
+ * **Usage Context**
+ *
+ * This constraint can be used in multiple domains:
+ * - `GENERIC`: as a top-level query section in {@link io.evitadb.api.query.Query}
+ * - `ENTITY`: within entity query context
+ * - `SEGMENT`: within segment filtering contexts
+ * - `INLINE_REFERENCE`: within inline reference filtering
+ *
+ * **Necessity and Applicability**
+ *
+ * The `filterBy` constraint is considered **necessary** only when it has at least one applicable child constraint.
+ * An empty `filterBy` (with no children) is neither necessary nor applicable and will typically be omitted during
+ * query normalization. The `isNecessary()` implementation delegates to `isApplicable()` for this reason.
+ *
+ * **EvitaQL Syntax**
+ *
+ * ```evitaql
+ * filterBy(filterConstraint:any*)
+ * ```
+ *
+ * **Example Usage**
+ *
+ * ```java
+ * // Simple attribute filtering - implicit AND
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeEquals("available", true),
+ *         attributeEquals("category", "Electronics")
+ *     )
  * )
- * </pre>
  *
- * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
+ * // Complex filtering with explicit logical operators
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeEquals("available", true),
+ *         or(
+ *             attributeEquals("brand", "Nike"),
+ *             attributeEquals("brand", "Adidas")
+ *         ),
+ *         priceBetween(100, 500)
+ *     )
+ * )
+ *
+ * // Filtering with negation
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeEquals("category", "Shoes"),
+ *         not(
+ *             attributeEquals("onSale", true)
+ *         )
+ *     )
+ * )
+ *
+ * // Full-featured filter with multiple constraint types
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         entityPrimaryKeyInSet(1, 2, 3, 5, 8, 13),
+ *         entityLocaleEquals(Locale.ENGLISH),
+ *         attributeIsNotNull("code"),
+ *         or(
+ *             attributeEquals("code", "ABCD"),
+ *             attributeStartsWith("title", "Knife")
+ *         ),
+ *         priceInCurrency(Currency.USD),
+ *         priceValidIn(OffsetDateTime.now())
+ *     )
+ * )
+ *
+ * // Filtering with hierarchical and reference constraints
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin("category", 10),
+ *         referenceHaving(
+ *             "brand",
+ *             entityPrimaryKeyInSet(100, 200)
+ *         ),
+ *         attributeGreaterThan("rating", 4.0)
+ *     )
+ * )
+ * ```
+ *
+ * **Relationship to Other Containers**
+ *
+ * `FilterBy` is one of the four top-level query sections in evitaDB:
+ * - **FilterBy**: defines which entities to include (this constraint)
+ * - **OrderBy**: defines the sorting order of results
+ * - **Require**: specifies data fetching and computational requirements (projections, aggregations, etc.)
+ * - **Collection/Head**: specifies the target entity collection
+ *
+ * Within facet summary requirements, there is a specialized variant {@link FilterGroupBy} used to filter facet groups
+ * rather than entities.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/basics#filter-by)
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "filterBy",
-	shortDescription = "The container encapsulating inner filter constraint into one main constraint that is required by the query.",
+	shortDescription = "The root container for all filtering constraints in a query, analogous to the WHERE clause in SQL." +
+		" Multiple children are implicitly combined with logical AND.",
 	userDocsLink = "/documentation/query/basics#filter-by",
 	supportedIn = { ConstraintDomain.GENERIC, ConstraintDomain.ENTITY, ConstraintDomain.SEGMENT, ConstraintDomain.INLINE_REFERENCE }
 )

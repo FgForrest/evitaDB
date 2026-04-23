@@ -58,7 +58,26 @@ import java.util.stream.Stream;
 import static java.util.Optional.ofNullable;
 
 /**
- * This predicate allows to limit number of prices visible to the client based on query constraints.
+ * Serializable predicate that filters entity prices based on query requirements.
+ *
+ * This predicate controls which prices are visible to clients by filtering based on price content mode, currency,
+ * validity timestamp, price lists, and accompanying prices specified in the query. It supports three price content
+ * modes:
+ * - `NONE`: No prices are visible
+ * - `ALL`: All existing prices are visible (no filtering)
+ * - `RESPECTING_FILTER`: Prices are filtered by currency, validity, and price lists
+ *
+ * The predicate also manages the "price for sale" context, which determines the single best price for an entity
+ * based on price list priority, currency, and validity constraints. Additional price lists and accompanying prices
+ * can be fetched alongside the main filtered prices for enriched price visibility.
+ *
+ * **Thread-safety**: This class is immutable except for lazy-initialized `priceForSaleContext` field. The context
+ * is safely initialized in a thread-safe manner.
+ *
+ * **Underlying predicate pattern**: Supports an optional underlying predicate that represents the original entity's
+ * complete price scope. This pattern is used when creating limited views from fully-fetched entities.
+ *
+ * **Performance**: Uses `priceListsAsSet` for fast O(1) price list lookups during filtering.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -285,8 +304,9 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	}
 
 	/**
-	 * Returns true if the price for particular `currency` and `priceList` combination might exist, but was not fetched
-	 * along with the entity.
+	 * Verifies that the price for particular `currency` and `priceList` combination was fetched along with the entity.
+	 *
+	 * @throws ContextMissingException if the price was not fetched
 	 */
 	public void checkFetched(@Nullable Currency currency, @Nonnull String... priceList) throws ContextMissingException {
 		switch (this.priceContentMode) {
@@ -314,7 +334,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 	}
 
 	/**
-	 * Returns true if at least single price was fetched along with the entity.
+	 * Verifies that at least a single price was fetched along with the entity.
 	 *
 	 * @throws ContextMissingException if no price was fetched with the entity
 	 */
@@ -350,7 +370,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 			final Set<AccompanyingPrice> mergedAccompanyingPriceSet = CollectionUtils.createLinkedHashSet(this.accompanyingPrices.length + accompanyingPrices.length);
 			Collections.addAll(mergedAccompanyingPriceSet, this.accompanyingPrices);
 			Collections.addAll(mergedAccompanyingPriceSet, accompanyingPrices);
-			mergedAccompanyingPrices = mergedAccompanyingPriceSet.toArray(new AccompanyingPrice[0]);
+			mergedAccompanyingPrices = mergedAccompanyingPriceSet.toArray(AccompanyingPrice.EMPTY_ARRAY);
 		}
 		if (this.priceContentMode.ordinal() >= requiresEntityPrices.ordinal()) {
 			if (ArrayUtils.isEmpty(fetchesAdditionalPriceLists) && ArrayUtils.isEmpty(accompanyingPrices)) {

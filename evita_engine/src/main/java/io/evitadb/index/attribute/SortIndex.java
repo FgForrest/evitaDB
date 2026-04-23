@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,9 +39,9 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
-import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndexChanges.ValueStartIndex;
@@ -56,7 +56,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStor
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -66,7 +65,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
-import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -83,10 +81,10 @@ import static java.util.Optional.ofNullable;
  * Sort index contains presorted bitmaps/arrays that allows 10x faster sorting result than sorting the records by quicksort
  * on real attribute values.
  *
- * This class is tread safe in transactional environment - it means, that the sort index can be updated
- * by multiple writers and also multiple readers can read from it's original index without spotting the changes made
- * in transactional access. Each transaction is bound to the same thread and different threads doesn't see changes in
- * another threads.
+ * This class is thread-safe in transactional environment - it means, that the sort index can be updated
+ * by multiple writers and also multiple readers can read from its original index without spotting the changes made
+ * in transactional access. Each transaction is bound to the same thread and different threads don't see changes in
+ * other threads.
  *
  * If no transaction is opened, changes are applied directly to the delegate data structures. In such case the class is
  * not thread safe for multiple writers!
@@ -116,8 +114,8 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@Nonnull final ComparatorSource[] comparatorBase;
 	/**
-	 * Reference key (discriminator) of the {@link ReducedEntityIndex} this index belongs to. Or null if this index
-	 * is part of the global {@link GlobalEntityIndex}.
+	 * Reference key (discriminator) of the {@link AbstractReducedEntityIndex} this index belongs to. Or null if
+	 * this index is part of the global {@link GlobalEntityIndex}.
 	 */
 	@Getter @Nullable private final RepresentativeReferenceKey referenceKey;
 	/**
@@ -132,7 +130,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * In unicode, some characters can be represented in multiple ways. Some has their own character as well as
 	 * a combination of other unicode characters that can represent them. When characters can be represented in multiple
 	 * ways, sorting them becomes harder. Therefore you should normalize the text before you sort it, or search in it
-	 * for that matter. Normalizing the text makes sure that a given string of unicde characters is always represented
+	 * for that matter. Normalizing the text makes sure that a given string of unicode characters is always represented
 	 * in the same way - a way which is search and sort friendly.
 	 *
 	 * (source: <a href="https://jenkov.com/tutorials/java-internationalization/collator.html">Jenkov.com</a>)
@@ -229,8 +227,6 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	public static Optional<UnaryOperator<Serializable>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
 		if (String.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(text -> text == null ? null : Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD));
-		} else if (BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
-			return Optional.of(value -> value == null ? null : NumberUtils.normalize((BigDecimal) value));
 		} else if (Locale.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(value -> value == null ? null : new ComparableLocale((Locale) value));
 		} else if (Currency.class.isAssignableFrom(comparatorBase.type())) {
@@ -533,9 +529,13 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 	@Nonnull
 	@Override
-	public SortIndex createCopyWithMergedTransactionalMemory(@Nullable SortIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public SortIndex createCopyWithMergedTransactionalMemory(
+		@Nullable SortIndexChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		// we can safely throw away dirty flag now
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		final boolean isDirty = transactionalLayer
+			.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new SortIndex(
 				this.comparatorBase,
@@ -684,7 +684,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	}
 
 	/**
-	 * Retrieves or creates temporary data structure. When transaction exists it's created in the transactional memory
+	 * Retrieves or creates temporary data structure. When transaction exists, it is created in the transactional memory
 	 * space so that other threads are not affected by the changes in the {@link SortIndex}.
 	 */
 	@Nonnull

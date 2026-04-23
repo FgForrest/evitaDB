@@ -23,54 +23,225 @@
 
 package io.evitadb.api.query.order;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintVisitor;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryConstraints;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static io.evitadb.api.query.QueryConstraints.random;
+import static io.evitadb.api.query.QueryConstraints.randomWithSeed;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link Random} query.
+ * Tests for {@link Random} verifying construction, applicability, property accessors,
+ * suffix behavior, cloning, visitor support, string representation, and equality contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("Random constraint")
 class RandomTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final Random random = random();
-		assertNotNull(random);
+	@Nested
+	@DisplayName("Construction")
+	class ConstructionTest {
 
-		final Random random1 = QueryConstraints.randomWithSeed(42);
-		assertNotNull(random1);
+		@Test
+		@DisplayName("should create seedless instance via factory method")
+		void shouldCreateSeedlessInstance() {
+			final Random constraint = random();
+
+			assertNotNull(constraint);
+			assertNull(constraint.getSeed());
+		}
+
+		@Test
+		@DisplayName("should create seeded instance via factory method")
+		void shouldCreateSeededInstance() {
+			final Random constraint = randomWithSeed(42);
+
+			assertNotNull(constraint);
+			assertEquals(42L, constraint.getSeed());
+		}
+
+		@Test
+		@DisplayName("should return singleton INSTANCE for seedless random")
+		void shouldReturnSingletonForSeedless() {
+			assertSame(random(), random());
+			assertSame(Random.INSTANCE, random());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertTrue(random().isApplicable());
-		assertTrue(QueryConstraints.randomWithSeed(42).isApplicable());
+	@Nested
+	@DisplayName("Applicability")
+	class ApplicabilityTest {
+
+		@Test
+		@DisplayName("should always be applicable for seedless variant")
+		void shouldBeApplicableForSeedless() {
+			assertTrue(random().isApplicable());
+		}
+
+		@Test
+		@DisplayName("should always be applicable for seeded variant")
+		void shouldBeApplicableForSeeded() {
+			assertTrue(randomWithSeed(42).isApplicable());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final Random random = random();
-		assertEquals("random()", random.toString());
+	@Nested
+	@DisplayName("Property accessors")
+	class PropertyAccessorsTest {
 
-		final Random random1 = QueryConstraints.randomWithSeed(42);
-		assertEquals("randomWithSeed(42)", random1.toString());
+		@Test
+		@DisplayName("should return null seed for seedless variant")
+		void shouldReturnNullSeedForSeedless() {
+			assertNull(random().getSeed());
+		}
+
+		@Test
+		@DisplayName("should return correct seed for seeded variant")
+		void shouldReturnCorrectSeed() {
+			assertEquals(42L, randomWithSeed(42).getSeed());
+		}
+
+		@Test
+		@DisplayName("should return different seeds for different instances")
+		void shouldReturnDifferentSeeds() {
+			assertNotEquals(randomWithSeed(42).getSeed(), randomWithSeed(99).getSeed());
+		}
 	}
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertSame(random(), random());
-		assertNotSame(QueryConstraints.randomWithSeed(42), QueryConstraints.randomWithSeed(42));
-		assertNotSame(QueryConstraints.randomWithSeed(42), QueryConstraints.randomWithSeed(32));
-		assertEquals(random(), random());
-		assertEquals(QueryConstraints.randomWithSeed(42), QueryConstraints.randomWithSeed(42));
-		assertNotEquals(QueryConstraints.randomWithSeed(42), QueryConstraints.randomWithSeed(32));
-		assertEquals(random().hashCode(), random().hashCode());
-		assertEquals(QueryConstraints.randomWithSeed(42).hashCode(), QueryConstraints.randomWithSeed(42).hashCode());
-		assertNotEquals(QueryConstraints.randomWithSeed(42).hashCode(), QueryConstraints.randomWithSeed(32).hashCode());
+	@Nested
+	@DisplayName("Suffix behavior")
+	class SuffixTest {
+
+		@Test
+		@DisplayName("should return empty suffix for seedless variant")
+		void shouldReturnEmptySuffixForSeedless() {
+			final Optional<String> suffix = random().getSuffixIfApplied();
+
+			assertTrue(suffix.isEmpty());
+		}
+
+		@Test
+		@DisplayName("should return 'withSeed' suffix for seeded variant")
+		void shouldReturnWithSeedSuffix() {
+			final Optional<String> suffix = randomWithSeed(42).getSuffixIfApplied();
+
+			assertTrue(suffix.isPresent());
+			assertEquals("withSeed", suffix.get());
+		}
 	}
 
+	@Nested
+	@DisplayName("Cloning")
+	class CloningTest {
+
+		@Test
+		@DisplayName("should produce equal but not same instance via cloneWithArguments")
+		void shouldCloneSeededInstance() {
+			final Random original = randomWithSeed(42);
+			final OrderConstraint clone = original.cloneWithArguments(new Serializable[]{42L});
+
+			assertEquals(original, clone);
+			assertNotSame(original, clone);
+			assertInstanceOf(Random.class, clone);
+		}
+
+		@Test
+		@DisplayName("should clone seedless instance")
+		void shouldCloneSeedlessInstance() {
+			final Random original = random();
+			final OrderConstraint clone = original.cloneWithArguments(new Serializable[]{});
+
+			assertEquals(original, clone);
+			assertNotSame(original, clone);
+			assertInstanceOf(Random.class, clone);
+		}
+	}
+
+	@Nested
+	@DisplayName("Visitor support")
+	class VisitorSupportTest {
+
+		@Test
+		@DisplayName("should accept visitor and call visit method")
+		void shouldAcceptVisitor() {
+			final Random constraint = randomWithSeed(42);
+			final AtomicReference<Constraint<?>> visited = new AtomicReference<>();
+			constraint.accept(new ConstraintVisitor() {
+				@Override
+				public void visit(@Nonnull Constraint<?> c) {
+					visited.set(c);
+				}
+			});
+
+			assertSame(constraint, visited.get());
+		}
+
+		@Test
+		@DisplayName("should return OrderConstraint class as type")
+		void shouldReturnCorrectType() {
+			assertEquals(OrderConstraint.class, random().getType());
+		}
+	}
+
+	@Nested
+	@DisplayName("String representation")
+	class ToStringTest {
+
+		@Test
+		@DisplayName("should produce 'random()' for seedless variant")
+		void shouldToStringForSeedless() {
+			assertEquals("random()", random().toString());
+		}
+
+		@Test
+		@DisplayName("should produce 'randomWithSeed(42)' for seeded variant")
+		void shouldToStringForSeeded() {
+			assertEquals("randomWithSeed(42)", randomWithSeed(42).toString());
+		}
+	}
+
+	@Nested
+	@DisplayName("Equality and hashCode")
+	class EqualityTest {
+
+		@Test
+		@DisplayName("should be equal for same seedless instances")
+		void shouldBeEqualForSeedless() {
+			assertSame(random(), random());
+			assertEquals(random(), random());
+			assertEquals(random().hashCode(), random().hashCode());
+		}
+
+		@Test
+		@DisplayName("should be equal for same seed values")
+		void shouldBeEqualForSameSeeds() {
+			assertNotSame(randomWithSeed(42), randomWithSeed(42));
+			assertEquals(randomWithSeed(42), randomWithSeed(42));
+			assertEquals(randomWithSeed(42).hashCode(), randomWithSeed(42).hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal for different seed values")
+		void shouldNotBeEqualForDifferentSeeds() {
+			assertNotEquals(randomWithSeed(42), randomWithSeed(32));
+			assertNotEquals(randomWithSeed(42).hashCode(), randomWithSeed(32).hashCode());
+		}
+
+		@Test
+		@DisplayName("should not be equal for seedless and seeded variants")
+		void shouldNotBeEqualForSeedlessAndSeeded() {
+			assertNotEquals(random(), randomWithSeed(42));
+		}
+	}
 }

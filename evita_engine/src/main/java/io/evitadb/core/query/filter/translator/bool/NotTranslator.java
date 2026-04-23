@@ -43,8 +43,17 @@ public class NotTranslator implements FilteringConstraintTranslator<Not> {
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull Not notConstraint, @Nonnull FilterByVisitor filterByVisitor) {
+		// invariant: `Not` wraps exactly one inner constraint (enforced by grammar), and every
+		// filtering translator must push exactly one formula onto the current level — so after the
+		// visitor has processed the inner constraint, the level must contain exactly one formula.
+		// Anything else signals a broken translator in the children subtree and must fail loudly
+		// rather than silently take the top of the stack.
 		final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
-		Assert.isPremiseValid(collectedFormulas.length == 1, "Not query is allowed to have only single argument: `" + notConstraint + "`");
+		Assert.isPremiseValid(
+			collectedFormulas.length == 1,
+			() -> "Expected exactly one formula from `not` inner constraint dispatch, got " +
+				collectedFormulas.length + " for: `" + notConstraint + "`."
+		);
 		return new FutureNotFormula(collectedFormulas[0]);
 	}
 

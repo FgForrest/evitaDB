@@ -23,11 +23,12 @@
 
 package io.evitadb.store.offsetIndex.io;
 
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleClosedEvent;
 import io.evitadb.core.metric.event.storage.ReadOnlyHandleOpenedEvent;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -71,9 +72,10 @@ public class ReadOnlyFileHandle implements ReadOnlyHandle {
 
 	public ReadOnlyFileHandle(
 		@Nonnull Path targetFile,
-		@Nonnull StorageOptions storageOptions
-		) {
-		this(null, null, null, targetFile, storageOptions);
+		@Nonnull ChecksumFactory checksumFactory,
+		@Nonnull CompressionFactory compressionFactory
+	) {
+		this(null, null, null, targetFile, checksumFactory, compressionFactory);
 	}
 
 	public ReadOnlyFileHandle(
@@ -81,7 +83,8 @@ public class ReadOnlyFileHandle implements ReadOnlyHandle {
 		@Nullable FileType fileType,
 		@Nullable String logicalName,
 		@Nonnull Path targetFile,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull ChecksumFactory checksumCalculatorFactory,
+		@Nonnull CompressionFactory compressionFactory
 	) {
 		try {
 			this.catalogName = catalogName;
@@ -92,14 +95,10 @@ public class ReadOnlyFileHandle implements ReadOnlyHandle {
 				new RandomAccessFileInputStream(
 					new RandomAccessFile(targetFile.toFile(), "r"),
 					true
-				)
+				),
+				checksumCalculatorFactory.createChecksum(),
+				compressionFactory.createDecompressor().orElse(null)
 			);
-			if (storageOptions.computeCRC32C()) {
-				this.readInput.computeCRC32();
-			}
-			if (storageOptions.compress()) {
-				this.readInput.compress();
-			}
 
 			// emit event
 			if (this.catalogName != null && this.fileType != null && this.logicalName != null) {

@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * and the empty iterator behavior: always exhausted, always
  * throws on `next()`.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EmptyIterator functionality")
 class EmptyIteratorTest {

@@ -44,7 +44,7 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public interface ReferencesContract extends Serializable, ReferenceAvailabilityChecker {
+public interface ReferencesContract extends Serializable, WithEntitySchema, ReferenceAvailabilityChecker {
 
 	/**
 	 * Returns collection of {@link Reference} of this entity. The references represent relations to other evitaDB

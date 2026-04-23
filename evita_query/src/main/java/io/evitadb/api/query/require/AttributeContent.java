@@ -47,23 +47,53 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * The `attributeContent` requirement is used to retrieve one or more entity or reference attributes. Localized attributes
- * are only fetched if there is a locale context in the query, either by using the {@link EntityLocaleEquals} filter
- * constraint or the dataInLocales require constraint.
+ * The `attributeContent` requirement fetches one or more named entity or reference attributes into the returned entity
+ * body. It is valid inside {@link EntityFetch} (for entity-level attributes) and inside {@link ReferenceContent}
+ * (for reference-level attributes that are stored on the reference itself, not on the referenced entity).
  *
- * All entity attributes are fetched from disk in bulk, so specifying only a few of them in the `attributeContent`
- * requirement only reduces the amount of data transferred over the network. It's not bad to fetch all the attributes
- * of an entity using `attributeContentAll`.
+ * ## Locale handling
  *
- * Example:
+ * Localized attributes are returned only when a locale context is established in the query — either via
+ * {@link EntityLocaleEquals} in the filter, or via the `dataInLocales` require constraint. Without a locale context,
+ * only non-localized (global) attributes are returned even if localized variants exist in the database.
  *
- * <pre>
+ * ## Storage and network behavior
+ *
+ * All attributes of an entity are stored together in a single disk record and loaded atomically. Specifying only a
+ * subset of attribute names therefore does **not** reduce I/O; it only reduces the amount of data transmitted over the
+ * network to the client. It is therefore perfectly acceptable to use `attributeContentAll()` when most attributes are
+ * needed.
+ *
+ * ## Wildcard form
+ *
+ * Calling `attributeContent()` with no arguments (or using the factory method `attributeContentAll()`) fetches all
+ * attributes of the entity or reference. The static constant {@link #ALL_ATTRIBUTES} represents this wildcard form
+ * and can be reused without allocation. This variant is also used internally as the implicit child of
+ * `referenceContentAllWithAttributes()`.
+ *
+ * ## Combining
+ *
+ * Multiple `attributeContent` requirements are merged automatically when the same entity fetch is assembled from
+ * separate query fragments. The merged result is the union of all explicitly named attributes; if any fragment
+ * requests `attributeContentAll()`, the wildcard takes precedence over all named requests.
+ *
+ * Example — fetching specific named attributes:
+ *
+ * ```
  * entityFetch(
- *    attributeContent("code", "name")
+ *     attributeContent("code", "name")
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a></p>
+ * Example — fetching all attributes:
+ *
+ * ```
+ * entityFetch(
+ *     attributeContentAll()
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#attribute-content)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -82,7 +112,7 @@ public class AttributeContent extends AbstractRequireConstraintLeaf
 	private LinkedHashSet<String> attributeNamesAsSet;
 	private String[] attributeNames;
 
-	private AttributeContent(Serializable... arguments) {
+	private AttributeContent(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

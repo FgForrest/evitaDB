@@ -37,8 +37,10 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -54,10 +56,13 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.AssociatedDataForm;
 import io.evitadb.externalApi.grpc.generated.*;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -233,6 +238,39 @@ public class GrpcAssertions {
 			assertEquals(expectedReferenceSchema.isReferencedGroupTypeManaged(), actualReferenceSchema.getReferencedGroupTypeManaged());
 			assertEquals(expectedReferenceSchema.isIndexed(), actualReferenceSchema.getIndexed());
 			assertEquals(expectedReferenceSchema.isFaceted(), actualReferenceSchema.getFaceted());
+			assertEquals(
+				expectedReferenceSchema.getIndexedComponentsInScopes().size(),
+				actualReferenceSchema.getScopedIndexedComponentsList().size(),
+				"Indexed components in scopes count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
+			);
+
+			// assert bucketed histogram definitions
+			final long expectedBucketedCount = expectedReferenceSchema.getAllHistogramIndexDefinitions()
+				.values().stream().mapToLong(m -> m.size()).sum();
+			assertEquals(
+				expectedBucketedCount,
+				actualReferenceSchema.getBucketedList().size(),
+				"Bucketed histogram definitions count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
+			);
+			for (GrpcScopedHistogramIndexDefinition grpcBucketed : actualReferenceSchema.getBucketedList()) {
+				final Scope scope = EvitaEnumConverter.toScope(grpcBucketed.getScope());
+				final HistogramIndexDefinition expectedDef =
+					expectedReferenceSchema.getHistogramIndexDefinition(scope, grpcBucketed.getNameOfTheIndex());
+				assertNotNull(
+					expectedDef,
+					"Expected bucketed histogram definition for scope " + scope +
+						" in reference `" + expectedReferenceSchema.getName() + "`"
+				);
+				assertEquals(expectedDef.nameOfTheIndex(), grpcBucketed.getNameOfTheIndex());
+			}
+
+			// assert bucketedPartially expressions
+			assertEquals(
+				expectedReferenceSchema.getBucketedPartiallyInScopes().size(),
+				actualReferenceSchema.getBucketedPartiallyList().size(),
+				"Bucketed partially count mismatch for reference `" + expectedReferenceSchema.getName() + "`"
+			);
+
 			assertAttributes(expectedReferenceSchema.getAttributes(), actualReferenceSchema.getAttributesMap());
 		}
 	}
@@ -378,6 +416,66 @@ public class GrpcAssertions {
 
 	public static void assertPriceHistogram(@Nonnull PriceHistogram priceHistogram, @Nonnull GrpcHistogram histogram) {
 		assertHistograms(priceHistogram, histogram);
+	}
+
+	public static void assertReferenceSummary(@Nonnull ReferenceSummary referenceSummary, @Nonnull List<GrpcReferenceGroupStatistics> allGrpcReferenceGroupStatistics) {
+		for (GrpcReferenceGroupStatistics grpcReferenceGroupStatistics : allGrpcReferenceGroupStatistics) {
+			final ReferenceGroupStatistics expectedReferenceGroupStatistics;
+			if (grpcReferenceGroupStatistics.hasGroupEntityReference()) {
+				expectedReferenceGroupStatistics = referenceSummary.getReferenceGroupStatistics(grpcReferenceGroupStatistics.getReferenceName(), grpcReferenceGroupStatistics.getGroupEntityReference().getPrimaryKey());
+			} else if (grpcReferenceGroupStatistics.hasGroupEntity()) {
+				expectedReferenceGroupStatistics = referenceSummary.getReferenceGroupStatistics(grpcReferenceGroupStatistics.getReferenceName(), grpcReferenceGroupStatistics.getGroupEntity().getPrimaryKey());
+			} else {
+				expectedReferenceGroupStatistics = referenceSummary.getReferenceGroupStatistics(grpcReferenceGroupStatistics.getReferenceName());
+			}
+
+			assertNotNull(expectedReferenceGroupStatistics);
+			assertEquals(expectedReferenceGroupStatistics.getReferenceName(), grpcReferenceGroupStatistics.getReferenceName());
+			final EntityClassifier expectedGroupEntity = expectedReferenceGroupStatistics.getGroupEntity();
+			if (expectedGroupEntity == null) {
+				assertFalse(grpcReferenceGroupStatistics.hasGroupEntity());
+				assertFalse(grpcReferenceGroupStatistics.hasGroupEntityReference());
+			} else if (expectedGroupEntity instanceof EntityReference) {
+				assertEquals(expectedGroupEntity.getType(), grpcReferenceGroupStatistics.getGroupEntityReference().getEntityType());
+				assertEquals(expectedGroupEntity.getPrimaryKey(), grpcReferenceGroupStatistics.getGroupEntityReference().getPrimaryKey());
+				assertFalse(grpcReferenceGroupStatistics.hasGroupEntity());
+			} else if (expectedGroupEntity instanceof SealedEntity entity) {
+				assertEntity(entity, grpcReferenceGroupStatistics.getGroupEntity());
+				assertFalse(grpcReferenceGroupStatistics.hasGroupEntityReference());
+			}
+
+			for (GrpcFacetStatistics actualFacetStatistics : grpcReferenceGroupStatistics.getFacetStatisticsList()) {
+				final int facetId;
+				if (actualFacetStatistics.hasFacetEntity()) {
+					facetId = actualFacetStatistics.getFacetEntity().getPrimaryKey();
+				} else {
+					facetId = actualFacetStatistics.getFacetEntityReference().getPrimaryKey();
+				}
+				final FacetStatistics expectedFacetStatistics = expectedReferenceGroupStatistics.getFacetStatistics(facetId);
+				assertNotNull(expectedFacetStatistics);
+
+				final EntityClassifier expectedEntity = expectedFacetStatistics.getFacetEntity();
+				if (expectedEntity instanceof EntityReference) {
+					assertEquals(expectedEntity.getType(), actualFacetStatistics.getFacetEntityReference().getEntityType());
+					assertEquals(expectedEntity.getPrimaryKey(), actualFacetStatistics.getFacetEntityReference().getPrimaryKey());
+					assertFalse(actualFacetStatistics.hasFacetEntity());
+				} else if (expectedEntity instanceof SealedEntity entity) {
+					assertEntity(entity, actualFacetStatistics.getFacetEntity());
+					assertFalse(actualFacetStatistics.hasFacetEntityReference());
+				}
+
+				assertEquals(expectedFacetStatistics.getCount(), actualFacetStatistics.getCount());
+				assertEquals(expectedFacetStatistics.isRequested(), actualFacetStatistics.getRequested());
+				final RequestImpact facetImpact = expectedFacetStatistics.getImpact();
+				if (facetImpact == null) {
+					assertFalse(actualFacetStatistics.hasImpact());
+				} else {
+					assertNotNull(expectedFacetStatistics.getImpact());
+					assertEquals(expectedFacetStatistics.getImpact().difference(), actualFacetStatistics.getImpact().getValue());
+				}
+
+			}
+		}
 	}
 
 	public static void assertFacetSummary(@Nonnull FacetSummary facetSummary, @Nonnull List<GrpcFacetGroupStatistics> allGrpcFacetGroupStatistics) {
@@ -655,10 +753,12 @@ public class GrpcAssertions {
 			expectedAttributeValues = attributeValues.stream().toList();
 		} else if (locales.size() == 1) {
 			expectedAttributeValues = attributeValues.stream().filter(
-				a -> a.key().locale() == null ||
-					a.key().locale() != null && a.key().locale().getLanguage().equals(
-						locales.stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Suitable locale not found!")).getLanguage()
-					)
+				a -> a.key().locale() == null || a.key().locale().getLanguage().equals(
+					locales.stream()
+						.findFirst()
+						.orElseThrow(() -> new IllegalArgumentException("Suitable locale not found!"))
+						.getLanguage()
+				)
 			).toList();
 		} else {
 			expectedAttributeValues = attributeValues.stream().filter(a -> a.key().locale() == null).toList();
@@ -669,7 +769,7 @@ public class GrpcAssertions {
 			getAttributeCount(localizedAttributesMap, globalAttributesMap)
 		);
 
-		if (expectedAttributeValues.size() == 0)
+		if (expectedAttributeValues.isEmpty())
 			return;
 
 		for (final AttributesContract.AttributeValue attributeValue : expectedAttributeValues) {

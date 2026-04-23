@@ -27,11 +27,16 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedHistogramIndexDefinitionDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedBucketedPartiallyDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedFacetedPartiallyDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexTypeDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.ScopedReferenceIndexedComponentsDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nonNullListRef;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
@@ -95,7 +100,7 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 			allowing to filter by `reference_{reference name}_having` filtering constraints and sorted by
 			`reference_{reference name}_property` constraints. Index is also required when reference is `faceted` -
 			but it has to be indexed in the same scope as faceted.
-						
+			
 			Do not mark reference as indexed unless you know that you'll need to filter/sort entities by this reference.
 			Each indexed reference occupies (memory/disk) space in the form of index. When reference is not indexed,
 			the entity cannot be looked up by reference attributes or relation existence itself, but the data is loaded
@@ -113,18 +118,76 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 	PropertyDescriptor INDEXED_IN_SCOPES_INPUT = PropertyDescriptor.from(INDEXED_IN_SCOPES)
 		.type(nonNullListRef(ScopedReferenceIndexTypeDescriptor.THIS_INPUT))
 		.build();
+	PropertyDescriptor INDEXED_COMPONENTS_IN_SCOPES = PropertyDescriptor.builder()
+		.name("indexedComponentsInScopes")
+		.description("""
+			Contains information about which parts of the reference relationship are indexed per scope.
+			Controls whether the referenced entity itself, the referenced group entity, or both
+			are maintained in the index for filtering and querying operations.
+
+			When not specified, the default indexed components are determined automatically based on
+			the reference schema configuration (e.g. whether a group type is defined).
+			""")
+		.type(nullableListRef(ScopedReferenceIndexedComponentsDescriptor.THIS))
+		.build();
+	PropertyDescriptor INDEXED_COMPONENTS_IN_SCOPES_INPUT = PropertyDescriptor.from(INDEXED_COMPONENTS_IN_SCOPES)
+		.type(nullableListRef(ScopedReferenceIndexedComponentsDescriptor.THIS_INPUT))
+		.build();
 	PropertyDescriptor FACETED_IN_SCOPES = PropertyDescriptor.builder()
 		.name("facetedInScopes")
 		.description("""
 			Whether the statistics data for this reference should be maintained and this allowing to get
-			`facetSummary` for this reference or use `facet_{reference name}_inSet`
-			filtering query.
+			`referenceSummary` for this reference or use filtering query.
 			
 			Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
 			occupies (memory/disk) space in the form of index.
 			Reference that was marked as faceted is called Facet.
 			""")
 		.type(nullable(Scope[].class))
+		.build();
+	PropertyDescriptor FACETED_PARTIALLY_IN_SCOPES = PropertyDescriptor.builder()
+		.name("facetedPartiallyInScopes")
+		.description("""
+			Per-scope expressions that narrow which entities participate in faceting.
+			Each entry associates a scope with a boolean expression that is evaluated against
+			the entity data. Only entities for which the expression evaluates to true will
+			participate in facet statistics for the given scope.
+
+			When null, the expressions are inherited from the reflected reference.
+			""")
+		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS))
+		.build();
+	PropertyDescriptor FACETED_PARTIALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(FACETED_PARTIALLY_IN_SCOPES)
+		.type(nullableListRef(ScopedFacetedPartiallyDescriptor.THIS_INPUT))
+		.build();
+	PropertyDescriptor BUCKETED_IN_SCOPES = PropertyDescriptor.builder()
+		.name("bucketedInScopes")
+		.description("""
+			Per-scope bucketed histogram configuration for this reference. Each entry associates
+			a scope with a histogram index name and an optional value expression that computes
+			the histogram bucket value for each referenced entity.
+
+			When null, the bucketed configuration is inherited from the reflected reference.
+			""")
+		.type(nullableListRef(ScopedHistogramIndexDefinitionDescriptor.THIS))
+		.build();
+	PropertyDescriptor BUCKETED_IN_SCOPES_INPUT = PropertyDescriptor.from(BUCKETED_IN_SCOPES)
+		.type(nullableListRef(ScopedHistogramIndexDefinitionDescriptor.THIS_INPUT))
+		.build();
+	PropertyDescriptor BUCKETED_PARTIALLY_IN_SCOPES = PropertyDescriptor.builder()
+		.name("bucketedPartiallyInScopes")
+		.description("""
+			Per-scope expressions that narrow which entities participate in bucketed histogram
+			computation. Each entry associates a scope with a boolean expression that is evaluated
+			against the entity data. Only entities for which the expression evaluates to true will
+			participate in histogram computation for the given scope.
+
+			When null, the expressions are inherited from the reflected reference.
+			""")
+		.type(nullableListRef(ScopedBucketedPartiallyDescriptor.THIS))
+		.build();
+	PropertyDescriptor BUCKETED_PARTIALLY_IN_SCOPES_INPUT = PropertyDescriptor.from(BUCKETED_PARTIALLY_IN_SCOPES)
+		.type(nullableListRef(ScopedBucketedPartiallyDescriptor.THIS_INPUT))
 		.build();
 	PropertyDescriptor ATTRIBUTES_INHERITANCE_BEHAVIOR = PropertyDescriptor.builder()
 		.name("attributeInheritanceBehavior")
@@ -160,10 +223,18 @@ public interface CreateReflectedReferenceSchemaMutationDescriptor extends Refere
 		.staticProperty(REFERENCED_ENTITY_TYPE)
 		.staticProperty(REFLECTED_REFERENCE_NAME)
 		.staticProperty(INDEXED_IN_SCOPES)
+		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES)
 		.staticProperty(FACETED_IN_SCOPES)
+		.staticProperty(FACETED_PARTIALLY_IN_SCOPES)
+		.staticProperty(BUCKETED_IN_SCOPES)
+		.staticProperty(BUCKETED_PARTIALLY_IN_SCOPES)
 		.build();
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.from(THIS, INPUT_OBJECT_PROPERTIES_FILTER)
 		.name("CreateReflectedReferenceSchemaMutationInput")
 		.staticProperty(INDEXED_IN_SCOPES_INPUT)
+		.staticProperty(INDEXED_COMPONENTS_IN_SCOPES_INPUT)
+		.staticProperty(FACETED_PARTIALLY_IN_SCOPES_INPUT)
+		.staticProperty(BUCKETED_IN_SCOPES_INPUT)
+		.staticProperty(BUCKETED_PARTIALLY_IN_SCOPES_INPUT)
 		.build();
 }

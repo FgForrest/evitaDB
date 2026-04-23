@@ -76,6 +76,7 @@ import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.VersionUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
 import lombok.RequiredArgsConstructor;
@@ -415,7 +416,7 @@ public class EntityConverter {
 		if (entity instanceof Entity theEntity) {
 			referencesRequestedAndFetched = true;
 			internalEntity = theEntity;
-			referenceRequestedPredicate = referenceName -> true;
+			referenceRequestedPredicate = Functions.alwaysTrue();
 		} else if (entity instanceof EntityDecorator entityDecorator) {
 			internalEntity = entityDecorator.getDelegate();
 			referencesRequestedAndFetched = entityDecorator.referencesAvailable();

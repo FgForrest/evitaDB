@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.extraResult;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -121,7 +122,7 @@ public class HierarchyTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("should collect all hierarchy level infos")
 		void shouldCollectAllHierarchyLevelInfos() {
-			final Set<Integer> allIds = levelInfo.collectAll(li -> true)
+			final Set<Integer> allIds = levelInfo.collectAll(Functions.alwaysTrue())
 				.map(it -> it.entity().getPrimaryKey())
 				.collect(Collectors.toSet());
 			assertEquals(9, allIds.size());

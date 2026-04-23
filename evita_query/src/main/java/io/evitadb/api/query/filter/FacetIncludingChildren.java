@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.filter;
 
-
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FacetConstraint;
@@ -43,52 +42,57 @@ import java.io.Serializable;
 import java.util.Optional;
 
 /**
- * The constraint `includingChildren` is a constraint that can only be used within {@link FacetHaving} parent constraint.
- * It simply makes no sense anywhere else because it changes the default behavior of this constraint. Facet having
- * filters entities that have a direct reference to matching faceted entity. When the `includingChildren` constraint is
- * used, the query will return all entities that have a direct reference to the matching entity or any of its children
- * in the hierarchy.
+ * The `includingChildren` constraint modifies the behavior of its parent {@link FacetHaving} constraint to automatically include child
+ * entities in hierarchical facet filtering. By default, `facetHaving` only matches entities that have a **direct reference** to the specified
+ * faceted entity. When `includingChildren` is present, the query also matches entities that reference **any descendant** of the faceted entity
+ * in the hierarchy tree.
  *
- * This constraint cannot be used for references to non-hierarchical entities - in such case the query will return an
- * error.
+ * This constraint can only be used within {@link FacetHaving} and only applies to hierarchical references (references to entity types that
+ * have a hierarchical structure). Using `includingChildren` with non-hierarchical references results in a query error.
  *
- * Example:
+ * This constraint is a {@link FacetConstraint} and {@link HierarchyReferenceSpecificationFilterConstraint}, marking it as a facet-specific
+ * hierarchy modifier. It implements {@link ConstraintWithSuffix}, allowing two syntactic variants: `includingChildren()`
+ * and `includingChildrenHaving(...)`.
  *
- * <pre>
+ * ## Basic Usage (Include All Children)
+ *
+ * Without additional filtering, `includingChildren` propagates the facet match to all descendants:
+ *
+ * ```
  * query(
  *     collection("Product"),
  *     filterBy(
  *         facetHaving(
  *             "categories",
  *             entityHaving(
- *                attributeEquals("code", "accessories")
+ *                 attributeEquals("code", "accessories")
  *             ),
  *             includingChildren()
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent("code")
- *         )
+ *         entityFetch(attributeContent("code"))
  *     )
  * )
- * </pre>
+ * ```
  *
- * This query will match all products that have reference to the category with code "accessories" or any of its children.
- * The {@link FacetSummary} will take references to any of the category children into account when calculating the impact
- * of category facet selection.
+ * This query matches all products that reference the category with code "accessories" **or any of its subcategories** (e.g., "accessories" →
+ * "phone-accessories" → "phone-cases"). The {@link FacetSummary} will include references to any descendant
+ * category when computing facet statistics and impact predictions.
  *
- * It's also possible to specify sub-constraint that each of the child must satisfy in order to be included in selection.
- * This can be done by adding suffix `Having` and additional constraints to the `includingChildren` constraint:
+ * ## Filtered Child Inclusion (includingChildrenHaving)
  *
- * <pre>
+ * You can restrict which children are included by using the `Having` suffix variant and providing a filtering constraint. Only child entities
+ * that satisfy the constraint will be included:
+ *
+ * ```
  * query(
  *     collection("Product"),
  *     filterBy(
  *         facetHaving(
  *             "categories",
  *             entityHaving(
- *                attributeEquals("code", "accessories"),
+ *                 attributeEquals("code", "accessories")
  *             ),
  *             includingChildrenHaving(
  *                 or(
@@ -99,27 +103,65 @@ import java.util.Optional;
  *         )
  *     ),
  *     require(
- *         entityFetch(
- *             attributeContent("code")
- *         )
+ *         entityFetch(attributeContent("code"))
  *     )
  * )
- * </pre>
+ * ```
  *
- * This query will select only children of the category "accessories" that have attribute `validity` range that includes
- * the current date or the attribute is not set at all.
+ * This query includes only children of "accessories" that have a `validity` date range covering the current date or no validity constraint at
+ * all. Children that fail the constraint are excluded from the facet match, even though they are descendants in the hierarchy.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/references#including-children-having">Visit detailed user documentation</a></p>
+ * ## Hierarchical Facet Navigation
+ *
+ * The `includingChildren` constraint is critical for hierarchical facet navigation in e-commerce systems. Consider a category tree like:
+ *
+ * - Electronics
+ *   - Computers
+ *     - Laptops
+ *     - Desktops
+ *   - Phones
+ *     - Smartphones
+ *     - Feature Phones
+ *
+ * Without `includingChildren`, selecting "Computers" as a facet only matches products **directly tagged** with "Computers", not products
+ * tagged with "Laptops" or "Desktops". With `includingChildren`, selecting "Computers" also matches products tagged with any subcategory,
+ * providing a more intuitive user experience.
+ *
+ * ## Facet Summary Integration
+ *
+ * When used with {@link FacetSummary}, `includingChildren` ensures that facet statistics reflect the hierarchical
+ * propagation. For example, if the user selects the "accessories" category facet, the facet summary will show counts for other facets based
+ * on products that match "accessories" or any of its subcategories.
+ *
+ * ## Suffix Support (ConstraintWithSuffix)
+ *
+ * This constraint implements {@link ConstraintWithSuffix} to support two syntactic variants:
+ *
+ * - **No suffix**: `includingChildren()` — includes all children.
+ * - **"Having" suffix**: `includingChildrenHaving(filterConstraint)` — includes only children that match `filterConstraint`.
+ *
+ * The suffix is dynamically appended to the constraint name based on whether a child constraint is present.
+ *
+ * ## Relationship to Other Constraints
+ *
+ * - {@link FacetHaving}: The parent container; `includingChildren` modifies its hierarchical matching behavior.
+ * - {@link FacetIncludingChildrenExcept}: Similar constraint that excludes specific children instead of filtering them.
+ * - {@link FacetSummary}: Computes facet statistics; respects `includingChildren` when calculating counts.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/references#including-children-having)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @ConstraintDefinition(
 	name = "includingChildren",
-	shortDescription = "The constraint automatically selects all children (or their subset satisfying additional constraints) of the hierarchical entities matched by `facetHaving` container.",
+	shortDescription = "The constraint automatically selects all children (or their subset satisfying " +
+		"additional constraints) of the hierarchical entities matched by `facetHaving` container.",
 	userDocsLink = "/documentation/query/filtering/references#including-children-having",
 	supportedIn = ConstraintDomain.FACET
 )
-public class FacetIncludingChildren extends AbstractFilterConstraintContainer implements ConstraintWithSuffix, FacetConstraint<FilterConstraint>, HierarchyReferenceSpecificationFilterConstraint {
+public class FacetIncludingChildren extends AbstractFilterConstraintContainer
+	implements ConstraintWithSuffix, FacetConstraint<FilterConstraint>,
+	HierarchyReferenceSpecificationFilterConstraint {
 	@Serial private static final long serialVersionUID = -7258410742839628308L;
 	private static final String SUFFIX_HAVING = "having";
 	private static final String CONSTRAINT_NAME = "includingChildren";
@@ -136,6 +178,9 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 		super(CONSTRAINT_NAME, child);
 	}
 
+	/**
+	 * Returns the single child filter constraint, or `null` if none is present.
+	 */
 	@Nullable
 	public FilterConstraint getChild() {
 		final FilterConstraint[] children = getChildren();
@@ -167,7 +212,10 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 
 	@Nonnull
 	@Override
-	public FilterConstraint getCopyWithNewChildren(@Nonnull FilterConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public FilterConstraint getCopyWithNewChildren(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isPremiseValid(
 			ArrayUtils.isEmpty(additionalChildren),
 			"FacetIncludingChildren cannot have additional children."
@@ -178,5 +226,4 @@ public class FacetIncludingChildren extends AbstractFilterConstraintContainer im
 		);
 		return children.length == 0 ? new FacetIncludingChildren() : new FacetIncludingChildren(children[0]);
 	}
-
 }

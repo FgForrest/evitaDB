@@ -29,10 +29,12 @@ import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.function.Consumer;
+import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
@@ -44,15 +46,15 @@ import java.util.function.Supplier;
 public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	@Nonnull private final Supplier<Mode> bufferModeSupplier;
 	@Nonnull private final IntSupplier writePositionSupplier;
-	@Nonnull private final Consumer<Mode> switchModeCallback;
-	@Getter private ByteBuffer buffer;
+	@Nonnull private final BiConsumer<Mode, ByteBuffer> switchModeCallback;
+	@Nullable @Getter private ByteBuffer buffer;
 	private final Runnable closeCallback;
 
 	public OffHeapMemoryInputStream(
 		@Nonnull ByteBuffer buffer,
 		@Nonnull Supplier<Mode> bufferModeSupplier,
 		@Nonnull IntSupplier writePositionSupplier,
-		@Nonnull Consumer<Mode> switchModeCallback,
+		@Nonnull BiConsumer<Mode, ByteBuffer> switchModeCallback,
 		@Nonnull Runnable closeCallback
 	) {
 		this.buffer = buffer;
@@ -66,7 +68,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	public void seek(long position) {
 		switchToReadIfNecessary();
 		Assert.isPremiseValid(position < getWrittenBytes(), "Cannot seek past the end of the stream.");
-		this.buffer.position((int) position);
+		Objects.requireNonNull(this.buffer).position((int) position);
 	}
 
 	@Override
@@ -77,7 +79,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	@Override
 	public int read() throws IOException {
 		if (available() > 0) {
-			return (int) this.buffer.get();
+			return (int) Objects.requireNonNull(this.buffer).get();
 		} else {
 			return -1;
 		}
@@ -87,7 +89,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	public int read(@Nonnull byte[] b) throws IOException {
 		switchToReadIfNecessary();
 		final int toRead = Math.min(Math.min(getWrittenBytes(), b.length), available());
-		this.buffer.get(b, 0, toRead);
+		Objects.requireNonNull(this.buffer).get(b, 0, toRead);
 		return toRead;
 	}
 
@@ -95,7 +97,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	public int read(@Nonnull byte[] b, int off, int len) {
 		switchToReadIfNecessary();
 		final int toRead = Math.min(Math.min(getWrittenBytes(), len), available() - off);
-		this.buffer.get(b, off, toRead);
+		Objects.requireNonNull(this.buffer).get(b, off, toRead);
 		return toRead;
 	}
 
@@ -104,7 +106,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	public byte[] readAllBytes() {
 		switchToReadIfNecessary();
 		final byte[] writtenData = new byte[this.getWrittenBytes()];
-		this.buffer.get(writtenData);
+		Objects.requireNonNull(this.buffer).get(writtenData);
 		return writtenData;
 	}
 
@@ -114,47 +116,47 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 		switchToReadIfNecessary();
 		final int toRead = Math.min(Math.min(getWrittenBytes(), len), available());
 		final byte[] result = new byte[toRead];
-		this.buffer.get(result);
+		Objects.requireNonNull(this.buffer).get(result);
 		return result;
 	}
 
 	@Override
-	public int readNBytes(byte[] b, int off, int len) {
+	public int readNBytes(@Nonnull byte[] b, int off, int len) {
 		switchToReadIfNecessary();
 		final int toRead = Math.min(Math.min(getWrittenBytes(), len), available() - off);
-		this.buffer.get(b, off, toRead);
+		Objects.requireNonNull(this.buffer).get(b, off, toRead);
 		return toRead;
 	}
 
 	@Override
 	public long skip(long n) throws IOException {
 		switchToReadIfNecessary();
-		this.buffer.position(Math.min(getWrittenBytes(), this.buffer.position() + (int) n));
+		Objects.requireNonNull(this.buffer).position(Math.min(getWrittenBytes(), this.buffer.position() + (int) n));
 		return this.buffer.position();
 	}
 
 	@Override
 	public void skipNBytes(long n) {
 		switchToReadIfNecessary();
-		this.buffer.position(Math.min(getWrittenBytes(), this.buffer.position() + (int) n));
+		Objects.requireNonNull(this.buffer).position(Math.min(getWrittenBytes(), this.buffer.position() + (int) n));
 	}
 
 	@Override
 	public int available() {
 		switchToReadIfNecessary();
-		return getWrittenBytes() - this.buffer.position();
+		return getWrittenBytes() - Objects.requireNonNull(this.buffer).position();
 	}
 
 	@Override
 	public synchronized void mark(int readlimit) {
 		switchToReadIfNecessary();
-		this.buffer.mark();
+		Objects.requireNonNull(this.buffer).mark();
 	}
 
 	@Override
 	public synchronized void reset() throws IOException {
 		switchToReadIfNecessary();
-		this.buffer.reset();
+		Objects.requireNonNull(this.buffer).reset();
 	}
 
 	@Override
@@ -165,7 +167,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	@Override
 	public void close() {
 		switchToReadIfNecessary();
-		this.buffer.position(0);
+		Objects.requireNonNull(this.buffer).position(0);
 		this.buffer = null;
 		this.closeCallback.run();
 	}
@@ -176,7 +178,7 @@ public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
 	 */
 	private void switchToReadIfNecessary() {
 		if (this.bufferModeSupplier.get() == Mode.WRITE) {
-			this.switchModeCallback.accept(Mode.READ);
+			this.switchModeCallback.accept(Mode.READ, this.buffer);
 		}
 	}
 

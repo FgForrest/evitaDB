@@ -60,7 +60,7 @@ import static org.mockito.Mockito.when;
  * test accessor methods, exception tracking, close callbacks, async execution
  * delegation, and the no-op {@code notifyError} method.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EndpointExecutionContext - base class behavior")
 class EndpointExecutionContextTest {

@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.price.predicate;
 
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,7 +54,7 @@ public record PriceAmountPredicate(
 
 	public static final PriceAmountPredicate ALL = new PriceAmountPredicate(
 		null, null, null, 0,
-		amount -> true
+		Functions.alwaysTrue()
 	);
 
 	@Override

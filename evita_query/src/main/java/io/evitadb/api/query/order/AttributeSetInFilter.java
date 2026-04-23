@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ import java.io.Serializable;
  *
  * Example usage:
  *
- * <pre>
+ * ```evitaql
  * query(
  *    filterBy(
  *       attributeInSet("code", "t-shirt", "sweater", "pants")
@@ -54,27 +54,28 @@ import java.io.Serializable;
  *       attributeSetInFilter()
  *    )
  * )
- * </pre>
+ * ```
  *
- * The example will return the selected entities (if present) in the exact order of their attribute `code` that was used
- * for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
+ * The example will return the selected entities (if present) in the exact order of their attribute `code` that was
+ * used for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
  * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order-used-in-filter">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order-used-in-filter)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "setInFilter",
-	shortDescription = "The constraint sorts returned entities by ordering of the values specified `attributeInSet` in filter sharing the same attribute name.",
+	shortDescription = "Sorts returned entities by attribute values in the exact order used for filtering them via the attribute-in-set filter constraint.",
 	userDocsLink = "/documentation/query/ordering/constant#exact-entity-attribute-value-order-used-in-filter",
 	supportedIn = { ConstraintDomain.ENTITY },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )
 public class AttributeSetInFilter extends AbstractOrderConstraintLeaf implements AttributeConstraint<OrderConstraint> {
-	@Serial private static final long serialVersionUID = -8627803791652731430L;
+	@Serial
+	private static final long serialVersionUID = -8627803791652731430L;
 
-	private AttributeSetInFilter(Serializable... arguments) {
+	private AttributeSetInFilter(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

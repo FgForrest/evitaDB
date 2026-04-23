@@ -40,6 +40,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import org.junit.jupiter.api.DisplayName;
@@ -300,7 +301,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					resultA.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					createBrandReferencePrimaryKeyComparator()
 				);
 				return null;
@@ -335,7 +336,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					resultA.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					createBrandReferencePrimaryKeyComparator()
 				);
 				return null;
@@ -369,7 +370,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					createBrandReferenceComparator()
 				);
 				return null;
@@ -416,7 +417,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					new PredicateWithComparatorTuple(
 						sealedEntity -> sealedEntity.getReferences(Entities.BRAND).stream().anyMatch(it -> it.getAttribute(ATTRIBUTE_BRAND_PRIORITY) != null),
 						createBrandReferenceComparator()
@@ -459,7 +460,7 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 				assertSortedResultIs(
 					originalProductEntities,
 					result.getRecordData(),
-					sealedEntity -> true,
+					Functions.alwaysTrue(),
 					(sealedEntityA, sealedEntityB) -> {
 						final ReferenceContract o1 = sealedEntityA.getReferences(Entities.STORE)
 							.stream()

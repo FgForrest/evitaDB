@@ -26,10 +26,13 @@ package io.evitadb.externalApi.grpc.builders.query.extraResults;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaEntityResponse;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
@@ -39,7 +42,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.PaginatedList;
@@ -47,6 +50,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcExtraResults;
 import io.evitadb.externalApi.grpc.generated.GrpcLevelInfos;
 import io.evitadb.utils.ArrayUtils;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -55,9 +59,19 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcFacetSummaryBuilderTest.createFacetEntity;
-import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcFacetSummaryBuilderTest.createGroupEntity;
+import static io.evitadb.api.query.QueryConstraints.attributeHistogram;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.dataInLocales;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
+import static io.evitadb.api.query.QueryConstraints.facetSummary;
+import static io.evitadb.api.query.QueryConstraints.fromRoot;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfSelf;
+import static io.evitadb.api.query.QueryConstraints.referenceSummary;
+import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.statistics;
+import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcReferenceSummaryBuilderTest.createFacetEntity;
+import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcReferenceSummaryBuilderTest.createGroupEntity;
 import static io.evitadb.externalApi.grpc.builders.query.extraResults.GrpcHierarchyBuilderTest.createHierarchyEntity;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -69,10 +83,90 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Tomáš Pozler, 2022
  */
+@SuppressWarnings("deprecation")
 class GrpcExtraResultsBuilderTest {
 	private final static ReferenceSchemaContract REFENCE_SCHEMA = ReferenceSchema._internalBuild(
-		"test1", "test1", true, Cardinality.ONE_OR_MORE, "testGroup1", false, new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) }, new Scope[] { Scope.LIVE }
+		"test1", "test1", true, Cardinality.ONE_OR_MORE, "testGroup1", false,
+		new ScopedReferenceIndexType[] {
+			new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+		},
+		new Scope[] { Scope.LIVE }
 	);
+
+	@DisplayName("Mixed deprecated+canonical constraints populate both gRPC fields")
+	@Test
+	void shouldPopulateBothGrpcFieldsWhenMixedConstraintsUsed() {
+		final FacetGroupStatistics facetGroupStats = new FacetGroupStatistics(
+			REFENCE_SCHEMA, createGroupEntity("testGroup1"), 10,
+			Arrays.asList(
+				new FacetStatistics(
+					createFacetEntity("test1", 1, "a"), false, 45, null
+				),
+				new FacetStatistics(
+					createFacetEntity("test1", 2, "b"), false, 32, null
+				)
+			)
+		);
+
+		// construct the deprecated FacetSummary DTO (keyed under FacetSummary.class)
+		final FacetSummary facetSummaryDto = new FacetSummary(
+			Collections.singletonList(facetGroupStats)
+		);
+
+		// construct the canonical ReferenceSummary DTO (keyed under ReferenceSummary.class)
+		// using the same data to simulate the mixed-constraint producer behavior
+		final ReferenceGroupStatistics refGroupStats = new ReferenceGroupStatistics(
+			REFENCE_SCHEMA, createGroupEntity("testGroup1"), 10,
+			Arrays.asList(
+				new FacetStatistics(
+					createFacetEntity("test1", 1, "a"), false, 45, null
+				),
+				new FacetStatistics(
+					createFacetEntity("test1", 2, "b"), false, 32, null
+				)
+			)
+		);
+		final ReferenceSummary referenceSummaryDto = new ReferenceSummary(
+			Collections.singletonList(refGroupStats)
+		);
+
+		// mixed query: both deprecated and canonical constraints
+		final Query query = Query.query(
+			collection("test"),
+			require(
+				facetSummary(),
+				referenceSummary()
+			)
+		);
+
+		final EvitaEntityResponse<EntityReferenceContract> response = new EvitaEntityResponse<>(
+			query,
+			new PaginatedList<>(0, 0, 0),
+			ArrayUtils.EMPTY_INT_ARRAY,
+			facetSummaryDto,
+			referenceSummaryDto
+		);
+
+		final GrpcExtraResults extraResults = GrpcExtraResultsBuilder.buildExtraResults(response);
+
+		// both gRPC fields must be populated — the deprecated field for the deprecated constraint,
+		// and the canonical field for the canonical constraint
+		assertFalse(
+			extraResults.getFacetGroupStatisticsList().isEmpty(),
+			"Deprecated facetGroupStatistics must be populated when facetSummary() is in the query"
+		);
+		assertFalse(
+			extraResults.getReferenceGroupStatisticsList().isEmpty(),
+			"Canonical referenceGroupStatistics must be populated when referenceSummary() is in the query"
+		);
+
+		// verify correct content in each field
+		assertEquals(1, extraResults.getFacetGroupStatisticsCount());
+		assertEquals(2, extraResults.getFacetGroupStatistics(0).getFacetStatisticsCount());
+
+		assertEquals(1, extraResults.getReferenceGroupStatisticsCount());
+		assertEquals(2, extraResults.getReferenceGroupStatistics(0).getFacetStatisticsCount());
+	}
 
 	@Test
 	void buildExtraResults() {
@@ -90,7 +184,8 @@ class GrpcExtraResultsBuilderTest {
 						entityFetchAll(),
 						statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
 					)
-				)
+				),
+				facetSummary()
 			)
 		);
 		final Histogram histogram = new Histogram(
@@ -103,7 +198,7 @@ class GrpcExtraResultsBuilderTest {
 			},
 			BigDecimal.valueOf(10)
 		);
-		final EvitaEntityResponse response = new EvitaEntityResponse(
+		final EvitaEntityResponse<EntityReferenceContract> response = new EvitaEntityResponse<>(
 			query,
 			new PaginatedList<>(0, 0, 0),
 			ArrayUtils.EMPTY_INT_ARRAY,

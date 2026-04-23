@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023-2025
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ import java.io.Serializable;
  *    scope(LIVE, ARCHIVED),
  * ),
  * orderBy(
- *    inScope(LIVE, attributeNatural("name", ASC")),
+ *    inScope(LIVE, attributeNatural("name", ASC)),
  *    attributeNatural("code", DESC),
  * )
  * ```
@@ -58,14 +58,14 @@ import java.io.Serializable;
  * ordering to LIVE scope only. Attribute "code" is indexed in both scopes and can be used for ordering without any
  * restrictions in this example.
  *
- * <p><a href="https://evitadb.io/documentation/query/ordering/behavioral#in-scope">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/behavioral#in-scope)
  *
  * @see Scope
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "inScope",
-	shortDescription = "Limits enclosed ordering constraints to be applied only when sorting entities in named scope.",
+	shortDescription = "Limits enclosed ordering constraints to be applied only when sorting entities in a specified scope.",
 	userDocsLink = "/documentation/query/ordering/behavioral#in-scope",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
@@ -117,12 +117,15 @@ public class OrderInScope extends AbstractOrderConstraintContainer implements Ge
 			newArguments.length == 1 && newArguments[0] instanceof Scope,
 			"Constraint InScope requires exactly one argument of type Scope!"
 		);
-		return this;
+		return new OrderInScope(newArguments, getChildren());
 	}
 
 	@Nonnull
 	@Override
-	public OrderConstraint getCopyWithNewChildren(@Nonnull OrderConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public OrderConstraint getCopyWithNewChildren(
+		@Nonnull OrderConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(
 			ArrayUtils.isEmpty(additionalChildren),
 			"Constraint InScope doesn't accept other than ordering constraints!"

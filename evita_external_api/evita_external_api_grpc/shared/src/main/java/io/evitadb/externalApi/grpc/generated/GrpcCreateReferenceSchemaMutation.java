@@ -51,6 +51,10 @@ private static final long serialVersionUID = 0L;
     indexedInScopes_ = java.util.Collections.emptyList();
     facetedInScopes_ = java.util.Collections.emptyList();
     scopedIndexTypes_ = java.util.Collections.emptyList();
+    scopedIndexedComponents_ = java.util.Collections.emptyList();
+    facetedPartially_ = java.util.Collections.emptyList();
+    bucketedInScopes_ = java.util.Collections.emptyList();
+    bucketedPartiallyInScopes_ = java.util.Collections.emptyList();
   }
 
   @java.lang.Override
@@ -389,7 +393,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -551,7 +555,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -570,7 +574,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -588,7 +592,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -607,7 +611,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -626,7 +630,7 @@ private static final long serialVersionUID = 0L;
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -710,6 +714,260 @@ private static final long serialVersionUID = 0L;
     return scopedIndexTypes_.get(index);
   }
 
+  public static final int SCOPEDINDEXEDCOMPONENTS_FIELD_NUMBER = 14;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> scopedIndexedComponents_;
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> getScopedIndexedComponentsList() {
+    return scopedIndexedComponents_;
+  }
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+      getScopedIndexedComponentsOrBuilderList() {
+    return scopedIndexedComponents_;
+  }
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  @java.lang.Override
+  public int getScopedIndexedComponentsCount() {
+    return scopedIndexedComponents_.size();
+  }
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents getScopedIndexedComponents(int index) {
+    return scopedIndexedComponents_.get(index);
+  }
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When not specified, the default indexed components are determined automatically.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder getScopedIndexedComponentsOrBuilder(
+      int index) {
+    return scopedIndexedComponents_.get(index);
+  }
+
+  public static final int FACETEDPARTIALLY_FIELD_NUMBER = 15;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> facetedPartially_;
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> getFacetedPartiallyList() {
+    return facetedPartially_;
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+      getFacetedPartiallyOrBuilderList() {
+    return facetedPartially_;
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+   */
+  @java.lang.Override
+  public int getFacetedPartiallyCount() {
+    return facetedPartially_.size();
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially getFacetedPartially(int index) {
+    return facetedPartially_.get(index);
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
+      int index) {
+    return facetedPartially_.get(index);
+  }
+
+  public static final int BUCKETEDINSCOPES_FIELD_NUMBER = 16;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> bucketedInScopes_;
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> getBucketedInScopesList() {
+    return bucketedInScopes_;
+  }
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> 
+      getBucketedInScopesOrBuilderList() {
+    return bucketedInScopes_;
+  }
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+   */
+  @java.lang.Override
+  public int getBucketedInScopesCount() {
+    return bucketedInScopes_.size();
+  }
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition getBucketedInScopes(int index) {
+    return bucketedInScopes_.get(index);
+  }
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder getBucketedInScopesOrBuilder(
+      int index) {
+    return bucketedInScopes_.get(index);
+  }
+
+  public static final int BUCKETEDPARTIALLYINSCOPES_FIELD_NUMBER = 17;
+  @SuppressWarnings("serial")
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> bucketedPartiallyInScopes_;
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+   */
+  @java.lang.Override
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> getBucketedPartiallyInScopesList() {
+    return bucketedPartiallyInScopes_;
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+   */
+  @java.lang.Override
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> 
+      getBucketedPartiallyInScopesOrBuilderList() {
+    return bucketedPartiallyInScopes_;
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+   */
+  @java.lang.Override
+  public int getBucketedPartiallyInScopesCount() {
+    return bucketedPartiallyInScopes_.size();
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially getBucketedPartiallyInScopes(int index) {
+    return bucketedPartiallyInScopes_.get(index);
+  }
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyInScopesOrBuilder(
+      int index) {
+    return bucketedPartiallyInScopes_.get(index);
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -771,6 +1029,18 @@ private static final long serialVersionUID = 0L;
     }
     for (int i = 0; i < scopedIndexTypes_.size(); i++) {
       output.writeMessage(13, scopedIndexTypes_.get(i));
+    }
+    for (int i = 0; i < scopedIndexedComponents_.size(); i++) {
+      output.writeMessage(14, scopedIndexedComponents_.get(i));
+    }
+    for (int i = 0; i < facetedPartially_.size(); i++) {
+      output.writeMessage(15, facetedPartially_.get(i));
+    }
+    for (int i = 0; i < bucketedInScopes_.size(); i++) {
+      output.writeMessage(16, bucketedInScopes_.get(i));
+    }
+    for (int i = 0; i < bucketedPartiallyInScopes_.size(); i++) {
+      output.writeMessage(17, bucketedPartiallyInScopes_.get(i));
     }
     getUnknownFields().writeTo(output);
   }
@@ -847,6 +1117,22 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(13, scopedIndexTypes_.get(i));
     }
+    for (int i = 0; i < scopedIndexedComponents_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(14, scopedIndexedComponents_.get(i));
+    }
+    for (int i = 0; i < facetedPartially_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(15, facetedPartially_.get(i));
+    }
+    for (int i = 0; i < bucketedInScopes_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(16, bucketedInScopes_.get(i));
+    }
+    for (int i = 0; i < bucketedPartiallyInScopes_.size(); i++) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(17, bucketedPartiallyInScopes_.get(i));
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -894,6 +1180,14 @@ private static final long serialVersionUID = 0L;
     if (!facetedInScopes_.equals(other.facetedInScopes_)) return false;
     if (!getScopedIndexTypesList()
         .equals(other.getScopedIndexTypesList())) return false;
+    if (!getScopedIndexedComponentsList()
+        .equals(other.getScopedIndexedComponentsList())) return false;
+    if (!getFacetedPartiallyList()
+        .equals(other.getFacetedPartiallyList())) return false;
+    if (!getBucketedInScopesList()
+        .equals(other.getBucketedInScopesList())) return false;
+    if (!getBucketedPartiallyInScopesList()
+        .equals(other.getBucketedPartiallyInScopesList())) return false;
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -946,6 +1240,22 @@ private static final long serialVersionUID = 0L;
     if (getScopedIndexTypesCount() > 0) {
       hash = (37 * hash) + SCOPEDINDEXTYPES_FIELD_NUMBER;
       hash = (53 * hash) + getScopedIndexTypesList().hashCode();
+    }
+    if (getScopedIndexedComponentsCount() > 0) {
+      hash = (37 * hash) + SCOPEDINDEXEDCOMPONENTS_FIELD_NUMBER;
+      hash = (53 * hash) + getScopedIndexedComponentsList().hashCode();
+    }
+    if (getFacetedPartiallyCount() > 0) {
+      hash = (37 * hash) + FACETEDPARTIALLY_FIELD_NUMBER;
+      hash = (53 * hash) + getFacetedPartiallyList().hashCode();
+    }
+    if (getBucketedInScopesCount() > 0) {
+      hash = (37 * hash) + BUCKETEDINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + getBucketedInScopesList().hashCode();
+    }
+    if (getBucketedPartiallyInScopesCount() > 0) {
+      hash = (37 * hash) + BUCKETEDPARTIALLYINSCOPES_FIELD_NUMBER;
+      hash = (53 * hash) + getBucketedPartiallyInScopesList().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1086,6 +1396,10 @@ private static final long serialVersionUID = 0L;
         getDeprecationNoticeFieldBuilder();
         getReferencedGroupTypeFieldBuilder();
         getScopedIndexTypesFieldBuilder();
+        getScopedIndexedComponentsFieldBuilder();
+        getFacetedPartiallyFieldBuilder();
+        getBucketedInScopesFieldBuilder();
+        getBucketedPartiallyInScopesFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1125,6 +1439,34 @@ private static final long serialVersionUID = 0L;
         scopedIndexTypesBuilder_.clear();
       }
       bitField0_ = (bitField0_ & ~0x00001000);
+      if (scopedIndexedComponentsBuilder_ == null) {
+        scopedIndexedComponents_ = java.util.Collections.emptyList();
+      } else {
+        scopedIndexedComponents_ = null;
+        scopedIndexedComponentsBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00002000);
+      if (facetedPartiallyBuilder_ == null) {
+        facetedPartially_ = java.util.Collections.emptyList();
+      } else {
+        facetedPartially_ = null;
+        facetedPartiallyBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00004000);
+      if (bucketedInScopesBuilder_ == null) {
+        bucketedInScopes_ = java.util.Collections.emptyList();
+      } else {
+        bucketedInScopes_ = null;
+        bucketedInScopesBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00008000);
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        bucketedPartiallyInScopes_ = java.util.Collections.emptyList();
+      } else {
+        bucketedPartiallyInScopes_ = null;
+        bucketedPartiallyInScopesBuilder_.clear();
+      }
+      bitField0_ = (bitField0_ & ~0x00010000);
       return this;
     }
 
@@ -1176,6 +1518,42 @@ private static final long serialVersionUID = 0L;
         result.scopedIndexTypes_ = scopedIndexTypes_;
       } else {
         result.scopedIndexTypes_ = scopedIndexTypesBuilder_.build();
+      }
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (((bitField0_ & 0x00002000) != 0)) {
+          scopedIndexedComponents_ = java.util.Collections.unmodifiableList(scopedIndexedComponents_);
+          bitField0_ = (bitField0_ & ~0x00002000);
+        }
+        result.scopedIndexedComponents_ = scopedIndexedComponents_;
+      } else {
+        result.scopedIndexedComponents_ = scopedIndexedComponentsBuilder_.build();
+      }
+      if (facetedPartiallyBuilder_ == null) {
+        if (((bitField0_ & 0x00004000) != 0)) {
+          facetedPartially_ = java.util.Collections.unmodifiableList(facetedPartially_);
+          bitField0_ = (bitField0_ & ~0x00004000);
+        }
+        result.facetedPartially_ = facetedPartially_;
+      } else {
+        result.facetedPartially_ = facetedPartiallyBuilder_.build();
+      }
+      if (bucketedInScopesBuilder_ == null) {
+        if (((bitField0_ & 0x00008000) != 0)) {
+          bucketedInScopes_ = java.util.Collections.unmodifiableList(bucketedInScopes_);
+          bitField0_ = (bitField0_ & ~0x00008000);
+        }
+        result.bucketedInScopes_ = bucketedInScopes_;
+      } else {
+        result.bucketedInScopes_ = bucketedInScopesBuilder_.build();
+      }
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        if (((bitField0_ & 0x00010000) != 0)) {
+          bucketedPartiallyInScopes_ = java.util.Collections.unmodifiableList(bucketedPartiallyInScopes_);
+          bitField0_ = (bitField0_ & ~0x00010000);
+        }
+        result.bucketedPartiallyInScopes_ = bucketedPartiallyInScopes_;
+      } else {
+        result.bucketedPartiallyInScopes_ = bucketedPartiallyInScopesBuilder_.build();
       }
     }
 
@@ -1348,6 +1726,110 @@ private static final long serialVersionUID = 0L;
           }
         }
       }
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (!other.scopedIndexedComponents_.isEmpty()) {
+          if (scopedIndexedComponents_.isEmpty()) {
+            scopedIndexedComponents_ = other.scopedIndexedComponents_;
+            bitField0_ = (bitField0_ & ~0x00002000);
+          } else {
+            ensureScopedIndexedComponentsIsMutable();
+            scopedIndexedComponents_.addAll(other.scopedIndexedComponents_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.scopedIndexedComponents_.isEmpty()) {
+          if (scopedIndexedComponentsBuilder_.isEmpty()) {
+            scopedIndexedComponentsBuilder_.dispose();
+            scopedIndexedComponentsBuilder_ = null;
+            scopedIndexedComponents_ = other.scopedIndexedComponents_;
+            bitField0_ = (bitField0_ & ~0x00002000);
+            scopedIndexedComponentsBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getScopedIndexedComponentsFieldBuilder() : null;
+          } else {
+            scopedIndexedComponentsBuilder_.addAllMessages(other.scopedIndexedComponents_);
+          }
+        }
+      }
+      if (facetedPartiallyBuilder_ == null) {
+        if (!other.facetedPartially_.isEmpty()) {
+          if (facetedPartially_.isEmpty()) {
+            facetedPartially_ = other.facetedPartially_;
+            bitField0_ = (bitField0_ & ~0x00004000);
+          } else {
+            ensureFacetedPartiallyIsMutable();
+            facetedPartially_.addAll(other.facetedPartially_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.facetedPartially_.isEmpty()) {
+          if (facetedPartiallyBuilder_.isEmpty()) {
+            facetedPartiallyBuilder_.dispose();
+            facetedPartiallyBuilder_ = null;
+            facetedPartially_ = other.facetedPartially_;
+            bitField0_ = (bitField0_ & ~0x00004000);
+            facetedPartiallyBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getFacetedPartiallyFieldBuilder() : null;
+          } else {
+            facetedPartiallyBuilder_.addAllMessages(other.facetedPartially_);
+          }
+        }
+      }
+      if (bucketedInScopesBuilder_ == null) {
+        if (!other.bucketedInScopes_.isEmpty()) {
+          if (bucketedInScopes_.isEmpty()) {
+            bucketedInScopes_ = other.bucketedInScopes_;
+            bitField0_ = (bitField0_ & ~0x00008000);
+          } else {
+            ensureBucketedInScopesIsMutable();
+            bucketedInScopes_.addAll(other.bucketedInScopes_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.bucketedInScopes_.isEmpty()) {
+          if (bucketedInScopesBuilder_.isEmpty()) {
+            bucketedInScopesBuilder_.dispose();
+            bucketedInScopesBuilder_ = null;
+            bucketedInScopes_ = other.bucketedInScopes_;
+            bitField0_ = (bitField0_ & ~0x00008000);
+            bucketedInScopesBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getBucketedInScopesFieldBuilder() : null;
+          } else {
+            bucketedInScopesBuilder_.addAllMessages(other.bucketedInScopes_);
+          }
+        }
+      }
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        if (!other.bucketedPartiallyInScopes_.isEmpty()) {
+          if (bucketedPartiallyInScopes_.isEmpty()) {
+            bucketedPartiallyInScopes_ = other.bucketedPartiallyInScopes_;
+            bitField0_ = (bitField0_ & ~0x00010000);
+          } else {
+            ensureBucketedPartiallyInScopesIsMutable();
+            bucketedPartiallyInScopes_.addAll(other.bucketedPartiallyInScopes_);
+          }
+          onChanged();
+        }
+      } else {
+        if (!other.bucketedPartiallyInScopes_.isEmpty()) {
+          if (bucketedPartiallyInScopesBuilder_.isEmpty()) {
+            bucketedPartiallyInScopesBuilder_.dispose();
+            bucketedPartiallyInScopesBuilder_ = null;
+            bucketedPartiallyInScopes_ = other.bucketedPartiallyInScopes_;
+            bitField0_ = (bitField0_ & ~0x00010000);
+            bucketedPartiallyInScopesBuilder_ = 
+              com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                 getBucketedPartiallyInScopesFieldBuilder() : null;
+          } else {
+            bucketedPartiallyInScopesBuilder_.addAllMessages(other.bucketedPartiallyInScopes_);
+          }
+        }
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -1477,6 +1959,58 @@ private static final long serialVersionUID = 0L;
               }
               break;
             } // case 106
+            case 114: {
+              io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.parser(),
+                      extensionRegistry);
+              if (scopedIndexedComponentsBuilder_ == null) {
+                ensureScopedIndexedComponentsIsMutable();
+                scopedIndexedComponents_.add(m);
+              } else {
+                scopedIndexedComponentsBuilder_.addMessage(m);
+              }
+              break;
+            } // case 114
+            case 122: {
+              io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.parser(),
+                      extensionRegistry);
+              if (facetedPartiallyBuilder_ == null) {
+                ensureFacetedPartiallyIsMutable();
+                facetedPartially_.add(m);
+              } else {
+                facetedPartiallyBuilder_.addMessage(m);
+              }
+              break;
+            } // case 122
+            case 130: {
+              io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.parser(),
+                      extensionRegistry);
+              if (bucketedInScopesBuilder_ == null) {
+                ensureBucketedInScopesIsMutable();
+                bucketedInScopes_.add(m);
+              } else {
+                bucketedInScopesBuilder_.addMessage(m);
+              }
+              break;
+            } // case 130
+            case 138: {
+              io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially m =
+                  input.readMessage(
+                      io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.parser(),
+                      extensionRegistry);
+              if (bucketedPartiallyInScopesBuilder_ == null) {
+                ensureBucketedPartiallyInScopesIsMutable();
+                bucketedPartiallyInScopes_.add(m);
+              } else {
+                bucketedPartiallyInScopesBuilder_.addMessage(m);
+              }
+              break;
+            } // case 138
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -2446,7 +2980,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2467,7 +3001,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2492,7 +3026,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2832,7 +3366,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2850,7 +3384,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2867,7 +3401,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2885,7 +3419,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2911,7 +3445,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2935,7 +3469,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2959,7 +3493,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2979,7 +3513,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -2997,7 +3531,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -3015,7 +3549,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -3038,7 +3572,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -3059,7 +3593,7 @@ private static final long serialVersionUID = 0L;
     /**
      * <pre>
      * Whether the statistics data for this reference should be maintained and this allowing to get
-     * `facetSummary` for this reference or use `facetInSet`
+     * `referenceSummary` for this reference or use `facetInSet`
      * filtering query.
      *
      * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -3409,6 +3943,1290 @@ private static final long serialVersionUID = 0L;
         scopedIndexTypes_ = null;
       }
       return scopedIndexTypesBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> scopedIndexedComponents_ =
+      java.util.Collections.emptyList();
+    private void ensureScopedIndexedComponentsIsMutable() {
+      if (!((bitField0_ & 0x00002000) != 0)) {
+        scopedIndexedComponents_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents>(scopedIndexedComponents_);
+        bitField0_ |= 0x00002000;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> scopedIndexedComponentsBuilder_;
+
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> getScopedIndexedComponentsList() {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(scopedIndexedComponents_);
+      } else {
+        return scopedIndexedComponentsBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public int getScopedIndexedComponentsCount() {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        return scopedIndexedComponents_.size();
+      } else {
+        return scopedIndexedComponentsBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents getScopedIndexedComponents(int index) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        return scopedIndexedComponents_.get(index);
+      } else {
+        return scopedIndexedComponentsBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder setScopedIndexedComponents(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents value) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.set(index, value);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder setScopedIndexedComponents(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder builderForValue) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder addScopedIndexedComponents(io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents value) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.add(value);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder addScopedIndexedComponents(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents value) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.add(index, value);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder addScopedIndexedComponents(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder builderForValue) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.add(builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder addScopedIndexedComponents(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder builderForValue) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder addAllScopedIndexedComponents(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> values) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, scopedIndexedComponents_);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder clearScopedIndexedComponents() {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        scopedIndexedComponents_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00002000);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public Builder removeScopedIndexedComponents(int index) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        ensureScopedIndexedComponentsIsMutable();
+        scopedIndexedComponents_.remove(index);
+        onChanged();
+      } else {
+        scopedIndexedComponentsBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder getScopedIndexedComponentsBuilder(
+        int index) {
+      return getScopedIndexedComponentsFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder getScopedIndexedComponentsOrBuilder(
+        int index) {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        return scopedIndexedComponents_.get(index);  } else {
+        return scopedIndexedComponentsBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+         getScopedIndexedComponentsOrBuilderList() {
+      if (scopedIndexedComponentsBuilder_ != null) {
+        return scopedIndexedComponentsBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(scopedIndexedComponents_);
+      }
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder addScopedIndexedComponentsBuilder() {
+      return getScopedIndexedComponentsFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder addScopedIndexedComponentsBuilder(
+        int index) {
+      return getScopedIndexedComponentsFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Scoped reference indexed components that specify which parts of a reference relationship
+     * (referenced entity, referenced group entity) are indexed per scope.
+     * When not specified, the default indexed components are determined automatically.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder> 
+         getScopedIndexedComponentsBuilderList() {
+      return getScopedIndexedComponentsFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+        getScopedIndexedComponentsFieldBuilder() {
+      if (scopedIndexedComponentsBuilder_ == null) {
+        scopedIndexedComponentsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder>(
+                scopedIndexedComponents_,
+                ((bitField0_ & 0x00002000) != 0),
+                getParentForChildren(),
+                isClean());
+        scopedIndexedComponents_ = null;
+      }
+      return scopedIndexedComponentsBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> facetedPartially_ =
+      java.util.Collections.emptyList();
+    private void ensureFacetedPartiallyIsMutable() {
+      if (!((bitField0_ & 0x00004000) != 0)) {
+        facetedPartially_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially>(facetedPartially_);
+        bitField0_ |= 0x00004000;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> facetedPartiallyBuilder_;
+
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> getFacetedPartiallyList() {
+      if (facetedPartiallyBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(facetedPartially_);
+      } else {
+        return facetedPartiallyBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public int getFacetedPartiallyCount() {
+      if (facetedPartiallyBuilder_ == null) {
+        return facetedPartially_.size();
+      } else {
+        return facetedPartiallyBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially getFacetedPartially(int index) {
+      if (facetedPartiallyBuilder_ == null) {
+        return facetedPartially_.get(index);
+      } else {
+        return facetedPartiallyBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder setFacetedPartially(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially value) {
+      if (facetedPartiallyBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.set(index, value);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder setFacetedPartially(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder builderForValue) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder addFacetedPartially(io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially value) {
+      if (facetedPartiallyBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.add(value);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder addFacetedPartially(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially value) {
+      if (facetedPartiallyBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.add(index, value);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder addFacetedPartially(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder builderForValue) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.add(builderForValue.build());
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder addFacetedPartially(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder builderForValue) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder addAllFacetedPartially(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> values) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, facetedPartially_);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder clearFacetedPartially() {
+      if (facetedPartiallyBuilder_ == null) {
+        facetedPartially_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00004000);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public Builder removeFacetedPartially(int index) {
+      if (facetedPartiallyBuilder_ == null) {
+        ensureFacetedPartiallyIsMutable();
+        facetedPartially_.remove(index);
+        onChanged();
+      } else {
+        facetedPartiallyBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder getFacetedPartiallyBuilder(
+        int index) {
+      return getFacetedPartiallyFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
+        int index) {
+      if (facetedPartiallyBuilder_ == null) {
+        return facetedPartially_.get(index);  } else {
+        return facetedPartiallyBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+         getFacetedPartiallyOrBuilderList() {
+      if (facetedPartiallyBuilder_ != null) {
+        return facetedPartiallyBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(facetedPartially_);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder addFacetedPartiallyBuilder() {
+      return getFacetedPartiallyFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder addFacetedPartiallyBuilder(
+        int index) {
+      return getFacetedPartiallyFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in faceting.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 15;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder> 
+         getFacetedPartiallyBuilderList() {
+      return getFacetedPartiallyFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+        getFacetedPartiallyFieldBuilder() {
+      if (facetedPartiallyBuilder_ == null) {
+        facetedPartiallyBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder>(
+                facetedPartially_,
+                ((bitField0_ & 0x00004000) != 0),
+                getParentForChildren(),
+                isClean());
+        facetedPartially_ = null;
+      }
+      return facetedPartiallyBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> bucketedInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureBucketedInScopesIsMutable() {
+      if (!((bitField0_ & 0x00008000) != 0)) {
+        bucketedInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition>(bucketedInScopes_);
+        bitField0_ |= 0x00008000;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> bucketedInScopesBuilder_;
+
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> getBucketedInScopesList() {
+      if (bucketedInScopesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(bucketedInScopes_);
+      } else {
+        return bucketedInScopesBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public int getBucketedInScopesCount() {
+      if (bucketedInScopesBuilder_ == null) {
+        return bucketedInScopes_.size();
+      } else {
+        return bucketedInScopesBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition getBucketedInScopes(int index) {
+      if (bucketedInScopesBuilder_ == null) {
+        return bucketedInScopes_.get(index);
+      } else {
+        return bucketedInScopesBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder setBucketedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition value) {
+      if (bucketedInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureBucketedInScopesIsMutable();
+        bucketedInScopes_.set(index, value);
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder setBucketedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder builderForValue) {
+      if (bucketedInScopesBuilder_ == null) {
+        ensureBucketedInScopesIsMutable();
+        bucketedInScopes_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder addBucketedInScopes(io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition value) {
+      if (bucketedInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureBucketedInScopesIsMutable();
+        bucketedInScopes_.add(value);
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder addBucketedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition value) {
+      if (bucketedInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureBucketedInScopesIsMutable();
+        bucketedInScopes_.add(index, value);
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder addBucketedInScopes(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder builderForValue) {
+      if (bucketedInScopesBuilder_ == null) {
+        ensureBucketedInScopesIsMutable();
+        bucketedInScopes_.add(builderForValue.build());
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder addBucketedInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder builderForValue) {
+      if (bucketedInScopesBuilder_ == null) {
+        ensureBucketedInScopesIsMutable();
+        bucketedInScopes_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder addAllBucketedInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> values) {
+      if (bucketedInScopesBuilder_ == null) {
+        ensureBucketedInScopesIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, bucketedInScopes_);
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder clearBucketedInScopes() {
+      if (bucketedInScopesBuilder_ == null) {
+        bucketedInScopes_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00008000);
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public Builder removeBucketedInScopes(int index) {
+      if (bucketedInScopesBuilder_ == null) {
+        ensureBucketedInScopesIsMutable();
+        bucketedInScopes_.remove(index);
+        onChanged();
+      } else {
+        bucketedInScopesBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder getBucketedInScopesBuilder(
+        int index) {
+      return getBucketedInScopesFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder getBucketedInScopesOrBuilder(
+        int index) {
+      if (bucketedInScopesBuilder_ == null) {
+        return bucketedInScopes_.get(index);  } else {
+        return bucketedInScopesBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> 
+         getBucketedInScopesOrBuilderList() {
+      if (bucketedInScopesBuilder_ != null) {
+        return bucketedInScopesBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(bucketedInScopes_);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder addBucketedInScopesBuilder() {
+      return getBucketedInScopesFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder addBucketedInScopesBuilder(
+        int index) {
+      return getBucketedInScopesFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Per-scope bucketed histogram configurations defining index name and value expression.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder> 
+         getBucketedInScopesBuilderList() {
+      return getBucketedInScopesFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> 
+        getBucketedInScopesFieldBuilder() {
+      if (bucketedInScopesBuilder_ == null) {
+        bucketedInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder>(
+                bucketedInScopes_,
+                ((bitField0_ & 0x00008000) != 0),
+                getParentForChildren(),
+                isClean());
+        bucketedInScopes_ = null;
+      }
+      return bucketedInScopesBuilder_;
+    }
+
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> bucketedPartiallyInScopes_ =
+      java.util.Collections.emptyList();
+    private void ensureBucketedPartiallyInScopesIsMutable() {
+      if (!((bitField0_ & 0x00010000) != 0)) {
+        bucketedPartiallyInScopes_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially>(bucketedPartiallyInScopes_);
+        bitField0_ |= 0x00010000;
+       }
+    }
+
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> bucketedPartiallyInScopesBuilder_;
+
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> getBucketedPartiallyInScopesList() {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        return java.util.Collections.unmodifiableList(bucketedPartiallyInScopes_);
+      } else {
+        return bucketedPartiallyInScopesBuilder_.getMessageList();
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public int getBucketedPartiallyInScopesCount() {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        return bucketedPartiallyInScopes_.size();
+      } else {
+        return bucketedPartiallyInScopesBuilder_.getCount();
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially getBucketedPartiallyInScopes(int index) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        return bucketedPartiallyInScopes_.get(index);
+      } else {
+        return bucketedPartiallyInScopesBuilder_.getMessage(index);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder setBucketedPartiallyInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially value) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureBucketedPartiallyInScopesIsMutable();
+        bucketedPartiallyInScopes_.set(index, value);
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.setMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder setBucketedPartiallyInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder builderForValue) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        ensureBucketedPartiallyInScopesIsMutable();
+        bucketedPartiallyInScopes_.set(index, builderForValue.build());
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.setMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder addBucketedPartiallyInScopes(io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially value) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureBucketedPartiallyInScopesIsMutable();
+        bucketedPartiallyInScopes_.add(value);
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.addMessage(value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder addBucketedPartiallyInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially value) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        ensureBucketedPartiallyInScopesIsMutable();
+        bucketedPartiallyInScopes_.add(index, value);
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.addMessage(index, value);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder addBucketedPartiallyInScopes(
+        io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder builderForValue) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        ensureBucketedPartiallyInScopesIsMutable();
+        bucketedPartiallyInScopes_.add(builderForValue.build());
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.addMessage(builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder addBucketedPartiallyInScopes(
+        int index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder builderForValue) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        ensureBucketedPartiallyInScopesIsMutable();
+        bucketedPartiallyInScopes_.add(index, builderForValue.build());
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.addMessage(index, builderForValue.build());
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder addAllBucketedPartiallyInScopes(
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> values) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        ensureBucketedPartiallyInScopesIsMutable();
+        com.google.protobuf.AbstractMessageLite.Builder.addAll(
+            values, bucketedPartiallyInScopes_);
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.addAllMessages(values);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder clearBucketedPartiallyInScopes() {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        bucketedPartiallyInScopes_ = java.util.Collections.emptyList();
+        bitField0_ = (bitField0_ & ~0x00010000);
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public Builder removeBucketedPartiallyInScopes(int index) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        ensureBucketedPartiallyInScopesIsMutable();
+        bucketedPartiallyInScopes_.remove(index);
+        onChanged();
+      } else {
+        bucketedPartiallyInScopesBuilder_.remove(index);
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder getBucketedPartiallyInScopesBuilder(
+        int index) {
+      return getBucketedPartiallyInScopesFieldBuilder().getBuilder(index);
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyInScopesOrBuilder(
+        int index) {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        return bucketedPartiallyInScopes_.get(index);  } else {
+        return bucketedPartiallyInScopesBuilder_.getMessageOrBuilder(index);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> 
+         getBucketedPartiallyInScopesOrBuilderList() {
+      if (bucketedPartiallyInScopesBuilder_ != null) {
+        return bucketedPartiallyInScopesBuilder_.getMessageOrBuilderList();
+      } else {
+        return java.util.Collections.unmodifiableList(bucketedPartiallyInScopes_);
+      }
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder addBucketedPartiallyInScopesBuilder() {
+      return getBucketedPartiallyInScopesFieldBuilder().addBuilder(
+          io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder addBucketedPartiallyInScopesBuilder(
+        int index) {
+      return getBucketedPartiallyInScopesFieldBuilder().addBuilder(
+          index, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.getDefaultInstance());
+    }
+    /**
+     * <pre>
+     * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+     * </pre>
+     *
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;</code>
+     */
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder> 
+         getBucketedPartiallyInScopesBuilderList() {
+      return getBucketedPartiallyInScopesFieldBuilder().getBuilderList();
+    }
+    private com.google.protobuf.RepeatedFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> 
+        getBucketedPartiallyInScopesFieldBuilder() {
+      if (bucketedPartiallyInScopesBuilder_ == null) {
+        bucketedPartiallyInScopesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially.Builder, io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder>(
+                bucketedPartiallyInScopes_,
+                ((bitField0_ & 0x00010000) != 0),
+                getParentForChildren(),
+                isClean());
+        bucketedPartiallyInScopes_ = null;
+      }
+      return bucketedPartiallyInScopesBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

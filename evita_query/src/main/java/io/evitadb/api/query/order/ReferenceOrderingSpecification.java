@@ -23,14 +23,24 @@
 
 package io.evitadb.api.query.order;
 
-
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.OrderConstraint;
 
 /**
- * This interface aggregates ordering constraints that specify order behavior for references.
+ * Marker interface for ordering constraints that specify how entities should be ordered when they reference multiple
+ * target entities through a single reference type. When an entity has multiple references of the same type, each
+ * potentially pointing to a different target entity with its own ordering attributes, this specification defines the
+ * strategy for resolving the final sort position of the source entity.
+ *
+ * Implementing classes:
+ *
+ * - {@link PickFirstByEntityProperty} — picks the first referenced entity (according to a nested ordering) and uses
+ *   its attribute value as the sort key for the source entity
+ * - {@link TraverseByEntityProperty} — traverses the hierarchy of referenced entities to determine ordering,
+ *   supporting both depth-first and breadth-first traversal modes
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
+ * @see ReferenceProperty#getReferenceOrderingSpecification()
  */
 public interface ReferenceOrderingSpecification extends Constraint<OrderConstraint> {
 }

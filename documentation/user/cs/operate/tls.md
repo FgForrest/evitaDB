@@ -5,6 +5,7 @@ date: '1.3.2023'
 author: Bc. Tomáš Pozler
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
+translated: 'true'
 ---
 <UsedTerms>
     <h4>Použité pojmy</h4>
@@ -240,7 +241,7 @@ Server i klient mohou být vybaveni:
         </Tr>
         <Tr>
             <Td>`-in`</Td>
-            <Td>identifikuje [žádost o podepsání](#preparing-certificate-signing-request), která řídí operaci</Td>
+            <Td>identifikuje [žádost o podepsání](#žádost-o-podepsání-certifikátu), která řídí operaci</Td>
         </Tr>
         <Tr>
             <Td>`-days`</Td>

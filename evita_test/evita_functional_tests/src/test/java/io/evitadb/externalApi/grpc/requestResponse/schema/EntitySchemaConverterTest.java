@@ -29,10 +29,21 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.*;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
+import io.evitadb.externalApi.grpc.generated.GrpcNameVariant;
+import io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema;
+import io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.test.Entities;
+import io.evitadb.utils.NamingConvention;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -41,6 +52,9 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies functionalities of methods in {@link EntitySchemaConverter} class.
@@ -121,15 +135,31 @@ class EntitySchemaConverterTest {
 				),
 				"test2", ReferenceSchema._internalBuild(
 					"test2",
+					NamingConvention.generate("test2"),
 					"desc",
 					"depr",
 					Entities.CATEGORY,
+					NamingConvention.generate(Entities.CATEGORY),
 					false,
 					Cardinality.ONE_OR_MORE,
 					null,
+					Collections.emptyMap(),
 					false,
-					new ScopedReferenceIndexType[] { new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING) },
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.DEFAULT_SCOPE,
+							ReferenceIndexType.FOR_FILTERING
+						)
+					},
+					null,
 					new Scope[]{Scope.LIVE},
+					new ScopedFacetedPartially[]{
+						new ScopedFacetedPartially(
+							Scope.LIVE,
+							ExpressionFactory.parse("1 > 0")
+						)
+					},
+					null, null,
 					Map.of(
 						"code", EntityAttributeSchema._internalBuild(
 							"code",
@@ -221,7 +251,7 @@ class EntitySchemaConverterTest {
 	}
 
 	private static void assertAttributeSchema(@Nonnull AttributeSchemaContract expected, @Nonnull AttributeSchemaContract actual) {
-		assertEquals(expected.getClass(), actual.getClass());
+		assertSame(expected.getClass(), actual.getClass());
 		if (expected instanceof GlobalAttributeSchemaContract expectedGlobal) {
 			assertEquals(expectedGlobal.isUniqueGlobally(), ((GlobalAttributeSchemaContract) actual).isUniqueGlobally());
 		}
@@ -235,14 +265,20 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.isFilterable(), actual.isFilterable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isFilterable() ? "filterable" : "not filterable") + "!");
 		assertEquals(expected.isSortable(), actual.isSortable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isSortable() ? "sortable" : "not sortable") + "!");
 		assertEquals(expected.isNullable(), actual.isNullable(), "Attribute `" + expected.getName() + "` is expected " + (expected.isNullable() ? "nullable" : "not nullable") + "!");
-		assertEquals(expected.getType(), actual.getType(), "Attribute `" + expected.getName() + "` is expected to be of type `" + expected.getType() + "`!");
-		assertEquals(expected.getPlainType(), actual.getPlainType(), "Attribute `" + expected.getName() + "` is expected to be of plain type `" + expected.getPlainType() + "`!");
+		assertSame(
+			expected.getType(), actual.getType(),
+			"Attribute `" + expected.getName() + "` is expected to be of type `" + expected.getType() + "`!"
+		);
+		assertSame(
+			expected.getPlainType(), actual.getPlainType(),
+			"Attribute `" + expected.getName() + "` is expected to be of plain type `" + expected.getPlainType() + "`!"
+		);
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue(), "Attribute `" + expected.getName() + "` is expected to have default value `" + expected.getDefaultValue() + "`!");
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces(), "Attribute `" + expected.getName() + "` is expected to have indexed decimal places `" + expected.getIndexedDecimalPlaces() + "`!");
 	}
 
 	private static void assertSortableAttributeCompoundSchema(@Nonnull SortableAttributeCompoundSchemaContract expected, @Nonnull SortableAttributeCompoundSchemaContract actual) {
-		assertEquals(expected.getClass(), actual.getClass());
+		assertSame(expected.getClass(), actual.getClass());
 
 		assertEquals(expected.getName(), actual.getName());
 		assertEquals(expected.getDescription(), actual.getDescription());
@@ -258,7 +294,7 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getDeprecationNotice(), actual.getDeprecationNotice());
 		assertEquals(expected.isLocalized(), actual.isLocalized());
 		assertEquals(expected.isNullable(), actual.isNullable());
-		assertEquals(expected.getType(), actual.getType());
+		assertSame(expected.getType(), actual.getType());
 	}
 
 	private static void assertReferenceSchema(@Nonnull ReferenceSchemaContract expected, @Nonnull ReferenceSchemaContract actual) {
@@ -272,7 +308,10 @@ class EntitySchemaConverterTest {
 		assertEquals(expected.getReferencedGroupType(), actual.getReferencedGroupType());
 		assertEquals(expected.isReferencedGroupTypeManaged(), actual.isReferencedGroupTypeManaged());
 		assertEquals(expected.isIndexed(), actual.isIndexed());
+		assertEquals(expected.getReferenceIndexTypeInScopes(), actual.getReferenceIndexTypeInScopes());
+		assertEquals(expected.getIndexedComponentsInScopes(), actual.getIndexedComponentsInScopes());
 		assertEquals(expected.isFaceted(), actual.isFaceted());
+		assertEquals(expected.getFacetedPartiallyInScopes(), actual.getFacetedPartiallyInScopes());
 		assertEquals(expected.getSortableAttributeCompounds(), actual.getSortableAttributeCompounds());
 
 		assertEquals(expected.getAttributes().size(), actual.getAttributes().size());
@@ -301,6 +340,138 @@ class EntitySchemaConverterTest {
 		assertEntitySchema(
 			entitySchema,
 			EntitySchemaConverter.convert(grpcEntitySchema)
+		);
+	}
+
+	/**
+	 * Verifies that {@link HistogramIndexDefinition#nameVariants()} is populated on the
+	 * {@code GrpcScopedHistogramIndexDefinition} produced by {@link EntitySchemaConverter#convert}
+	 * and that, after a round-trip through the reverse converter, the reconstructed definition
+	 * carries the same per-convention variants as the originating {@link NamingConvention#generate}
+	 * output.
+	 *
+	 * The gRPC proto marks {@code nameVariants} as output-only (ignored on mutation input). Clients
+	 * re-derive the variants from the canonical name during reverse conversion — this test pins
+	 * both ends: the wire carries the server-side variants, and the client-side reconstruction
+	 * agrees with them byte-for-byte.
+	 */
+	@Test
+	@DisplayName("should populate histogram nameVariants on gRPC output and match after round-trip")
+	void shouldPopulateHistogramNameVariantsOnGrpcOutputAndMatchAfterRoundTrip() {
+		final Expression valueExpr = ExpressionFactory.parse("$price * 1.21");
+		final String canonicalName = "priceHistogram";
+		final EntitySchema entitySchema = createEntitySchemaWithBucketedBrandRef(canonicalName, valueExpr);
+		final CatalogSchema catalogSchema = createCatalogSchemaWithSingleEntitySchema(entitySchema);
+
+		final GrpcEntitySchema grpcEntitySchema = EntitySchemaConverter.convert(catalogSchema, entitySchema, true);
+
+		// --- forward direction: the gRPC message carries the expected nameVariants ---
+		final GrpcReferenceSchema grpcBrandRef = grpcEntitySchema.getReferencesOrDefault(Entities.BRAND, null);
+		assertNotNull(grpcBrandRef, "gRPC brand reference must be present");
+		assertEquals(1, grpcBrandRef.getBucketedCount(), "brand reference must carry exactly one bucketed entry");
+
+		final GrpcScopedHistogramIndexDefinition grpcHist = grpcBrandRef.getBucketed(0);
+		assertEquals(canonicalName, grpcHist.getNameOfTheIndex());
+		assertEquals(
+			NamingConvention.values().length, grpcHist.getNameVariantsCount(),
+			"Every NamingConvention must produce one GrpcNameVariant entry"
+		);
+
+		final Map<NamingConvention, String> expectedVariants = NamingConvention.generate(canonicalName);
+		final Map<NamingConvention, String> grpcVariants = new EnumMap<>(NamingConvention.class);
+		for (final GrpcNameVariant nv : grpcHist.getNameVariantsList()) {
+			grpcVariants.put(EvitaEnumConverter.toNamingConvention(nv.getNamingConvention()), nv.getName());
+		}
+		assertEquals(
+			expectedVariants, grpcVariants,
+			"gRPC nameVariants must match the NamingConvention.generate output"
+		);
+
+		// --- reverse direction: the reconstructed definition carries the same variants ---
+		final EntitySchemaContract roundTripped = EntitySchemaConverter.convert(grpcEntitySchema);
+		final ReferenceSchemaContract brandRef = roundTripped.getReference(Entities.BRAND).orElseThrow();
+		final HistogramIndexDefinition reconstructed = brandRef.getHistogramIndexDefinition(Scope.LIVE, canonicalName);
+
+		assertNotNull(reconstructed, "Reconstructed histogram must be present after gRPC round-trip");
+		assertEquals(canonicalName, reconstructed.nameOfTheIndex());
+		assertEquals(
+			expectedVariants, reconstructed.nameVariants(),
+			"Reconstructed nameVariants must match the canonical generator output"
+		);
+		for (final NamingConvention convention : NamingConvention.values()) {
+			assertEquals(
+				expectedVariants.get(convention),
+				reconstructed.getNameVariant(convention),
+				"Reconstructed variant for " + convention + " must match the canonical output"
+			);
+		}
+
+		// --- end-to-end: the reconstructed reference resolves by every variant ---
+		for (final NamingConvention convention : NamingConvention.values()) {
+			final String variant = expectedVariants.get(convention);
+			assertTrue(
+				brandRef.getHistogramIndexDefinitionByName(Scope.LIVE, variant, convention).isPresent(),
+				"Reconstructed reference must resolve histogram by variant `" + variant + "` under " + convention
+			);
+		}
+	}
+
+	/**
+	 * Builds a minimal {@link EntitySchema} whose `brand` reference is bucketed on the LIVE scope
+	 * using the supplied canonical histogram name and expression. This is the gRPC test's fixture
+	 * and intentionally keeps unrelated schema surface empty to isolate the bucketed payload.
+	 *
+	 * @param histogramName the canonical histogram index name
+	 * @param valueExpr     the bucketed value expression
+	 * @return a newly-built entity schema
+	 */
+	@Nonnull
+	private static EntitySchema createEntitySchemaWithBucketedBrandRef(
+		@Nonnull String histogramName,
+		@Nonnull Expression valueExpr
+	) {
+		return EntitySchema._internalBuild(
+			1,
+			Entities.PRODUCT,
+			null, null,
+			true,
+			false,
+			Scope.NO_SCOPE,
+			true,
+			new Scope[]{Scope.LIVE},
+			2,
+			Set.of(Locale.ENGLISH),
+			Set.of(Currency.getInstance("EUR")),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Map.of(
+				Entities.BRAND, ReferenceSchema._internalBuild(
+					Entities.BRAND,
+					NamingConvention.generate(Entities.BRAND),
+					null, null,
+					Entities.BRAND,
+					NamingConvention.generate(Entities.BRAND),
+					false,
+					Cardinality.ZERO_OR_ONE,
+					null,
+					Collections.emptyMap(),
+					false,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					null,
+					new Scope[]{Scope.LIVE},
+					null,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(Scope.LIVE, histogramName, valueExpr)
+					},
+					new ScopedBucketedPartially[0],
+					Collections.emptyMap(),
+					Collections.emptyMap()
+				)
+			),
+			Collections.emptySet(),
+			Collections.emptyMap()
 		);
 	}
 }

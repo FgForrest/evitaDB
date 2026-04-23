@@ -41,7 +41,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Random;
 
@@ -86,8 +85,7 @@ public class BucketsRecordState {
 				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
 				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class),
 				new FilterIndex(new AttributeIndexKey(null, "whatever", null), generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5), new RangeIndex(), Integer.class)
-			),
-			Collections.emptySet()
+			)
 		);
 		this.buckets = generateBuckets(BUCKET_COUNT, VALUE_COUNT);
 		this.formula = new ConstantFormula(this.entityIds);

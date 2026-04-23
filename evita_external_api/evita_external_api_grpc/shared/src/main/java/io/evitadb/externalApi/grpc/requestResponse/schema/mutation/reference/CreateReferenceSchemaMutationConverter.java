@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,18 +24,25 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.reference;
 
 import com.google.protobuf.StringValue;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateReferenceSchemaMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.EntitySchemaConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Converts between {@link CreateReferenceSchemaMutation} and {@link GrpcCreateReferenceSchemaMutation} in both directions.
@@ -48,13 +55,19 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 
 	@Nonnull
 	public CreateReferenceSchemaMutation convert(@Nonnull GrpcCreateReferenceSchemaMutation mutation) {
-		final ScopedReferenceIndexType[] indexedInScopes = mutation.getIndexedInScopesList().isEmpty() ?
-			(mutation.getFilterable() ? new ScopedReferenceIndexType[] {new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)} : ScopedReferenceIndexType.EMPTY)
-			:
-			mutation.getIndexedInScopesList()
-				.stream()
-				.map(scope -> new ScopedReferenceIndexType(EvitaEnumConverter.toScope(scope), ReferenceIndexType.FOR_FILTERING))
-				.toArray(ScopedReferenceIndexType[]::new);
+		final ScopedReferenceIndexType[] indexedInScopes =
+			SetReferenceSchemaIndexedMutationConverter.resolveIndexedInScopes(
+				mutation.getScopedIndexTypesList(),
+				mutation.getIndexedInScopesList(),
+				mutation.getFilterable()
+					? new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(
+							Scope.DEFAULT_SCOPE,
+							ReferenceIndexType.FOR_FILTERING
+						)
+					}
+					: ScopedReferenceIndexType.EMPTY
+			);
 		final Scope[] facetedInScopes = mutation.getFacetedInScopesList().isEmpty() ?
 			(mutation.getFaceted() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
 			:
@@ -62,6 +75,33 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 				.stream()
 				.map(EvitaEnumConverter::toScope)
 				.toArray(Scope[]::new);
+
+		// Handle indexed components
+		final ScopedReferenceIndexedComponents[] indexedComponentsInScopes =
+			SetReferenceSchemaIndexedMutationConverter.getIndexedComponentsInScopes(
+				mutation.getScopedIndexedComponentsList()
+			);
+
+		// Handle facetedPartially expressions
+		final ScopedFacetedPartially[] facetedPartiallyInScopes =
+			EntitySchemaConverter.parseFacetedPartially(
+				mutation.getFacetedPartiallyList()
+			);
+
+		// Handle bucketed histogram definitions -- coalesce null to EMPTY for non-reflected references
+		// where bucketed is never inherited (null would be semantically ambiguous)
+		final ScopedHistogramIndexDefinition[] parsedBucketed = EntitySchemaConverter.parseBucketedHistogram(
+			mutation.getBucketedInScopesList()
+		);
+		final ScopedHistogramIndexDefinition[] bucketedInScopes =
+			parsedBucketed != null ? parsedBucketed : ScopedHistogramIndexDefinition.EMPTY;
+
+		// Handle bucketedPartially expressions -- coalesce null to EMPTY for consistency
+		final ScopedBucketedPartially[] parsedBucketedPartially = EntitySchemaConverter.parseBucketedPartially(
+			mutation.getBucketedPartiallyInScopesList()
+		);
+		final ScopedBucketedPartially[] bucketedPartiallyInScopes =
+			parsedBucketedPartially != null ? parsedBucketedPartially : ScopedBucketedPartially.EMPTY;
 
 		return new CreateReferenceSchemaMutation(
 			mutation.getName(),
@@ -73,7 +113,11 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			mutation.hasReferencedGroupType() ? mutation.getReferencedGroupType().getValue() : null,
 			mutation.getReferencedGroupTypeManaged(),
 			indexedInScopes,
-			facetedInScopes
+			indexedComponentsInScopes,
+			facetedInScopes,
+			facetedPartiallyInScopes,
+			bucketedInScopes,
+			bucketedPartiallyInScopes
 		);
 	}
 
@@ -89,6 +133,14 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 			.addAllIndexedInScopes(
 				Arrays.stream(mutation.getIndexedInScopes())
 					.map(scopedIndexType -> EvitaEnumConverter.toGrpcScope(scopedIndexType.scope()))
+					.toList()
+			)
+			.addAllScopedIndexTypes(
+				Arrays.stream(mutation.getIndexedInScopes())
+					.map(scopedType -> io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType.newBuilder()
+						.setScope(EvitaEnumConverter.toGrpcScope(scopedType.scope()))
+						.setIndexType(EvitaEnumConverter.toGrpcReferenceIndexType(scopedType.indexType()))
+						.build())
 					.toList()
 			)
 			.setFaceted(mutation.isFaceted())
@@ -107,6 +159,32 @@ public class CreateReferenceSchemaMutationConverter implements SchemaMutationCon
 		if (mutation.getReferencedGroupType() != null) {
 			builder.setReferencedGroupType(StringValue.of(mutation.getReferencedGroupType()));
 		}
+		// Handle indexed components
+		ofNullable(mutation.getIndexedComponentsInScopes())
+			.ifPresent(components -> builder.addAllScopedIndexedComponents(
+				SetReferenceSchemaIndexedMutationConverter.toGrpcScopedIndexedComponents(components)
+			));
+
+		// Handle facetedPartially expressions
+		builder.addAllFacetedPartially(
+			SetReferenceSchemaFacetedMutationConverter.toGrpcScopedFacetedPartially(
+				mutation.getFacetedPartiallyInScopes()
+			)
+		);
+
+		// Handle bucketed histogram definitions
+		builder.addAllBucketedInScopes(
+			SetReferenceSchemaBucketedMutationConverter.toGrpcScopedHistogramIndexDefinition(
+				mutation.getBucketedInScopes()
+			)
+		);
+
+		// Handle bucketedPartially expressions
+		builder.addAllBucketedPartiallyInScopes(
+			SetReferenceSchemaBucketedMutationConverter.toGrpcScopedBucketedPartially(
+				mutation.getBucketedPartiallyInScopes()
+			)
+		);
 
 		return builder.build();
 	}

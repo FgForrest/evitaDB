@@ -61,7 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * hierarchy content with level/distance/node stopping conditions, and product hierarchy
  * parent entity retrieval.
  *
- * @author evitaDB contributors
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity hierarchy fetch functionality")
 @Tag(FUNCTIONAL_TEST)

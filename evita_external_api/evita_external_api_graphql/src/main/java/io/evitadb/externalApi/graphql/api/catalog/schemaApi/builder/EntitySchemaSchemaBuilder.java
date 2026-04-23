@@ -40,7 +40,7 @@ import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.GraphQLCatalogSchemaApiRootDescriptor;
-import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnCollectionSchemaChangeHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnSchemaChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
@@ -532,8 +532,28 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		this.buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.INDEXED_COMPONENTS,
+			ReferenceSchemaIndexedComponentsDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.FACETED,
 			ReferenceSchemaFacetedDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.FACETED_PARTIALLY,
+			ReferenceSchemaFacetedPartiallyDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.BUCKETED,
+			ReferenceSchemasBucketedDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			ReferenceSchemaDescriptor.THIS_GENERIC,
+			ReferenceSchemaDescriptor.BUCKETED_PARTIALLY,
+			ReferenceSchemasBucketedPartiallyDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
@@ -659,8 +679,28 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		);
 		this.buildingContext.registerDataFetcher(
 			objectName,
+			ReferenceSchemaDescriptor.INDEXED_COMPONENTS,
+			ReferenceSchemaIndexedComponentsDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			objectName,
 			ReferenceSchemaDescriptor.FACETED,
 			ReferenceSchemaFacetedDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			objectName,
+			ReferenceSchemaDescriptor.FACETED_PARTIALLY,
+			ReferenceSchemaFacetedPartiallyDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			objectName,
+			ReferenceSchemaDescriptor.BUCKETED,
+			ReferenceSchemasBucketedDataFetcher.getInstance()
+		);
+		this.buildingContext.registerDataFetcher(
+			objectName,
+			ReferenceSchemaDescriptor.BUCKETED_PARTIALLY,
+			ReferenceSchemasBucketedPartiallyDataFetcher.getInstance()
 		);
 		this.buildingContext.registerDataFetcher(
 			objectName,
@@ -798,11 +838,11 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private BuiltFieldDescriptor buildOnEntitySchemaChangeField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition onEntitySchemaChangeField = GraphQLCatalogSchemaApiRootDescriptor.ON_COLLECTION_SCHEMA_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer, entitySchema))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.CONTAINER_NAME.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
@@ -815,10 +855,10 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private BuiltFieldDescriptor buildOnEntitySchemaChangeUntypedField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition onEntitySchemaChangeField = GraphQLCatalogSchemaApiRootDescriptor.ON_COLLECTION_SCHEMA_UNTYPED_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer, entitySchema))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
-			.argument(OnCollectionSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.CONTAINER_TYPE.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

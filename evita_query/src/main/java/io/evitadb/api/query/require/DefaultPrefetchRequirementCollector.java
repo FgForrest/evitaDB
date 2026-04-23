@@ -23,7 +23,6 @@
 
 package io.evitadb.api.query.require;
 
-
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
 
@@ -33,9 +32,27 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 
 /**
- * This implementation of {@link FetchRequirementCollector} is used to collect the requirements for fetching
- * the referenced entities. It is based on explicitly defined requirements, but allows adding other implicit
- * requirements from the additional ordering or filtering constraints.
+ * Standard implementation of {@link FetchRequirementCollector} used by the query planner to accumulate all
+ * {@link EntityContentRequire} constraints that must be satisfied when entities are prefetched.
+ *
+ * **Initialisation:** The collector can be seeded with an explicit {@link EntityFetch} from the query's `require`
+ * clause (via the single-argument constructor), or created empty and populated solely through implicit requirements
+ * contributed by ordering and filtering translators.
+ *
+ * **Merging logic:** Requirements are indexed internally by their runtime class. When a new requirement arrives:
+ * 1. If no requirement of that class exists yet, it is stored directly.
+ * 2. If the new requirement is *fully contained within* an existing requirement of the same class, it is silently
+ *    discarded (the existing one already covers it).
+ * 3. If the new requirement is *combinable with* an existing one of the same class (e.g., two `AttributeContent`
+ *    instances that together cover a superset of attribute names), they are merged in place.
+ * 4. Otherwise the new requirement is appended as an additional entry for that class (rare, occurs for semantically
+ *    incompatible instances of the same concrete type).
+ *
+ * This ensures that `getRequirementsToPrefetch()` always returns the minimal non-redundant set of requirements,
+ * which is then used to build the actual {@link EntityFetch} passed to the entity-fetching layer.
+ *
+ * **Lifecycle:** Not thread-safe; a single instance is used within the context of one query planning pass and
+ * is not shared across threads.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -90,7 +107,7 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 	/**
 	 * Checks if there is any fetch requirement defined.
 	 *
-	 * @return true if the requirements is NULL
+	 * @return true if the requirements is null
 	 */
 	public boolean isEmpty() {
 		return this.requirements == null;
@@ -104,7 +121,7 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 	 * @param require an array of {@link EntityContentRequire} requirements to be added
 	 */
 	private void addRequirementToPrefetchInternal(@Nonnull EntityContentRequire[] require) {
-		for (EntityContentRequire theRequirement : require) {
+		for (final EntityContentRequire theRequirement : require) {
 			this.requirements.compute(
 				theRequirement.getClass(),
 				(aClass, existing) -> {
@@ -112,7 +129,7 @@ public class DefaultPrefetchRequirementCollector implements FetchRequirementColl
 						return new EntityContentRequire[]{theRequirement};
 					}
 					for (int i = 0; i < existing.length; i++) {
-						EntityContentRequire existingRequire = existing[i];
+						final EntityContentRequire existingRequire = existing[i];
 						if (theRequirement.isFullyContainedWithin(existingRequire)) {
 							return existing;
 						} else if (existingRequire.isCombinableWith(theRequirement)) {

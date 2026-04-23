@@ -1431,6 +1431,204 @@ class EvitaQLFilterConstraintVisitorTest {
 	}
 
 	@Nested
+	@DisplayName("histogramHaving constraint")
+	class HistogramHavingConstraint {
+
+		@Test
+		@DisplayName("Should parse the three-argument histogramHaving form (classifier plus from/to bounds)")
+		void shouldParseHistogramHavingWithClassifierAndBounds() {
+			// The three-argument overload omits histogramName — the classifier alone identifies
+			// the target reference. Exercised in both unsafe (inline literal) and safe
+			// (positional and named parameter) modes to cover every grammar entry point.
+			final FilterConstraint constraint1 = parseFilterConstraintUnsafe("histogramHaving('parameterValues',50,120)");
+			assertEquals(
+				histogramHaving("parameterValues", 50L, 120L),
+				constraint1
+			);
+
+			// Whitespace inside the argument list must be irrelevant to the parse result.
+			final FilterConstraint constraint2 = parseFilterConstraintUnsafe("histogramHaving ( 'parameterValues' , 50 , 120 )");
+			assertEquals(
+				histogramHaving("parameterValues", 50L, 120L),
+				constraint2
+			);
+
+			final FilterConstraint constraint3 = parseFilterConstraint("histogramHaving(?,?,?)", "parameterValues", 50L, 120L);
+			assertEquals(
+				histogramHaving("parameterValues", 50L, 120L),
+				constraint3
+			);
+
+			final FilterConstraint constraint4 = parseFilterConstraint(
+				"histogramHaving(@ref,@from,@to)",
+				Map.of("ref", "parameterValues", "from", 50L, "to", 120L)
+			);
+			assertEquals(
+				histogramHaving("parameterValues", 50L, 120L),
+				constraint4
+			);
+		}
+
+		@Test
+		@DisplayName("Should parse the four-argument histogramHaving form (classifier, histogramName, from/to bounds)")
+		void shouldParseHistogramHavingWithHistogramNameAndBounds() {
+			// The four-argument overload includes the histogramName argument used to distinguish
+			// multiple histograms defined on the same reference. Covered in unsafe and both
+			// safe-mode parameter flavors.
+			final FilterConstraint constraint1 = parseFilterConstraintUnsafe(
+				"histogramHaving('parameterValues','basicValue',50,120)"
+			);
+			assertEquals(
+				histogramHaving("parameterValues", "basicValue", 50L, 120L),
+				constraint1
+			);
+
+			final FilterConstraint constraint2 = parseFilterConstraintUnsafe(
+				"histogramHaving ( 'parameterValues' , 'basicValue' , 50 , 120 )"
+			);
+			assertEquals(
+				histogramHaving("parameterValues", "basicValue", 50L, 120L),
+				constraint2
+			);
+
+			final FilterConstraint constraint3 = parseFilterConstraint(
+				"histogramHaving(?,?,?,?)", "parameterValues", "basicValue", 50L, 120L
+			);
+			assertEquals(
+				histogramHaving("parameterValues", "basicValue", 50L, 120L),
+				constraint3
+			);
+
+			final FilterConstraint constraint4 = parseFilterConstraint(
+				"histogramHaving(@ref,@hist,@from,@to)",
+				Map.of("ref", "parameterValues", "hist", "basicValue", "from", 50L, "to", 120L)
+			);
+			assertEquals(
+				histogramHaving("parameterValues", "basicValue", 50L, 120L),
+				constraint4
+			);
+		}
+
+		@Test
+		@DisplayName("Should parse histogramHaving with decimal bounds as BigDecimal without losing precision")
+		void shouldParseHistogramHavingWithDecimalBounds() {
+			// Decimal literals in EvitaQL must land as `BigDecimal` (not `double`) so that user-
+			// supplied precision is preserved end-to-end — e.g. "9.25" must equal
+			// `new BigDecimal("9.25")`, not `BigDecimal.valueOf(9.25)`.
+			final FilterConstraint constraint1 = parseFilterConstraintUnsafe(
+				"histogramHaving('parameterValues','basicValue',1.5,9.25)"
+			);
+			assertEquals(
+				histogramHaving("parameterValues", "basicValue", new BigDecimal("1.5"), new BigDecimal("9.25")),
+				constraint1
+			);
+		}
+
+		@Test
+		@DisplayName("Should parse histogramHaving with histogramName plus trailing entityHaving group selector")
+		void shouldParseHistogramHavingWithGroupSelector() {
+			// The five-argument overload threads an entityHaving group selector after the
+			// bounds — it targets a specific group of reference entities for which the slider
+			// is evaluated. Both unsafe and safe modes must accept a nested entityHaving.
+			final FilterConstraint constraint1 = parseFilterConstraintUnsafe(
+				"histogramHaving('parameterValues','basicValue',50,120,entityHaving(attributeEquals('code','height')))"
+			);
+			assertEquals(
+				histogramHaving(
+					"parameterValues",
+					"basicValue",
+					50L,
+					120L,
+					entityHaving(attributeEquals("code", "height"))
+				),
+				constraint1
+			);
+
+			final FilterConstraint constraint2 = parseFilterConstraint(
+				"histogramHaving(?,?,?,?,entityHaving(attributeEquals(?,?)))",
+				"parameterValues", "basicValue", 50L, 120L, "code", "height"
+			);
+			assertEquals(
+				histogramHaving(
+					"parameterValues",
+					"basicValue",
+					50L,
+					120L,
+					entityHaving(attributeEquals("code", "height"))
+				),
+				constraint2
+			);
+		}
+
+		@Test
+		@DisplayName("Should parse histogramHaving with trailing entityHaving while histogramName is omitted")
+		void shouldParseHistogramHavingWithGroupSelectorButNoHistogramName() {
+			// Guards the four-argument overload where histogramName is dropped but the group
+			// selector is retained — the parser must pick the correct constructor based on
+			// argument types rather than arity alone.
+			final FilterConstraint constraint1 = parseFilterConstraintUnsafe(
+				"histogramHaving('parameterValues',50,120,entityHaving(attributeEquals('code','height')))"
+			);
+			assertEquals(
+				histogramHaving(
+					"parameterValues",
+					50L,
+					120L,
+					entityHaving(attributeEquals("code", "height"))
+				),
+				constraint1
+			);
+		}
+
+		@Test
+		@DisplayName("Should reject histogramHaving written without parentheses or with an empty argument list")
+		void shouldNotParseHistogramHavingWithoutArguments() {
+			// Grammar-level failures: both the unparenthesized form and the empty-argument form
+			// are rejected before any semantic validation runs.
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("histogramHaving"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("histogramHaving()"));
+		}
+
+		@Test
+		@DisplayName("Should reject histogramHaving with only a classifier — at least one bound is required")
+		void shouldNotParseHistogramHavingWithOnlyClassifier() {
+			// The HistogramHaving constructor enforces that at least one of `from` / `to` is
+			// non-null. A classifier-only call fails inside the constructor, so the thrown type
+			// is an EvitaInvalidUsageException (wrapped by the parser) rather than a grammar-
+			// level EvitaSyntaxException — hence the broader `Exception.class` assertion.
+			assertThrows(Exception.class, () -> parseFilterConstraintUnsafe("histogramHaving('parameterValues')"));
+		}
+
+		@Test
+		@DisplayName("Should reject histogramHaving with classifier and histogramName but no bounds")
+		void shouldNotParseHistogramHavingWithClassifierAndHistogramNameButNoBounds() {
+			// Same at-least-one-bound invariant as the classifier-only form — failure originates
+			// in the HistogramHaving constructor, not in the grammar, so we assert the broader
+			// `Exception.class`.
+			assertThrows(Exception.class, () -> parseFilterConstraintUnsafe("histogramHaving('parameterValues','basicValue')"));
+		}
+
+		@Test
+		@DisplayName("Should reject histogramHaving when the classifier argument is not a string literal")
+		void shouldNotParseHistogramHavingWithNonStringClassifier() {
+			// `1` is a valid integer literal but not a valid classifier token — the grammar
+			// demands a string there regardless of what follows.
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("histogramHaving(1,50,120)"));
+		}
+
+		@Test
+		@DisplayName("Should reject histogramHaving in safe mode when values are inlined instead of parameterised")
+		void shouldNotParseHistogramHavingInSafeModeWithoutParameters() {
+			// Safe-mode parsing forbids inline value literals — only `?` / `@name` parameter
+			// references are allowed. Asserted for both the three- and four-argument forms to
+			// cover both arities of the constraint.
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("histogramHaving('parameterValues',50,120)"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("histogramHaving('parameterValues','basicValue',50,120)"));
+		}
+
+	}
+
+	@Nested
 	@DisplayName("Hierarchy constraints")
 	class HierarchyConstraints {
 
@@ -1739,11 +1937,28 @@ class EvitaQLFilterConstraintVisitorTest {
 	@DisplayName("Scope constraints")
 	class ScopeConstraints {
 
-		@Test
-		@DisplayName("Should parse scope constraint")
-		void shouldParseScopeConstraint() {
-			final FilterConstraint constraint1 = parseFilterConstraintUnsafe("scope(LIVE)");
-			assertEquals(scope(Scope.LIVE), constraint1);
+    @Test
+    void shouldParseGroupHavingConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("groupHaving(attributeEquals('a',1))");
+        assertEquals(groupHaving(attributeEquals("a", 1L)), constraint1);
+
+        final FilterConstraint constraint2 = parseFilterConstraintUnsafe("groupHaving ( attributeEquals('a',1)  )");
+        assertEquals(groupHaving(attributeEquals("a", 1L)), constraint2);
+    }
+
+    @Test
+    void shouldNotParseGroupHavingConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving()"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving(collection('a'))"));
+        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving(attributeEquals('a',1),attributeEquals('b','c'))"));
+    }
+
+        @DisplayName("Should parse scope constraint")
+    @Test
+    void shouldParseScopeConstraint() {
+        final FilterConstraint constraint1 = parseFilterConstraintUnsafe("scope(LIVE)");
+        assertEquals(scope(Scope.LIVE), constraint1);
 
 			final FilterConstraint constraint2 = parseFilterConstraintUnsafe("scope ( LIVE )");
 			assertEquals(scope(Scope.LIVE), constraint2);
@@ -1806,52 +2021,71 @@ class EvitaQLFilterConstraintVisitorTest {
 
 	}
 
-	/**
-	 * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
-	 *
-	 * @param string string to parse
-	 * @param positionalArguments positional arguments to substitute
-	 * @return parsed constraint
-	 */
-	private static FilterConstraint parseFilterConstraint(
-        @Nonnull String string,
-        @Nonnull Object... positionalArguments
+    /**
+     * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
+     *
+     * @param string string to parse
+     * @param positionalArguments positional arguments to substitute
+     * @return parsed constraint
+     */
+    @Nonnull
+    private static FilterConstraint parseFilterConstraint(
+        @Nonnull String string, @Nonnull Object... positionalArguments
     ) {
-		return ParserExecutor.execute(
-			new ParseContext(positionalArguments),
-			() -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
-		);
-	}
-
-	/**
-	 * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
-	 *
-	 * @param string string to parse
-	 * @param namedArguments named arguments to substitute
-	 * @return parsed constraint
-	 */
-	private static FilterConstraint parseFilterConstraint(
-        @Nonnull String string,
-        @Nonnull Map<String, Object> namedArguments
-    ) {
-		return ParserExecutor.execute(
-			new ParseContext(namedArguments),
-			() -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
-		);
-	}
+        return ParserExecutor.execute(
+            new ParseContext(positionalArguments),
+            () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
+        );
+    }
 
     /**
-	 * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint" in unsafe mode
-	 *
-	 * @param string string to parse
-	 * @return parsed constraint
-	 */
-	private static FilterConstraint parseFilterConstraintUnsafe(@Nonnull String string) {
-		final ParseContext context = new ParseContext();
-		context.setMode(ParseMode.UNSAFE);
-		return ParserExecutor.execute(
-			context,
-			() -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
-		);
-	}
+     * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
+     *
+     * @param string string to parse
+     * @param namedArguments named arguments to substitute
+     * @return parsed constraint
+     */
+    @Nonnull
+    private static FilterConstraint parseFilterConstraint(
+        @Nonnull String string, @Nonnull Map<String, Object> namedArguments
+    ) {
+        return ParserExecutor.execute(
+            new ParseContext(namedArguments),
+            () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
+        );
+    }
+
+    /**
+     * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
+     *
+     * @param string string to parse
+     * @param namedArguments named arguments to substitute
+     * @param positionalArguments positional arguments to substitute
+     * @return parsed constraint
+     */
+    @Nonnull
+    private static FilterConstraint parseFilterConstraint(
+        @Nonnull String string, @Nonnull Map<String, Object> namedArguments, @Nonnull Object... positionalArguments
+    ) {
+        return ParserExecutor.execute(
+            new ParseContext(namedArguments, positionalArguments),
+            () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
+        );
+    }
+
+    /**
+     * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint" in unsafe mode
+     *
+     * @param string string to parse
+     * @return parsed constraint
+     */
+    @Nonnull
+    private static FilterConstraint parseFilterConstraintUnsafe(@Nonnull String string) {
+        final ParseContext context = new ParseContext();
+        context.setMode(ParseMode.UNSAFE);
+        return ParserExecutor.execute(
+            context,
+            () -> ParserFactory.getParser(string).filterConstraint().accept(new EvitaQLFilterConstraintVisitor())
+        );
+    }
 }

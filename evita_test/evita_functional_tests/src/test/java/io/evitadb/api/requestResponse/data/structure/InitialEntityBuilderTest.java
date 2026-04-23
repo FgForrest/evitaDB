@@ -144,11 +144,11 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		final InitialEntityBuilder builder = new InitialEntityBuilder(schema);
 
 		builder.setReference(STORE, 1);
-		builder.setOrUpdateReference(BRAND, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
-		builder.setOrUpdateReference(BRAND, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
-		builder.setOrUpdateReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
-		builder.setOrUpdateReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
-		builder.setOrUpdateReference(GROUP, 1, ref -> false, ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "EN"));
+		builder.setOrUpdateReference(BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(), ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
+		builder.setOrUpdateReference(BRAND, 1, io.evitadb.utils.Functions.alwaysFalse(), ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
+		builder.setOrUpdateReference(GROUP, 1, io.evitadb.utils.Functions.alwaysFalse(), ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "CZ"));
+		builder.setOrUpdateReference(GROUP, 1, io.evitadb.utils.Functions.alwaysFalse(), ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "DE"));
+		builder.setOrUpdateReference(GROUP, 1, io.evitadb.utils.Functions.alwaysFalse(), ref -> ref.setAttribute(ATTRIBUTE_COUNTRY, "EN"));
 
 		return builder;
 	}
@@ -713,7 +713,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			BRAND,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> {
 				rb.setAttribute(ATTRIBUTE_COUNTRY, "FR");
 				rb.setAttribute(BRAND_PRIORITY, 12L);
@@ -752,7 +752,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			BRAND,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> {
 				rb.setAttribute(ATTRIBUTE_COUNTRY, "DE");
 				rb.setAttribute(BRAND_PRIORITY, 14L);
@@ -833,7 +833,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			CATEGORY,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> {
 				assertNull(rb.getAttribute(CATEGORY_PRIORITY));
 				assertTrue(rb.getGroup().isEmpty());
@@ -853,7 +853,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			CATEGORY,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> {
 				assertNull(rb.getAttribute(CATEGORY_PRIORITY));
 				assertTrue(rb.getGroup().isEmpty());
@@ -873,7 +873,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			CATEGORY,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> {
 				assertNull(rb.getAttribute(CATEGORY_PRIORITY));
 				assertTrue(rb.getGroup().isEmpty());
@@ -1628,7 +1628,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			() -> builder.setOrUpdateReference(
 				BRAND,
 				2,
-				ref -> false,
+				io.evitadb.utils.Functions.alwaysFalse(),
 				Functions.noOpConsumer()
 			)
 		);
@@ -1641,7 +1641,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 				"differentEntityType",
 				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
 				2,
-				ref -> false,
+				io.evitadb.utils.Functions.alwaysFalse(),
 				Functions.noOpConsumer()
 			)
 		);
@@ -1654,7 +1654,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 				BRAND,
 				Cardinality.ONE_OR_MORE,
 				2,
-				ref -> false,
+				io.evitadb.utils.Functions.alwaysFalse(),
 				Functions.noOpConsumer()
 			)
 		);
@@ -1665,7 +1665,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			BRAND,
 			3,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			Functions.noOpConsumer()
 		);
 
@@ -2043,14 +2043,14 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			BRAND,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
 		);
 		// different ATTRIBUTE_COUNTRY is ok
 		builder.setOrUpdateReference(
 			BRAND,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 		);
 		// creating another reference with same ATTRIBUTE_COUNTRY should fail
@@ -2059,7 +2059,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 			() -> builder.setOrUpdateReference(
 				BRAND,
 				1,
-				ref -> false,
+				io.evitadb.utils.Functions.alwaysFalse(),
 				rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
 			)
 		);
@@ -2093,14 +2093,14 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			BRAND,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ")
 		);
 		// different ATTRIBUTE_COUNTRY is ok
 		builder.setOrUpdateReference(
 			BRAND,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 		);
 		// now, we free DE and change it to FR
@@ -2114,7 +2114,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		builder.setOrUpdateReference(
 			BRAND,
 			1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> rb.setAttribute(ATTRIBUTE_COUNTRY, "DE")
 		);
 
@@ -2285,7 +2285,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		// create multiple duplicate references with same id but different attributes
 		builder.setOrUpdateReference(
 			BRAND, 1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> {
 				rb.setAttribute(BRAND_PRIORITY, 10L);
 				rb.setAttribute(ATTRIBUTE_COUNTRY, "CZ");
@@ -2293,7 +2293,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		);
 		builder.setOrUpdateReference(
 			BRAND, 1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> {
 				rb.setAttribute(BRAND_PRIORITY, 20L);
 				rb.setAttribute(ATTRIBUTE_COUNTRY, "DE");
@@ -2301,7 +2301,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		);
 		builder.setOrUpdateReference(
 			BRAND, 1,
-			ref -> false,
+			io.evitadb.utils.Functions.alwaysFalse(),
 			rb -> {
 				rb.setAttribute(BRAND_PRIORITY, 30L);
 				rb.setAttribute(ATTRIBUTE_COUNTRY, "FR");

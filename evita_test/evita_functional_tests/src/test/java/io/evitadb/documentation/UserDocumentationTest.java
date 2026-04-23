@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestFactory;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,6 +60,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -70,16 +73,24 @@ import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.DynamicTest.dynamicTest;
 
 /**
- * This test class generates the dynamic tests that compile and execute all source code examples found in user
+ * This test class generates dynamic tests that compile and execute all source code examples found in user
  * documentation MarkDown files. The test searches for all occurrences of:
  *
  * 1. ``` java ``` block
- * 2. <SourceCodeTabs> block
+ * 2. `<SourceCodeTabs>` block
+ * 3. `<SourceAlternativeTabs>` block
  *
- * The test generates for each of such block separate {@link DynamicTest} instance enveloped in {@link DynamicNode}
- * that wraps all tests for the same MarkDown file. The tests use {@link JShell} to compile and execute the snippets.
+ * Tests are organized in a three-level hierarchy:
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * - **File-level** containers (one per MarkDown file)
+ * - **Language-level** containers within each file (one per language: java, evitaql, graphql, rest, cs)
+ * - **Individual** test cases within each language (one per code snippet)
+ *
+ * Each language gets its own {@link JShell}/client context, enabling parallel execution across languages
+ * while tests within the same language run sequentially (they share state). Files containing `local` examples
+ * acquire an exclusive lock to prevent port conflicts.
+ *
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class UserDocumentationTest implements EvitaTestSupport {
 	/**
@@ -133,6 +144,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		NOT_TESTED_LANGUAGES.add("plain");
 		NOT_TESTED_LANGUAGES.add("protobuf");
 	}
+
+	/**
+	 * Lock ensuring local-example files (which bind fixed ports on localhost) never overlap
+	 * with each other. Only local files acquire this lock; demo-server files skip it entirely
+	 * since they target an external server and can safely run in parallel with everything.
+	 * Fair ordering prevents starvation when local files queue behind each other.
+	 */
+	private static final Lock LOCAL_LOCK = new ReentrantLock(true);
 
 	/**
 	 * Reads UTF-8 string executable from the file with changed extension.
@@ -401,10 +420,135 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Creates a {@link CodeSnippet} for the given file, adds it to the appropriate language bucket,
+	 * and registers it in the code snippet index for cross-snippet dependency resolution.
+	 *
+	 * @param referencedFile           path to the source file
+	 * @param referencedFileExtension  language extension of the file
+	 * @param environment              execution environment (demo server or localhost)
+	 * @param setupScripts             setup scripts to run before the example
+	 * @param requiredScripts          required scripts for the example
+	 * @param sideEffect               whether the example has side effects
+	 * @param outputSnippets           expected output snippets
+	 * @param rootDirectory            root directory of the project
+	 * @param contextProvider          shared context provider for the file
+	 * @param snippetsByLanguage       per-language snippet lists to populate
+	 * @param codeSnippetIndex         shared snippet index for dependency resolution
+	 * @param createSnippets           snippet generation options
+	 */
+	private static void addPrimarySnippet(
+		@Nonnull Path referencedFile,
+		@Nonnull String referencedFileExtension,
+		@Nonnull Environment environment,
+		@Nullable Path[] setupScripts,
+		@Nullable Path[] requiredScripts,
+		@Nonnull SideEffect sideEffect,
+		@Nonnull List<OutputSnippet> outputSnippets,
+		@Nonnull Path rootDirectory,
+		@Nonnull TestContextProvider contextProvider,
+		@Nonnull Map<String, List<CodeSnippet>> snippetsByLanguage,
+		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex,
+		@Nonnull CreateSnippets... createSnippets
+	) {
+		final CodeSnippet snippet = new CodeSnippet(
+			"Example `" + referencedFile.getFileName() + "`",
+			referencedFileExtension,
+			referencedFile,
+			convertToRunnable(
+				environment,
+				referencedFileExtension,
+				readFileOrThrowException(referencedFile),
+				rootDirectory,
+				referencedFile,
+				setupScripts,
+				requiredScripts,
+				sideEffect,
+				contextProvider,
+				codeSnippetIndex,
+				outputSnippets,
+				createSnippets
+			)
+		);
+		snippetsByLanguage.get(referencedFileExtension).add(snippet);
+		codeSnippetIndex.put(snippet.path(), snippet);
+	}
+
+	/**
+	 * Creates a {@link CodeSnippet} for a related or variant file and adds it
+	 * to the appropriate language bucket.
+	 *
+	 * @param relatedFile              path to the related source file
+	 * @param environment              execution environment
+	 * @param setupScripts             setup scripts to run before the example
+	 * @param requiredScripts          required scripts for the example
+	 * @param sideEffect               whether the example has side effects
+	 * @param rootDirectory            root directory of the project
+	 * @param contextProvider          shared context provider for the file
+	 * @param snippetsByLanguage       per-language snippet lists to populate
+	 * @param filteredExtensions       set of language extensions to include
+	 * @param outputSnippetIndex       index mapping files to their output snippets
+	 * @param codeSnippetIndex         shared snippet index for dependency resolution
+	 * @param createSnippets           snippet generation options
+	 */
+	private static void addRelatedSnippet(
+		@Nonnull Path relatedFile,
+		@Nonnull Environment environment,
+		@Nullable Path[] setupScripts,
+		@Nullable Path[] requiredScripts,
+		@Nonnull SideEffect sideEffect,
+		@Nonnull Path rootDirectory,
+		@Nonnull TestContextProvider contextProvider,
+		@Nonnull Map<String, List<CodeSnippet>> snippetsByLanguage,
+		@Nonnull Set<String> filteredExtensions,
+		@Nonnull Map<Path, List<OutputSnippet>> outputSnippetIndex,
+		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex,
+		@Nonnull CreateSnippets... createSnippets
+	) {
+		final String relatedExt = getFileNameExtension(relatedFile);
+		if (!filteredExtensions.contains(relatedExt)) {
+			return;
+		}
+		// C# snippets use the .evitaql counterpart for output comparison
+		final Path outputKey = "cs".equals(relatedExt)
+			? Path.of(relatedFile.toString().replace(".cs", ".evitaql"))
+			: relatedFile;
+		final List<OutputSnippet> outputSnippets =
+			ofNullable(outputSnippetIndex.get(outputKey))
+				.orElse(Collections.emptyList());
+
+		snippetsByLanguage.get(relatedExt).add(
+			new CodeSnippet(
+				"Example `" + relatedFile.getFileName() + "`",
+				relatedExt,
+				relatedFile,
+				convertToRunnable(
+					environment,
+					relatedExt,
+					readFileOrThrowException(relatedFile),
+					rootDirectory,
+					relatedFile,
+					setupScripts,
+					requiredScripts,
+					sideEffect,
+					contextProvider,
+					codeSnippetIndex,
+					outputSnippets,
+					createSnippets
+				)
+			)
+		);
+	}
+
+	/**
 	 * This test scans all MarkDown files in the user documentation directory and generates {@link DynamicTest}
-	 * instances for each source code block found. Tests are organized in nodes that represents the file they're part
-	 * of. The first test of the document always initializes the JShell instance, the last test finalizes the JShell
-	 * instance.
+	 * instances for each source code block found. Tests are organized in a three-level hierarchy:
+	 *
+	 * - **File-level containers** run in parallel (non-local) or exclusively (local)
+	 * - **Language-level containers** within each file run in parallel (for non-local files)
+	 * - **Individual tests** within each language run sequentially (they share JShell/client state)
+	 *
+	 * Files containing at least one `local` example acquire an exclusive write lock to prevent
+	 * port conflicts. Non-local files acquire a shared read lock allowing concurrent execution.
 	 */
 	@DisplayName("User documentation")
 	@Tag(DOCUMENTATION_TEST)
@@ -414,7 +558,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final List<DynamicNode> nodes = walker
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
-					final List<DynamicTest> tests = this.createTests(
+					final FileTestResult result = this.createTests(
 						Environment.DEMO_SERVER,
 						it,
 						new ExampleFilter[]{
@@ -425,14 +569,10 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							ExampleFilter.EVITAQL
 						}
 					);
-					if (tests.isEmpty()) {
+					if (result.languageContainers().isEmpty()) {
 						return null;
 					} else {
-						return (DynamicNode) DynamicContainer.dynamicContainer(
-							"File: `" + it.getFileName() + "`",
-							it.toUri(),
-							tests.stream()
-						);
+						return (DynamicNode) wrapFileContainer(it, result);
 					}
 				})
 				.filter(Objects::nonNull)
@@ -442,14 +582,93 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Wraps language containers for a single MarkDown file into a file-level {@link DynamicContainer}
+	 * with appropriate execution mode and lock acquisition/release tests.
+	 *
+	 * Local files acquire an exclusive write lock (preventing overlap with any other file)
+	 * and run their language containers sequentially. Non-local files acquire a shared read lock
+	 * and run their language containers in parallel.
+	 *
+	 * @param filePath path to the MarkDown file
+	 * @param result   the parsed test result containing language containers and local flag
+	 * @return a file-level dynamic container with proper parallelization settings
+	 */
+	@Nonnull
+	private static DynamicNode wrapFileContainer(
+		@Nonnull Path filePath,
+		@Nonnull FileTestResult result
+	) {
+		final boolean local = result.hasLocalExamples();
+		final String displaySuffix = local ? " (local)" : "";
+		// local files run all languages sequentially; non-local allow per-language parallelism
+		final ExecutionMode languageMode = local
+			? ExecutionMode.SAME_THREAD
+			: ExecutionMode.CONCURRENT;
+		final String fileName = filePath.getFileName().toString();
+
+		// inner container holds the language containers with appropriate concurrency
+		final DynamicNode languagesContainer = DynamicContainer.dynamicContainer(
+			config -> {
+				config.displayName("Languages");
+				config.childExecutionMode(languageMode);
+				config.children(result.languageContainers().stream());
+			}
+		);
+
+		// outer container ensures sequential: [lock] → init → languages → teardown → [unlock]
+		return DynamicContainer.dynamicContainer(config -> {
+			config.displayName(
+				"File: `" + filePath.getFileName() + "`" + displaySuffix
+			);
+			config.testSourceUri(filePath.toUri());
+			// file itself can be scheduled concurrently with other files
+			config.executionMode(ExecutionMode.CONCURRENT);
+			// but its children must be sequential (init before snippets, teardown after)
+			config.childExecutionMode(ExecutionMode.SAME_THREAD);
+			if (local) {
+				// local files acquire the lock to prevent port conflicts with other local files;
+				// demo-server files skip locking entirely - they can run in parallel with everything
+				config.children(Stream.of(
+					Stream.of(dynamicTest("Acquire local lock", () -> {
+						System.out.println("[DOC-TEST] " + Thread.currentThread().getName()
+							+ " | Acquiring local lock for: " + fileName);
+						LOCAL_LOCK.lock();
+						System.out.println("[DOC-TEST] " + Thread.currentThread().getName()
+							+ " | Acquired local lock for: " + fileName);
+					})),
+					result.initTests().stream(),
+					Stream.of(languagesContainer),
+					result.tearDownTests().stream(),
+					Stream.of(dynamicTest("Release local lock", () -> {
+						System.out.println("[DOC-TEST] " + Thread.currentThread().getName()
+							+ " | Releasing local lock for: " + fileName);
+						LOCAL_LOCK.unlock();
+					}))
+				).flatMap(Function.identity()));
+			} else {
+				// demo-server files: no lock needed, just init → languages → teardown
+				config.children(Stream.of(
+					Stream.of(dynamicTest("Start file", () ->
+						System.out.println("[DOC-TEST] " + Thread.currentThread().getName()
+							+ " | Starting: " + fileName)
+					)),
+					result.initTests().stream(),
+					Stream.of(languagesContainer),
+					result.tearDownTests().stream()
+				).flatMap(Function.identity()));
+			}
+		});
+	}
+
+	/**
 	 * The test is disabled and should be used only for "debugging" snippets in certain documentation file.
 	 */
 	@DisplayName("Debug user documentation")
 	@TestFactory
 	@Tag(DOCUMENTATION_TEST)
 	@Disabled
-	Stream<DynamicTest> testSingleFileDocumentation() {
-		return this.createTests(
+	Stream<DynamicNode> testSingleFileDocumentation() {
+		final FileTestResult result = this.createTests(
 			Environment.DEMO_SERVER,
 			getRootDirectory().resolve("documentation/user/en/use/connectors/grpc.md"),
 			new ExampleFilter[]{
@@ -459,7 +678,12 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				ExampleFilter.GRAPHQL,
 				ExampleFilter.EVITAQL
 			}
-		).stream();
+		);
+		return Stream.of(
+			result.initTests().stream(),
+			result.languageContainers().stream(),
+			result.tearDownTests().stream()
+		).flatMap(Function.identity());
 	}
 
 	/**
@@ -471,8 +695,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@TestFactory
 	@Tag(DOCUMENTATION_TEST)
 	@Disabled
-	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
-		return this.createTests(
+	Stream<DynamicNode> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
+		final FileTestResult result = this.createTests(
 			Environment.DEMO_SERVER,
 			getRootDirectory().resolve("documentation/user/en/query/ordering/random.md"),
 			new ExampleFilter[]{
@@ -483,22 +707,31 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				ExampleFilter.EVITAQL
 			},
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST
-		).stream();
+		);
+		return Stream.of(
+			result.initTests().stream(),
+			result.languageContainers().stream(),
+			result.tearDownTests().stream()
+		).flatMap(Function.identity());
 	}
 
 	/**
-	 * Method creates list of {@link DynamicTest} instances for all code blocks in the file of given {@link Path}.
-	 * Method returns empty collection if no code block is found.
+	 * Method creates per-language {@link DynamicContainer} instances for all code blocks in the file of given
+	 * {@link Path}. A single shared {@link TestContextProvider} is used per file (since cross-language dependencies
+	 * exist - e.g. GraphQL/REST with setup scripts need Java JShell context). Init/teardown tests from the shared
+	 * provider run sequentially before/after the parallel language phase.
+	 *
+	 * Returns a {@link FileTestResult} containing the language containers and whether the file has local examples.
 	 */
 	@Nonnull
-	private List<DynamicTest> createTests(
+	private FileTestResult createTests(
 		@Nonnull Environment profile,
 		@Nonnull Path path,
 		@Nonnull ExampleFilter[] exampleFilters,
 		@Nonnull CreateSnippets... createSnippets
 	) {
 		final Path rootDirectory = getRootDirectory();
-		// and create an index for them for resolving the dependencies
+		// shared index for resolving cross-snippet dependencies (populated single-threaded, read concurrently)
 		final Map<Path, CodeSnippet> codeSnippetIndex = new HashMap<>();
 		final Set<String> filteredExtensions = Arrays.stream(exampleFilters)
 			.map(ExampleFilter::getExtension)
@@ -506,20 +739,29 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final String fileContent = readFileOrThrowException(path);
 		final AtomicInteger index = new AtomicInteger();
-		final List<CodeSnippet> codeSnippets = new LinkedList<>();
-		final TestContextProvider contextAccessor = new TestContextProvider();
 		final Set<Path> alreadyUsedPaths = new HashSet<>();
+		boolean hasLocalExamples = false;
 
+		// single shared context provider per file - cross-language dependencies exist
+		// (e.g. GraphQL/REST with setup scripts use JavaWrappingExecutable which needs Java context)
+		final TestContextProvider contextProvider = new TestContextProvider();
+
+		// per-language snippet groups (preserving insertion order for deterministic test output)
+		final Map<String, List<CodeSnippet>> snippetsByLanguage = new LinkedHashMap<>(8);
+		for (ExampleFilter filter : exampleFilters) {
+			snippetsByLanguage.put(filter.getExtension(), new LinkedList<>());
+		}
+
+		// 1. Parse inline ``` code ``` blocks
 		final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
 		while (sourceCodeMatcher.find()) {
 			final String format = sourceCodeMatcher.groupCount() > 2 ? sourceCodeMatcher.group(1) : "plain";
 			final String content = sourceCodeMatcher.groupCount() > 2 ? sourceCodeMatcher.group(2) : sourceCodeMatcher.group(1);
-			if (!(format.isBlank() || NOT_TESTED_LANGUAGES.contains(format))) {
-				codeSnippets.add(
+			if (!(format.isBlank() || NOT_TESTED_LANGUAGES.contains(format)) && filteredExtensions.contains(format)) {
+				snippetsByLanguage.get(format).add(
 					new CodeSnippet(
 						"Example #" + index.incrementAndGet(),
 						format,
-						null,
 						null,
 						convertToRunnable(
 							profile,
@@ -530,7 +772,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							null,
 							null,
 							SideEffect.WITH_SIDE_EFFECT,
-							contextAccessor,
+							contextProvider,
 							codeSnippetIndex,
 							Collections.emptyList()
 						)
@@ -539,6 +781,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			}
 		}
 
+		// 2. Build output snippet index from MDInclude blocks
 		final Map<Path, List<OutputSnippet>> outputSnippetIndex = new HashMap<>();
 		final Matcher mdIncludeMatcher = MD_INCLUDE_PATTERN.matcher(fileContent);
 		while (mdIncludeMatcher.find()) {
@@ -560,6 +803,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					));
 		}
 
+		// 3. Parse <SourceCodeTabs> blocks - distribute primary and related snippets to their language buckets
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
 		while (sourceCodeTabsMatcher.find()) {
 			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(2));
@@ -568,75 +812,52 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			if (attributes.isIgnoreTest()) {
 				continue;
 			}
-			final Environment environment = attributes.isLocal() ? Environment.LOCALHOST : profile;
-			final SideEffect sideEffect = attributes.isLocal() ? SideEffect.WITH_SIDE_EFFECT : SideEffect.WITHOUT_SIDE_EFFECT;
-
+			if (attributes.isLocal()) {
+				hasLocalExamples = true;
+			}
 			if (profile == Environment.LOCALHOST && attributes.isLocal()) {
-				// we need to skip the local tests when profile is localhost and the example is local
-				// it starts local instance of evitaDB which will fail on already opened ports
+				// skip local tests when profile is localhost - it starts a local evitaDB instance
+				// which will fail on already opened ports
 				continue;
 			}
+			final Environment environment = attributes.isLocal()
+				? Environment.LOCALHOST : profile;
+			final SideEffect sideEffect = attributes.isLocal()
+				? SideEffect.WITH_SIDE_EFFECT
+				: SideEffect.WITHOUT_SIDE_EFFECT;
 
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				alreadyUsedPaths.add(referencedFile);
 				final Path[] setupScripts = attributes.getSetupScripts(rootDirectory);
 				final Path[] requiredScripts = attributes.getRequiredScripts(rootDirectory);
-				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
-					.orElse(Collections.emptyList());
-				final CodeSnippet codeSnippet = new CodeSnippet(
-					"Example `" + referencedFile.getFileName() + "`",
-					referencedFileExtension,
-					referencedFile,
-					findRelatedFiles(referencedFile, alreadyUsedPaths, codeSnippetIndex)
-						.stream()
-						.map(relatedFile -> {
-							final String relatedFileExtension = getFileNameExtension(relatedFile);
-							return new CodeSnippet(
-								"Example `" + relatedFile.getFileName() + "`",
-								relatedFileExtension,
-								relatedFile,
-								null,
-								convertToRunnable(
-									environment,
-									relatedFileExtension,
-									readFileOrThrowException(relatedFile),
-									rootDirectory,
-									relatedFile,
-									setupScripts,
-									requiredScripts,
-									sideEffect,
-									contextAccessor,
-									codeSnippetIndex,
-									ofNullable(
-										relatedFileExtension.equals("cs") ?
-											outputSnippetIndex.get(Path.of(relatedFile.toString().replace(".cs", ".evitaql"))) :
-											outputSnippetIndex.get(relatedFile)
-									).orElse(Collections.emptyList()),
-									createSnippets
-								)
-							);
-						})
-						.toArray(CodeSnippet[]::new),
-					convertToRunnable(
-						environment,
-						referencedFileExtension,
-						readFileOrThrowException(referencedFile),
-						rootDirectory,
-						referencedFile,
-						setupScripts,
-						requiredScripts,
-						sideEffect,
-						contextAccessor,
-						codeSnippetIndex,
-						outputSnippet,
+				final List<OutputSnippet> outputSnippets =
+					ofNullable(outputSnippetIndex.get(referencedFile))
+						.orElse(Collections.emptyList());
+
+				if (filteredExtensions.contains(referencedFileExtension)) {
+					addPrimarySnippet(
+						referencedFile, referencedFileExtension,
+						environment, setupScripts, requiredScripts,
+						sideEffect, outputSnippets, rootDirectory,
+						contextProvider, snippetsByLanguage,
+						codeSnippetIndex, createSnippets
+					);
+				}
+
+				for (Path relatedFile : findRelatedFiles(referencedFile, alreadyUsedPaths, codeSnippetIndex)) {
+					addRelatedSnippet(
+						relatedFile, environment,
+						setupScripts, requiredScripts, sideEffect,
+						rootDirectory, contextProvider,
+						snippetsByLanguage, filteredExtensions,
+						outputSnippetIndex, codeSnippetIndex,
 						createSnippets
-					)
-				);
-				codeSnippets.add(codeSnippet);
-				codeSnippetIndex.put(codeSnippet.path(), codeSnippet);
+					);
+				}
 			}
 		}
 
+		// 4. Parse <SourceAlternativeTabs> blocks - same distribution pattern
 		final Matcher sourceAlternativeTabsMatcher = SOURCE_ALTERNATIVE_TABS_PATTERN.matcher(fileContent);
 		while (sourceAlternativeTabsMatcher.find()) {
 			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceAlternativeTabsMatcher.group(2));
@@ -644,97 +865,92 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final Attributes attributes = new Attributes(sourceAlternativeTabsMatcher.group(1));
 			final Path[] setupScripts = attributes.getSetupScripts(rootDirectory);
 			final Path[] requiredScripts = attributes.getRequiredScripts(rootDirectory);
-			final SideEffect sideEffect = attributes.isLocal() ? SideEffect.WITH_SIDE_EFFECT : SideEffect.WITHOUT_SIDE_EFFECT;
+			final SideEffect sideEffect = attributes.isLocal()
+				? SideEffect.WITH_SIDE_EFFECT
+				: SideEffect.WITHOUT_SIDE_EFFECT;
 			final String[] variants = attributes.getVariants();
+			if (attributes.isLocal()) {
+				hasLocalExamples = true;
+			}
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				alreadyUsedPaths.add(referencedFile);
-				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
-					.orElse(Collections.emptyList());
-				final CodeSnippet codeSnippet = new CodeSnippet(
-					"Example `" + referencedFile.getFileName() + "`",
-					referencedFileExtension,
-					referencedFile,
-					findVariants(referencedFile, alreadyUsedPaths, variants)
-						.stream()
-						.map(relatedFile -> {
-							final String relatedFileExtension = getFileNameExtension(relatedFile);
-							return new CodeSnippet(
-								"Example `" + relatedFile.getFileName() + "`",
-								relatedFileExtension,
-								relatedFile,
-								null,
-								convertToRunnable(
-									profile,
-									relatedFileExtension,
-									readFileOrThrowException(relatedFile),
-									rootDirectory,
-									relatedFile,
-									setupScripts,
-									requiredScripts,
-									sideEffect,
-									contextAccessor,
-									codeSnippetIndex,
-									ofNullable(
-										relatedFileExtension.equals("cs") ?
-											outputSnippetIndex.get(Path.of(relatedFile.toString().replace(".cs", ".evitaql"))) :
-											outputSnippetIndex.get(relatedFile)
-									).orElse(Collections.emptyList()),
-									createSnippets
-								)
-							);
-						})
-						.toArray(CodeSnippet[]::new),
-					convertToRunnable(
-						profile,
-						referencedFileExtension,
-						readFileOrThrowException(referencedFile),
-						rootDirectory,
-						referencedFile,
-						setupScripts,
-						requiredScripts,
-						sideEffect,
-						contextAccessor,
-						codeSnippetIndex,
-						outputSnippet,
+				final List<OutputSnippet> outputSnippets =
+					ofNullable(outputSnippetIndex.get(referencedFile))
+						.orElse(Collections.emptyList());
+
+				if (filteredExtensions.contains(referencedFileExtension)) {
+					addPrimarySnippet(
+						referencedFile, referencedFileExtension,
+						profile, setupScripts, requiredScripts,
+						sideEffect, outputSnippets, rootDirectory,
+						contextProvider, snippetsByLanguage,
+						codeSnippetIndex, createSnippets
+					);
+				}
+
+				for (Path relatedFile : findVariants(referencedFile, alreadyUsedPaths, variants)) {
+					addRelatedSnippet(
+						relatedFile, profile,
+						setupScripts, requiredScripts, sideEffect,
+						rootDirectory, contextProvider,
+						snippetsByLanguage, filteredExtensions,
+						outputSnippetIndex, codeSnippetIndex,
 						createSnippets
-					)
-				);
-				codeSnippets.add(codeSnippet);
-				codeSnippetIndex.put(codeSnippet.path(), codeSnippet);
+					);
+				}
 			}
 		}
 
-		// return tests if some code blocks were found
-		return codeSnippets.isEmpty() ?
-			Collections.emptyList() :
-			Stream.of(
-					// always start with context instance initialization
-					contextAccessor.getInitTests().stream(),
-					// execute tests in between
-					codeSnippets.stream()
-						.flatMap(
-							it -> Stream.concat(
-								Stream.of(it),
-								ofNullable(it.relatedSnippets()).stream().flatMap(Arrays::stream)
-							)
-						)
-						.filter(it -> filteredExtensions.contains(it.format()))
+		// 5. Build per-language DynamicContainers (snippet tests only - init/teardown are separate)
+		final boolean hasAnySnippets = snippetsByLanguage.values().stream().anyMatch(list -> !list.isEmpty());
+		if (!hasAnySnippets) {
+			return new FileTestResult(
+				Collections.emptyList(), Collections.emptyList(),
+				Collections.emptyList(), hasLocalExamples
+			);
+		}
+
+		final String fileName = path.getFileName().toString();
+		final List<DynamicNode> languageContainers = new ArrayList<>(snippetsByLanguage.size());
+		for (Map.Entry<String, List<CodeSnippet>> entry : snippetsByLanguage.entrySet()) {
+			final String language = entry.getKey();
+			final List<CodeSnippet> snippets = entry.getValue();
+			if (snippets.isEmpty()) {
+				continue;
+			}
+			final int snippetCount = snippets.size();
+			languageContainers.add(DynamicContainer.dynamicContainer(config -> {
+				config.displayName("Language: " + language);
+				// tests within the same language run sequentially - they share context state
+				config.childExecutionMode(ExecutionMode.SAME_THREAD);
+				config.children(Stream.of(
+					// log language start
+					Stream.of(dynamicTest("Start " + language, () ->
+						System.out.println("[DOC-TEST] " + Thread.currentThread().getName()
+							+ " | Starting " + language + " (" + snippetCount + " snippets) in: " + fileName)
+					)),
+					// execute code snippet tests
+					snippets.stream()
 						.map(
-							codeSnippet ->
-								dynamicTest(
-									// use the name from the code snippet for the name of the test
-									codeSnippet.name(),
-									// if the code snippet refers to an external file, link it here, so that clicks work in IDE
-									ofNullable(codeSnippet.path()).map(Path::toUri).orElse(null),
-									// then execute the snippet
-									() -> codeSnippet.executableLambda().execute()
-								)
+							codeSnippet -> dynamicTest(
+								codeSnippet.name(),
+								ofNullable(codeSnippet.path()).map(Path::toUri).orElse(null),
+								() -> codeSnippet.executableLambda().execute()
+							)
 						),
-					// always finish with context instance tear down
-					contextAccessor.getTearDownTests().stream()
-				)
-				.flatMap(Function.identity())
-				.toList();
+					// log language finish
+					Stream.of(dynamicTest("Finish " + language, () ->
+						System.out.println("[DOC-TEST] " + Thread.currentThread().getName()
+							+ " | Finished " + language + " in: " + fileName)
+					))
+				).flatMap(Function.identity()));
+			}));
+		}
+
+		return new FileTestResult(
+			contextProvider.getInitTests(), languageContainers,
+			contextProvider.getTearDownTests(), hasLocalExamples
+		);
 	}
 
 	/**
@@ -759,6 +975,23 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Result of parsing a single MarkDown file, containing shared init/teardown tests,
+	 * per-language test containers, and a flag indicating whether the file contains local examples.
+	 *
+	 * @param initTests          shared context initialization tests (JShell, clients) - must run before snippets
+	 * @param languageContainers per-language {@link DynamicContainer}s, each with sequential snippet tests
+	 * @param tearDownTests      shared context teardown tests - must run after all snippets
+	 * @param hasLocalExamples   true if the file contains at least one example with the `local` attribute
+	 */
+	private record FileTestResult(
+		@Nonnull List<DynamicTest> initTests,
+		@Nonnull List<DynamicNode> languageContainers,
+		@Nonnull List<DynamicTest> tearDownTests,
+		boolean hasLocalExamples
+	) {
+	}
+
+	/**
 	 * Record represents a code block occurrence found in the MarkDown document.
 	 *
 	 * @param name             title of the code snippet allowing its identification in the document
@@ -770,7 +1003,6 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Nonnull String name,
 		@Nonnull String format,
 		@Nullable Path path,
-		@Nullable CodeSnippet[] relatedSnippets,
 		@Nonnull Executable executableLambda
 	) {
 	}
@@ -874,12 +1106,13 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 * Attribute that contains alternative variants of the example.
 		 */
 		private static final String VARIANTS = "variants";
+		private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
 		public Attributes(@Nullable String attributes) {
 			this(
 				attributes == null || attributes.isBlank() ?
 					Collections.emptyMap() :
-					Arrays.stream(attributes.split("\\s+"))
+					Arrays.stream(WHITESPACE_PATTERN.split(attributes))
 						.map(it -> it.split("="))
 						.collect(Collectors.toMap(
 							it -> it[0],

@@ -43,11 +43,11 @@ import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.dataType.DateTimeRange;
@@ -60,6 +60,7 @@ import io.evitadb.dataType.set.LazyHashSet;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.ReflectionLookup.ArgumentKey;
 import io.evitadb.utils.StringUtils;
@@ -157,7 +158,6 @@ public class DataGenerator {
 	public static final String PRICE_LIST_B2B = "b2b";
 	public static final String PRICE_LIST_INTRODUCTION = "introduction";
 	public static final Set<Locale> LOCALES_SET = new LinkedHashSet<>(Arrays.asList(CZECH_LOCALE, Locale.ENGLISH, Locale.GERMAN, Locale.FRENCH));
-	public static final Predicate<String> TRUE_PREDICATE = s -> true;
 	public static final String[] PRICE_LIST_NAMES = new String[]{
 		PRICE_LIST_BASIC,
 		PRICE_LIST_REFERENCE,
@@ -1175,7 +1175,7 @@ public class DataGenerator {
 
 			generateRandomAttributes(
 				schema.getName(), schema.getAttributes().values(),
-				globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder, TRUE_PREDICATE, localizedFakerFetcher,
+				globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder, Functions.alwaysTrue(), localizedFakerFetcher,
 				this.valueGenerators, this.referenceValueGenerators,
 				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales, null,
 				Integer.MAX_VALUE, null
@@ -1782,7 +1782,7 @@ public class DataGenerator {
 			}
 			generateRandomAttributes(
 				schema.getName(), schema.getAttributes().values(), globalUniqueSequencer, uniqueSequencer, sortableAttributesHolder,
-				TRUE_PREDICATE, localizedFakerFetcher, valueGenerators, referenceValueGenerators,
+				Functions.alwaysTrue(), localizedFakerFetcher, valueGenerators, referenceValueGenerators,
 				genericFaker, detachedBuilder, allCurrencies, allPriceLists, usedLocales, allLocales, null,
 				Integer.MAX_VALUE, null
 			);

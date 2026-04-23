@@ -24,29 +24,18 @@
 package io.evitadb.index.price;
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
-import io.evitadb.core.query.algebra.price.priceIndex.PriceIndexContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -56,18 +45,13 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.io.Serializable;
-import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
-
-import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 
 /**
  * Index contains information used for filtering by price that is related to specific price list and currency combination.
@@ -79,72 +63,28 @@ import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class PriceListAndCurrencyPriceRefIndex implements
-	VoidTransactionMemoryProducer<PriceListAndCurrencyPriceRefIndex>,
-	CatalogRelatedDataStructure<PriceListAndCurrencyPriceRefIndex>,
-	IndexDataStructure,
-	Serializable,
-	PriceListAndCurrencyPriceIndex<Void, PriceListAndCurrencyPriceRefIndex> {
+public class PriceListAndCurrencyPriceRefIndex
+	extends AbstractPriceListAndCurrencyPriceIndex<PriceListAndCurrencyPriceRefIndex>
+	implements CatalogRelatedDataStructure<PriceListAndCurrencyPriceRefIndex> {
+
 	@Serial private static final long serialVersionUID = 182980639981206272L;
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	/**
-	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
-	 */
-	private final TransactionalBoolean dirty;
 	/**
 	 * Captures the scope of the index and reflects the {@link EntityIndexKey#scope()} of the main entity index this
 	 * price index is part of.
 	 */
 	private final Scope scope;
 	/**
-	 * Unique identification of this index - contains price list name and currency combination.
-	 */
-	@Getter private final PriceIndexKey priceIndexKey;
-	/**
-	 * Field contains condensed bitmap of all {@link #priceRecords} {@link PriceRecordContract#internalPriceId()}
-	 * for the sake of the faster search for appropriate {@link PriceRecordContract} by the internal price id.
-	 */
-	private final TransactionalBitmap indexedPriceIds;
-	/**
-	 * Range index contains date-time validity information for each indexed price id. This index is used to process
-	 * the {@link io.evitadb.api.query.filter.PriceValidIn} filtering query.
-	 */
-	private final RangeIndex validityIndex;
-	/**
 	 * Reference to the main {@link PriceListAndCurrencyPriceSuperIndex} that keeps memory expensive objects, which
 	 * is initialized in {@link #attachToCatalog(String, Catalog)} callback.
 	 */
 	private PriceListAndCurrencyPriceSuperIndex superIndex;
-	/**
-	 * Bitmap contains all entity ids known to this index. This bitmap represents superset of all inner bitmaps.
-	 */
-	private TransactionalBitmap indexedPriceEntityIds;
-	/**
-	 * Array contains complete information about prices sorted by {@link PriceContract#priceId()} allowing translation
-	 * of price id to {@link Entity#getPrimaryKey()} using binary search algorithm.
-	 */
-	private TransactionalObjArray<PriceRecordContract> priceRecords;
-	/**
-	 * Contains flags that makes the index terminated and unusable.
-	 */
-	private final TransactionalBoolean terminated;
-	/**
-	 * Contains cached result of {@link TransactionalBitmap#getArray()} call.
-	 */
-	@Nullable private int[] memoizedIndexedPriceIds;
 
 	public PriceListAndCurrencyPriceRefIndex(
 		@Nonnull Scope scope,
 		@Nonnull PriceIndexKey priceIndexKey
 	) {
-		this.dirty = new TransactionalBoolean();
-		this.terminated = new TransactionalBoolean();
-		this.indexedPriceEntityIds = new TransactionalBitmap();
-		this.indexedPriceIds = new TransactionalBitmap();
+		super(priceIndexKey);
 		this.scope = scope;
-		this.priceIndexKey = priceIndexKey;
-		this.validityIndex = new RangeIndex();
-		this.priceRecords = new TransactionalObjArray<>(new PriceRecordContract[0], Comparator.naturalOrder());
 	}
 
 	public PriceListAndCurrencyPriceRefIndex(
@@ -153,13 +93,8 @@ public class PriceListAndCurrencyPriceRefIndex implements
 		@Nonnull RangeIndex validityIndex,
 		@Nonnull int[] priceIds
 	) {
-		this.dirty = new TransactionalBoolean();
-		this.terminated = new TransactionalBoolean();
+		super(priceIndexKey, validityIndex, priceIds);
 		this.scope = scope;
-		this.priceIndexKey = priceIndexKey;
-		this.validityIndex = validityIndex;
-		this.indexedPriceIds = new TransactionalBitmap(priceIds);
-		this.memoizedIndexedPriceIds = priceIds;
 	}
 
 	private PriceListAndCurrencyPriceRefIndex(
@@ -169,13 +104,8 @@ public class PriceListAndCurrencyPriceRefIndex implements
 		@Nonnull Bitmap priceIds,
 		@Nonnull RangeIndex validityIndex
 	) {
-		this.dirty = new TransactionalBoolean();
-		this.terminated = new TransactionalBoolean();
+		super(priceIndexKey, indexedPriceEntityIds, priceIds, validityIndex);
 		this.scope = scope;
-		this.priceIndexKey = priceIndexKey;
-		this.indexedPriceEntityIds = new TransactionalBitmap(indexedPriceEntityIds);
-		this.indexedPriceIds = new TransactionalBitmap(priceIds);
-		this.validityIndex = validityIndex;
 	}
 
 	private PriceListAndCurrencyPriceRefIndex(
@@ -185,13 +115,8 @@ public class PriceListAndCurrencyPriceRefIndex implements
 		@Nonnull TransactionalBitmap priceIds,
 		@Nonnull RangeIndex validityIndex
 	) {
-		this.dirty = new TransactionalBoolean();
-		this.terminated = new TransactionalBoolean();
+		super(priceIndexKey, indexedPriceEntityIds, priceIds, validityIndex);
 		this.scope = scope;
-		this.priceIndexKey = priceIndexKey;
-		this.indexedPriceEntityIds = indexedPriceEntityIds;
-		this.indexedPriceIds = priceIds;
-		this.validityIndex = validityIndex;
 	}
 
 	@Override
@@ -255,18 +180,11 @@ public class PriceListAndCurrencyPriceRefIndex implements
 		this.indexedPriceEntityIds.add(priceRecord.entityPrimaryKey());
 		this.indexedPriceIds.add(priceRecord.internalPriceId());
 		// index validity
-		if (validity != null) {
-			this.validityIndex.addRecord(validity.getFrom(), validity.getTo(), priceRecord.internalPriceId());
-		} else {
-			this.validityIndex.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, priceRecord.internalPriceId());
-		}
+		addValidity(validity, priceRecord.internalPriceId());
 		// add price to the translation triple
 		this.priceRecords.add(priceRecord);
 		// make index dirty
-		this.dirty.setToTrue();
-		if (!isTransactionAvailable()) {
-			this.memoizedIndexedPriceIds = null;
-		}
+		markDirtyAndInvalidateCache();
 
 		return priceRecord;
 	}
@@ -295,64 +213,11 @@ public class PriceListAndCurrencyPriceRefIndex implements
 			this.indexedPriceEntityIds.remove(priceRecord.entityPrimaryKey());
 		}
 		// remove validity
-		if (validity != null) {
-			this.validityIndex.removeRecord(validity.getFrom(), validity.getTo(), priceRecord.internalPriceId());
-		} else {
-			this.validityIndex.removeRecord(Long.MIN_VALUE, Long.MAX_VALUE, priceRecord.internalPriceId());
-		}
+		removeValidity(validity, priceRecord.internalPriceId());
 		// make index dirty
-		this.dirty.setToTrue();
-		if (!isTransactionAvailable()) {
-			this.memoizedIndexedPriceIds = null;
-		}
+		markDirtyAndInvalidateCache();
 
 		return priceRecord;
-	}
-
-	@Nonnull
-	@Override
-	public Bitmap getIndexedPriceEntityIds() {
-		assertNotTerminated();
-		return this.indexedPriceEntityIds;
-	}
-
-	/**
-	 * Method returns condensed bitmap of all {@link #priceRecords} {@link PriceRecordContract#internalPriceId()}
-	 * that can be used for the faster search for appropriate {@link PriceRecordContract} by the internal price id.
-	 */
-	@Nonnull
-	public int[] getIndexedPriceIds() {
-		assertNotTerminated();
-		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return this.indexedPriceIds.getArray();
-		} else {
-			if (this.memoizedIndexedPriceIds == null) {
-				this.memoizedIndexedPriceIds = this.indexedPriceIds.getArray();
-			}
-			return this.memoizedIndexedPriceIds;
-		}
-	}
-
-	@Nonnull
-	@Override
-	public Formula getIndexedPriceEntityIdsFormula() {
-		assertNotTerminated();
-		if (this.indexedPriceEntityIds.isEmpty()) {
-			return EmptyFormula.INSTANCE;
-		} else {
-			return new ConstantFormula(this.indexedPriceEntityIds);
-		}
-	}
-
-	@Nonnull
-	@Override
-	public PriceIdContainerFormula getIndexedRecordIdsValidInFormula(@Nonnull OffsetDateTime theMoment) {
-		assertNotTerminated();
-		final long thePoint = DateTimeRange.toComparableLong(theMoment);
-		return new PriceIdContainerFormula(
-			this, this.validityIndex.getRecordsEnvelopingInclusive(thePoint)
-		);
 	}
 
 	@Nullable
@@ -367,36 +232,6 @@ public class PriceListAndCurrencyPriceRefIndex implements
 	public PriceRecordContract[] getLowestPriceRecordsForEntity(int entityId) {
 		assertNotTerminated();
 		return this.superIndex.getLowestPriceRecordsForEntity(entityId);
-	}
-
-	@Nonnull
-	@Override
-	public PriceRecordContract[] getPriceRecords() {
-		assertNotTerminated();
-		return this.priceRecords.getArray();
-	}
-
-	@Nonnull
-	@Override
-	public Formula createPriceIndexFormulaWithAllRecords() {
-		assertNotTerminated();
-		return new PriceIndexContainerFormula(this, this.getIndexedPriceEntityIdsFormula());
-	}
-
-	@Override
-	public boolean isEmpty() {
-		assertNotTerminated();
-		return this.indexedPriceEntityIds.isEmpty();
-	}
-
-	@Override
-	public boolean isTerminated() {
-		return this.terminated.isTrue();
-	}
-
-	@Override
-	public void terminate() {
-		this.terminated.setToTrue();
 	}
 
 	@Nullable
@@ -420,22 +255,15 @@ public class PriceListAndCurrencyPriceRefIndex implements
 
 	@Override
 	public String toString() {
-		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " " + this.priceIndexKey.toString() + (this.terminated.isTrue() ? " (TERMINATED)" : "");
+		return StringUtils.capitalize(this.scope.name().toLowerCase()) + " " + this.priceIndexKey.toString() + (isTerminated() ? " (TERMINATED)" : "");
 	}
-
-	@Override
-	public void resetDirty() {
-		assertNotTerminated();
-		this.dirty.reset();
-	}
-
-	/*
-		TransactionalLayerCreator implementation
-	 */
 
 	@Nonnull
 	@Override
-	public PriceListAndCurrencyPriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public PriceListAndCurrencyPriceRefIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		// we can safely throw away dirty flag now
 		this.dirty.removeLayer(transactionalLayer);
 		this.terminated.removeLayer(transactionalLayer);
@@ -447,32 +275,6 @@ public class PriceListAndCurrencyPriceRefIndex implements
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex)
 		);
-	}
-
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		this.dirty.removeLayer(transactionalLayer);
-		this.terminated.removeLayer(transactionalLayer);
-		this.priceRecords.removeLayer(transactionalLayer);
-		this.indexedPriceEntityIds.removeLayer(transactionalLayer);
-		this.indexedPriceIds.removeLayer(transactionalLayer);
-		this.validityIndex.removeLayer(transactionalLayer);
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
-
-	/**
-	 * Verifies that the index is not terminated.
-	 */
-	private void assertNotTerminated() {
-		if (this.terminated.isTrue()) {
-			throw new PriceListAndCurrencyPriceIndexTerminated(
-				"Price list and currency index " + this.priceIndexKey + " is terminated!"
-			);
-		}
 	}
 
 }

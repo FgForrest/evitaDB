@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * Tests for {@link OrderBehaviour} enum verifying the two null-ordering
  * behaviour values and enum completeness.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("OrderBehaviour enum")
 class OrderBehaviourTest {

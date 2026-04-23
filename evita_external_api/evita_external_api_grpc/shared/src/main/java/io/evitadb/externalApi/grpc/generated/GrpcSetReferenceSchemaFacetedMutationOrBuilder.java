@@ -54,7 +54,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+   * `referenceSummary` for this reference or use `facet_{reference name}_inSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -65,7 +65,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
    *
    * <code>bool faceted = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetReferenceSchemaFacetedMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=264
+   *     See GrpcReferenceSchemaMutations.proto;l=284
    * @return The faceted.
    */
   @java.lang.Deprecated boolean getFaceted();
@@ -85,7 +85,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+   * `referenceSummary` for this reference or use `facet_{reference name}_inSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -100,7 +100,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+   * `referenceSummary` for this reference or use `facet_{reference name}_inSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -115,7 +115,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+   * `referenceSummary` for this reference or use `facet_{reference name}_inSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -131,7 +131,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+   * `referenceSummary` for this reference or use `facet_{reference name}_inSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -147,7 +147,7 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facet_{reference name}_inSet`
+   * `referenceSummary` for this reference or use `facet_{reference name}_inSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -160,4 +160,53 @@ public interface GrpcSetReferenceSchemaFacetedMutationOrBuilder extends
    * @return The enum numeric value on the wire of facetedInScopes at the given index.
    */
   int getFacetedInScopesValue(int index);
+
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> 
+      getFacetedPartiallyList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially getFacetedPartially(int index);
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  int getFacetedPartiallyCount();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+      getFacetedPartiallyOrBuilderList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * When absent (not set), expressions are inherited for reflected references.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 5;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
+      int index);
 }

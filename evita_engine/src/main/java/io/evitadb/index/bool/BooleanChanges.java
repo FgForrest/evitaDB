@@ -28,7 +28,10 @@ import lombok.AllArgsConstructor;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * Holds transactional changes for {@link TransactionalBoolean}.
+ * Represents a per-transaction diff layer snapshot for {@link TransactionalBoolean} in the
+ * Software Transactional Memory (STM) system. Each open transaction that modifies the boolean
+ * gets its own `BooleanChanges` instance, keeping the mutation isolated until the transaction
+ * is committed and merged back into the shared state.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -36,7 +39,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 @AllArgsConstructor
 public class BooleanChanges {
 	/**
-	 * Local value of the boolean.
+	 * The transaction-local snapshot of the boolean value.
 	 */
 	private boolean theValue;
 

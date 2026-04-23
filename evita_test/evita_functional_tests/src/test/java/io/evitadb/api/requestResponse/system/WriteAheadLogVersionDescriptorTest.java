@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link WriteAheadLogVersionDescriptor} verifying
  * processing lag computation and toString formatting.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("WriteAheadLogVersionDescriptor")
 class WriteAheadLogVersionDescriptorTest {

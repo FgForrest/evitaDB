@@ -294,6 +294,10 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 		"removeReferenceSchemaMutation",
 		RemoveReferenceSchemaMutationDescriptor.THIS_INPUT
 	);
+	PropertyDescriptor SET_REFERENCE_SCHEMA_BUCKETED_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setReferenceSchemaBucketedMutation",
+		SetReferenceSchemaBucketedMutationDescriptor.THIS_INPUT
+	);
 	PropertyDescriptor SET_REFERENCE_SCHEMA_FACETED_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setReferenceSchemaFacetedMutation",
 		SetReferenceSchemaFacetedMutationDescriptor.THIS_INPUT
@@ -366,6 +370,7 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			REMOVE_REFERENCE_SCHEMA_MUTATION,
 			MODIFY_REFERENCE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION,
 			MODIFY_REFERENCE_SCHEMA_ATTRIBUTE_INHERITANCE_MUTATION,
+			SET_REFERENCE_SCHEMA_BUCKETED_MUTATION,
 			SET_REFERENCE_SCHEMA_FACETED_MUTATION,
 			SET_REFERENCE_SCHEMA_INDEXED_MUTATION
 		))

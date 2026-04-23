@@ -46,35 +46,63 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * The `hierarchyContent` requirement allows you to access the information about the hierarchical placement of
- * the entity.
+ * The `hierarchyContent` requirement fetches the hierarchical placement of the entity — specifically, the chain of
+ * ancestor entities from the immediate parent up to the root of the hierarchy tree. It must be placed inside an
+ * {@link EntityFetch} constraint and is only applicable to entities that are part of a hierarchical structure
+ * (i.e., entities whose schema has the hierarchy flag enabled).
  *
- * If no additional constraints are specified, entity will contain a full chain of parent primary keys up to the root
- * of a hierarchy tree. You can limit the size of the chain by using a stopAt constraint - for example, if you're only
- * interested in a direct parent of each entity returned, you can use a stopAt(distance(1)) constraint. The result is
- * similar to using a parents constraint, but is limited in that it doesn't provide information about statistics and
- * the ability to list siblings of the entity parents. On the other hand, it's easier to use - since the hierarchy
- * placement is directly available in the retrieved entity object.
+ * ## Default behavior
  *
- * If you provide a nested entityFetch constraint, the hierarchy information will contain the bodies of the parent
- * entities in the required width. The attributeContent inside the entityFetch allows you to access the attributes
- * of the parent entities, etc.
+ * Without any nested constraints, `hierarchyContent()` returns the complete parent chain as a list of parent primary
+ * keys all the way up to the hierarchy root. No additional entity body data is loaded for the parent nodes.
  *
- * Example:
+ * ## Limiting traversal depth with stopAt
  *
- * <pre>
+ * A nested {@link HierarchyStopAt} constraint restricts how far up the tree the traversal goes. This is useful when
+ * only the immediate parent or grandparent is needed:
+ *
+ * ```
  * entityFetch(
- *    hierarchyContent()
+ *     hierarchyContent(
+ *         stopAt(distance(1))
+ *     )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
+ * ## Loading parent entity bodies
+ *
+ * A nested {@link EntityFetch} causes the engine to load the full body of each parent node in the chain, not just
+ * its primary key. Any content requirements valid inside `entityFetch` (attributes, associated data, prices, etc.)
+ * can be used to specify what data to include for each parent:
+ *
+ * ```
+ * entityFetch(
+ *     hierarchyContent(
+ *         stopAt(distance(2)),
+ *         entityFetch(
+ *             attributeContent("code", "name")
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * ## Relationship to HierarchyOfSelf / HierarchyParents
+ *
+ * `hierarchyContent` differs from the `parents` output requirement (available via `hierarchyOfSelf`):
+ * - `hierarchyContent` is lightweight and returns ancestor placement directly on the entity object.
+ * - `parents` (via `hierarchyOfSelf` / `hierarchyOfReference`) is more powerful — it provides sibling counts,
+ *   statistics, and full subtree navigation, but requires a separate extra-result computation pass.
+ *
+ * Use `hierarchyContent` when you need simple breadcrumb-style ancestor data. Use `hierarchyOfSelf` / `hierarchyParents`
+ * when you need hierarchy statistics or sibling information.
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "content",
-	shortDescription = "The constraint triggers fetching parent hierarchy entity parent chain and its bodies into returned main entities.",
+	shortDescription = "The constraint triggers fetching the entity's parent hierarchy chain (ancestor entities up to the root) into the returned entities.",
 	userDocsLink = "/documentation/query/requirements/fetching#hierarchy-content",
 	supportedIn = ConstraintDomain.ENTITY
 )
@@ -200,6 +228,6 @@ public class HierarchyContent extends AbstractRequireConstraintContainer
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		Assert.isTrue(ArrayUtils.isEmpty(newArguments), "Additional children are not supported for HierarchyContent!");
-		return this;
+		return new HierarchyContent(getChildren());
 	}
 }

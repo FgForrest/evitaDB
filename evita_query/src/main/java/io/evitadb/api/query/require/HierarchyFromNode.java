@@ -48,91 +48,73 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * The `fromNode` requirement computes the hierarchy tree starting from the pivot node of the hierarchy, that is
- * identified by the node inner constraint. The fromNode calculates the result regardless of the potential use of
- * the {@link HierarchyWithin} constraint in the filtering part of the query. The scope of the calculated information
- * can be controlled by the {@link HierarchyStopAt} constraint. By default, the traversal goes all the way to the bottom
- * of the hierarchy tree unless you tell it to stop at anywhere. Calculated data is not affected by
- * the {@link HierarchyWithin} filter constraint - the query can filter entities using {@link HierarchyWithin} from
- * category Accessories, while still allowing you to correctly compute menu at different node defined in a `fromNode`
- * requirement. If you need to access statistical data, use statistics constraint.
+ * Computes a hierarchy subtree starting from a specific pivot node, identified dynamically via a nested
+ * {@link HierarchyNode} filter constraint. Unlike {@link HierarchyFromRoot} (which always starts at the virtual top
+ * root) and {@link HierarchyChildren} (which starts at the node targeted by `hierarchyWithin`), `fromNode` lets
+ * you anchor the computation to any arbitrary node in the hierarchy, completely independently of the query filter.
  *
- * The constraint accepts following arguments:
+ * This is particularly powerful for rendering multiple independent side-menus or sub-menus in a single query
+ * round-trip — for example, showing the children of both "Portables" and "Laptops" alongside products filtered
+ * within "Audio", all in one request.
  *
- * - mandatory String argument specifying the output name for the calculated data structure
- * - mandatory require constraint node that must match exactly one pivot hierarchical entity that represents the root
- *   node of the traversed hierarchy subtree.
- * - optional one or more constraints that allow you to define the completeness of the hierarchy entities, the scope
- *   of the traversed hierarchy tree, and the statistics computed along the way; any or all of the constraints may be
- *   present:
+ * The traversal descends from the resolved pivot node all the way to leaf nodes by default. Use a
+ * {@link HierarchyStopAt} inner constraint to cap the depth.
  *
- *      - {@link EntityFetch}
- *      - {@link HierarchyStopAt}
- *      - {@link HierarchyStatistics}
+ * **Interaction with `hierarchyWithin` filter:**
  *
- * The following query lists products in category Audio and its subcategories. Along with the products returned, it
- * also returns a computed sideMenu1 and sideMenu2 data structure that lists the flat category list for the categories
- * Portables and Laptops with a computed count of child categories for each menu item and an aggregated count of all
- * products that would fall into the given category.
+ * The pivot node of `hierarchyWithin` does not affect which node `fromNode` starts from — the starting point is
+ * determined entirely by the {@link HierarchyNode} inner constraint. However, the `having`, `anyHaving`, and
+ * `excluding` inner constraints of `hierarchyWithin` _are_ respected during statistics computation to keep
+ * entity counts consistent with the user-facing query result.
  *
- * <pre>
+ * **Required arguments:**
+ *
+ * - mandatory `outputName` (`String`): key under which the computed subtree is registered in the extra results map
+ * - mandatory {@link HierarchyNode}: a filter identifying the single pivot node that serves as the root of traversal
+ *
+ * **Optional inner constraints:**
+ *
+ * - {@link EntityFetch}: specifies which data to fetch for each hierarchy entity in the result
+ * - {@link HierarchyStopAt}: limits the traversal depth relative to the pivot node
+ * - {@link HierarchyStatistics}: requests computation of `CHILDREN_COUNT` and/or `QUERIED_ENTITY_COUNT` per node
+ *
+ * **Example — two independent side-menus from different pivot nodes, queried alongside Audio products:**
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "audio")
- *         )
+ *         hierarchyWithin("categories", attributeEquals("code", "audio"))
  *     ),
  *     require(
  *         hierarchyOfReference(
  *             "categories",
  *             fromNode(
  *                 "sideMenu1",
- *                 node(
- *                     filterBy(
- *                         attributeEquals("code", "portables")
- *                     )
- *                 ),
+ *                 node(filterBy(attributeEquals("code", "portables"))),
  *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1)),
- *                 statistics(
- *                     CHILDREN_COUNT,
- *                     QUERIED_ENTITY_COUNT
- *                 )
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
  *             ),
  *             fromNode(
  *                 "sideMenu2",
- *                 node(
- *                     filterBy(
- *                         attributeEquals("code", "laptops")
- *                     )
- *                 ),
+ *                 node(filterBy(attributeEquals("code", "laptops"))),
  *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1)),
- *                 statistics(
- *                     CHILDREN_COUNT,
- *                     QUERIED_ENTITY_COUNT
- *                 )
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
  *             )
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * The calculated result for `fromNode` is not affected by the {@link HierarchyWithin} pivot hierarchy node.
- * If the {@link HierarchyWithin} contains inner constraints {@link HierarchyHaving}, {@link HierarchyAnyHaving}
- * or {@link HierarchyExcluding}, the `fromNode` respects them. The reason is simple: when you render a menu for
- * the query result, you want the calculated statistics to respect the rules that apply to the hierarchyWithin so that
- * the calculated number remains consistent for the end user.
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#from-node)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "fromNode",
-	shortDescription = "The constraint triggers computing the hierarchy subtree starting at pivot node.",
+	shortDescription = "The constraint computes a hierarchy subtree starting at a dynamically specified pivot node identified by a nested filter.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#from-node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
@@ -140,7 +122,11 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 	@Serial private static final long serialVersionUID = 283525753371686479L;
 	private static final String CONSTRAINT_NAME = "fromNode";
 
-	private HierarchyFromNode(@Nonnull String outputName, @Nonnull RequireConstraint[] children, @Nonnull Constraint<?>... additionalChildren) {
+	private HierarchyFromNode(
+		@Nonnull String outputName,
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(CONSTRAINT_NAME, new Serializable[]{outputName}, children, additionalChildren);
 		for (RequireConstraint requireConstraint : children) {
 			Assert.isTrue(
@@ -175,7 +161,11 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 		super(CONSTRAINT_NAME, new Serializable[]{outputName}, fromNode);
 	}
 
-	public HierarchyFromNode(@Nonnull String outputName, @Nonnull HierarchyNode fromNode, @Nonnull HierarchyOutputRequireConstraint... requirements) {
+	public HierarchyFromNode(
+		@Nonnull String outputName,
+		@Nonnull HierarchyNode fromNode,
+		@Nonnull HierarchyOutputRequireConstraint... requirements
+	) {
 		super(
 			CONSTRAINT_NAME,
 			new Serializable[]{outputName},
@@ -265,7 +255,10 @@ public class HierarchyFromNode extends AbstractRequireConstraintContainer implem
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new HierarchyFromNode(getOutputName(), children, additionalChildren);
 	}
 

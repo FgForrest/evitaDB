@@ -61,7 +61,7 @@ import static java.util.Optional.ofNullable;
 public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupIndexChanges, FacetGroupIndex>, IndexDataStructure {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
-	 * Contains primary key of the group. Might contain NULL if the group index encloses facets wouth group assignment.
+	 * Contains primary key of the group. Might contain NULL if the group index encloses facets without group assignment.
 	 */
 	@Nullable private final Integer groupId;
 	/**
@@ -109,15 +109,18 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	 * @return true if entity id was really added
 	 */
 	public boolean addFacet(int facetPrimaryKey, int entityPrimaryKey) {
-		final FacetGroupIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
 		// fetch or create index for referenced entity id (inside correct type)
-		final FacetIdIndex facetIdIndex = this.facetIdIndexes.computeIfAbsent(
-			facetPrimaryKey,
-			fPK -> {
-				final FacetIdIndex fgIx = new FacetIdIndex(fPK);
-				ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(fgIx));
-				return fgIx;
-			});
+		final FacetIdIndex existingIndex = this.facetIdIndexes.get(facetPrimaryKey);
+		final FacetIdIndex facetIdIndex;
+		if (existingIndex == null) {
+			// only create transactional layer when we actually need to register a new FacetIdIndex
+			final FacetGroupIndexChanges txLayer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+			facetIdIndex = new FacetIdIndex(facetPrimaryKey);
+			this.facetIdIndexes.put(facetPrimaryKey, facetIdIndex);
+			ofNullable(txLayer).ifPresent(it -> it.addCreatedItem(facetIdIndex));
+		} else {
+			facetIdIndex = existingIndex;
+		}
 
 		return facetIdIndex.addFacet(entityPrimaryKey);
 	}
@@ -224,7 +227,10 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 
 	@Nonnull
 	@Override
-	public FacetGroupIndex createCopyWithMergedTransactionalMemory(@Nullable FacetGroupIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public FacetGroupIndex createCopyWithMergedTransactionalMemory(
+		@Nullable FacetGroupIndexChanges layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
 		final Map<Integer, FacetIdIndex> stateCopy = transactionalLayer.getStateCopyWithCommittedChanges(this.facetIdIndexes);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return new FacetGroupIndex(this.groupId, stateCopy);

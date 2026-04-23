@@ -49,6 +49,7 @@ import io.evitadb.spi.export.ExportService;
 import io.evitadb.spi.export.ExportServiceFactory;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
@@ -123,7 +124,7 @@ public class EvitaManagement implements EvitaManagementContract, Closeable {
 		final Function<ExportServiceFactory, ExportOptions> exportOptionsProvider;
 		if (DefaultExportOptions.INSTANCE.getImplementationCode().equals(implementationCode)) {
 			// select the factory with highest priority
-			exportSelector = factory -> true;
+			exportSelector = Functions.alwaysTrue();
 			exportOptionsProvider = ExportServiceFactory::createDefaultOptions;
 		} else {
 			// select by implementation code

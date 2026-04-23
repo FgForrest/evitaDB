@@ -27,6 +27,7 @@ import io.evitadb.exception.FolderAlreadyUsedException;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -42,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@DisplayName("FolderLock contract tests")
 class FolderLockTest implements EvitaTestSupport {
 	private Path tempFolder;
 

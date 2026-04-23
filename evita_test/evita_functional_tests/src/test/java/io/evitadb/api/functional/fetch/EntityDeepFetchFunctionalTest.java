@@ -76,7 +76,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * fetching, filtered and ordered reference fetching, reference attribute filtering/ordering,
  * handling of missing references, and binary entity deep fetching.
  *
- * @author evitaDB contributors
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity deep fetch functionality")
 @Tag(FUNCTIONAL_TEST)

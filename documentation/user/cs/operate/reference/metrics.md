@@ -1,5 +1,6 @@
 ---
-commit: '2f4204ff384d4aa606a3c12aab4d54c4425244ad'
+commit: '6f067f6807adc51959f1921abade4fe252f5721e'
+translated: true
 ---
 ### Metriky
 

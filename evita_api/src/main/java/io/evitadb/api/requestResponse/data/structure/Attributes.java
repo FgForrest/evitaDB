@@ -45,6 +45,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -132,11 +133,12 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				)
 			);
 		this.attributeTypes = attributeTypes;
-		this.attributeLocales = attributeValues.stream()
+		final LinkedHashSet<Locale> theAttributeLocales = attributeValues.stream()
 			.filter(Droppable::exists)
 			.map(it -> it.key().locale())
 			.filter(Objects::nonNull)
 			.collect(Collectors.toCollection(LinkedHashSet::new));
+		this.attributeLocales = Collections.unmodifiableSet(theAttributeLocales);
 	}
 
 	/**
@@ -151,11 +153,12 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 		this.entitySchema = entitySchema;
 		this.attributeValues = attributeValues;
 		this.attributeTypes = attributeTypes;
-		this.attributeLocales = attributeValues.values().stream()
+		final LinkedHashSet<Locale> theAttributeLocales = attributeValues.values().stream()
 			.filter(Droppable::exists)
 			.map(it -> it.key().locale())
 			.filter(Objects::nonNull)
 			.collect(Collectors.toCollection(LinkedHashSet::new));
+		this.attributeLocales = Collections.unmodifiableSet(theAttributeLocales);
 	}
 
 	@Override
@@ -260,16 +263,18 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	@Nonnull
 	public Set<String> getAttributeNames() {
 		if (this.attributeNames == null) {
-			this.attributeNames = this.attributeValues
-				.values()
-				.stream()
-				.filter(attributeValue -> attributeValue.value() != null)
-				.map(attributeValue -> attributeValue.key().attributeName())
-				.collect(
-					Collectors.toCollection(
-						() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
+			this.attributeNames = Collections.unmodifiableSet(
+				this.attributeValues
+					.values()
+					.stream()
+					.filter(attributeValue -> attributeValue.value() != null)
+					.map(attributeValue -> attributeValue.key().attributeName())
+					.collect(
+						Collectors.toCollection(
+							() -> CollectionUtils.createLinkedHashSet(this.attributeValues.size())
+						)
 					)
-				);
+			);
 		}
 		return this.attributeNames;
 	}
@@ -297,9 +302,15 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 		final String attributeName = attributeKey.attributeName();
 		final AttributeSchemaContract schema = getAttributeSchema(attributeName)
 			.orElseThrow(() -> createAttributeNotFoundException(attributeName));
-		return schema.isLocalized() ?
-			ofNullable(this.attributeValues.get(attributeKey)) :
-			ofNullable(this.attributeValues.get(attributeKey.localized() ? new AttributeKey(attributeName) : attributeKey));
+		if (schema.isLocalized()) {
+			Assert.isTrue(
+				attributeKey.localized(),
+				() -> ContextMissingException.localeForAttributeContextMissing(attributeName)
+			);
+			return ofNullable(this.attributeValues.get(attributeKey));
+		} else {
+			return ofNullable(this.attributeValues.get(attributeKey.localized() ? new AttributeKey(attributeName) : attributeKey));
+		}
 	}
 
 	/**
@@ -307,7 +318,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 	 */
 	@Nonnull
 	public Collection<AttributeValue> getAttributeValues() {
-		return this.attributeValues.values();
+		return Collections.unmodifiableCollection(this.attributeValues.values());
 	}
 
 	@Nonnull
@@ -321,7 +332,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				.stream()
 				.filter(it -> attributeName.equals(it.getKey().attributeName()))
 				.map(Entry::getValue)
-				.collect(Collectors.toList());
+				.toList();
 		}
 	}
 
@@ -334,8 +345,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 				.stream()
 				.filter(Droppable::exists)
 				.map(it -> it.key().locale())
-				.filter(Objects::nonNull)
-				.collect(Collectors.toSet());
+				.filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 		}
 		return this.attributeLocales;
 	}

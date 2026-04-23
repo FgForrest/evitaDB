@@ -30,8 +30,134 @@ import javax.annotation.Nonnull;
 import java.util.Optional;
 
 /**
- * This interface marks all filtering constraints that represent hierarchy filtering constraing.
+ * Marker interface for all filter constraints that restrict queries based on hierarchical entity relationships.
+ * This interface identifies the primary hierarchy filtering constraints {@link HierarchyWithin} and
+ * {@link HierarchyWithinRoot}, which define the scope of hierarchical queries by selecting subtrees of hierarchical
+ * entity structures.
  *
+ * **Purpose**
+ *
+ * `HierarchyFilterConstraint` distinguishes the top-level hierarchy filtering constraints from the nested specification
+ * constraints ({@link HierarchySpecificationFilterConstraint}) that refine their behavior. Only constraints implementing
+ * this interface can appear as direct children of {@link FilterBy} or within logical containers like {@link And},
+ * {@link Or}, or {@link Not}. They establish the hierarchical scope that specification constraints then modify.
+ *
+ * **Hierarchy Query Model**
+ *
+ * evitaDB supports two hierarchical query modes:
+ *
+ * 1. **Self-hierarchical queries**: when the queried entity collection is itself hierarchical (e.g., `Category` entities
+ *    forming a category tree), the hierarchy constraints filter the entities themselves based on their position in the
+ *    tree.
+ * 2. **Reference-hierarchical queries**: when the queried entities reference a hierarchical entity type (e.g., `Product`
+ *    entities referencing hierarchical `Category` entities), the hierarchy constraints evaluate against the referenced
+ *    hierarchical entities but return the queried non-hierarchical entities.
+ *
+ * **Behavioral Contract**
+ *
+ * All implementations must provide:
+ * - {@link #getReferenceName()}: identifies which reference schema represents the hierarchical relationship (empty for
+ *   self-hierarchical queries)
+ * - {@link #isDirectRelation()}: whether to return only direct children/references or include transitive descendants
+ * - {@link #getHavingChildrenFilter()}: filter constraints that hierarchy nodes must satisfy for their subtrees to be
+ *   included (traversal stops at first non-matching node)
+ * - {@link #getHavingAnyChildFilter()}: filter constraints that at least one node in a subtree must satisfy for that
+ *   subtree to be included (examines entire subtree)
+ * - {@link #getExcludedChildrenFilter()}: filter constraints identifying subtrees to exclude from results (traversal
+ *   stops at first matching node)
+ *
+ * **Key Behavioral Rules**
+ *
+ * - By default, hierarchy queries return both the specified parent node(s) and all their direct and transitive children
+ * - Only one hierarchy filtering constraint (`hierarchyWithin` or `hierarchyWithinRoot`) is allowed per query
+ * - Orphaned hierarchy nodes (nodes with parent references pointing to non-existent entities) never satisfy any
+ *   hierarchy query
+ * - When a non-hierarchical entity references multiple hierarchical entities and only some match the hierarchy filter,
+ *   the entity remains in the result if at least one reference is within the visible part of the tree
+ * - The `having` filter stops at the first node that doesn't satisfy the constraint and excludes that node's entire
+ *   subtree
+ * - The `excluding` filter stops at the first node that satisfies the constraint and excludes that node's entire
+ *   subtree
+ * - The `anyHaving` filter examines entire subtrees and includes trees where at least one node satisfies the constraint
+ *
+ * **Typical Implementations**
+ *
+ * - {@link HierarchyWithin}: restricts results to entities within subtree(s) rooted at specified parent node(s)
+ * - {@link HierarchyWithinRoot}: restricts results to entities within the entire hierarchy tree, treating all top-level
+ *   nodes as children of an invisible "virtual" root
+ *
+ * **Integration with Specification Constraints**
+ *
+ * Hierarchy filter constraints serve as containers for optional {@link HierarchySpecificationFilterConstraint}
+ * instances:
+ * - {@link HierarchyDirectRelation}: limits results to direct children/references only
+ * - {@link HierarchyHaving}: requires each node in the path from root to leaf to satisfy filter conditions
+ * - {@link HierarchyAnyHaving}: requires at least one node in each subtree to satisfy filter conditions
+ * - {@link HierarchyExcluding}: excludes subtrees whose root nodes match filter conditions
+ * - {@link HierarchyExcludingRoot}: excludes the specified parent node itself from results (children remain)
+ *
+ * **Example Usage**
+ *
+ * ```java
+ * // Self-hierarchical: find all categories under "Accessories"
+ * query(
+ *     collection("Category"),
+ *     filterBy(
+ *         hierarchyWithinSelf(
+ *             attributeEquals("code", "accessories")
+ *         )
+ *     )
+ * )
+ *
+ * // Reference-hierarchical: find products in "Accessories" category tree
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             attributeEquals("code", "accessories")
+ *         )
+ *     )
+ * )
+ *
+ * // With specifications: direct children only, excluding wireless headphones
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         hierarchyWithin(
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
+ *             directRelation(),
+ *             excluding(attributeEquals("code", "wireless-headphones"))
+ *         )
+ *     )
+ * )
+ *
+ * // Entire tree from all roots, filtering by validity
+ * query(
+ *     collection("Category"),
+ *     filterBy(
+ *         hierarchyWithinRootSelf(
+ *             having(attributeInRange("validity", ZonedDateTime.now()))
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * **Design Context**
+ *
+ * This interface extends both {@link FilterConstraint} and {@link HierarchyConstraint}, placing it at the intersection
+ * of two classification dimensions in evitaDB's constraint taxonomy:
+ * - **Purpose**: it's a `FilterConstraint`, restricting which entities appear in query results
+ * - **Property domain**: it's a `HierarchyConstraint`, operating on hierarchical entity relationships
+ *
+ * The separation between `HierarchyFilterConstraint` and `HierarchySpecificationFilterConstraint` enforces proper
+ * constraint nesting and prevents invalid query structures like `having(hierarchyWithin(...))`.
+ *
+ * @see HierarchyWithin primary hierarchy filtering constraint with specified root nodes
+ * @see HierarchyWithinRoot hierarchy filtering constraint for entire tree from all roots
+ * @see HierarchySpecificationFilterConstraint nested constraints that refine hierarchy filter behavior
+ * @see HierarchyConstraint property-type marker interface for all hierarchy-related constraints
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface HierarchyFilterConstraint extends FilterConstraint, HierarchyConstraint<FilterConstraint> {
@@ -49,14 +175,14 @@ public interface HierarchyFilterConstraint extends FilterConstraint, HierarchyCo
 	boolean isDirectRelation();
 
 	/**
-	 * Returns filtering constraints that return entities whose trees should be included from hierarchy query.
+	 * Returns filtering constraints that return entities whose trees should be included in the hierarchy query.
 	 */
 	@Nonnull
 	FilterConstraint[] getHavingChildrenFilter();
 
 	/**
-	 * Returns filtering constraints that return entities whose have at least one children satisfying the filter in order
-	 * the hierarchy tree should be included in the hierarchy query.
+	 * Returns filtering constraints that return entities that have at least one child satisfying the filter
+	 * in order for the hierarchy tree to be included in the hierarchy query.
 	 */
 	@Nonnull
 	FilterConstraint[] getHavingAnyChildFilter();

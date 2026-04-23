@@ -35,19 +35,53 @@ import java.io.Serializable;
 import java.util.Currency;
 
 /**
- * The `priceInCurrency` constraint can be used to limit the result set to entities that have a price in the specified
- * currency. Except for the <a href="https://evitadb.io/documentation/query/filtering/price?lang=evitaql#typical-usage-of-price-constraints">standard use-case</a>
- * you can also create query with this constraint only:
+ * Restricts the result set to entities that have at least one price defined in the specified currency. This constraint
+ * is one of the three primary price constraints (along with {@link PriceInPriceLists} and {@link PriceValidIn}) that
+ * together determine which price is selected as the entity's "price for sale" during query evaluation.
  *
- * <pre>
+ * **Currency identification:**
+ * Accepts ISO 4217 three-letter currency codes (case-sensitive), such as `EUR`, `USD`, or `CZK`. The constraint
+ * internally normalizes String arguments to `java.util.Currency` objects to ensure consistent equality comparison.
+ *
+ * **Usage patterns:**
+ *
+ * Standalone usage (filters entities by currency availability):
+ * ```
  * priceInCurrency("EUR")
- * </pre>
+ * ```
  *
- * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
- * Currently, there is no way to switch context between different parts of the filter and build queries such as find
- * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * Standard e-commerce query (combines currency with price lists and validity):
+ * ```
+ * filterBy(
+ *   and(
+ *     priceInCurrency("CZK"),
+ *     priceInPriceLists("basic", "vip"),
+ *     priceValidInNow()
+ *   )
+ * )
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a></p>
+ * **Behavior and constraints:**
+ *
+ * - Entities must have at least one price in the specified currency to match. Entities without any prices in the
+ *   target currency are excluded from the result set.
+ * - When combined with {@link PriceInPriceLists}, the engine applies price list priority to select the correct selling
+ *   price among multiple prices in the same currency.
+ * - When combined with {@link PriceValidIn}, only prices valid at the specified moment are considered.
+ * - Only one `priceInCurrency` constraint is allowed per query. Multiple currencies cannot be specified in a single
+ *   filter (no OR logic for currencies within a single query).
+ * - This constraint cannot be nested inside {@link UserFilter} — it defines a mandatory pricing context that applies
+ *   to the entire query and cannot be toggled by user interface controls.
+ *
+ * **Price for sale calculation:**
+ *
+ * evitaDB uses an ordered priority algorithm to select a single "price for sale" per entity. The selected price is
+ * influenced by the combination of `priceInCurrency`, `priceInPriceLists`, and `priceValidIn` constraints. See the
+ * [price for sale calculation documentation](https://evitadb.io/documentation/deep-dive/price-for-sale-calculation)
+ * for the complete algorithm.
+ *
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/price#price-in-currency)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -57,15 +91,30 @@ import java.util.Currency;
 	userDocsLink = "/documentation/query/filtering/price#price-in-currency",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class PriceInCurrency extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, FilterConstraint {
+public class PriceInCurrency extends AbstractFilterConstraintLeaf
+	implements PriceConstraint<FilterConstraint>, FilterConstraint {
 	@Serial private static final long serialVersionUID = -6188252788595824381L;
 
 	private PriceInCurrency(@Nonnull Serializable... arguments) {
-		super(null, arguments);
+		super(normalizeToCurrency(arguments));
 	}
 
 	public PriceInCurrency(@Nonnull String currency) {
-		super(null, currency);
+		super(Currency.getInstance(currency));
+	}
+
+	/**
+	 * Normalizes any String arguments to Currency objects so that equality comparison works
+	 * regardless of whether the constraint was constructed with a String or Currency argument.
+	 */
+	@Nonnull
+	private static Serializable[] normalizeToCurrency(@Nonnull Serializable[] arguments) {
+		final Serializable[] normalized = new Serializable[arguments.length];
+		for (int i = 0; i < arguments.length; i++) {
+			final Serializable arg = arguments[i];
+			normalized[i] = arg instanceof String ? Currency.getInstance((String) arg) : arg;
+		}
+		return normalized;
 	}
 
 	@Creator
@@ -79,7 +128,7 @@ public class PriceInCurrency extends AbstractFilterConstraintLeaf implements Pri
 	@Nonnull
 	public Currency getCurrency() {
 		final Serializable argument = getArguments()[0];
-		return argument instanceof Currency ? (Currency) argument :  Currency.getInstance(argument.toString());
+		return argument instanceof Currency ? (Currency) argument : Currency.getInstance(argument.toString());
 	}
 
 	@Override

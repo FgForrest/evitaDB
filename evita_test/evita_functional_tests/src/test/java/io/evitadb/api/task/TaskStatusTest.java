@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests for {@link TaskStatus} record verifying state resolution, progress updates, state transitions,
  * failure handling, and record equality.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("TaskStatus record functionality")
 class TaskStatusTest {

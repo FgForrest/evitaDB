@@ -49,6 +49,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver
 import io.evitadb.test.client.query.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
+import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -89,7 +90,7 @@ public abstract class ConstraintToJsonConverter {
 
 	protected ConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
 	                                    @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintToJsonConverter>> additionalConverters) {
-		this(catalogSchema, c -> true, additionalConverters);
+		this(catalogSchema, Functions.alwaysTrue(), additionalConverters);
 	}
 
 	protected ConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,

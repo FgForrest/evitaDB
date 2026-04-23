@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,11 +29,13 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.BitUtils;
+import io.evitadb.utils.Crc32CWrapper;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Random;
-import java.util.zip.CRC32C;
+import java.util.zip.Deflater;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,21 +53,8 @@ abstract class AbstractObservableInputOutputTest {
 	public static final int OVERHEAD_SIZE = HEADER_SIZE + 8;
 	public static final int PAYLOAD_SIZE = 12;
 	public static final int RECORD_SIZE = PAYLOAD_SIZE + OVERHEAD_SIZE;
-	protected final CRC32C crc32C = new CRC32C();
+	protected final Crc32CWrapper crc32C = new Crc32CWrapper();
 	protected final Random random = new Random();
-
-	/**
-	 * Writes a random record to the provided {@link ObservableOutput}.
-	 * The method generates random payload bytes, and updates the provided observable output to mark various record
-	 * positions.
-	 *
-	 * @param output the {@link ObservableOutput} to which the record data will be written
-	 * @param length the length of the random payload data to generate and write
-	 * @return the start position of the record in the control output
-	 */
-	protected long writeRandomRecord(@Nonnull ObservableOutput<?> output, int length) {
-		return writeRandomRecord(output, null, length);
-	}
 
 	/**
 	 * Writes a random record to the provided {@link Output}.
@@ -112,8 +101,8 @@ abstract class AbstractObservableInputOutputTest {
 		if (controlOutput != null) {
 			startPosition = controlOutput.total();
 			this.crc32C.reset();
-			this.crc32C.update(bytes);
-			this.crc32C.update(controlByte);
+			this.crc32C.withByteArray(bytes);
+			this.crc32C.withByte(controlByte);
 			controlOutput.writeInt(length + OVERHEAD_SIZE);
 			controlOutput.writeByte(controlByte);
 			controlOutput.writeBytes(bytes);
@@ -133,6 +122,50 @@ abstract class AbstractObservableInputOutputTest {
 			output.writeBytes(bytes);
 			output.markEnd(controlByte);
 		}
+
+		return startPosition;
+	}
+
+	/**
+	 * Writes a compressed record to the provided {@link Output} using manual compression.
+	 * The method compresses the payload bytes using the provided deflater, calculates a CRC32C checksum
+	 * over the compressed payload, and writes the complete record structure to the output.
+	 *
+	 * @param controlOutput    the {@link Output} to which the record data will be written
+	 * @param uncompressedBytes the original uncompressed payload bytes
+	 * @param deflater          the {@link Deflater} instance to use for compression
+	 * @return the start position of the record in the control output
+	 */
+	protected long writeCompressedRecord(
+		@Nonnull Output controlOutput,
+		@Nonnull byte[] uncompressedBytes,
+		@Nonnull Deflater deflater
+	) {
+		// compress the payload
+		deflater.reset();
+		deflater.setInput(uncompressedBytes);
+		deflater.finish();
+
+		final byte[] compressedBuffer = new byte[uncompressedBytes.length + 100];
+		final int compressedLength = deflater.deflate(compressedBuffer);
+		final byte[] compressedBytes = Arrays.copyOf(compressedBuffer, compressedLength);
+
+		// set both CRC32_BIT and COMPRESSION_BIT
+		byte controlByte = BitUtils.setBit((byte) 0, StorageRecord.CRC32_BIT, true);
+		controlByte = BitUtils.setBit(controlByte, StorageRecord.COMPRESSION_BIT, true);
+
+		// calculate CRC32 over COMPRESSED payload + controlByte
+		final long startPosition = controlOutput.total();
+		this.crc32C.reset();
+		this.crc32C.withByteArray(compressedBytes);
+		this.crc32C.withByte(controlByte);
+
+		// write record: length + controlByte + compressedPayload + crc32c
+		controlOutput.writeInt(compressedLength + OVERHEAD_SIZE);
+		controlOutput.writeByte(controlByte);
+		controlOutput.writeBytes(compressedBytes);
+		controlOutput.writeLong(this.crc32C.getValue());
+		controlOutput.flush();
 
 		return startPosition;
 	}

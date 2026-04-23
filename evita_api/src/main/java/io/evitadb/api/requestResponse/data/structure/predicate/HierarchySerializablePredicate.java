@@ -38,7 +38,18 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
- * This predicate allows limiting hierarchy information visible to the client based on query constraints.
+ * Serializable predicate that controls access to entity hierarchy information based on query requirements.
+ *
+ * This predicate determines whether hierarchy data (parent entity reference) should be visible to clients.
+ * Hierarchy information is fetched when the query includes parent requirements (e.g., via `hierarchyContent()`
+ * or similar constraints). The predicate is used by {@link EntityDecorator} to enforce lazy loading of hierarchy
+ * data and throw {@link ContextMissingException} when clients attempt to access hierarchy data that wasn't
+ * fetched with the query.
+ *
+ * **Thread-safety**: This class is immutable and thread-safe.
+ *
+ * **Underlying predicate pattern**: Supports an optional underlying predicate that represents the original entity's
+ * complete hierarchy scope. This pattern is used when creating limited views from fully-fetched entities.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -46,27 +57,48 @@ public class HierarchySerializablePredicate implements SerializablePredicate<Int
 	public static final HierarchySerializablePredicate DEFAULT_INSTANCE = new HierarchySerializablePredicate(true);
 	@Serial private static final long serialVersionUID = 4588087391156067079L;
 	/**
-	 * Contains true if hierarchy of the entity has been fetched / requested.
+	 * Indicates whether hierarchy information (parent reference) was fetched with the entity.
+	 * When false, accessing parent data will throw {@link ContextMissingException}.
 	 */
 	@Getter private final boolean requiresHierarchy;
 	/**
-	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
-	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)}
-	 * is invoked on the entity.
+	 * Optional underlying predicate representing the complete entity's hierarchy scope. Used when creating
+	 * limited views from fully-fetched entities via
+	 * {@link io.evitadb.api.EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)}.
+	 * Must not be nested (only one level allowed).
 	 */
 	@Nullable @Getter private final HierarchySerializablePredicate underlyingPredicate;
 
+	/**
+	 * Creates a default predicate with hierarchy access disabled.
+	 */
 	public HierarchySerializablePredicate() {
 		this.requiresHierarchy = false;
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates a hierarchy predicate from an Evita request.
+	 *
+	 * Extracts hierarchy requirements from the request (typically from `hierarchyContent()` constraints).
+	 *
+	 * @param evitaRequest the request containing hierarchy requirements
+	 */
 	public HierarchySerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
 		this.requiresHierarchy = evitaRequest.isRequiresParent();
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates a hierarchy predicate with an underlying predicate for entity limitation scenarios.
+	 *
+	 * This constructor is used when applying additional restrictions to an already-fetched entity
+	 * (e.g., when calling `limitEntity`). The underlying predicate preserves the original fetch scope.
+	 *
+	 * @param evitaRequest the request containing new hierarchy requirements
+	 * @param underlyingPredicate the predicate representing the original entity's complete hierarchy scope
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if underlyingPredicate is already nested
+	 */
 	public HierarchySerializablePredicate(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull HierarchySerializablePredicate underlyingPredicate
@@ -81,6 +113,13 @@ public class HierarchySerializablePredicate implements SerializablePredicate<Int
 		this.underlyingPredicate = underlyingPredicate;
 	}
 
+	/**
+	 * Creates a hierarchy predicate with explicit hierarchy requirement.
+	 *
+	 * Used internally for creating enriched copies via {@link #createRicherCopyWith(EvitaRequest)}.
+	 *
+	 * @param requiresHierarchy whether hierarchy information is required
+	 */
 	public HierarchySerializablePredicate(
 		boolean requiresHierarchy
 	) {
@@ -89,14 +128,20 @@ public class HierarchySerializablePredicate implements SerializablePredicate<Int
 	}
 
 	/**
-	 * Returns true if the attributes were fetched along with the entity.
+	 * Checks whether hierarchy information was fetched with the entity.
+	 *
+	 * @return true if hierarchy data (parent reference) is available
 	 */
 	public boolean wasFetched() {
 		return this.requiresHierarchy;
 	}
 
 	/**
-	 * Method verifies that attributes was fetched with the entity.
+	 * Verifies that hierarchy information was fetched with the entity, throwing an exception if not.
+	 *
+	 * This method should be called before accessing parent entity data to ensure the data is available.
+	 *
+	 * @throws ContextMissingException if hierarchy data was not fetched with the entity
 	 */
 	public void checkFetched() throws ContextMissingException {
 		if (!this.requiresHierarchy) {
@@ -104,15 +149,31 @@ public class HierarchySerializablePredicate implements SerializablePredicate<Int
 		}
 	}
 
+	/**
+	 * Tests whether hierarchy data should be visible based on query requirements.
+	 *
+	 * The parentId parameter is not used in the test logic — hierarchy is either fully available or not.
+	 * The parameter exists to satisfy the {@link SerializablePredicate} contract.
+	 *
+	 * @param parentId the parent entity ID (unused, kept for interface compatibility)
+	 * @return true if hierarchy data should be visible
+	 */
 	@Override
-	public boolean test(Integer attributeValue) {
-		if (this.requiresHierarchy) {
-			return true;
-		} else {
-			return false;
-		}
+	public boolean test(Integer parentId) {
+		return this.requiresHierarchy;
 	}
 
+	/**
+	 * Creates an enriched copy that combines this predicate's hierarchy scope with additional requirements.
+	 *
+	 * This method is used when progressively enriching an entity with more data. If the new request doesn't
+	 * change the hierarchy requirement, returns this instance for efficiency. Hierarchy is a boolean flag,
+	 * so enrichment follows OR logic: once required, it remains required.
+	 *
+	 * @param evitaRequest the request containing additional hierarchy requirements to merge
+	 * @return an enriched predicate, or this instance if no changes are needed
+	 */
+	@Nonnull
 	public HierarchySerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
 		if ((this.requiresHierarchy || this.requiresHierarchy == evitaRequest.isRequiresParent())) {
 			return this;
@@ -122,5 +183,4 @@ public class HierarchySerializablePredicate implements SerializablePredicate<Int
 			);
 		}
 	}
-
 }

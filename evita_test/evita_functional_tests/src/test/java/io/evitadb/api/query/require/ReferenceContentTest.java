@@ -23,8 +23,13 @@
 
 package io.evitadb.api.query.require;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -376,6 +381,22 @@ class ReferenceContentTest {
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1))).hashCode(), referenceContent("a", entityFetch(), page(2, 40)).hashCode());
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), strip(2, 40)), referenceContent("a", entityFetch(), page(2, 40)));
 		assertNotEquals(referenceContent("a", filterBy(entityPrimaryKeyInSet(1)), strip(2, 40)).hashCode(), referenceContent("a", entityFetch(), page(2, 40)).hashCode());
+	}
+
+	@Test
+	@DisplayName("getCopyWithNewChildren() should reject additionalChildren where first is FilterBy but second is not OrderConstraint")
+	void shouldRejectAdditionalChildrenWithWrongSecondType() {
+		final ReferenceContent original = referenceContent("a");
+		// Pass FilterBy as first additional child and another FilterBy as second -- second is wrong type
+		assertThrows(EvitaInvalidUsageException.class, () ->
+			original.getCopyWithNewChildren(
+				new RequireConstraint[0],
+				new Constraint<?>[]{
+					filterBy(entityPrimaryKeyInSet(1)),
+					filterBy(entityPrimaryKeyInSet(2))
+				}
+			)
+		);
 	}
 
 }

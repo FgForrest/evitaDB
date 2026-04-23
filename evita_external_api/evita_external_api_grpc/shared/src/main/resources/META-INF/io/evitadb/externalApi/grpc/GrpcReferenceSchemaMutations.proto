@@ -50,7 +50,7 @@ message GrpcCreateReferenceSchemaMutation {
   // deprecated in favor of `indexedInScopes`
   bool filterable = 9 [deprecated = true];
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facetInSet`
+  // `referenceSummary` for this reference or use `facetInSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -69,7 +69,7 @@ message GrpcCreateReferenceSchemaMutation {
   // deprecated in favor of `scopedIndexTypes`
   repeated GrpcEntityScope indexedInScopes = 11 [deprecated = true];
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facetInSet`
+  // `referenceSummary` for this reference or use `facetInSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -79,6 +79,16 @@ message GrpcCreateReferenceSchemaMutation {
   // Scoped reference index types that define both the scope and the type of index for the reference.
   // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
   repeated GrpcScopedReferenceIndexType scopedIndexTypes = 13;
+  // Scoped reference indexed components that specify which parts of a reference relationship
+  // (referenced entity, referenced group entity) are indexed per scope.
+  // When not specified, the default indexed components are determined automatically.
+  repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 14;
+  // Per-scope expressions that narrow which entities participate in faceting.
+  repeated GrpcScopedFacetedPartially facetedPartially = 15;
+  // Per-scope bucketed histogram configurations defining index name and value expression.
+  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 16;
+  // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+  repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 17;
 }
 
 // Mutation is responsible for setting up a new `ReflectedReferenceSchema` in the `EntitySchema`.
@@ -107,7 +117,7 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // entity must be managed on both sides of the relation.
   string reflectedReferenceName = 6;
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facetInSet`
+  // `referenceSummary` for this reference or use `facetInSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -136,7 +146,7 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // reference.
   bool facetedInherited = 12;
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facetInSet`
+  // `referenceSummary` for this reference or use `facetInSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -147,6 +157,16 @@ message GrpcCreateReflectedReferenceSchemaMutation {
   // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
   // When `indexedInherited` is true, this field is ignored.
   repeated GrpcScopedReferenceIndexType scopedIndexTypes = 14;
+  // Scoped reference indexed components that specify which parts of a reference relationship
+  // (referenced entity, referenced group entity) are indexed per scope.
+  // When `indexedInherited` is true, this field is ignored.
+  repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;
+  // Per-scope expressions that narrow which entities participate in faceting.
+  repeated GrpcScopedFacetedPartially facetedPartially = 16;
+  // Per-scope bucketed histogram configurations defining index name and value expression.
+  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;
+  // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+  repeated GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;
 }
 
 // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
@@ -255,7 +275,7 @@ message GrpcSetReferenceSchemaFacetedMutation {
   // Name of the reference the mutation is targeting.
   string name = 1;
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facet_{reference name}_inSet`
+  // `referenceSummary` for this reference or use `facet_{reference name}_inSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -268,13 +288,27 @@ message GrpcSetReferenceSchemaFacetedMutation {
   // must be left as false. When set to TRUE the value of `faceted` field is ignored.
   bool inherited = 3;
   // Whether the statistics data for this reference should be maintained and this allowing to get
-  // `facetSummary` for this reference or use `facet_{reference name}_inSet`
+  // `referenceSummary` for this reference or use `facet_{reference name}_inSet`
   // filtering query.
   //
   // Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
   // occupies (memory/disk) space in the form of index.
   // Reference that was marked as faceted is called Facet.
   repeated GrpcEntityScope facetedInScopes = 4;
+  // Per-scope expressions that narrow which entities participate in faceting.
+  // When absent (not set), expressions are inherited for reflected references.
+  repeated GrpcScopedFacetedPartially facetedPartially = 5;
+}
+
+// Mutation is responsible for setting bucketed histogram configuration on a `ReferenceSchema` in `EntitySchema`.
+// Mutation can be used for altering also the existing `ReferenceSchema` alone.
+message GrpcSetReferenceSchemaBucketedMutation {
+  // Name of the reference the mutation is targeting.
+  string name = 1;
+  // Per-scope bucketed histogram configurations defining index name and value expression.
+  repeated GrpcScopedHistogramIndexDefinition bucketedInScopes = 2;
+  // Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+  repeated GrpcScopedBucketedPartially bucketedPartially = 3;
 }
 
 // Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
@@ -299,4 +333,9 @@ message GrpcSetReferenceSchemaIndexedMutation {
   // This replaces the deprecated `indexedInScopes` field with more granular control over indexing.
   // When `inherited` is true, this field is ignored.
   repeated GrpcScopedReferenceIndexType scopedIndexTypes = 4;
+  // Scoped reference indexed components that specify which parts of a reference relationship
+  // (referenced entity, referenced group entity) are indexed per scope.
+  // When `inherited` is true, this field is ignored.
+  repeated GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 5;
 }
+

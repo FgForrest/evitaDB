@@ -44,29 +44,48 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * This `facetGroupsExclusivity` require constraint allows specifying facet relation on particular level (within group
- * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
- * group, secondary optional argument allows defining the level for which the exclusivity is defined, third optional
- * argument defines one more facet group ids which facets should be considered exclusive with other facets either
- * in same group or different groups (depending on level argument).
+ * The `facetGroupsExclusivity` requirement marks facet options in the specified groups as **mutually exclusive**:
+ * at most one facet may be selected at the applicable level at any given time. This constraint primarily affects the
+ * **impact predictions** computed by {@link FacetSummary} / {@link FacetSummaryOfReference} — it tells the engine to
+ * treat previous selections as implicitly deselected when predicting the result count for a new selection.
  *
- * The `facetGroupsExclusivity` changes the behavior of the facet option in all facet groups specified in the filterBy
- * constraint (or all). Query will allow selecting only single facet from either the group or facets in single group
- * among other groups depending on the level argument:
+ * The practical effect is that the impact prediction for each facet option in an exclusive group shows "how many
+ * results you would get if you replaced your current selection with this option" rather than "how many results you
+ * would get if you added this option to your current selection".
  *
- * - WITH_DIFFERENT_GROUPS: when facets are selected, they must always be from single group (within the relation only)
- * - WITH_DIFFERENT_FACETS_IN_GROUP: only single facet can be selected from each group (within the relation only)
+ * ## UI implication
  *
- * Example:
+ * Groups marked as exclusive are naturally represented in the UI as **radio buttons** (select one) rather than
+ * checkboxes (select many), since only a single selection is meaningful.
  *
- * <pre>
+ * ## Arguments
+ *
+ * - **referenceName** *(mandatory)* — the name of the faceted reference this constraint applies to (e.g.
+ *   `"parameterValues"`, `"brand"`)
+ * - **facetGroupRelationLevel** *(optional, default `WITH_DIFFERENT_FACETS_IN_GROUP`)* — the level at which
+ *   exclusivity is enforced:
+ *   - `WITH_DIFFERENT_FACETS_IN_GROUP` — only one facet can be selected **within** each group; other groups are
+ *     independent
+ *   - `WITH_DIFFERENT_GROUPS` — only one group's facet can be selected at a time **across** the affected groups of
+ *     this reference
+ * - **filterBy** *(optional)* — a {@link FilterBy} constraint targeting properties of the **group entity** to select
+ *   which groups exclusivity applies to; when omitted, exclusivity applies to all groups of the reference
+ *
+ * ## Relationship to FacetCalculationRules
+ *
+ * {@link FacetCalculationRules} can set the global default relation type including `EXCLUSIVITY`. `facetGroupsExclusivity`
+ * takes precedence over that global default for the specific groups it targets.
+ *
+ * ## Example
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     require(
  *         facetSummaryOfReference(
  *             "parameterValues",
  *             IMPACT,
- *             filterBy(attributeContains("code", "4")),
+ *             filterBy(attributeContains("code", "memory")),
  *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
  *             entityFetch(attributeContent("code")),
  *             entityGroupFetch(attributeContent("code"))
@@ -74,34 +93,43 @@ import java.util.Optional;
  *         facetGroupsExclusivity(
  *             "parameterValues",
  *             WITH_DIFFERENT_FACETS_IN_GROUP,
- *             filterBy(
- *               attributeInSet("code", "ram-memory")
- *             )
+ *             filterBy(attributeInSet("code", "ram-memory"))
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * In group `ram-memory` only single facet can be selected, so it should be probably rendered as radio buttons in the UI
- * instead of checkboxes.
+ * With this setting the `ram-memory` group shows impact predictions as if selecting a new RAM option deselects the
+ * previously selected one. The group should be rendered with radio buttons in the client UI.
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-exclusivity)
  *
  * @see FacetGroupRelationLevel
+ * @see FacetGroupsConjunction
+ * @see FacetGroupsDisjunction
+ * @see FacetGroupsNegation
+ * @see FacetCalculationRules
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @ConstraintDefinition(
 	name = "groupsExclusivity",
-	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to exclusive - only one facet can be selected.",
+	shortDescription = "The constraint marks facets in specified reference groups as mutually exclusive — at most one facet may be selected at a time.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-exclusivity"
 )
-public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
+public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer
+	implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 849094126558825930L;
 
-	private FacetGroupsExclusivity(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
+	private FacetGroupsExclusivity(
+		@Nonnull Serializable[] arguments,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(arguments, NO_CHILDREN, additionalChildren);
 		for (Constraint<?> child : additionalChildren) {
-			Assert.isPremiseValid(child instanceof FilterBy, "Only FilterBy constraints are allowed in FacetGroupsConjunction.");
+			Assert.isPremiseValid(
+				child instanceof FilterBy,
+				"Only FilterBy constraints are allowed in FacetGroupsExclusivity."
+			);
 		}
 	}
 
@@ -179,7 +207,10 @@ public class FacetGroupsExclusivity extends AbstractRequireConstraintContainer i
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isPremiseValid(ArrayUtils.isEmpty(children), "Children must be empty");
 		return new FacetGroupsExclusivity(getArguments(), additionalChildren);
 	}

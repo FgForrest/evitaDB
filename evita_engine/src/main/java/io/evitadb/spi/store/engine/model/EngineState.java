@@ -61,7 +61,7 @@ public record EngineState<T extends LogRecordReference>(
 	@Nonnull String[] inactiveCatalogs,
 	@Nonnull String[] readOnlyCatalogs
 ) implements Serializable {
-	@Serial private static final long serialVersionUID = 3167647107268939398L;
+	@Serial private static final long serialVersionUID = 5824913670482156739L;
 
 	/**
 	 * Returns a new builder initialized with default values.

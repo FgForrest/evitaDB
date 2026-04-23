@@ -30,6 +30,7 @@ import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -40,14 +41,17 @@ import java.util.Comparator;
 import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfIntInOrderedArray;
 
 /**
- * This class provides fast lookup operation upon unordered array so that its performance is on par with ordered array.
- * Lookup method {@link #findPosition(int)} is as fast as {@link Arrays#binarySearch(int[], int)}.
+ * This class provides fast lookup operation upon unordered array so that
+ * its performance is on par with ordered array. Lookup method
+ * {@link #findPosition(int)} is as fast as
+ * {@link Arrays#binarySearch(int[], int)}.
  *
- * Write methods - i.e. adding and removing record from this instance always create two new arrays and are slower. Lookup
- * for the slice position is also as fast as {@link Arrays#binarySearch(int[], int)}.
+ * Write methods - i.e. adding and removing record from this instance
+ * always create two new arrays and are slower. Lookup for the slice
+ * position is also as fast as {@link Arrays#binarySearch(int[], int)}.
  *
- * Exit method {@link #getArray()} requires new array allocation and filling one record after another, but it's also
- * quite fast.
+ * Exit method {@link #getArray()} requires new array allocation and filling
+ * one record after another, but it is also quite fast.
  *
  * Array must not contain duplicated recordIds!
  *
@@ -58,16 +62,18 @@ public class UnorderedLookup implements Serializable {
 	@Serial private static final long serialVersionUID = 4971547793733694511L;
 
 	/**
-	 * Unordered array of proper record positions of the record on the same index.
-	 * Ie. position of `recordIds[i]` in the result array is `positions[i]`
+	 * Unordered array of proper record positions of the record on
+	 * the same index. I.e. position of `recordIds[i]` in the result
+	 * array is `positions[i]`.
 	 */
-	@Getter private int[] positions;
+	@Nonnull @Getter private int[] positions;
 	/**
 	 * Ordered array of record ids in ascending order.
 	 */
 	private int[] recordIds;
 	/**
-	 * Contains remembered unordered array that combines {@link #positions} and {@link #recordIds} so that it doesn't
+	 * Contains remembered unordered array that combines
+	 * {@link #positions} and {@link #recordIds} so that it doesn't
 	 * need to be computed repeatedly when nothing has changed.
 	 */
 	private int[] memoizedUnorderedArray;
@@ -75,6 +81,7 @@ public class UnorderedLookup implements Serializable {
 	/**
 	 * Returns ordered array of record ids in ascending order.
 	 */
+	@Nonnull
 	public int[] getRecordIds() {
 		return this.recordIds;
 	}
@@ -90,7 +97,7 @@ public class UnorderedLookup implements Serializable {
 	/**
 	 * Creates new instance.
 	 */
-	public UnorderedLookup(int[] unorderedArray) {
+	public UnorderedLookup(@Nonnull int[] unorderedArray) {
 		this.positions = new int[unorderedArray.length];
 		// init record ids in ascending order
 		this.recordIds = new int[unorderedArray.length];
@@ -101,8 +108,9 @@ public class UnorderedLookup implements Serializable {
 			this.recordIds[i] = recordId;
 		}
 		Arrays.sort(this.recordIds);
-		// now sort positions according to recordId value - this will change ordered positions to unordered ones
-		new IntArrayWrapper(this.positions).sort(Comparator.comparing(o -> unorderedArray[o]));
+		// now sort positions according to recordId value
+		new IntArrayWrapper(this.positions)
+			.sort(Comparator.comparing(o -> unorderedArray[o]));
 		// we may initialize the cached result
 		this.memoizedUnorderedArray = unorderedArray;
 	}
@@ -118,22 +126,28 @@ public class UnorderedLookup implements Serializable {
 	}
 
 	/**
-	 * Adds new record to the array on the position just after previous record id. Previous record id must exists
-	 * in the array already. There is special value {@link Integer#MIN_VALUE} that is used as a wildcard for "no previous
-	 * record" - i.e. situation when we want to add new record id to the head of the array.
+	 * Adds new record to the array on the position just after previous
+	 * record id. Previous record id must exist in the array already.
+	 * There is special value {@link Integer#MIN_VALUE} that is used as
+	 * a wildcard for "no previous record" - i.e. situation when we want
+	 * to add new record id to the head of the array.
 	 *
 	 * @param previousRecordId or {@link Integer#MIN_VALUE}
 	 */
 	public void addRecord(int previousRecordId, int recordId) {
 		// find position of the previous record id
-		final InsertionPosition insertionPosition = previousRecordId == Integer.MIN_VALUE ?
-			new InsertionPosition(0, false) :
-			computeInsertPositionOfIntInOrderedArray(previousRecordId, this.recordIds);
+		final InsertionPosition insertionPosition =
+			previousRecordId == Integer.MIN_VALUE
+				? new InsertionPosition(0, false)
+				: computeInsertPositionOfIntInOrderedArray(
+				previousRecordId, this.recordIds
+			);
 
 		// this slows insertion but we want this consistency check anyway
 		Assert.isTrue(
 			Arrays.binarySearch(this.recordIds, recordId) < 0,
-			"Record with id " + recordId + " is already part of the array!"
+			"Record with id " + recordId
+				+ " is already part of the array!"
 		);
 
 		final int newPosition;
@@ -141,33 +155,51 @@ public class UnorderedLookup implements Serializable {
 		// if previous record id is part of the array
 		if (insertionPosition.alreadyPresent()) {
 			// new position is position of the previous record plus one
-			newPosition = this.positions[insertionPosition.position()] + 1;
-			// compute position in the ordered array of record ids where new record should be placed
-			leadingPosition = computeInsertPositionOfIntInOrderedArray(recordId, this.recordIds);
+			newPosition =
+				this.positions[insertionPosition.position()] + 1;
+			// compute position in the ordered array where new record should be placed
+			leadingPosition =
+				computeInsertPositionOfIntInOrderedArray(
+					recordId, this.recordIds
+				);
 			// if record id should be added to the head of the array
 		} else if (previousRecordId == Integer.MIN_VALUE) {
 			// new position is zero = head of the array
 			newPosition = 0;
-			// compute position in the ordered array of record ids where new record should be placed
-			leadingPosition = computeInsertPositionOfIntInOrderedArray(recordId, this.recordIds);
+			// compute position in the ordered array where new record should be placed
+			leadingPosition =
+				computeInsertPositionOfIntInOrderedArray(
+					recordId, this.recordIds
+				);
 			// else signalize error - client wants to add record after non existing record
 		} else {
 			throw new GenericEvitaInternalError(
-				"Record with id " + previousRecordId + " was not found in the array, cannot add record " + recordId + " after it!",
-				"Referenced record was not found in the array! Cannot add record after it."
+				"Record with id " + previousRecordId
+					+ " was not found in the array,"
+					+ " cannot add record "
+					+ recordId + " after it!",
+				"Referenced record was not found in the array!"
+					+ " Cannot add record after it."
 			);
 		}
 
-		// increment all positions that are same or equal to newPosition to maintain monotonic row or positions
+		// increment all positions that are same or equal to newPosition
+		// to maintain monotonic row of positions
 		for (int i = 0; i < this.positions.length; i++) {
 			if (this.positions[i] >= newPosition) {
 				this.positions[i]++;
 			}
 		}
-		// now place new record id into ordered array of other record ids on proper place
-		this.recordIds = ArrayUtils.insertIntIntoArrayOnIndex(recordId, this.recordIds, leadingPosition.position());
-		// now place the new position into unordered array of positions on the same index as record on previous line
-		this.positions = ArrayUtils.insertIntIntoArrayOnIndex(newPosition, this.positions, leadingPosition.position());
+		// now place new record id into ordered array on proper place
+		this.recordIds = ArrayUtils.insertIntIntoArrayOnIndex(
+			recordId, this.recordIds,
+			leadingPosition.position()
+		);
+		// now place the new position into unordered array of positions
+		this.positions = ArrayUtils.insertIntIntoArrayOnIndex(
+			newPosition, this.positions,
+			leadingPosition.position()
+		);
 		// we have to reset memoized result - modification has occurred
 		this.memoizedUnorderedArray = null;
 	}
@@ -179,22 +211,33 @@ public class UnorderedLookup implements Serializable {
 		// this slows insertion but we want this consistency check anyway
 		Assert.isTrue(
 			Arrays.binarySearch(this.recordIds, recordId) < 0,
-			"Record with id " + recordId + " is already part of the array!"
+			"Record with id " + recordId
+				+ " is already part of the array!"
 		);
 
-		// compute position in the ordered array of record ids where new record should be placed
-		final InsertionPosition leadingPosition = computeInsertPositionOfIntInOrderedArray(recordId, this.recordIds);
+		// compute position in the ordered array where new record should be placed
+		final InsertionPosition leadingPosition =
+			computeInsertPositionOfIntInOrderedArray(
+				recordId, this.recordIds
+			);
 
-		// increment all positions that are same or equal to newPosition to maintain monotonic row or positions
+		// increment all positions that are same or equal to index
+		// to maintain monotonic row of positions
 		for (int i = 0; i < this.positions.length; i++) {
 			if (this.positions[i] >= index) {
 				this.positions[i]++;
 			}
 		}
-		// now place new record id into ordered array of other record ids on proper place
-		this.recordIds = ArrayUtils.insertIntIntoArrayOnIndex(recordId, this.recordIds, leadingPosition.position());
-		// now place the new position into unordered array of positions on the same index as record on previous line
-		this.positions = ArrayUtils.insertIntIntoArrayOnIndex(index, this.positions, leadingPosition.position());
+		// now place new record id into ordered array on proper place
+		this.recordIds = ArrayUtils.insertIntIntoArrayOnIndex(
+			recordId, this.recordIds,
+			leadingPosition.position()
+		);
+		// now place the new position into unordered array of positions
+		this.positions = ArrayUtils.insertIntIntoArrayOnIndex(
+			index, this.positions,
+			leadingPosition.position()
+		);
 		// we have to reset memoized result - modification has occurred
 		this.memoizedUnorderedArray = null;
 	}
@@ -202,43 +245,75 @@ public class UnorderedLookup implements Serializable {
 	/**
 	 * Appends set of unsorted records at the end of the existing array.
 	 */
-	public void appendRecords(int[] newRecordIds) {
+	public void appendRecords(@Nonnull int[] newRecordIds) {
 		if (ArrayUtils.isEmpty(newRecordIds)) {
 			// quick return path
 			return;
 		}
-		final int[] aggregatedPositions = new int[this.positions.length + newRecordIds.length];
-		final int[] aggregatedRecordIds = new int[this.recordIds.length + newRecordIds.length];
-		System.arraycopy(getArray(), 0, aggregatedRecordIds, 0, this.recordIds.length);
-		System.arraycopy(newRecordIds, 0, aggregatedRecordIds, this.recordIds.length, newRecordIds.length);
+		final int[] aggregatedPositions =
+			new int[this.positions.length + newRecordIds.length];
+		final int[] aggregatedRecordIds =
+			new int[this.recordIds.length + newRecordIds.length];
+		System.arraycopy(
+			getArray(), 0,
+			aggregatedRecordIds, 0,
+			this.recordIds.length
+		);
+		System.arraycopy(
+			newRecordIds, 0,
+			aggregatedRecordIds, this.recordIds.length,
+			newRecordIds.length
+		);
 
 		// fill associated position in aggregatedRecordIds array
 		for (int i = 0; i < aggregatedRecordIds.length; i++) {
 			aggregatedPositions[i] = i;
 		}
 
-		// now sort positions according to recordId value - this will change ordered positions to unordered ones
-		new IntArrayWrapper(aggregatedPositions).sort(Comparator.comparing(o -> aggregatedRecordIds[o]));
+		// now sort positions according to recordId value
+		new IntArrayWrapper(aggregatedPositions)
+			.sort(Comparator.comparing(
+				o -> aggregatedRecordIds[o]
+			));
 		this.positions = aggregatedPositions;
 
 		// now insert new record ids into the ordered array
-		final int[] sortedNewRecordIds = new int[newRecordIds.length];
-		System.arraycopy(newRecordIds, 0, sortedNewRecordIds, 0, newRecordIds.length);
+		final int[] sortedNewRecordIds =
+			new int[newRecordIds.length];
+		System.arraycopy(
+			newRecordIds, 0,
+			sortedNewRecordIds, 0,
+			newRecordIds.length
+		);
 		Arrays.sort(sortedNewRecordIds);
 
-		final int[] aggregatedOrderedRecordIds = new int[this.recordIds.length + newRecordIds.length];
+		final int[] aggregatedOrderedRecordIds =
+			new int[this.recordIds.length + newRecordIds.length];
 		int lastSourcePosition = 0;
 		int lastDestinationPosition = 0;
-		for (int newRecordId : sortedNewRecordIds) {
-			final InsertionPosition ins = computeInsertPositionOfIntInOrderedArray(newRecordId, this.recordIds);
+		for (final int newRecordId : sortedNewRecordIds) {
+			final InsertionPosition ins =
+				computeInsertPositionOfIntInOrderedArray(
+					newRecordId, this.recordIds
+				);
 			final int position = ins.position();
 			final int length = position - lastSourcePosition;
-			System.arraycopy(this.recordIds, lastSourcePosition, aggregatedOrderedRecordIds, lastDestinationPosition, length);
+			System.arraycopy(
+				this.recordIds, lastSourcePosition,
+				aggregatedOrderedRecordIds,
+				lastDestinationPosition, length
+			);
 			lastDestinationPosition += length;
-			aggregatedOrderedRecordIds[lastDestinationPosition++] = newRecordId;
+			aggregatedOrderedRecordIds[lastDestinationPosition++] =
+				newRecordId;
 			lastSourcePosition = position;
 		}
-		System.arraycopy(this.recordIds, lastSourcePosition, aggregatedOrderedRecordIds, lastDestinationPosition, this.recordIds.length - lastSourcePosition);
+		System.arraycopy(
+			this.recordIds, lastSourcePosition,
+			aggregatedOrderedRecordIds,
+			lastDestinationPosition,
+			this.recordIds.length - lastSourcePosition
+		);
 		this.recordIds = aggregatedOrderedRecordIds;
 
 		// we have to reset memoized result - modification has occurred
@@ -255,12 +330,19 @@ public class UnorderedLookup implements Serializable {
 		final int index = Arrays.binarySearch(this.recordIds, recordId);
 		if (index >= 0) {
 			// when found, remove it and shrink the array
-			this.recordIds = ArrayUtils.removeIntFromArrayOnIndex(this.recordIds, index);
-			// find original position of the record id in the unordered array
+			this.recordIds =
+				ArrayUtils.removeIntFromArrayOnIndex(
+					this.recordIds, index
+				);
+			// find original position of the record id
 			final int position = this.positions[index];
 			// remove the same position and shrink the array
-			this.positions = ArrayUtils.removeIntFromArrayOnIndex(this.positions, index);
-			// now lower all positions above removed position by one to fill the gap after record and maintain monotonic row of positions
+			this.positions =
+				ArrayUtils.removeIntFromArrayOnIndex(
+					this.positions, index
+				);
+			// now lower all positions above removed position by one
+			// to fill the gap and maintain monotonic row of positions
 			for (int i = 0; i < this.positions.length; i++) {
 				if (this.positions[i] > position) {
 					this.positions[i]--;
@@ -286,21 +368,37 @@ public class UnorderedLookup implements Serializable {
 	 */
 	public int[] removeRange(int startIndex, int endIndex) {
 		final int[] unorderedArray = getArray();
-		final int[] removedRecordIds = new int[endIndex - startIndex];
-		System.arraycopy(unorderedArray, startIndex, removedRecordIds, 0, removedRecordIds.length);
+		final int[] removedRecordIds =
+			new int[endIndex - startIndex];
+		System.arraycopy(
+			unorderedArray, startIndex,
+			removedRecordIds, 0,
+			removedRecordIds.length
+		);
 
-		final int[] newPositions = new int[unorderedArray.length - removedRecordIds.length];
+		final int newLength =
+			unorderedArray.length - removedRecordIds.length;
+		final int[] newPositions = new int[newLength];
 		// init record ids in ascending order
-		final int[] newRecordIds = new int[unorderedArray.length - removedRecordIds.length];
-		// both arrays fill with recordId and associated position in original array
-		for (int i = 0; i < unorderedArray.length - removedRecordIds.length; i++) {
-			final int recordId = unorderedArray[i < startIndex ? i : i + removedRecordIds.length];
+		final int[] newRecordIds = new int[newLength];
+		// both arrays fill with recordId and associated position
+		for (int i = 0; i < newLength; i++) {
+			final int recordId = unorderedArray[
+				i < startIndex
+					? i : i + removedRecordIds.length
+			];
 			newPositions[i] = i;
 			newRecordIds[i] = recordId;
 		}
 		Arrays.sort(newRecordIds);
-		// now sort positions according to recordId value - this will change ordered positions to unordered ones
-		new IntArrayWrapper(newPositions).sort(Comparator.comparing(o -> unorderedArray[o < startIndex ? o : o + removedRecordIds.length]));
+		// now sort positions according to recordId value
+		new IntArrayWrapper(newPositions)
+			.sort(Comparator.comparing(
+				o -> unorderedArray[
+					o < startIndex
+						? o : o + removedRecordIds.length
+				]
+			));
 
 		// replace the internal arrays
 		this.recordIds = newRecordIds;
@@ -312,12 +410,14 @@ public class UnorderedLookup implements Serializable {
 	}
 
 	/**
-	 * Returns record id, that is on the passed position (or index if you want). Equivalent to `unorderedArray[position]`.
-	 * This method is not fast because goes through unordered array of positions and has O(N) complexity.
+	 * Returns record id on the passed position (or index if you want).
+	 * Equivalent to `unorderedArray[position]`. This method is not fast
+	 * because it goes through unordered array of positions and has
+	 * O(N) complexity.
 	 */
 	public int getRecordAt(int position) {
 		for (int i = 0; i < this.positions.length; i++) {
-			int examinedPosition = this.positions[i];
+			final int examinedPosition = this.positions[i];
 			if (examinedPosition == position) {
 				return this.recordIds[i];
 			}
@@ -340,7 +440,7 @@ public class UnorderedLookup implements Serializable {
 		} else {
 			final int lastPosition = this.recordIds.length - 1;
 			for (int i = 0; i < this.positions.length; i++) {
-				int position = this.positions[i];
+				final int position = this.positions[i];
 				if (position == lastPosition) {
 					return this.recordIds[i];
 				}
@@ -352,10 +452,11 @@ public class UnorderedLookup implements Serializable {
 	/**
 	 * Returns possibly modified unordered array of record ids.
 	 */
+	@Nonnull
 	public int[] getArray() {
 		if (this.memoizedUnorderedArray == null) {
 			final int[] result = new int[this.positions.length];
-			// place record ids into result array on target positions - this will reconstruct unordered record id array from ordered one
+			// place record ids into result array on target positions
 			for (int i = 0; i < this.positions.length; i++) {
 				final int position = this.positions[i];
 				result[position] = this.recordIds[i];
@@ -381,9 +482,11 @@ public class UnorderedLookup implements Serializable {
 	}
 
 	/**
-	 * Internal helper class that is used to sort array A by comparator that uses array B. This cannot be easily done
-	 * by other way than mimicking list to get advantage of {@link AbstractList#sort(Comparator)} function
-	 * that accepts external comparator.
+	 * Internal helper class used to sort array A by a comparator
+	 * that uses array B. This cannot be easily done by other way
+	 * than mimicking a list to take advantage of
+	 * {@link AbstractList#sort(Comparator)} that accepts an external
+	 * comparator.
 	 */
 	@RequiredArgsConstructor
 	private static class IntArrayWrapper extends AbstractList<Integer> {
@@ -401,7 +504,7 @@ public class UnorderedLookup implements Serializable {
 
 		@Override
 		public Integer set(int index, Integer element) {
-			int v = this.elements[index];
+			final int v = this.elements[index];
 			this.elements[index] = element;
 			return v;
 		}
@@ -411,7 +514,7 @@ public class UnorderedLookup implements Serializable {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
 			if (!super.equals(o)) return false;
-			IntArrayWrapper integers = (IntArrayWrapper) o;
+			final IntArrayWrapper integers = (IntArrayWrapper) o;
 			return Arrays.equals(this.elements, integers.elements);
 		}
 

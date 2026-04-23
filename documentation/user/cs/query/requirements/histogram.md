@@ -6,6 +6,7 @@ author: Ing. Jan Novotný
 proofreading: done
 preferredLang: evitaql
 commit: d74b2be9a27e5567316e0f6e0d3b160da262d2c2
+translated: true
 ---
 Ve skutečnosti existuje jen několik případů použití histogramů na e-commerce webech. Nejčastějším z nich je cenový histogram, který slouží k filtrování produktů podle ceny. Příklad takového histogramu můžete vidět na webu Booking.com:
 

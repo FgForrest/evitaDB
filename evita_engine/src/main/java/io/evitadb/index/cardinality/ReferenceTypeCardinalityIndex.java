@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.IndexDataStructure;
-import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -37,6 +37,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -50,14 +51,17 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
+import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static java.util.Optional.ofNullable;
 
 /**
  * This index is used solely in {@link ReferencedTypeEntityIndex} for storing cardinality index of referenced entity
- * primary keys and also cardinality of {@link ReducedEntityIndex} primary keys. It also provides information about
+ * primary keys and also cardinality of {@link AbstractReducedEntityIndex} primary keys. It also provides information about
  * set of index primary keys for each referenced entity primary key that are present in the index.
  *
  * The index allows adding and removing keys, and retrieving the cardinalities of all keys.
@@ -80,8 +84,8 @@ public class ReferenceTypeCardinalityIndex
 	 * A variable that holds the cardinalities of different entities.
 	 *
 	 * The TransactionalMap is a map-like data structure that allows concurrent access and modification
-	 * of the cardinalities in a transactional manner. Each cardinality is associated with a AttributeCardinalityKey,
-	 * which uniquely identifies the entity for which the cardinality is being stored.
+	 * of the cardinalities in a transactional manner. Each cardinality is associated with a composed
+	 * long key, which uniquely identifies the entity for which the cardinality is being stored.
 	 */
 	private final TransactionalMap<Long, Integer> cardinalities;
 	/**
@@ -93,7 +97,7 @@ public class ReferenceTypeCardinalityIndex
 	 * Helper bitmap that contains all referenced entity primary keys that are present in keys of
 	 * {@link #referencedPrimaryKeysIndex}.
 	 */
-	private RoaringBitmap memoizedAllReferencedPrimaryKeys;
+	@Nullable private volatile RoaringBitmap memoizedAllReferencedPrimaryKeys;
 
 	public ReferenceTypeCardinalityIndex() {
 		this.dirty = new TransactionalBoolean();
@@ -146,6 +150,9 @@ public class ReferenceTypeCardinalityIndex
 			indexIdBitmap.add(indexPrimaryKey);
 		}
 
+		if (!isTransactionAvailable()) {
+			this.memoizedAllReferencedPrimaryKeys = null;
+		}
 		this.dirty.setToTrue();
 		return added;
 	}
@@ -174,6 +181,19 @@ public class ReferenceTypeCardinalityIndex
 			);
 			// remove the index primary key from the bitmap
 			indexIdBitmap.remove(indexPrimaryKey);
+			// clean up empty bitmap to avoid memory leaks
+			if (indexIdBitmap.isEmpty()) {
+				final TransactionalBitmap removedBitmap = this.referencedPrimaryKeysIndex.remove(referencedEntityPrimaryKey);
+				if (removedBitmap != null) {
+					final TransactionalLayerMaintainer transactionalLayer = Transaction.getTransactionalLayerMaintainer();
+					if (transactionalLayer != null) {
+						removedBitmap.removeLayer(transactionalLayer);
+					}
+				}
+			}
+		}
+		if (!isTransactionAvailable()) {
+			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
 		return removed;
@@ -189,6 +209,67 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
+	 * Returns an unmodifiable view of all referenced entity primary keys tracked by this index. For a
+	 * `REFERENCED_GROUP_ENTITY_TYPE` index these are the group entity PKs; for a `REFERENCED_ENTITY_TYPE`
+	 * index these are the referenced (facet) entity PKs.
+	 *
+	 * Used by ReevaluateExpressionExecutor to iterate all groups when resolving group PKs for
+	 * {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE} dependencies on grouped references.
+	 *
+	 * @return unmodifiable set of all tracked referenced entity primary keys
+	 */
+	@Nonnull
+	public Set<Integer> getAllTrackedReferencedEntityPrimaryKeys() {
+		return Collections.unmodifiableSet(this.referencedPrimaryKeysIndex.keySet());
+	}
+
+	/**
+	 * Returns all tracked referenced entity primary keys as a {@link Bitmap}. Outside of a transactional
+	 * context the underlying {@link RoaringBitmap} is memoized so repeated query-time calls (histogram
+	 * boundary resolution iterates this set for every surviving histogram) do not rebuild it.
+	 *
+	 * **Read-only contract** — the returned bitmap aliases the memoized snapshot; callers must not
+	 * mutate it. All production call sites (see
+	 * {@code ReferenceHistogramAccumulator.collectGroupedPending} for iteration and
+	 * {@code ReferenceHistogramAccumulator.pickBoundaryPk} for `RoaringBitmap.and` intersection) treat
+	 * it as immutable. A defensive copy on every call would negate the memoization benefit.
+	 *
+	 * @return bitmap of referenced entity primary keys, may be {@link EmptyBitmap#INSTANCE}
+	 */
+	@Nonnull
+	public Bitmap getAllTrackedReferencedEntityPrimaryKeysAsBitmap() {
+		if (this.referencedPrimaryKeysIndex.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		if (Transaction.isTransactionAvailable()) {
+			return new BaseBitmap(buildReferencedPrimaryKeysBitmap());
+		}
+		RoaringBitmap result = this.memoizedAllReferencedPrimaryKeys;
+		if (result == null) {
+			result = buildReferencedPrimaryKeysBitmap();
+			this.memoizedAllReferencedPrimaryKeys = result;
+		}
+		return new BaseBitmap(result);
+	}
+
+	/**
+	 * Builds a fresh {@link RoaringBitmap} snapshot from all keys currently present in
+	 * {@link #referencedPrimaryKeysIndex}. Called either to populate {@link #memoizedAllReferencedPrimaryKeys}
+	 * (outside a transaction) or to produce a one-shot bitmap within a transaction (where memoization is skipped
+	 * because the index contents may change before the bitmap is consumed).
+	 *
+	 * @return a new {@link RoaringBitmap} containing all referenced entity primary keys tracked by this index
+	 */
+	@Nonnull
+	private RoaringBitmap buildReferencedPrimaryKeysBitmap() {
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (final Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
+			writer.add(referencedEntityId);
+		}
+		return writer.get();
+	}
+
+	/**
 	 * Retrieves all reference indexes associated with the given referenced entity primary key.
 	 *
 	 * @param referencedEntityPrimaryKey the primary key of the referenced entity for which the indexes are to be retrieved
@@ -198,6 +279,38 @@ public class ReferenceTypeCardinalityIndex
 		return ofNullable(this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey))
 			.map(TransactionalBitmap::getArray)
 			.orElse(ArrayUtils.EMPTY_INT_ARRAY);
+	}
+
+	/**
+	 * Returns the set of referenced entity primary keys (i.e., the keys of the forward mapping) whose
+	 * index primary key bitmaps have a non-empty intersection with the given set of index primary keys.
+	 *
+	 * This is the **reverse** of {@link #getIndexPrimaryKeys(RoaringBitmap)}: given a bitmap of
+	 * reduced-index PKs, it identifies which referenced entity PKs are associated with them.
+	 *
+	 * @param indexPrimaryKeys bitmap of reduced-index primary keys to look up
+	 * @return bitmap of referenced entity primary keys whose index PKs overlap with the input;
+	 *         never {@code null}, may be {@link EmptyBitmap#INSTANCE}
+	 */
+	@Nonnull
+	public Bitmap getReferencedPrimaryKeysForIndexPks(@Nonnull Bitmap indexPrimaryKeys) {
+		if (indexPrimaryKeys.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final RoaringBitmap indexPksBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(indexPrimaryKeys);
+		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (Map.Entry<Integer, TransactionalBitmap> entry : this.referencedPrimaryKeysIndex.entrySet()) {
+			if (
+				RoaringBitmap.intersects(
+					indexPksBitmap,
+					RoaringBitmapBackedBitmap.getRoaringBitmap(entry.getValue())
+				)
+			) {
+				writer.add(entry.getKey());
+			}
+		}
+		final RoaringBitmap result = writer.get();
+		return result.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
 	}
 
 	/**
@@ -214,7 +327,7 @@ public class ReferenceTypeCardinalityIndex
 		if (referencedEntityPrimaryKeys.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		} else {
-			final RoaringBitmap allReferencedPrimaryKeys;
+			RoaringBitmap allReferencedPrimaryKeys;
 			if (Transaction.isTransactionAvailable()) {
 				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 				for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
@@ -222,14 +335,15 @@ public class ReferenceTypeCardinalityIndex
 				}
 				allReferencedPrimaryKeys = writer.get();
 			} else {
-				if (this.memoizedAllReferencedPrimaryKeys == null) {
+				allReferencedPrimaryKeys = this.memoizedAllReferencedPrimaryKeys;
+				if (allReferencedPrimaryKeys == null) {
 					final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 					for (Integer referencedEntityId : this.referencedPrimaryKeysIndex.keySet()) {
 						writer.add(referencedEntityId);
 					}
-					this.memoizedAllReferencedPrimaryKeys = writer.get();
+					allReferencedPrimaryKeys = writer.get();
+					this.memoizedAllReferencedPrimaryKeys = allReferencedPrimaryKeys;
 				}
-				allReferencedPrimaryKeys = this.memoizedAllReferencedPrimaryKeys;
 			}
 			final RoaringBitmap matchingReferencedEntityPks = RoaringBitmap.and(
 				allReferencedPrimaryKeys,
@@ -286,7 +400,7 @@ public class ReferenceTypeCardinalityIndex
 	public ReferenceTypeCardinalityIndex createCopyWithMergedTransactionalMemory(
 		@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new ReferenceTypeCardinalityIndex(
 				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities),

@@ -271,7 +271,7 @@ public class BaseBitmap implements RoaringBitmapBackedBitmap {
 
 	@Override
 	public int[] getArray() {
-		return this.roaringBitmap.toArray();
+		return RoaringBitmapBackedBitmap.toSignedArray(this.roaringBitmap);
 	}
 
 	@Nonnull

@@ -75,7 +75,13 @@ public interface HistogramDescriptor {
 		.type(nonNullListRef(BucketDescriptor.THIS))
 		.build();
 
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
+	/**
+	 * Interface descriptor — the external-facing `Histogram` type shared by both static
+	 * (attribute / price) and reference-scope histograms. Concrete implementations
+	 * (such as {@link #THIS} or {@link ReferenceHistogramDescriptor#THIS}) implement
+	 * this interface so clients can select the four base fields polymorphically.
+	 */
+	ObjectDescriptor THIS_INTERFACE = ObjectDescriptor.builder()
 		.name("Histogram")
 		.description("""
 			A histogram is an approximate representation of the distribution of numerical data. For detailed description please
@@ -84,11 +90,25 @@ public interface HistogramDescriptor {
 			in the returned data set and which are rare. Bucket count will never exceed requested bucket count but there
 			may be less of them if there is no enough data for computation. Bucket thresholds are specified heuristically so tha
 			there are as few "empty buckets" as possible.
-			                
+
 			- buckets are defined by their lower bounds (inclusive)
 			- the upper bound is the lower bound of the next bucket
 			""")
 		.staticProperties(List.of(MIN, MAX, OVERALL_COUNT, BUCKETS))
+		.build();
+
+	/**
+	 * Concrete static implementation of the `Histogram` interface used for attribute and price
+	 * histograms (the histograms that do not carry anchor referenced entities). Reference-scope
+	 * histograms use per-referenced-entity-type concrete types generated from
+	 * {@link ReferenceHistogramDescriptor#THIS}.
+	 */
+	ObjectDescriptor THIS = ObjectDescriptor.implementing(THIS_INTERFACE)
+		.name("BaseHistogram")
+		.description("""
+			Concrete histogram implementation without anchor referenced entities. Used for attribute
+			and price histograms.
+			""")
 		.build();
 
 	/**

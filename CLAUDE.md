@@ -36,3 +36,8 @@ See "How this repository is organized" in README.md for module descriptions and 
 - All classes and methods must have comprehensible JavaDoc
 - No TODO statements in committed code
 - No commented out code
+
+## Defensive Design
+
+- **Never silently skip unexpected states.** If a code path should be unreachable (e.g., an `else` after exhaustive enum checks, a `default` in a switch over a closed enum), it must throw an exception (`GenericEvitaInternalError` or equivalent) — never `continue`, `return`, `break`, or no-op.
+- Treat every unhandled enum value, unexpected type, or impossible branch as a programming error that must surface immediately at runtime.

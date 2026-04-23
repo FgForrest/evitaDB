@@ -34,6 +34,8 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
+import io.evitadb.store.checksum.ChecksumFactory;
+import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
@@ -82,16 +84,17 @@ class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	private final UUID transactionId = UUID.randomUUID();
 	private final Path walFile = getTestDirectory().resolve(this.transactionId.toString());
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
-	private final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(
-		TEST_CATALOG,
-		StorageOptions.builder().build(),
+	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(
 		Mockito.mock(Scheduler.class)
 	);
 	private final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
 		getTestDirectory().resolve(this.transactionId.toString()),
-		StorageOptions.temporary(),
+		StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+		false,
 		this.observableOutputKeeper,
-		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1)
+		new CatalogOffHeapMemoryManager(TEST_CATALOG, 512, 1, ChecksumFactory.NO_OP),
+		ChecksumFactory.NO_OP,
+		CompressionFactory.NO_COMPRESSION
 	);
 	private final DefaultIsolatedWalService tested = new DefaultIsolatedWalService(
 		TEST_CATALOG,

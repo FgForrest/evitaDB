@@ -25,6 +25,7 @@ package io.evitadb.utils;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -45,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@DisplayName("ExceptionUtils functionality")
+@DisplayName("ExceptionUtils contract tests")
 class ExceptionUtilsTest {
 
 	@Nested

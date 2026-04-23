@@ -54,8 +54,11 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Histogram index is based on <a href="https://en.wikipedia.org/wiki/Histogram">Histogram data structure</a>. It's
@@ -73,8 +76,8 @@ import java.util.function.Function;
  * Thread safety:
  *
  * Histogram supports transaction memory. This means, that the histogram can be updated by multiple writers and also
- * multiple readers can read from it's original array without spotting the changes made in transactional access. Each
- * transaction is bound to the same thread and different threads doesn't see changes in another threads.
+ * multiple readers can read from its original array without spotting the changes made in transactional access. Each
+ * transaction is bound to the same thread and different threads don't see changes in other threads.
  *
  * If no transaction is opened, changes are applied directly to the delegate array. In such case the class is not thread
  * safe for multiple writers!
@@ -144,7 +147,10 @@ public class InvertedIndex implements
 			Serializable finalPrevious = previous;
 			//noinspection unchecked
 			if (!(previous == null || comparator.compare(previous, bucket.getValue()) < 0)) {
-				report.append("Histogram values are not monotonic - conflicting values: ").append(finalPrevious).append(", ").append(bucket.getValue()).append(".\n");
+				report.append("Histogram values are not monotonic - ")
+					.append("conflicting values: ")
+					.append(finalPrevious).append(", ")
+					.append(bucket.getValue()).append(".\n");
 			}
 			previous = bucket.getValue();
 		}
@@ -279,6 +285,28 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Returns records associated with the given already-normalized value via direct binary search
+	 * on the current array. Unlike position-based access via `getRecordsAtIndex`, this method is
+	 * safe to call even when a cached position map may be stale due to concurrent transactional
+	 * modifications.
+	 *
+	 * @param normalizedValue the value already normalized by the caller (via FilterIndex normalizer)
+	 */
+	@Nonnull
+	public Bitmap getRecordsEqualTo(@Nullable Serializable normalizedValue) {
+		if (normalizedValue == null) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final ValueToRecordBitmap[] pointsArray = this.valueToRecordBitmap.getArray();
+		final int index = Arrays.binarySearch(pointsArray, new ValueToRecordBitmap(normalizedValue));
+		if (index >= 0) {
+			return pointsArray[index].getRecordIds();
+		} else {
+			return EmptyBitmap.INSTANCE;
+		}
+	}
+
+	/**
 	 * Returns set of record ids that are present at bucket at the specific index.
 	 */
 	@Nonnull
@@ -369,6 +397,24 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Returns subset of this histogram with buckets whose values match the given predicate.
+	 * Records returned by this {@link InvertedIndexSubSet} are sorted by record id value.
+	 *
+	 * @see #getSortedRecords()
+	 */
+	@Nonnull
+	public InvertedIndexSubSet getSortedRecordsMatching(@Nonnull Predicate<Serializable> valuePredicate) {
+		final ValueToRecordBitmap[] pointsArray = this.valueToRecordBitmap.getArray();
+		final List<ValueToRecordBitmap> result = new ArrayList<>(Math.min(64, pointsArray.length));
+		for (ValueToRecordBitmap bucket : pointsArray) {
+			if (valuePredicate.test(bucket.getValue()) && !bucket.isEmpty()) {
+				result.add(bucket);
+			}
+		}
+		return convertToSortedResult(result.toArray(ValueToRecordBitmap[]::new));
+	}
+
+	/**
 	 * Returns an array of values associated with the specified record ID.
 	 *
 	 * @param recordId the ID of the record
@@ -418,14 +464,14 @@ public class InvertedIndex implements
 		this.dirty.setToFalse();
 	}
 
-	/*
-		Implementation of TransactionalLayerProducer
-	 */
-
 	@Nonnull
 	@Override
-	public InvertedIndex createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final Boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+	public InvertedIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		final boolean isDirty = transactionalLayer
+			.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
 			return new InvertedIndex(
 				transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap),
@@ -479,7 +525,11 @@ public class InvertedIndex implements
 	 * Returns array of all {@link ValueToRecordBitmap} in the range.
 	 */
 	@Nonnull
-	private ValueToRecordBitmap[] getRecordsInternal(@Nullable Serializable moreThanEq, @Nullable Serializable lessThanEq, @Nonnull BoundsHandling boundsHandling) {
+	private ValueToRecordBitmap[] getRecordsInternal(
+		@Nullable Serializable moreThanEq,
+		@Nullable Serializable lessThanEq,
+		@Nonnull BoundsHandling boundsHandling
+	) {
 		final HistogramBounds histogramBounds = new HistogramBounds(
 			this.valueToRecordBitmap.getArray(),
 			this.normalizer.apply(moreThanEq),

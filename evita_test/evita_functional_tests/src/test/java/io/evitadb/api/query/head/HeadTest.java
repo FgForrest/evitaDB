@@ -23,11 +23,16 @@
 
 package io.evitadb.api.query.head;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.HeadConstraint;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
+
+import java.io.Serializable;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.head;
+import static io.evitadb.api.query.QueryConstraints.label;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -64,6 +69,49 @@ class HeadTest {
 		assertNotSame(head(collection("brand")), head(collection("brand")));
 		assertEquals(head(collection("brand")), head(collection("brand")));
 		assertNotEquals(head(collection("brand")), head(collection("product")));
+	}
+
+	@Test
+	void shouldReturnCopyWithNewChildren() {
+		final Head head = head(collection("brand"));
+		final HeadConstraint copy = head.getCopyWithNewChildren(
+			new HeadConstraint[]{collection("product")}, new Constraint[0]
+		);
+
+		assertInstanceOf(Head.class, copy);
+		assertArrayEquals(new HeadConstraint[]{collection("product")}, ((Head) copy).getChildren());
+	}
+
+	@Test
+	void shouldThrowWhenCopyWithAdditionalChildren() {
+		final Head head = head(collection("brand"));
+
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> head.getCopyWithNewChildren(
+				new HeadConstraint[]{collection("product")},
+				new Constraint[]{collection("category")}
+			)
+		);
+	}
+
+	@Test
+	void shouldThrowWhenCloneWithArguments() {
+		final Head head = head(collection("brand"));
+
+		assertThrows(
+			UnsupportedOperationException.class,
+			() -> head.cloneWithArguments(new Serializable[]{"test"})
+		);
+	}
+
+	@Test
+	void shouldRecognizeNecessity() {
+		final Head singleChild = head(collection("brand"));
+		assertFalse(singleChild.isNecessary());
+
+		final Head multipleChildren = new Head(collection("brand"), label("a", "b"));
+		assertTrue(multipleChildren.isNecessary());
 	}
 
 }

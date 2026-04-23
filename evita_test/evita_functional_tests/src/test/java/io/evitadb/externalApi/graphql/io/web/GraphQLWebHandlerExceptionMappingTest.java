@@ -66,7 +66,7 @@ import static org.mockito.Mockito.when;
  * the private method and verifies correct exception mapping for timeouts, user errors, internal errors, and
  * passthrough.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("GraphQLWebHandler - exception mapping")
 class GraphQLWebHandlerExceptionMappingTest {

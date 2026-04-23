@@ -49,17 +49,19 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetRequestImpactDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.EntityFacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor.BucketDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetRequestImpactDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator;
 import io.evitadb.test.Entities;
@@ -75,6 +77,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -87,6 +90,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
+import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.HISTOGRAM_PRICE_INDEX;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_HUNDRED_ARCHIVED_PRODUCTS_WITH_ARCHIVE;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.SORTABLE_ATTRIBUTE_COMPOUND_CODE_NAME;
@@ -103,19 +107,215 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
+@SuppressWarnings("deprecation")
 class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	private static final String DATA_PATH = ResponseDescriptor.RECORD_PAGE.name() + ".data";
-	private static final String HIERARCHY_EXTRA_RESULTS_PATH = ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
-	private static final String PRICE_HISTOGRAM_RESULTS_PATH = ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name();
+	private static final String HIERARCHY_EXTRA_RESULTS_PATH =
+		ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.HIERARCHY.name();
+	private static final String PRICE_HISTOGRAM_RESULTS_PATH =
+		ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name();
 
-	private static final String SELF_HIERARCHY_EXTRA_RESULTS_PATH = HIERARCHY_EXTRA_RESULTS_PATH + "." + HierarchyDescriptor.SELF.name();
+	private static final String SELF_HIERARCHY_EXTRA_RESULTS_PATH =
+		HIERARCHY_EXTRA_RESULTS_PATH + "." + HierarchyDescriptor.SELF.name();
 	public static final String SELF_MEGA_MENU_PATH = SELF_HIERARCHY_EXTRA_RESULTS_PATH + ".megaMenu";
 	public static final String SELF_ROOT_SIBLINGS_PATH = SELF_HIERARCHY_EXTRA_RESULTS_PATH + ".rootSiblings";
 
 	private static final String REFERENCED_HIERARCHY_EXTRA_RESULTS_PATH = HIERARCHY_EXTRA_RESULTS_PATH + ".category";
 	private static final String REFERENCED_MEGA_MENU_PATH = REFERENCED_HIERARCHY_EXTRA_RESULTS_PATH + ".megaMenu";
 	private static final String REFERENCED_ROOT_SIBLINGS_PATH = REFERENCED_HIERARCHY_EXTRA_RESULTS_PATH + ".rootSiblings";
+
+	protected static Stream<Arguments> statisticTypeAndBaseVariants() {
+		return Stream.of(
+			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.WITHOUT_USER_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.COMPLETE_FILTER),
+			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.WITHOUT_USER_FILTER)
+		);
+	}
+
+	/**
+	 * Creates a query for retrieving paginated product entities with specified spacing conditions.
+	 *
+	 * @param pageNumber the page number to retrieve, must be greater than 0
+	 * @param pageSize   the number of items per page, must be greater than 0
+	 * @return a constructed Query object with the specified pagination and spacing conditions
+	 */
+	@Nonnull
+	private static Query fabricateEvitaQLSpacingQuery(int pageNumber, int pageSize) {
+		return query(
+			collection(Entities.PRODUCT),
+			require(
+				page(
+					pageNumber, pageSize,
+					spacing(
+						gap(2, "(($pageNumber - 1) % 2 == 0) && $pageNumber <= 6"),
+						gap(1, "($pageNumber % 2 == 0) && $pageNumber <= 6")
+					)
+				),
+				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+			)
+		);
+	}
+
+	@Nonnull
+	private static String fabricateRestSpacingQuery(int pageNumber, int pageSize) {
+		return String.format(
+			"""
+				{
+					"require": {
+						"page": {
+							"number": %d,
+							"size": %d,
+							"spacing": [
+								{
+									"gap": {
+										"size": 2,
+										"onPage": "(($pageNumber - 1) %%%% 2 == 0) && $pageNumber <= 6"
+									}
+								},
+								{
+									"gap": {
+										"size": 1,
+										"onPage": "($pageNumber %%%% 2 == 0) && $pageNumber <= 6"
+									}
+								}
+							]
+						}
+					}
+				}
+				""",
+			pageNumber,
+			pageSize
+		);
+	}
+
+	@Nonnull
+	private static Map<String, Object> createPriceHistogramDto(
+		@Nonnull EvitaResponse<? extends EntityClassifier> response
+	) {
+		final PriceHistogram priceHistogram = response.getExtraResult(PriceHistogram.class);
+
+		return map()
+			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
+			.e(HistogramDescriptor.MAX.name(), priceHistogram.getMax().toString())
+			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
+			.e(
+				HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
+					.map(bucket -> map()
+						.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
+						.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
+						.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
+						.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
+						.build())
+					.toList()
+			)
+			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
+			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
+			.build();
+	}
+
+	@Nonnull
+	private static List<Map<String, Object>> createFacetSummaryDto(
+		@Nonnull EvitaResponse<? extends EntityClassifier> response,
+		@Nonnull String referenceName
+	) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return facetSummary.getReferenceStatistics()
+			.stream()
+			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
+			.map(groupStatistics ->
+				     map()
+					     .e(
+						     FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(),
+						     createEntityDto(groupStatistics.getGroupEntity())
+					     )
+					     .e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					     .e(
+						     FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(),
+						     groupStatistics.getFacetStatistics()
+							     .stream()
+							     .map(facetStatistics -> {
+								     final MapBuilder facetStatisticsDto = map()
+									     .e(
+										     FacetStatisticsDescriptor.REQUESTED.name(),
+										     facetStatistics.isRequested()
+									     )
+									     .e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+									     .e(
+										     FacetStatisticsDescriptor.FACET_ENTITY.name(),
+										     createEntityDto(facetStatistics.getFacetEntity())
+									     );
+
+								     Optional.ofNullable(facetStatistics.getImpact())
+									     .ifPresent(impact -> facetStatisticsDto.e(
+										     FacetStatisticsDescriptor.IMPACT.name(), map()
+											     .e(
+												     FacetRequestImpactDescriptor.DIFFERENCE.name(),
+												     facetStatistics.getImpact().difference()
+											     )
+											     .e(
+												     FacetRequestImpactDescriptor.MATCH_COUNT.name(),
+												     facetStatistics.getImpact().matchCount()
+											     )
+											     .e(
+												     FacetRequestImpactDescriptor.HAS_SENSE.name(),
+												     facetStatistics.getImpact().hasSense()
+											     )
+											     .build()
+									     ));
+
+								     return facetStatisticsDto.build();
+							     })
+							     .toList()
+					     )
+					     .build()
+			)
+			.toList();
+	}
+
+	@Nonnull
+	private static Query fabricateEvitaQLSegmentedQuery(int pageNumber, int pageSize, @Nonnull Segments segments) {
+		return query(
+			collection(Entities.PRODUCT),
+			filterBy(entityLocaleEquals(Locale.ENGLISH)),
+			orderBy(segments),
+			require(
+				page(pageNumber, pageSize),
+				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+			)
+		);
+	}
+
+	@Nonnull
+	private static String fabricateRestSegmentedQuery(int pageNumber, int pageSize, @Nonnull String segments) {
+		return String.format(
+			"""
+				{
+					"filterBy": {
+						"entityLocaleEquals": "en"
+					},
+					"orderBy": [{
+						%s
+					}],
+					"require": {
+						"page": {
+							"number": %d,
+							"size": %d
+						}
+					}
+				}
+				""",
+			segments,
+			pageNumber,
+			pageSize
+		);
+	}
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
@@ -144,8 +344,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		tester.test(TEST_CATALOG)
 			.post("/PRODUCT/query")
-			.requestBody("""
-                    {
+			.requestBody(
+				"""
+					               {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": [%d, %d]
 						},
@@ -157,7 +358,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					}
 					""",
 				entities.get(0).getPrimaryKey(),
-				entities.get(1).getPrimaryKey())
+				entities.get(1).getPrimaryKey()
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -166,7 +368,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key greater than")
-	void shouldReturnProductsByPrimaryKeyGreaterThan(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyGreaterThan(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final int threshold = originalProductEntities
 			.get(originalProductEntities.size() / 2)
 			.getPrimaryKeyOrThrowException();
@@ -190,23 +394,25 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyGreaterThan": %d
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": 20
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyGreaterThan": %d
 						},
-						"entityFetch": {
-							"attributeContent": ["code"]
+						"require": {
+							"page": {
+								"number": 1,
+								"size": 20
+							},
+							"entityFetch": {
+								"attributeContent": ["code"]
+							}
 						}
 					}
-				}
-				""",
-				threshold)
+					""",
+				threshold
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -215,7 +421,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key greater than or equals")
-	void shouldReturnProductsByPrimaryKeyGreaterThanEquals(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyGreaterThanEquals(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final int threshold = originalProductEntities
 			.get(originalProductEntities.size() / 2)
 			.getPrimaryKeyOrThrowException();
@@ -239,23 +447,25 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyGreaterThanEquals": %d
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": 20
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyGreaterThanEquals": %d
 						},
-						"entityFetch": {
-							"attributeContent": ["code"]
+						"require": {
+							"page": {
+								"number": 1,
+								"size": 20
+							},
+							"entityFetch": {
+								"attributeContent": ["code"]
+							}
 						}
 					}
-				}
-				""",
-				threshold)
+					""",
+				threshold
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -264,7 +474,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key less than")
-	void shouldReturnProductsByPrimaryKeyLessThan(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyLessThan(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final int threshold = originalProductEntities
 			.get(originalProductEntities.size() / 2)
 			.getPrimaryKeyOrThrowException();
@@ -288,23 +500,25 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyLessThan": %d
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": 20
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyLessThan": %d
 						},
-						"entityFetch": {
-							"attributeContent": ["code"]
+						"require": {
+							"page": {
+								"number": 1,
+								"size": 20
+							},
+							"entityFetch": {
+								"attributeContent": ["code"]
+							}
 						}
 					}
-				}
-				""",
-				threshold)
+					""",
+				threshold
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -313,7 +527,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key less than or equals")
-	void shouldReturnProductsByPrimaryKeyLessThanEquals(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyLessThanEquals(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final int threshold = originalProductEntities
 			.get(originalProductEntities.size() / 2)
 			.getPrimaryKeyOrThrowException();
@@ -337,23 +553,25 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyLessThanEquals": %d
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": 20
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyLessThanEquals": %d
 						},
-						"entityFetch": {
-							"attributeContent": ["code"]
+						"require": {
+							"page": {
+								"number": 1,
+								"size": 20
+							},
+							"entityFetch": {
+								"attributeContent": ["code"]
+							}
 						}
 					}
-				}
-				""",
-				threshold)
+					""",
+				threshold
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -362,7 +580,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key between")
-	void shouldReturnProductsByPrimaryKeyBetween(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByPrimaryKeyBetween(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final int from = originalProductEntities
 			.get(originalProductEntities.size() / 4)
 			.getPrimaryKeyOrThrowException();
@@ -389,24 +609,26 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyBetween": [%d, %d]
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": 20
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyBetween": [%d, %d]
 						},
-						"entityFetch": {
-							"attributeContent": ["code"]
+						"require": {
+							"page": {
+								"number": 1,
+								"size": 20
+							},
+							"entityFetch": {
+								"attributeContent": ["code"]
+							}
 						}
 					}
-				}
-				""",
+					""",
 				from,
-				to)
+				to
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -439,7 +661,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.post("/PRODUCT/query")
 			.requestBody(
 				"""
-	                {
+					            {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": [%d, %d],
 						    "scope": ["ARCHIVED"]
@@ -496,7 +718,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.post("/PRODUCT/query")
 			.requestBody(
 				"""
-	                {
+					            {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": [%d, %d, %d, %d],
 						    "scope": ["LIVE", "ARCHIVED"]
@@ -536,7 +758,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.post("/PRODUCT/query")
 			.requestBody(
 				"""
-	                {
+					            {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": [%d]
 						}
@@ -588,25 +810,27 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		tester.test(TEST_CATALOG)
 			.post("/PRODUCT/query")
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyInSet": [%d, %d, %d, %d],
-						"inScope": {
-							"scope": "LIVE",
-							"filtering": [{
-								"attributeCodeEquals": "%s"
-							}]
-						},
-						"scope": ["LIVE", "ARCHIVED"]
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyInSet": [%d, %d, %d, %d],
+							"inScope": {
+								"scope": "LIVE",
+								"filtering": [{
+									"attributeCodeEquals": "%s"
+								}]
+							},
+							"scope": ["LIVE", "ARCHIVED"]
+						}
 					}
-				}
-				""",
+					""",
 				liveEntities.get(0).getPrimaryKey(),
 				liveEntities.get(1).getPrimaryKey(),
 				archivedEntities.get(0).getPrimaryKey(),
 				archivedEntities.get(1).getPrimaryKey(),
-				liveEntities.get(0).getAttribute(ATTRIBUTE_CODE))
+				liveEntities.get(0).getAttribute(ATTRIBUTE_CODE)
+			)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
 	}
@@ -662,26 +886,28 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		tester.test(TEST_CATALOG)
 			.post("/PRODUCT/query")
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyInSet": [%d, %d, %d, %d],
-						"scope": ["LIVE", "ARCHIVED"]
-					},
-					"orderBy": [{
-						"inScope": {
-							"scope": "LIVE",
-							"ordering": [{
-								"attributePriorityNatural": "DESC"
-							}]
-						}
-					}]
-				}
-				""",
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyInSet": [%d, %d, %d, %d],
+							"scope": ["LIVE", "ARCHIVED"]
+						},
+						"orderBy": [{
+							"inScope": {
+								"scope": "LIVE",
+								"ordering": [{
+									"attributePriorityNatural": "DESC"
+								}]
+							}
+						}]
+					}
+					""",
 				liveEntities.get(0).getPrimaryKey(),
 				liveEntities.get(1).getPrimaryKey(),
 				archivedEntities.get(0).getPrimaryKey(),
-				archivedEntities.get(1).getPrimaryKey())
+				archivedEntities.get(1).getPrimaryKey()
+			)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, containsInAnyOrder(expectedBody.toArray()));
 	}
@@ -742,35 +968,37 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		tester.test(TEST_CATALOG)
 			.post("/PRODUCT/query")
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyInSet": [%d, %d, %d, %d],
-						"scope": ["LIVE", "ARCHIVED"],
-						"inScope": {
-							"scope": "LIVE",
-							"filtering": [{
-								"priceInPriceLists": ["vip", "basic"],
-								"priceInCurrency": "EUR"
-							}]
-						}
-					},
-					"require": {
-						"inScope": {
-							"scope": "LIVE",
-							"require": {
-								"priceHistogram": {
-									"requestedBucketCount" : 5
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyInSet": [%d, %d, %d, %d],
+							"scope": ["LIVE", "ARCHIVED"],
+							"inScope": {
+								"scope": "LIVE",
+								"filtering": [{
+									"priceInPriceLists": ["vip", "basic"],
+									"priceInCurrency": "EUR"
+								}]
+							}
+						},
+						"require": {
+							"inScope": {
+								"scope": "LIVE",
+								"require": {
+									"priceHistogram": {
+										"requestedBucketCount" : 5
+									}
 								}
 							}
 						}
 					}
-				}
-				""",
+					""",
 				liveEntities.get(0).getPrimaryKey(),
 				liveEntities.get(1).getPrimaryKey(),
 				archivedEntities.get(0).getPrimaryKey(),
-				archivedEntities.get(1).getPrimaryKey())
+				archivedEntities.get(1).getPrimaryKey()
+			)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, containsInAnyOrder(expectedBody.toArray()))
 			.body(PRICE_HISTOGRAM_RESULTS_PATH, equalTo(createPriceHistogramDto(expectedEntities)));
@@ -779,7 +1007,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute")
-	void shouldReturnProductsByNonLocalizedAttribute(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByNonLocalizedAttribute(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH) != null &&
@@ -811,7 +1041,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-                    {
+					               {
 						"filterBy": {
 						    "attributeCodeInSet": %s,
 						    "entityLocaleEquals": "en"
@@ -823,7 +1053,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					    }
 					}
 					""",
-				serializeStringArrayToQueryString(codes))
+				serializeStringArrayToQueryString(codes)
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -832,7 +1063,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by localized attribute")
-	void shouldReturnProductsByLocalizedAttribute(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByLocalizedAttribute(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null &&
@@ -862,8 +1095,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
-                """
-                    {
+				"""
+					               {
 						"filterBy": {
 							"attributeUrlInSet": %s,
 						    "entityLocaleEquals": "en"
@@ -885,7 +1118,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by localized attribute with locale in URL")
-	void shouldReturnProductsByLocalizedAttributeWithLocaleInUrl(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnProductsByLocalizedAttributeWithLocaleInUrl(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH) != null &&
@@ -914,8 +1149,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-                    {
+			.requestBody(
+				"""
+					               {
 						"filterBy": {
 						    "attributeUrlInSet": %s
 						},
@@ -941,13 +1177,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"attributeUrlInSet": ["some_url"],
-						"entityLocaleEquals": "en"
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"attributeUrlInSet": ["some_url"],
+				             		"entityLocaleEquals": "en"
+				             	}
+				             }
+				             """)
 			.executeAndThen()
 			.statusCode(400)
 			.body("message", notNullValue());
@@ -961,17 +1197,17 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"attributeUrlInSet": ["xxx"]
-					},
-					"require": {
-						"entityFetch_xxx": {
-							"attributeContent": ["url", "name"]
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"attributeUrlInSet": ["xxx"]
+				             	},
+				             	"require": {
+				             		"entityFetch_xxx": {
+				             			"attributeContent": ["url", "name"]
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndThen()
 			.statusCode(400)
 			.body("message", notNullValue());
@@ -980,19 +1216,22 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for invalid query when single value is sent instead of array.")
-	void shouldReturnErrorForInvalidQueryWhenSingleValueIsSentInsteadOfArray(RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForInvalidQueryWhenSingleValueIsSentInsteadOfArray(
+		RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyInSet": %d
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"entityPrimaryKeyInSet": %d
+						}
 					}
-				}
-				""",
+					""",
 				pks[0]
 			)
 			.executeAndThen()
@@ -1029,17 +1268,17 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/CATEGORY/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyInSet": [16]
-					},
-					"require": {
-						"entityFetch": {
-							"hierarchyContent": {}
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"entityPrimaryKeyInSet": [16]
+				             	},
+				             	"require": {
+				             		"entityFetch": {
+				             			"hierarchyContent": {}
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, equalTo(createEntityDtos(categories)));
 	}
@@ -1077,21 +1316,21 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/CATEGORY/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyInSet": [16]
-					},
-					"require": {
-						"entityFetch": {
-							"hierarchyContent": {
-								"entityFetch": {
-									"attributeContent": ["code"]
-								}
-							}
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"entityPrimaryKeyInSet": [16]
+				             	},
+				             	"require": {
+				             		"entityFetch": {
+				             			"hierarchyContent": {
+				             				"entityFetch": {
+				             					"attributeContent": ["code"]
+				             				}
+				             			}
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, equalTo(createEntityDtos(categories)));
 	}
@@ -1127,21 +1366,21 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/CATEGORY/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"entityPrimaryKeyInSet": [16]
-					},
-					"require": {
-						"entityFetch": {
-							"hierarchyContent": {
-								"stopAt": {
-									"distance": 1
-								}
-							}
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"entityPrimaryKeyInSet": [16]
+				             	},
+				             	"require": {
+				             		"entityFetch": {
+				             			"hierarchyContent": {
+				             				"stopAt": {
+				             					"distance": 1
+				             				}
+				             			}
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, equalTo(createEntityDtos(categories)));
 	}
@@ -1175,14 +1414,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			p -> {
 				// check that it has at least 2 referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
-					.iterator()
-					.next()
-					.getReferencedEntity()
-					.orElseThrow()
-					.getParentEntity()
-					.get()
-					.getParentEntity()
-					.isPresent());
+					           .iterator()
+					           .next()
+					           .getReferencedEntity()
+					           .orElseThrow()
+					           .getParentEntity()
+					           .orElseThrow()
+					           .getParentEntity()
+					           .isPresent());
 			},
 			SealedEntity.class
 		);
@@ -1191,29 +1430,29 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"hierarchyCategoryWithin": {
-							"ofParent": {
-								"entityPrimaryKeyInSet": [26]
-							}
-						}
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": 1
-						},
-						"entityFetch": {
-							"referenceCategoryContent": {
-								"entityFetch": {
-									"hierarchyContent": {}
-								}
-							}
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"hierarchyCategoryWithin": {
+				             			"ofParent": {
+				             				"entityPrimaryKeyInSet": [26]
+				             			}
+				             		}
+				             	},
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 1
+				             		},
+				             		"entityFetch": {
+				             			"referenceCategoryContent": {
+				             				"entityFetch": {
+				             					"hierarchyContent": {}
+				             				}
+				             			}
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, equalTo(createEntityDtos(products)));
 	}
@@ -1251,14 +1490,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			p -> {
 				// check that it has at least 2 referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
-					.iterator()
-					.next()
-					.getReferencedEntity()
-					.orElseThrow()
-					.getParentEntity()
-					.get()
-					.getParentEntity()
-					.isPresent());
+					           .iterator()
+					           .next()
+					           .getReferencedEntity()
+					           .orElseThrow()
+					           .getParentEntity()
+					           .orElseThrow()
+					           .getParentEntity()
+					           .isPresent());
 			},
 			SealedEntity.class
 		);
@@ -1267,33 +1506,33 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"hierarchyCategoryWithin": {
-							"ofParent": {
-								"entityPrimaryKeyInSet": [26]
-							}
-						}
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": 1
-						},
-						"entityFetch": {
-							"referenceCategoryContent": {
-								"entityFetch": {
-									"hierarchyContent": {
-										"entityFetch": {
-											"attributeContent": ["code"]
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"hierarchyCategoryWithin": {
+				             			"ofParent": {
+				             				"entityPrimaryKeyInSet": [26]
+				             			}
+				             		}
+				             	},
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 1
+				             		},
+				             		"entityFetch": {
+				             			"referenceCategoryContent": {
+				             				"entityFetch": {
+				             					"hierarchyContent": {
+				             						"entityFetch": {
+				             							"attributeContent": ["code"]
+				             						}
+				             					}
+				             				}
+				             			}
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, equalTo(createEntityDtos(products)));
 	}
@@ -1329,14 +1568,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			p -> {
 				// check that it has only one referenced parents
 				assertTrue(p.getReferences(Entities.CATEGORY)
-					.iterator()
-					.next()
-					.getReferencedEntity()
-					.orElseThrow()
-					.getParentEntity()
-					.get()
-					.getParentEntity()
-					.isEmpty());
+					           .iterator()
+					           .next()
+					           .getReferencedEntity()
+					           .orElseThrow()
+					           .getParentEntity()
+					           .orElseThrow()
+					           .getParentEntity()
+					           .isEmpty());
 			},
 			SealedEntity.class
 		);
@@ -1345,42 +1584,42 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"hierarchyCategoryWithin": {
-							"ofParent": {
-								"entityPrimaryKeyInSet": [16]
-							}
-						}
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": 1
-						},
-						"entityFetch": {
-							"referenceCategoryContent": {
-								"entityFetch": {
-									"hierarchyContent": {
-										"stopAt": {
-											"distance": 1
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"hierarchyCategoryWithin": {
+				             			"ofParent": {
+				             				"entityPrimaryKeyInSet": [16]
+				             			}
+				             		}
+				             	},
+				             	"require": {
+				             		"page": {
+				             			"number": 1,
+				             			"size": 1
+				             		},
+				             		"entityFetch": {
+				             			"referenceCategoryContent": {
+				             				"entityFetch": {
+				             					"hierarchyContent": {
+				             						"stopAt": {
+				             							"distance": 1
+				             						}
+				             					}
+				             				}
+				             			}
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndExpectOkAndThen()
 			.body(DATA_PATH, equalTo(createEntityDtos(products)));
 	}
 
-
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference page for products")
-	void shouldReturnReferencePageForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferencePageForProducts(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final var entityPks = findEntityPks(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() >= 4,
@@ -1412,24 +1651,24 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-	                {
-	                    "filterBy": {
-	                        "entityPrimaryKeyInSet": %s
-	                    },
-	                    "require": {
-	                        "entityFetch": {
-	                            "referenceStoreContent": {
-	                                "entityFetch": {},
-	                                "chunking": {
-	                                    "page": {
-	                                        "number": 2,
-	                                        "size": 2
-	                                    }
-	                                }
-	                            }
-	                        }
-	                    }
-	                }
+					            {
+					                "filterBy": {
+					                    "entityPrimaryKeyInSet": %s
+					                },
+					                "require": {
+					                    "entityFetch": {
+					                        "referenceStoreContent": {
+					                            "entityFetch": {},
+					                            "chunking": {
+					                                "page": {
+					                                    "number": 2,
+					                                    "size": 2
+					                                }
+					                            }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				serializeIntArrayToQueryString(entityPks)
 			)
@@ -1441,7 +1680,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference strip for products")
-	void shouldReturnReferenceStripForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferenceStripForProducts(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var entityPks = findEntityPks(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() >= 4,
@@ -1473,24 +1714,24 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-	                {
-	                    "filterBy": {
-	                        "entityPrimaryKeyInSet": %s
-	                    },
-	                    "require": {
-	                        "entityFetch": {
-	                            "referenceStoreContent": {
-	                                "entityFetch": {},
-	                                "chunking": {
-	                                    "strip": {
-	                                        "offset": 2,
-	                                        "limit": 2
-	                                    }
-	                                }
-	                            }
-	                        }
-	                    }
-	                }
+					            {
+					                "filterBy": {
+					                    "entityPrimaryKeyInSet": %s
+					                },
+					                "require": {
+					                    "entityFetch": {
+					                        "referenceStoreContent": {
+					                            "entityFetch": {},
+					                            "chunking": {
+					                                "strip": {
+					                                    "offset": 2,
+					                                    "limit": 2
+					                                }
+					                            }
+					                        }
+					                    }
+					                }
+					            }
 					""",
 				serializeIntArrayToQueryString(entityPks)
 			)
@@ -1502,7 +1743,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter by and return price for sale for multiple products")
-	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldFilterByAndReturnPriceForSaleForMultipleProducts(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		final List<EntityClassifier> entities = getEntities(
@@ -1527,7 +1770,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-                    {
+					               {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": %s,
 						    "priceInCurrency": "CZK",
@@ -1552,7 +1795,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return all prices for sale for master products")
-	void shouldReturnAllPricesForSaleForMasterProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAllPricesForSaleForMasterProducts(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> !it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
@@ -1595,7 +1840,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-                    {
+					               {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": %s,
 						    "priceInCurrency": "CZK",
@@ -1621,14 +1866,22 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return default and custom accompanying prices for products")
-	void shouldReturnDefaultAndCustomAccompanyingPricesForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnDefaultAndCustomAccompanyingPricesForProducts(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final List<Integer> desiredEntities = originalProductEntities.stream()
 			.filter(entity ->
-				entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
-					entity.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
-					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_BASIC::equals) &&
-					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_REFERENCE::equals) &&
-					entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_VIP::equals)
+				        entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+					        entity.getPrices().stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
+					        entity.getPrices()
+						        .stream()
+						        .map(PriceContract::priceList)
+						        .anyMatch(PRICE_LIST_BASIC::equals) &&
+					        entity.getPrices()
+						        .stream()
+						        .map(PriceContract::priceList)
+						        .anyMatch(PRICE_LIST_REFERENCE::equals) &&
+					        entity.getPrices().stream().map(PriceContract::priceList).anyMatch(PRICE_LIST_VIP::equals)
 			)
 			.map(EntityContract::getPrimaryKey)
 			.toList();
@@ -1659,7 +1912,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-                    {
+					               {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": %s,
 						    "priceInCurrency": "EUR",
@@ -1690,7 +1943,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should filter products by non-existent price")
-	void shouldFilterProductsByNonExistentPrice(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldFilterProductsByNonExistentPrice(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		tester.test(TEST_CATALOG)
@@ -1698,7 +1953,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-                    {
+					               {
 						"filterBy": {
 						  "entityPrimaryKeyInSet": %s,
 						  "priceInCurrency": "CZK",
@@ -1723,7 +1978,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for filtering products by unknown currency")
-	void shouldReturnErrorForFilteringProductsByUnknownCurrency(RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnErrorForFilteringProductsByUnknownCurrency(
+		RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		tester.test(TEST_CATALOG)
@@ -1731,7 +1988,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-                    {
+					               {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": %s,
 						    "priceInCurrency": "AAA",
@@ -1756,7 +2013,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return custom price for sale for products")
-	void shouldReturnCustomPriceForSaleForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnCustomPriceForSaleForProducts(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityWithPricePks(originalProductEntities, 2);
 
 		final List<EntityClassifier> entities = getEntities(
@@ -1781,7 +2040,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-                    {
+					               {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": %s,
 						    "priceInCurrency": "CZK",
@@ -1796,7 +2055,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				serializeIntArrayToQueryString(pks))
+				serializeIntArrayToQueryString(pks)
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
@@ -1832,7 +2092,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"filterBy": {
 							"entityPrimaryKeyInSet": %s,
@@ -1855,7 +2116,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return associated data with locale in URL")
-	void shouldReturnAssociatedDataWithLocaleInUrl(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnAssociatedDataWithLocaleInUrl(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null &&
@@ -1882,7 +2145,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"filterBy": {
 							"entityPrimaryKeyInSet": %s
@@ -1904,11 +2168,16 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single reference for products")
-	void shouldReturnSingleReferenceForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnSingleReferenceForProducts(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getReferences(Entities.BRAND).size() == 1 &&
-				it.getReferences(Entities.BRAND).iterator().next().getAttribute(TestDataGenerator.ATTRIBUTE_MARKET_SHARE) != null,
+				it.getReferences(Entities.BRAND)
+					.iterator()
+					.next()
+					.getAttribute(TestDataGenerator.ATTRIBUTE_MARKET_SHARE) != null,
 			2
 		);
 
@@ -1933,8 +2202,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-                    {
+			.requestBody(
+				"""
+					               {
 						"filterBy": {
 						    "entityPrimaryKeyInSet": %s
 						},
@@ -1957,7 +2227,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return reference list for products")
-	void shouldReturnReferenceListForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
+	void shouldReturnReferenceListForProducts(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final var pks = findEntityPks(
 			originalProductEntities,
 			it -> it.getReferences(Entities.STORE).size() > 1,
@@ -1986,8 +2257,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
-					"""
-                    {
+				"""
+					               {
 						"filterBy": {
 						  "entityPrimaryKeyInSet": %s
 						},
@@ -2010,7 +2281,10 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return filtered and ordered reference list for products")
-	void shouldReturnFilteredAndOrderedReferenceListForProducts(Evita evita, RestTester tester, List<SealedEntity> originalProductsEntities, List<SealedEntity> originalStoreEntities) {
+	void shouldReturnFilteredAndOrderedReferenceListForProducts(
+		Evita evita, RestTester tester,
+		List<SealedEntity> originalProductsEntities, List<SealedEntity> originalStoreEntities
+	) {
 		final Map<Integer, SealedEntity> storesIndexedByPk = originalStoreEntities.stream()
 			.collect(Collectors.toMap(
 				EntityContract::getPrimaryKey,
@@ -2075,32 +2349,32 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-	                 {
-	                    "filterBy": {
-	                        "entityPrimaryKeyInSet": %s,
-	                        "entityLocaleEquals": "cs-CZ"
-	                    },
-	                    "require": {
-	                        "page": {
-	                            "number": 1,
-	                            "size": %d
-	                        },
-	                        "entityFetch": {
-	                            "referenceStoreContent": {
-		                            "filterBy": {
-		                                "entityHaving": {
-		                                    "attributeCodeInSet": %s
-		                                }
-		                            },
-		                            "orderBy": [{
-		                                "entityProperty": [{
-		                                    "attributeNameNatural": "DESC"
-		                                }]
-		                            }]
-		                        }
-	                        }
-	                    }
-	                 }
+					             {
+					                "filterBy": {
+					                    "entityPrimaryKeyInSet": %s,
+					                    "entityLocaleEquals": "cs-CZ"
+					                },
+					                "require": {
+					                    "page": {
+					                        "number": 1,
+					                        "size": %d
+					                    },
+					                    "entityFetch": {
+					                        "referenceStoreContent": {
+					                         "filterBy": {
+					                             "entityHaving": {
+					                                 "attributeCodeInSet": %s
+					                             }
+					                         },
+					                         "orderBy": [{
+					                             "entityProperty": [{
+					                                 "attributeNameNatural": "DESC"
+					                             }]
+					                         }]
+					                     }
+					                    }
+					                }
+					             }
 					""",
 				serializeIntArrayToQueryString(productsWithLotsOfStores.keySet().toArray(Integer[]::new)),
 				Integer.MAX_VALUE,
@@ -2117,12 +2391,15 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	void shouldFindProductByComplexQuery(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final Random rnd = new Random(SEED);
 		final List<SealedEntity> withTrueAlias = originalProductEntities.stream()
-			.filter(it -> Objects.equals(Boolean.TRUE, it.getAttribute(ATTRIBUTE_ALIAS)) && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
+			.filter(it -> Objects.equals(Boolean.TRUE, it.getAttribute(ATTRIBUTE_ALIAS))
+				&& it.getAttribute(ATTRIBUTE_PRIORITY) != null)
 			.filter(it -> rnd.nextInt(100) > 85)
 			.limit(2)
 			.toList();
 		final List<SealedEntity> withFalseAlias = originalProductEntities.stream()
-			.filter(it -> Objects.equals(Boolean.FALSE, it.getAttribute(ATTRIBUTE_ALIAS)) && it.getAttribute(ATTRIBUTE_CODE) != null && it.getAttribute(ATTRIBUTE_PRIORITY) != null)
+			.filter(it -> Objects.equals(Boolean.FALSE, it.getAttribute(ATTRIBUTE_ALIAS))
+				&& it.getAttribute(ATTRIBUTE_CODE) != null
+				&& it.getAttribute(ATTRIBUTE_PRIORITY) != null)
 			.filter(it -> rnd.nextInt(100) > 85)
 			.limit(5)
 			.toList();
@@ -2136,19 +2413,21 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						or(
 							and(
 								attributeEquals(ATTRIBUTE_ALIAS, withTrueAlias.get(0).getAttribute(ATTRIBUTE_ALIAS)),
-								attributeEquals(ATTRIBUTE_PRIORITY, withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY))
+								attributeEquals(
+									ATTRIBUTE_PRIORITY, withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY))
 							),
 							and(
 								attributeEquals(ATTRIBUTE_ALIAS, withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS)),
-								attributeEquals(ATTRIBUTE_PRIORITY, withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY))
+								attributeEquals(
+									ATTRIBUTE_PRIORITY, withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY))
 							),
 							and(
 								attributeEquals(ATTRIBUTE_ALIAS, false),
 								attributeInSet(
 									ATTRIBUTE_PRIORITY,
-									(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-									(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-									(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+									withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+									withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+									withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
 									(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY)
 								)
 							)
@@ -2172,42 +2451,43 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"or": [
-							{
-								"attributeAliasEquals": %b,
-								"attributePriorityEquals": "%s"
-							},
-							{
-								"attributeAliasEquals": %b,
-								"attributePriorityEquals": "%s"
-							},
-							{
-								"attributeAliasEquals": false,
-								"attributePriorityInSet": ["%s", "%s", "%s", "%s"]
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"or": [
+								{
+									"attributeAliasEquals": %b,
+									"attributePriorityEquals": "%s"
+								},
+								{
+									"attributeAliasEquals": %b,
+									"attributePriorityEquals": "%s"
+								},
+								{
+									"attributeAliasEquals": false,
+									"attributePriorityInSet": ["%s", "%s", "%s", "%s"]
+								}
+							],
+							"not": {
+								"attributeCodeEquals": "%s"
 							}
-						],
-						"not": {
-							"attributeCodeEquals": "%s"
-						}
-					},
-					"require": {
-						"strip": {
-							"limit": %d
+						},
+						"require": {
+							"strip": {
+								"limit": %d
+							}
 						}
 					}
-				}
-				""",
+					""",
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long) withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+				withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
 				withFalseAlias.get(4).getAttribute(ATTRIBUTE_CODE),
 				Integer.MAX_VALUE
 			)
@@ -2227,40 +2507,40 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"priceInPriceLists": ["basic"],
-						"priceInCurrency": "CZK",
-						"priceValidInNow": true
-					},
-					"orderBy": [{
-						"priceNatural": "DESC",
-						"attributeCodeNatural": "ASC"
-					}]
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"priceInPriceLists": ["basic"],
+				             		"priceInCurrency": "CZK",
+				             		"priceValidInNow": true
+				             	},
+				             	"orderBy": [{
+				             		"priceNatural": "DESC",
+				             		"attributeCodeNatural": "ASC"
+				             	}]
+				             }
+				             """)
 			.executeAndExpectBadRequestAndThen();
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"priceInPriceLists": ["basic"],
-						"priceInCurrency": "CZK",
-						"priceValidInNow": true
-					},
-					"orderBy": [
-						{
-							"priceNatural": "DESC"
-						},
-						{
-							"attributeCodeNatural": "ASC"
-						}
-					]
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"priceInPriceLists": ["basic"],
+				             		"priceInCurrency": "CZK",
+				             		"priceValidInNow": true
+				             	},
+				             	"orderBy": [
+				             		{
+				             			"priceNatural": "DESC"
+				             		},
+				             		{
+				             			"attributeCodeNatural": "ASC"
+				             		}
+				             	]
+				             }
+				             """)
 			.executeAndExpectOkAndThen();
 	}
 
@@ -2292,25 +2572,25 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"attributePriorityLessThan": 35000
-					},
-					"orderBy": [
-						{
-							"attributeCreatedNatural": "DESC"
-						},
-						{
-							"attributeManufacturedNatural": "ASC"
-						}
-					],
-					"require": {
-						"strip": {
-							"limit": 30
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"attributePriorityLessThan": 35000
+				             	},
+				             	"orderBy": [
+				             		{
+				             			"attributeCreatedNatural": "DESC"
+				             		},
+				             		{
+				             			"attributeManufacturedNatural": "ASC"
+				             		}
+				             	],
+				             	"require": {
+				             		"strip": {
+				             			"limit": 30
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -2354,14 +2634,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
-		            {
-			            "filterBy": {
-	                        "entityLocaleEquals": "cs-CZ"
-	                    },
-	                    "orderBy": [{
-	                        "attributeCodeNameNatural": "DESC"
-	                    }],
-	                    "require": {
+					         {
+					          "filterBy": {
+					                    "entityLocaleEquals": "cs-CZ"
+					                },
+					                "orderBy": [{
+					                    "attributeCodeNameNatural": "DESC"
+					                }],
+					                "require": {
 							"strip": {
 								"limit": 30
 							}
@@ -2401,18 +2681,18 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"attributePriorityLessThan": 35000
-					},
-					"require": {
-						"page": {
-							"number": 2,
-							"size": 3
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"attributePriorityLessThan": 35000
+				             	},
+				             	"require": {
+				             		"page": {
+				             			"number": 2,
+				             			"size": 3
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -2451,18 +2731,18 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"filterBy": {
-						"attributePriorityLessThan": 35000
-					},
-					"require": {
-						"strip": {
-							"offset": 2,
-							"limit": 3
-						}
-					}
-				}
-				""")
+				             {
+				             	"filterBy": {
+				             		"attributePriorityLessThan": 35000
+				             	},
+				             	"require": {
+				             		"strip": {
+				             			"offset": 2,
+				             			"limit": 3
+				             		}
+				             	}
+				             }
+				             """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -2497,7 +2777,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"require": {
 							"page": {
@@ -2512,11 +2793,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					}
 					""",
 				Integer.MAX_VALUE,
-				ATTRIBUTE_QUANTITY)
+				ATTRIBUTE_QUANTITY
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				resultPath(
+					ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY))
 			);
 	}
@@ -2542,7 +2825,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"require": {
 							"page": {
@@ -2558,11 +2842,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					}
 					""",
 				Integer.MAX_VALUE,
-				ATTRIBUTE_QUANTITY)
+				ATTRIBUTE_QUANTITY
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				resultPath(
+					ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY))
 			);
 	}
@@ -2591,7 +2877,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"filterBy": {
 							"userFilter": [{
@@ -2611,11 +2898,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					}
 					""",
 				Integer.MAX_VALUE,
-				ATTRIBUTE_QUANTITY)
+				ATTRIBUTE_QUANTITY
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
-				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				resultPath(
+					ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY))
 			);
 	}
@@ -2627,7 +2916,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"require": {
 							"page": {
@@ -2641,10 +2931,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					}
 					""",
 				Integer.MAX_VALUE,
-				ATTRIBUTE_QUANTITY)
+				ATTRIBUTE_QUANTITY
+			)
 			.executeAndThen()
 			.statusCode(400)
-			.body("message", equalTo("Constraint `attributeHistogram` requires parameter `requestedBucketCount` to be non-null."));
+			.body(
+				"message",
+				equalTo("Constraint `attributeHistogram` requires parameter `requestedBucketCount` to be non-null.")
+			);
 	}
 
 	@Test
@@ -2676,27 +2970,29 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"priceInCurrency": "EUR",
-						"priceInPriceLists": ["vip", "basic"],
-						"userFilter": [{
-							"priceBetween": ["80", "150"]
-						}]
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": %d
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"priceInCurrency": "EUR",
+							"priceInPriceLists": ["vip", "basic"],
+							"userFilter": [{
+								"priceBetween": ["80", "150"]
+							}]
 						},
-						"priceHistogram": {
-							"requestedBucketCount": 20
+						"require": {
+							"page": {
+								"number": 1,
+								"size": %d
+							},
+							"priceHistogram": {
+								"requestedBucketCount": 20
+							}
 						}
 					}
-				}
-				""",
-				Integer.MAX_VALUE)
+					""",
+				Integer.MAX_VALUE
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -2729,24 +3025,26 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"priceInCurrency": "EUR",
-						"priceInPriceLists": ["vip", "basic"]
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": %d
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"priceInCurrency": "EUR",
+							"priceInPriceLists": ["vip", "basic"]
 						},
-						"priceHistogram": {
-							"requestedBucketCount": 20
+						"require": {
+							"page": {
+								"number": 1,
+								"size": %d
+							},
+							"priceHistogram": {
+								"requestedBucketCount": 20
+							}
 						}
 					}
-				}
-				""",
-				Integer.MAX_VALUE)
+					""",
+				Integer.MAX_VALUE
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -2779,25 +3077,27 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
-				{
-					"filterBy": {
-						"priceInCurrency": "EUR",
-						"priceInPriceLists": ["vip", "basic"]
-					},
-					"require": {
-						"page": {
-							"number": 1,
-							"size": %d
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"priceInCurrency": "EUR",
+							"priceInPriceLists": ["vip", "basic"]
 						},
-						"priceHistogram": {
-							"requestedBucketCount": 20,
-							"behavior": "OPTIMIZED"
+						"require": {
+							"page": {
+								"number": 1,
+								"size": %d
+							},
+							"priceHistogram": {
+								"requestedBucketCount": 20,
+								"behavior": "OPTIMIZED"
+							}
 						}
 					}
-				}
-				""",
-				Integer.MAX_VALUE)
+					""",
+				Integer.MAX_VALUE
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -2810,7 +3110,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return self hierarchy from root")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyFromRoot(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnSelfHierarchyFromRoot(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedSelfHierarchy(
 			evita,
 			entityLocaleEquals(CZECH_LOCALE),
@@ -2827,8 +3129,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		fetchSelfHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ"
-                """,
+				"entityLocaleEquals": "cs-CZ"
+				""",
 			"""
 				{
 					"fromRoot": {
@@ -2855,7 +3157,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return self hierarchy from node")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyFromNode(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnSelfHierarchyFromNode(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedSelfHierarchy(
 			evita,
 			and(
@@ -2868,7 +3172,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(2)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
 		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getSelfHierarchy("megaMenu"));
@@ -2876,9 +3181,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		fetchSelfHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyWithinSelf": { "ofParent": { "entityPrimaryKeyInSet": [6] } }
-                """,
+				""",
 			"""
 				{
 					"fromNode": {
@@ -2910,7 +3215,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return self hierarchy children")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyChildren(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnSelfHierarchyChildren(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedSelfHierarchy(
 			evita,
 			and(
@@ -2922,7 +3229,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(1)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
 		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getSelfHierarchy("megaMenu"));
@@ -2930,9 +3238,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		fetchSelfHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyWithinSelf": { "ofParent": { "entityPrimaryKeyInSet": [1] } }
-                """,
+				""",
 			"""
 				{
 					"children": {
@@ -2959,7 +3267,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return self hierarchy parents without siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyParentsWithoutSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnSelfHierarchyParentsWithoutSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedSelfHierarchy(
 			evita,
 			and(
@@ -2970,7 +3280,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"megaMenu",
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
 		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getSelfHierarchy("megaMenu"));
@@ -2979,9 +3290,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		fetchSelfHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyWithinSelf": { "ofParent": { "entityPrimaryKeyInSet": [30] } }
-                """,
+				""",
 			"""
 				{
 					"parents": {
@@ -3008,7 +3319,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return self hierarchy parents with siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyParentsWithSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnSelfHierarchyParentsWithSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedSelfHierarchy(
 			evita,
 			and(
@@ -3022,10 +3335,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					stopAt(distance(2)),
 					statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-						new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+						new io.evitadb.api.query.require.HierarchyStatistics(
+							base, statisticsType.toArray(StatisticsType[]::new))
 				),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
 		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getSelfHierarchy("megaMenu"));
@@ -3033,9 +3348,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		fetchSelfHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyWithinSelf": { "ofParent": { "entityPrimaryKeyInSet": [30] } }
-                """,
+				""",
 			"""
 				{
 					"parents": {
@@ -3069,7 +3384,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return self hierarchy root siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnSelfHierarchyRootSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnSelfHierarchyRootSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedSelfHierarchy(
 			evita,
 			entityLocaleEquals(CZECH_LOCALE),
@@ -3078,16 +3395,18 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(1)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
-		final List<Map<String, Object>> rootSiblingsDto = createHierarchyDto(hierarchy.getSelfHierarchy("rootSiblings"));
+		final List<Map<String, Object>> rootSiblingsDto = createHierarchyDto(
+			hierarchy.getSelfHierarchy("rootSiblings"));
 
 		fetchSelfHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ"
-                """,
+				"entityLocaleEquals": "cs-CZ"
+				""",
 			"""
 				{
 					"siblings": {
@@ -3114,7 +3433,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return multiple different self hierarchies")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnMultipleDifferentSelfHierarchies(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnMultipleDifferentSelfHierarchies(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedSelfHierarchy(
 			evita,
 			entityLocaleEquals(CZECH_LOCALE),
@@ -3123,25 +3444,28 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(2)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			),
 			siblings(
 				"rootSiblings",
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(1)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
 
 		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getSelfHierarchy("megaMenu"));
-		final List<Map<String, Object>> rootSiblingsDto = createHierarchyDto(hierarchy.getSelfHierarchy("rootSiblings"));
+		final List<Map<String, Object>> rootSiblingsDto = createHierarchyDto(
+			hierarchy.getSelfHierarchy("rootSiblings"));
 
 		fetchSelfHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ"
-                """,
+				"entityLocaleEquals": "cs-CZ"
+				""",
 			"""
 				{
 					"fromRoot": {
@@ -3185,8 +3509,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		fetchSelfHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ"
-                """,
+				"entityLocaleEquals": "cs-CZ"
+				""",
 			"""
 				{
 					"fromRoot": {
@@ -3207,7 +3531,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return referenced hierarchy from root")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyFromRoot(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnReferencedHierarchyFromRoot(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedReferencedHierarchy(
 			evita,
 			and(
@@ -3219,16 +3545,19 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(2)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
-		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"));
+		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu")
+		);
 
 		fetchReferencedHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ"
-                """,
+				"entityLocaleEquals": "cs-CZ"
+				""",
 			"""
 				{
 					"fromRoot": {
@@ -3255,12 +3584,14 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return referenced hierarchy from node")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyFromNode(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnReferencedHierarchyFromNode(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedReferencedHierarchy(
 			evita,
 			and(
 				entityLocaleEquals(CZECH_LOCALE),
-				hierarchyWithin(Entities.CATEGORY,entityPrimaryKeyInSet(6))
+				hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(6))
 			),
 			fromNode(
 				"megaMenu",
@@ -3268,17 +3599,20 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(2)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
-		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"));
+		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu")
+		);
 
 		fetchReferencedHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyCategoryWithin": { "ofParent": { "entityPrimaryKeyInSet": [6] } }
-                """,
+				""",
 			"""
 				{
 					"fromNode": {
@@ -3310,7 +3644,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return referenced hierarchy children")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyChildren(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnReferencedHierarchyChildren(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedReferencedHierarchy(
 			evita,
 			and(
@@ -3322,17 +3658,20 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(1)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
-		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"));
+		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu")
+		);
 
 		fetchReferencedHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyCategoryWithin": { "ofParent": { "entityPrimaryKeyInSet": [1] } }
-                """,
+				""",
 			"""
 				{
 					"children": {
@@ -3359,7 +3698,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return referenced hierarchy parents without siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyParentsWithoutSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnReferencedHierarchyParentsWithoutSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedReferencedHierarchy(
 			evita,
 			and(
@@ -3370,17 +3711,20 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				"megaMenu",
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
-		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"));
+		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu")
+		);
 
 		fetchReferencedHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyCategoryWithin": { "ofParent": { "entityPrimaryKeyInSet": [30] } }
-                """,
+				""",
 			"""
 				{
 					"parents": {
@@ -3407,7 +3751,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return referenced hierarchy parents with siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyParentsWithSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnReferencedHierarchyParentsWithSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedReferencedHierarchy(
 			evita,
 			and(
@@ -3421,18 +3767,22 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					entityFetch(attributeContent(ATTRIBUTE_CODE)),
 					stopAt(distance(2)),
 					statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-						new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+						new io.evitadb.api.query.require.HierarchyStatistics(
+							base, statisticsType.toArray(StatisticsType[]::new))
 				),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
-		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"));
+		final List<Map<String, Object>> megaMenuDto = createHierarchyDto(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu")
+		);
 
 		fetchReferencedHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyCategoryWithin": { "ofParent": { "entityPrimaryKeyInSet": [30] } }
 				""",
 			"""
@@ -3468,7 +3818,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return referenced hierarchy root siblings")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnReferencedHierarchyRootSiblings(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnReferencedHierarchyRootSiblings(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedReferencedHierarchy(
 			evita,
 			and(
@@ -3480,17 +3832,20 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(1)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
-		final List<Map<String, Object>> rootSiblingsDto = createHierarchyDto(hierarchy.getReferenceHierarchy(Entities.CATEGORY, "rootSiblings"));
+		final List<Map<String, Object>> rootSiblingsDto = createHierarchyDto(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "rootSiblings")
+		);
 
 		fetchReferencedHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyCategoryWithinRoot": {}
-                """,
+				""",
 			"""
 				{
 					"siblings": {
@@ -3517,7 +3872,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return multiple different referenced hierarchies")
 	@ParameterizedTest
 	@MethodSource("statisticTypeAndBaseVariants")
-	void shouldReturnMultipleDifferentReferencedHierarchies(EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester) {
+	void shouldReturnMultipleDifferentReferencedHierarchies(
+		EnumSet<StatisticsType> statisticsType, StatisticsBase base, Evita evita, RestTester tester
+	) {
 		final Hierarchy hierarchy = createExpectedReferencedHierarchy(
 			evita,
 			and(
@@ -3529,29 +3886,35 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(2)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			),
 			siblings(
 				"rootSiblings",
 				entityFetch(attributeContent(ATTRIBUTE_CODE)),
 				stopAt(distance(1)),
 				statisticsType.isEmpty() ? new io.evitadb.api.query.require.HierarchyStatistics(base) :
-					new io.evitadb.api.query.require.HierarchyStatistics(base, statisticsType.toArray(StatisticsType[]::new))
+					new io.evitadb.api.query.require.HierarchyStatistics(
+						base, statisticsType.toArray(StatisticsType[]::new))
 			)
 		);
 
-		final List<Map<String, Object>> flattenedMegaMenu = createHierarchyDto(hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu"));
-		final List<Map<String, Object>> flattenedRootSiblings = createHierarchyDto(hierarchy.getReferenceHierarchy(Entities.CATEGORY, "rootSiblings"));
+		final List<Map<String, Object>> flattenedMegaMenu = createHierarchyDto(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "megaMenu")
+		);
+		final List<Map<String, Object>> flattenedRootSiblings = createHierarchyDto(
+			hierarchy.getReferenceHierarchy(Entities.CATEGORY, "rootSiblings")
+		);
 
 		fetchReferencedHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ",
+				            "entityLocaleEquals": "cs-CZ",
 				"hierarchyCategoryWithinRoot": {}
 				""",
 			"""
-                {
-                    "fromRoot": {
+				            {
+				                "fromRoot": {
 						"outputName": "megaMenu",
 						"entityFetch": {
 							"attributeContent": ["code"]
@@ -3592,8 +3955,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		fetchReferencedHierarchy(
 			tester,
 			"""
-                "entityLocaleEquals": "cs-CZ"
-                """,
+				"entityLocaleEquals": "cs-CZ"
+				""",
 			"""
 				{
 					"fromRoot": {
@@ -3630,7 +3993,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"require": {
 							"facetBrandSummary": {
@@ -3639,7 +4003,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				Integer.MAX_VALUE)
+				Integer.MAX_VALUE
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -3672,7 +4037,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"require": {
 							"facetBrandSummary": {
@@ -3686,7 +4052,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				Integer.MAX_VALUE)
+				Integer.MAX_VALUE
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -3715,7 +4082,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"require": {
 							"facetParameterSummary": {
@@ -3724,7 +4092,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				Integer.MAX_VALUE)
+				Integer.MAX_VALUE
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -3757,7 +4126,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
-			.requestBody("""
+			.requestBody(
+				"""
 					{
 						"require": {
 							"facetParameterSummary": {
@@ -3771,7 +4141,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 						}
 					}
 					""",
-				Integer.MAX_VALUE)
+				Integer.MAX_VALUE
+			)
 			.executeAndThen()
 			.statusCode(200)
 			.body(
@@ -3780,6 +4151,516 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			);
 	}
 
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with counts for products")
+	void shouldReturnNonGroupedReferenceSummaryWithCountsForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReference(Entities.BRAND, FacetStatisticsDepth.COUNTS)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createNonGroupedReferenceSummaryDto(response, Entities.BRAND);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceBrandSummary": {
+								"statisticsDepth":"COUNTS"
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "brand"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with impacts and entities for products")
+	void shouldReturnNonGroupedReferenceSummaryWithImpactsAndEntitiesForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReference(
+						Entities.BRAND,
+						FacetStatisticsDepth.IMPACT,
+						entityFetch(attributeContent(ATTRIBUTE_CODE))
+					)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createNonGroupedReferenceSummaryDto(response, Entities.BRAND);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceBrandSummary": {
+								"statisticsDepth":"IMPACT",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "brand"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return grouped reference summary with counts for products")
+	void shouldReturnReferenceSummaryWithCountsForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReference(Entities.PARAMETER, FacetStatisticsDepth.COUNTS)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createReferenceSummaryDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"COUNTS"
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "parameter"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return grouped reference summary with impacts and entities for products")
+	void shouldReturnReferenceSummaryWithImpactsAndEntitiesForProducts(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReference(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.IMPACT,
+						entityFetch(attributeContent(ATTRIBUTE_CODE))
+					)
+				)
+			)
+		);
+		assertFalse(response.getExtraResult(ReferenceSummary.class).getReferenceStatistics().isEmpty());
+
+		final var expectedBody = createReferenceSummaryDto(response, Entities.PARAMETER);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"IMPACT",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY, "parameter"),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return reference summary with histogram statistics for products")
+	void shouldReturnReferenceSummaryWithHistogramStatisticsForProducts(Evita evita, RestTester tester) {
+		queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						entityFetch(attributeContent(ATTRIBUTE_CODE)),
+						null,
+						histogramStatistics(20, "priceIndex")
+					)
+				)
+			)
+		);
+
+		// JsonPath root of the first parameter group's `priceIndex` histogram in the response — used as
+		// prefix for shape assertions that check min/max/overallCount and bucket-level fields below.
+		final String firstGroupHistogramPath = resultPath(
+			ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY
+		) + ".parameter[0].histogramStatistics.priceIndex";
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"COUNTS",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			},
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["priceIndex"]
+										}
+									}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			// shape-only assertions: numeric values depend on the generated dataset and are not pinned.
+			.body(firstGroupHistogramPath, notNullValue())
+			.body(firstGroupHistogramPath + ".min", notNullValue())
+			.body(firstGroupHistogramPath + ".max", notNullValue())
+			.body(firstGroupHistogramPath + ".overallCount", allOf(notNullValue(), greaterThan(0)))
+			.body(firstGroupHistogramPath + ".buckets", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0))
+			.body(firstGroupHistogramPath + ".buckets[0].threshold", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets[0].occurrences", notNullValue())
+			.body(firstGroupHistogramPath + ".buckets[0].requested", notNullValue());
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should accept histogram-level entityFetch and request boundary entities on reference histogram")
+	void shouldReturnReferenceSummaryWithHistogramStatisticsIncludingBoundaryEntities(
+		Evita evita, RestTester tester
+	) {
+		// The test requests `entityFetch` both at the reference level and inside `histogramStatistics`.
+		// Unlike the GraphQL mirror this REST payload doesn't select boundary entity fields explicitly
+		// — the contract under test is that the REST surface accepts the extended requirement shape
+		// and produces a well-formed histogram with at least one bucket.
+		queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						entityFetch(attributeContent(ATTRIBUTE_CODE)),
+						null,
+						histogramStatistics(
+							20,
+							entityFetch(attributeContent(ATTRIBUTE_CODE)),
+							"priceIndex"
+						)
+					)
+				)
+			)
+		);
+
+		final String firstGroupHistogramPath = resultPath(
+			ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY
+		) + ".parameter[0].histogramStatistics.priceIndex";
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceParameterSummary": {
+								"statisticsDepth":"COUNTS",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			},
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["priceIndex"],
+											"entityFetch": {
+												"attributeContent": ["code"]
+											}
+										}
+									}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			// shape only: histogram must be populated and carry buckets; boundary entities are
+			// optional (present for REFERENCED_ENTITY_ATTRIBUTE, absent for REFERENCE_ATTRIBUTE).
+			.body(firstGroupHistogramPath, notNullValue())
+			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0))
+			.body(firstGroupHistogramPath + ".minReferencedEntity", notNullValue())
+			.body(firstGroupHistogramPath + ".maxReferencedEntity", notNullValue());
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should narrow results via histogramHaving in userFilter while keeping reference histogram populated")
+	void shouldApplyHistogramHavingInUserFilter(Evita evita, RestTester tester) {
+		// Two-step rationale:
+		//   1. Pre-compute a catalog-wide `priceIndex` histogram so we know a realistic [min, max] span
+		//      to draw the user-filter slider from.
+		//   2. Pick a sub-range inside that span so the `histogramHaving` constraint narrows the page,
+		//      but the reference histogram in extra results is still computed against the pre-slider
+		//      baseline (userFilter children are peeled off when computing the extra-result histogram).
+		// The final assertions prove narrowing (totalRecordCount shrinks vs. catalog total) AND that the
+		// reference histogram survives the peel (at least one group with non-null min).
+		// Baseline capture:
+		final EvitaResponse<EntityClassifier> baselineResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				require(
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						null,
+						null,
+						histogramStatistics(20, HISTOGRAM_PRICE_INDEX)
+					)
+				)
+			)
+		);
+		final HistogramContract baselineHistogram = baselineResponse.getExtraResult(ReferenceSummary.class)
+			.getReferenceStatistics()
+			.stream()
+			.map(stats -> stats.getHistogramStatistics(HISTOGRAM_PRICE_INDEX))
+			.filter(histogram -> histogram != null && histogram.getBuckets().length > 0)
+			.findFirst()
+			.orElseThrow();
+
+		// pick a sub-range inside the catalog-wide span — covering the lower half of the slider —
+		// so narrowing still retains some products but strictly fewer than the baseline count.
+		final BigDecimal baselineMin = baselineHistogram.getMin();
+		final BigDecimal baselineMax = baselineHistogram.getMax();
+		final BigDecimal rangeFrom = baselineMin;
+		final BigDecimal rangeTo = baselineMin.add(
+			baselineMax.subtract(baselineMin).divide(new BigDecimal("2"), java.math.RoundingMode.HALF_UP)
+		);
+		assertTrue(rangeFrom.compareTo(rangeTo) <= 0,
+			"computed narrowing range must be ordered; got from=" + rangeFrom + " to=" + rangeTo);
+
+		final EvitaResponse<EntityClassifier> narrowedResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					userFilter(
+						histogramHaving(
+							Entities.PARAMETER,
+							HISTOGRAM_PRICE_INDEX,
+							rangeFrom,
+							rangeTo
+						)
+					)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					referenceSummaryOfReferenceWithHistograms(
+						Entities.PARAMETER,
+						FacetStatisticsDepth.COUNTS,
+						null,
+						null,
+						histogramStatistics(20, HISTOGRAM_PRICE_INDEX)
+					)
+				)
+			)
+		);
+
+		// sanity-check on the evitaDB side: the narrowed record count must be strictly less than the
+		// catalog total — this is the primary proof that `histogramHaving` performs its narrowing role.
+		final EvitaResponse<EntityClassifier> totalsResponse = queryEntities(
+			evita,
+			query(collection(Entities.PRODUCT), require(page(1, 1)))
+		);
+		assertTrue(narrowedResponse.getTotalRecordCount() < totalsResponse.getTotalRecordCount(),
+			"histogramHaving must narrow the result set below the catalog-wide total");
+
+		// exercise the full REST → query → histogram path: the `referenceParameterHistogramHaving`
+		// field (derived from `reference` prefix + `Parameter` classifier + `HistogramHaving` full name)
+		// must be accepted inside `userFilter`, route through the engine, and mirror the evitaDB-side
+		// invariants — narrowing the result set and surfacing a populated reference histogram.
+		// The REST resolver decodes `from`/`to` as String when the target slot is `Serializable` without
+		// a schema type hint, then the engine-side validator compares them with String.compareTo, so we
+		// must emit values of equal length to avoid lexicographic ordering flipping the bounds check.
+		final String rangeFromLiteral = padToMatchLength(rangeFrom.toPlainString(), rangeTo.toPlainString());
+		final String rangeToLiteral = padToMatchLength(rangeTo.toPlainString(), rangeFrom.toPlainString());
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+							"userFilter": [{
+								"referenceParameterHistogramHaving": {
+									"histogramName": "%s",
+									"from": "%s",
+									"to": "%s"
+								}
+							}]
+						},
+						"require": {
+							"page": {
+								"number": 1,
+								"size": %d
+							},
+							"referenceParameterSummary": {
+								"statisticsDepth": "COUNTS",
+								"requirements": [
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["%s"]
+										}
+									}
+								]
+							}
+						}
+					}
+					""",
+				HISTOGRAM_PRICE_INDEX,
+				rangeFromLiteral,
+				rangeToLiteral,
+				Integer.MAX_VALUE,
+				HISTOGRAM_PRICE_INDEX
+			)
+			.executeAndThen()
+			.statusCode(200)
+			// result set narrowing: REST must report the same totalRecordCount as the evitaDB query —
+			// matching counts prove the filter routed through the REST resolver, translator, engine.
+			.body(
+				resultPath(ResponseDescriptor.RECORD_PAGE) + ".totalRecordCount",
+				equalTo(narrowedResponse.getTotalRecordCount())
+			)
+			// at least one `priceIndex` histogram carries a non-null min/max — this is the slider-peeled
+			// baseline span, shown to the user regardless of the narrowing applied by `histogramHaving`.
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.REFERENCE_SUMMARY) +
+					".parameter.findAll { it.histogramStatistics?.priceIndex?.min != null }.size()",
+				greaterThan(0)
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for reference summary with histogram statistics for non-bucketed reference for products")
+	void shouldReturnErrorForReferenceSummaryHistogramStatisticsForNonBucketedReferenceForProducts(Evita evita, RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceStoreSummary": {
+								"statisticsDepth":"COUNTS",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			},
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["priceIndex"]
+										}
+									}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(400);
+	}
 
 	@Test
 	@UseDataSet(REST_HUNDRED_PRODUCTS_FOR_SEGMENTS)
@@ -3971,7 +4852,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				);
 
 				compareRestResultPksToEvitaDBResultPks(
-					"Fourth page contains 3 entities sorted according to EAN in descending order and ends with first 2 entities sorted according to quantity in ascending order.",
+					"Fourth page contains 3 entities sorted according to EAN in descending order and " +
+						"ends with first 2 entities sorted according to quantity in ascending order.",
 					session, tester,
 					fabricateEvitaQLSegmentedQuery(4, 5, evitaQLSegments),
 					fabricateRestSegmentedQuery(4, 5, graphQLSegments),
@@ -3979,7 +4861,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				);
 
 				compareRestResultPksToEvitaDBResultPks(
-					"Fifth page must have only 4 entities be sorted by quantity in ascending order and must end with first entity sorted by PK in ascending order.",
+					"Fifth page must have only 4 entities be sorted by quantity in ascending order and " +
+						"must end with first entity sorted by PK in ascending order.",
 					session, tester,
 					fabricateEvitaQLSegmentedQuery(5, 5, evitaQLSegments),
 					fabricateRestSegmentedQuery(5, 5, graphQLSegments),
@@ -3987,7 +4870,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				);
 
 				compareRestResultPksToEvitaDBResultPks(
-					"Sixth page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					"Sixth page must be sorted by PK in ascending order " +
+						"(but only from those entities that hasn't been already provided).",
 					session, tester,
 					fabricateEvitaQLSegmentedQuery(6, 5, evitaQLSegments),
 					fabricateRestSegmentedQuery(6, 5, graphQLSegments),
@@ -3995,7 +4879,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 				);
 
 				compareRestResultPksToEvitaDBResultPks(
-					"Seventh page must be sorted by PK in ascending order (but only from those entities that hasn't been already provided).",
+					"Seventh page must be sorted by PK in ascending order " +
+						"(but only from those entities that hasn't been already provided).",
 					session, tester,
 					fabricateEvitaQLSegmentedQuery(7, 5, evitaQLSegments),
 					fabricateRestSegmentedQuery(7, 5, graphQLSegments),
@@ -4035,93 +4920,39 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
-				{
-					"head": [
-						{
-							"label": {
-								"name": "myLabel1",
-								"value": "myValue1"
-							}
-						},
-						{
-							"label": {
-								"name": "myLabel2",
-								"value": 100
-							}
-						}
-					],
-					"filterBy": {
-						"attributeCodeContains": "a"
-					}
-				}
-				""")
+				             {
+				             	"head": [
+				             		{
+				             			"label": {
+				             				"name": "myLabel1",
+				             				"value": "myValue1"
+				             			}
+				             		},
+				             		{
+				             			"label": {
+				             				"name": "myLabel2",
+				             				"value": 100
+				             			}
+				             		}
+				             	],
+				             	"filterBy": {
+				             		"attributeCodeContains": "a"
+				             	}
+				             }
+				             """)
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, hasSize(greaterThan(0)));
 	}
 
-	/**
-	 * Creates a query for retrieving paginated product entities with specified spacing conditions.
-	 *
-	 * @param pageNumber the page number to retrieve, must be greater than 0
-	 * @param pageSize the number of items per page, must be greater than 0
-	 * @return a constructed Query object with the specified pagination and spacing conditions
-	 */
-	@Nonnull
-	private static Query fabricateEvitaQLSpacingQuery(int pageNumber, int pageSize) {
-		return query(
-			collection(Entities.PRODUCT),
-			require(
-				page(
-					pageNumber, pageSize,
-					spacing(
-						gap(2, "(($pageNumber - 1) % 2 == 0) && $pageNumber <= 6"),
-						gap(1, "($pageNumber % 2 == 0) && $pageNumber <= 6")
-					)
-				),
-				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-			)
-		);
-	}
-
-	@Nonnull
-	private static String fabricateRestSpacingQuery(int pageNumber, int pageSize) {
-		return String.format(
-			"""
-				{
-					"require": {
-						"page": {
-							"number": %d,
-							"size": %d,
-							"spacing": [
-								{
-									"gap": {
-										"size": 2,
-										"onPage": "(($pageNumber - 1) %%%% 2 == 0) && $pageNumber <= 6"
-									}
-								},
-								{
-									"gap": {
-										"size": 1,
-										"onPage": "($pageNumber %%%% 2 == 0) && $pageNumber <= 6"
-									}
-								}
-							]
-						}
-					}
-				}
-				""",
-			pageNumber,
-			pageSize
-		);
-	}
-
-	private void compareRestResultPksToEvitaDBResultPks(@Nonnull String message,
-	                                                    @Nonnull EvitaSessionContract session,
-	                                                    @Nonnull RestTester tester,
-	                                                    @Nonnull Query sampleEvitaQLQuery,
-	                                                    @Nonnull String targetRestQuery,
-	                                                    @Nonnull Predicate<Integer> entitiesCountValidator) {
+	private void compareRestResultPksToEvitaDBResultPks(
+		@Nonnull String message,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull RestTester tester,
+		@Nonnull Query sampleEvitaQLQuery,
+		@Nonnull String targetRestQuery,
+		@Nonnull Predicate<Integer> entitiesCountValidator
+	) {
 		final int[] expectedEntities = session.query(sampleEvitaQLQuery, EntityReference.class)
 			.getRecordData()
 			.stream()
@@ -4144,52 +4975,58 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 	}
 
+	/**
+	 * Pads `value` with leading zeros (inserting them before the integer portion) until it matches
+	 * `reference` in total character length. Used to make two decimal literals lexicographically
+	 * ordered — necessary because the REST resolver deserialises `Serializable`-typed bounds as
+	 * Strings and the engine-side validator then uses `String.compareTo` rather than numeric ordering.
+	 *
+	 * @param value     the decimal literal to pad
+	 * @param reference the reference literal whose length determines the target width
+	 * @return `value` padded with leading zeros so its length matches `reference`
+	 */
 	@Nonnull
-	private Map<String, Object> createAttributeHistogramDto(@Nonnull EvitaResponse<? extends EntityClassifier> response,
-	                                                        @Nonnull String attributeName) {
+	private static String padToMatchLength(@Nonnull String value, @Nonnull String reference) {
+		if (value.length() >= reference.length()) {
+			return value;
+		}
+		final StringBuilder padded = new StringBuilder(reference.length());
+		padded.append("0".repeat(reference.length() - value.length()));
+		padded.append(value);
+		return padded.toString();
+	}
+
+	@Nonnull
+	private static Map<String, Object> createAttributeHistogramDto(
+		@Nonnull EvitaResponse<? extends EntityClassifier> response,
+		@Nonnull String attributeName
+	) {
 		final AttributeHistogram attributeHistogram = response.getExtraResult(AttributeHistogram.class);
-		final HistogramContract histogram = attributeHistogram.getHistogram(attributeName);
+		final HistogramContract histogram = Objects.requireNonNull(attributeHistogram.getHistogram(attributeName));
 
 		return map()
 			.e(HistogramDescriptor.MAX.name(), histogram.getMax().toString())
-			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
-				.map(bucket -> map()
-					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
-					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
-					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
-					.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
-					.build())
-				.toList())
+			.e(
+				HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
+					.map(bucket -> map()
+						.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
+						.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
+						.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
+						.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
+						.build())
+					.toList()
+			)
 			.e(HistogramDescriptor.MIN.name(), histogram.getMin().toString())
 			.e(HistogramDescriptor.OVERALL_COUNT.name(), histogram.getOverallCount())
 			.build();
 	}
 
-	@Nonnull
-	private Map<String, Object> createPriceHistogramDto(@Nonnull EvitaResponse<? extends EntityClassifier> response) {
-		final PriceHistogram priceHistogram = response.getExtraResult(PriceHistogram.class);
-
-		return map()
-			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
-			.e(HistogramDescriptor.MAX.name(), priceHistogram.getMax().toString())
-			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
-			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
-				.map(bucket -> map()
-					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
-					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
-					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
-					.e(BucketDescriptor.RELATIVE_FREQUENCY.name(), bucket.relativeFrequency().toString())
-					.build())
-				.toList())
-			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
-			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
-			.build();
-	}
-
-	@Nonnull
-	private Hierarchy createExpectedSelfHierarchy(@Nonnull Evita evita,
-	                                              @Nonnull FilterConstraint filterBy,
-	                                              @Nonnull HierarchyRequireConstraint... hierarchies) {
+	@Nullable
+	private Hierarchy createExpectedSelfHierarchy(
+		@Nonnull Evita evita,
+		@Nonnull FilterConstraint filterBy,
+		@Nonnull HierarchyRequireConstraint... hierarchies
+	) {
 		return queryEntities(
 			evita,
 			query(
@@ -4212,10 +5049,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	}
 
 	@Nonnull
-	private RestTester.Request fetchSelfHierarchy(@Nonnull RestTester tester,
-	                                              @Nonnull String filterBy,
-	                                              @Nonnull String hierarchies,
-	                                              @Nonnull Object... args) {
+	private static RestTester.Request fetchSelfHierarchy(
+		@Nonnull RestTester tester,
+		@Nonnull String filterBy,
+		@Nonnull String hierarchies,
+		@Nonnull Object... args
+	) {
 		return tester.test(TEST_CATALOG)
 			.urlPathSuffix("/CATEGORY/query")
 			.httpMethod(Request.METHOD_POST)
@@ -4245,13 +5084,16 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					filterBy,
 					hierarchies
 				),
-				args);
+				args
+			);
 	}
 
-	@Nonnull
-	private Hierarchy createExpectedReferencedHierarchy(@Nonnull Evita evita,
-	                                                    @Nonnull FilterConstraint filterBy,
-	                                                    @Nonnull HierarchyRequireConstraint... hierarchies) {
+	@Nullable
+	private Hierarchy createExpectedReferencedHierarchy(
+		@Nonnull Evita evita,
+		@Nonnull FilterConstraint filterBy,
+		@Nonnull HierarchyRequireConstraint... hierarchies
+	) {
 		return queryEntities(
 			evita,
 			query(
@@ -4275,10 +5117,12 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	}
 
 	@Nonnull
-	private RestTester.Request fetchReferencedHierarchy(@Nonnull RestTester tester,
-	                                                    @Nonnull String filterBy,
-	                                                    @Nonnull String hierarchies,
-	                                                    @Nonnull Object... args) {
+	private static RestTester.Request fetchReferencedHierarchy(
+		@Nonnull RestTester tester,
+		@Nonnull String filterBy,
+		@Nonnull String hierarchies,
+		@Nonnull Object... args
+	) {
 		return tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
@@ -4309,10 +5153,13 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					filterBy,
 					hierarchies
 				),
-				args);
+				args
+			);
 	}
+
 	@Nonnull
-	private String getHierarchyStatisticsConstraint(@Nonnull StatisticsBase base, @Nonnull EnumSet<StatisticsType> types) {
+	private static String getHierarchyStatisticsConstraint(
+		@Nonnull StatisticsBase base, @Nonnull EnumSet<StatisticsType> types) {
 		return String.format(
 			"""
 				, "statistics": {
@@ -4358,125 +5205,179 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		return currentLevelInfoDto.build();
 	}
 
-	protected static Stream<Arguments> statisticTypeAndBaseVariants() {
-		return Stream.of(
-			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
-			Arguments.of(EnumSet.noneOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
-			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.COMPLETE_FILTER),
-			Arguments.of(EnumSet.allOf(StatisticsType.class), StatisticsBase.WITHOUT_USER_FILTER),
-			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.COMPLETE_FILTER),
-			Arguments.of(EnumSet.of(StatisticsType.QUERIED_ENTITY_COUNT), StatisticsBase.WITHOUT_USER_FILTER),
-			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.COMPLETE_FILTER),
-			Arguments.of(EnumSet.of(StatisticsType.CHILDREN_COUNT), StatisticsBase.WITHOUT_USER_FILTER)
-		);
-	}
-
 	@Nonnull
-	private Map<String, Object> createNonGroupedFacetSummaryDto(@Nonnull EvitaResponse<? extends EntityClassifier> response,
-	                                                            @Nonnull String referenceName) {
-		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+	private static Map<String, Object> createNonGroupedFacetSummaryDto(
+		@Nonnull EvitaResponse<? extends EntityClassifier> response,
+		@Nonnull String referenceName
+	) {
+		final FacetSummary facetSummary = Objects.requireNonNull(response.getExtraResult(FacetSummary.class));
 
 		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
 			.map(groupStatistics ->
-				map()
-					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
-					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
-						.stream()
-						.map(facetStatistics -> {
-							final MapBuilder facetStatisticsDto = map()
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
+				     map()
+					     .e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					     .e(
+						     FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(),
+						     groupStatistics.getFacetStatistics()
+							     .stream()
+							     .map(facetStatistics -> {
+								     final MapBuilder facetStatisticsDto = map()
+									     .e(
+										     FacetStatisticsDescriptor.REQUESTED.name(),
+										     facetStatistics.isRequested()
+									     )
+									     .e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+									     .e(
+										     FacetStatisticsDescriptor.FACET_ENTITY.name(),
+										     createEntityDto(facetStatistics.getFacetEntity())
+									     );
 
-							Optional.ofNullable(facetStatistics.getImpact())
-								.ifPresent(impact -> facetStatisticsDto.e(
-									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
-									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
-									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
-									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
-									.build()));
+								     Optional.ofNullable(facetStatistics.getImpact())
+									     .ifPresent(impact -> facetStatisticsDto.e(
+										     FacetStatisticsDescriptor.IMPACT.name(), map()
+											     .e(
+												     FacetRequestImpactDescriptor.DIFFERENCE.name(),
+												     facetStatistics.getImpact().difference()
+											     )
+											     .e(
+												     FacetRequestImpactDescriptor.MATCH_COUNT.name(),
+												     facetStatistics.getImpact().matchCount()
+											     )
+											     .e(
+												     FacetRequestImpactDescriptor.HAS_SENSE.name(),
+												     facetStatistics.getImpact().hasSense()
+											     )
+											     .build()
+									     ));
 
-							return facetStatisticsDto.build();
-						})
-						.toList())
-					.build()
+								     return facetStatisticsDto.build();
+							     })
+							     .toList()
+					     )
+					     .build()
 			)
-			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+			.orElseThrow(() -> new IllegalStateException(
+				"Facet summary must contain facet group statistics for reference " + referenceName
+			));
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createFacetSummaryDto(@Nonnull EvitaResponse<? extends EntityClassifier> response,
-	                                                        @Nonnull String referenceName) {
-		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+	private static Map<String, Object> createNonGroupedReferenceSummaryDto(
+		@Nonnull EvitaResponse<? extends EntityClassifier> response,
+		@Nonnull String referenceName
+	) {
+		final ReferenceSummary referenceSummary = Objects.requireNonNull(
+			response.getExtraResult(ReferenceSummary.class)
+		);
 
-		return facetSummary.getReferenceStatistics()
+		return Optional.ofNullable(referenceSummary.getReferenceGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				     map()
+					     .e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					     .e(
+						     ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(),
+						     groupStatistics.getFacetStatistics()
+							     .stream()
+							     .map(facetStatistics -> {
+								     final MapBuilder facetStatisticsDto = map()
+									     .e(
+										     FacetStatisticsDescriptor.REQUESTED.name(),
+										     facetStatistics.isRequested()
+									     )
+									     .e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+									     .e(
+										     FacetStatisticsDescriptor.FACET_ENTITY.name(),
+										     createEntityDto(facetStatistics.getFacetEntity())
+									     );
+
+								     Optional.ofNullable(facetStatistics.getImpact())
+									     .ifPresent(impact -> facetStatisticsDto.e(
+										     FacetStatisticsDescriptor.IMPACT.name(), map()
+											     .e(
+												     FacetRequestImpactDescriptor.DIFFERENCE.name(),
+												     facetStatistics.getImpact().difference()
+											     )
+											     .e(
+												     FacetRequestImpactDescriptor.MATCH_COUNT.name(),
+												     facetStatistics.getImpact().matchCount()
+											     )
+											     .e(
+												     FacetRequestImpactDescriptor.HAS_SENSE.name(),
+												     facetStatistics.getImpact().hasSense()
+											     )
+											     .build()
+									     ));
+
+								     return facetStatisticsDto.build();
+							     })
+							     .toList()
+					     )
+					     .build()
+			)
+			.orElseThrow(() -> new IllegalStateException(
+				"Reference summary must contain reference group statistics for reference " + referenceName
+			));
+	}
+
+	@Nonnull
+	private static List<Map<String, Object>> createReferenceSummaryDto(
+		@Nonnull EvitaResponse<? extends EntityClassifier> response,
+		@Nonnull String referenceName
+	) {
+		final ReferenceSummary referenceSummary = Objects.requireNonNull(
+			response.getExtraResult(ReferenceSummary.class)
+		);
+
+		return referenceSummary.getReferenceStatistics()
 			.stream()
 			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
-				map()
-					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), createEntityDto(groupStatistics.getGroupEntity()))
-					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
-					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
-						.stream()
-						.map(facetStatistics -> {
-							final MapBuilder facetStatisticsDto = map()
-								.e(EntityFacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
-								.e(EntityFacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
-								.e(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), createEntityDto(facetStatistics.getFacetEntity()));
+				     map()
+					     .e(
+						     ReferenceGroupStatisticsDescriptor.GROUP_ENTITY.name(),
+						     createEntityDto(groupStatistics.getGroupEntity())
+					     )
+					     .e(ReferenceGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					     .e(
+						     ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(),
+						     groupStatistics.getFacetStatistics()
+							     .stream()
+							     .map(facetStatistics -> {
+								     final MapBuilder facetStatisticsDto = map()
+									     .e(
+										     FacetStatisticsDescriptor.REQUESTED.name(),
+										     facetStatistics.isRequested()
+									     )
+									     .e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+									     .e(
+										     FacetStatisticsDescriptor.FACET_ENTITY.name(),
+										     createEntityDto(facetStatistics.getFacetEntity())
+									     );
 
-							Optional.ofNullable(facetStatistics.getImpact())
-								.ifPresent(impact -> facetStatisticsDto.e(
-									EntityFacetStatisticsDescriptor.IMPACT.name(), map()
-									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
-									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
-									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
-									.build()));
+								     Optional.ofNullable(facetStatistics.getImpact())
+									     .ifPresent(impact -> facetStatisticsDto.e(
+										     FacetStatisticsDescriptor.IMPACT.name(), map()
+											     .e(
+												     FacetRequestImpactDescriptor.DIFFERENCE.name(),
+												     facetStatistics.getImpact().difference()
+											     )
+											     .e(
+												     FacetRequestImpactDescriptor.MATCH_COUNT.name(),
+												     facetStatistics.getImpact().matchCount()
+											     )
+											     .e(
+												     FacetRequestImpactDescriptor.HAS_SENSE.name(),
+												     facetStatistics.getImpact().hasSense()
+											     )
+											     .build()
+									     ));
 
-							return facetStatisticsDto.build();
-						})
-						.toList())
-					.build()
+								     return facetStatisticsDto.build();
+							     })
+							     .toList()
+					     )
+					     .build()
 			)
 			.toList();
-	}
-
-
-	@Nonnull
-	private static Query fabricateEvitaQLSegmentedQuery(int pageNumber, int pageSize, @Nonnull Segments segments) {
-		return query(
-			collection(Entities.PRODUCT),
-			filterBy(entityLocaleEquals(Locale.ENGLISH)),
-			orderBy(segments),
-			require(
-				page(pageNumber, pageSize),
-				debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-			)
-		);
-	}
-
-
-	@Nonnull
-	private static String fabricateRestSegmentedQuery(int pageNumber, int pageSize, @Nonnull String segments) {
-		return String.format(
-			"""
-			{
-				"filterBy": {
-					"entityLocaleEquals": "en"
-				},
-				"orderBy": [{
-					%s
-				}],
-				"require": {
-					"page": {
-						"number": %d,
-						"size": %d
-					}
-				}
-			}
-			""",
-			segments,
-			pageNumber,
-			pageSize
-		);
 	}
 }

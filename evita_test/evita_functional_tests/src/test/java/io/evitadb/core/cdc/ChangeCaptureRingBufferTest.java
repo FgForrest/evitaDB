@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -1151,6 +1152,7 @@ class ChangeCaptureRingBufferTest {
 
         // Shutdown the executor and wait for the threads to finish
         executor.shutdown();
+        executor.awaitTermination(10, TimeUnit.SECONDS);
 
         // Verify that we have captured some results
         assertTrue(exceptions.isEmpty(), "Exceptions occurred during execution: " + exceptions);

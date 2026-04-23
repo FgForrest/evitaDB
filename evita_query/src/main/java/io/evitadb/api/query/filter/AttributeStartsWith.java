@@ -35,35 +35,74 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `startsWith` is query that searches value of the attribute with name passed in first argument for presence of the
- * {@link String} value passed in the second argument.
+ * Filters entities by testing whether an attribute value begins with a specified prefix string.
  *
- * Function returns true if attribute value contains secondary argument (from first position). InSet other words attribute
- * value starts with string passed in second argument. Function is case sensitive and comparison is executed using `UTF-8`
- * encoding (Java native).
+ * This constraint implements prefix matching semantics identical to Java's {@link String#startsWith(String)} method. It performs case-sensitive
+ * matching using UTF-8 encoding (Java native string representation) and returns true if the attribute value begins with the search pattern.
  *
- * Example:
+ * ## Syntax
  *
- * <pre>
- * startsWith("code", "vid")
- * </pre>
+ * ```
+ * attributeStartsWith(attributeName:string!, searchValue:string!)
+ * ```
  *
- * Function supports attribute arrays and when attribute is of array type `startsWith` returns true if any of attribute
- * values starts with the value in the query. If we have the attribute `code` with value `["cat","mouse","dog"]` all
- * these constraints will match:
+ * ## Type Requirements
  *
- * <pre>
- * contains("code","mou")
- * contains("code","do")
- * </pre>
+ * The target attribute must be of type {@link String} and must be defined as either filterable or unique in the entity schema. Non-string
+ * attributes or attributes lacking the required filterable/unique definition will cause query execution to fail.
  *
- * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-starts-with">Visit detailed user documentation</a></p>
+ * ## Matching Behavior
+ *
+ * - **Case-sensitive**: "abc" matches "abcdef" but not "ABCDEF" or "Abcdef"
+ * - **UTF-8 encoding**: Full Unicode character support including multi-byte characters
+ * - **Prefix-only**: Matches only if the search pattern appears at the beginning of the attribute value (index 0)
+ * - **Exact prefix**: No wildcard expansion — the search pattern is matched literally
+ *
+ * ## Array Support
+ *
+ * When the attribute is an array type, the constraint returns true if ANY element in the array starts with the search pattern. This uses
+ * existential quantification semantics: at least one array element must match.
+ *
+ * For example, given an attribute `identifiers` with value `["SKU-1234", "EAN-5678", "ISBN-9012"]`:
+ *
+ * ```
+ * attributeStartsWith("identifiers", "SKU")   // matches (found "SKU-1234")
+ * attributeStartsWith("identifiers", "EAN-5") // matches (found "EAN-5678")
+ * attributeStartsWith("identifiers", "1234")  // does not match (no element starts with "1234")
+ * ```
+ *
+ * ## Usage Patterns
+ *
+ * Common use cases include:
+ * - **Prefix-based codes**: Filter by SKU prefixes, product code families, or identifier schemes
+ * - **Hierarchical categories**: Match category paths that start with specific segments
+ * - **URL filtering**: Find entities with URLs beginning with specific domains or paths
+ * - **Auto-complete**: Support type-ahead search functionality where users type the beginning of a value
+ *
+ * Example query filtering products whose SKU starts with "ELEC":
+ *
+ * ```
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeStartsWith("sku", "ELEC")
+ *     )
+ * )
+ * ```
+ *
+ * ## Related Constraints
+ *
+ * - {@link AttributeContains}: Match substring at any position (less efficient for prefix matching)
+ * - {@link AttributeEndsWith}: Match suffix patterns
+ * - {@link AttributeEquals}: Exact string matching (most efficient for equality checks)
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/string#attribute-starts-with)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "startsWith",
-	shortDescription = "Compares value of the attribute with passed value and checks if the text value of that attributes starts with passed text. (case-sensitive)",
+	shortDescription = "Compares value of the attribute with passed value and checks if the text value of that attribute starts with passed text (case-sensitive).",
 	userDocsLink = "/documentation/query/filtering/string#attribute-starts-with",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE },
 	supportedValues = @ConstraintSupportedValues(
@@ -74,7 +113,7 @@ import java.io.Serializable;
 public class AttributeStartsWith extends AbstractAttributeFilterStringSearchConstraintLeaf implements FilterConstraint {
 	@Serial private static final long serialVersionUID = 5516189083269213655L;
 
-	private AttributeStartsWith(Serializable... arguments) {
+	private AttributeStartsWith(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 

@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link Cardinality} enum verifying minimum/maximum bounds,
  * duplicate allowance rules, and enum completeness.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Cardinality enum")
 class CardinalityTest {

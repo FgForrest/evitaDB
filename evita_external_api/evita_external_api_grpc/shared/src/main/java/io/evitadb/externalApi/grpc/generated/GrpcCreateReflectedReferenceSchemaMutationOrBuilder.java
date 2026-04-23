@@ -187,7 +187,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -197,14 +197,14 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=115
+   *     See GrpcReferenceSchemaMutations.proto;l=125
    * @return Whether the faceted field is set.
    */
   @java.lang.Deprecated boolean hasFaceted();
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -214,14 +214,14 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>.google.protobuf.BoolValue faceted = 7 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.faceted is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=115
+   *     See GrpcReferenceSchemaMutations.proto;l=125
    * @return The faceted.
    */
   @java.lang.Deprecated com.google.protobuf.BoolValue getFaceted();
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -323,7 +323,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=133
+   *     See GrpcReferenceSchemaMutations.proto;l=143
    * @return A list containing the indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityScope> getIndexedInScopesList();
@@ -342,7 +342,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=133
+   *     See GrpcReferenceSchemaMutations.proto;l=143
    * @return The count of indexedInScopes.
    */
   @java.lang.Deprecated int getIndexedInScopesCount();
@@ -361,7 +361,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=133
+   *     See GrpcReferenceSchemaMutations.proto;l=143
    * @param index The index of the element to return.
    * @return The indexedInScopes at the given index.
    */
@@ -381,7 +381,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=133
+   *     See GrpcReferenceSchemaMutations.proto;l=143
    * @return A list containing the enum numeric values on the wire for indexedInScopes.
    */
   @java.lang.Deprecated java.util.List<java.lang.Integer>
@@ -401,7 +401,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityScope indexedInScopes = 11 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcCreateReflectedReferenceSchemaMutation.indexedInScopes is deprecated.
-   *     See GrpcReferenceSchemaMutations.proto;l=133
+   *     See GrpcReferenceSchemaMutations.proto;l=143
    * @param index The index of the value to return.
    * @return The enum numeric value on the wire of indexedInScopes at the given index.
    */
@@ -421,7 +421,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -436,7 +436,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -451,7 +451,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -467,7 +467,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -483,7 +483,7 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
   /**
    * <pre>
    * Whether the statistics data for this reference should be maintained and this allowing to get
-   * `facetSummary` for this reference or use `facetInSet`
+   * `referenceSummary` for this reference or use `facetInSet`
    * filtering query.
    *
    * Do not mark reference as faceted unless you want it among `FacetStatistics`. Each faceted reference
@@ -549,5 +549,191 @@ public interface GrpcCreateReflectedReferenceSchemaMutationOrBuilder extends
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexType scopedIndexTypes = 14;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexTypeOrBuilder getScopedIndexTypesOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `indexedInherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents> 
+      getScopedIndexedComponentsList();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `indexedInherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents getScopedIndexedComponents(int index);
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `indexedInherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;</code>
+   */
+  int getScopedIndexedComponentsCount();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `indexedInherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder> 
+      getScopedIndexedComponentsOrBuilderList();
+  /**
+   * <pre>
+   * Scoped reference indexed components that specify which parts of a reference relationship
+   * (referenced entity, referenced group entity) are indexed per scope.
+   * When `indexedInherited` is true, this field is ignored.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponents scopedIndexedComponents = 15;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedReferenceIndexedComponentsOrBuilder getScopedIndexedComponentsOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially> 
+      getFacetedPartiallyList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially getFacetedPartially(int index);
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  int getFacetedPartiallyCount();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder> 
+      getFacetedPartiallyOrBuilderList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in faceting.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartially facetedPartially = 16;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedFacetedPartiallyOrBuilder getFacetedPartiallyOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition> 
+      getBucketedInScopesList();
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition getBucketedInScopes(int index);
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
+   */
+  int getBucketedInScopesCount();
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder> 
+      getBucketedInScopesOrBuilderList();
+  /**
+   * <pre>
+   * Per-scope bucketed histogram configurations defining index name and value expression.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinition bucketedInScopes = 17;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedHistogramIndexDefinitionOrBuilder getBucketedInScopesOrBuilder(
+      int index);
+
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially> 
+      getBucketedPartiallyInScopesList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially getBucketedPartiallyInScopes(int index);
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
+   */
+  int getBucketedPartiallyInScopesCount();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder> 
+      getBucketedPartiallyInScopesOrBuilderList();
+  /**
+   * <pre>
+   * Per-scope expressions that narrow which entities participate in bucketed histogram computation.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartially bucketedPartiallyInScopes = 18;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcScopedBucketedPartiallyOrBuilder getBucketedPartiallyInScopesOrBuilder(
       int index);
 }

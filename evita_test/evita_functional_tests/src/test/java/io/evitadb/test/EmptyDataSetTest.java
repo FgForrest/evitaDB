@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
+import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 public class EmptyDataSetTest implements EvitaTestSupport {
 	private static final String DIR_EMPTY_DATA_SET_TEST = "emptyDataSetTest";
+	public static final String DIR_EMPTY_DATA_SET_TEST_EXPORT = DIR_EMPTY_DATA_SET_TEST + "_export";
 	private Evita evita;
 
 	@BeforeEach
@@ -61,6 +63,11 @@ public class EmptyDataSetTest implements EvitaTestSupport {
 					// point evitaDB to a test directory (temp directory)
 					StorageOptions.builder()
 						.storageDirectory(getTestDirectory().resolve(DIR_EMPTY_DATA_SET_TEST))
+						.build()
+				)
+				.export(
+					FileSystemExportOptions.builder()
+						.directory(getTestDirectory().resolve(DIR_EMPTY_DATA_SET_TEST_EXPORT))
 						.build()
 				)
 				.cache(

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.store.checksum.Crc32CChecksumFactory;
+import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.utils.BitUtils;
 import org.junit.jupiter.api.Test;
@@ -50,9 +52,11 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 	void shouldWriteAndReadCompressedData() {
 		final int bufferSize = BIG_PAYLOAD_SIZE + OVERHEAD_SIZE;
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0)
-			.computeCRC32()
-			.compress();
+		final ObservableOutput<?> output = new ObservableOutput<>(
+			baos, bufferSize, bufferSize, 0,
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
+		);
 
 		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
 		final Output controlOutput = new Output(controlBaos, bufferSize);
@@ -65,9 +69,11 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		writeRecord(output, controlOutput, BIG_PAYLOAD_SIZE, repeatedBytes);
 
 		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
-		final ObservableInput<?> input = new ObservableInput<>(bais, 24)
-			.computeCRC32()
-			.compress();
+		final ObservableInput<?> input = new ObservableInput<>(
+			bais, 24,
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
+		);
 
 		final byte[] payload = readAndVerifyRecord(input, BIG_PAYLOAD_SIZE);
 
@@ -85,9 +91,11 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 	void shouldNotCompressIncompressibleData() {
 		final int bufferSize = PAYLOAD_SIZE + OVERHEAD_SIZE;
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(bufferSize);
-		final ObservableOutput<?> output = new ObservableOutput<>(baos, bufferSize, bufferSize, 0)
-			.computeCRC32()
-			.compress();
+		final ObservableOutput<?> output = new ObservableOutput<>(
+			baos, bufferSize, bufferSize, 0,
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
+		);
 
 		final ByteArrayOutputStream controlBaos = new ByteArrayOutputStream(bufferSize);
 		final Output controlOutput = new Output(controlBaos, bufferSize);
@@ -100,9 +108,11 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 		writeRecord(output, controlOutput, PAYLOAD_SIZE, bytes);
 
 		final ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
-		final ObservableInput<?> input = new ObservableInput<>(bais, 24)
-			.computeCRC32()
-			.compress();
+		final ObservableInput<?> input = new ObservableInput<>(
+			bais, 24,
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
+		);
 
 		// read control byte
 		input.markStart();

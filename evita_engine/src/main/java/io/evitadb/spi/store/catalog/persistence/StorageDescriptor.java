@@ -29,22 +29,34 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 
 /**
- * Interface describes basic properties of the persistent storage descriptor that refers to a single file with Kryo
- * serialized records. The descriptor is a key for understanding the contents of the binary file. Without descriptor
- * the file is unreadable.
+ * A `StorageDescriptor` carries the metadata that is necessary to open and read a single evitaDB binary data file
+ * (catalog file or entity collection file) serialized with Kryo. The descriptor is written alongside the file and
+ * must be loaded before any records in that file can be deserialized. Without a valid descriptor the file is opaque
+ * binary data.
+ *
+ * The descriptor is immutable after creation; a new instance is produced with each
+ * {@link StoragePartPersistenceService#flush(long)}
+ * call. Implementations typically carry additional fields beyond the base contract (e.g. file location metadata).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface StorageDescriptor {
 
 	/**
-	 * Descriptor version is incremented with each update. Version is not stored on the disk, it serves only to distinguish
-	 * whether there is any change made in the header and whether it needs to be persisted on disk.
+	 * The monotonically increasing descriptor version. It is incremented with each logical update to the descriptor
+	 * contents (e.g. when new keys are registered in the {@link KeyCompressor}). This counter is not persisted to
+	 * disk; its sole purpose is to let callers detect in-memory changes and decide whether the updated descriptor
+	 * needs to be written to the storage header.
 	 */
 	long version();
 
 	/**
-	 * Returns actual contents of the {@link KeyCompressor} used during write.
+	 * Returns the full id → key mapping from the {@link KeyCompressor} that was active during the last write to
+	 * this storage file. The map is keyed by the compact integer ids used in the Kryo-serialized records; the values
+	 * are the original key objects (e.g. {@link io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey}).
+	 *
+	 * This data is persisted as part of the storage header so that a new {@link KeyCompressor} can be bootstrapped
+	 * when the file is reopened, enabling correct deserialization of all records.
 	 */
 	@Nonnull
 	Map<Integer, Object> compressedKeys();

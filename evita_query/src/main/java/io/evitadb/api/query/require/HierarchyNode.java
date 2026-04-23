@@ -38,26 +38,32 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * The node filtering container is an alternative to the {@link HierarchyDistance} and {@link HierarchyLevel}
- * termination constraints, which is much more dynamic and can produce hierarchy trees of non-uniform depth. Because
- * the filtering constraint can be satisfied by nodes of widely varying depths, traversal can be highly dynamic.
+ * A dynamic, filter-based termination constraint for hierarchy traversal. Unlike {@link HierarchyDistance} (which
+ * stops after a fixed number of hops) and {@link HierarchyLevel} (which stops at a fixed absolute depth),
+ * `node` stops the traversal at the first node whose properties satisfy the specified `filterBy` condition.
  *
- * Constraint children define a criterion that determines the point in a hierarchical structure where the traversal
- * should stop. The traversal stops at the first node that satisfies the filter condition specified in this container.
+ * Because the filter can match nodes at widely different depths in different branches, this constraint produces
+ * hierarchy trees of non-uniform depth — the traversal may go deeper in one branch and shallower in another,
+ * depending on where the condition is first satisfied along each path.
  *
- * The situations where you'd need this dynamic behavior are few and far between. Unfortunately, we do not have
- * a meaningful example of this in the demo dataset, so our example query will be slightly off. But for the sake of
- * demonstration, let's list the entire Accessories hierarchy, but stop traversing at the nodes whose code starts with
- * the letter `w`.
+ * This constraint has two distinct uses:
  *
- * <pre>
+ * 1. **As a `stopAt` inner constraint** (inside {@link HierarchyStopAt}): terminates downward traversal at the
+ *    first node matching the filter. Nodes that satisfy the condition are included in the output, but their
+ *    children are not descended into.
+ *
+ * 2. **As a pivot locator** (inside {@link HierarchyFromNode}): identifies a single pivot node that serves as
+ *    the root of the hierarchy subtree to compute. In this role the filter must match exactly one node.
+ *
+ * `node` can only be used inside a {@link HierarchyStopAt} or {@link HierarchyFromNode} container.
+ *
+ * **Example — stop traversal at nodes whose code starts with `w`:**
+ *
+ * ```evitaql
  * query(
  *     collection("Product"),
  *     filterBy(
- *         hierarchyWithin(
- *             "categories",
- *             attributeEquals("code", "accessories")
- *         )
+ *         hierarchyWithin("categories", attributeEquals("code", "accessories"))
  *     ),
  *     require(
  *         hierarchyOfReference(
@@ -66,25 +72,21 @@ import java.io.Serializable;
  *                 "subMenu",
  *                 entityFetch(attributeContent("code")),
  *                 stopAt(
- *                     node(
- *                         filterBy(
- *                             attributeStartsWith("code", "w")
- *                         )
- *                     )
+ *                     node(filterBy(attributeStartsWith("code", "w")))
  *                 )
  *             )
  *         )
  *     )
  * )
- * </pre>
+ * ```
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#node">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#node)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "node",
-	shortDescription = "The constraint allows to locate the pivot hierarchy node.",
+	shortDescription = "The constraint identifies a pivot hierarchy node dynamically using a nested filter condition.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
@@ -114,7 +116,10 @@ public class HierarchyNode extends AbstractRequireConstraintContainer implements
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isTrue(ArrayUtils.isEmpty(children), "Inner constraints of different type than FilterBy are not expected.");
 		Assert.isTrue(additionalChildren.length == 1, "HierarchyNode expect FilterBy inner constraint!");
 		for (Constraint<?> constraint : additionalChildren) {
@@ -131,7 +136,7 @@ public class HierarchyNode extends AbstractRequireConstraintContainer implements
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
 		Assert.isTrue(ArrayUtils.isEmpty(newArguments), "HierarchyNode container accepts no arguments!");
-		return this;
+		return new HierarchyNode(getFilterBy());
 	}
 
 }

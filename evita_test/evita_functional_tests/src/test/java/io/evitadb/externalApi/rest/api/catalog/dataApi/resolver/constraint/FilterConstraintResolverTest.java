@@ -210,6 +210,71 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 	}
 
 	@Test
+	void shouldResolveHistogramHavingWithBoundsOnly() {
+		// classifier-only histogramHaving — only `from` / `to` are provided in the wrapper object;
+		// the resolver must reconstruct a HistogramHaving with matching referenceName and bounds
+		assertEquals(
+			histogramHaving("CATEGORY", 10, 20),
+			this.resolver.resolve(
+				Entities.PRODUCT,
+				"referenceCategoryHistogramHaving",
+				map()
+					.e("from", 10)
+					.e("to", 20)
+					.build()
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveHistogramHavingWithHistogramNameAndBounds() {
+		// classifier + histogramName + bounds — the wrapper also carries a `histogramName` field
+		// to select one of several histograms hosted by the same reference
+		assertEquals(
+			histogramHaving("CATEGORY", "basicUnitValue", 50, 120),
+			this.resolver.resolve(
+				Entities.PRODUCT,
+				"referenceCategoryHistogramHaving",
+				map()
+					.e("histogramName", "basicUnitValue")
+					.e("from", 50)
+					.e("to", 120)
+					.build()
+			)
+		);
+	}
+
+	@Test
+	void shouldResolveHistogramHavingFullArityWithGroupSelector() {
+		// full-arity histogramHaving with an entityHaving groupSelector — the resolver accepts the
+		// canonical `entityHaving` key (entity property-type prefix + fullName) for the child; the
+		// wrapper `and` containers the resolver adds around the single child are then purified away
+		assertEquals(
+			histogramHaving(
+				"CATEGORY",
+				"basicUnitValue",
+				50,
+				120,
+				entityHaving(attributeEquals("NAME", "height"))
+			),
+			QueryPurifierVisitor.purify(
+				this.resolver.resolve(
+					Entities.PRODUCT,
+					"referenceCategoryHistogramHaving",
+					map()
+						.e("histogramName", "basicUnitValue")
+						.e("from", 50)
+						.e("to", 120)
+						.e("groupSelector", map()
+							.e("entityHaving", map()
+								.e("attributeNameEquals", "height")))
+						.build()
+				)
+			)
+		);
+	}
+
+	@Test
 	void shouldResolveComplexFilterConstraintTree() {
 		//noinspection ConstantConditions
 		assertEquals(

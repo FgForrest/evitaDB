@@ -31,12 +31,15 @@ import io.evitadb.api.requestResponse.data.ReferencesEditor.ReferencesBuilder;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,102 +47,523 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * This test verifies contract of {@link ExistingReferenceBuilder}.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@DisplayName("ExistingReferenceBuilder")
 class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 	private ReferenceContract initialReference;
-	private final HashMap<String, AttributeSchemaContract> attributeTypes = new HashMap<>(4);
+	private final HashMap<String, AttributeSchemaContract>
+		attributeTypes = new HashMap<>(4);
 
 	@BeforeEach
 	void setUp() {
 		this.initialReference = new InitialReferenceBuilder(
 			PRODUCT_SCHEMA,
-			ReferencesBuilder.createImplicitSchema(PRODUCT_SCHEMA, "brand", "brand", Cardinality.ZERO_OR_ONE, null),
+			ReferencesBuilder.createImplicitSchema(
+				PRODUCT_SCHEMA,
+				"brand",
+				"brand",
+				Cardinality.ZERO_OR_ONE,
+				null
+			),
 			"brand",
 			5,
 			-4,
 			this.attributeTypes
 		)
 			.setAttribute("brandPriority", 154L)
-			.setAttribute("country", Locale.ENGLISH, "Great Britain")
-			.setAttribute("country", Locale.CANADA, "Canada")
+			.setAttribute(
+				"country", Locale.ENGLISH, "Great Britain"
+			)
+			.setAttribute(
+				"country", Locale.CANADA, "Canada"
+			)
 			.setGroup("group", 78)
 			.build();
 	}
 
-	@Test
-	void shouldModifyAttributes() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
-			.setAttribute("brandPriority", 155L)
-			.removeAttribute("country", Locale.ENGLISH)
-			.setAttribute("newAttribute", "Hi");
+	@Nested
+	@DisplayName("Modifying attributes")
+	class ModifyingAttributesTest {
 
-		assertEquals(155L, (Long) builder.getAttribute("brandPriority"));
-		assertEquals("Canada", builder.getAttribute("country", Locale.CANADA));
-		assertNull(builder.getAttribute("country", Locale.ENGLISH));
-		assertEquals("Hi", builder.getAttribute("newAttribute"));
+		@Test
+		@DisplayName("should modify attributes")
+		void shouldModifyAttributes() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setAttribute("brandPriority", 155L)
+					.removeAttribute(
+						"country", Locale.ENGLISH
+					)
+					.setAttribute("newAttribute", "Hi");
 
-		final ReferenceContract reference = builder.build();
+			assertEquals(
+				155L,
+				(Long) builder.getAttribute(
+					"brandPriority"
+				)
+			);
+			assertEquals(
+				"Canada",
+				builder.getAttribute(
+					"country", Locale.CANADA
+				)
+			);
+			assertNull(
+				builder.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+			assertEquals(
+				"Hi",
+				builder.getAttribute("newAttribute")
+			);
 
-		assertEquals(155L, (Long) reference.getAttribute("brandPriority"));
-		assertEquals("Canada", reference.getAttribute("country", Locale.CANADA));
-		assertEquals("Great Britain", reference.getAttribute("country", Locale.ENGLISH));
-		assertEquals("Hi", reference.getAttribute("newAttribute"));
+			final ReferenceContract reference =
+				builder.build();
 
-		final AttributeValue gbCountry = reference.getAttributeValue("country", Locale.ENGLISH).orElseThrow();
-		assertTrue(gbCountry.dropped());
+			assertEquals(
+				155L,
+				(Long) reference.getAttribute(
+					"brandPriority"
+				)
+			);
+			assertEquals(
+				"Canada",
+				reference.getAttribute(
+					"country", Locale.CANADA
+				)
+			);
+			assertEquals(
+				"Great Britain",
+				reference.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+			assertEquals(
+				"Hi",
+				reference.getAttribute("newAttribute")
+			);
+
+			final AttributeValue gbCountry =
+				reference.getAttributeValue(
+					"country", Locale.ENGLISH
+				).orElseThrow();
+			assertTrue(gbCountry.dropped());
+		}
+
+		@Test
+		@DisplayName(
+			"should set new attribute on existing ref"
+		)
+		void shouldSetNewAttributeOnExistingReference() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setAttribute("website", "example.com");
+
+			assertEquals(
+				"example.com",
+				builder.getAttribute("website")
+			);
+
+			final ReferenceContract reference =
+				builder.build();
+			assertEquals(
+				"example.com",
+				reference.getAttribute("website")
+			);
+			// original attributes remain untouched
+			assertEquals(
+				154L,
+				(Long) reference.getAttribute(
+					"brandPriority"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should override localized attribute"
+		)
+		void shouldOverrideLocalizedAttribute() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setAttribute(
+						"country", Locale.ENGLISH, "UK"
+					);
+
+			assertEquals(
+				"UK",
+				builder.getAttribute(
+					"country", Locale.ENGLISH
+				)
+			);
+			assertEquals(
+				"Canada",
+				builder.getAttribute(
+					"country", Locale.CANADA
+				)
+			);
+		}
 	}
 
-	@Test
-	void shouldSkipMutationsThatMeansNoChange() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
-			.setAttribute("brandPriority", 154L)
-			.setAttribute("country", Locale.ENGLISH, "Changed name")
-			.setAttribute("country", Locale.ENGLISH, "Great Britain")
-			.setGroup("group", 78);
+	@Nested
+	@DisplayName("No-op and deduplication")
+	class NoOpAndDeduplicationTest {
 
-		assertEquals(0, builder.buildChangeSet().count());
+		@Test
+		@DisplayName(
+			"should skip mutations that mean no change"
+		)
+		void shouldSkipMutationsThatMeansNoChange() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setAttribute("brandPriority", 154L)
+					.setAttribute(
+						"country",
+						Locale.ENGLISH,
+						"Changed name"
+					)
+					.setAttribute(
+						"country",
+						Locale.ENGLISH,
+						"Great Britain"
+					)
+					.setGroup("group", 78);
+
+			assertEquals(
+				0, builder.buildChangeSet().count()
+			);
+		}
 	}
 
-	@Test
-	void shouldModifyReferenceGroup() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
-			.setGroup("newGroup", 77);
+	@Nested
+	@DisplayName("Group management")
+	class GroupManagementTest {
 
-		assertEquals(
-			new GroupEntityReference("newGroup", 77, 2, false),
-			builder.getGroup().orElse(null)
-		);
+		@Test
+		@DisplayName("should modify reference group")
+		void shouldModifyReferenceGroup() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setGroup("newGroup", 77);
 
-		final ReferenceContract reference = builder.build();
+			assertEquals(
+				new GroupEntityReference(
+					"newGroup", 77, 2, false
+				),
+				builder.getGroup().orElse(null)
+			);
 
-		assertEquals(
-			new GroupEntityReference("newGroup", 77, 2, false),
-			reference.getGroup().orElse(null)
-		);
+			final ReferenceContract reference =
+				builder.build();
+
+			assertEquals(
+				new GroupEntityReference(
+					"newGroup", 77, 2, false
+				),
+				reference.getGroup().orElse(null)
+			);
+		}
+
+		@Test
+		@DisplayName("should remove reference group")
+		void shouldRemoveReferenceGroup() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.removeGroup();
+
+			assertTrue(builder.getGroup().isEmpty());
+
+			final ReferenceContract reference =
+				builder.build();
+
+			assertTrue(reference.getGroup().isEmpty());
+		}
+
+		@Test
+		@DisplayName(
+			"should set group on reference without group"
+		)
+		void shouldSetGroupOnReferenceWithoutGroup() {
+			// build a reference without group first
+			final ReferenceContract noGroupRef =
+				new InitialReferenceBuilder(
+					PRODUCT_SCHEMA,
+					ReferencesBuilder.createImplicitSchema(
+						PRODUCT_SCHEMA,
+						"tag",
+						"tag",
+						Cardinality.ZERO_OR_MORE,
+						null
+					),
+					"tag",
+					1,
+					-1,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.build();
+
+			assertTrue(noGroupRef.getGroup().isEmpty());
+
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					noGroupRef,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setGroup("myGroup", 42);
+
+			assertEquals(
+				42,
+				builder.getGroup()
+					.orElseThrow()
+					.getPrimaryKey()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should skip no-op group set"
+		)
+		void shouldSkipNoOpGroupSet() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setGroup("group", 78);
+
+			assertEquals(
+				0, builder.buildChangeSet().count()
+			);
+		}
 	}
 
-	@Test
-	void shouldRemoveReferenceGroup() {
-		final ReferenceBuilder builder = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
-			.removeGroup();
+	@Nested
+	@DisplayName("Change set")
+	class ChangeSetTest {
 
-		assertTrue(builder.getGroup().isEmpty());
+		@Test
+		@DisplayName(
+			"should build change set for attribute changes"
+		)
+		void shouldBuildChangeSetForAttributeChanges() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setAttribute("brandPriority", 200L)
+					.setAttribute("newAttr", "value");
 
-		final ReferenceContract reference = builder.build();
+			assertEquals(
+				2, builder.buildChangeSet().count()
+			);
+		}
 
-		assertTrue(reference.getGroup().isEmpty());
+		@Test
+		@DisplayName(
+			"should build change set for group change"
+		)
+		void shouldBuildChangeSetForGroupChange() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setGroup("newGroup", 99);
+
+			assertEquals(
+				1, builder.buildChangeSet().count()
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should build empty change set"
+		)
+		void shouldBuildEmptyChangeSet() {
+			final ReferenceBuilder builder =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				);
+
+			assertEquals(
+				0, builder.buildChangeSet().count()
+			);
+		}
 	}
 
-	@Test
-	void shouldReturnOriginalReferenceInstanceWhenNothingHasChanged() {
-		final ReferenceContract reference = new ExistingReferenceBuilder(this.initialReference, PRODUCT_SCHEMA, this.attributeTypes)
-			.setAttribute("brandPriority", 154L)
-			.setAttribute("country", Locale.ENGLISH, "Great Britain")
-			.setAttribute("country", Locale.CANADA, "Canada")
-			.setGroup("group", 78)
-			.build();
+	@Nested
+	@DisplayName("Build behavior")
+	class BuildBehaviorTest {
 
-		assertSame(this.initialReference, reference);
+		@Test
+		@DisplayName(
+			"should build reference with dropped attribute"
+		)
+		void shouldBuildReferenceWithDroppedAttribute() {
+			final ReferenceContract reference =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.removeAttribute("brandPriority")
+					.build();
+
+			final AttributeValue brandPriority =
+				reference.getAttributeValue(
+					"brandPriority"
+				).orElseThrow();
+			assertTrue(brandPriority.dropped());
+			assertEquals(2L, brandPriority.version());
+		}
+
+		@Test
+		@DisplayName(
+			"should increment version on attr change"
+		)
+		void shouldIncrementVersionOnAttributeChange() {
+			final ReferenceContract reference =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setAttribute("brandPriority", 999L)
+					.build();
+
+			assertEquals(
+				2L,
+				reference.getAttributeValue(
+					"brandPriority"
+				).orElseThrow().version()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Identity")
+	class IdentityTest {
+
+		@Test
+		@DisplayName(
+			"should return original when nothing changed"
+		)
+		void shouldReturnOriginalReferenceInstanceWhenNothingHasChanged() {
+			final ReferenceContract reference =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setAttribute("brandPriority", 154L)
+					.setAttribute(
+						"country",
+						Locale.ENGLISH,
+						"Great Britain"
+					)
+					.setAttribute(
+						"country",
+						Locale.CANADA,
+						"Canada"
+					)
+					.setGroup("group", 78)
+					.build();
+
+			assertSame(
+				ExistingReferenceBuilderTest.this
+					.initialReference,
+				reference
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"should return new instance after modification"
+		)
+		void shouldReturnNewInstanceAfterModification() {
+			final ReferenceContract reference =
+				new ExistingReferenceBuilder(
+					ExistingReferenceBuilderTest.this
+						.initialReference,
+					PRODUCT_SCHEMA,
+					ExistingReferenceBuilderTest.this
+						.attributeTypes
+				)
+					.setAttribute("brandPriority", 999L)
+					.build();
+
+			assertNotSame(
+				ExistingReferenceBuilderTest.this
+					.initialReference,
+				reference
+			);
+			assertEquals(
+				999L,
+				(Long) reference.getAttribute(
+					"brandPriority"
+				)
+			);
+		}
 	}
 }

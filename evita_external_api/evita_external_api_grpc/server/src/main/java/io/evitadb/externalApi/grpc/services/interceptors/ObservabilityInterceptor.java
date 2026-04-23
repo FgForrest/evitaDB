@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 package io.evitadb.externalApi.grpc.services.interceptors;
 
 import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.externalApi.event.ResponseStatus;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.InitiatorType;
-import io.evitadb.externalApi.grpc.metric.event.AbstractProcedureCalledEvent.ResponseState;
 import io.evitadb.externalApi.grpc.metric.event.EvitaProcedureCalledEvent;
 import io.evitadb.externalApi.grpc.metric.event.SessionProcedureCalledEvent;
 import io.grpc.ForwardingServerCallListener;
@@ -169,14 +169,14 @@ public class ObservabilityInterceptor implements ServerInterceptor {
 			try {
 				super.onHalfClose();
 			} catch (RuntimeException ex) {
-				this.event.setGrpcResponseStatus(ResponseState.ERROR);
+				this.event.setGrpcResponseStatus(ResponseStatus.ERROR);
 				throw ex;
 			}
 		}
 
 		@Override
 		public void onCancel() {
-			this.event.setGrpcResponseStatus(ResponseState.CANCELED);
+			this.event.setGrpcResponseStatus(ResponseStatus.CANCELLED);
 			super.onCancel();
 		}
 

@@ -45,9 +45,12 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingCaptureRequest.TrafficRecordingType;
 import io.evitadb.api.requestResponse.trafficRecording.TrafficRecordingContent;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -65,6 +68,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Optional;
 
 import static io.evitadb.externalApi.grpc.generated.GrpcTaskSimplifiedState.*;
@@ -453,6 +457,7 @@ public class EvitaEnumConverter {
 		return switch (grpcFacetStatisticsDepth) {
 			case COUNTS -> FacetStatisticsDepth.COUNTS;
 			case IMPACT -> FacetStatisticsDepth.IMPACT;
+			case STATISTICS_NONE -> FacetStatisticsDepth.NONE;
 			case UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized remote facet statistics depth: " + grpcFacetStatisticsDepth);
 		};
@@ -529,6 +534,7 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static GrpcFacetStatisticsDepth toGrpcFacetStatisticsDepth(@Nonnull FacetStatisticsDepth facetStatisticsDepth) {
 		return switch (facetStatisticsDepth) {
+			case NONE -> GrpcFacetStatisticsDepth.STATISTICS_NONE;
 			case COUNTS -> GrpcFacetStatisticsDepth.COUNTS;
 			case IMPACT -> GrpcFacetStatisticsDepth.IMPACT;
 		};
@@ -897,6 +903,77 @@ public class EvitaEnumConverter {
 			case UNIQUE_WITHIN_CATALOG -> GrpcGlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG;
 			case UNIQUE_WITHIN_CATALOG_LOCALE -> GrpcGlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
 		};
+	}
+
+	/**
+	 * Converts a gRPC scoped attribute uniqueness type list to a domain model array. When the scoped list is empty
+	 * (backward compatibility), falls back to the legacy single-value field wrapped in a default-scope array.
+	 *
+	 * @param scopedList   the gRPC scoped list (may be empty for legacy messages)
+	 * @param defaultValue the legacy single-value field used as fallback
+	 * @return array of scoped attribute uniqueness types
+	 */
+	@Nonnull
+	public static ScopedAttributeUniquenessType[] toScopedAttributeUniquenessTypes(
+		@Nonnull List<GrpcScopedAttributeUniquenessType> scopedList,
+		@Nonnull GrpcAttributeUniquenessType defaultValue
+	) {
+		return scopedList.isEmpty() ?
+			new ScopedAttributeUniquenessType[]{
+				new ScopedAttributeUniquenessType(Scope.DEFAULT_SCOPE, toAttributeUniquenessType(defaultValue))
+			}
+			:
+			scopedList
+				.stream()
+				.map(it -> new ScopedAttributeUniquenessType(toScope(it.getScope()), toAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedAttributeUniquenessType[]::new);
+	}
+
+	/**
+	 * Converts a gRPC scoped global attribute uniqueness type list to a domain model array. When the scoped list
+	 * is empty (backward compatibility), falls back to the legacy single-value field wrapped in a default-scope array.
+	 *
+	 * @param scopedList   the gRPC scoped list (may be empty for legacy messages)
+	 * @param defaultValue the legacy single-value field used as fallback
+	 * @return array of scoped global attribute uniqueness types
+	 */
+	@Nonnull
+	public static ScopedGlobalAttributeUniquenessType[] toScopedGlobalAttributeUniquenessTypes(
+		@Nonnull List<GrpcScopedGlobalAttributeUniquenessType> scopedList,
+		@Nonnull GrpcGlobalAttributeUniquenessType defaultValue
+	) {
+		return scopedList.isEmpty() ?
+			new ScopedGlobalAttributeUniquenessType[]{
+				new ScopedGlobalAttributeUniquenessType(Scope.DEFAULT_SCOPE, toGlobalAttributeUniquenessType(defaultValue))
+			}
+			:
+			scopedList
+				.stream()
+				.map(it -> new ScopedGlobalAttributeUniquenessType(toScope(it.getScope()), toGlobalAttributeUniquenessType(it.getUniquenessType())))
+				.toArray(ScopedGlobalAttributeUniquenessType[]::new);
+	}
+
+	/**
+	 * Converts a gRPC scope list to a domain model scope array. When the scoped list is empty
+	 * (backward compatibility), falls back to the legacy boolean field: `true` yields default scopes,
+	 * `false` yields no scopes.
+	 *
+	 * @param scopesList   the gRPC scope list (may be empty for legacy messages)
+	 * @param defaultValue the legacy boolean field used as fallback
+	 * @return array of scopes
+	 */
+	@Nonnull
+	public static Scope[] toBooleanScopes(
+		@Nonnull List<GrpcEntityScope> scopesList,
+		boolean defaultValue
+	) {
+		return scopesList.isEmpty() ?
+			(defaultValue ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
+			:
+			scopesList
+				.stream()
+				.map(EvitaEnumConverter::toScope)
+				.toArray(Scope[]::new);
 	}
 
 	/**
@@ -1395,6 +1472,37 @@ public class EvitaEnumConverter {
 			case NONE -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_NONE;
 			case FOR_FILTERING -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_FOR_FILTERING;
 			case FOR_FILTERING_AND_PARTITIONING -> GrpcReferenceIndexType.REFERENCE_INDEX_TYPE_FOR_FILTERING_AND_PARTITIONING;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcReferenceIndexedComponents} to a {@link ReferenceIndexedComponents}.
+	 *
+	 * @param grpcComponents the gRPC reference indexed components to convert.
+	 * @return the corresponding reference indexed components.
+	 * @throws EvitaInvalidUsageException if the conversion cannot be performed.
+	 */
+	@Nonnull
+	public static ReferenceIndexedComponents toReferenceIndexedComponents(@Nonnull GrpcReferenceIndexedComponents grpcComponents) {
+		return switch (grpcComponents) {
+			case REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY -> ReferenceIndexedComponents.REFERENCED_ENTITY;
+			case REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY -> ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY;
+			case UNRECOGNIZED ->
+				throw new EvitaInvalidUsageException("Unrecognized gRPC reference indexed components: " + grpcComponents);
+		};
+	}
+
+	/**
+	 * Converts a {@link ReferenceIndexedComponents} to a {@link GrpcReferenceIndexedComponents}.
+	 *
+	 * @param components the reference indexed components to convert.
+	 * @return the corresponding gRPC reference indexed components.
+	 */
+	@Nonnull
+	public static GrpcReferenceIndexedComponents toGrpcReferenceIndexedComponents(@Nonnull ReferenceIndexedComponents components) {
+		return switch (components) {
+			case REFERENCED_ENTITY -> GrpcReferenceIndexedComponents.REFERENCE_INDEXED_COMPONENTS_REFERENCED_ENTITY;
+			case REFERENCED_GROUP_ENTITY -> GrpcReferenceIndexedComponents.REFERENCE_INDEXED_COMPONENTS_REFERENCED_GROUP_ENTITY;
 		};
 	}
 }

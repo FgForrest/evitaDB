@@ -27,7 +27,7 @@
 // Protobuf Java Version: 3.25.8
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcFacetGroupStatisticsOrBuilder extends
+@java.lang.Deprecated public interface GrpcFacetGroupStatisticsOrBuilder extends
     // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics)
     com.google.protobuf.MessageOrBuilder {
 

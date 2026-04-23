@@ -5,6 +5,7 @@ date: '14.7.2024'
 author: Ing. Jan Novotný
 proofreading: done
 commit: '550d04a927cac92ff1a2e14d5aaa23b87f101618'
+translated: 'true'
 ---
 Server evitaDB je konfigurován ve formátu YAML a jeho výchozí nastavení je nejlépe popsáno následujícím ukázkovým kódem:
 
@@ -1142,7 +1143,7 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>tlsMode</dt>
     <dd>
         <p>**Výchozí:** `FORCE_TLS`</p>
-        <p>Zda povolit [TLS](./tls.md) pro konkrétní API. K dispozici jsou tři režimy:</p>
+        <p>Zda povolit [TLS](tls.md) pro konkrétní API. K dispozici jsou tři režimy:</p>
         <ol>
             <li>`FORCE_TLS`: Povolená je pouze šifrovaná (TLS) komunikace.</li>
             <li>`FORCE_NO_TLS`: Povolená je pouze nešifrovaná (non-TLS) komunikace.</li>
@@ -1157,7 +1158,7 @@ To vám umožňuje nastavit společná nastavení pro všechny endpointy na jedn
     <dt>mTls.enabled</dt>
     <dd>
         <p>**Výchozí:** `false`</p>
-        <p>Povoluje / zakazuje [vzájemnou autentizaci](tls.md#mutual-tls-for-http) pro konkrétní API.</p>
+        <p>Povoluje / zakazuje [vzájemnou autentizaci](tls.md#vzájemné-tls) pro konkrétní API.</p>
     </dd>
     <dt>mTls.allowedClientCertificatePaths</dt>
     <dd>

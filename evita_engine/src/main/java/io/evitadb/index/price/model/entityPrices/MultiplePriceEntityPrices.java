@@ -28,13 +28,12 @@ import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.Arrays;
 
 /**
  * This internal data structure aggregates prices for single entity. We need to answer the question of which prices
  * (with or without tax) are assigned to which entity.
  *
- * This implementation of {@link EntityPrices} maintains the maintains more than single price but none of them
+ * This implementation of {@link EntityPrices} maintains more than a single price but none of them
  * is {@link PriceRecordContract#isInnerRecordSpecific()}.
  */
 @ThreadSafe
@@ -68,6 +67,7 @@ class MultiplePriceEntityPrices extends EntityPrices {
 		this.lowestPrice = new PriceRecordContract[] {theLowestPrice};
 	}
 
+	@Nonnull
 	@Override
 	public PriceRecordContract[] getLowestPriceRecords() {
 		return this.lowestPrice;
@@ -80,7 +80,12 @@ class MultiplePriceEntityPrices extends EntityPrices {
 
 	@Override
 	public boolean containsPriceRecord(int priceId) {
-		return Arrays.stream(this.prices).anyMatch(it -> it.priceId() == priceId);
+		for (final PriceRecordContract price : this.prices) {
+			if (price.priceId() == priceId) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	@Override
@@ -107,13 +112,13 @@ class MultiplePriceEntityPrices extends EntityPrices {
 
 	@Nonnull
 	@Override
-	protected PriceRecordContract[] computePricesAdding(@Nonnull PriceRecordContract PriceRecordContract) {
-		return ArrayUtils.insertRecordIntoOrderedArray(PriceRecordContract, this.prices, PRICE_ID_COMPARATOR);
+	protected PriceRecordContract[] computePricesAdding(@Nonnull PriceRecordContract priceRecord) {
+		return ArrayUtils.insertRecordIntoOrderedArray(priceRecord, this.prices, PRICE_ID_COMPARATOR);
 	}
 
 	@Nonnull
 	@Override
-	protected PriceRecordContract[] computePricesRemoving(@Nonnull PriceRecordContract PriceRecordContract) {
-		return ArrayUtils.removeRecordFromOrderedArray(PriceRecordContract, this.prices, PRICE_ID_COMPARATOR);
+	protected PriceRecordContract[] computePricesRemoving(@Nonnull PriceRecordContract priceRecord) {
+		return ArrayUtils.removeRecordFromOrderedArray(priceRecord, this.prices, PRICE_ID_COMPARATOR);
 	}
 }

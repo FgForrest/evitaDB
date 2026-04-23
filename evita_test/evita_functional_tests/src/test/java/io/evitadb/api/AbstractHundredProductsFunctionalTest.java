@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.extension.DataCarrier;
@@ -51,7 +52,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CATEGORY_PRIORIT
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 
 /**
- * Abstract parent that setups shared schema and testing data set for multiple functional tests.
+ * Abstract parent that sets up a shared schema and testing data set for multiple functional tests.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -76,7 +77,7 @@ public class AbstractHundredProductsFunctionalTest {
 		).build();
 
 	@Nonnull
-	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(EvitaSessionContract session) {
+	protected BiFunction<String, Faker, Integer> getRandomEntityPicker(@Nonnull EvitaSessionContract session) {
 		return (entityType, faker) -> {
 			final int entityCount = session.getEntityCollectionSize(entityType);
 			final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
@@ -84,7 +85,8 @@ public class AbstractHundredProductsFunctionalTest {
 		};
 	}
 
-	protected DataCarrier setUp(Evita evita) {
+	@Nonnull
+	protected DataCarrier setUp(@Nonnull Evita evita) {
 		return evita.updateCatalog(TEST_CATALOG, session -> {
 			final BiFunction<String, Faker, Integer> randomEntityPicker = getRandomEntityPicker(session);
 
@@ -201,6 +203,10 @@ public class AbstractHundredProductsFunctionalTest {
 								.withReferenceToEntity(
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
 									whichIs -> whichIs.indexedForFilteringAndPartitioning().faceted()
+										.indexedWithComponents(
+											ReferenceIndexedComponents.REFERENCED_ENTITY,
+											ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+										)
 										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().filterable())
 								)
@@ -212,6 +218,10 @@ public class AbstractHundredProductsFunctionalTest {
 									whichIs -> whichIs
 										.indexedForFilteringAndPartitioning()
 										.faceted()
+										.indexedWithComponents(
+											ReferenceIndexedComponents.REFERENCED_ENTITY,
+											ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+										)
 										.withGroupTypeRelatedToEntity(Entities.STORE)
 								)
 								.withReferenceToEntity(

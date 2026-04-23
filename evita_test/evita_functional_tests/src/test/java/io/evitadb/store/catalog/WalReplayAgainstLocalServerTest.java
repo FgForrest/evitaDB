@@ -42,6 +42,8 @@ import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.store.model.reference.LogFileRecordReference;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
@@ -139,10 +141,12 @@ public class WalReplayAgainstLocalServerTest implements EvitaTestSupport {
 			);
 
 			// 2. Open the source WAL folder and replay every transaction with version > current.
-			final StorageOptions walStorageOptions = StorageOptions.builder()
-				.storageDirectory(WAL_SOURCE_BASE_PATH)
-				.build();
-			final TransactionOptions transactionOptions = TransactionOptions.builder().build();
+			final StorageSettings walStorageSettings = new StorageSettings(
+				StorageOptions.builder()
+					.storageDirectory(WAL_SOURCE_BASE_PATH)
+					.build(),
+				TransactionOptions.builder().build()
+			);
 			final Pool<Kryo> walKryoPool = new Pool<>(true, false, 16) {
 				@Override
 				protected Kryo create() {
@@ -154,12 +158,13 @@ public class WalReplayAgainstLocalServerTest implements EvitaTestSupport {
 				final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 					1,
 					CATALOG_NAME,
-					index -> CatalogPersistenceService.getWalFileName(CATALOG_NAME, index),
+					new LogFileRecordReference(
+						index -> CatalogPersistenceService.getWalFileName(CATALOG_NAME, index)
+					),
 					walSourceCatalogPath,
 					walKryoPool,
-					walStorageOptions, transactionOptions,
-					new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build()),
-					0
+					walStorageSettings,
+					new Scheduler(ThreadPoolOptions.transactionThreadPoolBuilder().build())
 				)
 			) {
 				replayMutations(evitaClient, wal, currentCatalogVersion);

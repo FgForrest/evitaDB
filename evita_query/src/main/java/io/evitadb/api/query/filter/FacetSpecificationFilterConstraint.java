@@ -27,8 +27,43 @@ import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.FilterConstraint;
 
 /**
- * This interface marks all filtering constraints that can be used to further specify facet queries and that can
- * be used within {@link FacetHaving} container.
+ * Marker interface for filtering constraints that can be used as child constraints within {@link FacetHaving} to further specify facet
+ * filtering logic. Constraints implementing this interface provide additional filtering capabilities specific to faceted navigation scenarios.
+ *
+ * ## Purpose in the Constraint System
+ *
+ * This interface serves as a **type marker** in evitaDB's constraint classification system. It extends both {@link FacetConstraint} and
+ * {@link FilterConstraint}, indicating that implementations are filtering constraints that operate specifically within the facet property
+ * domain. The interface has no methods beyond those inherited from its parent interfaces.
+ *
+ * ## Role in Facet Filtering
+ *
+ * Constraints implementing `FacetSpecificationFilterConstraint` are designed to work within the {@link FacetHaving} container and provide
+ * specialized filtering logic for faceted references. These constraints typically modify how facet matches are determined (e.g., including
+ * hierarchical children, excluding specific entities) rather than directly filtering entity attributes.
+ *
+ * ## Known Implementations
+ *
+ * Current implementations of this interface include:
+ *
+ * - {@link FacetIncludingChildren}: Includes hierarchical descendants in facet matching.
+ * - {@link FacetIncludingChildrenExcept}: Includes hierarchical descendants except those matching exclusion criteria.
+ *
+ * These constraints are not general-purpose filters — they only make sense within {@link FacetHaving} because they modify the facet matching
+ * behavior for hierarchical references.
+ *
+ * ## Constraint Validation
+ *
+ * The evitaDB query constraint processor uses this marker interface during query validation to ensure that `FacetSpecificationFilterConstraint`
+ * implementations are only used in valid contexts (as children of {@link FacetHaving}). Using these constraints outside {@link FacetHaving}
+ * may result in a query validation error.
+ *
+ * ## Relationship to Other Interfaces
+ *
+ * - {@link FacetConstraint}: Parent marker interface indicating this constraint operates in the facet property domain.
+ * - {@link FilterConstraint}: Parent marker interface indicating this is a filtering constraint.
+ * - {@link FacetHaving}: The container that accepts `FacetSpecificationFilterConstraint` implementations as children.
+ * - {@link HierarchyReferenceSpecificationFilterConstraint}: Similar marker interface for hierarchy specification constraints.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
 import io.evitadb.utils.Assert;
@@ -43,14 +42,32 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
 /**
- * This predicate allows to limit number of associated data visible to the client based on query constraints.
+ * Serializable predicate that filters entity associated data based on query requirements.
+ *
+ * This predicate controls which associated data are visible to clients by filtering based on associated data names
+ * and locales specified in the query. Associated data are larger data blobs (typically JSON, arrays, or complex
+ * objects) that complement entity attributes. The predicate supports:
+ * - Name-based filtering (specific associated data or all associated data)
+ * - Locale-based filtering (specific locales, implicit locale, or all locales)
+ * - Combined name + locale filtering for localized associated data
+ *
+ * The predicate is used by {@link EntityDecorator} to ensure that only requested associated data are exposed
+ * in entity data, even when the underlying cached entity contains additional associated data. This enables
+ * efficient entity caching while maintaining query-specific data visibility contracts.
+ *
+ * **Thread-safety**: This class is immutable and thread-safe.
+ *
+ * **Underlying predicate pattern**: Supports an optional underlying predicate that represents the original entity's
+ * complete associated data scope. This pattern is used when creating limited views from fully-fetched entities.
+ *
+ * **Empty set semantics**: An empty `associatedDataSet` means "all associated data are allowed" when
+ * `requiresEntityAssociatedData` is true. Similarly, an empty `locales` set means "all locales are allowed".
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -60,33 +77,42 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	);
 	@Serial private static final long serialVersionUID = 85644932696677698L;
 	/**
-	 * Contains information about single locale defined for the entity.
+	 * Single resolved locale for the entity, derived from `implicitLocale` or `locales` when exactly one locale
+	 * is present. Used for single-locale entity access patterns. May be null if multiple locales are requested.
 	 */
 	@Nullable @Getter private final Locale locale;
 	/**
-	 * Contains information about implicitly derived locale during entity fetch.
+	 * Implicitly derived locale determined from query context or defaults. Takes precedence over explicit locales
+	 * when evaluating localized associated data visibility. May be null if no implicit locale was derived.
 	 */
 	@Nullable @Getter private final Locale implicitLocale;
 	/**
-	 * Contains information about all locales of the associated data that has been fetched / requested for the entity.
+	 * Set of explicitly requested locales from the query. An empty set means all locales are allowed; null means
+	 * no locales were requested. Used in conjunction with `implicitLocale` for filtering localized associated data.
 	 */
 	@Nullable @Getter private final Set<Locale> locales;
 	/**
-	 * Contains information about all associated data names that has been fetched / requested for the entity.
+	 * Set of explicitly requested associated data names from the query. An empty set means all associated data
+	 * are allowed (when `requiresEntityAssociatedData` is true); otherwise specific associated data are filtered
+	 * by name.
 	 */
 	@Nonnull @Getter private final Set<String> associatedDataSet;
 	/**
-	 * Contains true if any of the associated data of the entity has been fetched / requested.
+	 * Indicates whether any associated data were requested with the entity. When false, all associated data access
+	 * will fail. When true, associated data are accessible subject to name and locale filtering.
 	 */
 	@Getter private final boolean requiresEntityAssociatedData;
 	/**
-	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
-	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}
-	 * is invoked on the entity.
+	 * Optional underlying predicate representing the complete entity's associated data scope. Used when creating
+	 * limited views from fully-fetched entities via
+	 * {@link EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}.
+	 * Must not be nested (only one level allowed).
 	 */
 	@Nullable @Getter private final AssociatedDataValueSerializablePredicate underlyingPredicate;
 
+	/**
+	 * Creates a default predicate with associated data access disabled.
+	 */
 	public AssociatedDataValueSerializablePredicate() {
 		this.locale = null;
 		this.implicitLocale = null;
@@ -96,6 +122,16 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Creates an associated data predicate with an underlying predicate for entity limitation scenarios.
+	 *
+	 * This constructor is used when applying additional restrictions to an already-fetched entity
+	 * (e.g., when calling `limitEntity`). The underlying predicate preserves the original fetch scope.
+	 *
+	 * @param evitaRequest the request containing new associated data and locale requirements
+	 * @param underlyingPredicate the predicate representing the original entity's complete associated data scope
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if underlyingPredicate is already nested
+	 */
 	public AssociatedDataValueSerializablePredicate(@Nonnull EvitaRequest evitaRequest, @Nonnull AssociatedDataValueSerializablePredicate underlyingPredicate) {
 		Assert.isPremiseValid(
 			underlyingPredicate.getUnderlyingPredicate() == null,
@@ -105,23 +141,44 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 		);
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
-		this.locale = Optional.ofNullable(this.implicitLocale)
+		this.locale = ofNullable(this.implicitLocale)
 			.orElseGet(() -> this.locales != null && this.locales.size() == 1 ? this.locales.iterator().next() : null);
 		this.associatedDataSet = evitaRequest.getEntityAssociatedDataSet();
 		this.requiresEntityAssociatedData = evitaRequest.isRequiresEntityAssociatedData();
 		this.underlyingPredicate = underlyingPredicate;
 	}
 
+	/**
+	 * Creates an associated data predicate from an Evita request.
+	 *
+	 * Extracts associated data name requirements, locale requirements, and derives the single locale if applicable.
+	 * The single `locale` field is populated only when exactly one locale is specified (either implicitly or
+	 * explicitly), enabling optimized single-locale access patterns.
+	 *
+	 * @param evitaRequest the request containing associated data and locale requirements
+	 */
 	public AssociatedDataValueSerializablePredicate(@Nonnull EvitaRequest evitaRequest) {
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
-		this.locale = Optional.ofNullable(this.implicitLocale)
+		// Derive single locale from implicit locale or single-element locale set
+		this.locale = ofNullable(this.implicitLocale)
 			.orElseGet(() -> this.locales != null && this.locales.size() == 1 ? this.locales.iterator().next() : null);
 		this.associatedDataSet = evitaRequest.getEntityAssociatedDataSet();
 		this.requiresEntityAssociatedData = evitaRequest.isRequiresEntityAssociatedData();
 		this.underlyingPredicate = null;
 	}
 
+	/**
+	 * Package-private constructor for creating predicates with specific associated data and locale configuration.
+	 *
+	 * Used internally for creating enriched copies via {@link #createRicherCopyWith(EvitaRequest)}.
+	 *
+	 * @param implicitLocale the implicit locale, if any
+	 * @param locale the single resolved locale, if exactly one locale is specified
+	 * @param locales the set of explicitly requested locales, if any
+	 * @param associatedDataSet the set of associated data names to include
+	 * @param requiresEntityAssociatedData whether associated data are required at all
+	 */
 	AssociatedDataValueSerializablePredicate(
 		@Nullable Locale implicitLocale,
 		@Nullable Locale locale,
@@ -139,21 +196,32 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 
 
 	/**
-	 * Returns true if the associated data were fetched along with the entity.
+	 * Checks whether any associated data were fetched with the entity.
+	 *
+	 * @return true if associated data are accessible (subject to name/locale filtering)
 	 */
 	public boolean wasFetched() {
 		return this.requiresEntityAssociatedData;
 	}
 
 	/**
-	 * Returns true if the associated data in specified locale were fetched along with the entity.
+	 * Checks whether associated data in the specified locale were fetched with the entity.
+	 *
+	 * An empty `locales` set means all locales were fetched; null means no locales were requested.
+	 *
+	 * @param locale the locale to check
+	 * @return true if associated data in this locale are accessible
 	 */
 	public boolean wasFetched(@Nonnull Locale locale) {
 		return this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale));
 	}
 
 	/**
-	 * Method verifies that associated data was fetched with the entity.
+	 * Verifies that associated data were fetched with the entity, throwing an exception if not.
+	 *
+	 * This method should be called before accessing any associated data to ensure the data is available.
+	 *
+	 * @throws ContextMissingException if no associated data were fetched with the entity
 	 */
 	public void checkFetched() throws ContextMissingException {
 		if (!this.requiresEntityAssociatedData) {
@@ -162,14 +230,26 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	}
 
 	/**
-	 * Returns true if the associated data of particular name was fetched along with the entity.
+	 * Checks whether associated data with the specified name was fetched with the entity.
+	 *
+	 * An empty `associatedDataSet` means all associated data were fetched (when
+	 * `requiresEntityAssociatedData` is true).
+	 *
+	 * @param attributeName the associated data name to check
+	 * @return true if the associated data is accessible
 	 */
 	public boolean wasFetched(@Nonnull String attributeName) {
 		return this.requiresEntityAssociatedData && (this.associatedDataSet.isEmpty() || this.associatedDataSet.contains(attributeName));
 	}
 
 	/**
-	 * Returns true if the associated data of particular name was in specified locale were fetched along with the entity.
+	 * Checks whether localized associated data with the specified name and locale was fetched with the entity.
+	 *
+	 * Combines both associated data name and locale filtering logic.
+	 *
+	 * @param attributeName the associated data name to check
+	 * @param locale the locale to check
+	 * @return true if the localized associated data is accessible
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
 		return (this.requiresEntityAssociatedData && (this.associatedDataSet.isEmpty() || this.associatedDataSet.contains(attributeName))) &&
@@ -181,8 +261,8 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	 */
 	public boolean wasFetched(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.requiresEntityAssociatedData) {
-			return this.associatedDataSet.contains(associatedDataKey.associatedDataName()) &&
-				(associatedDataKey.locale() == null || (this.locales != null && this.locales.contains(associatedDataKey.locale())));
+			return (this.associatedDataSet.isEmpty() || this.associatedDataSet.contains(associatedDataKey.associatedDataName())) &&
+				(associatedDataKey.locale() == null || (this.locales != null && (this.locales.isEmpty() || this.locales.contains(associatedDataKey.locale()))));
 		} else {
 			return false;
 		}
@@ -209,9 +289,21 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	}
 
 	public boolean isLocaleSet() {
-		return this.locale != null || this.implicitLocale != null || this.locales != null;
+		return PredicateLocaleHelper.isLocaleSet(this.locale, this.implicitLocale, this.locales);
 	}
 
+	/**
+	 * Tests whether the given associated data value should be visible based on query requirements.
+	 *
+	 * An associated data value passes the test if all of the following conditions are met:
+	 * - Associated data are required (`requiresEntityAssociatedData` is true)
+	 * - The associated data exists (not dropped)
+	 * - The associated data name matches (if `associatedDataSet` is non-empty)
+	 * - For localized associated data: the locale matches implicit locale, OR explicit locales are empty/contain it
+	 *
+	 * @param associatedDataValue the associated data value to test
+	 * @return true if the associated data should be visible to the client
+	 */
 	@Override
 	public boolean test(AssociatedDataValue associatedDataValue) {
 		if (this.requiresEntityAssociatedData) {
@@ -229,15 +321,27 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 		}
 	}
 
+	/**
+	 * Creates an enriched copy that combines this predicate's associated data scope with additional requirements.
+	 *
+	 * This method is used when progressively enriching an entity with more data. If the new request doesn't
+	 * add any new associated data or locale requirements, returns this instance for efficiency. The implicit
+	 * locale cannot change between enrichments.
+	 *
+	 * Enrichment logic:
+	 * - Associated data: Union of existing and new associated data sets (empty set dominates as "all data")
+	 * - Locales: Union of existing and new locale sets
+	 * - RequiresAssociatedData: OR logic (once true, stays true)
+	 *
+	 * @param evitaRequest the request containing additional associated data and locale requirements to merge
+	 * @return an enriched predicate, or this instance if no changes are needed
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if implicit locales differ
+	 */
+	@Nonnull
 	public AssociatedDataValueSerializablePredicate createRicherCopyWith(@Nonnull EvitaRequest evitaRequest) {
-		final Set<Locale> requiredLocales = combineLocales(evitaRequest);
+		final Set<Locale> requiredLocales = PredicateLocaleHelper.combineLocales(this.locales, evitaRequest);
 		final Set<String> requiredAssociatedDataSet = combineAssociatedData(evitaRequest);
-		Assert.isPremiseValid(
-			evitaRequest.getImplicitLocale() == null ||
-				this.implicitLocale == null ||
-				Objects.equals(this.implicitLocale, evitaRequest.getImplicitLocale()),
-			"Implicit locales cannot differ (`" + this.implicitLocale + "` vs. `" + evitaRequest.getImplicitLocale() + "`)!"
-		);
+		PredicateLocaleHelper.assertImplicitLocalesConsistent(this.implicitLocale, evitaRequest);
 
 		if ((this.requiresEntityAssociatedData || this.requiresEntityAssociatedData == evitaRequest.isRequiresEntityAssociatedData()) &&
 			Objects.equals(this.locales, requiredLocales) &&
@@ -245,16 +349,9 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 			(Objects.equals(this.implicitLocale, evitaRequest.getImplicitLocale()) || evitaRequest.getImplicitLocale() == null)) {
 			return this;
 		} else {
-			final Locale resultImplicitLocale = this.implicitLocale == null ? evitaRequest.getImplicitLocale() : this.implicitLocale;
-			final Locale resultLocale = this.locale == null ?
-				ofNullable(evitaRequest.getImplicitLocale())
-					.orElseGet(
-						() -> ofNullable(evitaRequest.getLocale())
-							.orElseGet(() -> evitaRequest.getRequiredLocales() != null && evitaRequest.getRequiredLocales().size() == 1 ? evitaRequest.getRequiredLocales().iterator().next() : null)
-					) : this.locale;
 			return new AssociatedDataValueSerializablePredicate(
-				resultImplicitLocale,
-				resultLocale,
+				PredicateLocaleHelper.resolveImplicitLocale(this.implicitLocale, evitaRequest),
+				PredicateLocaleHelper.resolveLocale(this.locale, evitaRequest),
 				requiredLocales,
 				requiredAssociatedDataSet,
 				evitaRequest.isRequiresEntityAssociatedData() || this.requiresEntityAssociatedData
@@ -262,6 +359,29 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 		}
 	}
 
+	/**
+	 * Returns the single requested locale, or null if none or multiple locales are set.
+	 *
+	 * This method is used when the client expects exactly one locale to be present. The locale is derived from
+	 * (in priority order): `locale`, `implicitLocale`, or single-element `locales` set.
+	 *
+	 * @return the single requested locale or null
+	 */
+	@Nullable
+	public Locale getRequestedLocale() {
+		return PredicateLocaleHelper.getRequestedLocale(this.locale, this.implicitLocale, this.locales);
+	}
+
+	/**
+	 * Combines existing associated data names with newly requested associated data from an Evita request.
+	 *
+	 * If either set is empty (meaning "all associated datas"), the empty set is preserved. Otherwise, both sets
+	 * are merged to form a union.
+	 *
+	 * @param evitaRequest the request containing potentially new associated data requirements
+	 * @return the combined set of associated data names
+	 */
+	@Nonnull
 	private Set<String> combineAssociatedData(@Nonnull EvitaRequest evitaRequest) {
 		Set<String> requiredAssociatedDataSet;
 		final Set<String> newlyRequiredAssociatedDataSet = evitaRequest.getEntityAssociatedDataSet();
@@ -271,7 +391,7 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 			} else if (newlyRequiredAssociatedDataSet.isEmpty()) {
 				requiredAssociatedDataSet = newlyRequiredAssociatedDataSet;
 			} else {
-				requiredAssociatedDataSet = new HashSet<>(this.associatedDataSet.size(), newlyRequiredAssociatedDataSet.size());
+				requiredAssociatedDataSet = new HashSet<>(this.associatedDataSet.size() + newlyRequiredAssociatedDataSet.size());
 				requiredAssociatedDataSet.addAll(this.associatedDataSet);
 				requiredAssociatedDataSet.addAll(newlyRequiredAssociatedDataSet);
 			}
@@ -283,19 +403,4 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 		return requiredAssociatedDataSet;
 	}
 
-	@Nullable
-	private Set<Locale> combineLocales(@Nonnull EvitaRequest evitaRequest) {
-		final Set<Locale> requiredLanguages;
-		final Set<Locale> newlyRequiredLanguages = evitaRequest.getRequiredLocales();
-		if (this.locales == null) {
-			requiredLanguages = newlyRequiredLanguages;
-		} else if (newlyRequiredLanguages != null) {
-			requiredLanguages = new HashSet<>(this.locales.size() + newlyRequiredLanguages.size());
-			requiredLanguages.addAll(this.locales);
-			requiredLanguages.addAll(newlyRequiredLanguages);
-		} else {
-			requiredLanguages = this.locales;
-		}
-		return requiredLanguages;
-	}
 }

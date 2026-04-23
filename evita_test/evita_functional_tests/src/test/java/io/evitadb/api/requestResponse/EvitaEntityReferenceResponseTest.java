@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * subclass-specific behavior including construction and
  * primary key storage.
  *
- * @author evitaDB
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvitaEntityReferenceResponse")
 class EvitaEntityReferenceResponseTest {

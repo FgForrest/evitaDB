@@ -24,7 +24,6 @@
 package io.evitadb.store.catalog;
 
 
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.function.Functions;
@@ -40,6 +39,7 @@ import io.evitadb.store.offsetIndex.io.BootstrapWriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
@@ -130,7 +130,7 @@ public interface Migration_2025_1 {
 	 * Performs automatic upgrade of the bootstrap file and all catalog files.
 	 *
 	 * @param catalogName             name of the catalog
-	 * @param bootstrapStorageOptions bootstrap storage options
+	 * @param bootstrapStorageSettings bootstrap storage options
 	 * @param catalogStoragePath      path to the catalog storage
 	 * @param bootstrapFilePath       path to the bootstrap file
 	 * @deprecated introduced with #650 and could be removed later when no version prior to 2025.2 is used
@@ -138,8 +138,8 @@ public interface Migration_2025_1 {
 	@Deprecated(since = "2025.1", forRemoval = true)
 	static void upgradeCatalogFiles(
 		@Nonnull String catalogName,
-		@Nonnull StorageOptions bootstrapStorageOptions,
-		@Nonnull StorageOptions storageOptions,
+		@Nonnull StorageSettings bootstrapStorageSettings,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull Path bootstrapFilePath,
 		@Nonnull ExportService exportService
@@ -183,9 +183,13 @@ public interface Migration_2025_1 {
 		                                          .normalize();
 		Assert.isPremiseValid(targetPath.toFile().mkdirs(), "Failed to create target directory for upgrade!");
 		try (
-			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, bootstrapStorageOptions);
+			final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(
+				bootstrapFilePath,
+				bootstrapStorageSettings,
+				bootstrapStorageSettings
+			);
 			final BootstrapWriteOnlyFileHandle targetBootstrapHandle = DefaultCatalogPersistenceService.createBootstrapWriteOnlyHandle(
-				catalogName, bootstrapStorageOptions, targetPath
+				catalogName, bootstrapStorageSettings, targetPath
 			);
 		) {
 			targetBootstrapHandle.checkAndExecute(
@@ -233,18 +237,18 @@ public interface Migration_2025_1 {
 					final String fileName = filePath.getFileName().toString();
 					try (
 						final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(
-							new RandomAccessFileInputStream(new RandomAccessFile(filePath.toFile(), "rw"), true)
+							new RandomAccessFileInputStream(new RandomAccessFile(filePath.toFile(), "rw"), true),
+							storageSettings.createChecksum(),
+							storageSettings.createDecompressor().orElse(null)
 						);
 						final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
 							new FileOutputStream(targetPath.resolve(fileName).toFile(), false),
-							storageOptions.outputBufferSize(),
-							sourceFileSize
+							storageSettings.outputBufferSize(),
+							sourceFileSize,
+							storageSettings.createChecksum(),
+							storageSettings.createCompressor().orElse(null)
 						)
 					) {
-						if (storageOptions.computeCRC32C()) {
-							input.computeCRC32();
-							output.computeCRC32();
-						}
 						if (fileName.endsWith(PersistenceService.WAL_FILE_SUFFIX)) {
 							RawRecord rawRecord;
 							long endOfTransaction = 0L;

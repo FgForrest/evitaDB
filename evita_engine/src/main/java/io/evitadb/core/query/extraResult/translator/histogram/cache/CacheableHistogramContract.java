@@ -25,10 +25,13 @@ package io.evitadb.core.query.extraResult.translator.histogram.cache;
 
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.PriceHistogram;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -69,6 +72,18 @@ public interface CacheableHistogramContract extends Serializable {
 			return BigDecimal.ZERO;
 		}
 
+		@Nullable
+		@Override
+		public Serializable getRawMin() {
+			return null;
+		}
+
+		@Nullable
+		@Override
+		public Serializable getRawMax() {
+			return null;
+		}
+
 		@Override
 		public int getOverallCount() {
 			return 0;
@@ -83,6 +98,15 @@ public interface CacheableHistogramContract extends Serializable {
 		@Nonnull
 		@Override
 		public HistogramContract convertToHistogram(@Nonnull Predicate<BigDecimal> requestedPredicate) {
+			return HistogramContract.EMPTY;
+		}
+
+		@Nonnull
+		@Override
+		public HistogramContract convertToHistogram(
+			@Nonnull Predicate<BigDecimal> requestedPredicate,
+			@Nullable SealedEntity minReferencedEntity, @Nullable SealedEntity maxReferencedEntity
+		) {
 			return HistogramContract.EMPTY;
 		}
 
@@ -111,6 +135,37 @@ public interface CacheableHistogramContract extends Serializable {
 	 */
 	@Nonnull
 	BigDecimal getMax();
+
+	/**
+	 * Returns the raw (native-typed) minimum attribute value observed across all matching entities — the exact
+	 * value as stored in the attribute's {@link io.evitadb.index.attribute.FilterIndex}, preserving the attribute's
+	 * native numeric type (e.g. {@link Integer}, {@link Long}, {@link BigDecimal}).
+	 *
+	 * Unlike {@link #getMin()} this value has **not** been rounded to the attribute schema's
+	 * {@code indexedDecimalPlaces} — it is suitable for direct lookup via
+	 * {@link io.evitadb.index.attribute.FilterIndex#getRecordsEqualTo(Serializable)} without any coercion.
+	 * Returns {@code null} when the producer did not retain the raw value (legacy histograms, histograms not built
+	 * from a single-attribute source such as the price histogram, or cached entries deserialized from an older format).
+	 */
+	@Nullable
+	default Serializable getRawMin() {
+		return null;
+	}
+
+	/**
+	 * Returns the raw (native-typed) maximum attribute value observed across all matching entities — the exact
+	 * value as stored in the attribute's {@link io.evitadb.index.attribute.FilterIndex}, preserving the attribute's
+	 * native numeric type (e.g. {@link Integer}, {@link Long}, {@link BigDecimal}).
+	 *
+	 * Unlike {@link #getMax()} this value has **not** been rounded up to the attribute schema's
+	 * {@code indexedDecimalPlaces} — it is suitable for direct lookup via
+	 * {@link io.evitadb.index.attribute.FilterIndex#getRecordsEqualTo(Serializable)} without any coercion.
+	 * Returns {@code null} when the producer did not retain the raw value (see {@link #getRawMin()}).
+	 */
+	@Nullable
+	default Serializable getRawMax() {
+		return null;
+	}
 
 	/**
 	 * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
@@ -144,6 +199,24 @@ public interface CacheableHistogramContract extends Serializable {
 	HistogramContract convertToHistogram(@Nonnull Predicate<BigDecimal> requestedPredicate);
 
 	/**
+	 * Overload of {@link #convertToHistogram(Predicate)} that additionally attaches boundary entities
+	 * to the produced {@link HistogramContract}. Used by reference histograms to carry the referenced
+	 * entities whose source attribute value anchors the minimum / maximum buckets.
+	 *
+	 * @param requestedPredicate  predicate applied to each bucket threshold; mirrors the other overload
+	 * @param minReferencedEntity entity anchoring the first bucket, or `null` if unresolved
+	 * @param maxReferencedEntity entity anchoring the last bucket, or `null` if unresolved
+	 * @return histogram DTO carrying the provided boundary entities (both must be either supplied or
+	 * absent — enforced at DTO level)
+	 */
+	@Nonnull
+	HistogramContract convertToHistogram(
+		@Nonnull Predicate<BigDecimal> requestedPredicate,
+		@Nullable SealedEntity minReferencedEntity,
+		@Nullable SealedEntity maxReferencedEntity
+	);
+
+	/**
 	 * Converts the histogram represented by the current instance into a formatted string.
 	 * The string representation includes details about the buckets, their thresholds, occurrences,
 	 * and other histogram-specific data.
@@ -158,7 +231,7 @@ public interface CacheableHistogramContract extends Serializable {
 			index -> buckets[index].threshold(),
 			index -> buckets[index].occurrences(),
 			index -> buckets[index].relativeFrequency(),
-			index -> false,
+			Functions.intAlwaysFalse(),
 			getMax(),
 			getOverallCount()
 		);
@@ -182,7 +255,12 @@ public interface CacheableHistogramContract extends Serializable {
 		int occurrences,
 		@Nonnull BigDecimal relativeFrequency
 	) implements Serializable {
-		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE * 2;
+		/**
+		 * Estimated in-memory footprint of a single {@link CacheableBucket} in bytes. Covers two `int` fields
+		 * (`occurrences` + object header contribution) and two {@link java.math.BigDecimal} references
+		 * (`threshold` + `relativeFrequency`). Used by {@link CacheableHistogramContract#estimateSize()}.
+		 */
+		public static final int BUCKET_MEMORY_SIZE = (MemoryMeasuringConstants.INT_SIZE << 1) + (MemoryMeasuringConstants.BIG_DECIMAL_SIZE << 1);
 		@Serial private static final long serialVersionUID = 4216355542992506074L;
 
 		@Nonnull

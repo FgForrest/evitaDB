@@ -59,6 +59,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -93,9 +94,10 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForCapture";
 	private List<CatalogBoundMutation> mutations;
 
+	@Nonnull
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true)
 	@Override
-	protected DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(@Nonnull Evita evita) {
 		final DataCarrier dataCarrier = super.setUp(evita);
 		final List<SealedEntity> products = (List<SealedEntity>) dataCarrier.getValueByName("originalProducts");
 		final List<SealedEntity> brands = (List<SealedEntity>) dataCarrier.getValueByName("originalBrands");

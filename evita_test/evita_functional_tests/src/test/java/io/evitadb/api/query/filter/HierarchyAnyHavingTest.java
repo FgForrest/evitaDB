@@ -23,8 +23,14 @@
 
 package io.evitadb.api.query.filter;
 
+import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import java.io.Serializable;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.anyHaving;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
@@ -32,37 +38,131 @@ import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This tests verifies basic properties of {@link HierarchyAnyHaving} query.
+ * Tests for {@link HierarchyAnyHaving} verifying construction, applicability, necessity,
+ * cloning, visitor acceptance, and equality contract.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukas Hornych, FG Forrest a.s. (c) 2023
  */
+@DisplayName("HierarchyAnyHaving constraint")
 class HierarchyAnyHavingTest {
 
-	@Test
-	void shouldCreateViaFactoryClassWorkAsExpected() {
-		final HierarchyAnyHaving anyHaving = anyHaving(attributeEquals("code", "a"));
-		assertArrayEquals(new FilterConstraint[] {attributeEquals("code", "a")}, anyHaving.getFiltering());
+	@Nested
+	@DisplayName("Construction and factory methods")
+	class ConstructionTest {
+
+		@Test
+		@DisplayName("should create via factory method with filtering child")
+		void shouldCreateViaFactoryClassWorkAsExpected() {
+			final HierarchyAnyHaving anyHaving = anyHaving(attributeEquals("code", "a"));
+
+			assertArrayEquals(new FilterConstraint[]{attributeEquals("code", "a")}, anyHaving.getFiltering());
+		}
 	}
 
-	@Test
-	void shouldRecognizeApplicability() {
-		assertFalse(new HierarchyAnyHaving().isApplicable());
-		assertTrue(anyHaving(entityPrimaryKeyInSet(1)).isApplicable());
+	@Nested
+	@DisplayName("Core operations")
+	class CoreOperationsTest {
+
+		@Test
+		@DisplayName("should recognize applicability based on children presence")
+		void shouldRecognizeApplicability() {
+			assertFalse(new HierarchyAnyHaving().isApplicable());
+			assertTrue(anyHaving(entityPrimaryKeyInSet(1)).isApplicable());
+		}
+
+		@Test
+		@DisplayName("should recognize necessity based on children presence")
+		void shouldRecognizeNecessity() {
+			assertFalse(new HierarchyAnyHaving().isNecessary());
+			assertTrue(anyHaving(entityPrimaryKeyInSet(1)).isNecessary());
+		}
+
+		@Test
+		@DisplayName("should return FilterConstraint type")
+		void shouldReturnFilterConstraintType() {
+			final HierarchyAnyHaving constraint = anyHaving(entityPrimaryKeyInSet(1));
+
+			assertEquals(FilterConstraint.class, constraint.getType());
+		}
+
+		@Test
+		@DisplayName("should accept visitor")
+		void shouldAcceptVisitor() {
+			final HierarchyAnyHaving constraint = anyHaving(entityPrimaryKeyInSet(1));
+			final AtomicReference<Constraint<?>> captured = new AtomicReference<>();
+
+			constraint.accept(captured::set);
+
+			assertSame(constraint, captured.get());
+		}
+
+		@Test
+		@DisplayName("should create new instance from cloneWithArguments")
+		void shouldCreateNewInstanceFromCloneWithArguments() {
+			final HierarchyAnyHaving original = anyHaving(entityPrimaryKeyInSet(1));
+
+			final FilterConstraint cloned = original.cloneWithArguments(new Serializable[0]);
+
+			assertNotSame(original, cloned);
+			assertEquals(original, cloned);
+			assertInstanceOf(HierarchyAnyHaving.class, cloned);
+			assertArrayEquals(original.getFiltering(), ((HierarchyAnyHaving) cloned).getFiltering());
+		}
+
+		@Test
+		@DisplayName("should create copy with new children")
+		void shouldCreateCopyWithNewChildren() {
+			final HierarchyAnyHaving original = anyHaving(entityPrimaryKeyInSet(1));
+			final FilterConstraint[] newChildren = new FilterConstraint[]{attributeEquals("code", "b")};
+
+			final FilterConstraint copy = original.getCopyWithNewChildren(newChildren, new Constraint<?>[0]);
+
+			assertNotSame(original, copy);
+			assertInstanceOf(HierarchyAnyHaving.class, copy);
+			assertArrayEquals(newChildren, ((HierarchyAnyHaving) copy).getFiltering());
+		}
+
+		@Test
+		@DisplayName("should reject non-empty additional children in getCopyWithNewChildren")
+		void shouldRejectNonEmptyAdditionalChildren() {
+			final HierarchyAnyHaving original = anyHaving(entityPrimaryKeyInSet(1));
+
+			assertThrows(
+				IllegalArgumentException.class,
+				() -> original.getCopyWithNewChildren(
+					new FilterConstraint[]{entityPrimaryKeyInSet(2)},
+					new Constraint<?>[]{entityPrimaryKeyInSet(3)}
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should produce correct toString")
+		void shouldToStringReturnExpectedFormat() {
+			final HierarchyAnyHaving anyHaving = anyHaving(attributeEquals("code", "a"));
+
+			assertEquals("anyHaving(attributeEquals('code','a'))", anyHaving.toString());
+		}
 	}
 
-	@Test
-	void shouldToStringReturnExpectedFormat() {
-		final HierarchyAnyHaving anyHaving = anyHaving(attributeEquals("code", "a"));
-		assertEquals("anyHaving(attributeEquals('code','a'))", anyHaving.toString());
-	}
+	@Nested
+	@DisplayName("Equals and hashCode contract")
+	class EqualsAndHashCodeTest {
 
-	@Test
-	void shouldConformToEqualsAndHashContract() {
-		assertNotSame(anyHaving(attributeEquals("code", "a")), anyHaving(attributeEquals("code", "a")));
-		assertEquals(anyHaving(attributeEquals("code", "a")), anyHaving(attributeEquals("code", "a")));
-		assertNotEquals(anyHaving(attributeEquals("code", "a")), anyHaving(entityPrimaryKeyInSet(1)));
-		assertEquals(anyHaving(attributeEquals("code", "a")).hashCode(), anyHaving(attributeEquals("code", "a")).hashCode());
-		assertNotEquals(anyHaving(attributeEquals("code", "a")).hashCode(), anyHaving(entityPrimaryKeyInSet(1)).hashCode());
+		@Test
+		@DisplayName("should conform to equals and hashCode contract")
+		void shouldConformToEqualsAndHashContract() {
+			assertNotSame(anyHaving(attributeEquals("code", "a")), anyHaving(attributeEquals("code", "a")));
+			assertEquals(anyHaving(attributeEquals("code", "a")), anyHaving(attributeEquals("code", "a")));
+			assertNotEquals(anyHaving(attributeEquals("code", "a")), anyHaving(entityPrimaryKeyInSet(1)));
+			assertEquals(
+				anyHaving(attributeEquals("code", "a")).hashCode(),
+				anyHaving(attributeEquals("code", "a")).hashCode()
+			);
+			assertNotEquals(
+				anyHaving(attributeEquals("code", "a")).hashCode(),
+				anyHaving(entityPrimaryKeyInSet(1)).hashCode()
+			);
+		}
 	}
-
 }

@@ -44,76 +44,91 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * This `facetGroupsDisjunction` require constraint allows specifying facet relation on particular level (within group
- * or with different group facets) of certain primary ids. First mandatory argument specifies entity type of the facet
- * group, secondary optional argument allows defining the level for which the disjunction is defined, third optional
- * argument defines one more facet group ids which facets should be considered disjunctive with other facets either
- * in same group or different groups (depending on level argument).
+ * The `facetGroupsDisjunction` requirement overrides the default **logical AND** relation that applies **between**
+ * different facet groups or references and replaces it with **logical OR** (disjunction) for the specified reference
+ * and relation level.
  *
- * This require constraint changes default behavior of the facet calculation rules.
- * Constraint has sense only when [facet](#facet) constraint is part of the query.
+ * By default, when a user selects facets from multiple different groups evitaDB requires that entities satisfy all
+ * of them (AND): products must be *blue* **and** *large*. This constraint changes that behaviour for targeted groups
+ * so that satisfying any one of the groups is sufficient: products that are *blue* **or** *large*.
  *
- * Example:
+ * ## Arguments
  *
- * <pre>
+ * - **referenceName** *(mandatory)* — the name of the faceted reference this constraint applies to (e.g.
+ *   `"parameterValues"`, `"brand"`)
+ * - **facetGroupRelationLevel** *(optional, default `WITH_DIFFERENT_FACETS_IN_GROUP`)* — the level at which
+ *   disjunction is applied:
+ *   - `WITH_DIFFERENT_FACETS_IN_GROUP` — disjunction between individual facets within the same group (this is the
+ *     **default behaviour** for within-group relations, so specifying this level for `facetGroupsDisjunction` is
+ *     effectively a no-op unless it was previously set to conjunction)
+ *   - `WITH_DIFFERENT_GROUPS` — disjunction between facets **across** different groups of this reference, overriding
+ *     the default AND that normally applies between groups
+ * - **filterBy** *(optional)* — a {@link FilterBy} constraint targeting properties of the **group entity** to select
+ *   which groups the disjunction applies to; when omitted, disjunction applies to all groups of the reference
+ *
+ * ## Effect on impact calculations
+ *
+ * This constraint affects both actual filtering (when facets are selected inside `userFilter`) and the impact
+ * predictions computed by {@link FacetSummary} / {@link FacetSummaryOfReference}. Switching from AND to OR across
+ * groups typically **expands** the predicted result count, because the query becomes less restrictive.
+ *
+ * ## Relationship to FacetCalculationRules
+ *
+ * {@link FacetCalculationRules} can set the global default conjunction/disjunction behaviour for all references at
+ * once. `facetGroupsDisjunction` takes precedence over that global default for the specific groups it targets.
+ *
+ * ## Example
+ *
+ * ```evitaql
  * query(
- *    entities("product"),
- *    filterBy(
- *       userFilter(
- *          facet("group", 1, 2),
- *          facet(
- *             "parameterType",
- *             entityPrimaryKeyInSet(11, 12, 22)
- *          )
- *       )
- *    ),
- *    require(
- *       facetGroupsDisjunction("parameterType", WITH_DIFFERENT_GROUPS, 1, 2)
- *    )
+ *     collection("Product"),
+ *     filterBy(
+ *         userFilter(
+ *             facetHaving("parameterValues", entityPrimaryKeyInSet(11, 31))
+ *         )
+ *     ),
+ *     require(
+ *         facetSummary(IMPACT),
+ *         facetGroupsDisjunction(
+ *             "parameterValues",
+ *             WITH_DIFFERENT_GROUPS,
+ *             filterBy(attributeInSet("code", "color", "tags"))
+ *         )
+ *     )
  * )
- * </pre>
+ * ```
  *
- * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
- * boolean OR relation when selected.
+ * With this setting, selecting `blue` from `color` and `new products` from `tags` returns products matching either
+ * the colour **or** the tag — instead of the default AND that would require both.
  *
- * Let's have this facet/group situation:
- *
- * Color `parameterType` (group id: 1):
- *
- * - blue (facet id: 11)
- * - red (facet id: 12)
- *
- * Size `parameterType` (group id: 2):
- *
- * - small (facet id: 21)
- * - large (facet id: 22)
- *
- * Flags `tag` (group id: 3):
- *
- * - action products (facet id: 31)
- * - new products (facet id: 32)
- *
- * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
- * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
- * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
- *
- * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction)
  *
  * @see FacetGroupRelationLevel
+ * @see FacetGroupsConjunction
+ * @see FacetGroupsNegation
+ * @see FacetGroupsExclusivity
+ * @see FacetCalculationRules
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupsDisjunction",
-	shortDescription = "Sets facet relation on particular level (within group or with different group facets) to [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction) .",
+	shortDescription = "The constraint overrides facet relation to logical OR (disjunction) for specified reference groups, meaning any selected facet can match.",
 	userDocsLink = "/documentation/query/requirements/facet#facet-groups-disjunction"
 )
-public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
+public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer
+	implements ConstraintWithDefaults<RequireConstraint>, FacetGroupsConstraint {
 	@Serial private static final long serialVersionUID = 1087282346634617160L;
 
-	private FacetGroupsDisjunction(@Nonnull Serializable[] arguments, @Nonnull Constraint<?>... additionalChildren) {
+	private FacetGroupsDisjunction(
+		@Nonnull Serializable[] arguments,
+		@Nonnull Constraint<?>... additionalChildren
+	) {
 		super(arguments, NO_CHILDREN, additionalChildren);
 		for (Constraint<?> child : additionalChildren) {
-			Assert.isPremiseValid(child instanceof FilterBy, "Only FilterBy constraints are allowed in FacetGroupsDisjunction.");
+			Assert.isPremiseValid(
+				child instanceof FilterBy,
+				"Only FilterBy constraints are allowed in FacetGroupsDisjunction."
+			);
 		}
 	}
 
@@ -191,7 +206,10 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer i
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		Assert.isPremiseValid(ArrayUtils.isEmpty(children), "Children must be empty");
 		return new FacetGroupsDisjunction(getArguments(), additionalChildren);
 	}

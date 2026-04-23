@@ -24,7 +24,10 @@
 package io.evitadb.api.query.require;
 
 import io.evitadb.dataType.expression.Expression;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.io.Serializable;
 
 import static io.evitadb.api.query.QueryConstraints.gap;
 import static io.evitadb.api.query.QueryConstraints.spacing;
@@ -66,6 +69,15 @@ class SpacingTest {
 		assertEquals(spacing(gap(1, "true")).hashCode(), spacing(gap(1, "true")).hashCode());
 		assertNotEquals(spacing(gap(1, "true")).hashCode(), spacing(gap(2, "true")).hashCode());
 		assertNotEquals(spacing(gap(1, "true")).hashCode(), spacing(gap(1, "false")).hashCode());
+	}
+
+	@Test
+	@DisplayName("cloneWithArguments() should return new equal instance instead of throwing")
+	void shouldReturnNewInstanceFromCloneWithArguments() {
+		final Spacing original = spacing(gap(1, "true"), gap(2, "false"));
+		final Spacing cloned = (Spacing) original.cloneWithArguments(new Serializable[0]);
+		assertNotSame(original, cloned);
+		assertEquals(original, cloned);
 	}
 
 }

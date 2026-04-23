@@ -25,7 +25,6 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
 import com.esotericsoftware.kryo.io.Input;
-import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexFlushEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexRecordTypeCountChangedEvent;
@@ -40,6 +39,7 @@ import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
+import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
@@ -81,7 +81,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	 * Configuration settings related to transaction.
 	 */
 	@Nonnull
-	protected final TransactionOptions transactionOptions;
+	protected final StorageSettings storageSettings;
 	/**
 	 * Memory key-value store for entities.
 	 */
@@ -110,7 +110,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		@Nonnull String catalogName,
 		@Nonnull String name,
 		@Nonnull FileType fileType,
-		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull StorageSettings storageSettings,
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
@@ -120,7 +120,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		this.catalogName = catalogName;
 		this.name = name;
 		this.fileType = fileType;
-		this.transactionOptions = transactionOptions;
+		this.storageSettings = storageSettings;
 		this.offsetIndex = offsetIndex;
 		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -135,8 +135,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 			transactionId,
 			this.name,
 			this,
-			this.offsetIndex.getStorageOptions(),
-			this.transactionOptions,
+			this.storageSettings,
 			this.offHeapMemoryManager,
 			this.kryoFactory,
 			this.offsetIndex.getRecordTypeRegistry(),

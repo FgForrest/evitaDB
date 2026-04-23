@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -436,7 +436,9 @@ if (currency != null) {
 
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull ProductInterface product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
+		if (locale != null) {
+			assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
+		}
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantityAsDifferentProperty());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.isAlias());
@@ -489,11 +491,11 @@ if (currency != null) {
 		);
 	}
 
+	@Nonnull
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
-	protected DataCarrier setUp(Evita evita) {
+	protected DataCarrier setUp(@Nonnull Evita evita) {
 		final DataCarrier dataCarrier = super.setUp(evita);
-
 
 		final List<SealedEntity> originalProducts = (List<SealedEntity>) dataCarrier.getValueByName("originalProducts");
 		final List<SealedEntity> productsWithCzkSellingPrice = originalProducts

@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -40,44 +41,64 @@ import java.util.Arrays;
 import java.util.Optional;
 
 /**
- * The requirement triggers the calculation of the Hierarchy data structure for the hierarchy of which it is a part.
+ * Triggers computation of hierarchy data structures from the entity collection that is itself hierarchical — that is,
+ * the queried entity type forms the tree being navigated. This is in contrast to {@link HierarchyOfReference}, which
+ * computes hierarchy data from a _referenced_ hierarchical entity.
  *
- * The hierarchy of self can still be combined with {@link HierarchyOfReference} if the queried entity is a hierarchical
- * entity that is also connected to another hierarchical entity. Such situations are rather sporadic in reality.
+ * Use this constraint when the queried entity type is hierarchical (e.g., a Category entity querying its own
+ * category tree), and you need to render navigation menus, breadcrumb trails, or expandable tree components for the
+ * hierarchy that the query result belongs to.
  *
- * The constraint accepts following arguments:
+ * `hierarchyOfSelf` can be combined with {@link HierarchyOfReference} in the same query when the queried entity is
+ * hierarchical and also holds references to other hierarchical entities, though such composite scenarios are rare.
  *
- * - specification of one or more reference names that identify the reference to the target hierarchical entity for
- *   which the menu calculation should be performed; usually only one reference name makes sense, but to adapt
- *   the constraint to the behavior of other similar constraints, evitaQL accepts multiple reference names for the case
- *   that the same requirements apply to different references of the queried entity.
- * - optional argument of type EmptyHierarchicalEntityBehaviour enum allowing you to specify whether or not to return
- *   empty hierarchical entities (e.g., those that do not have any queried entities that satisfy the current query
- *   filter constraint assigned to them - either directly or transitively):
+ * **Required sub-constraints (at least one must be present):**
  *
- *      - {@link EmptyHierarchicalEntityBehaviour#LEAVE_EMPTY}: empty hierarchical nodes will remain in computed data
- *        structures
- *      - {@link EmptyHierarchicalEntityBehaviour#REMOVE_EMPTY}: empty hierarchical nodes are omitted from computed data
- *        structures
+ * - {@link HierarchyFromRoot}: computes the full tree from the virtual root, regardless of any `hierarchyWithin`
+ *   filter; useful for rendering full mega-menus
+ * - {@link HierarchyFromNode}: computes a subtree starting from a specific pivot node identified dynamically;
+ *   useful for rendering secondary side-menus anchored to a fixed category
+ * - {@link HierarchyChildren}: computes direct subcategories of the currently filtered node; suitable for
+ *   breadcrumb-adjacent sub-navigation
+ * - {@link HierarchyParents}: traverses the ancestor axis from the current node to the root; used for breadcrumbs
+ * - {@link HierarchySiblings}: lists all sibling nodes at the same level as the current node
  *
- * - optional ordering constraint that allows you to specify an order of Hierarchy LevelInfo elements in the result
- *   hierarchy data structure
- * - mandatory one or more constraints allowing you to instruct evitaDB to calculate menu components; one or all of
- *   the constraints may be present:
+ * **Optional arguments:**
  *
- *      - {@link HierarchyFromRoot}
- *      - {@link HierarchyFromNode}
- *      - {@link HierarchySiblings}
- *      - {@link HierarchyChildren}
- *      - {@link HierarchyParents}
+ * - an `OrderBy` constraint (as an additional child) controlling the sort order of hierarchy `LevelInfo` elements
+ *   within the computed result; if omitted, the natural order of the hierarchical entity is used
  *
- * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">Visit detailed user documentation</a></p>
+ * The constraint is not applicable (i.e., `isApplicable()` returns `false`) if no sub-constraint is provided.
+ *
+ * **Example — compute a full category mega-menu alongside products in a category:**
+ *
+ * ```evitaql
+ * query(
+ *     collection("Category"),
+ *     filterBy(
+ *         hierarchyWithinRoot("categories")
+ *     ),
+ *     require(
+ *         hierarchyOfSelf(
+ *             orderBy(attributeNatural("order")),
+ *             fromRoot(
+ *                 "megaMenu",
+ *                 entityFetch(attributeContent("code", "name")),
+ *                 stopAt(level(2)),
+ *                 statistics(CHILDREN_COUNT, QUERIED_ENTITY_COUNT)
+ *             )
+ *         )
+ *     )
+ * )
+ * ```
+ *
+ * [Visit detailed user documentation](https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "ofSelf",
-	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of same hierarchical collection into response.",
+	shortDescription = "The constraint triggers computation of hierarchy data structures (tree, statistics, parent chain) for the queried hierarchical entity collection itself.",
 	userDocsLink = "/documentation/query/requirements/hierarchy#hierarchy-of-self"
 )
 public class HierarchyOfSelf extends AbstractRequireConstraintContainer
@@ -146,14 +167,18 @@ public class HierarchyOfSelf extends AbstractRequireConstraintContainer
 
 	@Nonnull
 	@Override
-	public RequireConstraint getCopyWithNewChildren(@Nonnull RequireConstraint[] children, @Nonnull Constraint<?>[] additionalChildren) {
+	public RequireConstraint getCopyWithNewChildren(
+		@Nonnull RequireConstraint[] children,
+		@Nonnull Constraint<?>[] additionalChildren
+	) {
 		return new HierarchyOfSelf(children, additionalChildren);
 	}
 
 	@Nonnull
 	@Override
 	public RequireConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {
-		throw new UnsupportedOperationException("This type of constraint doesn't support arguments!");
+		Assert.isTrue(ArrayUtils.isEmpty(newArguments), "HierarchyOfSelf container accepts no arguments!");
+		return new HierarchyOfSelf(getChildren(), getAdditionalChildren());
 	}
 
 }

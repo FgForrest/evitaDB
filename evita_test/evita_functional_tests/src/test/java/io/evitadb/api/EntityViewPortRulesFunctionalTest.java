@@ -47,6 +47,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.utils.Functions;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -378,7 +379,7 @@ public class EntityViewPortRulesFunctionalTest {
 							final Serializable value = attributeFilter.getAttributeValue();
 							return (Predicate<SealedEntity>) sealedEntity -> sealedEntity.getAttribute(attrName, String.class).compareTo(value.toString()) <= 0;
 						})
-						.orElseGet(() -> sealedEntity -> true);
+						.orElseGet(Functions::alwaysTrue);
 					originalProductEntities.stream()
 						.filter(it -> filter.test(it) && !drainedPks.contains(it.getPrimaryKey()))
 						.sorted(
@@ -451,7 +452,7 @@ public class EntityViewPortRulesFunctionalTest {
 							final Serializable value = attributeFilter.getAttributeValue();
 							return (Predicate<SealedEntity>) sealedEntity -> sealedEntity.getAttribute(attrName, String.class).compareTo(value.toString()) <= 0;
 						})
-						.orElseGet(() -> sealedEntity -> true);
+						.orElseGet(Functions::alwaysTrue);
 					originalProductEntities.stream()
 						.filter(it -> filteredPksIndex.contains(it.getPrimaryKeyOrThrowException()))
 						.filter(it -> filter.test(it) && !drainedPks.contains(it.getPrimaryKeyOrThrowException()))

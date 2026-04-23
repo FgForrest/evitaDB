@@ -27,6 +27,8 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.dataType.Scope;
 import io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
+
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toBooleanScopes;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -45,13 +47,7 @@ public class SetAttributeSchemaFilterableMutationConverter implements SchemaMuta
 
 	@Nonnull
 	public SetAttributeSchemaFilterableMutation convert(@Nonnull GrpcSetAttributeSchemaFilterableMutation mutation) {
-		final Scope[] filterableInScopes = mutation.getFilterableInScopesList().isEmpty() ?
-			(mutation.getFilterable() ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE)
-			:
-			mutation.getFilterableInScopesList()
-				.stream()
-				.map(EvitaEnumConverter::toScope)
-				.toArray(Scope[]::new);
+		final Scope[] filterableInScopes = toBooleanScopes(mutation.getFilterableInScopesList(), mutation.getFilterable());
 
 		return new SetAttributeSchemaFilterableMutation(
 			mutation.getName(),

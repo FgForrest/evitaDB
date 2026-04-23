@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,10 +52,12 @@ import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -71,7 +73,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.core.transaction.Transaction.removeTransactionalMemoryLayerIfExists;
 import static io.evitadb.utils.Assert.isTrue;
@@ -84,7 +85,7 @@ import static java.util.Optional.ofNullable;
  *
  * There may be multiple {@link EntityIndex} instances with different slices of the original data. There will be always
  * single {@link GlobalEntityIndex} index that contains all the data, but also several thinner
- * {@link ReducedEntityIndex indexes} that would contain only part of these. We aim to choose the smallest index
+ * {@link AbstractReducedEntityIndex reduced indexes} that would contain only part of these. We aim to choose the smallest index
  * possible that can still provide correct answer for the input query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -176,7 +177,7 @@ public abstract class EntityIndex implements
 		this.dirty = new TransactionalBoolean();
 		this.indexKey = indexKey;
 		this.entityIds = new TransactionalBitmap();
-		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(), TransactionalBitmap.class, TransactionalBitmap::new);
+		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(16), TransactionalBitmap.class, TransactionalBitmap::new);
 		this.attributeIndex = new AttributeIndex(entityType, indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null);
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
@@ -412,7 +413,8 @@ public abstract class EntityIndex implements
 		) {
 			trappedChanges.addChangeToStore(
 				createStoragePart(
-					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys, facetIndexReferencedEntities
+					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys,
+					facetIndexReferencedEntities
 				)
 			);
 		}
@@ -465,6 +467,8 @@ public abstract class EntityIndex implements
 
 	/**
 	 * Method creates container that is possible to serialize and store into persistent storage.
+	 * Subclasses with additional index data (e.g. histogram indexes) should override this method
+	 * to include their storage keys.
 	 */
 	protected StoragePart createStoragePart(
 		boolean hierarchyIndexEmpty,
@@ -478,7 +482,8 @@ public abstract class EntityIndex implements
 			attributeIndexStorageKeys,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities
+			facetIndexReferencedEntities,
+			Collections.emptySet()
 		);
 	}
 
@@ -521,34 +526,33 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Method returns the set of attribute index storage keys.
+	 * Collects attribute index storage keys into the given set. Includes keys for UNIQUE, FILTER,
+	 * SORT, and CHAIN attribute indexes. Subclasses can override to add additional keys
+	 * (e.g., cardinality and histogram keys).
 	 *
 	 * @return the set of attribute index storage keys
 	 */
 	@Nonnull
 	private Set<AttributeIndexStorageKey> getAttributeIndexStorageKeys() {
-		return getAttributeIndexStorageKeyStream()
-			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Method returns a stream of AttributeIndexStorageKey objects.
-	 * The stream includes AttributeIndexStorageKeys of different types (UNIQUE, FILTER, SORT, CHAIN)
-	 * created from attribute indexes of the attributeIndex object.
-	 *
-	 * The method can be overriden by descendants to provide a different stream of AttributeIndexStorageKey objects.
-	 *
-	 * @return a stream of AttributeIndexStorageKey objects.
-	 */
-	@Nonnull
-	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
-		return Stream.of(
-				this.attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.UNIQUE, it)),
-				this.attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.FILTER, it)),
-				this.attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.SORT, it)),
-				this.attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CHAIN, it))
-			)
-			.flatMap(it -> it);
+		final Set<AttributeIndexStorageKey> result = CollectionUtils.createHashSet(
+			this.attributeIndex.getUniqueIndexes().size() +
+				this.attributeIndex.getFilterIndexes().size() +
+				this.attributeIndex.getSortIndexes().size() +
+				this.attributeIndex.getChainIndexes().size()
+		);
+		for (AttributeIndexKey key : this.attributeIndex.getUniqueIndexes()) {
+			result.add(new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.UNIQUE, key));
+		}
+		for (AttributeIndexKey key : this.attributeIndex.getFilterIndexes()) {
+			result.add(new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.FILTER, key));
+		}
+		for (AttributeIndexKey key : this.attributeIndex.getSortIndexes()) {
+			result.add(new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.SORT, key));
+		}
+		for (AttributeIndexKey key : this.attributeIndex.getChainIndexes()) {
+			result.add(new AttributeIndexStorageKey(this.indexKey, AttributeIndexType.CHAIN, key));
+		}
+		return result;
 	}
 
 }

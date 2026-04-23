@@ -87,6 +87,9 @@ class ConstraintProcessor {
 			final List<ConstraintCreator> creators = resolveCreators(constraintClass, type);
 
 			creators.forEach((creator) -> {
+				final String deprecated = constraintDefinition.deprecated().isEmpty()
+					? null
+					: constraintDefinition.deprecated();
 				final ConstraintDescriptor descriptor = new ConstraintDescriptor(
 					constraintClass,
 					type,
@@ -96,6 +99,7 @@ class ConstraintProcessor {
 						: constraintDefinition.name() + StringUtils.capitalize(creator.suffix().get()),
 					constraintDefinition.shortDescription(),
 					constraintDefinition.userDocsLink(),
+					deprecated,
 					Set.of(constraintDefinition.supportedIn()),
 					supportedValues,
 					creator

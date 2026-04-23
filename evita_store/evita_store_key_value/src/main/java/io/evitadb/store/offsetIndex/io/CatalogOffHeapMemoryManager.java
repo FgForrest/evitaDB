@@ -24,6 +24,7 @@
 package io.evitadb.store.offsetIndex.io;
 
 import io.evitadb.core.metric.event.transaction.OffHeapMemoryAllocationChangeEvent;
+import io.evitadb.store.checksum.ChecksumFactory;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,8 +43,13 @@ public class CatalogOffHeapMemoryManager extends OffHeapMemoryManager {
 	 */
 	@Getter private final String catalogName;
 
-	public CatalogOffHeapMemoryManager(@Nonnull String catalogName, long sizeInBytes, int regions) {
-		super(sizeInBytes, regions);
+	public CatalogOffHeapMemoryManager(
+		@Nonnull String catalogName,
+		long sizeInBytes,
+		int regions,
+		@Nonnull ChecksumFactory checksumCalculatorFactory
+	) {
+		super(sizeInBytes, regions, checksumCalculatorFactory);
 		this.catalogName = catalogName;
 	}
 
