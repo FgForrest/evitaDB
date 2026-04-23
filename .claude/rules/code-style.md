@@ -14,6 +14,7 @@ paths:
 - **Local variables**: Use `final` for local variables
 - **Instance variables**: Use `this` for instance variables
 - **Type declarations**: Never use `var` - always use explicit types
+- **Imports**: Wildcard imports (`import foo.bar.*;`) are **allowed** and follow IntelliJ's default auto-folding threshold (5+ imports from the same package). Do not flag or expand existing wildcard imports in reviews — this is not a project convention.
 - **Resource management**: Use try-with-resources for all `AutoCloseable` resources wherever applicable
 - **Documentation**: Automatically add JavaDoc to all generated classes and methods
 - **Comments**: Add line comments to complex logic

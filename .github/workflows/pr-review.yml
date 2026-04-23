@@ -85,5 +85,15 @@ jobs:
             the changes. Use inline comments for file-specific feedback and a
             single summary comment on the PR for overall assessment.
 
+            IMPORTANT — this PR may have been reviewed before (PRs are re-reviewed
+            on every push). Before posting any findings, fetch and read the full
+            review history via `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews`,
+            `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments`,
+            and `gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments`.
+            Build threaded views via `in_reply_to_id`. Do NOT re-raise concerns
+            that a prior round already raised and that the author addressed,
+            rebutted, or fixed. See Step 2 of `.claude/agents/pr-reviewer.md` for
+            the full procedure.
+
           claude_args: |
-            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "Read,Glob,Grep,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*)"
