@@ -193,8 +193,6 @@ public class FullResponseObjectBuilder {
 		this.buildingContext.registerTypeResolver(histogramInterface, HelperInterfaceTypeResolver.getInstance());
 
 		this.buildingContext.registerType(buildHistogramObject());
-		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
-		this.buildingContext.registerType(buildAttributeNamedHistogramObject());
 		this.buildingContext.registerType(buildFacetRequestImpactObject());
 	}
 
@@ -322,8 +320,6 @@ public class FullResponseObjectBuilder {
 		final List<BuiltFieldDescriptor> extraResultFields = new ArrayList<>(10);
 
 		buildAttributeHistogramField(entitySchema).ifPresent(extraResultFields::add);
-		// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
-		buildAttributeHistogramsField(entitySchema).ifPresent(extraResultFields::add);
 		buildPriceHistogramField(entitySchema).ifPresent(extraResultFields::add);
 		buildReferenceSummaryField(entitySchema).ifPresent(extraResultFields::add);
 		buildFacetSummaryField(entitySchema).ifPresent(extraResultFields::add);
@@ -442,23 +438,6 @@ public class FullResponseObjectBuilder {
 			attributeFieldForSingleAttribute,
 			new AttributeHistogramForSingleAttributeDataFetcher(attributeSchema)
 		);
-	}
-
-	// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
-	@Nonnull
-	private static Optional<BuiltFieldDescriptor> buildAttributeHistogramsField(@Nonnull EntitySchemaContract entitySchema) {
-		final GraphQLFieldDefinition attributeHistogramField = newFieldDefinition()
-			.name("attributeHistograms")
-			.type(list(nonNull(typeRef("AttributeNamedHistogram"))))
-			.argument(a -> a
-				.name("attributes")
-				.type(nonNull(list(nonNull(STRING)))))
-			.build();
-
-		return Optional.of(new BuiltFieldDescriptor(
-			attributeHistogramField,
-			new AttributeHistogramsDataFetcher(entitySchema)
-		));
 	}
 
 	@Nonnull
@@ -1320,18 +1299,6 @@ public class FullResponseObjectBuilder {
 			.to(this.fieldBuilderTransformer)
 			.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(this.argumentBuilderTransformer))
 			.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(this.argumentBuilderTransformer))
-			.build();
-	}
-
-	// TOBEDONE LHO: remove after https://github.com/FgForrest/evitaDB/issues/8 is implemented
-	@Nonnull
-	private GraphQLObjectType buildAttributeNamedHistogramObject() {
-		return HistogramDescriptor.THIS
-			.to(this.objectBuilderTransformer)
-			.name("AttributeNamedHistogram")
-			.withInterface(typeRef(HistogramDescriptor.THIS_INTERFACE.name()))
-			.field(f -> f.name("attributeName").type(nonNull(STRING)))
-			.field(buildHistogramBucketsField())
 			.build();
 	}
 
