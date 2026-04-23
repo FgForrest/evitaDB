@@ -1759,6 +1759,46 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	}
 
 	/**
+	 * Verifies that {@link EvitaSessionContract#getCatalogVersion()} and catalog schema version
+	 * are resolved from the server the first time they are queried on a freshly created client.
+	 *
+	 * Regression test for a bug where a brand-new {@link EvitaClient} opening only a read-only
+	 * session would report catalog version 0 because no server round-trip had yet populated the
+	 * shared {@link EvitaEntitySchemaCache}. The client must now detect the uninitialized cache
+	 * and force a round-trip before returning the cached value.
+	 */
+	@Test
+	@DisplayName("retrieve catalog and schema version on fresh read-only session")
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldRetrieveCatalogVersionOnFreshReadOnlySession(EvitaClient evitaClient) {
+		final long expectedCatalogVersion = Arrays.stream(evitaClient.management().getCatalogStatistics())
+			.filter(it -> TEST_CATALOG.equals(it.catalogName()))
+			.map(CatalogStatistics::catalogVersion)
+			.findFirst()
+			.orElseThrow();
+		assertTrue(expectedCatalogVersion > 0, "test precondition: catalog must have advanced past version zero");
+
+		try (final EvitaClient freshClient = new EvitaClient(evitaClient.getConfiguration())) {
+			freshClient.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final long catalogVersion = session.getCatalogVersion();
+					assertEquals(
+						expectedCatalogVersion, catalogVersion,
+						"Catalog version must be fetched from the server even on a fresh read-only session"
+					);
+					assertTrue(
+						session.getCatalogSchema().version() > 0,
+						"Catalog schema version must be fetched from the server on a fresh session"
+					);
+					// second call must be served from the cache and return the same version
+					assertEquals(catalogVersion, session.getCatalogVersion());
+				}
+			);
+		}
+	}
+
+	/**
 	 * Verifies that entity collection size can be retrieved correctly.
 	 *
 	 * This test checks that the client can successfully fetch the number of entities

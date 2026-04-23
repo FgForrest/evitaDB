@@ -620,6 +620,8 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					GrpcCatalogSchemaResponse
 						.newBuilder()
 						.setCatalogSchema(convert(catalogSchema, request.getNameVariants()))
+						.setCatalogVersion(session.getCatalogVersion())
+						.setCatalogSchemaVersion(catalogSchema.version())
 						.build());
 				responseObserver.onCompleted();
 			},
