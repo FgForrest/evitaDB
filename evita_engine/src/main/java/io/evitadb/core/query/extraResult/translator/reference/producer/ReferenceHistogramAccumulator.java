@@ -74,6 +74,7 @@ import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
 /**
@@ -968,12 +969,14 @@ final class ReferenceHistogramAccumulator {
 			@Nonnull QueryExecutionContext context
 		) {
 			// collect (entityType, entityFetchKey) → RoaringBitmapWriter of PKs; entityFetchKey is
-			// the EntityFetch reference (or a sentinel) so identical fetches collapse to one call
-			final Map<FetchTuple, RoaringBitmapWriter<RoaringBitmap>> pksByTuple = new LinkedHashMap<>();
+			// the EntityFetch reference (or a sentinel) so identical fetches collapse to one call —
+			// pre-size to `pending.size()` so the fabrication hot path never rehashes
+			final Map<FetchTuple, RoaringBitmapWriter<RoaringBitmap>> pksByTuple =
+				createLinkedHashMap(pending.size());
 			// defensive tracker: detects the contract violation where the same (entityType, pk) is
 			// registered under two different EntityFetch references — would otherwise cause the
 			// second fetch to clobber the first entry in the output map and potentially under-fetch
-			final Map<String, Map<Integer, FetchTuple>> firstTupleByTypeAndPk = new HashMap<>();
+			final Map<String, Map<Integer, FetchTuple>> firstTupleByTypeAndPk = createHashMap(pending.size());
 			for (final PendingHistogram ph : pending) {
 				final BoundaryPks bounds = ph.boundaryPks();
 				if (bounds.entityType() == null) {
