@@ -125,7 +125,29 @@ public final class ReferenceSchemaBuilder
 							)
 						)
 						.toArray(ScopedReferenceIndexedComponents[]::new),
-					Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new)
+					Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new),
+					this.baseSchema.getFacetedPartiallyInScopes()
+						.entrySet()
+						.stream()
+						.map(it -> new ScopedFacetedPartially(it.getKey(), it.getValue()))
+						.toArray(ScopedFacetedPartially[]::new),
+					this.baseSchema.getAllHistogramIndexDefinitions()
+						.entrySet()
+						.stream()
+						.flatMap(
+							scopeEntry -> scopeEntry.getValue().values().stream()
+								.map(def -> new ScopedHistogramIndexDefinition(
+									scopeEntry.getKey(),
+									def.nameOfTheIndex(),
+									def.valueExpression()
+								))
+						)
+						.toArray(ScopedHistogramIndexDefinition[]::new),
+					this.baseSchema.getBucketedPartiallyInScopes()
+						.entrySet()
+						.stream()
+						.map(it -> new ScopedBucketedPartially(it.getKey(), it.getValue()))
+						.toArray(ScopedBucketedPartially[]::new)
 				)
 			);
 		} else {

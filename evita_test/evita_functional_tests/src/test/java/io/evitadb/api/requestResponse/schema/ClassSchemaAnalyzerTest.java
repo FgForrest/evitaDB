@@ -45,7 +45,11 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
+import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
@@ -3650,6 +3654,84 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertSame(
 					String[].class, tagsAttribute.getType(), "List<String> record component should be " +
 						"resolved to String[]"
+				);
+			}
+		);
+	}
+
+	@DisplayName(
+		"CreateReferenceSchemaMutation must carry facetedPartially, bucketed and bucketedPartially " +
+			"when declared via @ScopeReferenceSettings"
+	)
+	@Test
+	void shouldPreserveFacetedPartiallyAndBucketedOnCreateReferenceSchemaMutation() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// mirror the user's usage: construct the analyzer directly and inspect
+				// the returned entity mutations without applying them to the catalog
+				// (applying would require pre-defined referenced entities)
+				final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+					GetterBasedEntityWithFacetedPartiallyAndBucketed.class,
+					ReflectionLookup.NO_CACHE_INSTANCE
+				);
+				final ClassSchemaAnalyzer.AnalysisResult analysisResult = analyzer.analyze(
+					session, session.getCatalogSchema().openForWrite()
+				);
+
+				final Optional<CreateReferenceSchemaMutation> referenceMutation =
+					streamEntitySchemaMutations(analysisResult.entityMutations(), CreateReferenceSchemaMutation.class)
+						.filter(it -> GetterBasedEntityWithFacetedPartiallyAndBucketed
+							.REFERENCE_PARAMETER_VALUES.equals(it.getName()))
+						.findFirst();
+				assertTrue(
+					referenceMutation.isPresent(),
+					"Expected CreateReferenceSchemaMutation for `parameterValues`"
+				);
+
+				final CreateReferenceSchemaMutation mutation = referenceMutation.get();
+
+				// facetedPartially must survive into the final mutation for LIVE scope
+				final ScopedFacetedPartially[] facetedPartially = mutation.getFacetedPartiallyInScopes();
+				assertEquals(
+					1, facetedPartially.length,
+					"Expected exactly one facetedPartially entry for LIVE scope, but got: "
+						+ Arrays.toString(facetedPartially)
+				);
+				assertEquals(Scope.LIVE, facetedPartially[0].scope());
+				assertNotNull(
+					facetedPartially[0].expression(),
+					"facetedPartially expression must not be null"
+				);
+
+				// bucketed histogram must survive into the final mutation for LIVE scope
+				final ScopedHistogramIndexDefinition[] bucketed = mutation.getBucketedInScopes();
+				assertEquals(
+					1, bucketed.length,
+					"Expected exactly one bucketed histogram definition for LIVE scope, but got: "
+						+ Arrays.toString(bucketed)
+				);
+				assertEquals(Scope.LIVE, bucketed[0].scope());
+				assertEquals(
+					GetterBasedEntityWithFacetedPartiallyAndBucketed.INTERVAL_REFERENCE_PARAMETER_VALUES,
+					bucketed[0].nameOfTheIndex()
+				);
+				assertNotNull(
+					bucketed[0].valueExpression(),
+					"bucketed value expression must not be null"
+				);
+
+				// bucketedPartially must survive into the final mutation for LIVE scope
+				final ScopedBucketedPartially[] bucketedPartially = mutation.getBucketedPartiallyInScopes();
+				assertEquals(
+					1, bucketedPartially.length,
+					"Expected exactly one bucketedPartially entry for LIVE scope, but got: "
+						+ Arrays.toString(bucketedPartially)
+				);
+				assertEquals(Scope.LIVE, bucketedPartially[0].scope());
+				assertNotNull(
+					bucketedPartially[0].expression(),
+					"bucketedPartially expression must not be null"
 				);
 			}
 		);

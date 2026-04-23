@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Map;
 
@@ -307,7 +308,7 @@ class SetReferenceSchemaBucketedMutationTest {
 					}
 				);
 			final CreateReferenceSchemaMutation createMutation =
-				new CreateReferenceSchemaMutation(
+				createReferenceSchemaMutation(
 					REFERENCE_NAME,
 					"desc", null,
 					Cardinality.ZERO_OR_MORE,
@@ -949,5 +950,36 @@ class SetReferenceSchemaBucketedMutationTest {
 			assertEquals(p1, p2);
 			assertEquals(p1.hashCode(), p2.hashCode());
 		}
+	}
+
+	/**
+	 * Test-only helper producing a {@link CreateReferenceSchemaMutation} with empty
+	 * `facetedPartially`, `bucketed` and `bucketedPartially` arrays. The production
+	 * code intentionally no longer exposes an 11-arg constructor so that callers
+	 * rebuilding mutations from an existing schema cannot silently drop the per-scope
+	 * expression fields; tests that don't exercise those fields use this helper to
+	 * preserve readability.
+	 */
+	@Nonnull
+	private static CreateReferenceSchemaMutation createReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes
+	) {
+		return new CreateReferenceSchemaMutation(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes, facetedInScopes,
+			null, null, null
+		);
 	}
 }

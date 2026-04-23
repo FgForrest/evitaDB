@@ -127,31 +127,6 @@ public class CreateReferenceSchemaMutation
 	}
 
 	/**
-	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration.
-	 */
-	public CreateReferenceSchemaMutation(
-		@Nonnull String name,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nullable Cardinality cardinality,
-		@Nonnull String referencedEntityType,
-		boolean referencedEntityTypeManaged,
-		@Nullable String referencedGroupType,
-		boolean referencedGroupTypeManaged,
-		@Nullable ScopedReferenceIndexType[] indexedInScopes,
-		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
-		@Nullable Scope[] facetedInScopes
-	) {
-		this(
-			name, description, deprecationNotice, cardinality,
-			referencedEntityType, referencedEntityTypeManaged,
-			referencedGroupType, referencedGroupTypeManaged,
-			indexedInScopes, indexedComponentsInScopes,
-			facetedInScopes, null, null, null
-		);
-	}
-
-	/**
 	 * Creates mutation that sets up a new reference schema with detailed per-scope indexed/faceted configuration
 	 * including per-scope facetedPartially and bucketed histogram expressions.
 	 */

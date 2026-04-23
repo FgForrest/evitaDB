@@ -57,6 +57,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -516,7 +517,7 @@ class CreateReferenceSchemaMutationTest {
 		@Test
 		@DisplayName("should create reference with explicit indexed components")
 		void shouldCreateReferenceWithExplicitIndexedComponents() {
-			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+			final CreateReferenceSchemaMutation mutation = createReferenceSchemaMutation(
 				REFERENCE_NAME,
 				"description", "deprecationNotice",
 				Cardinality.ZERO_OR_MORE,
@@ -814,5 +815,36 @@ class CreateReferenceSchemaMutationTest {
 			assertTrue(result.contains("bucketed="));
 			assertTrue(result.contains("bucketedPartially="));
 		}
+	}
+
+	/**
+	 * Test-only helper producing a {@link CreateReferenceSchemaMutation} with empty
+	 * `facetedPartially`, `bucketed` and `bucketedPartially` arrays. The production
+	 * code intentionally no longer exposes an 11-arg constructor so that callers
+	 * rebuilding mutations from an existing schema cannot silently drop the per-scope
+	 * expression fields; tests that don't exercise those fields use this helper to
+	 * preserve readability.
+	 */
+	@Nonnull
+	private static CreateReferenceSchemaMutation createReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes
+	) {
+		return new CreateReferenceSchemaMutation(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes, facetedInScopes,
+			null, null, null
+		);
 	}
 }

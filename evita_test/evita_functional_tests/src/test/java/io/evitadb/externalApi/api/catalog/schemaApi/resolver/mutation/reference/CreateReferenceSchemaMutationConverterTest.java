@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPa
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -48,6 +49,8 @@ import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMap
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
@@ -78,7 +81,7 @@ class CreateReferenceSchemaMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final CreateReferenceSchemaMutation expectedMutation = new CreateReferenceSchemaMutation(
+		final CreateReferenceSchemaMutation expectedMutation = createReferenceSchemaMutation(
 			"tags",
 			"desc",
 			"depr",
@@ -147,7 +150,7 @@ class CreateReferenceSchemaMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final CreateReferenceSchemaMutation expectedMutation = new CreateReferenceSchemaMutation(
+		final CreateReferenceSchemaMutation expectedMutation = createReferenceSchemaMutation(
 			"tags",
 			null,
 			null,
@@ -207,7 +210,7 @@ class CreateReferenceSchemaMutationConverterTest {
 
 	@Test
 	void shouldSerializeLocalMutationToOutput() {
-		final CreateReferenceSchemaMutation inputMutation = new CreateReferenceSchemaMutation(
+		final CreateReferenceSchemaMutation inputMutation = createReferenceSchemaMutation(
 			"tags",
 			"desc",
 			"depr",
@@ -451,5 +454,36 @@ class CreateReferenceSchemaMutationConverterTest {
 
 		assertEquals(0, convertedMutation.getBucketedInScopes().length);
 		assertEquals(0, convertedMutation.getBucketedPartiallyInScopes().length);
+	}
+
+	/**
+	 * Test-only helper producing a {@link CreateReferenceSchemaMutation} with empty
+	 * `facetedPartially`, `bucketed` and `bucketedPartially` arrays. The production
+	 * code intentionally no longer exposes an 11-arg constructor so that callers
+	 * rebuilding mutations from an existing schema cannot silently drop the per-scope
+	 * expression fields; tests that don't exercise those fields use this helper to
+	 * preserve readability.
+	 */
+	@Nonnull
+	private static CreateReferenceSchemaMutation createReferenceSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable Cardinality cardinality,
+		@Nonnull String referencedEntityType,
+		boolean referencedEntityTypeManaged,
+		@Nullable String referencedGroupType,
+		boolean referencedGroupTypeManaged,
+		@Nullable ScopedReferenceIndexType[] indexedInScopes,
+		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
+		@Nullable Scope[] facetedInScopes
+	) {
+		return new CreateReferenceSchemaMutation(
+			name, description, deprecationNotice, cardinality,
+			referencedEntityType, referencedEntityTypeManaged,
+			referencedGroupType, referencedGroupTypeManaged,
+			indexedInScopes, indexedComponentsInScopes, facetedInScopes,
+			null, null, null
+		);
 	}
 }
