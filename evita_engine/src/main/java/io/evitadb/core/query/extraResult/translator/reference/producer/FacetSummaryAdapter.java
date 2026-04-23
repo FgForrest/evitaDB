@@ -61,7 +61,8 @@ import java.util.Map;
  *             {@link io.evitadb.api.query.require.FacetSummaryOfReference} and
  *             {@link FacetSummary}.
  */
-@Deprecated
+// TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
+@Deprecated(since = "2026.2", forRemoval = true)
 public final class FacetSummaryAdapter implements ReferenceSummaryResultAdapter<FacetGroupStatistics> {
 
 	/**
