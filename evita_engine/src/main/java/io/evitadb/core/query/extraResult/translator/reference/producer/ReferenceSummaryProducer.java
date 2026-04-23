@@ -906,7 +906,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				final Map<String, Map<Integer, EntityClassifier>> facetEntities =
 					getFacetEntitiesIndexedByReferenceName(this.context, entityAcc.values());
 				final Map<String, Bitmap> groupIdIndex = getGroupIdsByReferenceName(entityAcc);
-				final Map<String, int[]> sortedGroupIds = new HashMap<>(groupIdIndex.size());
+				final Map<String, int[]> sortedGroupIds = createHashMap(groupIdIndex.size());
 
 				final GroupAccumulator[] sortedGroups = entityAcc.values().toArray(new GroupAccumulator[0]);
 				Arrays.sort(sortedGroups, (o1, o2) -> compareFacetGroupSummaries(groupIdIndex, sortedGroupIds, o1, o2));
