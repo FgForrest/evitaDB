@@ -8960,7 +8960,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(ERRORS_PATH, nullValue())
 			// shape-only assertions: boundary-entity presence is domain-dependent, see method javadoc.
 			.body(firstGroupHistogramPath, notNullValue())
-			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0));
+			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0))
+			.body(firstGroupHistogramPath + ".minReferencedEntity", notNullValue())
+			.body(firstGroupHistogramPath + ".maxReferencedEntity", notNullValue());
 	}
 
 	@Test
@@ -9130,6 +9132,52 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 					".parameter.findAll { it.histogramStatistics?.priceIndex?.min != null }.size()",
 				greaterThan(0)
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for reference summary with histogram statistics for non-bucketed reference for products")
+	void shouldReturnErrorForReferenceSummaryWithHistogramStatisticsForNonBucketedReferenceForProducts(Evita evita, GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					         query {
+					             queryProduct {
+					                 extraResults {
+					                     referenceSummary {
+					                         brand {
+					                             count
+					                             facetStatistics {
+					                                 facetEntity {
+					                                     primaryKey
+					                                     type
+					                                 }
+					                                 requested
+					                                 count
+					                             }
+					                             histogramStatistics {
+					                                 priceIndex {
+					                                     min
+					                                     max
+					                                     overallCount
+					                                     buckets(requestedCount: 20, behavior: OPTIMIZED) {
+					                                         threshold
+					                                         occurrences
+					                                         requested
+					                                     }
+					                                 }
+					                             }
+					                         }
+					                     }
+					                 }
+					             }
+					         }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
 
 	@Test

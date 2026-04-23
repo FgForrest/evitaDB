@@ -4471,7 +4471,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			// shape only: histogram must be populated and carry buckets; boundary entities are
 			// optional (present for REFERENCED_ENTITY_ATTRIBUTE, absent for REFERENCE_ATTRIBUTE).
 			.body(firstGroupHistogramPath, notNullValue())
-			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0));
+			.body(firstGroupHistogramPath + ".buckets.size()", greaterThan(0))
+			.body(firstGroupHistogramPath + ".minReferencedEntity", notNullValue())
+			.body(firstGroupHistogramPath + ".maxReferencedEntity", notNullValue());
 	}
 
 	@Test
@@ -4622,6 +4624,42 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					".parameter.findAll { it.histogramStatistics?.priceIndex?.min != null }.size()",
 				greaterThan(0)
 			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for reference summary with histogram statistics for non-bucketed reference for products")
+	void shouldReturnErrorForReferenceSummaryHistogramStatisticsForNonBucketedReferenceForProducts(Evita evita, RestTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"require": {
+							"referenceStoreSummary": {
+								"statisticsDepth":"COUNTS",
+								"requirements": [
+									{
+						   				"entityFetch": {
+						   					"attributeContent": ["code"]
+						      			}
+						   			},
+									{
+										"histogramStatistics": {
+											"requestedBucketCount": 20,
+											"indexNames": ["priceIndex"]
+										}
+									}
+								]
+					        }
+						}
+					}
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(400);
 	}
 
 	@Test
