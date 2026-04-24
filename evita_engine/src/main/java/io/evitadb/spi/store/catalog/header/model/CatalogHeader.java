@@ -84,7 +84,7 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 	int lastEntityCollectionPrimaryKey,
 	double activeRecordShare
 ) implements StoragePart {
-	@Serial private static final long serialVersionUID = 4115945765677481853L;
+	@Serial private static final long serialVersionUID = -8173629045281730496L;
 
 	/**
 	 * Exposes `compressedKeys` as an unmodifiable view so the record's accessor cannot be used to mutate the
