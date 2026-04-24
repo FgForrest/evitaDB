@@ -31,6 +31,8 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.dataType.Scope;
 import io.evitadb.store.wal.schema.MutationSerializationFunctions;
@@ -69,6 +71,8 @@ public class CreateReflectedReferenceSchemaMutationSerializer_2025_5 extends Ser
 			attributesExcludedFromInheritance[i] = input.readString();
 		}
 
+		// the 2025.5 wire format predates per-scope facetedPartially/bucketed/bucketedPartially;
+		// route through the 14-arg constructor with the same defaults the old 11-arg form used
 		return new CreateReflectedReferenceSchemaMutation(
 			name,
 			description,
@@ -85,6 +89,9 @@ public class CreateReflectedReferenceSchemaMutationSerializer_2025_5 extends Ser
 					.toArray(ScopedReferenceIndexType[]::new),
 			null,
 			facetedInScopes,
+			null,
+			ScopedHistogramIndexDefinition.EMPTY,
+			ScopedBucketedPartially.EMPTY,
 			attributeInheritanceBehavior,
 			attributesExcludedFromInheritance
 		);

@@ -3764,6 +3764,61 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 			);
 		}
 
+		@DisplayName("@ReferenceRef helper must not overwrite explicit-FALSE faceted on re-analysis")
+		@Test
+		void shouldPreserveExplicitFalseFacetedWhenReferenceRefTriggersReanalysis() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceDefaultFacetedWithRefHelper.class,
+				Scope.NO_SCOPE
+			);
+		}
+
+		@DisplayName("@ReferenceRef helper must not strip per-scope facetedPartially on re-analysis")
+		@Test
+		void shouldPreserveFacetedPartiallyWhenReferenceRefTriggersReanalysis() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+						ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceWithFacetedPartiallyAndRefHelper.class,
+						ReflectionLookup.NO_CACHE_INSTANCE
+					);
+					final ClassSchemaAnalyzer.AnalysisResult analysisResult = analyzer.analyze(
+						session, session.getCatalogSchema().openForWrite()
+					);
+
+					final CreateReflectedReferenceSchemaMutation mutation =
+						streamEntitySchemaMutations(
+							analysisResult.entityMutations(),
+							CreateReflectedReferenceSchemaMutation.class
+						)
+							.filter(it -> ReflectedReferenceFacetedTriStateFixtures.REFLECTED_REFERENCE_NAME
+								.equals(it.getName()))
+							.findFirst()
+							.orElseThrow(() -> new AssertionError(
+								"Expected a CreateReflectedReferenceSchemaMutation for `"
+									+ ReflectedReferenceFacetedTriStateFixtures.REFLECTED_REFERENCE_NAME + "`"
+							));
+
+					final ScopedFacetedPartially[] partially = mutation.getFacetedPartiallyInScopes();
+					assertNotNull(
+						partially,
+						"facetedPartiallyInScopes was null — stripped by @ReferenceRef re-analysis"
+					);
+					assertEquals(
+						1, partially.length,
+						"Expected exactly one facetedPartially entry for LIVE but got: "
+							+ Arrays.toString(partially)
+					);
+					assertEquals(Scope.LIVE, partially[0].scope());
+					assertNotNull(
+						partially[0].expression(),
+						"facetedPartially expression must not be null"
+					);
+				}
+			);
+		}
+
 		/**
 		 * Runs the analyzer on `modelClass`, locates the emitted
 		 * [CreateReflectedReferenceSchemaMutation] for the fixture's reflected reference and

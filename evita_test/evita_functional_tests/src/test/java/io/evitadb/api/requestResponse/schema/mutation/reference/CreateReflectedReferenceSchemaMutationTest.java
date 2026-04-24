@@ -145,6 +145,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 					null,
 					null,
 					null,
+					null, null, null,
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 					null
 				);
@@ -214,6 +215,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 						)
 					},
 					new Scope[]{Scope.LIVE},
+					null, null, null,
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
 					null
 				);

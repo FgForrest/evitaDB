@@ -126,6 +126,33 @@ public final class ReflectedReferenceSchemaBuilder
 							.toArray(ScopedReferenceIndexedComponents[]::new),
 					this.baseSchema.isFacetedInherited() ?
 						null : Arrays.stream(Scope.values()).filter(this.baseSchema::isFacetedInScope).toArray(Scope[]::new),
+					// facetedPartially follows faceted: inherited when faceted is inherited,
+					// otherwise the explicit per-scope map from baseSchema (possibly empty)
+					this.baseSchema.isFacetedInherited()
+						? null
+						: this.baseSchema.getFacetedPartiallyInScopes()
+							.entrySet()
+							.stream()
+							.map(it -> new ScopedFacetedPartially(it.getKey(), it.getValue()))
+							.toArray(ScopedFacetedPartially[]::new),
+					// bucketed is always explicit for reflected references (not inherited)
+					this.baseSchema.getAllHistogramIndexDefinitions()
+						.entrySet()
+						.stream()
+						.flatMap(
+							scopeEntry -> scopeEntry.getValue().values().stream()
+								.map(def -> new ScopedHistogramIndexDefinition(
+									scopeEntry.getKey(),
+									def.nameOfTheIndex(),
+									def.valueExpression()
+								))
+						)
+						.toArray(ScopedHistogramIndexDefinition[]::new),
+					this.baseSchema.getBucketedPartiallyInScopes()
+						.entrySet()
+						.stream()
+						.map(it -> new ScopedBucketedPartially(it.getKey(), it.getValue()))
+						.toArray(ScopedBucketedPartially[]::new),
 					this.baseSchema.getAttributesInheritanceBehavior(),
 					this.baseSchema.getAttributeInheritanceFilter()
 				)

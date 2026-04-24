@@ -228,33 +228,6 @@ public class CreateReflectedReferenceSchemaMutation
 
 	/**
 	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
-	 * indexed/faceted configuration.
-	 */
-	public CreateReflectedReferenceSchemaMutation(
-		@Nonnull String name,
-		@Nullable String description,
-		@Nullable String deprecationNotice,
-		@Nullable Cardinality cardinality,
-		@Nonnull String referencedEntityType,
-		@Nonnull String reflectedReferenceName,
-		@Nullable ScopedReferenceIndexType[] indexedInScopes,
-		@Nullable ScopedReferenceIndexedComponents[] indexedComponentsInScopes,
-		@Nullable Scope[] facetedInScopes,
-		@Nonnull AttributeInheritanceBehavior attributeInheritanceBehavior,
-		@Nullable String[] attributeInheritanceFilter
-	) {
-		this(
-			name, description, deprecationNotice, cardinality,
-			referencedEntityType, reflectedReferenceName,
-			indexedInScopes, indexedComponentsInScopes,
-			facetedInScopes, null,
-			ScopedHistogramIndexDefinition.EMPTY, ScopedBucketedPartially.EMPTY,
-			attributeInheritanceBehavior, attributeInheritanceFilter
-		);
-	}
-
-	/**
-	 * Creates mutation that sets up a new reflected reference schema with detailed per-scope
 	 * indexed/faceted/bucketed configuration including per-scope facetedPartially and
 	 * bucketedPartially expressions.
 	 */

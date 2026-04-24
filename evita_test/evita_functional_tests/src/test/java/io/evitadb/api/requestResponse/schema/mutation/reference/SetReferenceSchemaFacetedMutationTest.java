@@ -385,6 +385,7 @@ class SetReferenceSchemaFacetedMutationTest {
 					},
 					null,
 					Scope.NO_SCOPE, // originally not faceted
+					null, null, null,
 					io.evitadb.api.requestResponse.schema
 						.ReflectedReferenceSchemaContract
 						.AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -1126,6 +1127,7 @@ class SetReferenceSchemaFacetedMutationTest {
 					},
 					null,
 					new Scope[]{Scope.LIVE},
+					null, null, null,
 					io.evitadb.api.requestResponse.schema
 						.ReflectedReferenceSchemaContract
 						.AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,

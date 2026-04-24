@@ -91,6 +91,9 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				},
 				null,
 				new Scope[]{Scope.LIVE},
+				null,
+				ScopedHistogramIndexDefinition.EMPTY,
+				ScopedBucketedPartially.EMPTY,
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 				new String[]{"order"}
 			);
@@ -175,6 +178,9 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				null,
 				null,
 				null,
+				null,
+				ScopedHistogramIndexDefinition.EMPTY,
+				ScopedBucketedPartially.EMPTY,
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 				null
 			);
@@ -272,6 +278,9 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				},
 				null,
 				new Scope[]{Scope.LIVE},
+				null,
+				ScopedHistogramIndexDefinition.EMPTY,
+				ScopedBucketedPartially.EMPTY,
 				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
 				new String[]{"order"}
 			);

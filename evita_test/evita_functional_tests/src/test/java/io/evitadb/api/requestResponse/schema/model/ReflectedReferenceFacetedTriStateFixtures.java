@@ -24,9 +24,17 @@
 package io.evitadb.api.requestResponse.schema.model;
 
 import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.Expression;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
+import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference;
 import io.evitadb.api.requestResponse.data.annotation.ReflectedReference.InheritableBoolean;
+import io.evitadb.api.requestResponse.data.annotation.ScopeReferenceSettings;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.dataType.Scope;
+
+import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * Fixtures covering every variant of [ReflectedReference#faceted] tri-state
@@ -40,6 +48,8 @@ public interface ReflectedReferenceFacetedTriStateFixtures {
 	String TARGET_ENTITY = "Brand";
 	String TARGET_REFERENCE = "items";
 	String REFLECTED_REFERENCE_NAME = "marketingBrand";
+	String FACETED_PARTIALLY_EXPRESSION =
+		"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'";
 
 	/**
 	 * `faceted` attribute omitted — falls back to the annotation default of
@@ -108,6 +118,56 @@ public interface ReflectedReferenceFacetedTriStateFixtures {
 			faceted = InheritableBoolean.INHERITED
 		)
 		BrandRef[] getMarketingBrand();
+
+	}
+
+	/**
+	 * Scope-qualified reflected reference carrying a `facetedPartially` expression in the
+	 * LIVE scope, paired with a `@ReferenceRef` helper. The helper triggers a second pass
+	 * of the analyzer; the per-scope `facetedPartially` must survive that re-analysis.
+	 */
+	@Entity
+	interface ReflectedReferenceWithFacetedPartiallyAndRefHelper {
+
+		@PrimaryKey
+		int getId();
+
+		@ReflectedReference(
+			ofEntity = TARGET_ENTITY,
+			ofName = TARGET_REFERENCE,
+			scope = {
+				@ScopeReferenceSettings(
+					scope = Scope.LIVE,
+					indexed = ReferenceIndexType.FOR_FILTERING,
+					facetedPartially = @Expression(FACETED_PARTIALLY_EXPRESSION)
+				)
+			}
+		)
+		BrandRef[] getMarketingBrand();
+
+		@ReferenceRef(REFLECTED_REFERENCE_NAME)
+		@Nonnull
+		Optional<BrandRef[]> getMarketingBrandIfAvailable();
+
+	}
+
+	/**
+	 * Default-faceted reflected reference paired with a `@ReferenceRef` helper getter. The
+	 * helper triggers a second pass of the analyzer on the same reference, which must not
+	 * overwrite the explicit `facetedInScopes = []` state established by the primary definer.
+	 */
+	@Entity
+	interface ReflectedReferenceDefaultFacetedWithRefHelper {
+
+		@PrimaryKey
+		int getId();
+
+		@ReflectedReference(ofEntity = TARGET_ENTITY, ofName = TARGET_REFERENCE)
+		BrandRef[] getMarketingBrand();
+
+		@ReferenceRef(REFLECTED_REFERENCE_NAME)
+		@Nonnull
+		Optional<BrandRef[]> getMarketingBrandIfAvailable();
 
 	}
 
