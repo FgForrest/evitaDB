@@ -35,6 +35,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -216,9 +217,11 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			this.scheduler
 		);
 
-		// Verify the engine state is still persisted after restart
+		// Verify the engine state is still persisted after restart.
+		// Folder-sync reconciliation strips the active catalogs (none exist on disk)
+		// but must NOT advance the engine version — reconciliation is not a WAL mutation (#1137).
 		EngineState restartedState = this.service.getEngineState();
-		assertEquals(3L, restartedState.version());
+		assertEquals(2L, restartedState.version());
 		assertEquals(0, restartedState.activeCatalogs().length);
 		assertEquals(0, restartedState.inactiveCatalogs().length);
 	}
@@ -380,5 +383,77 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 		// Verify bootstrap file was created
 		Path bootstrapFile = getPathInTargetDirectory(this.getClass().getSimpleName()).resolve("evitaDB.boot");
 		assertTrue(Files.exists(bootstrapFile));
+	}
+
+	@Test
+	@DisplayName("should not bump engine version during folder-sync reconciliation")
+	void shouldNotBumpEngineVersionDuringFolderSyncReconciliation() {
+		// Persist a state that claims catalogs on disk that do not actually exist —
+		// this forces syncEngineStateByFolderContents to reconcile the active list.
+		final EngineState<LogFileRecordReference> stateClaimingMissingCatalogs = new EngineState<>(
+			STORAGE_PROTOCOL_VERSION,
+			2L,
+			OffsetDateTime.now(),
+			null,
+			new String[]{"ghost-a", "ghost-b"},
+			ArrayUtils.EMPTY_STRING_ARRAY,
+			ArrayUtils.EMPTY_STRING_ARRAY
+		);
+		this.service.storeEngineState(stateClaimingMissingCatalogs);
+		this.service.close();
+
+		// Reboot — with no directories on disk, sync will strip the ghost catalogs
+		// from the active list. Reconciliation must NOT advance the engine version,
+		// because version advancement requires a corresponding WAL mutation.
+		this.service = new DefaultEnginePersistenceService(
+			this.storageOptions,
+			this.transactionOptions,
+			this.scheduler
+		);
+
+		final EngineState<LogFileRecordReference> reloaded = this.service.getEngineState();
+		assertEquals(
+			2L, reloaded.version(),
+			"Folder sync reconciliation must not bump engine version (would drift WAL ↔ state)."
+		);
+		assertEquals(0, reloaded.activeCatalogs().length);
+		assertEquals(0, reloaded.inactiveCatalogs().length);
+	}
+
+	@Test
+	@DisplayName("should not bump engine version during storage-protocol migration")
+	void shouldNotBumpEngineVersionDuringStorageProtocolMigration() {
+		// Persist a state that reports an older storage protocol version — this
+		// forces the migration branch to run on next boot.
+		final EngineState<LogFileRecordReference> oldProtocolState = new EngineState<>(
+			STORAGE_PROTOCOL_VERSION - 1,
+			2L,
+			OffsetDateTime.now(),
+			null,
+			ArrayUtils.EMPTY_STRING_ARRAY,
+			ArrayUtils.EMPTY_STRING_ARRAY,
+			ArrayUtils.EMPTY_STRING_ARRAY
+		);
+		this.service.storeEngineState(oldProtocolState);
+		this.service.close();
+
+		// Reboot — migration path should rewrite the bootstrap with the current
+		// protocol version but MUST NOT advance the engine version counter
+		// (protocol migration is storage-layer metadata, not a logical mutation).
+		this.service = new DefaultEnginePersistenceService(
+			this.storageOptions,
+			this.transactionOptions,
+			this.scheduler
+		);
+
+		final EngineState<LogFileRecordReference> reloaded = this.service.getEngineState();
+		assertEquals(
+			STORAGE_PROTOCOL_VERSION, reloaded.storageProtocolVersion(),
+			"Storage protocol version must be upgraded on boot."
+		);
+		assertEquals(
+			2L, reloaded.version(),
+			"Storage protocol migration must not bump engine version (would drift WAL ↔ state)."
+		);
 	}
 }
