@@ -113,6 +113,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.set.LazyHashSet;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
@@ -182,6 +183,21 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public final class Catalog
 	implements CatalogContract, CatalogConsumersListener, TransactionalLayerProducer<DataStoreChanges, Catalog> {
+	/**
+	 * Per-thread stack of batch frames collecting entity types whose expression trigger registry
+	 * must be rebuilt once the current `updateSchema(...)` batch finishes. While a frame is on
+	 * the stack, `entitySchemaUpdated` / `entitySchemaRemoved` append the affected entity type to
+	 * the topmost frame instead of rebuilding immediately — cross-entity trigger validation
+	 * (e.g. histogram value expressions referencing attributes on other entities) thus only sees
+	 * the final, consistent schema at the end of the batch.
+	 *
+	 * Nesting is supported: the recursive `updateSchema` call at the end of `updateSchema` (which
+	 * applies cascading `ModifyEntitySchemaMutation`s) pushes its own frame and drains it before
+	 * returning, so outer / inner frames never interfere.
+	 */
+	private static final ThreadLocal<Deque<Set<String>>> PENDING_TRIGGER_REBUILDS =
+		ThreadLocal.withInitial(ArrayDeque::new);
+
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains information about version of the catalog which corresponds to transaction commit sequence number.
@@ -837,6 +853,15 @@ public final class Catalog
 		// internal schema is expected to be produced on the server side
 		final CatalogSchema originalSchema = getInternalSchema();
 		final AtomicReference<MutationApplicationRecord> record = new AtomicReference<>();
+		// collect entity types whose cross-entity trigger registry must be rebuilt, deferring
+		// the rebuild until the entire batch is applied — intermediate states may be transiently
+		// inconsistent (e.g. entity B declares a histogram referencing an attribute on entity A
+		// that a later mutation in the same batch will add). `LazyHashSet` avoids allocating the
+		// backing `HashSet` for batches that touch no entity schemas (single-mutation catalog-level
+		// calls), which is the common case.
+		final Deque<Set<String>> rebuildStack = PENDING_TRIGGER_REBUILDS.get();
+		final Set<String> rebuildFrame = new LazyHashSet<>(4);
+		rebuildStack.push(rebuildFrame);
 		try {
 			final Optional<Transaction> transactionRef = Transaction.getTransaction();
 			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
@@ -905,6 +930,10 @@ public final class Catalog
 			if (modifyEntitySchemaMutations != null) {
 				updateSchema(evita, sessionId, modifyEntitySchemaMutations);
 			}
+			// drain deferred trigger rebuilds inside the try block so any cross-entity
+			// validation failure (e.g. a histogram value expression referencing a missing
+			// attribute) propagates into the revert branch just like an eager rebuild would
+			drainTriggerRebuildFrame(rebuildFrame);
 		} catch (RuntimeException ex) {
 			// revert all changes in the schema (for current transaction) if anything failed
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
@@ -917,6 +946,14 @@ public final class Catalog
 
 			throw ex;
 		} finally {
+			// always pop our own frame; if no exception was thrown the frame was already
+			// drained and is empty, if an exception was thrown we discard any remaining
+			// pending rebuilds (the revert above restored the pre-batch schema so there is
+			// nothing new to rebuild)
+			rebuildStack.pop();
+			if (rebuildStack.isEmpty()) {
+				PENDING_TRIGGER_REBUILDS.remove();
+			}
 			// finally, store the updated catalog schema to disk
 			final CatalogSchema currentSchema = getInternalSchema();
 			if (currentSchema.version() > originalSchema.version()) {
@@ -924,6 +961,23 @@ public final class Catalog
 			}
 		}
 		return getSchema();
+	}
+
+	/**
+	 * Rebuilds expression triggers for every entity type collected in the given batch frame.
+	 * Called at the end of a `updateSchema(...)` batch, after every mutation in the batch has
+	 * been applied and before exceptions can escape the enclosing `try` block.
+	 *
+	 * @param frame the batch frame holding deferred entity type names
+	 */
+	private void drainTriggerRebuildFrame(@Nonnull Set<String> frame) {
+		if (frame.isEmpty()) {
+			return;
+		}
+		for (final String entityType : frame) {
+			rebuildExpressionTriggerRegistryForEntityType(entityType);
+		}
+		frame.clear();
 	}
 
 	@Override
@@ -1478,22 +1532,28 @@ public final class Catalog
 	 * because the existing `EntityCollection.notifyAboutExternalReferenceUpdate()` already cascades
 	 * schema changes to all collections with reflected references, each firing `entitySchemaUpdated()`.
 	 *
+	 * When called from within a batched `updateSchema(...)` call (a frame is present on
+	 * {@link #PENDING_TRIGGER_REBUILDS}), the rebuild is deferred until after all mutations in the
+	 * batch have been applied — cross-entity trigger validation then sees the final, consistent
+	 * schema rather than a transient intermediate state.
+	 *
 	 * @param entitySchema updated entity schema
 	 */
 	public void entitySchemaUpdated(@Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchemaIndex.put(entitySchema.getName(), entitySchema);
-		rebuildExpressionTriggerRegistryForEntityType(entitySchema.getName());
+		markEntityTypeForTriggerRebuild(entitySchema.getName());
 	}
 
 	/**
 	 * Removes the entity schema from the map index, and purges all triggers owned by the removed
-	 * entity type from the expression trigger registry.
+	 * entity type from the expression trigger registry. If a batched `updateSchema(...)` call is
+	 * currently running, the purge is deferred like in {@link #entitySchemaUpdated}.
 	 *
 	 * @param entityType the type of the entity schema to be removed
 	 */
 	public void entitySchemaRemoved(@Nonnull String entityType) {
 		this.entitySchemaIndex.remove(entityType);
-		rebuildExpressionTriggerRegistryForEntityType(entityType);
+		markEntityTypeForTriggerRebuild(entityType);
 	}
 
 	@Override
@@ -1906,6 +1966,23 @@ public final class Catalog
 	 */
 	public boolean hasGranularConflictPolicy() {
 		return this.transactionManager.hasGranularConflictPolicy();
+	}
+
+	/**
+	 * Marks the given entity type as dirty for trigger-registry rebuild. If a batch frame is
+	 * active on {@link #PENDING_TRIGGER_REBUILDS} the entity type is appended there and the
+	 * rebuild is deferred to the end of the enclosing `updateSchema(...)` call; otherwise the
+	 * rebuild runs immediately so single-mutation callers keep their existing eager semantics.
+	 *
+	 * @param entityType the entity type whose triggers may have become stale
+	 */
+	private void markEntityTypeForTriggerRebuild(@Nonnull String entityType) {
+		final Set<String> frame = PENDING_TRIGGER_REBUILDS.get().peek();
+		if (frame != null) {
+			frame.add(entityType);
+		} else {
+			rebuildExpressionTriggerRegistryForEntityType(entityType);
+		}
 	}
 
 	/**
