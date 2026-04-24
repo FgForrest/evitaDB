@@ -26,7 +26,6 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -54,8 +53,8 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Scope;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -84,13 +83,12 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Class schema analyzer")
 class ClassSchemaAnalyzerTest implements EvitaTestSupport {
-	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST = "classSchemaAnalyzerTest";
-	public static final String DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT = "classSchemaAnalyzerTest_export";
 	public static final String ATTRIBUTE_DCODE = "code";
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_EAN = "ean";
 	public static final String ATTRIBUTE_QUANTITY = "quantity";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	private static void assertAttribute(
@@ -696,21 +694,9 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() throws IOException {
-		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST);
-		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT);
+		this.paths = createTestPaths("ClassSchemaAnalyzerTest");
 		this.evita = new Evita(
-			EvitaConfiguration.builder()
-				.storage(
-					StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST))
-						.build()
-				)
-				.export(
-					FileSystemExportOptions.builder()
-						.directory(getTestDirectory().resolve(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT))
-						.build()
-				)
-				.build()
+			newTestEvitaConfigurationBuilder(this.paths).build()
 		);
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
@@ -718,8 +704,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() throws IOException {
 		this.evita.close();
-		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST);
-		cleanTestSubDirectory(DIR_CLASS_SCHEMA_ANALYZER_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@DisplayName("Verify that interface methods re analyzed and set up with defaults")

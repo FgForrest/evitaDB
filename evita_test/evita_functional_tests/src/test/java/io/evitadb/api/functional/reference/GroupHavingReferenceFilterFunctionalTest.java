@@ -24,7 +24,6 @@
 package io.evitadb.api.functional.reference;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
@@ -33,6 +32,8 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
+import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
@@ -78,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
-public class GroupHavingReferenceFilterFunctionalTest extends AbstractReferenceFilterFunctionalTest {
+public class GroupHavingReferenceFilterFunctionalTest extends AbstractReferenceFilterFunctionalTest implements EvitaTestSupport {
 
 	/**
 	 * Extracts the set of distinct group PKs for a given reference type from the original products.
@@ -351,11 +352,10 @@ public class GroupHavingReferenceFilterFunctionalTest extends AbstractReferenceF
 	void shouldThrowWhenGroupHavingTargetsUnmanagedGroupType(@TempDir Path tempDir) {
 		final String unmanagedGroupRef = "unmanagedGroupRef";
 		final String externalGroup = "ExternalGroupEntity";
+		final TestPaths paths = createTestPaths(tempDir, "UnmanagedGroupType");
 		try (
 			final Evita tempEvita = new Evita(
-				EvitaConfiguration.builder()
-					.storage(StorageOptions.builder().storageDirectory(tempDir).build())
-					.build()
+				newTestEvitaConfigurationBuilder(paths).build()
 			)
 		) {
 			tempEvita.defineCatalog(TEST_CATALOG);

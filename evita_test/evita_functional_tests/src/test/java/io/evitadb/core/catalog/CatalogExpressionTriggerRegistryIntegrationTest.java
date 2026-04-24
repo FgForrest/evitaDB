@@ -24,15 +24,15 @@
 package io.evitadb.core.catalog;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
-import io.evitadb.dataType.Scope;
-import io.evitadb.dataType.expression.Expression;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
+import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +41,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -62,7 +61,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("CatalogExpressionTriggerRegistry Integration")
 class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSupport {
 
-	private static final String DIR_REGISTRY_INTEGRATION_TEST = "registryIntegrationTest";
 	private static final String PRODUCT = "product";
 	private static final String CATEGORY = "category";
 	private static final String PARAMETER_REF = "parameter";
@@ -73,21 +71,17 @@ class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSuppor
 	private static final String GROUP_STATUS_EXPRESSION =
 		"$reference.groupEntity?.attributes['status'] == 'VISIBLE'";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	/**
 	 * Creates a fresh Evita instance with a test catalog before each test.
 	 */
 	@BeforeEach
-	void setUp() throws IOException {
-		cleanTestSubDirectory(DIR_REGISTRY_INTEGRATION_TEST);
+	void setUp() {
+		this.paths = createTestPaths("RegistryIntegrationTest");
 		this.evita = new Evita(
-			EvitaConfiguration.builder()
-				.storage(
-					StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(DIR_REGISTRY_INTEGRATION_TEST))
-						.build()
-				).build()
+			newTestEvitaConfigurationBuilder(this.paths).build()
 		);
 		this.evita.defineCatalog(TestConstants.TEST_CATALOG);
 	}
@@ -100,6 +94,7 @@ class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSuppor
 		if (this.evita != null) {
 			this.evita.close();
 		}
+		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -233,18 +228,13 @@ class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSuppor
 
 		@Test
 		@DisplayName("Should build registry after catalog loading from disk")
-		void shouldBuildRegistryAfterAllInitSchemaCalls() throws IOException {
+		void shouldBuildRegistryAfterAllInitSchemaCalls() {
 			defineProductWithGroupStatusExpression();
 
 			// close and reopen Evita — triggers cold start path
 			CatalogExpressionTriggerRegistryIntegrationTest.this.evita.close();
 			CatalogExpressionTriggerRegistryIntegrationTest.this.evita = new Evita(
-				EvitaConfiguration.builder()
-					.storage(
-						StorageOptions.builder()
-							.storageDirectory(getTestDirectory().resolve(DIR_REGISTRY_INTEGRATION_TEST))
-							.build()
-					).build()
+				newTestEvitaConfigurationBuilder(CatalogExpressionTriggerRegistryIntegrationTest.this.paths).build()
 			);
 
 			// verify registry was rebuilt from disk-persisted schemas

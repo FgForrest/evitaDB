@@ -24,7 +24,6 @@
 package io.evitadb.driver;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -45,6 +44,7 @@ import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.externalApi.system.SystemProvider;
 import io.evitadb.server.EvitaServer;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.IOUtils;
@@ -113,6 +113,10 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 	private static final String TEST_ENTITY = "TestEntity";
 
 	/**
+	 * Paths for the Evita instance created in setUp and reused for the lifetime of the test.
+	 */
+	private TestPaths paths;
+	/**
 	 * Evita instance.
 	 */
 	private Evita evita;
@@ -127,17 +131,12 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() throws IOException {
-		// Create temporary data directory using EvitaTestSupport helper
-		final Path evitaDataDirectory = this.getPathInTargetDirectory(DATA_SET_NAME);
-		evitaDataDirectory.toFile().mkdirs();
+		// Allocate isolated directories for this test run
+		this.paths = createTestPaths(DATA_SET_NAME);
 
 		// Create Evita instance with minimal configuration
 		this.evita = new Evita(
-			EvitaConfiguration.builder()
-				.storage(StorageOptions.builder()
-							 .storageDirectory(evitaDataDirectory)
-							 .build())
-				.build()
+			newTestEvitaConfigurationBuilder(this.paths).build()
 		);
 
 		// Create catalog with simple entity collection
@@ -216,8 +215,7 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 			IOUtils.closeQuietly(this.evita::close);
 		}
 		this.getPortManager().releasePorts(DATA_SET_NAME);
-		// Use EvitaTestSupport helper method for directory cleanup
-		this.cleanTestSubDirectoryWithRethrow(DATA_SET_NAME);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test

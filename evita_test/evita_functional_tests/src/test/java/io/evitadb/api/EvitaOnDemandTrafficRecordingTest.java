@@ -27,7 +27,6 @@ package io.evitadb.api;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -41,12 +40,12 @@ import io.evitadb.api.task.ServerTask;
 import io.evitadb.core.Evita;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.core.traffic.TrafficRecordingSettings;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.store.traffic.InputStreamTrafficRecordReader;
 import io.evitadb.stream.AbstractRandomAccessInputStream;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.IOUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -94,8 +93,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_CODE = "code";
-	public static final String DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST = "evitaTrafficRecordingTest";
-	public static final String DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT = "evitaTrafficRecordingTestExport";
 	/**
 	 * Seed for data generation.
 	 */
@@ -131,6 +128,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	/**
 	 * Evita instance.
 	 */
+	private TestPaths paths;
 	private Evita evita;
 
 	/**
@@ -157,8 +155,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@BeforeEach
 	void setUp() throws IOException {
-		cleanTestSubDirectory(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST);
-		cleanTestSubDirectory(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaOnDemandTrafficRecordingTest");
 		this.dataGenerator.clear();
 		this.generatedEntities.clear();
 		final String catalogName = "testCatalog";
@@ -254,10 +251,9 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	}
 
 	@AfterEach
-	void tearDown() throws IOException {
+	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectory(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST);
-		cleanTestSubDirectory(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test
@@ -473,7 +469,7 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.trafficRecording(
@@ -481,16 +477,6 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 							.enabled(false)
 							.build()
 					)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIRECTORY_EVITA_TRAFFIC_RECORDING_TEST_EXPORT))
 					.build()
 			)
 			.build();

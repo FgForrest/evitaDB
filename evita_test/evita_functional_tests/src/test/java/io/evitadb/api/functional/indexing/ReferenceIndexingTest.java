@@ -28,7 +28,6 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -37,10 +36,10 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,9 +63,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Reference indexing operations")
 class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
-	private static final String DIR_REFERENCE_INDEXING_TEST = "referenceIndexingTest";
-	private static final String DIR_REFERENCE_INDEXING_TEST_EXPORT = "referenceIndexingTest_export";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	private static int countProductsWithPriceListCurrencyCombination(
@@ -102,8 +100,7 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_REFERENCE_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_REFERENCE_INDEXING_TEST_EXPORT);
+		this.paths = createTestPaths("ReferenceIndexingTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -113,26 +110,15 @@ class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_REFERENCE_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_REFERENCE_INDEXING_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_REFERENCE_INDEXING_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_REFERENCE_INDEXING_TEST_EXPORT))
 					.build()
 			)
 			.build();

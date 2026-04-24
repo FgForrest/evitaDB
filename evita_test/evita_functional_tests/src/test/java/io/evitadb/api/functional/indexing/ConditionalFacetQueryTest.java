@@ -27,7 +27,6 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -38,8 +37,8 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -75,8 +74,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("Conditional facet query operations")
 class ConditionalFacetQueryTest implements EvitaTestSupport {
-	private static final String DIR_CONDITIONAL_FACET_QUERY_TEST = "conditionalFacetQueryTest";
-	private static final String DIR_CONDITIONAL_FACET_QUERY_TEST_EXPORT = "conditionalFacetQueryTest_export";
 
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_PARAMETER = "parameter";
@@ -85,12 +82,12 @@ class ConditionalFacetQueryTest implements EvitaTestSupport {
 	private static final String REF_PARAM_BY_GROUP_ATTR = "paramByGroupAttr";
 	private static final String ATTR_WIDGET_TYPE = "widgetType";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_CONDITIONAL_FACET_QUERY_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_CONDITIONAL_FACET_QUERY_TEST_EXPORT);
+		this.paths = createTestPaths("ConditionalFacetQueryTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -100,8 +97,7 @@ class ConditionalFacetQueryTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_CONDITIONAL_FACET_QUERY_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_CONDITIONAL_FACET_QUERY_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -111,24 +107,10 @@ class ConditionalFacetQueryTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(
-						getTestDirectory().resolve(DIR_CONDITIONAL_FACET_QUERY_TEST)
-					)
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(
-						getTestDirectory().resolve(DIR_CONDITIONAL_FACET_QUERY_TEST_EXPORT)
-					)
 					.build()
 			)
 			.build();

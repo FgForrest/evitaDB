@@ -26,12 +26,11 @@ package io.evitadb.api;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,14 +49,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class ReadOnlyEvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
-	public static final String DIR_READ_ONLY_EVITA_TEST = "readOnlyEvitaTest";
-	public static final String DIR_READ_ONLY_EVITA_TEST_EXPORT = "readOnlyEvitaTest_export";
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() throws IOException {
-		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
-		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST_EXPORT);
+		this.paths = createTestPaths("ReadOnlyEvitaTest");
 		this.evita = new Evita(
 			getEvitaConfiguration(false)
 		);
@@ -85,10 +82,9 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 	}
 
 	@AfterEach
-	void tearDown() throws IOException {
+	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST);
-		cleanTestSubDirectory(DIR_READ_ONLY_EVITA_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test
@@ -128,20 +124,10 @@ class ReadOnlyEvitaTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(boolean readOnly) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.readOnly(readOnly)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_READ_ONLY_EVITA_TEST_EXPORT))
 					.build()
 			)
 			.build();

@@ -25,7 +25,6 @@ package io.evitadb.api;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -35,12 +34,12 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -55,7 +54,6 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -82,9 +80,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @CommonsLog
 @DisplayName("Conditional facet generational tests")
 class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport, GenerationalTestSupport {
-	private static final String DIR_TEST = "conditionalFacetGenerationalTest";
-	private static final String DIR_TEST_EXPORT = "conditionalFacetGenerationalTest_export";
-
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_PARAMETER = "parameter";
 	private static final String ENTITY_PARAMETER_GROUP = "parameterGroup";
@@ -102,21 +97,20 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 	private static final int MAX_PARENTS = 5;
 
 	private final StringBuilder operationLog = new StringBuilder(4096);
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
-	void setUp() throws IOException {
-		cleanTestSubDirectory(DIR_TEST);
-		cleanTestSubDirectory(DIR_TEST_EXPORT);
+	void setUp() {
+		this.paths = createTestPaths("EvitaConditionalFacetGenerationalTest");
 		this.evita = new Evita(getEvitaConfiguration());
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
 	@AfterEach
-	void tearDown() throws IOException {
+	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectory(DIR_TEST);
-		cleanTestSubDirectory(DIR_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	// --- Test 1: Entity Attribute ---
@@ -745,20 +739,10 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 	 */
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_TEST_EXPORT))
 					.build()
 			)
 			.build();

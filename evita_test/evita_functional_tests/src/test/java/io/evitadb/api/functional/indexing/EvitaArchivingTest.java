@@ -27,7 +27,6 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
@@ -51,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.exception.PriceNotIndexedException;
@@ -58,7 +58,6 @@ import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
@@ -91,8 +90,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SuppressWarnings("SameParameterValue")
 public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport {
-	private static final String DIR_EVITA_ARCHIVING_TEST = "evitaArchivingTest";
-	private static final String DIR_EVITA_ARCHIVING_TEST_EXPORT = "evitaArchivingTest_export";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_URL = "url";
 	private static final String ATTRIBUTE_NAME = "name";
@@ -110,6 +107,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 	private static final Currency CURRENCY_EUR = Currency.getInstance("EUR");
 	private static final String REFLECTED_REFERENCE_NAME = "products";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	@Nullable
@@ -178,8 +176,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_ARCHIVING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_ARCHIVING_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaArchivingTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -189,8 +186,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_ARCHIVING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_ARCHIVING_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Nested
@@ -3057,20 +3053,10 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_ARCHIVING_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_EVITA_ARCHIVING_TEST_EXPORT))
 					.build()
 			)
 			.build();

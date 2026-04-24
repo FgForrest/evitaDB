@@ -28,8 +28,8 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -46,15 +46,13 @@ import javax.annotation.Nonnull;
  */
 @Slf4j
 class EvitaWarmUpInsertionTest implements EvitaTestSupport {
-	public static final String DIR_EVITA_TEST = "evitaWarmUpInsertionTest";
-	public static final String DIR_EVITA_TEST_EXPORT = "evitaWarmUpInsertionTest_export";
 	public static final String THE_ENTITY = "theEntity";
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaWarmUpInsertionTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -64,8 +62,7 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Tag(LONG_RUNNING_TEST)
@@ -103,7 +100,7 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.serviceThreadPool(
@@ -118,13 +115,13 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
+					.storageDirectory(this.paths.storage())
+					.workDirectory(this.paths.work())
 					.timeTravelEnabled(false)
 					.fileSizeCompactionThresholdBytes(100_000_000)
 					.minimalActiveRecordShare(0.8)
 					.build()
 			)
-			.export(FileSystemExportOptions.temporary())
 			.build();
 	}
 

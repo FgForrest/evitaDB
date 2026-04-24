@@ -26,9 +26,8 @@ package io.evitadb.test;
 import io.evitadb.api.configuration.CacheOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,33 +40,21 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class EmptyDataSetTest implements EvitaTestSupport {
-	private static final String DIR_EMPTY_DATA_SET_TEST = "emptyDataSetTest";
-	public static final String DIR_EMPTY_DATA_SET_TEST_EXPORT = DIR_EMPTY_DATA_SET_TEST + "_export";
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		// clean test directory to start from scratch
-		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST);
+		// allocate collision-free test directories
+		this.paths = createTestPaths("EmptyDataSetTest");
 		// initialize the evitaDB server
 		this.evita = new Evita(
-			EvitaConfiguration.builder()
+			newTestEvitaConfigurationBuilder(this.paths)
 				.server(
 					// disable automatic session termination
 					// to avoid closing sessions when you stop at breakpoint
 					ServerOptions.builder()
 						.closeSessionsAfterSecondsOfInactivity(-1)
-						.build()
-				)
-				.storage(
-					// point evitaDB to a test directory (temp directory)
-					StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(DIR_EMPTY_DATA_SET_TEST))
-						.build()
-				)
-				.export(
-					FileSystemExportOptions.builder()
-						.directory(getTestDirectory().resolve(DIR_EMPTY_DATA_SET_TEST_EXPORT))
 						.build()
 				)
 				.cache(
@@ -85,7 +72,7 @@ public class EmptyDataSetTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EMPTY_DATA_SET_TEST);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test

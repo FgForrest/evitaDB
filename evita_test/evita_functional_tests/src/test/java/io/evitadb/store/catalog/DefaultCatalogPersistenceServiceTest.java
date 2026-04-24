@@ -29,6 +29,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.api.configuration.TrafficRecordingOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
@@ -216,13 +217,17 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	}
 
 	@Nonnull
-	private static TrafficRecordingEngine createTrafficRecordingEngine(@Nonnull SealedCatalogSchema catalogSchema) {
-		final StorageOptions storageOptions = StorageOptions.builder().build();
+	private TrafficRecordingEngine createTrafficRecordingEngine(@Nonnull SealedCatalogSchema catalogSchema) {
+		final TestPaths paths = createTestPaths("DefaultCatalogPersistenceServiceTest_traffic");
+		final StorageOptions storageOptions = StorageOptions.builder()
+			.storageDirectory(paths.storage())
+			.workDirectory(paths.work())
+			.build();
 		return new TrafficRecordingEngine(
 			catalogSchema.getName(),
 			CatalogState.WARMING_UP,
 			DefaultTracingContext.INSTANCE,
-			EvitaConfiguration.builder()
+			newTestEvitaConfigurationBuilder(paths)
 				.storage(storageOptions)
 				.server(
 					ServerOptions.builder()

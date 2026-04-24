@@ -24,15 +24,14 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,8 +60,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class EntityCrossScopeReferenceFetchFunctionalTest implements EvitaTestSupport {
 
 	private static final String TEST_CATALOG = "crossScopeFetch";
-	private static final String DIR_TEST = "crossScopeFetch";
-	private static final String DIR_TEST_EXPORT = DIR_TEST + "_export";
 	private static final String PRODUCT = "product";
 	private static final String PARAM = "param";
 	private static final String PARAM_GROUP = "paramGroup";
@@ -71,16 +68,14 @@ class EntityCrossScopeReferenceFetchFunctionalTest implements EvitaTestSupport {
 	private static final String ATTR_VALUE = "basicValue";
 	private static final String ATTR_PRIORITY = "priority";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() throws IOException {
-		cleanTestSubDirectory(DIR_TEST);
+		this.paths = createTestPaths("EntityCrossScopeReferenceFetchFunctionalTest");
 		this.evita = new Evita(
-			EvitaConfiguration.builder()
-				.storage(StorageOptions.builder().storageDirectory(getTestDirectory().resolve(DIR_TEST)).build())
-				.export(FileSystemExportOptions.builder().directory(getTestDirectory().resolve(DIR_TEST_EXPORT)).build())
-				.build()
+			newTestEvitaConfigurationBuilder(this.paths).build()
 		);
 		this.evita.defineCatalog(TEST_CATALOG);
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
@@ -126,7 +121,7 @@ class EntityCrossScopeReferenceFetchFunctionalTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() throws IOException {
 		this.evita.close();
-		cleanTestSubDirectory(DIR_TEST);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test

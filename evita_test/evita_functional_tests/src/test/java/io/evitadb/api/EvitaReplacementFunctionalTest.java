@@ -27,6 +27,7 @@ package io.evitadb.api;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.SessionBusyException;
@@ -63,14 +64,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
-	private static final String DIR_EVITA_REPLACEMENT_TEST = "evitaReplacementTest";
-	private static final String DIR_EVITA_REPLACEMENT_TEST_EXPORT = "evitaReplacementTest_export";
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_REPLACEMENT_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_REPLACEMENT_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaReplacementTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -80,8 +79,7 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_REPLACEMENT_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_REPLACEMENT_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@DisplayName("Replace catalog under heavy load")
@@ -195,7 +193,7 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds)
@@ -203,7 +201,8 @@ public class EvitaReplacementFunctionalTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_REPLACEMENT_TEST))
+					.storageDirectory(this.paths.storage())
+					.workDirectory(this.paths.work())
 					.maxOpenedReadHandles(100)
 					.build()
 			)

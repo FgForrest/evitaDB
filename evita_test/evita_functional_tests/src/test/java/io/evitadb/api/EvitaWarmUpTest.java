@@ -36,9 +36,9 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.generator.DataGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
@@ -60,8 +60,6 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
  */
 @Slf4j
 class EvitaWarmUpTest implements EvitaTestSupport {
-	public static final String DIR_EVITA_TEST = "evitaWarmUpTest";
-	public static final String DIR_EVITA_TEST_EXPORT = "evitaWarmUpTest_export";
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String ATTRIBUTE_CATEGORY_ORDER = "categoryOrder";
 	private static final String REFERENCE_CATEGORY_PRODUCTS = "products";
@@ -71,12 +69,12 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 	private static final int SEED = 40;
 	private static final int PRODUCT_COUNT = 5_000;
 	private static final int CATEGORY_COUNT = 10;
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaWarmUpTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -86,8 +84,7 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -214,7 +211,7 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.serviceThreadPool(
@@ -229,13 +226,13 @@ class EvitaWarmUpTest implements EvitaTestSupport {
 			)
 			.storage(
 				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_EVITA_TEST))
+					.storageDirectory(this.paths.storage())
+					.workDirectory(this.paths.work())
 					.timeTravelEnabled(false)
 					.fileSizeCompactionThresholdBytes(1_000_000)
 					.minimalActiveRecordShare(0.8)
 					.build()
 			)
-			.export(FileSystemExportOptions.temporary())
 			.build();
 	}
 

@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
@@ -1581,17 +1582,12 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Descriptor resolution errors")
 	class DescriptorResolutionErrors {
 
-		/** Dedicated storage/export directory names so the fixture does not collide with siblings. */
-		private static final String DIR_AMBIGUOUS = "histogramHavingE2E_ambiguous";
-		private static final String DIR_AMBIGUOUS_EXPORT = "histogramHavingE2E_ambiguous_export";
-
 		@Test
 		@DisplayName("should throw when histogramName is omitted and the reference hosts multiple histograms")
 		void shouldThrowWhenHistogramNameOmittedAndMultipleHistogramsExist() {
-			cleanTestSubDirectoryWithRethrow(DIR_AMBIGUOUS);
-			cleanTestSubDirectoryWithRethrow(DIR_AMBIGUOUS_EXPORT);
+			final TestPaths paths = createTestPaths("HistogramHavingFunctionalTest_ambiguous");
 			try (Evita evita = new Evita(
-				getEvitaConfiguration(DIR_AMBIGUOUS, DIR_AMBIGUOUS_EXPORT)
+				getEvitaConfiguration(paths)
 			)) {
 				evita.defineCatalog(TEST_CATALOG);
 				evita.updateCatalog(
@@ -1685,8 +1681,7 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 					"error message must name the ambiguity, got: " + thrown.getMessage()
 				);
 			} finally {
-				cleanTestSubDirectoryWithRethrow(DIR_AMBIGUOUS);
-				cleanTestSubDirectoryWithRethrow(DIR_AMBIGUOUS_EXPORT);
+				cleanupTestPaths(paths);
 			}
 		}
 
@@ -1769,16 +1764,12 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Two sliders, non-empty AND, both baselines & requested flags")
 	class TwoSlidersNonEmptyAndMultiPv {
 
-		private static final String DIR_MULTI_PV = "histogramHavingE2E_multiPv";
-		private static final String DIR_MULTI_PV_EXPORT = "histogramHavingE2E_multiPv_export";
-
 		@Test
 		@DisplayName("both baselines stay catalog-wide and both requested flags flip")
 		void shouldKeepBothBaselinesAndFlipBothRequestedFlagsWhenBothSlidersApplied() {
-			cleanTestSubDirectoryWithRethrow(DIR_MULTI_PV);
-			cleanTestSubDirectoryWithRethrow(DIR_MULTI_PV_EXPORT);
+			final TestPaths paths = createTestPaths("HistogramHavingFunctionalTest_multiPv");
 			try (Evita evita = new Evita(
-				getEvitaConfiguration(DIR_MULTI_PV, DIR_MULTI_PV_EXPORT)
+				getEvitaConfiguration(paths)
 			)) {
 				evita.defineCatalog(TEST_CATALOG);
 				evita.updateCatalog(
@@ -1931,8 +1922,7 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 					}
 				);
 			} finally {
-				cleanTestSubDirectoryWithRethrow(DIR_MULTI_PV);
-				cleanTestSubDirectoryWithRethrow(DIR_MULTI_PV_EXPORT);
+				cleanupTestPaths(paths);
 			}
 		}
 	}
@@ -1942,26 +1932,17 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 	// =============================================================================================
 
 	/**
-	 * Produces an `Evita` configuration rooted at the given storage directory under the shared
-	 * test temp directory. Used by tests that provision a fresh isolated instance.
+	 * Produces an `Evita` configuration rooted at the given {@link TestPaths}. Used by tests that
+	 * provision a fresh isolated instance.
 	 *
-	 * @param dir       storage sub-directory name
-	 * @param exportDir export sub-directory name
+	 * @param paths collision-free path triplet, typically produced by {@link #createTestPaths(String)}
 	 * @return a configured `EvitaConfiguration` with session timeouts disabled
 	 */
 	@Nonnull
-	private io.evitadb.api.configuration.EvitaConfiguration getEvitaConfiguration(
-		@Nonnull String dir, @Nonnull String exportDir
-	) {
-		return io.evitadb.api.configuration.EvitaConfiguration.builder()
+	private io.evitadb.api.configuration.EvitaConfiguration getEvitaConfiguration(@Nonnull TestPaths paths) {
+		return newTestEvitaConfigurationBuilder(paths)
 			.server(io.evitadb.api.configuration.ServerOptions.builder()
 				.closeSessionsAfterSecondsOfInactivity(-1).build())
-			.storage(io.evitadb.api.configuration.StorageOptions.builder()
-				.storageDirectory(getTestDirectory().resolve(dir))
-				.build())
-			.export(io.evitadb.export.file.configuration.FileSystemExportOptions.builder()
-				.directory(getTestDirectory().resolve(exportDir))
-				.build())
 			.build();
 	}
 

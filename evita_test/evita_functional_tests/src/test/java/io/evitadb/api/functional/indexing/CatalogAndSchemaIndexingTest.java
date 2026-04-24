@@ -27,7 +27,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
@@ -41,9 +40,9 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -79,15 +78,13 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Catalog and schema indexing operations")
 class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupport {
-	private static final String DIR_CATALOG_AND_SCHEMA_INDEXING_TEST = "catalogAndSchemaIndexingTest";
-	private static final String DIR_CATALOG_AND_SCHEMA_INDEXING_TEST_EXPORT = "catalogAndSchemaIndexingTest_export";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_CATALOG_AND_SCHEMA_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_CATALOG_AND_SCHEMA_INDEXING_TEST_EXPORT);
+		this.paths = createTestPaths("CatalogAndSchemaIndexingTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -97,8 +94,7 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_CATALOG_AND_SCHEMA_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_CATALOG_AND_SCHEMA_INDEXING_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -108,20 +104,10 @@ class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	 */
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_CATALOG_AND_SCHEMA_INDEXING_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_CATALOG_AND_SCHEMA_INDEXING_TEST_EXPORT))
 					.build()
 			)
 			.build();

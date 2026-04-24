@@ -25,7 +25,6 @@ package io.evitadb.api;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -38,9 +37,9 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -86,8 +85,6 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 	 * Count of the product that will exist in the database BEFORE the test starts.
 	 */
 	private static final int INITIAL_COUNT_OF_PRODUCTS = 1000;
-	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST = "evitaReferenceGenerationalTest";
-	private static final String DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT = "evitaReferenceGenerationalTest_export";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_CATEGORY_GROUP = "categoryGroup";
 	private static final String ATTRIBUTE_CATEGORY_ORDER = "categoryOrder";
@@ -123,6 +120,7 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 	/**
 	 * Evita instance.
 	 */
+	private TestPaths paths;
 	private Evita evita;
 	/**
 	 * Functions allows to pseudo randomly modify existing product contents.
@@ -142,8 +140,7 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 
 	@BeforeEach
 	void setUp() throws IOException {
-		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST);
-		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaReferencesGenerationalTest");
 		this.dataGenerator.clear();
 		this.generatedEntities.clear();
 		final String catalogName = "testCatalog";
@@ -265,10 +262,9 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 	}
 
 	@AfterEach
-	void tearDown() throws IOException {
+	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST);
-		cleanTestSubDirectory(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Test
@@ -507,17 +503,7 @@ class EvitaReferencesGenerationalTest implements EvitaTestSupport, TimeBoundedTe
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIRECTORY_EVITA_GENERATIONAL_TEST_EXPORT))
-					.build()
-			)
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.build();
 	}
 

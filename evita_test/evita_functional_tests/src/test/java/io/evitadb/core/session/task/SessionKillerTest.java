@@ -26,7 +26,6 @@ package io.evitadb.core.session.task;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.query.Query;
@@ -34,8 +33,8 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.session.EvitaInternalSessionContract;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,21 +61,15 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Session killer functionality")
 @Tag(LONG_RUNNING_TEST)
 class SessionKillerTest implements EvitaTestSupport {
-	private static final String SUB_DIRECTORY = "SessionKillerTest";
+	private TestPaths paths;
 	private Evita evita;
 	private SessionKiller sessionKiller;
 
 	@BeforeEach
 	void setUp() throws IOException, NoSuchFieldException, IllegalAccessException {
-		cleanTestSubDirectory(SUB_DIRECTORY);
+		this.paths = createTestPaths("SessionKillerTest");
 		this.evita = new Evita(
-			EvitaConfiguration.builder()
-				.storage(
-					StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(SUB_DIRECTORY))
-						.build()
-				)
-				.export(FileSystemExportOptions.temporary())
+			newTestEvitaConfigurationBuilder(this.paths)
 				.server(
 					ServerOptions.builder()
 						.closeSessionsAfterSecondsOfInactivity(1)
@@ -92,7 +85,7 @@ class SessionKillerTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() throws IOException {
 		this.evita.close();
-		cleanTestSubDirectory(SUB_DIRECTORY);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Nested

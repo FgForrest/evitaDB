@@ -25,16 +25,15 @@ package io.evitadb.api.functional.indexing;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.ReflectionLookup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,15 +61,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @DisplayName("Associated data indexing operations")
 class AssociatedDataIndexingTest implements EvitaTestSupport, IndexingTestSupport {
-	private static final String DIR_ASSOCIATED_DATA_INDEXING_TEST = "associatedDataIndexingTest";
-	private static final String DIR_ASSOCIATED_DATA_INDEXING_TEST_EXPORT = "associatedDataIndexingTest_export";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_ASSOCIATED_DATA_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_ASSOCIATED_DATA_INDEXING_TEST_EXPORT);
+		this.paths = createTestPaths("AssociatedDataIndexingTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -80,26 +77,15 @@ class AssociatedDataIndexingTest implements EvitaTestSupport, IndexingTestSuppor
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_ASSOCIATED_DATA_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_ASSOCIATED_DATA_INDEXING_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_ASSOCIATED_DATA_INDEXING_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_ASSOCIATED_DATA_INDEXING_TEST_EXPORT))
 					.build()
 			)
 			.build();

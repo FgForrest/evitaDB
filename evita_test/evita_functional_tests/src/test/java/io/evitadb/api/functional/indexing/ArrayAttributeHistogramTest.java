@@ -29,17 +29,16 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,9 +68,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Array attribute histogram indexing operations")
 class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSupport {
 
-	private static final String DIR_ARRAY_HISTOGRAM_TEST = "arrayAttributeHistogramTest";
-	private static final String DIR_ARRAY_HISTOGRAM_TEST_EXPORT = "arrayAttributeHistogramTest_export";
-
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_PARAMETER_VALUE = "parameterValue";
 
@@ -85,6 +81,7 @@ class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSuppo
 	private static final String HISTOGRAM_REF_ARRAY = "refArrayHistogram";
 	private static final String HISTOGRAM_ENTITY_ARRAY = "entityArrayHistogram";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	/**
@@ -250,8 +247,7 @@ class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSuppo
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST_EXPORT);
+		this.paths = createTestPaths("ArrayAttributeHistogramTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -261,8 +257,7 @@ class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSuppo
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_ARRAY_HISTOGRAM_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -272,20 +267,10 @@ class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSuppo
 	 */
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_ARRAY_HISTOGRAM_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_ARRAY_HISTOGRAM_TEST_EXPORT))
 					.build()
 			)
 			.build();

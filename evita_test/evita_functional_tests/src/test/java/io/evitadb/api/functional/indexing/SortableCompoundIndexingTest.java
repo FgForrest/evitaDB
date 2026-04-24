@@ -27,7 +27,6 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -37,13 +36,13 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.function.QuadriConsumer;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -71,14 +70,13 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Sortable attribute compound indexing")
 class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupport {
-	private static final String DIR_SORTABLE_COMPOUND_INDEXING_TEST = "sortableCompoundIndexingTest";
-	private static final String DIR_SORTABLE_COMPOUND_INDEXING_TEST_EXPORT = "sortableCompoundIndexingTest_export";
+
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_SORTABLE_COMPOUND_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_SORTABLE_COMPOUND_INDEXING_TEST_EXPORT);
+		this.paths = createTestPaths("SortableCompoundIndexingTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -88,8 +86,7 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_SORTABLE_COMPOUND_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_SORTABLE_COMPOUND_INDEXING_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -640,20 +637,10 @@ class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	 */
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_SORTABLE_COMPOUND_INDEXING_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_SORTABLE_COMPOUND_INDEXING_TEST_EXPORT))
 					.build()
 			)
 			.build();

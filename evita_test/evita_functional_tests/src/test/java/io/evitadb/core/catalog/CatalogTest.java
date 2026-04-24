@@ -24,14 +24,13 @@
 package io.evitadb.core.catalog;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.Test;
 
@@ -47,24 +46,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  */
 class CatalogTest implements EvitaTestSupport {
 
-	public static final String DIR_CATALOG_TEST = "catalogTest";
-
 	@Test
 	void shouldDefineCatalogSchemaUpfront() throws IOException {
-		cleanTestSubDirectory(DIR_CATALOG_TEST);
+		final TestPaths paths = createTestPaths("CatalogTest");
 		try (final Evita evita = new Evita(
-			EvitaConfiguration.builder()
-				.storage(
-					StorageOptions.builder()
-						.storageDirectory(getTestDirectory().resolve(DIR_CATALOG_TEST))
-						.build()
-				)
-				.export(
-					FileSystemExportOptions.builder()
-						.directory(getTestDirectory().resolve(DIR_CATALOG_TEST + "/export"))
-						.build()
-				)
-				.build()
+			newTestEvitaConfigurationBuilder(paths).build()
 		)) {
 			evita.defineCatalog(TestConstants.TEST_CATALOG);
 			evita.updateCatalog(
@@ -99,6 +85,8 @@ class CatalogTest implements EvitaTestSupport {
 					return null;
 				}
 			);
+		} finally {
+			cleanupTestPaths(paths);
 		}
 	}
 

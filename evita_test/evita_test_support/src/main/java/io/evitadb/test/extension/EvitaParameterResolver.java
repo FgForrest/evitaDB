@@ -30,7 +30,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.configuration.CacheOptions;
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
@@ -39,7 +38,6 @@ import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.externalApi.configuration.AbstractApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.ApiOptions.Builder;
@@ -262,19 +260,23 @@ public class EvitaParameterResolver
 	 * @return new evitaDB instance
 	 */
 	@Nonnull
-	private static Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName) {
-		final Path evitaDataPath = STORAGE_PATH.resolve(randomFolderName);
-		final Path evitaExportPath = STORAGE_PATH.resolve(randomFolderName + "_export");
-		final Path evitaWorkPath = STORAGE_PATH.resolve(randomFolderName + "_work");
-		if (evitaDataPath.toFile().exists()) {
-			io.evitadb.utils.FileUtils.deleteDirectory(evitaDataPath);
-			io.evitadb.utils.FileUtils.deleteDirectory(evitaExportPath);
+	private Evita createEvita(@Nonnull String catalogName, @Nonnull String randomFolderName) {
+		// dataset-scoped paths: all test methods sharing the same @UseDataSet see the same storage/export
+		// directories for the lifetime of the dataset, which is why randomFolderName is caller-supplied rather
+		// than freshly allocated via createTestPaths(String).
+		final EvitaTestSupport.TestPaths paths = new EvitaTestSupport.TestPaths(
+			STORAGE_PATH.resolve(randomFolderName),
+			STORAGE_PATH.resolve(randomFolderName + "_work"),
+			STORAGE_PATH.resolve(randomFolderName + "_export")
+		);
+		if (paths.storage().toFile().exists()) {
+			io.evitadb.utils.FileUtils.deleteDirectory(paths.storage());
+			io.evitadb.utils.FileUtils.deleteDirectory(paths.export());
 		}
-		Assert.isTrue(evitaDataPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
-		Assert.isTrue(evitaExportPath.toFile().mkdirs(), "Fail to create directory: " + evitaDataPath);
+		Assert.isTrue(paths.storage().toFile().mkdirs(), "Fail to create directory: " + paths.storage());
+		Assert.isTrue(paths.export().toFile().mkdirs(), "Fail to create directory: " + paths.export());
 		final Evita evita = new Evita(
-			EvitaConfiguration
-				.builder()
+			newTestEvitaConfigurationBuilder(paths)
 				.server(
 					// disable automatic session termination
 					// to avoid closing sessions when you stop at breakpoint
@@ -300,19 +302,14 @@ public class EvitaParameterResolver
 						)
 						.build()
 				)
+				// preserve dataset-specific storage tuning that newTestEvitaConfigurationBuilder does not know about
 				.storage(
-					// point evitaDB to a test directory (temp directory)
 					StorageOptions.builder()
-					              .storageDirectory(evitaDataPath)
-					              .workDirectory(evitaWorkPath)
+					              .storageDirectory(paths.storage())
+					              .workDirectory(paths.work())
 					              .maxOpenedReadHandles(1000)
 					              .syncWrites(false)
 					              .build()
-				)
-				.export(
-					FileSystemExportOptions.builder()
-					    .directory(evitaExportPath)
-					    .build()
 				)
 				.cache(
 					// disable cache for tests

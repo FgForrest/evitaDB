@@ -26,7 +26,6 @@ package io.evitadb.api.functional.facet;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
@@ -35,8 +34,8 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGrou
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -85,9 +84,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Reference summary must not leak facets across scopes")
 class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 
-	private static final String DIR_NAME = "referenceSummaryScopeLeakTest";
-	private static final String DIR_EXPORT = "referenceSummaryScopeLeakTest_export";
-
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_BRAND = "brand";
 	private static final String ENTITY_CATEGORY = "category";
@@ -102,12 +98,12 @@ class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 	private static final int CATEGORY_LIVE_PK = 10;
 	private static final int CATEGORY_ARCHIVED_PK = 20;
 
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_NAME);
-		cleanTestSubDirectoryWithRethrow(DIR_EXPORT);
+		this.paths = createTestPaths("ReferenceSummaryScopeLeakTest");
 		this.evita = new Evita(getEvitaConfiguration());
 		this.evita.defineCatalog(TEST_CATALOG);
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
@@ -120,24 +116,13 @@ class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_NAME);
-		cleanTestSubDirectoryWithRethrow(DIR_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_NAME))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_EXPORT))
-					.build()
-			)
 			.build();
 	}
 

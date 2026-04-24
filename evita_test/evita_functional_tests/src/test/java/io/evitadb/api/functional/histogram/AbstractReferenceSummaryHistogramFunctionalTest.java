@@ -26,7 +26,6 @@ package io.evitadb.api.functional.histogram;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -36,8 +35,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -474,22 +473,9 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	 * directories rooted under {@link #getTestDirectory()}.
 	 */
 	@Nonnull
-	protected EvitaConfiguration createEvitaConfiguration(
-		@Nonnull String storageDir,
-		@Nonnull String exportDir
-	) {
-		return EvitaConfiguration.builder()
+	protected EvitaConfiguration createEvitaConfiguration(@Nonnull TestPaths paths) {
+		return newTestEvitaConfigurationBuilder(paths)
 			.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(storageDir))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(exportDir))
-					.build()
-			)
 			.build();
 	}
 
@@ -515,11 +501,9 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		@Nullable Consumer<EvitaSessionContract> seed,
 		@Nonnull Consumer<Evita> assertions
 	) {
-		final String exportDir = dirPrefix + "_export";
-		cleanTestSubDirectoryWithRethrow(dirPrefix);
-		cleanTestSubDirectoryWithRethrow(exportDir);
+		final TestPaths paths = createTestPaths(dirPrefix);
 		try (
-			Evita evita = new Evita(createEvitaConfiguration(dirPrefix, exportDir))
+			Evita evita = new Evita(createEvitaConfiguration(paths))
 		) {
 			evita.defineCatalog(TEST_CATALOG);
 			evita.updateCatalog(TEST_CATALOG, schemaDefinition);
@@ -528,8 +512,7 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 			}
 			assertions.accept(evita);
 		} finally {
-			cleanTestSubDirectoryWithRethrow(dirPrefix);
-			cleanTestSubDirectoryWithRethrow(exportDir);
+			cleanupTestPaths(paths);
 		}
 	}
 
@@ -618,14 +601,10 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		static final int TIE_LOW_PV = 100;
 		static final int TIE_HIGH_PV = 200;
 
-		private static final String DIR_OVERLAP = "referenceHistogramE2E_overlap";
-		private static final String DIR_OVERLAP_EXPORT = "referenceHistogramE2E_overlap_export";
-		private static final String DIR_TIE = "referenceHistogramE2E_tie";
-		private static final String DIR_TIE_EXPORT = "referenceHistogramE2E_tie_export";
-		private static final String DIR_UPDATE = "referenceHistogramE2E_update";
-		private static final String DIR_UPDATE_EXPORT = "referenceHistogramE2E_update_export";
-		private static final String DIR_REMOVAL = "referenceHistogramE2E_removal";
-		private static final String DIR_REMOVAL_EXPORT = "referenceHistogramE2E_removal_export";
+		private static final String LABEL_OVERLAP = "referenceHistogramE2E_overlap";
+		private static final String LABEL_TIE = "referenceHistogramE2E_tie";
+		private static final String LABEL_UPDATE = "referenceHistogramE2E_update";
+		private static final String LABEL_REMOVAL = "referenceHistogramE2E_removal";
 
 		/**
 		 * The {@link FixtureCtx} is identical for every OverlapFixture variant — the fixtures
@@ -644,7 +623,7 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		 */
 		static void runWithOverlapFixture(@Nonnull FixtureTest test) {
 			runFixture(
-				DIR_OVERLAP, DIR_OVERLAP_EXPORT, OverlapFixture::seedOverlap,
+				LABEL_OVERLAP, OverlapFixture::seedOverlap,
 				evita -> evita.queryCatalog(
 					TEST_CATALOG,
 					(Consumer<EvitaSessionContract>) session -> test.run(session, FIXTURE_CTX)
@@ -661,7 +640,7 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		 */
 		static void runWithUpdateFixture(@Nonnull MutationFixtureTest test) {
 			runFixture(
-				DIR_UPDATE, DIR_UPDATE_EXPORT, OverlapFixture::seedUpdate,
+				LABEL_UPDATE, OverlapFixture::seedUpdate,
 				evita -> test.run(evita, FIXTURE_CTX)
 			);
 		}
@@ -675,7 +654,7 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		 */
 		static void runWithRemovalFixture(@Nonnull MutationFixtureTest test) {
 			runFixture(
-				DIR_REMOVAL, DIR_REMOVAL_EXPORT, OverlapFixture::seedRemoval,
+				LABEL_REMOVAL, OverlapFixture::seedRemoval,
 				evita -> test.run(evita, FIXTURE_CTX)
 			);
 		}
@@ -686,7 +665,7 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		 */
 		static void runWithTieFixture(@Nonnull FixtureTest test) {
 			runFixture(
-				DIR_TIE, DIR_TIE_EXPORT, OverlapFixture::seedTie,
+				LABEL_TIE, OverlapFixture::seedTie,
 				evita -> evita.queryCatalog(
 					TEST_CATALOG,
 					(Consumer<EvitaSessionContract>) session -> test.run(session, FIXTURE_CTX)
@@ -702,16 +681,14 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		 * variants do not leak disk state into siblings.
 		 */
 		private static void runFixture(
-			@Nonnull String dir,
-			@Nonnull String exportDir,
+			@Nonnull String label,
 			@Nonnull Consumer<EvitaSessionContract> seed,
 			@Nonnull Consumer<Evita> body
 		) {
 			final OverlapFixture fixture = new OverlapFixture();
-			fixture.cleanTestSubDirectoryWithRethrow(dir);
-			fixture.cleanTestSubDirectoryWithRethrow(exportDir);
+			final TestPaths paths = fixture.createTestPaths(label);
 			try (
-				Evita evita = new Evita(fixture.getEvitaConfiguration(dir, exportDir))
+				Evita evita = new Evita(fixture.getEvitaConfiguration(paths))
 			) {
 				evita.defineCatalog(TEST_CATALOG);
 				evita.updateCatalog(
@@ -723,8 +700,7 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 				);
 				body.accept(evita);
 			} finally {
-				fixture.cleanTestSubDirectoryWithRethrow(dir);
-				fixture.cleanTestSubDirectoryWithRethrow(exportDir);
+				fixture.cleanupTestPaths(paths);
 			}
 		}
 
@@ -917,17 +893,9 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 		}
 
 		@Nonnull
-		private EvitaConfiguration getEvitaConfiguration(
-			@Nonnull String dir, @Nonnull String exportDir
-		) {
-			return EvitaConfiguration.builder()
+		private EvitaConfiguration getEvitaConfiguration(@Nonnull TestPaths paths) {
+			return newTestEvitaConfigurationBuilder(paths)
 				.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-				.storage(StorageOptions.builder()
-					         .storageDirectory(getTestDirectory().resolve(dir))
-					         .build())
-				.export(FileSystemExportOptions.builder()
-					        .directory(getTestDirectory().resolve(exportDir))
-					        .build())
 				.build();
 		}
 

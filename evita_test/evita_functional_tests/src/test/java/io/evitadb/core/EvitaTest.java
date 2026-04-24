@@ -86,6 +86,7 @@ import io.evitadb.externalApi.rest.configuration.RestOptions;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.PortManager;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -148,8 +149,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class EvitaTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_URL = "url";
-	private static final String DIR_EVITA_TEST = "evitaTest";
-	private static final String DIR_EVITA_TEST_EXPORT = "evitaTest_export";
 	private static final String REFERENCE_REFLECTION_PRODUCTS_IN_CATEGORY = "productsInCategory";
 	private static final String REFERENCE_PRODUCT_CATEGORY = "productCategory";
 	private static final Locale LOCALE_CZ = new Locale("cs", "CZ");
@@ -159,12 +158,12 @@ class EvitaTest implements EvitaTestSupport {
 	private static final String PRICE_LIST_VIP = "vip";
 	private final MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(
 		Integer.MAX_VALUE);
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
+		this.paths = createTestPaths("EvitaTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -178,8 +177,7 @@ class EvitaTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -4994,8 +4992,7 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration(int inactivityTimeoutInSeconds) {
-		return EvitaConfiguration
-			.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions
 					.builder()
@@ -5013,14 +5010,10 @@ class EvitaTest implements EvitaTestSupport {
 			.storage(
 				StorageOptions
 					.builder()
-					.storageDirectory(getEvitaTestDirectory())
+					.storageDirectory(this.paths.storage())
+					.workDirectory(this.paths.work())
 					.timeTravelEnabled(false)
 					.maxOpenedReadHandles(100)
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_EVITA_TEST_EXPORT))
 					.build()
 			)
 			.build();
@@ -5386,7 +5379,7 @@ class EvitaTest implements EvitaTestSupport {
 
 	@Nonnull
 	private Path getEvitaTestDirectory() {
-		return getTestDirectory().resolve(DIR_EVITA_TEST);
+		return this.paths.storage();
 	}
 
 }

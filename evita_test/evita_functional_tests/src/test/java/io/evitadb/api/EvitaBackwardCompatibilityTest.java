@@ -32,8 +32,8 @@ import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -142,9 +142,10 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 		}
 
 		log.info("Starting Evita with backward compatibility to " + version);
+		final TestPaths testPaths = createTestPaths("EvitaBackwardCompatibilityTest");
 		try (
 			final Evita evita = new Evita(
-				EvitaConfiguration.builder()
+				newTestEvitaConfigurationBuilder(testPaths)
 					.server(
 						ServerOptions.builder()
 							.closeSessionsAfterSecondsOfInactivity(-1)
@@ -153,10 +154,10 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 					.storage(
 						StorageOptions.builder()
 							.storageDirectory(targetDirectory)
+							.workDirectory(testPaths.work())
 							.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE * 2)
 							.build()
 					)
-					.export(FileSystemExportOptions.temporary())
 					.build()
 			)
 		) {
@@ -200,6 +201,8 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 
 			// read entire WAL contents from oldest to newest record
 			readWalContents(evita, catalogName);
+		} finally {
+			cleanupTestPaths(testPaths);
 		}
 	}
 

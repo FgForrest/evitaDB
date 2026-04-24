@@ -2446,6 +2446,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 				)
 				.server(originalConfiguration.server())
 				.cache(originalConfiguration.cache())
+				.export(originalConfiguration.export())
 				.build()
 		);
 		evita.waitUntilFullyInitialized();

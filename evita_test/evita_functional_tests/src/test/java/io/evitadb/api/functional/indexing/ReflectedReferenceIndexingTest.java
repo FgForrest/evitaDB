@@ -26,7 +26,6 @@ package io.evitadb.api.functional.indexing;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -35,9 +34,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,9 +58,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Reflected reference indexing operations")
 class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
-	private static final String DIR_REFLECTED_REFERENCE_INDEXING_TEST = "reflectedReferenceIndexingTest";
-	private static final String DIR_REFLECTED_REFERENCE_INDEXING_TEST_EXPORT = "reflectedReferenceIndexingTest_export";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	/**
@@ -234,8 +232,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_REFLECTED_REFERENCE_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_REFLECTED_REFERENCE_INDEXING_TEST_EXPORT);
+		this.paths = createTestPaths("ReflectedReferenceIndexingTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -245,8 +242,7 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_REFLECTED_REFERENCE_INDEXING_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_REFLECTED_REFERENCE_INDEXING_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	@Nonnull
@@ -258,20 +254,10 @@ class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSu
 	private EvitaConfiguration getEvitaConfiguration(
 		@SuppressWarnings("SameParameterValue") int inactivityTimeoutInSeconds
 	) {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_REFLECTED_REFERENCE_INDEXING_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_REFLECTED_REFERENCE_INDEXING_TEST_EXPORT))
 					.build()
 			)
 			.build();

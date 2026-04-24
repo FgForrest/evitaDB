@@ -29,7 +29,6 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
-import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
@@ -40,12 +39,12 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.expression.query.NonTranslatableExpressionException;
 import io.evitadb.dataType.Scope;
-import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,8 +68,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("Conditional facet indexing operations")
 class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupport {
-	private static final String DIR_CONDITIONAL_FACET_TEST = "conditionalFacetIndexingTest";
-	private static final String DIR_CONDITIONAL_FACET_TEST_EXPORT = "conditionalFacetIndexingTest_export";
 
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_PARAMETER = "parameter";
@@ -103,12 +100,12 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	private static final String ATTR_WEIGHT = "weight";
 	private static final String ASSOC_DATA_METADATA = "metadata";
 
+	private TestPaths paths;
 	private Evita evita;
 
 	@BeforeEach
 	void setUp() {
-		cleanTestSubDirectoryWithRethrow(DIR_CONDITIONAL_FACET_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_CONDITIONAL_FACET_TEST_EXPORT);
+		this.paths = createTestPaths("ConditionalFacetIndexingTest");
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
@@ -118,8 +115,7 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	@AfterEach
 	void tearDown() {
 		this.evita.close();
-		cleanTestSubDirectoryWithRethrow(DIR_CONDITIONAL_FACET_TEST);
-		cleanTestSubDirectoryWithRethrow(DIR_CONDITIONAL_FACET_TEST_EXPORT);
+		cleanupTestPaths(this.paths);
 	}
 
 	/**
@@ -129,20 +125,10 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 	 */
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
-		return EvitaConfiguration.builder()
+		return newTestEvitaConfigurationBuilder(this.paths)
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(-1)
-					.build()
-			)
-			.storage(
-				StorageOptions.builder()
-					.storageDirectory(getTestDirectory().resolve(DIR_CONDITIONAL_FACET_TEST))
-					.build()
-			)
-			.export(
-				FileSystemExportOptions.builder()
-					.directory(getTestDirectory().resolve(DIR_CONDITIONAL_FACET_TEST_EXPORT))
 					.build()
 			)
 			.build();
