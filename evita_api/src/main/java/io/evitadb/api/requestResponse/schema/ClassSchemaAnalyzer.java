@@ -1495,12 +1495,13 @@ public class ClassSchemaAnalyzer {
 					null : editor.getReferenceIndexType(Scope.DEFAULT_SCOPE);
 				applyReferenceIndexType(editor, reference.indexed(), currentIndexType, null);
 
-				// faceted - only set if different
+				// inherited state (null) must differ from both TRUE and FALSE so the editor
+				// call fires and converts the reflected reference to an explicit value
 				final Boolean facetedInScope = editor.isFacetedInherited() ?
 					null : editor.isFacetedInScope(Scope.DEFAULT_SCOPE);
-				if (reference.faceted() == InheritableBoolean.TRUE && Boolean.FALSE.equals(facetedInScope)) {
+				if (reference.faceted() == InheritableBoolean.TRUE && !Boolean.TRUE.equals(facetedInScope)) {
 					editor.faceted();
-				} else if (reference.faceted() == InheritableBoolean.FALSE && Boolean.TRUE.equals(facetedInScope)) {
+				} else if (reference.faceted() == InheritableBoolean.FALSE && !Boolean.FALSE.equals(facetedInScope)) {
 					editor.nonFaceted();
 				}
 

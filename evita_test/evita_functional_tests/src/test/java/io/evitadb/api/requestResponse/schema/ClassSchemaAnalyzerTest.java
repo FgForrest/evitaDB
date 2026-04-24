@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
@@ -58,6 +59,7 @@ import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -3720,6 +3722,104 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				);
 			}
 		);
+	}
+
+	@DisplayName("Reflected reference faceted tri-state is propagated into mutations")
+	@Nested
+	class ReflectedReferenceFacetedTriState {
+
+		@DisplayName("default (omitted) faceted means explicitly not faceted")
+		@Test
+		void shouldEmitNonFacetedMutationWhenReflectedReferenceHasDefaultFaceted() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceDefaultFaceted.class,
+				Scope.NO_SCOPE
+			);
+		}
+
+		@DisplayName("explicit InheritableBoolean.FALSE means explicitly not faceted")
+		@Test
+		void shouldEmitNonFacetedMutationWhenReflectedReferenceHasExplicitFalseFaceted() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceExplicitFalseFaceted.class,
+				Scope.NO_SCOPE
+			);
+		}
+
+		@DisplayName("explicit InheritableBoolean.TRUE means faceted in the default scope")
+		@Test
+		void shouldEmitFacetedMutationWhenReflectedReferenceHasExplicitTrueFaceted() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceExplicitTrueFaceted.class,
+				Scope.DEFAULT_SCOPES
+			);
+		}
+
+		@DisplayName("explicit InheritableBoolean.INHERITED keeps faceted state inherited (null)")
+		@Test
+		void shouldKeepFacetedInheritedWhenReflectedReferenceHasExplicitInheritedFaceted() {
+			assertFacetedInScopes(
+				ReflectedReferenceFacetedTriStateFixtures.ReflectedReferenceExplicitInheritedFaceted.class,
+				null
+			);
+		}
+
+		/**
+		 * Runs the analyzer on `modelClass`, locates the emitted
+		 * [CreateReflectedReferenceSchemaMutation] for the fixture's reflected reference and
+		 * asserts its `facetedInScopes` payload matches `expectedFacetedInScopes` (using `null`
+		 * to denote an inherited state).
+		 */
+		private void assertFacetedInScopes(
+			@Nonnull Class<?> modelClass,
+			@Nullable Scope[] expectedFacetedInScopes
+		) {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+						modelClass, ReflectionLookup.NO_CACHE_INSTANCE
+					);
+					final ClassSchemaAnalyzer.AnalysisResult analysisResult = analyzer.analyze(
+						session, session.getCatalogSchema().openForWrite()
+					);
+
+					final CreateReflectedReferenceSchemaMutation mutation =
+						streamEntitySchemaMutations(
+							analysisResult.entityMutations(),
+							CreateReflectedReferenceSchemaMutation.class
+						)
+							.filter(it -> ReflectedReferenceFacetedTriStateFixtures.REFLECTED_REFERENCE_NAME
+								.equals(it.getName()))
+							.findFirst()
+							.orElseThrow(() -> new AssertionError(
+								"Expected a CreateReflectedReferenceSchemaMutation for `"
+									+ ReflectedReferenceFacetedTriStateFixtures.REFLECTED_REFERENCE_NAME + "`"
+							));
+
+					final Scope[] actualFacetedInScopes = mutation.getFacetedInScopes();
+					if (expectedFacetedInScopes == null) {
+						assertNull(
+							actualFacetedInScopes,
+							"Expected facetedInScopes to be null (inherited) but was: "
+								+ Arrays.toString(actualFacetedInScopes)
+						);
+					} else {
+						assertNotNull(
+							actualFacetedInScopes,
+							"Expected facetedInScopes to be " + Arrays.toString(expectedFacetedInScopes)
+								+ " but was null (inherited)"
+						);
+						assertArrayEquals(
+							expectedFacetedInScopes, actualFacetedInScopes,
+							"Expected facetedInScopes " + Arrays.toString(expectedFacetedInScopes)
+								+ " but got " + Arrays.toString(actualFacetedInScopes)
+						);
+					}
+				}
+			);
+		}
+
 	}
 
 }
