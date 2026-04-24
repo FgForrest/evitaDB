@@ -44,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public abstract class AbstractReferenceFilterFunctionalTest extends AbstractHundredProductsFunctionalTest {
-	static final String HUNDRED_PRODUCTS = "HundredProducts";
+	static final String HUNDRED_PRODUCTS = "HundredProductsForReferenceFilter";
 
 	/**
 	 * Returns primary keys of original products matching the given predicate.
