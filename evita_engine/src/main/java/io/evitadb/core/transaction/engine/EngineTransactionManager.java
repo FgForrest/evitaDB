@@ -198,27 +198,7 @@ public class EngineTransactionManager implements Closeable {
 		this.engineMutationWaitIntervalInMillis = this.evita.getConfiguration().server().transactionTimeoutInMilliseconds();
 		final ExpandedEngineState engineState = this.evita.getEngineState();
 		truncateWalFile(engineState);
-		final long lastWalVersion = this.enginePersistenceService.getLastVersionInMutationStream();
-		if (lastWalVersion > 0L && lastWalVersion < engineState.version()) {
-			log.error(
-				"Engine state is ahead of the Write-Ahead Log: last stored engine state version is {} but the WAL " +
-					"contains mutations only up to version {}. The WAL is missing {} committed mutation(s) that the " +
-					"engine state already accounts for. Rolling engine state version back to the WAL head so that " +
-					"subsequent mutations can be appended sequentially — versions ({}, {}] are LOST and cannot be " +
-					"recovered. Please investigate the cause of this inconsistency (likely an unclean shutdown or " +
-					"corrupted WAL file) to prevent further data loss!",
-				engineState.version(), lastWalVersion, engineState.version() - lastWalVersion,
-				lastWalVersion, engineState.version()
-			);
-			this.evita.setNextEngineState(
-				ExpandedEngineState.builder(engineState)
-					.withVersion(lastWalVersion)
-					.build()
-			);
-			this.lastStoredEngineStateVersion = lastWalVersion;
-		} else {
-			this.lastStoredEngineStateVersion = engineState.version();
-		}
+		this.lastStoredEngineStateVersion = engineState.version();
 	}
 
 	/**
