@@ -1,7 +1,8 @@
 {
   "network": {
 	"domainWhitelist": [
-	  "demo.evitadb.io"
+	  "demo.evitadb.io",
+	  "evitadb.io"
 	]
   }
 }
