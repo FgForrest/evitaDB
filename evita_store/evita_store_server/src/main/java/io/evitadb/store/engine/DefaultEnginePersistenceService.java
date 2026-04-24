@@ -213,17 +213,19 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 					this.engineState.walReference(),
 					this.storageSettings
 				);
-				// Update engine state with new storage protocol version and corrected WAL reference
+				// Update engine state with new storage protocol version and corrected WAL reference.
+				// Storage protocol version is orthogonal to the logical version counter — a migration
+				// is not a WAL-backed mutation, so the version counter must not advance here (#1137).
 				final EngineState<LogFileRecordReference> newEngineState = new EngineState<>(
 					STORAGE_PROTOCOL_VERSION,
-					this.engineState.version() + 1,
+					this.engineState.version(),
 					this.engineState.introducedAt(),
 					correctedWalRef != null ? correctedWalRef : this.engineState.walReference(),
 					this.engineState.activeCatalogs(),
 					this.engineState.inactiveCatalogs(),
 					this.engineState.readOnlyCatalogs()
 				);
-				storeEngineState(newEngineState);
+				rewriteEngineStateInPlace(newEngineState);
 			}
 			this.engineState = syncEngineStateByFolderContents(this.storageSettings, this.engineState);
 		} else {
@@ -292,7 +294,9 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 	@Override
 	public void storeEngineState(@Nonnull EngineState<LogFileRecordReference> engineState) {
 		this.created = false;
-		// Validate that the version is incremented by exactly one
+		// Validate that the version is incremented by exactly one — this is the
+		// public entry point for WAL-backed state transitions, so the new version
+		// must correspond to exactly one appended mutation.
 		Assert.isPremiseValid(
 			(this.engineState == null && engineState.version() == 1) ||
 				(this.engineState != null && this.engineState.version() + 1 == engineState.version()),
@@ -301,7 +305,38 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 				"Engine state version must be incremented by one when storing new engine state! " +
 					"Current version: " + this.engineState.version() + ", new version: " + engineState.version()
 		);
+		writeBootstrapFile(engineState);
+	}
 
+	/**
+	 * Rewrites the bootstrap file in place without advancing the engine version counter.
+	 *
+	 * This is used for non-mutation reconciliation paths where only storage-layer
+	 * metadata changes (e.g. storage protocol upgrade, catalog list reconciliation
+	 * against on-disk contents). Such changes are **not** backed by WAL entries,
+	 * so bumping the version counter here would drift the engine state version
+	 * ahead of the WAL and permanently wedge the engine — the production bug
+	 * addressed by issue #1137.
+	 *
+	 * @param engineState the reconciled engine state to persist; must have the
+	 *                    same version as the current in-memory state
+	 */
+	private void rewriteEngineStateInPlace(@Nonnull EngineState<LogFileRecordReference> engineState) {
+		Assert.isPremiseValid(
+			this.engineState != null && this.engineState.version() == engineState.version(),
+			() -> "In-place engine state rewrite must preserve the version counter! " +
+				"Current version: " + (this.engineState == null ? "<none>" : this.engineState.version()) +
+				", new version: " + engineState.version()
+		);
+		writeBootstrapFile(engineState);
+	}
+
+	/**
+	 * Serializes the given engine state into the bootstrap file via a tmp-rename
+	 * swap and updates the in-memory reference. The caller is responsible for
+	 * enforcing the version-counter invariant appropriate for the call site.
+	 */
+	private void writeBootstrapFile(@Nonnull EngineState<LogFileRecordReference> engineState) {
 		// Initialize handle for writing engine state data to file
 		final Path tmpFile = this.bootstrapFilePath.getParent().resolve(
 			this.bootstrapFilePath.getName(this.bootstrapFilePath.getNameCount() - 1) + ".tmp");
@@ -346,7 +381,6 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 
 		// Update the current engine state
 		this.engineState = engineState;
-
 	}
 
 	@Nonnull
@@ -622,15 +656,17 @@ public class DefaultEnginePersistenceService implements EnginePersistenceService
 			return engineState;
 		}
 
-		// Create new engine state with updated catalogs
+		// Create new engine state with updated catalogs — folder-sync reconciliation
+		// reflects on-disk reality, but is not a WAL-backed mutation, so the version
+		// counter must not advance here (#1137). Part C will replace this in-place
+		// rewrite with proper MarkCatalogMissingMutation / auto-discovery mutations.
 		final EngineState<LogFileRecordReference> newEngineState = EngineState.builder(engineState)
-			.version(this.engineState.version() + 1)
 			.activeCatalogs(newActive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
 			.inactiveCatalogs(newInactive.toArray(ArrayUtils.EMPTY_STRING_ARRAY))
 			.build();
 
-		// Store the newly created engine state
-		storeEngineState(newEngineState);
+		// Rewrite bootstrap in place without bumping the engine version
+		rewriteEngineStateInPlace(newEngineState);
 
 		return newEngineState;
 	}
