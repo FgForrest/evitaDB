@@ -131,10 +131,16 @@ public @interface Attribute {
 	int indexedDecimalPlaces() default 0;
 
 	/**
-	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
-	 * the {@link Scope#LIVE} and in the {@link Scope#ARCHIVED} the attribute is not indexed whatsoever (not filterable,
-	 * not sortable, not unique). If scope settings are specified for {@link Scope#LIVE}, the general settings are
-	 * ignored completely.
+	 * Allows to define different settings for different scopes.
+	 *
+	 * If `scope = {}` (default, empty array), the general settings (`unique`, `uniqueGlobally`, `filterable`,
+	 * `sortable`) apply to {@link Scope#LIVE} only; in {@link Scope#ARCHIVED} the attribute is not indexed whatsoever
+	 * (not filterable, not sortable, not unique).
+	 *
+	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
+	 * otherwise produce — the analyzer requires the general `unique`, `uniqueGlobally`, `filterable` and `sortable`
+	 * properties to be left at their defaults (otherwise an assertion fires). Scopes not listed in the array stay
+	 * non-indexed; the general settings are not used as a fallback.
 	 */
 	ScopeAttributeSettings[] scope() default {};
 

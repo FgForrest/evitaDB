@@ -148,10 +148,16 @@ public @interface Reference {
 	Expression bucketedPartially() default @Expression;
 
 	/**
-	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
-	 * the {@link Scope#LIVE} and in the {@link Scope#ARCHIVED} the reference and its attributes are not indexed
-	 * whatsoever (not filterable, not sortable, not unique, not faceted). If scope settings are specified for
-	 * {@link Scope#LIVE}, the general settings are ignored completely.
+	 * Allows to define different settings for different scopes.
+	 *
+	 * If `scope = {}` (default, empty array), the general settings (`indexed`, `faceted`, `facetedPartially`,
+	 * `bucketed`, `bucketedPartially`) apply to {@link Scope#LIVE} only; in {@link Scope#ARCHIVED} the reference
+	 * and its attributes are not indexed whatsoever (not filterable, not sortable, not unique, not faceted).
+	 *
+	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
+	 * otherwise produce — the analyzer requires the general `indexed`, `faceted`, `facetedPartially`, `bucketed`
+	 * and `bucketedPartially` properties to be left at their defaults (otherwise an assertion fires). Scopes not
+	 * listed in the array remain non-indexed/non-faceted; the general settings are not used as a fallback.
 	 */
 	ScopeReferenceSettings[] scope() default {};
 

@@ -142,10 +142,18 @@ public @interface ReflectedReference {
 	String[] attributeInheritanceFilter() default {};
 
 	/**
-	 * Allows to define different settings for different scopes. If not specified, the general settings apply only to
-	 * the {@link Scope#LIVE} and in the {@link Scope#ARCHIVED} the reference and its attributes are not indexed
-	 * whatsoever (not filterable, not sortable, not unique, not faceted). If scope settings are specified for
-	 * {@link Scope#LIVE}, the general settings are ignored completely.
+	 * Allows to define different settings for different scopes.
+	 *
+	 * If `scope = {}` (default, empty array), the general settings ({@link #indexed()}, {@link #faceted()}) apply
+	 * to {@link Scope#LIVE} only; in {@link Scope#ARCHIVED} the reference and its attributes are not indexed
+	 * whatsoever (not filterable, not sortable, not unique, not faceted).
+	 *
+	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
+	 * otherwise produce. The general {@link #faceted()} property is required to remain at its default
+	 * ({@link InheritableBoolean#FALSE}) — an assertion fires otherwise. The general {@link #indexed()} property is
+	 * **silently dropped** in this mode (no assert is issued because its default {@link ReferenceIndexType#FOR_FILTERING}
+	 * is a positive value, and forcing the user to write a redundant override would be poor ergonomics). Scopes not
+	 * listed in the array stay non-indexed/non-faceted; the general settings are not used as a fallback.
 	 *
 	 * The entities in different scopes are never not connected by the reflected reference. The reflected references
 	 * connect only entities in the same scope.
