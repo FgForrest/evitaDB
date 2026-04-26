@@ -144,6 +144,13 @@ final class ReferenceHistogramAccumulator {
 	 *                                       `referenceSummaryOfReference`) so boundary PK selection can honour the
 	 *                                       user's `orderBy`. Returns `null` when no sorter is wired — the
 	 *                                       accumulator then falls back to the lowest-PK rule.
+	 * @param groupEntityFetcherByReferenceName resolves the batched group-entity fetcher honouring the enclosing
+	 *                                          {@code referenceSummary}'s {@code entityGroupFetch} requirement, so
+	 *                                          histogram-only synthesized groups arrive at the consumer with the
+	 *                                          same enrichment shape (attributes, references, etc.) as the
+	 *                                          facet-bearing groups produced by the first fabrication phase.
+	 *                                          Returns {@code null} when no fetcher is available — the accumulator
+	 *                                          then falls back to a bare {@link EntityReference}.
 	 */
 	@Nonnull
 	static <T extends ReferenceGroupStatistics> Map<String, Collection<T>> injectHistograms(
@@ -152,7 +159,8 @@ final class ReferenceHistogramAccumulator {
 		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nonnull ReferenceSummaryResultAdapter<T> resultAdapter,
-		@Nonnull Function<String, NestedContextSorter> facetSorterByReferenceName
+		@Nonnull Function<String, NestedContextSorter> facetSorterByReferenceName,
+		@Nonnull Function<String, Function<int[], EntityClassifier[]>> groupEntityFetcherByReferenceName
 	) {
 		final Map<String, Collection<T>> result = createLinkedHashMap(statisticsByReferenceName.size());
 		result.putAll(statisticsByReferenceName);
@@ -166,9 +174,10 @@ final class ReferenceHistogramAccumulator {
 			final ReferenceSchemaContract referenceSchema = requests.get(0).referenceSchema();
 			final Collection<T> existing = result.getOrDefault(referenceName, List.of());
 			final NestedContextSorter facetSorter = facetSorterByReferenceName.apply(referenceName);
+			final Function<int[], EntityClassifier[]> groupEntityFetcher = groupEntityFetcherByReferenceName.apply(referenceName);
 			final Collection<T> rebuilt = computeForReference(
 				referenceSchema, requests, existing,
-				attributeHistogramBaselineFormula, context, resultAdapter, facetSorter
+				attributeHistogramBaselineFormula, context, resultAdapter, facetSorter, groupEntityFetcher
 			);
 			result.put(referenceName, rebuilt);
 		}
@@ -196,7 +205,8 @@ final class ReferenceHistogramAccumulator {
 		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nonnull ReferenceSummaryResultAdapter<T> resultAdapter,
-		@Nullable NestedContextSorter facetSorter
+		@Nullable NestedContextSorter facetSorter,
+		@Nullable Function<int[], EntityClassifier[]> groupEntityFetcher
 	) {
 		final boolean grouped = referenceSchema.getReferencedGroupType() != null
 			&& referenceSchema.isReferencedGroupTypeManaged();
@@ -281,7 +291,7 @@ final class ReferenceHistogramAccumulator {
 		}
 
 		return mergeWithExisting(
-			referenceSchema, existing, histogramsByGroupKey, grouped, resultAdapter
+			referenceSchema, existing, histogramsByGroupKey, grouped, resultAdapter, groupEntityFetcher
 		);
 	}
 
@@ -741,7 +751,8 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull Collection<T> existing,
 		@Nonnull Map<Integer, Map<String, HistogramContract>> histogramsByGroupKey,
 		boolean grouped,
-		@Nonnull ReferenceSummaryResultAdapter<T> resultAdapter
+		@Nonnull ReferenceSummaryResultAdapter<T> resultAdapter,
+		@Nullable Function<int[], EntityClassifier[]> groupEntityFetcher
 	) {
 		final List<T> rebuilt = new ArrayList<>(existing.size() + histogramsByGroupKey.size());
 		final Map<Integer, Map<String, HistogramContract>> remaining = new LinkedHashMap<>(histogramsByGroupKey);
@@ -764,10 +775,18 @@ final class ReferenceHistogramAccumulator {
 			}
 		}
 
+		// histogram-only groups need fully-fetched entities (matching the enclosing referenceSummary's
+		// entityGroupFetch shape) so downstream consumers — notably the GraphQL AttributesDataFetcher —
+		// can read attributes/references. Without this batch fetch the synthesizer falls back to a bare
+		// EntityReference and the GraphQL `groupEntity { attributes { ... } }` selection ClassCasts.
+		final Map<Integer, EntityClassifier> fetchedGroupEntities = prefetchSyntheticGroupEntities(
+			referenceSchema, grouped, remaining, groupEntityFetcher
+		);
+
 		// synthesize DTOs for groups that had histograms but no facets
 		for (final Map.Entry<Integer, Map<String, HistogramContract>> leftover : remaining.entrySet()) {
 			final int key = leftover.getKey();
-			final EntityClassifier groupEntity = buildGroupEntity(referenceSchema, grouped, key);
+			final EntityClassifier groupEntity = buildGroupEntity(referenceSchema, grouped, key, fetchedGroupEntities);
 			rebuilt.add(
 				resultAdapter.createGroupStatistics(
 					referenceSchema,
@@ -779,6 +798,48 @@ final class ReferenceHistogramAccumulator {
 			);
 		}
 		return rebuilt;
+	}
+
+	/**
+	 * Batch-fetches fully-enriched group entities for histogram-only synthetic groups using the
+	 * caller-supplied fetcher. Returns an empty map when the reference is non-grouped, when no
+	 * leftover keys remain, or when no fetcher was wired (deprecated FacetSummary adapter path).
+	 */
+	@Nonnull
+	private static Map<Integer, EntityClassifier> prefetchSyntheticGroupEntities(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean grouped,
+		@Nonnull Map<Integer, Map<String, HistogramContract>> remaining,
+		@Nullable Function<int[], EntityClassifier[]> groupEntityFetcher
+	) {
+		if (!grouped || groupEntityFetcher == null || remaining.isEmpty()
+			|| referenceSchema.getReferencedGroupType() == null) {
+			return Collections.emptyMap();
+		}
+		// non-grouped sentinel `0` is filtered by buildGroupEntity — here we still pass it through to keep
+		// the fetcher input minimal and avoid double-iterating remaining
+		final int[] keys = new int[remaining.size()];
+		int idx = 0;
+		for (final Integer key : remaining.keySet()) {
+			if (key != null && key != 0) {
+				keys[idx++] = key;
+			}
+		}
+		if (idx == 0) {
+			return Collections.emptyMap();
+		}
+		final int[] trimmed = idx == keys.length ? keys : Arrays.copyOf(keys, idx);
+		final EntityClassifier[] fetched = groupEntityFetcher.apply(trimmed);
+		if (fetched == null || fetched.length == 0) {
+			return Collections.emptyMap();
+		}
+		final Map<Integer, EntityClassifier> result = createLinkedHashMap(fetched.length);
+		for (final EntityClassifier classifier : fetched) {
+			if (classifier != null) {
+				result.put(classifier.getPrimaryKey(), classifier);
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -800,18 +861,25 @@ final class ReferenceHistogramAccumulator {
 
 	/**
 	 * Builds an {@link EntityClassifier} for a histogram-only group. For the non-grouped slot
-	 * (key == 0) returns {@code null}; for grouped references returns a minimal
-	 * {@link EntityReference} so the downstream DTO split ({@code groupEntity == null} ⇒ non-grouped)
-	 * stays coherent.
+	 * (key == 0) returns {@code null}; for grouped references prefers a fully-fetched entity
+	 * pulled from {@code fetchedGroupEntities} (matching the enclosing referenceSummary's
+	 * entityGroupFetch shape) and falls back to a minimal {@link EntityReference} when no
+	 * fetcher was wired or the fetcher could not resolve the key — keeping the downstream DTO
+	 * split ({@code groupEntity == null} ⇒ non-grouped) coherent.
 	 */
 	@Nullable
 	private static EntityClassifier buildGroupEntity(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean grouped,
-		int key
+		int key,
+		@Nonnull Map<Integer, EntityClassifier> fetchedGroupEntities
 	) {
 		if (!grouped || key == 0) {
 			return null;
+		}
+		final EntityClassifier fetched = fetchedGroupEntities.get(key);
+		if (fetched != null) {
+			return fetched;
 		}
 		final String groupType = referenceSchema.getReferencedGroupType();
 		return groupType != null ? new EntityReference(groupType, key) : null;

@@ -425,10 +425,32 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				resultAdapter,
 				referenceName -> ofNullable(this.referenceSummaryRequests.get(referenceName))
 					.map(ReferenceSummaryRequest::facetSorter)
-					.orElse(null)
+					.orElse(null),
+				referenceName -> resolveGroupEntityFetcher(referenceName, context)
 			);
 		}
 		return resultAdapter.createResult(statisticsByReferenceName);
+	}
+
+	/**
+	 * Resolves the batched group-entity fetcher for the histogram accumulator. Reuses the
+	 * fetcher cached on the {@link ReferenceSummaryRequest} so a histogram-only synthesized
+	 * group arrives at the consumer with the same enrichment shape (attributes, references)
+	 * as the facet-bearing groups built in phase 1. Returns {@code null} when no specific
+	 * request was registered for the reference — the accumulator then falls back to a bare
+	 * {@link EntityReference}, which is enough for callers that do not navigate into the
+	 * group entity.
+	 */
+	@Nullable
+	private Function<int[], EntityClassifier[]> resolveGroupEntityFetcher(
+		@Nonnull String referenceName,
+		@Nonnull QueryExecutionContext context
+	) {
+		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(referenceName);
+		if (specific == null) {
+			return null;
+		}
+		return specific.getGroupEntityFetcher(context, specific.referenceSchema());
 	}
 
 	/**
