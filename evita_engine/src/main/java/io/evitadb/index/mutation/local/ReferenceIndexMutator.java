@@ -3128,6 +3128,16 @@ public interface ReferenceIndexMutator {
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
 			);
 			final EntityIndex groupTypeIndex = executor.getIndexIfExists(groupTypeKey);
+			if (groupTypeIndex == null) {
+				throw new GenericEvitaInternalError(
+					"Cannot insert histogram value: group ReducedTypeEntityIndex is missing for " +
+						"reference `" + referenceName + "`, histogram `" + histogramName +
+						"`, scope `" + scope + "`. Add `REFERENCED_GROUP_ENTITY` to " +
+						"indexedComponentsInScopes for this scope (the schema-load validator " +
+						"now blocks this combination, but pre-existing catalogs may still " +
+						"reach this state)."
+				);
+			}
 			if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
 				final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
 				for (final int storagePK : storagePKs) {
@@ -3143,6 +3153,17 @@ public interface ReferenceIndexMutator {
 				EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
 			);
 			final EntityIndex index = executor.getIndexIfExists(typeKey);
+			if (index == null) {
+				// symmetric to the grouped branch above — the type-level ReferencedTypeEntityIndex
+				// (where ungrouped-reference histograms must live) is missing because
+				// `REFERENCED_ENTITY` is not configured in indexedComponents for this scope.
+				throw new GenericEvitaInternalError(
+					"Cannot insert histogram value: ReferencedTypeEntityIndex is missing for " +
+						"reference `" + referenceName + "`, histogram `" + histogramName +
+						"`, scope `" + scope + "`. Add `REFERENCED_ENTITY` to " +
+						"indexedComponentsInScopes for this scope."
+				);
+			}
 			if (index instanceof HistogramCapableEntityIndex hcei) {
 				// mark the index dirty — it is modified via insertHistogramValue below
 				executor.getOrCreateIndex(typeKey);

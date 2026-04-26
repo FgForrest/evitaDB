@@ -1099,6 +1099,38 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 			}
 		}
 
+		// grouped-reference histograms live in the group ReducedGroupEntityIndex; without
+		// REFERENCED_GROUP_ENTITY on indexedComponents the engine never creates that index
+		// and every histogram value is silently dropped. Validate the final post-mutation
+		// state here — individual mutations (Create, ModifyGroup, SetIndexed, SetBucketed)
+		// can each leave the schema temporarily inconsistent on the way to a valid result,
+		// so the invariant is enforced once at session commit rather than per-mutation.
+		if (this.referencedGroupType != null) {
+			for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : this.bucketedInScopes.entrySet()) {
+				if (entry.getValue() == null || entry.getValue().isEmpty()) {
+					continue;
+				}
+				final Scope scope = entry.getKey();
+				final Set<ReferenceIndexedComponents> components = this.indexedComponentsInScopes.get(scope);
+				if (components == null
+					|| !components.contains(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)) {
+					referenceErrors = Stream.concat(
+						referenceErrors,
+						Stream.of(
+							"Bucketed histogram is defined in scope `" + scope +
+								"` for grouped reference (group type `" + this.referencedGroupType +
+								"`), but `REFERENCED_GROUP_ENTITY` is missing from " +
+								"indexedComponents in that scope. Add `REFERENCED_GROUP_ENTITY` to " +
+								"indexedComponentsInScopes for scope `" + scope +
+								"` or remove the bucketed configuration — without the group " +
+								"component the engine has nowhere to store grouped-reference " +
+								"histogram data."
+						)
+					);
+				}
+			}
+		}
+
 		referenceErrors = Stream.concat(
 			referenceErrors,
 			validateAttributes(this.getAttributes())
