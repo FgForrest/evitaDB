@@ -2131,6 +2131,144 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("Verify that @Reference#indexedComponents is wired through ClassSchemaAnalyzer")
+	@Test
+	void shouldSetupNewSchemaWithIndexedComponents() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithIndexedComponents.class);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithIndexedComponents").orElseThrow();
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertEquals(5, references.size());
+
+				// default annotation value `{REFERENCED_ENTITY}` resolves to the schema default
+				final ReferenceSchemaContract defaultComponents = references.get("defaultComponents");
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY),
+					defaultComponents.getIndexedComponents(Scope.LIVE)
+				);
+
+				// explicit override to `{REFERENCED_GROUP_ENTITY}`
+				final ReferenceSchemaContract groupOnly = references.get("groupOnlyComponents");
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					groupOnly.getIndexedComponents(Scope.LIVE)
+				);
+
+				// both components selected
+				final ReferenceSchemaContract bothComponents = references.get("bothComponents");
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					bothComponents.getIndexedComponents(Scope.LIVE)
+				);
+
+				// per-scope components: LIVE has both, ARCHIVED has only the group entity
+				final ReferenceSchemaContract perScope = references.get("perScopeComponents");
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					perScope.getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					perScope.getIndexedComponents(Scope.ARCHIVED)
+				);
+
+				// `indexed = NONE` means components are silently ignored even if non-default
+				final ReferenceSchemaContract notIndexed = references.get("ignoredWhenNotIndexed");
+				assertEquals(ReferenceIndexType.NONE, notIndexed.getReferenceIndexType(Scope.LIVE));
+				assertEquals(Set.of(), notIndexed.getIndexedComponents(Scope.LIVE));
+			}
+		);
+	}
+
+	@DisplayName("Verify that @ReflectedReference#indexedComponents is wired through ClassSchemaAnalyzer")
+	@Test
+	void shouldSetupReflectedReferenceWithIndexedComponents() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedIndexedComponents.Brand.class);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedIndexedComponents.BrandGroup.class);
+				session.defineEntitySchemaFromModelClass(
+					GetterBasedEntityWithReflectedIndexedComponents.class);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithReflectedIndexedComponents").orElseThrow();
+
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+				assertEquals(2, references.size());
+
+				// general `indexedComponents = {REFERENCED_GROUP_ENTITY}` on a reflected reference
+				final ReferenceSchemaContract marketingBrand = references.get("marketingBrand");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, marketingBrand);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					marketingBrand.getIndexedComponents(Scope.LIVE)
+				);
+
+				// per-scope reflected: LIVE indexes both sides; ARCHIVED indexes only the group
+				final ReferenceSchemaContract secondaryBrand = references.get("secondaryBrand");
+				assertInstanceOf(ReflectedReferenceSchemaContract.class, secondaryBrand);
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					secondaryBrand.getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					secondaryBrand.getIndexedComponents(Scope.ARCHIVED)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify that re-analysis of @Reference does not lose explicit indexedComponents")
+	@Test
+	void shouldPreserveIndexedComponentsOnReanalysis() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// first analysis pass
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithIndexedComponents.class);
+				// second pass — analyzer must be idempotent (no clobbering of explicit components)
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithIndexedComponents.class);
+
+				final SealedEntitySchema entitySchema = session.getEntitySchema(
+					"GetterBasedEntityWithIndexedComponents").orElseThrow();
+				final Map<String, ReferenceSchemaContract> references = entitySchema.getReferences();
+
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					references.get("groupOnlyComponents").getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(
+						ReferenceIndexedComponents.REFERENCED_ENTITY,
+						ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					),
+					references.get("bothComponents").getIndexedComponents(Scope.LIVE)
+				);
+				assertEquals(
+					Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY),
+					references.get("perScopeComponents").getIndexedComponents(Scope.ARCHIVED)
+				);
+			}
+		);
+	}
+
 	@DisplayName("Debug simple ScopeAttributeSettings")
 	@Test
 	void shouldSetupSimpleScopeAttributeSettings() {

@@ -23,8 +23,9 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -51,6 +52,14 @@ public @interface ScopeReferenceSettings {
 	 * Propagates to {@link ReferenceSchemaContract#getReferenceIndexType(Scope)}.
 	 */
 	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
+
+	/**
+	 * Configures which components of this reference are indexed in this scope (referenced entity,
+	 * referenced group entity, or both). Effective only when {@link #indexed()} is not
+	 * {@link ReferenceIndexType#NONE}.
+	 * Propagates to {@link ReferenceSchemaContract#getIndexedComponents(Scope)}.
+	 */
+	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };
 
 	/**
 	 * Enables facet computation for reference of this name.

@@ -566,8 +566,41 @@ public class ClassSchemaAnalyzer {
 	}
 
 	/**
-	 * Configures scope-aware properties (`indexed`, `faceted`, `facetedPartially`, `bucketed`,
-	 * `bucketedPartially`) on a {@link Reference}-driven editor.
+	 * Applies the requested indexed components to the editor for the given scope when they differ
+	 * from the current state.
+	 *
+	 * The call is a no-op when the scope is not indexed (`indexed == NONE`); components carry no
+	 * meaning without an index, so a non-default annotation value silently drops in that case
+	 * (matching `Reference#indexedComponents()` documentation).
+	 *
+	 * Idempotency: when the requested components match the current components on the editor,
+	 * no mutation is fired. This keeps re-analysis (e.g. `@ReferenceRef` flow) from clobbering
+	 * previously-set explicit components.
+	 *
+	 * @param editor    the reference schema editor
+	 * @param requested the requested components from the annotation
+	 * @param scope     the scope where components should be applied
+	 */
+	private static void applyReferenceIndexedComponents(
+		@Nonnull ReferenceSchemaEditor<?> editor,
+		@Nonnull ReferenceIndexedComponents[] requested,
+		@Nonnull Scope scope
+	) {
+		if (editor.getReferenceIndexType(scope) == ReferenceIndexType.NONE) {
+			return;
+		}
+		final Set<ReferenceIndexedComponents> requestedSet = requested.length == 0
+			? Collections.emptySet()
+			: EnumSet.copyOf(Arrays.asList(requested));
+		final Set<ReferenceIndexedComponents> currentSet = editor.getIndexedComponents(scope);
+		if (!requestedSet.equals(currentSet)) {
+			editor.indexedWithComponentsInScope(scope, requested);
+		}
+	}
+
+	/**
+	 * Configures scope-aware properties (`indexed`, `indexedComponents`, `faceted`, `facetedPartially`,
+	 * `bucketed`, `bucketedPartially`) on a {@link Reference}-driven editor.
 	 *
 	 * Behavior contract — see {@link Reference#scope()}:
 	 *
@@ -575,6 +608,15 @@ public class ClassSchemaAnalyzer {
 	 * - When `reference.scope()` is non-empty, the per-scope settings completely replace what the
 	 *   general settings would otherwise produce. Asserts ensure the general scope-aware properties
 	 *   were left at their (neutral) defaults so they aren't silently dropped.
+	 *
+	 * Note on `indexedComponents` asymmetry: there is no Assert that the general
+	 * `reference.indexedComponents()` was left at its default in the per-scope branch.
+	 * {@link Reference#indexedComponents()} defaults to `{REFERENCED_ENTITY}` (a positive default
+	 * reflecting the common case). Asserting against that default would force every `scope = {…}`
+	 * user to write a redundant override. The general value is therefore silently dropped when scope
+	 * settings are present — same posture as {@link ReflectedReference#indexed()} (see method
+	 * javadoc on {@link #applyReflectedReferenceScopedProperties}). Documented on
+	 * {@link Reference#scope()}.
 	 */
 	private static void applyReferenceScopedProperties(
 		@Nonnull ReferenceSchemaBuilder editor,
@@ -590,6 +632,7 @@ public class ClassSchemaAnalyzer {
 				editor.getReferenceIndexType(Scope.DEFAULT_SCOPE),
 				null
 			);
+			applyReferenceIndexedComponents(editor, reference.indexedComponents(), Scope.DEFAULT_SCOPE);
 			if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
 				editor.faceted();
 			}
@@ -643,61 +686,56 @@ public class ClassSchemaAnalyzer {
 					"(and thus it doesn't make sense to set it)!"
 			);
 
-			for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
+			// 1) index types — must be set first so the components helper sees correct scope state.
+			// 2) components + faceted-scope collection in a single pass — components depend on index
+			//    types from step 1, faceted-scope collection has no ordering dependency.
+			final EnumSet<Scope> facetedScopes = EnumSet.noneOf(Scope.class);
+			for (ScopeReferenceSettings ss : scopedDefinition) {
 				applyReferenceIndexType(
-					editor,
-					scopeSettings.indexed(),
-					editor.getReferenceIndexType(scopeSettings.scope()),
-					scopeSettings.scope()
+					editor, ss.indexed(), editor.getReferenceIndexType(ss.scope()), ss.scope()
 				);
 			}
-
-			final Scope[] facetedInScopes = Arrays.stream(scopedDefinition)
-				.filter(ScopeReferenceSettings::faceted)
-				.map(ScopeReferenceSettings::scope)
-				.filter(scope -> !editor.isFacetedInScope(scope))
-				.toArray(Scope[]::new);
-			if (!ArrayUtils.isEmptyOrItsValuesNull(facetedInScopes)) {
-				editor.facetedInScope(facetedInScopes);
-			}
-
-			for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
-				final String scopeExprValue = scopeSettings.facetedPartially().value();
-				if (!scopeExprValue.isEmpty()) {
-					editor.facetedPartiallyInScope(
-						scopeSettings.scope(),
-						ExpressionFactory.parse(scopeExprValue)
-					);
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final Scope scope = ss.scope();
+				applyReferenceIndexedComponents(editor, ss.indexedComponents(), scope);
+				if (ss.faceted() && !editor.isFacetedInScope(scope)) {
+					facetedScopes.add(scope);
 				}
 			}
-
-			for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
-				final String scopeBucketedIndex = scopeSettings.bucketed().nameOfTheIndex();
-				final String scopeBucketedValue = scopeSettings.bucketed().value().value();
-				if (!scopeBucketedIndex.isEmpty() || !scopeBucketedValue.isEmpty()) {
+			// 3) `facetedInScope` MUST be called before any per-scope `facetedPartiallyInScope` —
+			// the builder's `facetedInScope` filters existing partial expressions to the scopes it's
+			// passed, so a later partial call cannot recover dropped state.
+			if (!facetedScopes.isEmpty()) {
+				editor.facetedInScope(facetedScopes.toArray(Scope[]::new));
+			}
+			// 4) remaining per-scope settings — ordering between them is independent.
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final Scope scope = ss.scope();
+				final String fpExpr = ss.facetedPartially().value();
+				if (!fpExpr.isEmpty()) {
+					editor.facetedPartiallyInScope(scope, ExpressionFactory.parse(fpExpr));
+				}
+				final Histogram bucketed = ss.bucketed();
+				final String bucketedIndexName = bucketed.nameOfTheIndex();
+				final String bucketedValueExpr = bucketed.value().value();
+				if (!bucketedIndexName.isEmpty() || !bucketedValueExpr.isEmpty()) {
 					editor.bucketedInScope(
-						scopeSettings.scope(),
-						scopeBucketedIndex,
-						scopeBucketedValue.isEmpty() ? null : ExpressionFactory.parse(scopeBucketedValue)
+						scope,
+						bucketedIndexName,
+						bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr)
 					);
 				}
-			}
-
-			for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
-				final String scopeExprValue = scopeSettings.bucketedPartially().value();
-				if (!scopeExprValue.isEmpty()) {
-					editor.bucketedPartiallyInScope(
-						scopeSettings.scope(),
-						ExpressionFactory.parse(scopeExprValue)
-					);
+				final String bpExpr = ss.bucketedPartially().value();
+				if (!bpExpr.isEmpty()) {
+					editor.bucketedPartiallyInScope(scope, ExpressionFactory.parse(bpExpr));
 				}
 			}
 		}
 	}
 
 	/**
-	 * Configures scope-aware properties (`indexed`, `faceted`, per-scope `facetedPartially`) on a
-	 * {@link ReflectedReference}-driven editor.
+	 * Configures scope-aware properties (`indexed`, `indexedComponents`, `faceted`, per-scope
+	 * `facetedPartially`) on a {@link ReflectedReference}-driven editor.
 	 *
 	 * Behavior contract — see {@link ReflectedReference#scope()}:
 	 *
@@ -708,12 +746,14 @@ public class ClassSchemaAnalyzer {
 	 *   general settings would otherwise produce. The general `faceted` value is asserted to be
 	 *   {@link InheritableBoolean#FALSE}.
 	 *
-	 * Note on `indexed` asymmetry vs {@link Reference}: there is no Assert that
-	 * `reference.indexed() == NONE` in the scope branch. {@link ReflectedReference#indexed()}
-	 * defaults to {@link ReferenceIndexType#FOR_FILTERING} (a positive default reflecting the
-	 * common case). Asserting against that default would force every `scope = {…}` user to write
-	 * a redundant `indexed = …` override. The general value is therefore silently dropped when
-	 * scope settings are present — this is intentional and documented on `@ReflectedReference#scope()`.
+	 * Note on `indexed`/`indexedComponents` asymmetry vs {@link Reference}: there is no Assert that
+	 * `reference.indexed() == NONE` or that `reference.indexedComponents()` was left at its default
+	 * in the scope branch. {@link ReflectedReference#indexed()} defaults to
+	 * {@link ReferenceIndexType#FOR_FILTERING} and {@link ReflectedReference#indexedComponents()}
+	 * defaults to `{REFERENCED_ENTITY}` — both positive defaults reflecting the common case.
+	 * Asserting against those defaults would force every `scope = {…}` user to write a redundant
+	 * override. The general values are therefore silently dropped when scope settings are present —
+	 * this is intentional and documented on `@ReflectedReference#scope()`.
 	 *
 	 * Note on `bucketed`/`bucketedPartially`: these have no general-level counterpart on
 	 * {@link ReflectedReference} (they exist only on {@link ScopeReferenceSettings}). The current
@@ -731,6 +771,8 @@ public class ClassSchemaAnalyzer {
 				null : editor.getReferenceIndexType(Scope.DEFAULT_SCOPE);
 			applyReferenceIndexType(editor, reference.indexed(), currentIndexType, null);
 
+			applyReferenceIndexedComponents(editor, reference.indexedComponents(), Scope.DEFAULT_SCOPE);
+
 			// inherited state (null) must differ from both TRUE and FALSE so the editor call fires
 			// and converts the reflected reference to an explicit value
 			final Boolean facetedInScope = editor.isFacetedInherited() ?
@@ -742,7 +784,7 @@ public class ClassSchemaAnalyzer {
 			}
 		} else {
 			// per-scope settings COMPLETELY REPLACE general settings.
-			// `indexed` is intentionally NOT asserted here — see method javadoc.
+			// `indexed` and `indexedComponents` are intentionally NOT asserted here — see method javadoc.
 			Assert.isTrue(
 				reference.faceted() == InheritableBoolean.FALSE,
 				"When `scope` is defined in `@ReflectedReference` annotation, " +
@@ -750,38 +792,38 @@ public class ClassSchemaAnalyzer {
 					"into an account (and thus it doesn't make sense to set it to true)!"
 			);
 
-			for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
+			// 1) index types — must be set first so the components helper sees correct scope state.
+			// 2) components + faceted-scope collection in a single pass — components depend on index
+			//    types from step 1, faceted-scope collection has no ordering dependency.
+			final EnumSet<Scope> facetedScopes = EnumSet.noneOf(Scope.class);
+			for (ScopeReferenceSettings ss : scopedDefinition) {
 				final ReferenceIndexType currentIndexType = editor.isIndexedInherited() ?
-					null : editor.getReferenceIndexType(scopeSettings.scope());
-				applyReferenceIndexType(
-					editor,
-					scopeSettings.indexed(),
-					currentIndexType,
-					scopeSettings.scope()
-				);
+					null : editor.getReferenceIndexType(ss.scope());
+				applyReferenceIndexType(editor, ss.indexed(), currentIndexType, ss.scope());
 			}
-
-			// per-scope faceted; if no scope opts in, force the editor out of inherited mode so the
-			// reflected reference doesn't pick up the source's facetedPartially expression whose
-			// direction-specific paths would resolve to the wrong entity type.
-			final Scope[] facetedInScopes = Arrays.stream(scopedDefinition)
-				.filter(ScopeReferenceSettings::faceted)
-				.map(ScopeReferenceSettings::scope)
-				.filter(scope -> editor.isFacetedInherited() || !editor.isFacetedInScope(scope))
-				.toArray(Scope[]::new);
-			if (!ArrayUtils.isEmptyOrItsValuesNull(facetedInScopes)) {
-				editor.facetedInScope(facetedInScopes);
-			} else if (editor.isFacetedInherited()) {
+			final boolean facetedInherited = editor.isFacetedInherited();
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final Scope scope = ss.scope();
+				applyReferenceIndexedComponents(editor, ss.indexedComponents(), scope);
+				if (ss.faceted() && (facetedInherited || !editor.isFacetedInScope(scope))) {
+					facetedScopes.add(scope);
+				}
+			}
+			// 3) `facetedInScope` MUST be called before per-scope `facetedPartiallyInScope` — the
+			// builder's `facetedInScope` filters existing partial expressions to the scopes it's
+			// passed. If no scope opts in, force the editor out of inherited mode so the reflected
+			// reference doesn't pick up the source's facetedPartially expression (whose direction-
+			// specific paths would resolve to the wrong entity type).
+			if (!facetedScopes.isEmpty()) {
+				editor.facetedInScope(facetedScopes.toArray(Scope[]::new));
+			} else if (facetedInherited) {
 				editor.nonFaceted();
 			}
-
-			for (ScopeReferenceSettings scopeSettings : scopedDefinition) {
-				final String scopeExprValue = scopeSettings.facetedPartially().value();
-				if (!scopeExprValue.isEmpty()) {
-					editor.facetedPartiallyInScope(
-						scopeSettings.scope(),
-						ExpressionFactory.parse(scopeExprValue)
-					);
+			// 4) facetedPartially per scope.
+			for (ScopeReferenceSettings ss : scopedDefinition) {
+				final String fpExpr = ss.facetedPartially().value();
+				if (!fpExpr.isEmpty()) {
+					editor.facetedPartiallyInScope(ss.scope(), ExpressionFactory.parse(fpExpr));
 				}
 			}
 		}

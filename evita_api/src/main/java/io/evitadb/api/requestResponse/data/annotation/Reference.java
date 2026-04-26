@@ -23,8 +23,9 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -125,6 +126,14 @@ public @interface Reference {
 	ReferenceIndexType indexed() default ReferenceIndexType.NONE;
 
 	/**
+	 * Configures which components of this reference are indexed (referenced entity, referenced
+	 * group entity, or both). Effective only when {@link #indexed()} is not
+	 * {@link ReferenceIndexType#NONE}.
+	 * Propagates to {@link ReferenceSchemaContract#getIndexedComponents(Scope)}.
+	 */
+	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };
+
+	/**
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReferenceSchemaContract#isFaceted()}.
 	 */
@@ -150,14 +159,16 @@ public @interface Reference {
 	/**
 	 * Allows to define different settings for different scopes.
 	 *
-	 * If `scope = {}` (default, empty array), the general settings (`indexed`, `faceted`, `facetedPartially`,
-	 * `bucketed`, `bucketedPartially`) apply to {@link Scope#LIVE} only; in {@link Scope#ARCHIVED} the reference
-	 * and its attributes are not indexed whatsoever (not filterable, not sortable, not unique, not faceted).
+	 * If `scope = {}` (default, empty array), the general settings (`indexed`, `indexedComponents`, `faceted`,
+	 * `facetedPartially`, `bucketed`, `bucketedPartially`) apply to {@link Scope#LIVE} only; in
+	 * {@link Scope#ARCHIVED} the reference and its attributes are not indexed whatsoever (not filterable,
+	 * not sortable, not unique, not faceted).
 	 *
 	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
 	 * otherwise produce — the analyzer requires the general `indexed`, `faceted`, `facetedPartially`, `bucketed`
-	 * and `bucketedPartially` properties to be left at their defaults (otherwise an assertion fires). Scopes not
-	 * listed in the array remain non-indexed/non-faceted; the general settings are not used as a fallback.
+	 * and `bucketedPartially` properties to be left at their defaults (otherwise an assertion fires). The general
+	 * `indexedComponents` is silently ignored. Scopes not listed in the array remain non-indexed/non-faceted;
+	 * the general settings are not used as a fallback.
 	 */
 	ScopeReferenceSettings[] scope() default {};
 

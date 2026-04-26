@@ -24,10 +24,11 @@
 package io.evitadb.api.requestResponse.data.annotation;
 
 
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
 import java.lang.annotation.Documented;
@@ -111,6 +112,13 @@ public @interface ReflectedReference {
 	ReferenceIndexType indexed() default ReferenceIndexType.FOR_FILTERING;
 
 	/**
+	 * Configures which components of this reference are indexed (referenced entity, referenced
+	 * group entity, or both). Effective only when the reference is indexed in the given scope.
+	 * Propagates to {@link ReferenceSchemaContract#getIndexedComponents(Scope)}.
+	 */
+	ReferenceIndexedComponents[] indexedComponents() default { ReferenceIndexedComponents.REFERENCED_ENTITY };
+
+	/**
 	 * Enables facet computation for reference of this name.
 	 * Propagates to {@link ReflectedReferenceSchemaContract#isFaceted()}.
 	 */
@@ -144,16 +152,16 @@ public @interface ReflectedReference {
 	/**
 	 * Allows to define different settings for different scopes.
 	 *
-	 * If `scope = {}` (default, empty array), the general settings ({@link #indexed()}, {@link #faceted()}) apply
-	 * to {@link Scope#LIVE} only; in {@link Scope#ARCHIVED} the reference and its attributes are not indexed
-	 * whatsoever (not filterable, not sortable, not unique, not faceted).
+	 * If `scope = {}` (default, empty array), the general settings ({@link #indexed()},
+	 * {@link #indexedComponents()}, {@link #faceted()}) apply to {@link Scope#LIVE} only; in
+	 * {@link Scope#ARCHIVED} the reference and its attributes are not indexed whatsoever (not filterable,
+	 * not sortable, not unique, not faceted).
 	 *
 	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
 	 * otherwise produce. The general {@link #faceted()} property is required to remain at its default
-	 * ({@link InheritableBoolean#FALSE}) — an assertion fires otherwise. The general {@link #indexed()} property is
-	 * **silently dropped** in this mode (no assert is issued because its default {@link ReferenceIndexType#FOR_FILTERING}
-	 * is a positive value, and forcing the user to write a redundant override would be poor ergonomics). Scopes not
-	 * listed in the array stay non-indexed/non-faceted; the general settings are not used as a fallback.
+	 * ({@link InheritableBoolean#FALSE}) — an assertion fires otherwise. The general {@link #indexed()} and
+	 * {@link #indexedComponents()} properties are silently ignored. Scopes not listed in the array stay
+	 * non-indexed/non-faceted; the general settings are not used as a fallback.
 	 *
 	 * The entities in different scopes are never not connected by the reflected reference. The reflected references
 	 * connect only entities in the same scope.
