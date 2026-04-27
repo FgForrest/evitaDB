@@ -434,12 +434,15 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 
 	/**
 	 * Resolves the batched group-entity fetcher for the histogram accumulator. Reuses the
-	 * fetcher cached on the {@link ReferenceSummaryRequest} so a histogram-only synthesized
-	 * group arrives at the consumer with the same enrichment shape (attributes, references)
-	 * as the facet-bearing groups built in phase 1. Returns {@code null} when no specific
-	 * request was registered for the reference — the accumulator then falls back to a bare
-	 * {@link EntityReference}, which is enough for callers that do not navigate into the
-	 * group entity.
+	 * fetcher cached on the explicit {@link ReferenceSummaryRequest} when one was registered
+	 * for the reference; otherwise falls back to {@link #defaultRequest}, mirroring the
+	 * specific-or-default merge {@link #resolveReferenceRequest} performs in phase 1. The
+	 * fallback is what keeps the all-references {@code referenceSummary(...)} form aligned
+	 * with the per-reference form — without it, histogram-only synthetic groups would be
+	 * emitted as bare {@link EntityReference}s and downstream consumers (notably the GraphQL
+	 * `groupEntity { attributes { ... } }` path) would ClassCast on `AttributesContract`.
+	 * Returns {@code null} only when neither request is available or the reference schema
+	 * cannot be located (e.g. deprecated FacetSummary adapter path).
 	 */
 	@Nullable
 	private Function<int[], EntityClassifier[]> resolveGroupEntityFetcher(
@@ -447,10 +450,23 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		@Nonnull QueryExecutionContext context
 	) {
 		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(referenceName);
-		if (specific == null) {
+		if (specific != null) {
+			return specific.getGroupEntityFetcher(context, specific.referenceSchema());
+		}
+		if (this.defaultRequest == null) {
 			return null;
 		}
-		return specific.getGroupEntityFetcher(context, specific.referenceSchema());
+		// histogramRequests is the only place this producer keeps the reference schema for
+		// references not registered in referenceSummaryRequests — and it is guaranteed to
+		// carry an entry for `referenceName` because the accumulator only reaches this
+		// resolver while iterating its own keys.
+		final List<HistogramRequest> requests = this.histogramRequests.get(referenceName);
+		if (requests == null || requests.isEmpty()) {
+			return null;
+		}
+		final ReferenceSchemaContract referenceSchema = requests.get(0).referenceSchema();
+		return buildFromDefault(referenceSchema, new AtomicInteger())
+			.getGroupEntityFetcher(context, referenceSchema);
 	}
 
 	/**

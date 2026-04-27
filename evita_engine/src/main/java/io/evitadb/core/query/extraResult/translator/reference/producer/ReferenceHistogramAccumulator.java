@@ -780,7 +780,7 @@ final class ReferenceHistogramAccumulator {
 		// can read attributes/references. Without this batch fetch the synthesizer falls back to a bare
 		// EntityReference and the GraphQL `groupEntity { attributes { ... } }` selection ClassCasts.
 		final Map<Integer, EntityClassifier> fetchedGroupEntities = prefetchSyntheticGroupEntities(
-			referenceSchema, grouped, remaining, groupEntityFetcher
+			grouped, remaining, groupEntityFetcher
 		);
 
 		// synthesize DTOs for groups that had histograms but no facets
@@ -807,21 +807,19 @@ final class ReferenceHistogramAccumulator {
 	 */
 	@Nonnull
 	private static Map<Integer, EntityClassifier> prefetchSyntheticGroupEntities(
-		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean grouped,
 		@Nonnull Map<Integer, Map<String, HistogramContract>> remaining,
 		@Nullable Function<int[], EntityClassifier[]> groupEntityFetcher
 	) {
-		if (!grouped || groupEntityFetcher == null || remaining.isEmpty()
-			|| referenceSchema.getReferencedGroupType() == null) {
+		if (!grouped || groupEntityFetcher == null || remaining.isEmpty()) {
 			return Collections.emptyMap();
 		}
-		// non-grouped sentinel `0` is filtered by buildGroupEntity — here we still pass it through to keep
-		// the fetcher input minimal and avoid double-iterating remaining
+		// drop the non-grouped sentinel `0` early so the fetcher input stays minimal — buildGroupEntity
+		// filters it again on the consumer side as a coherence check
 		final int[] keys = new int[remaining.size()];
 		int idx = 0;
 		for (final Integer key : remaining.keySet()) {
-			if (key != null && key != 0) {
+			if (key != 0) {
 				keys[idx++] = key;
 			}
 		}
@@ -835,8 +833,15 @@ final class ReferenceHistogramAccumulator {
 		}
 		final Map<Integer, EntityClassifier> result = createLinkedHashMap(fetched.length);
 		for (final EntityClassifier classifier : fetched) {
-			if (classifier != null) {
-				result.put(classifier.getPrimaryKey(), classifier);
+			// EntityClassifier#getPrimaryKey is contractually @Nullable; in practice fetched entities
+			// always carry a PK, but a missing one would put a null key in the map and silently fail
+			// the lookup in buildGroupEntity. Guard explicitly.
+			if (classifier == null) {
+				continue;
+			}
+			final Integer primaryKey = classifier.getPrimaryKey();
+			if (primaryKey != null) {
+				result.put(primaryKey, classifier);
 			}
 		}
 		return result;

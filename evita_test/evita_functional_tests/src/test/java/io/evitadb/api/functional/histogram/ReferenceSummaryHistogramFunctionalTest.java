@@ -26,9 +26,12 @@ package io.evitadb.api.functional.histogram;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -36,6 +39,8 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
@@ -61,6 +66,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -891,6 +897,233 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 						);
 					}
 				}
+			);
+		}
+	}
+
+	// ==========================================================================================
+	// Bespoke fixture — histogram-only group entity enrichment
+	// ==========================================================================================
+
+	/**
+	 * Pins down the contract that — when `facetedPartially` and `bucketedPartially` are wired
+	 * to mutually-exclusive expressions on the same reference — a group whose widget type
+	 * routes it to the bucketed-only branch still receives a fully-fetched group entity in the
+	 * synthesized {@link ReferenceGroupStatistics}, matching the request's `entityGroupFetch`
+	 * shape. The histogram-only synthesis path inside `ReferenceHistogramAccumulator` used to
+	 * emit a bare `EntityReference`, which made GraphQL `groupEntity { attributes { ... } }`
+	 * selections explode with `ClassCastException` because `EntityReference` does not implement
+	 * `AttributesContract`.
+	 */
+	@Nested
+	@DisplayName("Histogram-only group entity enrichment (bespoke fixture)")
+	class HistogramOnlyGroupEnrichment {
+
+		private static final String DUAL_REF = "paramDualFacetHistogram";
+		private static final String DUAL_HISTOGRAM = "dualHistogram";
+		private static final String ATTR_INPUT_WIDGET_TYPE = "inputWidgetType";
+
+		@Test
+		@DisplayName("entityGroupFetch must enrich the group entity for INTERVAL groups (bucketed-only)")
+		void shouldEnrichHistogramOnlyGroupEntityWithFetchedAttributes() {
+			runWithInlineSchema(
+				"referenceHistogramE2E_histogramOnlyEnrichment",
+				HistogramOnlyGroupEnrichment::defineDualSchema,
+				HistogramOnlyGroupEnrichment::seedIntervalGroup,
+				evita -> evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final ReferenceSummary referenceSummary = runWithSummary(
+							session,
+							referenceSummaryOfReferenceWithHistograms(
+								DUAL_REF, null, null,
+								entityGroupFetch(attributeContent(ATTR_NAME)),
+								histogramStatistics(10, DUAL_HISTOGRAM)
+							)
+						);
+						assertGroupEntityEnriched(referenceSummary);
+						return null;
+					}
+				)
+			);
+		}
+
+		/**
+		 * Twin of {@link #shouldEnrichHistogramOnlyGroupEntityWithFetchedAttributes} that exercises
+		 * the all-references fan-out form ({@code referenceSummaryWithHistograms}) instead of the
+		 * single-reference form. The all-references translator only registers a
+		 * {@code defaultRequest} on the producer — it never populates the per-reference request
+		 * map — so a histogram-only synthesized group must still pick up the request's
+		 * {@code entityGroupFetch} shape via the default-fallback path inside
+		 * {@code ReferenceSummaryProducer.resolveGroupEntityFetcher}.
+		 */
+		@Test
+		@DisplayName("entityGroupFetch must enrich the group entity via the all-references fan-out form")
+		void shouldEnrichHistogramOnlyGroupEntityViaAllReferencesFanOut() {
+			runWithInlineSchema(
+				"referenceHistogramE2E_histogramOnlyEnrichmentAllRefs",
+				HistogramOnlyGroupEnrichment::defineDualSchema,
+				HistogramOnlyGroupEnrichment::seedIntervalGroup,
+				evita -> evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final ReferenceSummary referenceSummary = runWithSummary(
+							session,
+							referenceSummaryWithHistograms(
+								null, null,
+								entityGroupFetch(attributeContent(ATTR_NAME)),
+								histogramStatistics(10, DUAL_HISTOGRAM)
+							)
+						);
+						assertGroupEntityEnriched(referenceSummary);
+						return null;
+					}
+				)
+			);
+		}
+
+		/**
+		 * Defines the dual facet/histogram schema with mutually-exclusive `facetedPartially`
+		 * (CHECKBOX) and `bucketedPartially` (INTERVAL) clauses on the same reference. Shared
+		 * by both tests so they exercise the same producer wiring with only the require shape
+		 * (single-reference vs all-references) varying.
+		 */
+		private static void defineDualSchema(@Nonnull EvitaSessionContract session) {
+			// parameter (group) carries the widget-type discriminator AND the
+			// `name` attribute that both tests fetch via entityGroupFetch
+			session.defineEntitySchema(ENTITY_PARAMETER)
+				.withAttribute(
+					ATTR_INPUT_WIDGET_TYPE, String.class,
+					whichIs -> whichIs.filterable().nullable()
+				)
+				.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+				.updateVia(session);
+
+			session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+				.withAttribute(
+					ATTR_BASIC_UNIT_VALUE, BigDecimal.class,
+					whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable()
+				)
+				.updateVia(session);
+
+			// mutually-exclusive: facetedPartially → CHECKBOX, bucketedPartially → INTERVAL.
+			// no group is ever both faceted and bucketed, so every histogram-bearing
+			// group lands in the synthesis branch the fix targets.
+			session.defineEntitySchema(ENTITY_PRODUCT)
+				.withReferenceToEntity(
+					DUAL_REF, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs
+						.indexedForFilteringAndPartitioning()
+						.indexedWithComponents(ReferenceIndexedComponents.values())
+						.faceted()
+						.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+						.facetedPartially(
+							ExpressionFactory.parse(
+								"($reference.groupEntity?.attributes['"
+									+ ATTR_INPUT_WIDGET_TYPE + "'] ?? '') == 'CHECKBOX'"
+							)
+						)
+						.bucketed(
+							DUAL_HISTOGRAM,
+							ExpressionFactory.parse(
+								"$reference.referencedEntity?.attributes['"
+									+ ATTR_BASIC_UNIT_VALUE + "']"
+							)
+						)
+						.bucketedPartially(
+							ExpressionFactory.parse(
+								"($reference.groupEntity?.attributes['"
+									+ ATTR_INPUT_WIDGET_TYPE + "'] ?? '') == 'INTERVAL'"
+							)
+						)
+				)
+				.updateVia(session);
+		}
+
+		/**
+		 * Seeds an INTERVAL group — bucketed only, never faceted under the schema's
+		 * `facetedPartially("CHECKBOX")` clause — together with two parameter values and two
+		 * products so the histogram has at least one populated bucket.
+		 */
+		private static void seedIntervalGroup(@Nonnull EvitaSessionContract session) {
+			session.createNewEntity(ENTITY_PARAMETER, 1)
+				.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+				.setAttribute(ATTR_NAME, "Width")
+				.upsertVia(session);
+
+			session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+				.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("10"))
+				.upsertVia(session);
+			session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+				.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("20"))
+				.upsertVia(session);
+
+			session.createNewEntity(ENTITY_PRODUCT, 1)
+				.setReference(
+					DUAL_REF, 1,
+					whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 1)
+				)
+				.upsertVia(session);
+			session.createNewEntity(ENTITY_PRODUCT, 2)
+				.setReference(
+					DUAL_REF, 2,
+					whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 1)
+				)
+				.upsertVia(session);
+		}
+
+		@Nonnull
+		private static ReferenceSummary runWithSummary(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull RequireConstraint summaryConstraint
+		) {
+			final EvitaResponse<EntityReferenceContract> result = session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					require(summaryConstraint)
+				),
+				EntityReferenceContract.class
+			);
+			final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+			assertNotNull(referenceSummary, "ReferenceSummary extra result must be present");
+			return referenceSummary;
+		}
+
+		private static void assertGroupEntityEnriched(@Nonnull ReferenceSummary referenceSummary) {
+			final ReferenceGroupStatistics group = referenceSummary
+				.getReferenceGroupStatistics(DUAL_REF, 1);
+			assertNotNull(
+				group,
+				"INTERVAL group must surface in the summary via the histogram-only "
+					+ "synthesis path"
+			);
+
+			final HistogramContract histogram = group.getHistogramStatistics(DUAL_HISTOGRAM);
+			assertNotNull(histogram, "INTERVAL group must carry the bucketed histogram");
+			assertTrue(
+				histogram.getBuckets().length > 0,
+				"Histogram must have at least one bucket"
+			);
+
+			// Before the fix: groupEntity was a bare EntityReference, so any consumer
+			// reading `attributes` (most visibly the GraphQL AttributesDataFetcher)
+			// blew up with ClassCastException because EntityReference is not an
+			// AttributesContract. After the fix: groupEntity is the fully-fetched
+			// SealedEntity carrying the attributes requested via entityGroupFetch.
+			final EntityClassifier groupEntity = group.getGroupEntity();
+			assertNotNull(
+				groupEntity,
+				"Synthesized histogram-only group must expose its parent group entity"
+			);
+			assertInstanceOf(
+				SealedEntity.class, groupEntity,
+				"Histogram-only group must be enriched to SealedEntity to honour "
+					+ "entityGroupFetch — received " + groupEntity.getClass().getName()
+			);
+			assertEquals(
+				"Width",
+				((SealedEntity) groupEntity).getAttribute(ATTR_NAME),
+				"Group entity must carry the `name` attribute requested via entityGroupFetch"
 			);
 		}
 	}
