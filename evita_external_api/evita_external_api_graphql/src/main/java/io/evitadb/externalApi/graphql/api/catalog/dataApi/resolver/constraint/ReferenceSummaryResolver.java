@@ -48,7 +48,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceHistogramDescriptor;
-import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.EntityFacetStatisticsDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.FacetStatisticsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ReferenceSummaryDescriptor.ReferenceGroupStatisticsDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.BucketsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.ReferenceGroupStatisticsHeaderDescriptor;
@@ -77,7 +77,6 @@ import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceWithHistograms;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
 /**
  * FacetSummaryResolver is a utility class responsible for resolving facet summary-related GraphQL query requirements.
@@ -155,8 +154,6 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find reference `" + field.getName() + "` in `" + this.entitySchema.getName() + "`."));
 		final String referenceName = referenceSchema.getName();
 
-		final FacetStatisticsDepth depth = resolveStatisticsDepth(field);
-
 		final FilterGroupBy filterGroupBy;
 		final OrderGroupBy orderGroupBy;
 		if (referenceSchema.getReferencedGroupType() != null) {
@@ -204,6 +201,8 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 		// specific index, independent of the facet entity fetch.
 		final List<ReferenceHistogramStatistics> histogramStatistics =
 			resolveHistogramStatistics(field, referenceSchema, scope, desiredLocale);
+
+		final FacetStatisticsDepth depth = resolveStatisticsDepth(field);
 
 		final RequireConstraint summaryConstraint;
 		if (histogramStatistics.isEmpty()) {
@@ -367,9 +366,18 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 
 	@Nonnull
 	private static FacetStatisticsDepth resolveStatisticsDepth(@Nonnull SelectedField field) {
-		final boolean impactNeeded = SelectionSetAggregator.getImmediateFields(ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet())
-			.stream()
-			.anyMatch(f2 -> SelectionSetAggregator.containsImmediate(EntityFacetStatisticsDescriptor.IMPACT.name(), f2.getSelectionSet()));
+		// When the caller didn't select any `facetStatistics` field, signal NONE so the engine
+		// skips facet-group emission for histogram-only requests — otherwise faceted-only groups
+		// (e.g. CHECKBOX parameters when only `histogramStatistics` was queried) leak into the
+		// response with an empty histogramStatistics map.
+		final List<SelectedField> facetStatisticsFields = SelectionSetAggregator.getImmediateFields(
+			ReferenceGroupStatisticsDescriptor.FACET_STATISTICS.name(), field.getSelectionSet()
+		);
+		if (facetStatisticsFields.isEmpty()) {
+			return FacetStatisticsDepth.NONE;
+		}
+		final boolean impactNeeded = facetStatisticsFields.stream()
+			.anyMatch(f2 -> SelectionSetAggregator.containsImmediate(FacetStatisticsDescriptor.IMPACT.name(), f2.getSelectionSet()));
 		return impactNeeded ? FacetStatisticsDepth.IMPACT : FacetStatisticsDepth.COUNTS;
 	}
 
@@ -410,11 +418,12 @@ public class ReferenceSummaryResolver extends AbstractExtraResultConstraintResol
 
 		return facetStatisticsFields.stream()
 			.findFirst() // we support only one facet statistics field
-			.map(facetStatisticsField -> SelectionSetAggregator.getImmediateFields(EntityFacetStatisticsDescriptor.FACET_ENTITY.name(), facetStatisticsField.getSelectionSet()))
+			.map(facetStatisticsField -> SelectionSetAggregator.getImmediateFields(
+				FacetStatisticsDescriptor.FACET_ENTITY.name(), facetStatisticsField.getSelectionSet()))
 			.flatMap(facetEntityFields -> {
 				Assert.isTrue(
 					facetEntityFields.size() <= 1,
-					() -> new GraphQLInvalidResponseUsageException("There can be only one `" + EntityFacetStatisticsDescriptor.FACET_ENTITY.name() + "` field for reference `" + referenceName + "`.")
+					() -> new GraphQLInvalidResponseUsageException("There can be only one `" + FacetStatisticsDescriptor.FACET_ENTITY.name() + "` field for reference `" + referenceName + "`.")
 				);
 
 				return facetEntityFields.stream()

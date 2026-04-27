@@ -127,7 +127,6 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@SuppressWarnings("deprecation")
 public class ReferenceSummaryProducer implements ExtraResultProducer {
 	private static final String ERROR_SANITY_CHECK = "Sanity check!";
 
@@ -408,6 +407,17 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			}
 		}
 		if (!this.histogramRequests.isEmpty()) {
+			// drop facet-emitted groups for references where the caller asked for histograms but
+			// not facet statistics (depth=NONE). Without this, the all-references referenceSummary
+			// would surface every faceted group (e.g. CHECKBOX-only Parameter values) with an empty
+			// histogramStatistics map. The histogram pipeline will then synthesize histogram-only
+			// groups for the references that actually carry histogram data.
+			for (final Entry<String, ReferenceSummaryRequest> entry : this.referenceSummaryRequests.entrySet()) {
+				if (entry.getValue().facetStatisticsDepth() == FacetStatisticsDepth.NONE
+					&& this.histogramRequests.containsKey(entry.getKey())) {
+					statisticsByReferenceName.remove(entry.getKey());
+				}
+			}
 			// peel attribute-range carriers so a slider does not contract its own `[min, max]` span;
 			// facet and price carriers stay so the histogram still reflects those picks. Relaxer's
 			// EmptyFormula sentinel means every carrier was peeled — map to null so the accumulator
