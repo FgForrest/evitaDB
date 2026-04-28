@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,7 +42,22 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
- * This operator registers inactive catalog into evitaDB engine after it has been restored on the file system.
+ * This operator registers an inactive catalog into evitaDB engine when its folder is present on disk. Three call
+ * paths land here:
+ *
+ * 1. **Restore from backup** — the original use case: an operator-uploaded archive has been written to the
+ *    catalog folder and `RestoreCatalogSchemaMutation` is the engine-level acknowledgement.
+ * 2. **Auto-discovery** — `Evita`'s boot drains a `RestoreCatalogSchemaMutation` for each folder it found on disk
+ *    that the engine state did not know about, registering it as `INACTIVE`.
+ * 3. **Flapping recovery** — `Evita`'s boot drains a `RestoreCatalogSchemaMutation` for each name previously sat
+ *    in the `missingCatalogs` bucket whose folder has reappeared. The operator additionally clears the missing
+ *    bucket entry through `Builder#withRestoredFromMissing(...)`.
+ *
+ * Forward-replay is intentionally **not** implemented here. Although the completion phase looks pure (wrap the
+ * restored folder into an `UnusableCatalog` stub), the folder-existence precondition
+ * (`catalogFolder.toFile().exists()`) is side-effect dependent on the completion of the restore work phase. Rather
+ * than re-deriving that invariant at replay time, we prefer to wedge loudly via the default `Optional.empty()` in
+ * `EngineMutationOperator`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -81,9 +96,13 @@ public class RestoreCatalogSchemaMutationOperator
 					new AbstractEngineStateUpdater(transactionId, mutation) {
 						@Override
 						public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+							// `withRestoredFromMissing` is a no-op for the restore-from-backup and auto-discovery
+							// paths, and clears the missing-bucket entry for the flapping-recovery path. Chained
+							// unconditionally so the operator stays single-shape.
 							return ExpandedEngineState
 								.builder(expandedEngineState)
 								.withVersion(version)
+								.withRestoredFromMissing(catalogName)
 								.withCatalog(
 									new UnusableCatalog(
 										catalogName, CatalogState.INACTIVE,

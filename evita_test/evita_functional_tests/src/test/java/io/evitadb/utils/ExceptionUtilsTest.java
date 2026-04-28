@@ -25,7 +25,6 @@ package io.evitadb.utils;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -33,6 +32,7 @@ import java.io.IOException;
 import java.io.Serial;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -269,6 +269,155 @@ class ExceptionUtilsTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Completion / execution wrapper unwrapping")
+	class UnwrapCompletionWrappersTest {
+
+		@Test
+		@DisplayName("should return the throwable as-is when it is not a wrapper")
+		void shouldReturnThrowableAsIsWhenNotWrapper() {
+			final IllegalStateException domain = new IllegalStateException("domain failure");
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(domain);
+
+			assertSame(domain, result);
+		}
+
+		@Test
+		@DisplayName("should peel a single CompletionException layer")
+		void shouldPeelSingleCompletionExceptionLayer() {
+			final IllegalArgumentException domain = new IllegalArgumentException("domain failure");
+			final CompletionException wrapper = new CompletionException(domain);
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(wrapper);
+
+			assertSame(domain, result);
+		}
+
+		@Test
+		@DisplayName("should peel a single ExecutionException layer")
+		void shouldPeelSingleExecutionExceptionLayer() {
+			final IOException domain = new IOException("domain failure");
+			final ExecutionException wrapper = new ExecutionException(domain);
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(wrapper);
+
+			assertSame(domain, result);
+		}
+
+		@Test
+		@DisplayName("should peel multiple nested CompletionException layers")
+		void shouldPeelMultipleNestedCompletionExceptionLayers() {
+			final CancellationException domain = new CancellationException("cancelled");
+			final CompletionException wrapper1 = new CompletionException(domain);
+			final CompletionException wrapper2 = new CompletionException(wrapper1);
+			final CompletionException wrapper3 = new CompletionException(wrapper2);
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(wrapper3);
+
+			assertSame(domain, result);
+		}
+
+		@Test
+		@DisplayName("should peel mixed CompletionException and ExecutionException layers")
+		void shouldPeelMixedCompletionAndExecutionLayers() {
+			final IllegalStateException domain = new IllegalStateException("domain failure");
+			final CompletionException inner = new CompletionException(domain);
+			final ExecutionException middle = new ExecutionException(inner);
+			final CompletionException outer = new CompletionException(middle);
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(outer);
+
+			assertSame(domain, result);
+		}
+
+		@Test
+		@DisplayName("should stop at the first non-wrapper even when its cause is itself a wrapper")
+		void shouldStopAtFirstNonWrapperEvenWhenCauseIsWrapper() {
+			// Domain exception happens to carry a CompletionException as its own cause —
+			// unwrapCompletionWrappers must NOT peel past the domain exception.
+			final CompletionException deepHidden = new CompletionException(new IOException("hidden"));
+			final IllegalStateException domain = new IllegalStateException("domain failure", deepHidden);
+			final CompletionException wrapper = new CompletionException(domain);
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(wrapper);
+
+			assertSame(domain, result);
+			// The domain exception's own cause chain remains intact.
+			assertSame(deepHidden, result.getCause());
+		}
+
+		@Test
+		@DisplayName("should return outermost wrapper when it has a null cause")
+		void shouldReturnOutermostWrapperWhenCauseIsNull() {
+			final NoCauseCompletionException wrapperWithoutCause = new NoCauseCompletionException();
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(wrapperWithoutCause);
+
+			assertSame(wrapperWithoutCause, result);
+		}
+
+		@Test
+		@DisplayName("should peel until the deepest wrapper when its cause is null")
+		void shouldStopAtDeepestWrapperWithNullCause() {
+			final NoCauseCompletionException deepest = new NoCauseCompletionException();
+			final CompletionException middle = new CompletionException(deepest);
+			final CompletionException outer = new CompletionException(middle);
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(outer);
+
+			assertSame(deepest, result);
+		}
+
+		@Test
+		@DisplayName("should terminate without infinite loop on a wrapper cycle")
+		void shouldTerminateOnWrapperCycle() {
+			// Build a 2-node cycle: a → b → a. The no-cause subclass exposes the protected no-arg
+			// constructor so we can install causes via initCause after construction.
+			final NoCauseCompletionException ex1 = new NoCauseCompletionException();
+			final NoCauseCompletionException ex2 = new NoCauseCompletionException();
+			ex1.initCause(ex2);
+			ex2.initCause(ex1);
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(ex1);
+
+			// Cycle detected — must return one of the two wrappers (not loop forever, not throw).
+			assertTrue(result == ex1 || result == ex2);
+		}
+
+		@Test
+		@DisplayName("should return original throwable when depth cap is reached")
+		void shouldReturnOriginalWhenDepthCapReached() {
+			// Build a chain of strictly-more-than-MAX_DEPTH wrappers above a domain exception so the
+			// loop cannot peel through to the domain — the depth cap fires and returns the original.
+			Throwable current = new IllegalStateException("never reached");
+			for (int i = 0; i < ExceptionUtils.UNWRAP_COMPLETION_WRAPPERS_MAX_DEPTH + 5; i++) {
+				current = new CompletionException(current);
+			}
+			final Throwable top = current;
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(top);
+
+			assertSame(top, result);
+		}
+
+		@Test
+		@DisplayName("should peel a chain just below the depth cap")
+		void shouldPeelChainJustBelowDepthCap() {
+			// MAX_DEPTH - 1 wrappers above a domain exception. The loop spends MAX_DEPTH - 1 peels
+			// to reach the domain layer and one final check iteration to recognize and return it.
+			final IllegalStateException domain = new IllegalStateException("just below cap");
+			Throwable current = domain;
+			for (int i = 0; i < ExceptionUtils.UNWRAP_COMPLETION_WRAPPERS_MAX_DEPTH - 1; i++) {
+				current = new CompletionException(current);
+			}
+
+			final Throwable result = ExceptionUtils.unwrapCompletionWrappers(current);
+
+			assertSame(domain, result);
+		}
+	}
+
 	/**
 	 * Custom exception that allows setting a cause after construction,
 	 * enabling circular cause chain creation for testing.
@@ -282,6 +431,18 @@ class ExceptionUtilsTest {
 
 		CircularException(@Nonnull String message, @Nonnull Throwable cause) {
 			super(message, cause);
+		}
+	}
+
+	/**
+	 * Test-only subclass that exposes {@link CompletionException}'s protected no-arg constructor
+	 * so the cycle and null-cause tests can install a cause post-construction via `initCause`.
+	 */
+	private static class NoCauseCompletionException extends CompletionException {
+		@Serial private static final long serialVersionUID = 5723985482014104221L;
+
+		NoCauseCompletionException() {
+			super();
 		}
 	}
 }

@@ -26,8 +26,9 @@ package io.evitadb.store.wal.supplier;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.checksum.Checksum;
-import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.StorageRecordWithChecksum;
 import io.evitadb.store.settings.StorageSettings;
@@ -84,6 +85,7 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 	 * @param avoidPartiallyFilledBuffer  when {@code true}, stops reading when the requested catalog
 	 *                                    version is reached to avoid incomplete buffer fills
 	 * @param onClose                     optional callback to run when the supplier is closed
+	 * @param walKind                     flavor of WAL being read — stamped on every corruption exception
 	 */
 	public MutationSupplier(
 		long catalogVersion,
@@ -95,12 +97,13 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
 		boolean avoidPartiallyFilledBuffer,
-		@Nullable Runnable onClose
+		@Nullable Runnable onClose,
+		@Nonnull WalKind walKind
 	) {
 		super(
 			catalogVersion, walFileNameProvider, catalogStoragePath, storageSettings,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
-			avoidPartiallyFilledBuffer, onClose
+			avoidPartiallyFilledBuffer, onClose, walKind
 		);
 		this.requestedCatalogVersion = requestedCatalogVersion;
 	}
@@ -141,6 +144,7 @@ public final class MutationSupplier<T extends Mutation> extends AbstractMutation
 				Assert.isPremiseValid(
 					checksum.equalsTo(readCumulativeChecksum),
 					() -> new WriteAheadLogCorruptedException(
+						this.walKind,
 						this.walFile.toPath(),
 						this.transactionMutation.getTransactionSpan().endPosition(),
 						checksum.getValue(),

@@ -223,12 +223,14 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			CreateCatalogSchemaMutationDescriptor.THIS,
 			DuplicateCatalogMutationDescriptor.THIS,
 			MakeCatalogAliveMutationDescriptor.THIS,
+			MarkCatalogMissingMutationDescriptor.THIS,
 			ModifyCatalogSchemaMutationDescriptor.THIS,
 			ModifyCatalogSchemaNameMutationDescriptor.THIS,
 			RemoveCatalogSchemaMutationDescriptor.THIS,
 			RestoreCatalogSchemaMutationDescriptor.THIS,
 			SetCatalogMutabilityMutationDescriptor.THIS,
 			SetCatalogStateMutationDescriptor.THIS,
+			UpgradeCatalogFormatMutationDescriptor.THIS,
 
 			// schema mutations
 

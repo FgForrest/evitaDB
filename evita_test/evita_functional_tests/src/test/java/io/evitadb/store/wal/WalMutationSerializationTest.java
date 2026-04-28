@@ -67,10 +67,12 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowCurrencyInEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowEvolutionModeInEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntitySchemaMutation;
@@ -204,6 +206,8 @@ public class WalMutationSerializationTest {
 		assertSerializationRound(new SetCatalogStateMutation("testCatalog", true));
 		assertSerializationRound(new SetCatalogMutabilityMutation("testCatalog", true));
 		assertSerializationRound(new DuplicateCatalogMutation("sourceCatalog", "targetCatalog"));
+		assertSerializationRound(new MarkCatalogMissingMutation("missingCatalog"));
+		assertSerializationRound(new UpgradeCatalogFormatMutation("testCatalog", 4, 5));
 	}
 
 	@Test

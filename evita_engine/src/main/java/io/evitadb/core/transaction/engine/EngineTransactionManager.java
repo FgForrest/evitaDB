@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,10 +41,13 @@ import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.transaction.engine.operators.*;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
+import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
@@ -135,7 +138,7 @@ public class EngineTransactionManager implements Closeable {
 	 * Persistence service that is used to store and retrieve {@link EngineState} information from the persistence
 	 * storage.
 	 */
-	private final EnginePersistenceService enginePersistenceService;
+	private final EnginePersistenceService<LogRecordReference> enginePersistenceService;
 	/**
 	 * Lock that is used to synchronize access to the engine state.
 	 */
@@ -157,6 +160,52 @@ public class EngineTransactionManager implements Closeable {
 	private long lastStoredEngineStateVersion;
 
 	/**
+	 * Wedge flag set by `replayCrashedMutationIfNeeded` when it encounters a `walV == stateV + 1`
+	 * situation that it cannot safely reconcile — a missing operator for the crashed mutation type
+	 * or an operator whose `replayCompletionState` explicitly opts out of forward replay. Once
+	 * wedged, every public mutation-issuing entry point refuses to run until an operator intervenes
+	 * and hand-reconciles the bootstrap file.
+	 *
+	 * Structural WAL corruption (header without body) is NOT routed through this flag; the
+	 * persistence layer throws `WriteAheadLogCorruptedException` (with `WalKind.ENGINE`) directly, aborting the
+	 * `EngineTransactionManager` constructor and failing engine boot — a corrupt WAL cannot be
+	 * trusted for any subsequent reads either, so a runtime wedge would give a false sense that
+	 * the running engine is in a recoverable state.
+	 *
+	 * The flag exists because leaving `lastStoredEngineStateVersion` at `stateV` while the WAL is
+	 * already at `stateV + 1` invites the next `appendWalAndStoreState` call to try to append at
+	 * `stateV + 1` again — duplicating (or clobbering) the crashed mutation. A loud fail-fast is
+	 * always better than silent corruption, so we gate every mutation entry on this flag.
+	 */
+	private boolean wedged;
+
+	/**
+	 * Human-readable reason captured at the moment the engine was wedged, surfaced verbatim in the
+	 * exception thrown from `applyMutation` so operators can see exactly which crashed mutation
+	 * tripped the recovery and why replay could not proceed.
+	 */
+	@Nullable private String wedgeReason;
+
+	/**
+	 * Convenience constructor used by tests and standalone code paths that do not exercise the per-catalog
+	 * format-upgrade flow. Wires `NoOpUpgradeExecutor`, which only logs the intent without touching disk.
+	 * Production code uses the five-arg constructor with `DefaultUpgradeExecutor` injected by `Evita` at boot.
+	 *
+	 * @param evita Evita instance this manager operates on; must not be null
+	 * @param changeObserver system observer notified about transaction and engine mutations; must not be null
+	 * @param executor underlying executor to be used for engine tasks; must not be null
+	 * @param enginePersistenceService engine persistence service for WAL and engine state; must not be null
+	 */
+	public EngineTransactionManager(
+		@Nonnull Evita evita,
+		@Nonnull SystemChangeObserver changeObserver,
+		@Nonnull ObservableExecutorService executor,
+		@Nonnull EnginePersistenceService<LogRecordReference> enginePersistenceService
+	) {
+		this(evita, changeObserver, executor, enginePersistenceService, UpgradeExecutor.NoOpUpgradeExecutor.INSTANCE);
+	}
+
+	/**
 	 * Creates a new EngineTransactionManager bound to the provided Evita instance.
 	 *
 	 * Initialization details:
@@ -170,12 +219,14 @@ public class EngineTransactionManager implements Closeable {
 	 * @param changeObserver system observer notified about transaction and engine mutations; must not be null
 	 * @param executor underlying executor to be used for engine tasks; must not be null
 	 * @param enginePersistenceService engine persistence service for WAL and engine state; must not be null
+	 * @param upgradeExecutor per-catalog storage-protocol upgrade executor; must not be null
 	 */
 	public EngineTransactionManager(
 		@Nonnull Evita evita,
 		@Nonnull SystemChangeObserver changeObserver,
 		@Nonnull ObservableExecutorService executor,
-		@Nonnull EnginePersistenceService enginePersistenceService
+		@Nonnull EnginePersistenceService<LogRecordReference> enginePersistenceService,
+		@Nonnull UpgradeExecutor upgradeExecutor
 	) {
 		final Path storageDirectory = evita.getConfiguration().storage().storageDirectory();
 
@@ -184,12 +235,21 @@ public class EngineTransactionManager implements Closeable {
 		this.engineMutationOperators.put(CreateCatalogSchemaMutation.class, new CreateCatalogMutationOperator(storageDirectory));
 		this.engineMutationOperators.put(DuplicateCatalogMutation.class, new DuplicateCatalogMutationOperator(storageDirectory));
 		this.engineMutationOperators.put(MakeCatalogAliveMutation.class, new MakeCatalogAliveMutationOperator(storageDirectory));
+		this.engineMutationOperators.put(MarkCatalogMissingMutation.class, new MarkCatalogMissingMutationOperator(storageDirectory));
 		this.engineMutationOperators.put(ModifyCatalogSchemaNameMutation.class, new ModifyCatalogSchemaNameMutationOperator());
 		this.engineMutationOperators.put(ModifyCatalogSchemaMutation.class, new ModifyCatalogSchemaMutationOperator());
 		this.engineMutationOperators.put(RemoveCatalogSchemaMutation.class, new RemoveCatalogSchemaMutationOperator(storageDirectory));
 		this.engineMutationOperators.put(RestoreCatalogSchemaMutation.class, new RestoreCatalogSchemaMutationOperator(storageDirectory));
 		this.engineMutationOperators.put(SetCatalogMutabilityMutation.class, new SetCatalogMutabilityMutationOperator());
 		this.engineMutationOperators.put(SetCatalogStateMutation.class, new SetCatalogStateMutationOperator(storageDirectory));
+		// Per-catalog format-upgrade infrastructure. The operator drives the state transitions
+		// (`OUT_OF_DATE → BEING_UPGRADED → prior state`); the injected `upgradeExecutor` (production:
+		// `DefaultUpgradeExecutor`; tests/standalone: `NoOpUpgradeExecutor`) performs the actual on-disk migration
+		// during the work phase.
+		this.engineMutationOperators.put(
+			UpgradeCatalogFormatMutation.class,
+			new UpgradeCatalogFormatMutationOperator(storageDirectory, upgradeExecutor)
+		);
 
 		this.evita = evita;
 		this.changeObserver = changeObserver;
@@ -197,8 +257,18 @@ public class EngineTransactionManager implements Closeable {
 		this.enginePersistenceService = enginePersistenceService;
 		this.engineMutationWaitIntervalInMillis = this.evita.getConfiguration().server().transactionTimeoutInMilliseconds();
 		final ExpandedEngineState engineState = this.evita.getEngineState();
-		truncateWalFile(engineState);
+		// Prime `lastStoredEngineStateVersion` up-front so the forward-replay path can update it
+		// via the normal post-replay bookkeeping. Priming must happen BEFORE the replay call
+		// because `replayCrashedMutationIfNeeded` rewrites this field on a successful replay.
 		this.lastStoredEngineStateVersion = engineState.version();
+		// Forward WAL replay for the `walV == stateV + 1` crash window MUST run BEFORE `truncateWalFile`. Otherwise
+		// the crashed WAL entry at `walV` — which the bootstrap's `walReference` does NOT cover — would be truncated
+		// away before the replay can read it, silently losing the committed mutation. After a successful replay
+		// the bootstrap is rewritten at `walV` with a matching `walReference`, so truncation at that point becomes
+		// a no-op by construction.
+		replayCrashedMutationIfNeeded(engineState);
+		// Truncation uses the latest engine state — replay may have advanced it to `walV`.
+		truncateWalFile(this.evita.getEngineState());
 	}
 
 	/**
@@ -219,6 +289,15 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull EngineMutation<T> engineMutation,
 		@Nullable IntConsumer progressObserver
 	) {
+		// Fail fast if forward WAL replay during startup wedged the engine — see `wedged`.
+		// Continuing would let the next append reuse a version that the WAL already committed,
+		// clobbering the crashed record and masking the original incident.
+		if (this.wedged) {
+			throw new GenericEvitaInternalError(
+				"Engine is wedged and refuses further mutations: "
+					+ (this.wedgeReason == null ? "<unknown reason>" : this.wedgeReason)
+			);
+		}
 		final Set<ConflictKey> conflictKeys = engineMutation.collectConflictKeys(
 				new ConflictGenerationContext(), Collections.emptySet()
 			)
@@ -366,6 +445,158 @@ public class EngineTransactionManager implements Closeable {
 	}
 
 	/**
+	 * Sets the wedge flag and stashes `reason` for inclusion in the `applyMutation` exception
+	 * thrown when a subsequent mutation is attempted. All unsupported or impossible branches of
+	 * `replayCrashedMutationIfNeeded` must route through this method so the engine refuses to
+	 * accept further mutations until an operator reconciles the on-disk state by hand.
+	 *
+	 * @param reason human-readable explanation of why the engine was wedged
+	 */
+	private void wedge(@Nonnull String reason) {
+		this.wedged = true;
+		this.wedgeReason = reason;
+	}
+
+	/**
+	 * Forward-replay recovery for the single OS-crash window in which the WAL advanced but the matching bootstrap
+	 * rewrite did not.
+	 *
+	 * `appendWalAndStoreState` fuses the WAL append and the bootstrap rewrite into a single critical section. The
+	 * only way to produce `walV == stateV + 1` on startup is an OS-level crash between the two on-disk writes inside
+	 * that critical section. The WAL entry is durable, the work-phase side effects already happened in the operator
+	 * before the fused call, but the bootstrap still records the old version. This method reconciles the bootstrap
+	 * by:
+	 *
+	 * 1. Reading the committed mutation at `walV` from the WAL.
+	 * 2. Looking up the operator for that mutation class.
+	 * 3. Asking the operator for a pure recomputation of the completion-phase
+	 *    `ExpandedEngineState` via `replayCompletionState`.
+	 * 4. Persisting the reconciled snapshot via `rewriteEngineStateAtNextVersion` — which writes
+	 *    the bootstrap file but does NOT append to the WAL.
+	 *
+	 * If no operator supports forward replay for the crashed mutation type, the method logs an
+	 * ERROR, routes through `wedge(...)` to mark the engine as unusable, and returns without
+	 * mutating on-disk state. The wedge flag is subsequently checked by every public mutation
+	 * entry point so no caller can append a colliding WAL record after an unsupported replay.
+	 *
+	 * Called once during the transaction manager constructor, BEFORE `truncateWalFile` and after
+	 * `lastStoredEngineStateVersion` has been primed from the current engine state. The ordering
+	 * is load-bearing: truncating the WAL first would shred the crashed record at `walV` before
+	 * this method gets a chance to read it, silently losing the committed mutation.
+	 *
+	 * @param engineState the initial expanded engine state at `stateV` just restored from disk
+	 */
+	private void replayCrashedMutationIfNeeded(@Nonnull ExpandedEngineState engineState) {
+		final long walVersion = this.enginePersistenceService.getLastVersionInMutationStream();
+		final long stateVersion = engineState.version();
+		if (walVersion == stateVersion) {
+			// Steady state — nothing to replay.
+			return;
+		}
+		if (walVersion == 0L && stateVersion == 1L) {
+			// Never-used service — initial engine state exists at version 1 before any WAL
+			// file is created. Both boot paths must treat `(walV=0, stateV=1)` as legitimate.
+			return;
+		}
+		if (walVersion != stateVersion + 1L) {
+			// The constructor of DefaultEnginePersistenceService enforces the allowed
+			// combinations, so this branch is theoretically unreachable. Log at ERROR
+			// level to make any accidental regression visible rather than silently ignoring it.
+			log.error(
+				"Unexpected WAL / engine-state drift after startup validation: " +
+					"walVersion={}, stateVersion={}. Skipping forward replay.",
+				walVersion, stateVersion
+			);
+			wedge(
+				"Unexpected WAL / engine-state drift after startup validation: walVersion="
+					+ walVersion + ", stateVersion=" + stateVersion + ". Further mutations refused "
+					+ "until the on-disk state is reconciled by an operator."
+			);
+			return;
+		}
+
+		// Fetch the unprocessed transaction record at walVersion. The record bundles everything the replay path
+		// needs — the engine mutation drives state recomputation, the WAL reference is embedded into the new
+		// `EngineState` so the bootstrap file points at the matching WAL record.
+		//
+		// The persistence layer throws `WriteAheadLogCorruptedException` (WalKind.ENGINE) directly when it detects a
+		// header-without-body in the WAL, so corruption surfaces from this constructor and aborts boot —
+		// a corrupt WAL is genuinely fatal and must not be masked by a runtime wedge.
+		//
+		// `Optional.empty()` would only mean "no work to do", which contradicts the precondition asserted
+		// just above (`walVersion == stateVersion + 1`). It indicates an internal inconsistency between
+		// `getLastVersionInMutationStream` and `getUnprocessedTransaction`, so we surface it as a defense-
+		// in-depth internal error rather than silently wedging.
+		final UnprocessedTransactionRecord<LogRecordReference> record =
+			this.enginePersistenceService.getUnprocessedTransaction()
+				.orElseThrow(() -> new GenericEvitaInternalError(
+					"Forward WAL replay requested at version " + walVersion + " (state at version "
+						+ stateVersion + ") but the persistence service reported no unprocessed transaction. " +
+						"This contradicts the startup invariant `walVersion == stateVersion + 1` and points to " +
+						"an inconsistency between `getLastVersionInMutationStream` and `getUnprocessedTransaction`."
+				));
+		final EngineMutation<?> crashedMutation = record.mutation();
+		final LogRecordReference replayWalReference = record.walReference();
+
+		@SuppressWarnings({"rawtypes"}) final EngineMutationOperator operator =
+			this.engineMutationOperators.get(crashedMutation.getClass());
+		if (operator == null) {
+			log.error(
+				"Forward WAL replay requested at version {} for mutation type {}, but no operator " +
+					"is registered for that type. Engine state will remain at version {} — " +
+					"operator intervention required.",
+				walVersion, crashedMutation.getClass().getName(), stateVersion
+			);
+			wedge(
+				"Forward WAL replay requested at version " + walVersion + " for mutation type "
+					+ crashedMutation.getClass().getName() + " but no operator is registered. "
+					+ "Engine wedged — operator intervention required."
+			);
+			return;
+		}
+
+		// Ask the operator to reconstruct the completion-phase state purely from the mutation.
+		// Operators that do not support forward replay return Optional.empty(), which we treat as
+		// a loud wedge rather than silently corrupting state.
+		@SuppressWarnings({"unchecked"}) final Optional<ExpandedEngineState> replayedOpt =
+			operator.replayCompletionState(crashedMutation, walVersion, engineState, this.evita);
+		if (replayedOpt.isEmpty()) {
+			log.error(
+				"Forward WAL replay is not supported for mutation type {} at version {}. Engine " +
+					"state will remain at version {} — operator intervention required to " +
+					"reconcile the bootstrap file manually.",
+				crashedMutation.getClass().getName(), walVersion, stateVersion
+			);
+			wedge(
+				"Forward WAL replay is not supported for mutation type "
+					+ crashedMutation.getClass().getName() + " at version " + walVersion
+					+ ". Engine wedged — operator intervention required to reconcile the bootstrap "
+					+ "file manually."
+			);
+			return;
+		}
+		final ExpandedEngineState replayedEngineState = replayedOpt.get();
+
+		// Persist the reconciled snapshot. rewriteEngineStateAtNextVersion writes the bootstrap
+		// file without appending to the WAL, which is exactly the right thing to do here —
+		// the WAL already contains the committed mutation at walVersion.
+		final EngineState<LogRecordReference> finalEngineState =
+			replayedEngineState.engineState(replayWalReference, walVersion);
+		// The field `enginePersistenceService` is intentionally a raw type (preserving the legacy
+		// binary signature); invoke through the raw reference so no generic argument needs to be
+		// inferred. Runtime behaviour is identical because the generic parameter erases to
+		// `LogRecordReference` anyway.
+		@SuppressWarnings({"rawtypes"}) final EnginePersistenceService rawService = this.enginePersistenceService;
+		//noinspection unchecked
+		rawService.rewriteEngineStateAtNextVersion(finalEngineState);
+
+		this.lastStoredEngineStateVersion = walVersion;
+		this.evita.setNextEngineState(replayedEngineState);
+
+		log.info("Forward-replayed mutation at version {} after crash recovery.", walVersion);
+	}
+
+	/**
 	 * Applies a mutation to the internal engine state, processes the mutation with an observer,
 	 * and performs appropriate operations based on the specific type of engine mutation.
 	 *
@@ -391,7 +622,7 @@ public class EngineTransactionManager implements Closeable {
 		@Nonnull Runnable onCompletion
 	) {
 		if (engineMutation instanceof ServerModifyCatalogSchemaMutation smcsm) {
-			// this specific king of mutation occurs only in Catalog transaction manager when already accepted
+			// this specific kind of mutation occurs only in Catalog transaction manager when already accepted
 			// and verified transaction is replayed against the engine, so here we just need to write it to the
 			// engine WAL and broadcast the change to the observers - but we don't need really to apply this mutation
 			// on the catalog level, as the operator normally does, because the change is already incorporated by
@@ -475,24 +706,34 @@ public class EngineTransactionManager implements Closeable {
 		try {
 			final long nextStateVersion = this.lastStoredEngineStateVersion + 1;
 
-			// first store the mutation into the persistence service
+			// Build the next in-memory engine state up-front. The persistence-layer
+			// state factory invoked by `appendWalAndStoreState` will derive the
+			// persisted `EngineState` from this snapshot by embedding the fresh
+			// WAL reference.
 			final EngineMutation<?> engineMutation = engineStateUpdater.getEngineMutation();
-			final TransactionMutationWithWalReference txMutationWithWalReference = this.enginePersistenceService.appendWal(
-				nextStateVersion,
-				engineStateUpdater.getTransactionId(),
-				engineMutation
-			);
+			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getEngineState());
+
+			// Fused WAL append + bootstrap rewrite. The persistence service takes its WAL lock for the whole
+			// critical section, so there is no longer a window in which engine state could advance without a
+			// matching WAL entry.
+			// Explicit generic cast to recover the parameterized signature for Java's lambda
+			// type inference — the field is intentionally stored as a raw type, so we narrow
+			// here just for this call.
+			final TransactionMutationWithWalReference txMutationWithWalReference =
+				this.enginePersistenceService.appendWalAndStoreState(
+					nextStateVersion,
+					engineStateUpdater.getTransactionId(),
+					engineMutation,
+					txRef -> nextEngineState.engineState(
+						txRef.walReference(),
+						nextStateVersion
+					)
+				);
+
 			// notify system observer about the mutation
 			this.changeObserver.processMutation(txMutationWithWalReference.transactionMutation());
 			this.changeObserver.processMutation(engineMutation);
 
-			// create new engine state with the incremented version, and store it in the persistence service
-			final ExpandedEngineState nextEngineState = engineStateUpdater.apply(nextStateVersion, this.evita.getEngineState());
-			final EngineState theEngineState = nextEngineState.engineState(
-				txMutationWithWalReference.walReference(),
-				nextStateVersion
-			);
-			this.enginePersistenceService.storeEngineState(theEngineState);
 			this.lastStoredEngineStateVersion++;
 			this.evita.setNextEngineState(nextEngineState);
 			// finally, notify the change observer about the new version

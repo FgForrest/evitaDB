@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,9 +27,11 @@ package io.evitadb.core.transaction.engine.operators;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.core.Evita;
+import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.transaction.engine.EngineStateUpdater;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -111,5 +113,47 @@ public interface EngineMutationOperator<S, T extends EngineMutation<S>> {
 		@Nonnull Consumer<EngineStateUpdater> transitionEngineStateUpdater,
 		@Nonnull Consumer<EngineStateUpdater> completionEngineStateUpdater
 	);
+
+	/**
+	 * Pure re-computation of the completion-phase `ExpandedEngineState` for forward WAL replay.
+	 *
+	 * Called by `EngineTransactionManager.replayCrashedMutationIfNeeded` to reconcile the engine
+	 * state when startup observes `walV == stateV + 1` — i.e., an OS-level crash happened inside
+	 * the fused critical section of `appendWalAndStoreState` between the WAL append and the
+	 * bootstrap rewrite. The WAL entry is durable and the work-phase side effects (folder
+	 * creation, catalog instance build, etc.) already happened in the original crashed run; this
+	 * method just re-derives the completion-phase engine-state snapshot without re-running those
+	 * side effects.
+	 *
+	 * Contract:
+	 *
+	 * - Implementations **must not** perform writes to disk, emit CDC/metric events, open or
+	 *   close catalog instances, or mutate any external state. The only purpose is to rebuild
+	 *   the `ExpandedEngineState` that the original `applyMutation` completion updater would
+	 *   have produced.
+	 * - Implementations **may** read already-persisted state (e.g., load a catalog instance
+	 *   from a folder that is known to exist on disk because the work phase wrote it before the
+	 *   crash).
+	 * - Returning `Optional.empty()` (the default) signals that this mutation type does not
+	 *   support forward replay safely. The transaction manager will then log a loud error and
+	 *   wedge the engine rather than silently proceeding — this is intentional, because silent
+	 *   corruption is worse than an operator-visible failure.
+	 *
+	 * @param mutation       the concrete engine mutation committed to the WAL
+	 * @param targetVersion  the engine state version to apply (equals the WAL entry version)
+	 * @param currentState   the current in-memory `ExpandedEngineState` (at `targetVersion - 1`)
+	 * @param evita          the owning Evita instance for read-only lookups
+	 * @return the reconciled `ExpandedEngineState` at `targetVersion`, or `Optional.empty()` if
+	 *         this operator does not support forward replay
+	 */
+	@Nonnull
+	default Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull T mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		return Optional.empty();
+	}
 
 }

@@ -28,6 +28,7 @@ import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 
 /**
@@ -36,6 +37,15 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class ExceptionUtils {
+
+	/**
+	 * Upper bound on the number of {@link CompletionException} / {@link ExecutionException} layers
+	 * {@link #unwrapCompletionWrappers(Throwable)} will peel before giving up. Deeply nested async
+	 * chains (nested `thenCompose`, `CompletableFuture#get` over a `join`) can legitimately stack a
+	 * few wrappers, but going deeper than this signals a self-referential cycle that should not be
+	 * followed.
+	 */
+	public static final int UNWRAP_COMPLETION_WRAPPERS_MAX_DEPTH = 10;
 
 	/**
 	 * Finds the root cause of an exception by traversing the exception chain.
@@ -78,6 +88,53 @@ public class ExceptionUtils {
 			current = current.getCause();
 		}
 		return false;
+	}
+
+	/**
+	 * Walks the cause chain of the supplied throwable, peeling every {@link CompletionException} and
+	 * {@link ExecutionException} wrapper layer so callers can pattern-match the original exception
+	 * type. `CompletableFuture` / `ProgressingFuture` chains commonly produce multiply-wrapped
+	 * failures (e.g. nested `thenCompose` wraps both layers in `CompletionException`), so a
+	 * single-layer peel would hide a domain exception behind a generic wrapper and miss the
+	 * pattern-match.
+	 *
+	 * Stops at the first non-wrapper layer, on a null cause, on a cause already visited (cycle), or
+	 * after {@link #UNWRAP_COMPLETION_WRAPPERS_MAX_DEPTH} layers (defensive — prevents an unbounded
+	 * loop should a pathological chain form a longer cycle, and bounds work for legitimately deep
+	 * chains). When a cycle is detected the last wrapper held is returned; when the depth cap is
+	 * reached the originally-passed throwable is returned unchanged so the caller's pattern-match
+	 * simply misses rather than operating on a possibly-stale intermediate layer.
+	 *
+	 * Note: only `CompletionException` and `ExecutionException` are peeled — domain exceptions
+	 * encountered along the way are returned as-is, preserving any further cause chain they carry.
+	 *
+	 * @param throwable the exception to unwrap, must not be null
+	 * @return the deepest non-wrapper cause, the original throwable if nothing to unwrap or the
+	 *         depth cap is reached, or the last wrapper held when a cycle is detected
+	 */
+	@Nonnull
+	public static Throwable unwrapCompletionWrappers(@Nonnull Throwable throwable) {
+		final Set<Throwable> visited = CollectionUtils.createHashSet(UNWRAP_COMPLETION_WRAPPERS_MAX_DEPTH);
+		Throwable current = throwable;
+		// Bounded walk — peel CompletionException / ExecutionException layers until a non-wrapper,
+		// a null cause, a previously-visited cause (cycle), or the depth cap is reached.
+		for (int depth = 0; depth < UNWRAP_COMPLETION_WRAPPERS_MAX_DEPTH; depth++) {
+			if (!(current instanceof CompletionException) && !(current instanceof ExecutionException)) {
+				return current;
+			}
+			if (!visited.add(current)) {
+				// Cycle detected — return whatever wrapper we currently hold.
+				return current;
+			}
+			final Throwable cause = current.getCause();
+			if (cause == null) {
+				return current;
+			}
+			current = cause;
+		}
+		// Depth cap reached — fall back to the originally-passed throwable so the caller's
+		// pattern-match simply misses rather than operating on a possibly-stale intermediate layer.
+		return throwable;
 	}
 
 	/**

@@ -26,8 +26,9 @@ package io.evitadb.store.wal.supplier;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.checksum.Checksum;
-import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.StorageRecordWithChecksum;
@@ -93,6 +94,7 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 	 * @param catalogKryoPool             pool of Kryo instances for deserialization
 	 * @param transactionLocationsCache   cache of transaction locations within WAL files
 	 * @param onClose                     optional callback to run when the supplier is closed
+	 * @param walKind                     flavor of WAL being read — stamped on every corruption exception
 	 */
 	public ReverseMutationSupplier(
 		long catalogVersion,
@@ -102,12 +104,13 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 		int walFileIndex,
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
-		@Nullable Runnable onClose
+		@Nullable Runnable onClose,
+		@Nonnull WalKind walKind
 	) {
 		super(
 			catalogVersion, walFileNameProvider, catalogStoragePath, storageSettings,
 			walFileIndex, catalogKryoPool, transactionLocationsCache,
-			false, onClose
+			false, onClose, walKind
 		);
 		this.mutationIndex = this.transactionMutation == null ?
 			0: this.transactionMutation.getMutationCount();
@@ -180,7 +183,7 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 				// validate reconstructed checksum against the stored value
 				Assert.isPremiseValid(
 					theCumulativeChecksum.equalsTo(readCumulativeChecksum),
-					() -> new WriteAheadLogCorruptedException(
+					() -> new WriteAheadLogCorruptedException(this.walKind,
 						this.walFile.toPath(),
 						this.transactionMutation.getTransactionSpan().endPosition(),
 						theCumulativeChecksum.getValue(),
@@ -251,7 +254,7 @@ public final class ReverseMutationSupplier<T extends Mutation> extends AbstractM
 				CUMULATIVE_CRC32_SIZE;
 			Assert.isPremiseValid(
 				scannedLength == expectedLength,
-				() -> new WriteAheadLogCorruptedException(
+				() -> new WriteAheadLogCorruptedException(this.walKind,
 					"Transaction mutation span is not fully mapped!",
 					"Transaction mutation span is not fully mapped (" +
 						scannedLength + " vs. " + expectedLength + ")!"

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,10 +29,13 @@ import io.evitadb.store.shared.model.FileLocation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.OffsetDateTime;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies the functionality of the {@link EngineState} record and its builder.
@@ -194,6 +197,51 @@ class EngineStateTest {
 		assertEquals(originalState.walReference(), modifiedState.walReference());
 		assertArrayEquals(new String[]{"modified1"}, modifiedState.activeCatalogs());
 		assertArrayEquals(originalState.inactiveCatalogs(), modifiedState.inactiveCatalogs());
+	}
+
+	@Test
+	@DisplayName("Should preserve introducedAt when copying via builder")
+	void shouldPreserveIntroducedAtWhenCopyingViaBuilder() {
+		// Construct an engine state with a known introduced-at far in the past so
+		// we can detect any accidental "refresh to now" during a builder copy.
+		final OffsetDateTime originalIntroducedAt = OffsetDateTime.parse("2020-01-15T08:30:00Z");
+		final EngineState<LogFileRecordReference> originalState = new EngineState<>(
+			1,
+			1L,
+			originalIntroducedAt,
+			null,
+			new String[]{"alpha"},
+			new String[0],
+			new String[0]
+		);
+
+		// Round-trip through the copy builder with an unrelated modification.
+		final EngineState<LogFileRecordReference> rewritten = EngineState.builder(originalState)
+			.activeCatalogs(new String[]{"alpha", "beta"})
+			.build();
+
+		assertEquals(
+			originalIntroducedAt, rewritten.introducedAt(),
+			"Builder copy must preserve introducedAt — rewriting the engine state for reconciliation " +
+				"purposes must not reset the original creation timestamp."
+		);
+	}
+
+	@Test
+	@DisplayName("Should default introducedAt to now for fresh builders")
+	void shouldDefaultIntroducedAtToNowForFreshBuilders() {
+		// The no-arg builder has no source timestamp to carry forward — it should
+		// fall back to the current time so genuinely new states are timestamped.
+		final OffsetDateTime before = OffsetDateTime.now().minusSeconds(1);
+		final EngineState<LogFileRecordReference> engineState = EngineState.<LogFileRecordReference>builder()
+			.storageProtocolVersion(1)
+			.version(1L)
+			.build();
+		final OffsetDateTime after = OffsetDateTime.now().plusSeconds(1);
+
+		assertNotNull(engineState.introducedAt());
+		assertTrue(engineState.introducedAt().isAfter(before));
+		assertTrue(engineState.introducedAt().isBefore(after));
 	}
 
 	@Test

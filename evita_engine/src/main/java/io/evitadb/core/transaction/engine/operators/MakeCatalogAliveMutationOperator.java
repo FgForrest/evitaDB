@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,6 +50,10 @@ import java.util.function.Consumer;
 /**
  * Activates the specified catalog based on its current state. Throws appropriate exceptions
  * for inactive or corrupted catalogs or any unknown catalog type.
+ *
+ * Forward-replay is intentionally **not** implemented here. The completion phase depends on `theCatalog.goLive()`,
+ * which rewrites on-disk state and cannot be safely re-executed during recovery. The default `Optional.empty()` in
+ * `EngineMutationOperator` causes the transaction manager to wedge loudly.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

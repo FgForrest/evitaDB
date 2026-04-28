@@ -45,6 +45,7 @@ import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.spi.store.catalog.wal.model.CatalogTransactionChanges;
 import io.evitadb.spi.store.catalog.wal.model.EntityCollectionChanges;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.wal.supplier.MutationSupplier;
@@ -162,7 +163,8 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 			storageFolder,
 			kryoPool,
 			storageSettings,
-			scheduler
+			scheduler,
+			WalKind.CATALOG
 		);
 		this.catalogName = catalogName;
 		this.bootstrapFileTrimmer = bootstrapFileTrimmer;
@@ -197,7 +199,8 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 			storageFolder,
 			kryoPool,
 			storageSettings,
-			scheduler
+			scheduler,
+			WalKind.CATALOG
 		);
 		this.catalogName = catalogName;
 		this.bootstrapFileTrimmer = null;

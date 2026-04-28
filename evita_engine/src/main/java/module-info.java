@@ -101,6 +101,7 @@ module evita.engine {
 	exports io.evitadb.spi.store.catalog.wal;
 	exports io.evitadb.spi.store.catalog.wal.model;
 	exports io.evitadb.spi.store.engine;
+	exports io.evitadb.spi.store.engine.exception;
 	exports io.evitadb.spi.store.engine.model;
 	exports io.evitadb.spi.export;
 	exports io.evitadb.spi.export.model;

@@ -74,6 +74,28 @@ message GrpcSetCatalogStateMutation {
   bool active = 2;
 }
 
+// Mutation that records the fact a catalog's on-disk folder is no longer present, so the engine
+// can move it to `MISSING` state in lock-step with the WAL rather than silently rewriting the
+// bootstrap file on startup reconciliation.
+message GrpcMarkCatalogMissingMutation {
+  // Name of the catalog whose on-disk folder is no longer present.
+  string catalogName = 1;
+}
+
+// Mutation that upgrades a catalog's on-disk storage protocol from `fromProtocolVersion` to
+// `toProtocolVersion`. Drives the state transitions `OUT_OF_DATE` → `BEING_UPGRADED` →
+// prior operational state and serves as the WAL-backed record of the per-catalog lazy format
+// upgrade.
+message GrpcUpgradeCatalogFormatMutation {
+  // Name of the catalog whose storage protocol is being upgraded.
+  string catalogName = 1;
+  // Storage protocol version currently present on disk (captured for observability).
+  int32 fromProtocolVersion = 2;
+  // Storage protocol version to upgrade to, typically the engine's current `STORAGE_PROTOCOL_VERSION`
+  // (captured for observability).
+  int32 toProtocolVersion = 3;
+}
+
 // This structure encapsulates all mutations that needs to be executed on entire evitaDB level and not locally to
 // single catalog schema instance.
 message GrpcEngineMutation {
@@ -99,5 +121,9 @@ message GrpcEngineMutation {
     GrpcSetCatalogStateMutation setCatalogStateMutation = 9;
     // Mutation is responsible for restoring a CatalogSchema in INACTIVE state.
     GrpcRestoreCatalogSchemaMutation restoreCatalogSchemaMutation = 10;
+    // Mutation that records the fact a catalog's on-disk folder is no longer present.
+    GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;
+    // Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+    GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;
   }
 }

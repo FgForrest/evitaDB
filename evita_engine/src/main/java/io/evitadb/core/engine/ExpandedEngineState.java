@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -318,6 +318,7 @@ public record ExpandedEngineState(
 		@Nonnull private String[] activeCatalogs;
 		@Nonnull private String[] inactiveCatalogs;
 		@Nonnull private String[] readOnlyCatalogs;
+		@Nonnull private String[] missingCatalogs;
 
 		/**
 		 * Initializes builder with values from the provided snapshot.
@@ -330,6 +331,7 @@ public record ExpandedEngineState(
 			this.activeCatalogs = base.engineState.activeCatalogs();
 			this.inactiveCatalogs = base.engineState.inactiveCatalogs();
 			this.readOnlyCatalogs = base.engineState.readOnlyCatalogs();
+			this.missingCatalogs = base.engineState.missingCatalogs();
 		}
 
 		/**
@@ -365,6 +367,25 @@ public record ExpandedEngineState(
 		}
 
 		/**
+		 * Stages a transient placeholder (typically an {@link io.evitadb.core.catalog.UnusableCatalog})
+		 * for a catalog that is mid-flight in a state transition — e.g. `BEING_UPGRADED`,
+		 * `BEING_ACTIVATED` — without touching the persisted bucket arrays.
+		 *
+		 * This is the escape hatch the upgrade operator uses so a crash mid-transition leaves the
+		 * catalog name in whatever bucket (`activeCatalogs` / `inactiveCatalogs`) it was in before,
+		 * allowing the next boot to auto-retry the operation. Unlike {@link #withCatalog}, this method
+		 * never relocates the name between the arrays; only the in-memory catalogs map is updated.
+		 *
+		 * @param placeholder the transient in-flight placeholder to install under its own name
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withInFlightPlaceholder(@Nonnull CatalogContract placeholder) {
+			this.catalogs.put(placeholder.getName(), new CatalogWrapper(placeholder));
+			return this;
+		}
+
+		/**
 		 * Stages removal of the provided catalog from the snapshot including all arrays.
 		 */
 		@Nonnull
@@ -382,6 +403,43 @@ public record ExpandedEngineState(
 			this.activeCatalogs = removeRecordFromOrderedArray(catalogName, this.activeCatalogs);
 			this.inactiveCatalogs = removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
 			this.readOnlyCatalogs = removeRecordFromOrderedArray(catalogName, this.readOnlyCatalogs);
+			this.missingCatalogs = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
+			return this;
+		}
+
+		/**
+		 * Stages the transition of the specified catalog to the MISSING bucket. The catalog is removed from the
+		 * active / inactive / read-only arrays and its in-memory `CatalogWrapper` is dropped — MISSING catalogs
+		 * cannot serve any requests. The catalog name is added to the `missingCatalogs` array so it remains visible
+		 * to the engine and can be recovered by auto-discovery in a future release.
+		 *
+		 * @param catalogName name of the catalog to mark as missing; must not be null
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withMissingCatalog(@Nonnull String catalogName) {
+			this.catalogs.remove(catalogName);
+			this.activeCatalogs = removeRecordFromOrderedArray(catalogName, this.activeCatalogs);
+			this.inactiveCatalogs = removeRecordFromOrderedArray(catalogName, this.inactiveCatalogs);
+			this.readOnlyCatalogs = removeRecordFromOrderedArray(catalogName, this.readOnlyCatalogs);
+			this.missingCatalogs = insertRecordIntoOrderedArray(catalogName, this.missingCatalogs);
+			return this;
+		}
+
+		/**
+		 * Stages removal of the catalog from the `missingCatalogs` bucket — used by
+		 * `RestoreCatalogSchemaMutationOperator` to support the flapping-recovery transition (MISSING → INACTIVE).
+		 *
+		 * The call is a no-op when the catalog is not currently in the missing bucket, so it is safe to chain
+		 * unconditionally before `withCatalog(...)` — auto-discovery (catalog name unknown) and flapping recovery
+		 * (catalog name in missing bucket) share the same operator path and only the latter has any work to do here.
+		 *
+		 * @param catalogName name of the catalog whose missing-bucket entry should be cleared
+		 * @return this builder instance
+		 */
+		@Nonnull
+		public Builder withRestoredFromMissing(@Nonnull String catalogName) {
+			this.missingCatalogs = removeRecordFromOrderedArray(catalogName, this.missingCatalogs);
 			return this;
 		}
 
@@ -413,7 +471,8 @@ public record ExpandedEngineState(
 				.version(this.version)
 				.activeCatalogs(this.activeCatalogs)
 				.inactiveCatalogs(this.inactiveCatalogs)
-				.readOnlyCatalogs(this.readOnlyCatalogs);
+				.readOnlyCatalogs(this.readOnlyCatalogs)
+				.missingCatalogs(this.missingCatalogs);
 			return new ExpandedEngineState(
 				this.startVersion,
 				engineStateBuilder.build(),

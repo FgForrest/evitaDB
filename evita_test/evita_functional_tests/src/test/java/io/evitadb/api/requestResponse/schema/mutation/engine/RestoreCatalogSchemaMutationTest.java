@@ -23,11 +23,22 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.CatalogState;
+import io.evitadb.api.EvitaContract;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * This test verifies {@link RestoreCatalogSchemaMutation} class.
@@ -43,6 +54,61 @@ public class RestoreCatalogSchemaMutationTest {
 		final RestoreCatalogSchemaMutation mutation = new RestoreCatalogSchemaMutation("restoredCatalog");
 		final CatalogSchemaWithImpactOnEntitySchemas result = mutation.mutate(null);
 		assertNull(result);
+	}
+
+	/**
+	 * Tests for the broadened applicability rules introduced by this the mutation must
+	 * accept unknown catalog names (restore-from-backup, auto-discovery) and catalog names parked in
+	 * the {@link CatalogState#MISSING} bucket (flapping recovery), but reject any name in a live
+	 * (active/inactive/etc.) state to avoid clobbering existing data.
+	 */
+	@Nested
+	@DisplayName("verifyApplicability ( broadening)")
+	class VerifyApplicability {
+
+		@Test
+		@DisplayName("should accept unknown catalog name (restore / auto-discovery path)")
+		void shouldAcceptUnknownCatalogName() {
+			final EvitaContract evita = mock(EvitaContract.class);
+			when(evita.getCatalogState("fresh")).thenReturn(Optional.empty());
+			when(evita.getCatalogNames()).thenReturn(Set.of());
+
+			assertDoesNotThrow(() -> new RestoreCatalogSchemaMutation("fresh").verifyApplicability(evita));
+		}
+
+		@Test
+		@DisplayName("should accept catalog currently in MISSING state (flapping recovery)")
+		void shouldAcceptCatalogInMissingState() {
+			final EvitaContract evita = mock(EvitaContract.class);
+			when(evita.getCatalogState("d")).thenReturn(Optional.of(CatalogState.MISSING));
+
+			assertDoesNotThrow(() -> new RestoreCatalogSchemaMutation("d").verifyApplicability(evita));
+		}
+
+		@Test
+		@DisplayName("should reject catalog already INACTIVE (would clobber existing data)")
+		void shouldRejectCatalogInInactiveState() {
+			final EvitaContract evita = mock(EvitaContract.class);
+			when(evita.getCatalogState("alive")).thenReturn(Optional.of(CatalogState.INACTIVE));
+
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> new RestoreCatalogSchemaMutation("alive").verifyApplicability(evita)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject catalog currently ALIVE")
+		void shouldRejectCatalogInAliveState() {
+			final EvitaContract evita = mock(EvitaContract.class);
+			when(evita.getCatalogState("running")).thenReturn(Optional.of(CatalogState.ALIVE));
+
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> new RestoreCatalogSchemaMutation("running").verifyApplicability(evita)
+			);
+		}
+
 	}
 
 }

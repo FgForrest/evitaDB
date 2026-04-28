@@ -37,8 +37,11 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
+import java.time.OffsetDateTime;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * This test verifies the correctness of the {@link EngineStateSerializer} class.
@@ -134,5 +137,102 @@ class EngineStateSerializerTest {
 
 		// Test serialization and deserialization
 		assertSerializationRound(engineState);
+	}
+
+	@Test
+	@DisplayName("EngineState with missing catalogs")
+	void shouldSerializeAndDeserializeEngineStateWithMissingCatalogs() {
+		// The `missingCatalogs` array must round-trip through Kryo so the engine can persist the divergence between
+		// registered catalogs and folders on disk.
+		final EngineState<LogFileRecordReference> engineState = EngineState.<LogFileRecordReference>builder()
+			.storageProtocolVersion(1)
+			.version(2L)
+			.walFileReference(
+				new LogFileRecordReference(
+					EnginePersistenceService::getWalFileName,
+					3,
+					new FileLocation(100L, 200),
+					123L
+				)
+			)
+			.activeCatalogs(new String[]{"catalogA"})
+			.inactiveCatalogs(new String[]{"catalogB"})
+			.readOnlyCatalogs(new String[0])
+			.missingCatalogs(new String[]{"missingA", "missingB"})
+			.build();
+
+		assertSerializationRound(engineState);
+	}
+
+	@Test
+	@DisplayName("Legacy payload deserializes with empty missingCatalogs substituted")
+	void shouldDeserializeLegacyEngineStateAndSubstituteEmptyMissingCatalogs() {
+		// Verifies the backward-compat path of `EngineStateSerializer_2026_1`: a bootstrap file written before the
+		// `missingCatalogs` field was introduced has no trailing `missingCatalogs` section. When such a payload is
+		// read back today, the legacy serializer must reconstruct all original fields and substitute an empty
+		// (non-null) missing-catalogs array so callers see the new record shape transparently.
+		final OffsetDateTime introducedAt = OffsetDateTime.parse("2025-06-15T10:30:00+02:00");
+		final LogFileRecordReference walReference = new LogFileRecordReference(
+			EnginePersistenceService::getWalFileName,
+			3,
+			new FileLocation(100L, 200),
+			123L
+		);
+		final String[] activeCatalogs = {"catalogA", "catalogB"};
+		final String[] inactiveCatalogs = {"catalogC"};
+		final String[] readOnlyCatalogs = {"catalogD", "catalogE"};
+
+		// Hand-craft a byte stream that matches the pre-Part-C on-disk layout — identical to the
+		// current layout except that the trailing `missingCatalogs` section is absent. The legacy
+		// serializer's `write` method intentionally throws, so we cannot simply round-trip an
+		// object through it; producing the bytes by hand is the only faithful reproduction of a
+		// real pre-Part-C bootstrap file.
+		final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
+		try (final Output output = new Output(os, 4_096)) {
+			output.writeVarInt(1, true);
+			output.writeVarLong(2L, true);
+			this.kryo.writeObject(output, introducedAt);
+
+			// WAL reference present (boolean marker + fileIndex + startingPosition + recordLength + checksum).
+			output.writeBoolean(true);
+			output.writeVarInt(walReference.fileIndex(), true);
+			output.writeVarLong(walReference.fileLocation().startingPosition(), true);
+			output.writeVarInt(walReference.fileLocation().recordLength(), true);
+			output.writeLong(walReference.cumulativeChecksum());
+
+			// Active, inactive and read-only catalog arrays — no trailing missing-catalogs section.
+			output.writeVarInt(activeCatalogs.length, true);
+			for (final String catalogName : activeCatalogs) {
+				output.writeString(catalogName);
+			}
+			output.writeVarInt(inactiveCatalogs.length, true);
+			for (final String catalogName : inactiveCatalogs) {
+				output.writeString(catalogName);
+			}
+			output.writeVarInt(readOnlyCatalogs.length, true);
+			for (final String catalogName : readOnlyCatalogs) {
+				output.writeString(catalogName);
+			}
+		}
+
+		final EngineStateSerializer_2026_1 legacySerializer = new EngineStateSerializer_2026_1();
+		final EngineState<?> deserialized;
+		try (final Input input = new Input(os.toByteArray())) {
+			deserialized = legacySerializer.read(this.kryo, input, EngineState.class);
+		}
+
+		// All original fields must survive the legacy deserialization unchanged …
+		assertEquals(1, deserialized.storageProtocolVersion());
+		assertEquals(2L, deserialized.version());
+		assertEquals(introducedAt, deserialized.introducedAt());
+		assertEquals(walReference, deserialized.walReference());
+		assertArrayEquals(activeCatalogs, deserialized.activeCatalogs());
+		assertArrayEquals(inactiveCatalogs, deserialized.inactiveCatalogs());
+		assertArrayEquals(readOnlyCatalogs, deserialized.readOnlyCatalogs());
+
+		// … and the missing-catalogs bucket must be present but empty, so downstream code can
+		// treat pre-Part-C and post-Part-C payloads uniformly.
+		assertNotNull(deserialized.missingCatalogs());
+		assertEquals(0, deserialized.missingCatalogs().length);
 	}
 }

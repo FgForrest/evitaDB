@@ -29,12 +29,15 @@ import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutatio
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -83,6 +86,23 @@ public non-sealed interface EnginePersistenceService<T extends LogRecordReferenc
 	EngineState<T> getEngineState();
 
 	/**
+	 * Returns the divergence between the catalog inventory recorded in the persisted engine state and the catalog
+	 * inventory the backing store currently reports, detected during this service's construction.
+	 *
+	 * The persistence service does **not** apply this divergence — it is the caller's responsibility (specifically
+	 * `Evita`, after `EngineTransactionManager` is wired) to drain it through WAL-backed engine mutations so the
+	 * reconciliation is observable and the WAL-first invariant is preserved. Implementations must compute the
+	 * divergence as a pure value at boot and return the same instance on every call (idempotent — the engine state
+	 * advances through `appendWalAndStoreState` once mutations are applied, so a subsequent boot will detect no
+	 * remaining divergence). Returns {@link CatalogInventoryDivergence#EMPTY} for fresh engines or when there is
+	 * nothing to reconcile.
+	 *
+	 * @return the divergence; never null, possibly {@link CatalogInventoryDivergence#EMPTY}
+	 */
+	@Nonnull
+	CatalogInventoryDivergence getPendingCatalogInventoryDivergence();
+
+	/**
 	 * Stores {@link EngineState} stored in current boot file.
 	 *
 	 * @param engineState the state of the engine to store
@@ -90,18 +110,49 @@ public non-sealed interface EnginePersistenceService<T extends LogRecordReferenc
 	void storeEngineState(@Nonnull EngineState<T> engineState);
 
 	/**
-	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain.
+	 * Fused WAL-first commit: appends the transaction mutation to the WAL and writes the matching engine state in
+	 * a single indivisible critical section.
 	 *
-	 * @param version  version the transaction mutation is written for
-	 * @param transactionId unique identifier of the transaction that is being written
-	 * @param mutation set of mutations that are part of the transaction mutation
-	 * @return the number of Bytes written
+	 * This method exists to make WAL-first ordering architecturally unforgeable at the persistence layer. Callers
+	 * must no longer perform `appendWal` + `storeEngineState` back-to-back — a refactoring mistake between the two
+	 * calls could advance engine state without a matching WAL entry and silently violate the startup invariant.
+	 *
+	 * **Atomicity guarantees.** The implementation takes a single internal WAL lock for
+	 * the whole operation and:
+	 *
+	 * 1. validates that `version` equals `getEngineState().version() + 1`;
+	 * 2. appends the mutation to the WAL;
+	 * 3. invokes `stateFactory` with the fresh `TransactionMutationWithWalReference` so
+	 *    the factory can embed the WAL reference into the returned `EngineState`;
+	 * 4. writes the returned engine state to the bootstrap file;
+	 * 5. updates the in-memory engine state.
+	 *
+	 * On a successful return, both the WAL `getLastVersionInMutationStream()` and the
+	 * engine state `getEngineState().version()` equal `version`. The D.1 startup
+	 * invariant is therefore satisfied by construction.
+	 *
+	 * **Failure semantics.** If the factory throws, the implementation rolls the WAL
+	 * append back (Option A — all-or-nothing) so that the persistence service is left
+	 * in the same observable state as before the call (or at worst in a state from
+	 * which a clean reboot succeeds). The throwable is propagated to the caller.
+	 *
+	 * @param version        the new engine state version; must equal the current
+	 *                       engine state version incremented by one
+	 * @param transactionId  unique identifier of the transaction being committed
+	 * @param mutation       engine-level mutation to append to the WAL
+	 * @param stateFactory   function that receives the newly written
+	 *                       `TransactionMutationWithWalReference` and must return the
+	 *                       new engine state at `version` embedding the supplied WAL
+	 *                       reference
+	 * @return the `TransactionMutationWithWalReference` that identifies the WAL record
+	 *         written for this transaction
 	 */
 	@Nonnull
-	TransactionMutationWithWalReference appendWal(
+	TransactionMutationWithWalReference appendWalAndStoreState(
 		long version,
 		@Nonnull UUID transactionId,
-		@Nonnull EngineMutation<?> mutation
+		@Nonnull EngineMutation<?> mutation,
+		@Nonnull Function<TransactionMutationWithWalReference, EngineState<T>> stateFactory
 	);
 
 	/**
@@ -143,6 +194,60 @@ public non-sealed interface EnginePersistenceService<T extends LogRecordReferenc
 	 * @param walReference the reference to the log file that should be truncated to
 	 */
 	void truncateWriteAheadLog(@Nonnull T walReference);
+
+	/**
+	 * Rewrites the bootstrap file so that engine state version catches up with a WAL entry that was durably committed
+	 * but whose matching bootstrap rewrite never completed.
+	 *
+	 * Only callable during forward WAL replay. The WAL must already contain a committed mutation at
+	 * `newState.version()`; this method just reconciles the bootstrap file with that committed entry without
+	 * appending to WAL.
+	 *
+	 * Preconditions:
+	 *
+	 * - `newState.version() == getEngineState().version() + 1`
+	 * - `getLastVersionInMutationStream() == newState.version()`
+	 *
+	 * Both preconditions are asserted by the implementation via `Assert.isPremiseValid`.
+	 *
+	 * This method must never be used on the normal commit path — use `appendWalAndStoreState`
+	 * instead, which fuses the WAL append and the bootstrap rewrite into a single critical section.
+	 *
+	 * @param newState engine state at the next version, embedding the WAL reference that corresponds
+	 *                 to the already-committed WAL entry; must not be null
+	 */
+	void rewriteEngineStateAtNextVersion(@Nonnull EngineState<T> newState);
+
+	/**
+	 * Returns the single transaction record sitting in the WAL past the engine state's `walReference`. The
+	 * persistence service computes the result as `mutationLog.getFirstNonProcessedTransaction(stateWalRef)` plus
+	 * the corresponding engine mutation body, fused into one read so callers get the complete forward-replay
+	 * payload (`version`, `mutation`, `walReference`) in a single round-trip.
+	 *
+	 * After the startup invariant check there is at most one such record per engine — see the
+	 * `walVersion == stateVersion + 1` crash-window contract enforced by `DefaultEnginePersistenceService` at
+	 * construction time.
+	 *
+	 * Contract:
+	 *
+	 * - Returns `Optional.empty()` only when there is genuinely no work: the WAL has not been initialised yet,
+	 *   or the engine state's `walReference` already covers everything in the WAL.
+	 * - Throws `WriteAheadLogCorruptedException` (with `WalKind.ENGINE`) when a transaction header is found at
+	 *   some version V but its engine-mutation body is missing — either because we crossed into the next
+	 *   transaction's header without seeing a body, or because the mutation stream ended mid-record. Both
+	 *   conditions violate the structural invariant of the engine WAL (every committed `TransactionMutation`
+	 *   header must be followed by exactly one engine-mutation body).
+	 *
+	 * Used by `EngineTransactionManager#replayCrashedMutationIfNeeded` to recover the crashed mutation, run its
+	 * operator's `replayCompletionState`, and persist the reconciled engine state via
+	 * `rewriteEngineStateAtNextVersion`.
+	 *
+	 * @return the unprocessed transaction record or `Optional.empty()` when nothing is past the engine state
+	 * @throws io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException when the engine WAL
+	 *         contains a transaction header without a matching engine-mutation body
+	 */
+	@Nonnull
+	Optional<UnprocessedTransactionRecord<T>> getUnprocessedTransaction();
 
 	/**
 	 * Retrieves the last engine state version written in the WAL stream.

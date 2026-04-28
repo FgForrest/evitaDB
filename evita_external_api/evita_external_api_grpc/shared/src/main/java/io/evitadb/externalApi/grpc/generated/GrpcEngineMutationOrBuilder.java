@@ -301,5 +301,59 @@ public interface GrpcEngineMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcRestoreCatalogSchemaMutationOrBuilder getRestoreCatalogSchemaMutationOrBuilder();
 
+  /**
+   * <pre>
+   * Mutation that records the fact a catalog's on-disk folder is no longer present.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+   * @return Whether the markCatalogMissingMutation field is set.
+   */
+  boolean hasMarkCatalogMissingMutation();
+  /**
+   * <pre>
+   * Mutation that records the fact a catalog's on-disk folder is no longer present.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+   * @return The markCatalogMissingMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation getMarkCatalogMissingMutation();
+  /**
+   * <pre>
+   * Mutation that records the fact a catalog's on-disk folder is no longer present.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutation markCatalogMissingMutation = 11;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcMarkCatalogMissingMutationOrBuilder getMarkCatalogMissingMutationOrBuilder();
+
+  /**
+   * <pre>
+   * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+   * @return Whether the upgradeCatalogFormatMutation field is set.
+   */
+  boolean hasUpgradeCatalogFormatMutation();
+  /**
+   * <pre>
+   * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+   * @return The upgradeCatalogFormatMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation getUpgradeCatalogFormatMutation();
+  /**
+   * <pre>
+   * Mutation that upgrades a catalog's on-disk storage protocol to the engine's current version.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutation upgradeCatalogFormatMutation = 12;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUpgradeCatalogFormatMutationOrBuilder getUpgradeCatalogFormatMutationOrBuilder();
+
   io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.MutationCase getMutationCase();
 }

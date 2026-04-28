@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.exception.UnexpectedIOException;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -112,6 +113,12 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 */
 	protected final IntFunction<String> walFileNameProvider;
 	/**
+	 * Identifies which flavor of WAL is being read — stamped on every WAL corruption exception thrown
+	 * from this supplier when it detects structural defects (currently the cumulative CRC32C mismatch
+	 * at transaction boundaries).
+	 */
+	protected final WalKind walKind;
+	/**
 	 * Callback to be executed when the supplier is closed.
 	 */
 	private final Runnable onClose;
@@ -175,6 +182,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 	 * @param transactionLocationsCache      cache of transaction locations within WAL files
 	 * @param avoidPartiallyFilledBuffer     whether to avoid partially filled buffers during reads
 	 * @param onClose                        optional callback to run when the supplier is closed
+	 * @param walKind                        flavor of WAL being read — stamped on every corruption exception
 	 */
 	public AbstractMutationSupplier(
 		long version,
@@ -185,7 +193,8 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		@Nonnull Pool<Kryo> catalogKryoPool,
 		@Nonnull ConcurrentHashMap<Integer, TransactionLocations> transactionLocationsCache,
 		boolean avoidPartiallyFilledBuffer,
-		@Nullable Runnable onClose
+		@Nullable Runnable onClose,
+		@Nonnull WalKind walKind
 	) {
 		this.walFile = storageFolder.resolve(walFileNameProvider.apply(walFileIndex)).toFile();
 		this.walFileIndex = walFileIndex;
@@ -195,6 +204,7 @@ abstract sealed class AbstractMutationSupplier<T extends Mutation> implements Su
 		this.transactionLocationsCache = transactionLocationsCache;
 		this.avoidPartiallyFilledBuffer = avoidPartiallyFilledBuffer;
 		this.onClose = onClose;
+		this.walKind = walKind;
 		// WAL file must exist and have at least 4 bytes (minimum for a content length prefix)
 		if (!this.walFile.exists() || this.walFile.length() < 4) {
 			this.catalogKryoPool = catalogKryoPool;

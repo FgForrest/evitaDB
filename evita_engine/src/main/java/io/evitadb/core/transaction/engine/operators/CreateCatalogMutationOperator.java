@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,13 @@ import java.util.function.Consumer;
 
 /**
  * This operator creates a new catalog in the evitaDB engine based on the provided mutation.
+ *
+ * Forward-replay is intentionally **not** implemented here. The completion phase depends on a `CatalogContract`
+ * instance returned by `evita.createCatalog(...)`, whose side-effect work (folder creation, initial kryo
+ * serialization of the catalog schema) happens inside the work phase. Re-running `evita.createCatalog` on an
+ * already-existing folder during forward replay would either throw or produce a different identity, so we prefer to
+ * wedge the engine loudly (via the default `Optional.empty()` in `EngineMutationOperator`) and let an operator decide
+ * how to proceed rather than risk silent corruption.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
