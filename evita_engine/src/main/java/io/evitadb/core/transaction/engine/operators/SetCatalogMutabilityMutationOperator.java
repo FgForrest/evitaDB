@@ -126,6 +126,12 @@ public class SetCatalogMutabilityMutationOperator
 	 * `setReadOnly(true/false)` a second time is a no-op, and the `ExpandedEngineState.Builder` tolerates adding /
 	 * removing a catalog name from the set when it is already present / absent. Safe to replay.
 	 *
+	 * The `theCatalog.setReadOnly(...)` call is the canonical example of the *idempotent in-memory toggle on an
+	 * already-open Catalog instance* allowed by the `replayCompletionState` contract: it neither opens nor closes
+	 * a lifecycle resource and is a no-op when re-applied, but it is also the only way to make the live in-memory
+	 * Catalog consistent with the replayed engine-state snapshot (the original work phase flipped the flag before
+	 * the crash, so without this toggle the live instance would diverge from the rebuilt state).
+	 *
 	 * If the catalog referenced by the mutation is not present as a live `Catalog` at replay time (e.g., it is still
 	 * loading asynchronously), we return `Optional.empty()` so the transaction manager wedges rather than applying
 	 * an inconsistent snapshot.
@@ -144,7 +150,9 @@ public class SetCatalogMutabilityMutationOperator
 			// Forward-replay is not safe when the catalog is not yet a live instance — wedge.
 			return Optional.empty();
 		}
-		// Idempotent: repeated `setReadOnly` calls with the same flag are a no-op.
+		// Idempotent in-memory toggle on the already-open Catalog instance — the only way to make the
+		// live in-memory representation consistent with the replayed snapshot. Allowed by the
+		// `replayCompletionState` contract (see `EngineMutationOperator#replayCompletionState`).
 		theCatalog.setReadOnly(!mutation.isMutable());
 		final ExpandedEngineState.Builder builder = ExpandedEngineState
 			.builder(currentState)

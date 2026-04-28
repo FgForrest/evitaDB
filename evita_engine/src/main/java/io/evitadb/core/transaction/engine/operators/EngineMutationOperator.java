@@ -127,13 +127,22 @@ public interface EngineMutationOperator<S, T extends EngineMutation<S>> {
 	 *
 	 * Contract:
 	 *
-	 * - Implementations **must not** perform writes to disk, emit CDC/metric events, open or
-	 *   close catalog instances, or mutate any external state. The only purpose is to rebuild
-	 *   the `ExpandedEngineState` that the original `applyMutation` completion updater would
-	 *   have produced.
+	 * - Implementations **must not** perform writes to disk, emit CDC/metric events, open new
+	 *   catalog instances, or close existing ones. The work phase already happened in the
+	 *   crashed run, so duplicating those side effects would either corrupt on-disk state or
+	 *   double-emit observability records.
+	 * - Implementations **may** apply *idempotent* in-memory toggles to already-open Catalog
+	 *   instances when the toggle is the only way to make the live in-memory representation
+	 *   consistent with the replayed engine-state snapshot (e.g., flipping a `readOnly` flag
+	 *   that the original work phase already flipped on the live instance before the crash).
+	 *   Such toggles must be no-ops when re-applied, must not allocate new lifecycle resources
+	 *   (no opens/closes), and must not produce externally observable side effects beyond the
+	 *   in-memory flag flip.
 	 * - Implementations **may** read already-persisted state (e.g., load a catalog instance
 	 *   from a folder that is known to exist on disk because the work phase wrote it before the
 	 *   crash).
+	 * - The primary purpose remains rebuilding the `ExpandedEngineState` that the original
+	 *   `applyMutation` completion updater would have produced.
 	 * - Returning `Optional.empty()` (the default) signals that this mutation type does not
 	 *   support forward replay safely. The transaction manager will then log a loud error and
 	 *   wedge the engine rather than silently proceeding — this is intentional, because silent

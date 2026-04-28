@@ -1179,8 +1179,9 @@ public final class Evita implements EvitaContract {
 		// If such an exception reaches us here we must NOT synthesize a mutation with nonsense
 		// version numbers — writing `UpgradeCatalogFormatMutation(name, -1, -1)` into the engine
 		// WAL would leave a malformed record that cannot be replayed. Fall back to marking the
-		// catalog CORRUPTED so the operator can intervene.
-		if (upgradeRequired.getFromProtocolVersion() <= 0 || upgradeRequired.getToProtocolVersion() <= 0) {
+		// catalog CORRUPTED so the operator can intervene. Predicate lives on the exception so the
+		// guard is unit-testable independently of the Evita instance.
+		if (!upgradeRequired.hasValidProtocolMetadata()) {
 			log.error(
 				"Catalog {} reported as requiring storage-protocol upgrade but with invalid " +
 					"version metadata (from=v{}, to=v{}) — marking CORRUPTED instead of issuing a " +
@@ -1197,6 +1198,13 @@ public final class Evita implements EvitaContract {
 				"UpgradeCatalogFormatMutation.",
 			catalogName, upgradeRequired.getFromProtocolVersion(), upgradeRequired.getToProtocolVersion()
 		);
+		// Fire-and-forget is intentional: the resulting future is not tracked by `initialLoadCatalogFutures`
+		// because the lifecycle is bounded by `serviceExecutor`, which `closeAndDestroy()` shuts down after the
+		// catalogs are closed. An in-flight upgrade therefore either completes before close (the engine ingests
+		// the mutation through the normal `applyMutation` path, the retry installs the live Catalog) or is
+		// interrupted/cancelled by executor shutdown — in either case there is no shutdown race that could
+		// corrupt on-disk state. The applyMutation call itself is durable through the WAL, so a partial
+		// completion still leaves a recoverable on-disk snapshot.
 		CompletableFuture.runAsync(
 			() -> {
 				try {
@@ -1238,19 +1246,21 @@ public final class Evita implements EvitaContract {
 	 * the regular `EngineTransactionManager.applyMutation` path so each reconciliation step produces a WAL record,
 	 * advances the engine version, and is observable through CDC.
 	 *
-	 * Apply order matters:
+	 * Apply order matters and is enforced by phasing:
 	 *
-	 * 1. `becomeMissing` — `MarkCatalogMissingMutation` for each name. Run first so that names freed from the
-	 *    active/inactive arrays cannot collide with subsequent `RestoreCatalogSchemaMutation` `verifyApplicability`
-	 *    checks for auto-discovered or reappeared catalogs.
-	 * 2. `reappeared` — `RestoreCatalogSchemaMutation` for each name. The broadened applicability rules and operator
-	 *    path (`Builder#withRestoredFromMissing`) handle the MISSING → INACTIVE bucket move.
-	 * 3. `autoDiscovered` — `RestoreCatalogSchemaMutation` for each name. Same operator path as flapping recovery;
-	 *    for unknown names the missing-bucket clearance is a no-op.
+	 * 1. Phase 1 — `becomeMissing`: `MarkCatalogMissingMutation` for each name. Drained to completion BEFORE phase 2
+	 *    is dispatched, so names freed from the active/inactive arrays cannot collide with subsequent
+	 *    `RestoreCatalogSchemaMutation` `verifyApplicability` checks for auto-discovered or reappeared catalogs.
+	 *    `applyMutation` only holds the engine-state lock during `verifyApplicability`/conflict-key registration —
+	 *    the actual state transition runs asynchronously after the lock is released — so synchronous awaiting at
+	 *    phase boundaries is what makes the ordering invariant load-bearing.
+	 * 2. Phase 2 — `reappeared` + `autoDiscovered`: `RestoreCatalogSchemaMutation` for each name. The two groups
+	 *    operate on disjoint name sets (a name cannot simultaneously reappear from the MISSING bucket and be newly
+	 *    auto-discovered), so they run in parallel.
 	 *
-	 * Each mutation is applied synchronously (we wait for its `onCompletion`) so the engine state is stable by the
-	 * time we exit. Failures wedge the boot loudly via `GenericEvitaInternalError` — silently degrading would mask
-	 * the WAL/engine-state drift this code is meant to prevent.
+	 * Each phase awaits its `onCompletion` futures so the engine state is stable by the time we exit. Failures wedge
+	 * the boot loudly via `GenericEvitaInternalError` — silently degrading would mask the WAL/engine-state drift
+	 * this code is meant to prevent.
 	 *
 	 * @param divergence divergence record returned by the persistence service; never null
 	 */
@@ -1260,32 +1270,46 @@ public final class Evita implements EvitaContract {
 				"Draining boot-time catalog inventory divergence: {} becomeMissing, {} reappeared, {} autoDiscovered.",
 				divergence.becomeMissing().size(), divergence.reappeared().size(), divergence.autoDiscovered().size()
 			);
-			final List<CompletableFuture<?>> waiters = new ArrayList<>(
-				divergence.becomeMissing().size() + divergence.reappeared().size() + divergence.autoDiscovered().size()
-			);
-			for (final String name : divergence.becomeMissing()) {
-				waiters.add(
-					this.engineTransactionManager
-						.applyMutation(new MarkCatalogMissingMutation(name), null)
-						.onCompletion().toCompletableFuture()
-				);
-			}
-			for (final String name : divergence.reappeared()) {
-				waiters.add(
-					this.engineTransactionManager
-						.applyMutation(new RestoreCatalogSchemaMutation(name), null)
-						.onCompletion().toCompletableFuture()
-				);
-			}
-			for (final String name : divergence.autoDiscovered()) {
-				waiters.add(
-					this.engineTransactionManager
-						.applyMutation(new RestoreCatalogSchemaMutation(name), null)
-						.onCompletion().toCompletableFuture()
-				);
-			}
 			try {
-				CompletableFuture.allOf(waiters.toArray(CompletableFuture[]::new)).join();
+				// Phase 1 — drain `becomeMissing` to completion before any restore is dispatched, so that
+				// `RestoreCatalogSchemaMutation.verifyApplicability` for phase 2 sees a state in which the
+				// soon-to-be-missing names have already been freed from the active/inactive arrays (and from
+				// their naming-convention slots).
+				if (!divergence.becomeMissing().isEmpty()) {
+					final List<CompletableFuture<?>> phase1 = new ArrayList<>(divergence.becomeMissing().size());
+					for (final String name : divergence.becomeMissing()) {
+						phase1.add(
+							this.engineTransactionManager
+								.applyMutation(new MarkCatalogMissingMutation(name), null)
+								.onCompletion().toCompletableFuture()
+						);
+					}
+					CompletableFuture.allOf(phase1.toArray(CompletableFuture[]::new)).join();
+				}
+				// Phase 2 — `reappeared` and `autoDiscovered` operate on disjoint name sets, so they can run
+				// in parallel. The broadened applicability rules and operator path (`Builder#withRestoredFromMissing`)
+				// handle the MISSING → INACTIVE bucket move for `reappeared`; for `autoDiscovered` names the
+				// missing-bucket clearance is a no-op.
+				final List<CompletableFuture<?>> phase2 = new ArrayList<>(
+					divergence.reappeared().size() + divergence.autoDiscovered().size()
+				);
+				for (final String name : divergence.reappeared()) {
+					phase2.add(
+						this.engineTransactionManager
+							.applyMutation(new RestoreCatalogSchemaMutation(name), null)
+							.onCompletion().toCompletableFuture()
+					);
+				}
+				for (final String name : divergence.autoDiscovered()) {
+					phase2.add(
+						this.engineTransactionManager
+							.applyMutation(new RestoreCatalogSchemaMutation(name), null)
+							.onCompletion().toCompletableFuture()
+					);
+				}
+				if (!phase2.isEmpty()) {
+					CompletableFuture.allOf(phase2.toArray(CompletableFuture[]::new)).join();
+				}
 			} catch (Throwable t) {
 				throw new GenericEvitaInternalError(
 					"Boot-time catalog-inventory-divergence reconciliation failed: " + ExceptionUtils.unwrapCompletionWrappers(t).getMessage(),
