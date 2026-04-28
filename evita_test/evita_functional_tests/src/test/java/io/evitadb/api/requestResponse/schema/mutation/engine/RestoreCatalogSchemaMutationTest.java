@@ -57,7 +57,7 @@ public class RestoreCatalogSchemaMutationTest {
 	}
 
 	/**
-	 * Tests for the broadened applicability rules introduced by this the mutation must
+	 * Tests for the broadened applicability rules introduced by this change: the mutation must
 	 * accept unknown catalog names (restore-from-backup, auto-discovery) and catalog names parked in
 	 * the {@link CatalogState#MISSING} bucket (flapping recovery), but reject any name in a live
 	 * (active/inactive/etc.) state to avoid clobbering existing data.

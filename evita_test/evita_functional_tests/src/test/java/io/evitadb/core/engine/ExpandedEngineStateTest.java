@@ -286,7 +286,7 @@ class ExpandedEngineStateTest {
 
 			// then — `withInFlightPlaceholder` preserves the active bucket; `withCatalog` demotes the
 			// UnusableCatalog to the inactive bucket (because it is not a runtime Catalog instance).
-			// This is the exact contrast that motivated adding `withInFlightPlaceholder` in .
+			// This is the exact contrast that motivated adding `withInFlightPlaceholder`.
 			assertArrayEquals(new String[]{"delta"}, viaWithInFlight.engineState().activeCatalogs());
 			assertArrayEquals(new String[0], viaWithInFlight.engineState().inactiveCatalogs());
 
