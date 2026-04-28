@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -114,6 +115,22 @@ public class UpgradeCatalogFormatMutation implements TopLevelCatalogSchemaMutati
 	public void verifyApplicability(@Nonnull EvitaContract evita) throws InvalidMutationException {
 		if (!evita.getCatalogNames().contains(this.catalogName)) {
 			throw new InvalidMutationException("Catalog `" + this.catalogName + "` doesn't exist!");
+		}
+		// Reject states for which a format upgrade is incoherent. `MISSING` has no on-disk data to upgrade;
+		// `BEING_UPGRADED` is already mid-upgrade and a duplicate mutation would race the in-flight one. Other
+		// states (notably `OUT_OF_DATE` and `ALIVE`) are valid triggers — `OUT_OF_DATE` is the auto-issue path,
+		// and a manual upgrade via the external API may target a catalog that is otherwise operational.
+		final CatalogState catalogState = evita.getCatalogState(this.catalogName).orElse(null);
+		if (catalogState == CatalogState.MISSING) {
+			throw new InvalidMutationException(
+				"Catalog `" + this.catalogName + "` is marked as MISSING — there is no on-disk data to upgrade!"
+			);
+		}
+		if (catalogState == CatalogState.BEING_UPGRADED) {
+			throw new InvalidMutationException(
+				"Catalog `" + this.catalogName + "` is already being upgraded — refusing to issue a duplicate " +
+					"upgrade mutation!"
+			);
 		}
 	}
 

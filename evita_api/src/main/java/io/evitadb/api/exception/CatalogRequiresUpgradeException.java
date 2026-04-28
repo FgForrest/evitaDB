@@ -103,4 +103,16 @@ public class CatalogRequiresUpgradeException extends EvitaInvalidUsageException 
 		this.fromProtocolVersion = fromProtocolVersion;
 		this.toProtocolVersion = toProtocolVersion;
 	}
+
+	/**
+	 * Whether both protocol versions carry concrete (non-sentinel) values. The single-arg constructor
+	 * defaults both to `-1` for reporting paths that do not inspect the on-disk header; the auto-upgrade
+	 * retry hook in `Evita` keys off this predicate to refuse synthesizing an `UpgradeCatalogFormatMutation`
+	 * with malformed version numbers (which would leave an unreplayable record in the engine WAL).
+	 *
+	 * @return {@code true} when both `fromProtocolVersion` and `toProtocolVersion` are positive
+	 */
+	public boolean hasValidProtocolMetadata() {
+		return this.fromProtocolVersion > 0 && this.toProtocolVersion > 0;
+	}
 }

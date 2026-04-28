@@ -27,6 +27,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -69,5 +70,41 @@ class CatalogRequiresUpgradeExceptionTest {
 		assertTrue(message.contains(CATALOG), "Message must mention the catalog name; was: " + message);
 		assertTrue(message.contains("v4"), "Message must mention the from-protocol version; was: " + message);
 		assertTrue(message.contains("v5"), "Message must mention the to-protocol version; was: " + message);
+	}
+
+	@Test
+	@DisplayName("hasValidProtocolMetadata: false for single-arg ctor (sentinel -1 versions)")
+	void shouldReturnFalseFromHasValidProtocolMetadataWhenSingleArgCtorUsed() {
+		// The auto-upgrade hook in `Evita#scheduleStorageProtocolUpgradeAndRetry` consults this
+		// predicate to decide between issuing an `UpgradeCatalogFormatMutation` and falling back
+		// to `markCatalogCorrupted`. The sentinel `-1, -1` payload from the single-arg ctor must
+		// route to the CORRUPTED fallback so the engine WAL never receives a malformed mutation.
+		assertFalse(new CatalogRequiresUpgradeException(CATALOG).hasValidProtocolMetadata());
+	}
+
+	@Test
+	@DisplayName("hasValidProtocolMetadata: true for three-arg ctor with positive versions")
+	void shouldReturnTrueFromHasValidProtocolMetadataWhenThreeArgCtorUsedWithPositiveVersions() {
+		// Concrete versions read from the on-disk header — the auto-upgrade hook may safely synthesize
+		// `UpgradeCatalogFormatMutation(name, from, to)` because both numbers refer to real protocols.
+		assertTrue(new CatalogRequiresUpgradeException(CATALOG, 4, 5).hasValidProtocolMetadata());
+	}
+
+	@Test
+	@DisplayName("hasValidProtocolMetadata: false when only fromProtocolVersion is non-positive")
+	void shouldReturnFalseFromHasValidProtocolMetadataWhenFromVersionIsNonPositive() {
+		// Defensive: even if the thrower somehow filled `to` but left `from` at the sentinel, the
+		// guard must still route to CORRUPTED rather than emit `UpgradeCatalogFormatMutation(name, -1, 5)`.
+		assertFalse(new CatalogRequiresUpgradeException(CATALOG, -1, 5).hasValidProtocolMetadata());
+		assertFalse(new CatalogRequiresUpgradeException(CATALOG, 0, 5).hasValidProtocolMetadata());
+	}
+
+	@Test
+	@DisplayName("hasValidProtocolMetadata: false when only toProtocolVersion is non-positive")
+	void shouldReturnFalseFromHasValidProtocolMetadataWhenToVersionIsNonPositive() {
+		// Symmetric to the previous case — guard against half-populated payloads that would cause
+		// the engine WAL to receive an unreplayable `UpgradeCatalogFormatMutation(name, 4, -1)`.
+		assertFalse(new CatalogRequiresUpgradeException(CATALOG, 4, -1).hasValidProtocolMetadata());
+		assertFalse(new CatalogRequiresUpgradeException(CATALOG, 4, 0).hasValidProtocolMetadata());
 	}
 }

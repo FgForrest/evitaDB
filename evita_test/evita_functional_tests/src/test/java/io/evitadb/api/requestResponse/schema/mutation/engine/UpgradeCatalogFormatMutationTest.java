@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.engine;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -48,8 +50,9 @@ import static org.mockito.Mockito.when;
  *
  * Coverage targets:
  *
- * - the `verifyApplicability` accept/reject decision (the only contract is "the catalog must be known to the engine"
- *   — the operator handles state-machine transitions),
+ * - the `verifyApplicability` accept/reject decision: the catalog must be known to the engine, and its state must
+ *   not be one of the incoherent states for an upgrade (`MISSING` — no on-disk data; `BEING_UPGRADED` — already
+ *   mid-upgrade). Other operational states (notably `OUT_OF_DATE` and `ALIVE`) are accepted as valid triggers,
  * - the `mutate` carry-through during the `OUT_OF_DATE → BEING_UPGRADED` mid-load window: the schema is forwarded
  *   unchanged when the catalog is still in memory, and `null` is returned when the schema reference is gone,
  * - operational metadata: protocol-version getters, `Operation.UPSERT`, `getProgressResultType` and `toString`.
@@ -68,13 +71,30 @@ public class UpgradeCatalogFormatMutationTest {
 	class VerifyApplicability {
 
 		@Test
-		@DisplayName("should accept catalog known to the engine regardless of its current state")
-		void shouldAcceptKnownCatalog() {
-			// The mutation does not branch on the current state — the operator handles the
-			// `OUT_OF_DATE → BEING_UPGRADED → <prior state>` transition. The API-level check
-			// only guards against unknown catalog names.
+		@DisplayName("should accept catalog in OUT_OF_DATE state (auto-upgrade trigger)")
+		void shouldAcceptCatalogInOutOfDateState() {
+			// `OUT_OF_DATE` is the canonical trigger for the auto-upgrade flow — the load path emits
+			// `CatalogRequiresUpgradeException`, the engine schedules an `UpgradeCatalogFormatMutation`,
+			// and `verifyApplicability` must wave it through.
 			final EvitaContract evita = mock(EvitaContract.class);
 			when(evita.getCatalogNames()).thenReturn(Set.of(CATALOG_NAME));
+			when(evita.getCatalogState(CATALOG_NAME)).thenReturn(Optional.of(CatalogState.OUT_OF_DATE));
+
+			assertDoesNotThrow(
+				() -> new UpgradeCatalogFormatMutation(CATALOG_NAME, FROM_PROTOCOL_VERSION, TO_PROTOCOL_VERSION)
+					.verifyApplicability(evita)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept catalog in ALIVE state (manual external-API trigger)")
+		void shouldAcceptCatalogInAliveState() {
+			// A manual upgrade dispatched via the external API may target a catalog that is otherwise
+			// operational (e.g., the operator is forcing a protocol bump ahead of the lazy trigger).
+			// The mutation must allow this — only `MISSING`/`BEING_UPGRADED` are incoherent.
+			final EvitaContract evita = mock(EvitaContract.class);
+			when(evita.getCatalogNames()).thenReturn(Set.of(CATALOG_NAME));
+			when(evita.getCatalogState(CATALOG_NAME)).thenReturn(Optional.of(CatalogState.ALIVE));
 
 			assertDoesNotThrow(
 				() -> new UpgradeCatalogFormatMutation(CATALOG_NAME, FROM_PROTOCOL_VERSION, TO_PROTOCOL_VERSION)
@@ -96,6 +116,50 @@ public class UpgradeCatalogFormatMutationTest {
 					.verifyApplicability(evita)
 			);
 			assertEquals("Catalog `" + CATALOG_NAME + "` doesn't exist!", exception.getMessage());
+		}
+
+		@Test
+		@DisplayName("should reject catalog in MISSING state (no on-disk data to upgrade)")
+		void shouldRejectCatalogInMissingState() {
+			// MISSING means the on-disk folder is gone; an upgrade has nothing to operate on.
+			// Reject loudly rather than silently appending a no-op WAL entry that would advance the
+			// engine version for an operation that cannot succeed.
+			final EvitaContract evita = mock(EvitaContract.class);
+			when(evita.getCatalogNames()).thenReturn(Set.of(CATALOG_NAME));
+			when(evita.getCatalogState(CATALOG_NAME)).thenReturn(Optional.of(CatalogState.MISSING));
+
+			final InvalidMutationException exception = assertThrows(
+				InvalidMutationException.class,
+				() -> new UpgradeCatalogFormatMutation(CATALOG_NAME, FROM_PROTOCOL_VERSION, TO_PROTOCOL_VERSION)
+					.verifyApplicability(evita)
+			);
+			assertEquals(
+				"Catalog `" + CATALOG_NAME + "` is marked as MISSING — there is no on-disk data to upgrade!",
+				exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should reject catalog already in BEING_UPGRADED state (duplicate upgrade)")
+		void shouldRejectCatalogAlreadyBeingUpgraded() {
+			// BEING_UPGRADED is the transient state held while an in-flight upgrade is running.
+			// Issuing a second upgrade mutation for the same catalog would race the in-flight one and
+			// could leave the on-disk header in an inconsistent state — surface it as an applicability
+			// failure instead.
+			final EvitaContract evita = mock(EvitaContract.class);
+			when(evita.getCatalogNames()).thenReturn(Set.of(CATALOG_NAME));
+			when(evita.getCatalogState(CATALOG_NAME)).thenReturn(Optional.of(CatalogState.BEING_UPGRADED));
+
+			final InvalidMutationException exception = assertThrows(
+				InvalidMutationException.class,
+				() -> new UpgradeCatalogFormatMutation(CATALOG_NAME, FROM_PROTOCOL_VERSION, TO_PROTOCOL_VERSION)
+					.verifyApplicability(evita)
+			);
+			assertEquals(
+				"Catalog `" + CATALOG_NAME + "` is already being upgraded — refusing to issue a duplicate " +
+					"upgrade mutation!",
+				exception.getMessage()
+			);
 		}
 
 	}
