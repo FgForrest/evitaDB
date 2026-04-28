@@ -176,15 +176,20 @@ public class EngineTransactionManager implements Closeable {
 	 * already at `stateV + 1` invites the next `appendWalAndStoreState` call to try to append at
 	 * `stateV + 1` again — duplicating (or clobbering) the crashed mutation. A loud fail-fast is
 	 * always better than silent corruption, so we gate every mutation entry on this flag.
+	 *
+	 * Marked `volatile` defensively: today the flag is only set during construction (so safe
+	 * publication via the constructor's happens-before is sufficient), but `volatile` hardens
+	 * the field against future refactorings that move wedge-setting onto a runtime path.
 	 */
-	private boolean wedged;
+	private volatile boolean wedged;
 
 	/**
 	 * Human-readable reason captured at the moment the engine was wedged, surfaced verbatim in the
 	 * exception thrown from `applyMutation` so operators can see exactly which crashed mutation
-	 * tripped the recovery and why replay could not proceed.
+	 * tripped the recovery and why replay could not proceed. Marked `volatile` for the same reason
+	 * as `wedged`.
 	 */
-	@Nullable private String wedgeReason;
+	@Nullable private volatile String wedgeReason;
 
 	/**
 	 * Convenience constructor used by tests and standalone code paths that do not exercise the per-catalog
@@ -582,13 +587,7 @@ public class EngineTransactionManager implements Closeable {
 		// the WAL already contains the committed mutation at walVersion.
 		final EngineState<LogRecordReference> finalEngineState =
 			replayedEngineState.engineState(replayWalReference, walVersion);
-		// The field `enginePersistenceService` is intentionally a raw type (preserving the legacy
-		// binary signature); invoke through the raw reference so no generic argument needs to be
-		// inferred. Runtime behaviour is identical because the generic parameter erases to
-		// `LogRecordReference` anyway.
-		@SuppressWarnings({"rawtypes"}) final EnginePersistenceService rawService = this.enginePersistenceService;
-		//noinspection unchecked
-		rawService.rewriteEngineStateAtNextVersion(finalEngineState);
+		this.enginePersistenceService.rewriteEngineStateAtNextVersion(finalEngineState);
 
 		this.lastStoredEngineStateVersion = walVersion;
 		this.evita.setNextEngineState(replayedEngineState);
