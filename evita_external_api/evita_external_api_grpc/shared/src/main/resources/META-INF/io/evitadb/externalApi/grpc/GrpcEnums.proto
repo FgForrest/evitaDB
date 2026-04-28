@@ -42,6 +42,17 @@ enum GrpcCatalogState {
   // State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
   // is removed from the file system and is no longer available.
   BEING_DELETED = 9;
+  // State signalizing that a catalog previously registered with the engine no longer has an on-disk folder.
+  // The engine records this divergence via `MarkCatalogMissingMutation` so it can be diagnosed and later
+  // recovered via auto-discovery or operator action.
+  MISSING = 10;
+  // State signalizing that the catalog's on-disk storage protocol is older than the engine supports.
+  // Reads and writes are refused until the catalog has been upgraded via `UpgradeCatalogFormatMutation`.
+  OUT_OF_DATE = 11;
+  // State signalizing that the catalog is currently being upgraded from an older storage protocol
+  // to the one the engine supports. Transient state entered while an `UpgradeCatalogFormatMutation`
+  // is running; the completion phase returns the catalog to its prior operational state.
+  BEING_UPGRADED = 12;
   // Unknown state of the catalog. Used when catalog is corrupted.
   UNKNOWN_CATALOG_STATE = 2;
 }

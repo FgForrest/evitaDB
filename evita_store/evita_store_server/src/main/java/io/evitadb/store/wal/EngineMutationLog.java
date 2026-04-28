@@ -39,6 +39,7 @@ import io.evitadb.core.metric.event.transaction.WalCacheSizeChangedEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
 import io.evitadb.core.metric.event.transaction.WalStatisticsEvent;
 import io.evitadb.spi.store.catalog.wal.model.EngineTransactionChanges;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.wal.supplier.MutationSupplier;
@@ -118,7 +119,8 @@ public class EngineMutationLog extends AbstractMutationLog<EngineMutation<?>> {
 			storageFolder,
 			kryoPool,
 			storageSettings,
-			scheduler
+			scheduler,
+			WalKind.ENGINE
 		);
 	}
 

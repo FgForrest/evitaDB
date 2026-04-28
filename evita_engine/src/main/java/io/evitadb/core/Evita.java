@@ -38,6 +38,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.exception.CatalogNotFoundException;
+import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.ReadOnlyException;
 import io.evitadb.api.observability.trace.TracingContext;
@@ -56,11 +57,13 @@ import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilde
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
@@ -92,12 +95,14 @@ import io.evitadb.core.session.SuspendOperation;
 import io.evitadb.core.session.SuspensionInformation;
 import io.evitadb.core.session.task.SessionKiller;
 import io.evitadb.core.transaction.engine.EngineTransactionManager;
+import io.evitadb.core.transaction.engine.operators.DefaultUpgradeExecutor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
 import io.evitadb.spi.store.engine.model.EngineState;
+import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -112,10 +117,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ServiceLoader;
@@ -209,7 +216,7 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Transaction manager that is responsible for managing engine transactions in the evitaDB engine.
 	 */
-	private final EngineTransactionManager engineTransactionManager;
+	@Getter private final EngineTransactionManager engineTransactionManager;
 	/**
 	 * Contains the main evitaDB management service.
 	 */
@@ -361,7 +368,11 @@ public final class Evita implements EvitaContract {
 			engineState.activeCatalogs().length + engineState.inactiveCatalogs().length
 		);
 
-		// register stubs for all inactive catalogs
+		// Install pre-divergence stubs for everything the persisted state knows about. The boot-time
+		// divergence drain below uses `EngineTransactionManager` to apply WAL-backed mutations that
+		// will replace the relevant stubs (active/inactive catalogs whose folder vanished get an
+		// `UnusableCatalog(MISSING)` placeholder; folders that came back / were auto-discovered get an
+		// `UnusableCatalog(INACTIVE)` placeholder) before the catalog load futures are spawned.
 		Arrays.stream(engineState.inactiveCatalogs())
 		      .map(
 			      it -> new UnusableCatalog(
@@ -371,30 +382,18 @@ public final class Evita implements EvitaContract {
 			      )
 		      )
 		      .forEach(it -> catalogs.put(it.getName(), it));
+		Arrays.stream(engineState.activeCatalogs())
+		      .map(
+			      it -> new UnusableCatalog(
+				      it, CatalogState.BEING_ACTIVATED,
+				      this.configuration.storage().storageDirectory().resolve(it),
+				      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
+			      )
+		      )
+		      .forEach(it -> catalogs.put(it.getName(), it));
 
-		// spawn parallel tasks to load all active catalogs, but don't wait for them to finish
-		//noinspection unchecked
-		this.initialLoadCatalogFutures = new AtomicReference<>(
-			Arrays.stream(engineState.activeCatalogs())
-			      .map(catalogName -> {
-				      catalogs.put(
-					      catalogName,
-					      new UnusableCatalog(
-						      catalogName,
-						      CatalogState.BEING_ACTIVATED,
-						      this.configuration.storage().storageDirectory().resolve(catalogName),
-						      (cn, path) -> new CatalogTransitioningException(cn, path, CatalogState.BEING_ACTIVATED)
-					      )
-				      );
-					  return this.loadCatalogInternal(
-						  catalogName,
-						  ArrayUtils.computeInsertPositionOfObjInOrderedArray(catalogName, engineState.readOnlyCatalogs())
-						            .alreadyPresent()
-					  );
-			      })
-			      .toArray(ProgressingFuture[]::new)
-		);
-		// now init state with catalog stubs
+		// initialize engine state with the pre-divergence stubs so the transaction manager has a
+		// consistent view to mutate during the divergence drain.
 		this.engineState.set(
 			ExpandedEngineState.create(
 				engineState,
@@ -410,7 +409,31 @@ public final class Evita implements EvitaContract {
 		);
 
 		this.engineTransactionManager = new EngineTransactionManager(
-			this, this.changeObserver, this.transactionExecutor, enginePersistenceService
+			this, this.changeObserver, this.transactionExecutor, enginePersistenceService,
+			new DefaultUpgradeExecutor(
+				this.configuration.storage(), this.configuration.transaction(),
+				this.serviceExecutor, this.management.exportService()
+			)
+		);
+
+		// Drain catalog inventory divergence detected during persistence-service construction. Each entry produces
+		// a WAL record and bumps the engine version, so boot-time reconciliation flows through the same WAL-first
+		// path as runtime mutations and is observable through CDC.
+		drainPendingCatalogInventoryDivergence(enginePersistenceService.getPendingCatalogInventoryDivergence());
+
+		// Spawn catalog load futures from the POST-divergence active catalogs — names that became
+		// MISSING above are no longer in the active list and must NOT be loaded.
+		final ExpandedEngineState postDivergence = this.engineState.get();
+		//noinspection unchecked
+		this.initialLoadCatalogFutures = new AtomicReference<>(
+			Arrays.stream(postDivergence.engineState().activeCatalogs())
+			      .map(catalogName -> this.loadCatalogInternal(
+				      catalogName,
+				      ArrayUtils.computeInsertPositionOfObjInOrderedArray(
+					      catalogName, postDivergence.engineState().readOnlyCatalogs()
+				      ).alreadyPresent()
+			      ))
+			      .toArray(ProgressingFuture[]::new)
 		);
 
 		this.fullyInitialized = CompletableFuture.allOf(
@@ -1054,10 +1077,40 @@ public final class Evita implements EvitaContract {
 	 * Loads catalog from the designated directory. If the catalog is corrupted, it will be marked as such, but it'll
 	 * still be added to the list of catalogs.
 	 *
+	 * **Auto-upgrade of old-protocol catalogs:** when the underlying persistence service throws
+	 * {@link CatalogRequiresUpgradeException} — signalling that the on-disk storage protocol is older than the engine
+	 * supports — this method schedules an asynchronous upgrade flow instead of marking the catalog CORRUPTED: it
+	 * issues an `UpgradeCatalogFormatMutation` through the engine transaction manager, and on that mutation's
+	 * completion re-invokes the load (exactly once). The real `Catalog` is installed via the `replaceCatalogReference`
+	 * side-effect when the retry succeeds. The first-attempt future still completes exceptionally, but boot continues
+	 * normally because the retry runs in the background and does not block `fullyInitialized`.
+	 *
 	 * @param catalogName name of the catalog
+	 * @param readOnly    when {@code true} the catalog is opened in read-only mode
+	 * @return future that completes with the loaded {@link Catalog} instance
 	 */
 	@Nonnull
 	public ProgressingFuture<Catalog> loadCatalogInternal(@Nonnull String catalogName, boolean readOnly) {
+		return loadCatalogInternal(catalogName, readOnly, LoadMode.INITIAL);
+	}
+
+	/**
+	 * See {@link #loadCatalogInternal(String, boolean)}. The {@code mode} discriminates between the
+	 * initial load and the auto-upgrade retry path: {@link LoadMode#RETRY_AFTER_UPGRADE} prevents
+	 * infinite retry loops by treating a second `CatalogRequiresUpgradeException` (after an upgrade
+	 * mutation has already run) as a terminal failure that marks the catalog CORRUPTED.
+	 *
+	 * @param catalogName name of the catalog
+	 * @param readOnly    when {@code true} the catalog is opened in read-only mode
+	 * @param mode        load mode — {@link LoadMode#INITIAL} for first attempts (auto-upgrade
+	 *                    enabled), {@link LoadMode#RETRY_AFTER_UPGRADE} for the post-upgrade retry
+	 *                    (auto-upgrade disabled)
+	 * @return future that completes with the loaded {@link Catalog} instance
+	 */
+	@Nonnull
+	private ProgressingFuture<Catalog> loadCatalogInternal(
+		@Nonnull String catalogName, boolean readOnly, @Nonnull LoadMode mode
+	) {
 		final long start = System.nanoTime();
 		return Catalog.loadCatalog(
 			catalogName,
@@ -1090,28 +1143,208 @@ public final class Evita implements EvitaContract {
 				this.emitCatalogStatistics(catalogName);
 			},
 			(cn, exception) -> {
+				final Throwable cause = ExceptionUtils.unwrapCompletionWrappers(exception);
+				if (mode == LoadMode.INITIAL && cause instanceof CatalogRequiresUpgradeException upgradeRequired) {
+					scheduleStorageProtocolUpgradeAndRetry(cn, readOnly, upgradeRequired);
+					// Deliberately skip the CORRUPTED marking — the retry path will install the
+					// real Catalog (or mark CORRUPTED itself if the upgrade mutation fails).
+					return;
+				}
 				log.error("Catalog {} is corrupted!", cn, exception);
-				this.engineState.updateAndGet(
-					existingState -> {
-						if (existingState == null) {
-							// may be null, when the engine is shutting down
-							return null;
-						} else {
-							return existingState.withUpdatedCatalogInstance(
-								new UnusableCatalog(
-									cn,
-									CatalogState.CORRUPTED,
-									this.configuration.storage().storageDirectory().resolve(cn),
-									(tcn, path) -> new CatalogCorruptedException(tcn, path, exception)
-								)
-							);
-						}
-					}
-				);
-				this.emitEvitaStatistics();
+				markCatalogCorrupted(cn, exception);
 			},
 			this.tracingContext
 		);
+	}
+
+	/**
+	 * Auto-upgrade driver invoked from `loadCatalogInternal`'s onFailure callback when the
+	 * persistence service reports that the catalog's on-disk storage protocol is behind the
+	 * engine's current version. Issues an `UpgradeCatalogFormatMutation` and, once it settles,
+	 * re-invokes the load exactly once. See class-level JavaDoc on {@link #loadCatalogInternal}.
+	 *
+	 * Runs asynchronously on the service executor so it does not stall the failure callback's
+	 * thread (which typically belongs to the transaction/request executor).
+	 *
+	 * @param catalogName     name of the catalog to upgrade and reload
+	 * @param readOnly        propagated to the retried load — same value the original load used
+	 * @param upgradeRequired the upgrade-required exception carrying the from/to protocol versions
+	 */
+	private void scheduleStorageProtocolUpgradeAndRetry(
+		@Nonnull String catalogName, boolean readOnly,
+		@Nonnull CatalogRequiresUpgradeException upgradeRequired
+	) {
+		// Defensive guard — the single-arg `CatalogRequiresUpgradeException(name)` ctor sets both
+		// protocol versions to -1 (used by reporting paths that do not inspect the on-disk header).
+		// If such an exception reaches us here we must NOT synthesize a mutation with nonsense
+		// version numbers — writing `UpgradeCatalogFormatMutation(name, -1, -1)` into the engine
+		// WAL would leave a malformed record that cannot be replayed. Fall back to marking the
+		// catalog CORRUPTED so the operator can intervene. Predicate lives on the exception so the
+		// guard is unit-testable independently of the Evita instance.
+		if (!upgradeRequired.hasValidProtocolMetadata()) {
+			log.error(
+				"Catalog {} reported as requiring storage-protocol upgrade but with invalid " +
+					"version metadata (from=v{}, to=v{}) — marking CORRUPTED instead of issuing a " +
+					"malformed UpgradeCatalogFormatMutation.",
+				catalogName,
+				upgradeRequired.getFromProtocolVersion(),
+				upgradeRequired.getToProtocolVersion()
+			);
+			markCatalogCorrupted(catalogName, upgradeRequired);
+			return;
+		}
+		log.info(
+			"Catalog {} requires storage-protocol upgrade from v{} to v{} — auto-issuing " +
+				"UpgradeCatalogFormatMutation.",
+			catalogName, upgradeRequired.getFromProtocolVersion(), upgradeRequired.getToProtocolVersion()
+		);
+		// Fire-and-forget is intentional: the resulting future is not tracked by `initialLoadCatalogFutures`
+		// because the lifecycle is bounded by `serviceExecutor`, which `closeAndDestroy()` shuts down after the
+		// catalogs are closed. An in-flight upgrade therefore either completes before close (the engine ingests
+		// the mutation through the normal `applyMutation` path, the retry installs the live Catalog) or is
+		// interrupted/cancelled by executor shutdown — in either case there is no shutdown race that could
+		// corrupt on-disk state. The applyMutation call itself is durable through the WAL, so a partial
+		// completion still leaves a recoverable on-disk snapshot.
+		CompletableFuture.runAsync(
+			() -> {
+				try {
+					this.engineTransactionManager.applyMutation(
+						new UpgradeCatalogFormatMutation(
+							catalogName,
+							upgradeRequired.getFromProtocolVersion(),
+							upgradeRequired.getToProtocolVersion()
+						),
+						null
+					)
+						.onCompletion()
+						.toCompletableFuture()
+						.join();
+				} catch (Throwable upgradeEx) {
+					log.error(
+						"Auto-upgrade of catalog {} failed — marking CORRUPTED.",
+						catalogName, upgradeEx
+					);
+					markCatalogCorrupted(catalogName, upgradeEx);
+					return;
+				}
+				// Mutation completed — retry the load exactly once (RETRY_AFTER_UPGRADE ensures
+				// that a second CatalogRequiresUpgradeException marks CORRUPTED instead of looping).
+				final ProgressingFuture<Catalog> retryFuture = loadCatalogInternal(
+					catalogName, readOnly, LoadMode.RETRY_AFTER_UPGRADE
+				);
+				retryFuture.execute(
+					ProgressingFuture.unrejectableExecutor(this.engineTransactionManager.getExecutor())
+				);
+			},
+			this.serviceExecutor
+		);
+	}
+
+	/**
+	 * Drains the boot-time catalog inventory divergence by applying one WAL-backed engine mutation per entry. The
+	 * persistence service computed this divergence as a pure value during its construction; here we replay it through
+	 * the regular `EngineTransactionManager.applyMutation` path so each reconciliation step produces a WAL record,
+	 * advances the engine version, and is observable through CDC.
+	 *
+	 * Apply order matters and is enforced by phasing:
+	 *
+	 * 1. Phase 1 — `becomeMissing`: `MarkCatalogMissingMutation` for each name. Drained to completion BEFORE phase 2
+	 *    is dispatched, so names freed from the active/inactive arrays cannot collide with subsequent
+	 *    `RestoreCatalogSchemaMutation` `verifyApplicability` checks for auto-discovered or reappeared catalogs.
+	 *    `applyMutation` only holds the engine-state lock during `verifyApplicability`/conflict-key registration —
+	 *    the actual state transition runs asynchronously after the lock is released — so synchronous awaiting at
+	 *    phase boundaries is what makes the ordering invariant load-bearing.
+	 * 2. Phase 2 — `reappeared` + `autoDiscovered`: `RestoreCatalogSchemaMutation` for each name. The two groups
+	 *    operate on disjoint name sets (a name cannot simultaneously reappear from the MISSING bucket and be newly
+	 *    auto-discovered), so they run in parallel.
+	 *
+	 * Each phase awaits its `onCompletion` futures so the engine state is stable by the time we exit. Failures wedge
+	 * the boot loudly via `GenericEvitaInternalError` — silently degrading would mask the WAL/engine-state drift
+	 * this code is meant to prevent.
+	 *
+	 * @param divergence divergence record returned by the persistence service; never null
+	 */
+	private void drainPendingCatalogInventoryDivergence(@Nonnull CatalogInventoryDivergence divergence) {
+		if (!divergence.isEmpty()) {
+			log.info(
+				"Draining boot-time catalog inventory divergence: {} becomeMissing, {} reappeared, {} autoDiscovered.",
+				divergence.becomeMissing().size(), divergence.reappeared().size(), divergence.autoDiscovered().size()
+			);
+			try {
+				// Phase 1 — drain `becomeMissing` to completion before any restore is dispatched, so that
+				// `RestoreCatalogSchemaMutation.verifyApplicability` for phase 2 sees a state in which the
+				// soon-to-be-missing names have already been freed from the active/inactive arrays (and from
+				// their naming-convention slots).
+				if (!divergence.becomeMissing().isEmpty()) {
+					final List<CompletableFuture<?>> phase1 = new ArrayList<>(divergence.becomeMissing().size());
+					for (final String name : divergence.becomeMissing()) {
+						phase1.add(
+							this.engineTransactionManager
+								.applyMutation(new MarkCatalogMissingMutation(name), null)
+								.onCompletion().toCompletableFuture()
+						);
+					}
+					CompletableFuture.allOf(phase1.toArray(CompletableFuture[]::new)).join();
+				}
+				// Phase 2 — `reappeared` and `autoDiscovered` operate on disjoint name sets, so they can run
+				// in parallel. The broadened applicability rules and operator path (`Builder#withRestoredFromMissing`)
+				// handle the MISSING → INACTIVE bucket move for `reappeared`; for `autoDiscovered` names the
+				// missing-bucket clearance is a no-op.
+				final List<CompletableFuture<?>> phase2 = new ArrayList<>(
+					divergence.reappeared().size() + divergence.autoDiscovered().size()
+				);
+				for (final String name : divergence.reappeared()) {
+					phase2.add(
+						this.engineTransactionManager
+							.applyMutation(new RestoreCatalogSchemaMutation(name), null)
+							.onCompletion().toCompletableFuture()
+					);
+				}
+				for (final String name : divergence.autoDiscovered()) {
+					phase2.add(
+						this.engineTransactionManager
+							.applyMutation(new RestoreCatalogSchemaMutation(name), null)
+							.onCompletion().toCompletableFuture()
+					);
+				}
+				if (!phase2.isEmpty()) {
+					CompletableFuture.allOf(phase2.toArray(CompletableFuture[]::new)).join();
+				}
+			} catch (Throwable t) {
+				throw new GenericEvitaInternalError(
+					"Boot-time catalog-inventory-divergence reconciliation failed: " + ExceptionUtils.unwrapCompletionWrappers(t).getMessage(),
+					t
+				);
+			}
+		}
+	}
+
+	/**
+	 * Marks the specified catalog as CORRUPTED in the engine state. Extracted from the inline
+	 * onFailure callback so the auto-upgrade path can reuse the same terminal-failure bookkeeping
+	 * when a retry fails.
+	 *
+	 * @param catalogName name of the catalog to mark CORRUPTED
+	 * @param cause       the failure carried by the resulting {@link CatalogCorruptedException}
+	 */
+	private void markCatalogCorrupted(@Nonnull String catalogName, @Nonnull Throwable cause) {
+		this.engineState.updateAndGet(
+			existingState -> {
+				if (existingState == null) {
+					return null;
+				} else {
+					return existingState.withUpdatedCatalogInstance(
+						new UnusableCatalog(
+							catalogName,
+							CatalogState.CORRUPTED,
+							this.configuration.storage().storageDirectory().resolve(catalogName),
+							(tcn, path) -> new CatalogCorruptedException(tcn, path, cause)
+						)
+					);
+				}
+			}
+		);
+		this.emitEvitaStatistics();
 	}
 
 	/**
@@ -1479,6 +1712,29 @@ public final class Evita implements EvitaContract {
 		);
 		closedFuture.execute(ProgressingFuture.unrejectableExecutor(executor));
 		return closedFuture;
+	}
+
+	/**
+	 * Discriminator for {@link #loadCatalogInternal(String, boolean, LoadMode)} that distinguishes
+	 * the first load attempt from the post-upgrade retry. Exists so the auto-upgrade flow can suppress
+	 * a second auto-upgrade attempt and avoid infinite retry loops.
+	 */
+	private enum LoadMode {
+
+		/**
+		 * Initial load attempt — auto-upgrade is enabled. A {@link CatalogRequiresUpgradeException}
+		 * triggers an asynchronous `UpgradeCatalogFormatMutation` and a single retry under
+		 * {@link #RETRY_AFTER_UPGRADE}.
+		 */
+		INITIAL,
+
+		/**
+		 * Retry triggered by the auto-upgrade flow after an `UpgradeCatalogFormatMutation` has run.
+		 * Auto-upgrade is disabled — a second {@link CatalogRequiresUpgradeException} is treated as a
+		 * terminal failure and marks the catalog CORRUPTED.
+		 */
+		RETRY_AFTER_UPGRADE
+
 	}
 
 	/**

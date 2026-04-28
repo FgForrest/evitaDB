@@ -46,7 +46,7 @@ import java.util.UUID;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  * @see LogFileRecordReference
  * @see io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation
- * @see EnginePersistenceService#appendWal(long, UUID, EngineMutation)
+ * @see EnginePersistenceService#appendWalAndStoreState(long, UUID, EngineMutation, java.util.function.Function)
  */
 public record TransactionMutationWithWalFileReference(
 	@Nonnull LogFileRecordReference walReference,

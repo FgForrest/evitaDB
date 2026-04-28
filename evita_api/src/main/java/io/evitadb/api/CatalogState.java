@@ -127,6 +127,27 @@ public enum CatalogState {
 	BEING_CREATED(true, false),
 
 	/**
+	 * Catalog that was previously registered but whose on-disk folder is no longer present. No automatic recovery
+	 * is in progress; operator action or an explicit auto-discovery mutation is required to restore the catalog.
+	 */
+	MISSING(false, false),
+
+	/**
+	 * Catalog whose on-disk storage protocol is older than the engine supports. The data is present on disk but the
+	 * catalog cannot serve any requests until it is upgraded via `UpgradeCatalogFormatMutation`; access attempts
+	 * throw `CatalogRequiresUpgradeException`.
+	 */
+	OUT_OF_DATE(false, false),
+
+	/**
+	 * Catalog that is currently being upgraded from an older storage protocol to the one the engine supports.
+	 * Transient state held while `UpgradeCatalogFormatMutation` is running; on completion the catalog returns to its
+	 * prior operational state (typically `ALIVE`). Access attempts during the upgrade throw
+	 * `CatalogBeingUpgradedException` (transient).
+	 */
+	BEING_UPGRADED(false, false),
+
+	/**
 	 * State signalizing that evitaDB engine is deleting the catalog. When the operation is completed, the catalog
 	 * is removed from the file system and is no longer available.
 	 */

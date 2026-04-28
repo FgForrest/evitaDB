@@ -31,6 +31,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
@@ -53,6 +54,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumersListener;
+import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
@@ -1095,9 +1097,62 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Opens the catalog on disk strictly long enough to run any outstanding storage-protocol upgrade, then closes all
+	 * handles. This is the work-phase entry point used by the engine-level `UpgradeCatalogFormatMutationOperator`.
+	 * Normal callers must never use it.
+	 *
+	 * The method constructs a {@link UnusableCatalog} stub as the nominal {@link CatalogContract}
+	 * passed to the load ctor — the ctor's only use of that instance is to satisfy the
+	 * `verifyCatalogNameMatches` check, which never dereferences anything beyond `getName` on the
+	 * non-restore path. The `allowInlineV4ToV5Upgrade = true` flag unlocks the inline v4→v5 migration
+	 * inside `verifyAndUpgradeStorageFormat` that would otherwise throw
+	 * {@link CatalogRequiresUpgradeException}.
+	 *
+	 * @param catalogName        the catalog to upgrade
+	 * @param storageOptions     storage configuration options
+	 * @param transactionOptions transaction configuration options
+	 * @param scheduler          scheduler for background tasks
+	 * @param exportService      service for creating the pre-migration backup archive
+	 */
+	public static void runStorageProtocolUpgrade(
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportService exportService
+	) {
+		final Path catalogFolder = pathForCatalog(catalogName, storageOptions.storageDirectory());
+		final CatalogContract upgradeStub = new UnusableCatalog(
+			catalogName,
+			CatalogState.OUT_OF_DATE,
+			catalogFolder,
+			(cn, path) -> new IllegalStateException(
+				"Upgrade stub for catalog `" + cn + "` should not be queried — " +
+					"only used internally by runStorageProtocolUpgrade."
+			)
+		);
+		try (DefaultCatalogPersistenceService svc = new DefaultCatalogPersistenceService(
+			upgradeStub, catalogName, storageOptions, transactionOptions, scheduler, exportService, true
+		)) {
+			// ctor already ran the v4→v5 migration inline — try-with-resources releases handles.
+			// The body deliberately has no content; the work is a side effect of construction.
+			Assert.isPremiseValid(
+				svc.bootstrapUsed.storageProtocolVersion() == STORAGE_PROTOCOL_VERSION,
+				"Upgrade for catalog `" + catalogName + "` completed but bootstrap still reports " +
+					"storage protocol version " + svc.bootstrapUsed.storageProtocolVersion() +
+					" (expected " + STORAGE_PROTOCOL_VERSION + ")."
+			);
+		}
+	}
+
+	/**
 	 * Creates a new DefaultCatalogPersistenceService for a new or existing catalog with an in-memory instance.
 	 * Initializes storage settings (including checksum and compression factories), persists the catalog schema,
 	 * and sets up the WAL and data storage infrastructure.
+	 *
+	 * Delegates to the seven-arg overload with {@code allowInlineV4ToV5Upgrade = false} — the normal load path,
+	 * which throws {@link CatalogRequiresUpgradeException} on a v4 catalog so the engine can drive the upgrade
+	 * through the WAL-backed mutation flow.
 	 *
 	 * @param catalogInstance    the catalog instance to persist
 	 * @param catalogName        the name of the catalog
@@ -1113,6 +1168,39 @@ public class DefaultCatalogPersistenceService
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
+	) {
+		this(catalogInstance, catalogName, storageOptions, transactionOptions, scheduler, exportService, false);
+	}
+
+	/**
+	 * Full-control ctor that additionally lets the caller opt into an inline v4→v5 storage-protocol
+	 * upgrade. Used exclusively by {@link #runStorageProtocolUpgrade} (invoked by the engine-level
+	 * upgrade mutation operator). All other loads must use the shorter overload and get the
+	 * "throw {@link CatalogRequiresUpgradeException}" behavior.
+	 *
+	 * The flag name is deliberately verbose to distinguish this **inline** (same-thread, inside the
+	 * load ctor) upgrade path from the **out-of-band** upgrade driven by
+	 * {@link io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation}
+	 * through the engine WAL — both are "v4→v5 upgrades" but they execute in very different contexts.
+	 *
+	 * @param catalogInstance          the catalog instance to persist
+	 * @param catalogName              the name of the catalog
+	 * @param storageOptions           storage configuration including checksum and compression settings
+	 * @param transactionOptions       transaction configuration for memory buffers and WAL settings
+	 * @param scheduler                scheduler for background tasks
+	 * @param exportService            service for exporting catalog data
+	 * @param allowInlineV4ToV5Upgrade when {@code true} the v4→v5 WAL rewrite runs inline during
+	 *                                 load; when {@code false} a v4 catalog triggers
+	 *                                 {@link CatalogRequiresUpgradeException}
+	 */
+	public DefaultCatalogPersistenceService(
+		@Nonnull CatalogContract catalogInstance,
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportService exportService,
+		boolean allowInlineV4ToV5Upgrade
 	) {
 		this.storageSettings = new StorageSettings(storageOptions, transactionOptions);
 		this.bootstrapStorageSettings = this.storageSettings.modifyForBootstrapFile();
@@ -1159,23 +1247,36 @@ public class DefaultCatalogPersistenceService
 		);
 
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
-		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService = verifyAndUpgradeStorageFormat(
-			() -> CatalogOffsetIndexStoragePartPersistenceService.create(
-				this.catalogName,
-				catalogFilePath,
-				this.storageSettings,
-				this.bootstrapUsed,
-				this.recordTypeRegistry,
-				this.offHeapMemoryManager,
-				this.observableOutputKeeper,
-				VERSIONED_KRYO_FACTORY,
-				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
-			),
-			this.bootstrapUsed.catalogVersion()
-		);
+		// verifyAndUpgradeStorageFormat can throw CatalogRequiresUpgradeException (for v4 catalogs on
+		// the normal load path) or any I/O exception from storage part service creation. If that
+		// happens after we've already opened observableOutputKeeper, bootstrapWriteHandle, etc.,
+		// those resources must be released — otherwise every failed retry cycle leaks file handles.
+		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService;
+		try {
+			catalogStoragePartPersistenceService = verifyAndUpgradeStorageFormat(
+				() -> CatalogOffsetIndexStoragePartPersistenceService.create(
+					this.catalogName,
+					catalogFilePath,
+					this.storageSettings,
+					this.bootstrapUsed,
+					this.recordTypeRegistry,
+					this.offHeapMemoryManager,
+					this.observableOutputKeeper,
+					VERSIONED_KRYO_FACTORY,
+					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+					oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
+				),
+				this.bootstrapUsed.catalogVersion(),
+				allowInlineV4ToV5Upgrade
+			);
+		} catch (Throwable t) {
+			closeOnConstructorFailure();
+			throw t;
+		}
 
 		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
+			closeOnConstructorFailure();
+			IOUtils.closeQuietly(catalogStoragePartPersistenceService::close);
 			throw new StoredProtocolVersionNotSupportedException(
 				this.bootstrapUsed.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
 			);
@@ -1296,7 +1397,8 @@ public class DefaultCatalogPersistenceService
 				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
 				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null))
 			),
-			this.bootstrapUsed.catalogVersion()
+			this.bootstrapUsed.catalogVersion(),
+			false
 		);
 
 		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
@@ -2554,6 +2656,40 @@ public class DefaultCatalogPersistenceService
 		return FileUtils.getDirectorySize(this.catalogStoragePath);
 	}
 
+	/**
+	 * Releases the subset of resources that the load ctor has already opened by the time
+	 * {@link #verifyAndUpgradeStorageFormat} is invoked. Invoked from the ctor catch block when
+	 * that call (or anything after it, before field init is complete) throws — so the retry loop
+	 * driven by {@link CatalogRequiresUpgradeException} does not leak file handles per cycle.
+	 *
+	 * Cannot reuse the full {@link #close()} because some final fields (such as
+	 * {@code entityCollectionPersistenceServices}) are assigned only after the risky section and
+	 * would trip a NullPointerException on early failure.
+	 */
+	@SuppressWarnings("ConstantValue")
+	private void closeOnConstructorFailure() {
+		IOUtils.closeQuietly(
+			this.offHeapMemoryManager::close,
+			this.obsoleteFileMaintainer::close,
+			this.observableOutputKeeper::close
+		);
+		final BootstrapWriteOnlyFileHandle bootstrapWriteOnlyFileHandle =
+			this.bootstrapWriteHandle != null ? this.bootstrapWriteHandle.get() : null;
+		if (bootstrapWriteOnlyFileHandle != null) {
+			IOUtils.closeQuietly(bootstrapWriteOnlyFileHandle::close);
+		}
+		if (this.catalogStoragePartPersistenceService != null) {
+			IOUtils.closeQuietly(
+				this.catalogStoragePartPersistenceService
+					.values()
+					.stream()
+					.map(service -> (ExceptionThrowingRunnable) service::close)
+					.toArray(ExceptionThrowingRunnable[]::new)
+			);
+			this.catalogStoragePartPersistenceService.clear();
+		}
+	}
+
 	@Override
 	public void close() {
 		if (!this.closed) {
@@ -3127,18 +3263,31 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * Method verifies the storage protocol version of current {@link CatalogHeader} and attempts to upgrade it to
-	 * the current storage protocol version if possible. Otherwise the exception is thrown.
+	 * Verifies the storage protocol version of the current {@link CatalogHeader} and either upgrades
+	 * it in place or signals that a deferred upgrade is required.
+	 *
+	 * **Eager vs deferred migrations:** the early migrations (v1→v2, v2→v3, v3→v4) are trivial header-level
+	 * rewrites, so they run inline here whenever an old-protocol catalog is opened. The v4→v5 migration, however,
+	 * rewrites every WAL file on disk and can fail partway through; to make that failure mode visible and crash-safe
+	 * it is driven by {@link io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation}
+	 * through the engine WAL. This method therefore throws {@link CatalogRequiresUpgradeException} on a v4 catalog
+	 * unless {@code allowInlineV4ToV5Upgrade} explicitly permits the inline upgrade (used only by the mutation
+	 * operator's work phase via {@link #runStorageProtocolUpgrade}).
 	 *
 	 * @param storagePartPersistenceFactory the factory for the storage part persistence service
 	 * @param catalogVersion                the version of the catalog
+	 * @param allowInlineV4ToV5Upgrade      when {@code true} the method runs the v4→v5 WAL rewrite
+	 *                                      inline; when {@code false} (default for normal loads) it
+	 *                                      throws {@link CatalogRequiresUpgradeException}
 	 * @return the storage part persistence service
 	 * @throws ObsoleteStorageProtocolException if the storage protocol version is not compatible with the current one
+	 * @throws CatalogRequiresUpgradeException  when the catalog is on v4 and inline v4→v5 is not permitted
 	 */
 	@Nonnull
 	private CatalogOffsetIndexStoragePartPersistenceService verifyAndUpgradeStorageFormat(
 		@Nonnull Supplier<CatalogOffsetIndexStoragePartPersistenceService> storagePartPersistenceFactory,
-		long catalogVersion
+		long catalogVersion,
+		boolean allowInlineV4ToV5Upgrade
 	) throws ObsoleteStorageProtocolException {
 		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
 		CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
@@ -3177,6 +3326,16 @@ public class DefaultCatalogPersistenceService
 						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 4)
 					);
 				} else if (catalogStorageProtocolVersion == 4) {
+					if (!allowInlineV4ToV5Upgrade) {
+						// v4→v5 rewrites every WAL file; defer to the engine-level mutation flow so
+						// a partial failure is observable in the WAL and the next boot can auto-retry.
+						// `loadCatalogInternal` catches this and issues `UpgradeCatalogFormatMutation`.
+						throw new CatalogRequiresUpgradeException(
+							catalogHeader.catalogName(),
+							catalogStorageProtocolVersion,
+							PersistenceService.STORAGE_PROTOCOL_VERSION
+						);
+					}
 					Migration_2026_1.upgradeCatalogWalFiles(
 						catalogHeader,
 						this.catalogStoragePath,

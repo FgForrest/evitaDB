@@ -29,11 +29,13 @@ import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcEngineMutation.MutationCase;
@@ -41,12 +43,14 @@ import io.evitadb.externalApi.grpc.requestResponse.data.mutation.MutationConvert
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.DuplicateCatalogMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.MakeCatalogAliveMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.MarkCatalogMissingMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.SetCatalogStateMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.TransactionMutationConverter;
+import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutationConverter;
 import io.evitadb.utils.Assert;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -84,6 +88,8 @@ public class DelegatingEngineMutationConverter {
 		TO_GRPC_CONVERTERS.put(DuplicateCatalogMutation.class, new ToGrpc((b, m) -> b.setDuplicateCatalogMutation((GrpcDuplicateCatalogMutation) m), DuplicateCatalogMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetCatalogMutabilityMutation.class, new ToGrpc((b, m) -> b.setSetCatalogMutabilityMutation((GrpcSetCatalogMutabilityMutation) m), SetCatalogMutabilityMutationConverter.INSTANCE));
 		TO_GRPC_CONVERTERS.put(SetCatalogStateMutation.class, new ToGrpc((b, m) -> b.setSetCatalogStateMutation((GrpcSetCatalogStateMutation) m), SetCatalogStateMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(MarkCatalogMissingMutation.class, new ToGrpc((b, m) -> b.setMarkCatalogMissingMutation((GrpcMarkCatalogMissingMutation) m), MarkCatalogMissingMutationConverter.INSTANCE));
+		TO_GRPC_CONVERTERS.put(UpgradeCatalogFormatMutation.class, new ToGrpc((b, m) -> b.setUpgradeCatalogFormatMutation((GrpcUpgradeCatalogFormatMutation) m), UpgradeCatalogFormatMutationConverter.INSTANCE));
 
 		TO_JAVA_CONVERTERS = createHashMap(32);
 		TO_JAVA_CONVERTERS.put(CREATECATALOGSCHEMAMUTATION, new ToJava(GrpcEngineMutation::getCreateCatalogSchemaMutation, CreateCatalogSchemaMutationConverter.INSTANCE));
@@ -95,6 +101,8 @@ public class DelegatingEngineMutationConverter {
 		TO_JAVA_CONVERTERS.put(DUPLICATECATALOGMUTATION, new ToJava(GrpcEngineMutation::getDuplicateCatalogMutation, DuplicateCatalogMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETCATALOGMUTABILITYMUTATION, new ToJava(GrpcEngineMutation::getSetCatalogMutabilityMutation, SetCatalogMutabilityMutationConverter.INSTANCE));
 		TO_JAVA_CONVERTERS.put(SETCATALOGSTATEMUTATION, new ToJava(GrpcEngineMutation::getSetCatalogStateMutation, SetCatalogStateMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(MARKCATALOGMISSINGMUTATION, new ToJava(GrpcEngineMutation::getMarkCatalogMissingMutation, MarkCatalogMissingMutationConverter.INSTANCE));
+		TO_JAVA_CONVERTERS.put(UPGRADECATALOGFORMATMUTATION, new ToJava(GrpcEngineMutation::getUpgradeCatalogFormatMutation, UpgradeCatalogFormatMutationConverter.INSTANCE));
 	}
 
 	@SuppressWarnings("unchecked")

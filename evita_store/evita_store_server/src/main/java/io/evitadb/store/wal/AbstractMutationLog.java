@@ -38,11 +38,13 @@ import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.DataFileCompactEvent;
 import io.evitadb.core.metric.event.transaction.WalRotationEvent;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.ChecksumFactory;
-import io.evitadb.store.exception.WriteAheadLogCorruptedException;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException.WalKind;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -217,6 +219,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 */
 	protected final IntFunction<String> walFileNameProvider;
 	/**
+	 * Identifies which flavor of WAL this log instance manages — drives the {@link WalKind} stamped on
+	 * every {@link WriteAheadLogCorruptedException} thrown from shared infrastructure so diagnostics
+	 * attribute corruption to the correct subsystem.
+	 */
+	protected final WalKind walKind;
+	/**
 	 * Buffer used to serialize the overall content length and {@link TransactionMutation} at the front of the
 	 * transaction log. Configured with {@link ByteOrder#LITTLE_ENDIAN} byte order to match the WAL file format.
 	 *
@@ -271,7 +279,11 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * @return true if the file was created, false if it already existed.
 	 * @throws IOException If an I/O error occurs.
 	 */
-	protected static boolean createWalFile(@Nonnull Path walFilePath, boolean mayExist) throws IOException {
+	protected static boolean createWalFile(
+		@Nonnull Path walFilePath,
+		boolean mayExist,
+		@Nonnull WalKind walKind
+	) throws IOException {
 		final File walFile = walFilePath.toFile();
 		if (walFile.exists() && walFile.length() < CUMULATIVE_CRC32_SIZE) {
 			Assert.isPremiseValid(
@@ -293,7 +305,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			);
 			return true;
 		} else if (!mayExist) {
-			throw new WriteAheadLogCorruptedException(
+			throw new WriteAheadLogCorruptedException(walKind,
 				"WAL file `" + walFilePath + "` already exists, and it should not!",
 				"WAL file already exists, and it should not!"
 			);
@@ -408,7 +420,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull ObservableInput<RandomAccessFileInputStream> input,
 		@Nonnull ChecksumFactory checksumFactory,
 		long fileLength,
-		@Nonnull Path walFilePath
+		@Nonnull Path walFilePath,
+		@Nonnull WalKind walKind
 	) throws IOException {
 		final byte[] buffer = new byte[8192];
 		int transactionSize = 0;
@@ -441,7 +454,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					final long calculatedCumulativeChecksum = cumulativeChecksum.getValue();
 					Assert.isPremiseValid(
 						cumulativeChecksum.equalsTo(fetchedCumulativeChecksum),
-						() -> new WriteAheadLogCorruptedException(
+						() -> new WriteAheadLogCorruptedException(walKind,
 							walFilePath,
 							position,
 							fetchedCumulativeChecksum,
@@ -461,7 +474,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				final int debugTxSize = transactionSize;
 				Assert.isPremiseValid(
 					transactionSize > 0,
-					() -> new WriteAheadLogCorruptedException(
+					() -> new WriteAheadLogCorruptedException(walKind,
 						"Transaction size must be greater than zero, but is " + debugTxSize + "!",
 						"Transaction size must be greater than zero!"
 					)
@@ -527,7 +540,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull Kryo kryo,
 		long lastTxStartPosition,
 		int lastTxLength,
-		long expectedCumulativeChecksum
+		long expectedCumulativeChecksum,
+		@Nonnull WalKind walKind
 	) throws IOException {
 		input.seekWithUnknownLength(CUMULATIVE_CRC32_SIZE + TRANSACTION_PREFIX_SIZE);
 		final TransactionMutation firstTransactionMutation = Objects.requireNonNull(
@@ -546,7 +560,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		final long calculatedTransactionSize = input.total() + lastTransactionMutation.getWalSizeInBytes();
 		Assert.isPremiseValid(
 			lastTxLength == calculatedTransactionSize,
-			() -> new WriteAheadLogCorruptedException(
+			() -> new WriteAheadLogCorruptedException(walKind,
 				"The transaction size `" + lastTxLength + "` does not match the actual size `" +
 					calculatedTransactionSize + "`!",
 				"The transaction size does not match the actual size!"
@@ -563,7 +577,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		final long cumulatedChecksum = input.readLong();
 		Assert.isPremiseValid(
 			cumulatedChecksum == expectedCumulativeChecksum,
-			() -> new WriteAheadLogCorruptedException(
+			() -> new WriteAheadLogCorruptedException(walKind,
 				"The cumulative checksum `" + cumulatedChecksum + "` does not match the expected checksum `" +
 					expectedCumulativeChecksum + "`!",
 				"The cumulative checksum does not match the expected checksum!"
@@ -576,24 +590,27 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	/**
 	 * Handles exceptions that occur when reading transactions from a WAL file.
 	 *
-	 * @param walFilePath The path to the WAL file
-	 * @param ex          The exception that occurred
-	 * @throws WriteAheadLogCorruptedException Always throws this exception with appropriate message
+	 * @param walFilePath        The path to the WAL file
+	 * @param ex                 The exception that occurred
+	 * @param corruptionFactory  factory yielding the flavor-specific WAL corruption exception
+	 * @throws EvitaInternalError Always throws — either rethrows an existing WAL-corruption exception
+	 *                            (catalog or engine flavor) or wraps a generic exception in one.
 	 */
 	private static void handleTransactionReadException(
 		@Nonnull Path walFilePath,
-		@Nonnull Exception ex
+		@Nonnull Exception ex,
+		@Nonnull WalKind walKind
 	) {
 		AbstractMutationLog.log.error(
 			"Failed to read the last transaction from WAL file `{}`! The file is probably corrupted! The catalog will be marked as corrupted!",
 			walFilePath, ex
 		);
 		if (ex instanceof WriteAheadLogCorruptedException) {
-			// just rethrow
+			// just rethrow as-is — the corruption flavor is already correct
 			throw (WriteAheadLogCorruptedException) ex;
 		} else {
-			// wrap original exception
-			throw new WriteAheadLogCorruptedException(
+			// wrap original exception in the appropriate flavor
+			throw new WriteAheadLogCorruptedException(walKind,
 				"Failed to read the last transaction from WAL file `" + walFilePath + "`! The file is probably" +
 					" corrupted! The catalog will be marked as corrupted!",
 				"Failed to read the last transaction from WAL file!",
@@ -651,6 +668,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * @param kryoPool             pool of Kryo instances for serialization
 	 * @param storageSettings      storage configuration including checksum and compression factories
 	 * @param scheduler            scheduler for background tasks like WAL cache cutting and file removal
+	 * @param walKind              flavor of WAL this log manages — stamped on every corruption exception
 	 */
 	public AbstractMutationLog(
 		long version,
@@ -658,8 +676,10 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull Path storageFolder,
 		@Nonnull Pool<Kryo> kryoPool,
 		@Nonnull StorageSettings storageSettings,
-		@Nonnull Scheduler scheduler
+		@Nonnull Scheduler scheduler,
+		@Nonnull WalKind walKind
 	) {
+		this.walKind = walKind;
 		this.walFileNameProvider = logRecordReference.walFileNameProvider();
 		this.kryoPool = kryoPool;
 		this.processedVersion = new AtomicLong(version);
@@ -689,7 +709,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			final Path walFilePath = storageFolder.resolve(this.walFileNameProvider.apply(currentWalFileIndex.get()));
 			Assert.isPremiseValid(
 				firstAndLastWalFileIndex[1] == logRecordReference.fileIndex(),
-				() -> new WriteAheadLogCorruptedException(
+				() -> new WriteAheadLogCorruptedException(this.walKind,
 					"The last WAL file index in the storage (" + firstAndLastWalFileIndex[1] + ") " +
 						"does not match the expected index from the log record reference (" + walFilePath + ")!",
 					"WAL file index mismatch!"
@@ -712,7 +732,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			lastVersion.ifPresent(
 				firstAndLastVersionsInWalFile -> Assert.isPremiseValid(
 					firstAndLastVersionsInWalFile.lastVersion() + 1 == versions.firstVersion(),
-					() -> new WriteAheadLogCorruptedException(
+					() -> new WriteAheadLogCorruptedException(this.walKind,
 						currentWalFileIndex.get(),
 						firstAndLastVersionsInWalFile.lastVersion(),
 						versions.firstVersion(),
@@ -722,7 +742,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			);
 
 			// create the WAL file if it does not exist
-			final boolean created = createWalFile(walFilePath, true);
+			final boolean created = createWalFile(walFilePath, true, this.walKind);
 
 			final FileChannel walFileChannel = FileChannel.open(
 				walFilePath,
@@ -763,7 +783,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				)
 			);
 		} catch (IOException e) {
-			throw new WriteAheadLogCorruptedException(
+			throw new WriteAheadLogCorruptedException(this.walKind,
 				"Failed to open WAL file `" + this.walFileNameProvider.apply(currentWalFileIndex.get()) + "`!",
 				"Failed to open the WAL file!",
 				e
@@ -802,7 +822,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				Assert.isPremiseValid(
 					firstAndLastVersionsInPreviousWalFile.lastVersion() + 1 ==
 						firstAndLastCatalogVersionsInCurrentFile.firstVersion(),
-					() -> new WriteAheadLogCorruptedException(
+					() -> new WriteAheadLogCorruptedException(this.walKind,
 						walIndex,
 						firstAndLastVersionsInPreviousWalFile.lastVersion(),
 						firstAndLastCatalogVersionsInCurrentFile.firstVersion(),
@@ -1156,7 +1176,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			final ReverseMutationSupplier<T> supplier = new ReverseMutationSupplier<>(
 				version, this.walFileNameProvider, this.storageFolder, this.storageSettings,
 				walFileIndex, this.kryoPool, this.transactionLocationsCache,
-				() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
+				() -> emitCacheSizeEvent(this.transactionLocationsCache.size()),
+				this.walKind
 			);
 			this.cutWalCacheTask.schedule();
 			return Stream.generate(supplier)
@@ -1223,7 +1244,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					)
 				);
 			} catch (Exception e) {
-				throw new WriteAheadLogCorruptedException(
+				throw new WriteAheadLogCorruptedException(this.walKind,
 					"Failed to read `" + walFilePath + "`!",
 					"Failed to read WAL file!", e
 				);
@@ -1355,7 +1376,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				)
 			) {
 				final WalFileScanResult scanResult = AbstractMutationLog.scanWalFileForLastCompleteTransaction(
-					input, this.storageSettings, walFile.length(), walFilePath
+					input, this.storageSettings, walFile.length(), walFilePath, this.walKind
 				);
 
 				if (scanResult.lastTxLength() == 0) {
@@ -1367,7 +1388,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 						input, kryo,
 						scanResult.lastTxStartPosition,
 						scanResult.lastTxLength,
-						scanResult.cumulativeChecksum()
+						scanResult.cumulativeChecksum(),
+						this.walKind
 					);
 
 					if (scanResult.consistentLength < walFile.length()) {
@@ -1391,7 +1413,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					);
 
 				} catch (Exception ex) {
-					AbstractMutationLog.handleTransactionReadException(walFilePath, ex);
+					AbstractMutationLog.handleTransactionReadException(walFilePath, ex, this.walKind);
 					// This line is never reached as handleTransactionReadException always throws an exception
 					throw new GenericEvitaInternalError("This code should never be reached");
 				}
@@ -1429,7 +1451,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			// WAL file is corrupted, we need to truncate it and calculate new tail
 			return truncateWalFileAndCalculateTail(walFilePath, catalogKryoPool);
 		} catch (FileNotFoundException e) {
-			throw new WriteAheadLogCorruptedException(
+			throw new WriteAheadLogCorruptedException(this.walKind,
 				"WAL file `" + walFilePath + "` not found!",
 				"WAL file not found!",
 				e
@@ -1481,7 +1503,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				)
 			) {
 				final WalFileScanResult scanResult = AbstractMutationLog.scanWalFileForLastCompleteTransaction(
-					input, this.storageSettings, walFile.length(), walFilePath
+					input, this.storageSettings, walFile.length(), walFilePath, this.walKind
 				);
 
 				try {
@@ -1489,7 +1511,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 						input, kryo,
 						scanResult.lastTxStartPosition(),
 						scanResult.lastTxLength(),
-						scanResult.cumulativeChecksum()
+						scanResult.cumulativeChecksum(),
+						this.walKind
 					);
 
 					if (scanResult.consistentLength() < walFile.length()) {
@@ -1513,7 +1536,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					);
 
 				} catch (Exception ex) {
-					AbstractMutationLog.handleTransactionReadException(walFilePath, ex);
+					AbstractMutationLog.handleTransactionReadException(walFilePath, ex, this.walKind);
 					// This line is never reached as handleTransactionReadException always throws an exception
 					throw new GenericEvitaInternalError("This code should never be reached");
 				}
@@ -1586,7 +1609,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			this.walFileNameProvider, this.storageFolder, this.storageSettings,
 			walFileIndex, this.kryoPool, this.transactionLocationsCache,
 			avoidPartiallyFilledBuffer,
-			() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
+			() -> emitCacheSizeEvent(this.transactionLocationsCache.size()),
+			this.walKind
 		);
 	}
 
@@ -1716,14 +1740,14 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 
 					Assert.isPremiseValid(
 						firstVersion >= 1,
-						() -> new WriteAheadLogCorruptedException(
+						() -> new WriteAheadLogCorruptedException(this.walKind,
 							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (`" + firstVersion + "`)!",
 							"Invalid first catalog version in the WAL file!"
 						)
 					);
 					Assert.isPremiseValid(
 						firstVersion <= lastVersion,
-						() -> new WriteAheadLogCorruptedException(
+						() -> new WriteAheadLogCorruptedException(this.walKind,
 							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstVersion + "`, last: `" + lastVersion + "`)!",
 							"Invalid first catalog version in the WAL file!"
 						)
@@ -1731,7 +1755,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					long finalPreviousLastCatalogVersion = previousLastVersion;
 					Assert.isPremiseValid(
 						previousLastVersion == -1 || previousLastVersion < firstVersion,
-						() -> new WriteAheadLogCorruptedException(
+						() -> new WriteAheadLogCorruptedException(this.walKind,
 							"Invalid first catalog version in the WAL file `" + oldWalFile.getAbsolutePath() + "` (first: `" + firstVersion + "`, last version of the previous file: `" + finalPreviousLastCatalogVersion + "`)!",
 							"Invalid first catalog version in the WAL file!"
 						)
@@ -1773,14 +1797,14 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			final long lastCvInFile = this.getLastWrittenVersion();
 			Assert.isPremiseValid(
 				firstCvInFile >= 1,
-				() -> new WriteAheadLogCorruptedException(
+				() -> new WriteAheadLogCorruptedException(this.walKind,
 					"Invalid first catalog version in the WAL file (`" + firstCvInFile + "`)!",
 					"Invalid first catalog version in the WAL file!"
 				)
 			);
 			Assert.isPremiseValid(
 				lastCvInFile >= firstCvInFile,
-				() -> new WriteAheadLogCorruptedException(
+				() -> new WriteAheadLogCorruptedException(this.walKind,
 					"Invalid last catalog version in the WAL file (first: " + firstCvInFile + ", last: " + lastCvInFile + ")!",
 					"Invalid last catalog version in the WAL file!"
 				)
@@ -1790,7 +1814,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			finalCumulativeChecksum = writeWalTail(firstCvInFile, lastCvInFile, theCurrentWalFile.getWalFileChannel());
 			theCurrentWalFile.close();
 		} catch (IOException e) {
-			throw new WriteAheadLogCorruptedException(
+			throw new WriteAheadLogCorruptedException(this.walKind,
 				"Failed to close the WAL file channel for WAL file `" + theCurrentWalFile.getWalFilePath() + "`!",
 				"Failed to close the WAL file channel!",
 				e
@@ -1803,7 +1827,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			final Path walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(newWalFileIndex));
 
 			// create the WAL file if it does not exist
-			AbstractMutationLog.createWalFile(walFilePath, false);
+			AbstractMutationLog.createWalFile(walFilePath, false, this.walKind);
 			final FileChannel walFileChannel = FileChannel.open(
 				walFilePath,
 				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
@@ -1893,7 +1917,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 			}
 
 		} catch (IOException e) {
-			throw new WriteAheadLogCorruptedException(
+			throw new WriteAheadLogCorruptedException(this.walKind,
 				"Failed to open WAL file `" + this.walFileNameProvider.apply(newWalFileIndex) + "`!",
 				"Failed to open WAL file!",
 				e
@@ -1971,14 +1995,15 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				this.storageFolder, this.storageSettings,
 				AbstractMutationLog.getIndexFromWalFileName(walFile.getName()),
 				this.kryoPool, this.transactionLocationsCache, false,
-				() -> emitCacheSizeEvent(this.transactionLocationsCache.size())
+				() -> emitCacheSizeEvent(this.transactionLocationsCache.size()),
+				this.walKind
 			)
 		) {
 			final Mutation mutation = mutationSupplier.get();
 			if (mutation instanceof TransactionMutation transactionMutation) {
 				return transactionMutation;
 			} else {
-				throw new WriteAheadLogCorruptedException(
+				throw new WriteAheadLogCorruptedException(this.walKind,
 					"Failed to read the first transaction from WAL file `" + walFile + "`!",
 					"Failed to read the first transaction from WAL file!"
 				);

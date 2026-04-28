@@ -74,12 +74,14 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.MakeCatalogAliveMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.MarkCatalogMissingMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RestoreCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.*;
 import io.evitadb.api.requestResponse.schema.mutation.reference.*;
 import io.evitadb.dataType.expression.Expression;
@@ -413,6 +415,18 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			SetReferenceSchemaBucketedMutation.class,
 			new SerialVersionBasedSerializer<>(new SetReferenceSchemaBucketedMutationSerializer(), SetReferenceSchemaBucketedMutation.class),
+			index++
+		);
+
+		kryo.register(
+			MarkCatalogMissingMutation.class,
+			new SerialVersionBasedSerializer<>(new MarkCatalogMissingMutationSerializer(), MarkCatalogMissingMutation.class),
+			index++
+		);
+
+		kryo.register(
+			UpgradeCatalogFormatMutation.class,
+			new SerialVersionBasedSerializer<>(new UpgradeCatalogFormatMutationSerializer(), UpgradeCatalogFormatMutation.class),
 			index++
 		);
 

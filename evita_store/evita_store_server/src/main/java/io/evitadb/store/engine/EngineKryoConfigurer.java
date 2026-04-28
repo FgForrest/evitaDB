@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.engine.serializer.EngineStateSerializer;
 import io.evitadb.store.engine.serializer.EngineStateSerializer_2025_6;
+import io.evitadb.store.engine.serializer.EngineStateSerializer_2026_1;
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.utils.Assert;
 
@@ -59,7 +60,8 @@ public class EngineKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			EngineState.class,
 			new SerialVersionBasedSerializer<>(new EngineStateSerializer(), EngineState.class)
-				.addBackwardCompatibleSerializer(3167647107268939398L, new EngineStateSerializer_2025_6()),
+				.addBackwardCompatibleSerializer(3167647107268939398L, new EngineStateSerializer_2025_6())
+				.addBackwardCompatibleSerializer(5824913670482156739L, new EngineStateSerializer_2026_1()),
 			index++
 		);
 

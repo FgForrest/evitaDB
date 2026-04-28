@@ -23,17 +23,15 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
-import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
+import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.utils.FileUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,6 +47,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
@@ -64,6 +63,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * This test verifies that data stored in older versions of evitaDB are still readable by the current version.
@@ -155,14 +155,23 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 						StorageOptions.builder()
 							.storageDirectory(targetDirectory)
 							.workDirectory(testPaths.work())
-							.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE * 2)
+							.outputBufferSize(DEFAULT_OUTPUT_BUFFER_SIZE << 1)
 							.build()
 					)
 					.build()
 			)
 		) {
 
-			evita.waitUntilFullyInitialized();
+			// Old-format catalogs are upgraded asynchronously by the engine: the boot-time load throws
+			// CatalogRequiresUpgradeException, the failure handler issues an UpgradeCatalogFormatMutation
+			// through EngineTransactionManager, and on its completion the load is retried under
+			// LoadMode.RETRY_AFTER_UPGRADE. The first-attempt future stays exceptionally completed —
+			// waitUntilFullyInitialized() would propagate the upgrade-required exception — so we poll
+			// for the upgraded catalog to settle into ALIVE state instead. System CDC is not a viable
+			// signal here because the retry's `replaceCatalogReference` is a pure in-memory engine-state
+			// update — no system CDC event marks the final BEING_ACTIVATED → ALIVE transition.
+			waitForAtLeastOneAliveCatalog(evita, version);
+
 			final SystemStatus status = evita.management().getSystemStatus();
 			assertEquals(0, status.catalogsCorrupted());
 			assertEquals(1, status.catalogsActive());
@@ -203,6 +212,50 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 			readWalContents(evita, catalogName);
 		} finally {
 			cleanupTestPaths(testPaths);
+		}
+	}
+
+	/**
+	 * Polls until at least one catalog reaches {@link CatalogState#ALIVE} or any catalog becomes
+	 * {@link CatalogState#CORRUPTED}. Required because the boot-time auto-upgrade flow runs
+	 * asynchronously after the engine constructor returns: the first-attempt load future for an
+	 * old-format catalog completes exceptionally with `CatalogRequiresUpgradeException`, the
+	 * engine schedules an `UpgradeCatalogFormatMutation` and a retry on the service executor,
+	 * and only after that retry installs a real `Catalog` does the catalog state move to ALIVE.
+	 *
+	 * Polling (rather than a system-CDC subscription) is required because the retry's
+	 * `replaceCatalogReference` is a pure in-memory engine-state update — no system CDC event
+	 * marks the final BEING_ACTIVATED → ALIVE transition, so a CDC subscriber would block on
+	 * the upgrade-mutation event and never wake up for the install that follows.
+	 *
+	 * @param evita   the engine instance whose catalog states are polled
+	 * @param version dataset version label, used in failure messages
+	 */
+	private static void waitForAtLeastOneAliveCatalog(@Nonnull Evita evita, @Nonnull String version) {
+		final long deadline = System.nanoTime() + Duration.ofMinutes(10).toNanos();
+		while (true) {
+			if (evita.management().getSystemStatus().catalogsCorrupted() > 0) {
+				fail("Catalog became CORRUPTED during boot-time auto-upgrade for dataset " + version);
+			}
+			final boolean anyAlive = evita.getCatalogNames()
+				.stream()
+				.anyMatch(it -> evita.getCatalogState(it)
+					.map(state -> state == CatalogState.ALIVE)
+					.orElse(false));
+			if (anyAlive) {
+				return;
+			}
+			if (System.nanoTime() > deadline) {
+				fail("No catalog reached ALIVE state within 10 minutes for dataset " + version);
+			}
+			try {
+				Thread.sleep(500);
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw new IllegalStateException(
+					"Interrupted while waiting for catalog to come alive", e
+				);
+			}
 		}
 	}
 

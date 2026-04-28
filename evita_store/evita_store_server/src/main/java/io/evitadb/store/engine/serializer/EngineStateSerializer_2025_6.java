@@ -32,6 +32,7 @@ import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.shared.model.FileLocation;
 
+import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 
 /**
@@ -52,6 +53,7 @@ public class EngineStateSerializer_2025_6 extends Serializer<EngineState> {
 		throw new UnsupportedOperationException("This serializer is deprecated and should not be used for writing.");
 	}
 
+	@Nonnull
 	@Override
 	public EngineState read(Kryo kryo, Input input, Class<? extends EngineState> aClass) {
 		// Read basic engine state properties
@@ -97,6 +99,7 @@ public class EngineStateSerializer_2025_6 extends Serializer<EngineState> {
 			readOnlyCatalogs[i] = input.readString();
 		}
 
+		// Legacy format has no missing-catalogs array — substitute an empty one.
 		return new EngineState<>(
 			storageProtocolVersion,
 			version,
@@ -104,7 +107,8 @@ public class EngineStateSerializer_2025_6 extends Serializer<EngineState> {
 			walFileReference,
 			activeCatalogs,
 			inactiveCatalogs,
-			readOnlyCatalogs
+			readOnlyCatalogs,
+			new String[0]
 		);
 	}
 }

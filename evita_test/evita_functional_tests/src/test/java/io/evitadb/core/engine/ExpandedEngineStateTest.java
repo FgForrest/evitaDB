@@ -24,16 +24,22 @@
 package io.evitadb.core.engine;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
+import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -148,5 +154,144 @@ class ExpandedEngineStateTest {
 		assertArrayEquals(new String[]{"beta"}, built.engineState().inactiveCatalogs());
 		assertArrayEquals(new String[]{"beta"}, built.engineState().readOnlyCatalogs());
 		assertTrue(built.getCatalog("beta").isPresent());
+	}
+
+	/**
+	 * Verifies that `Builder#withInFlightPlaceholder` installs a transient mid-transition catalog reference
+	 * (e.g. a `BEING_UPGRADED` placeholder) without touching the persisted `activeCatalogs` / `inactiveCatalogs`
+	 * buckets. This invariant is what makes a crash mid-upgrade auto-recoverable: the name stays in its
+	 * original bucket so the next boot reloads the same (still-old) catalog and the load-throws path can
+	 * reissue the upgrade mutation.
+	 */
+	@Nested
+	@DisplayName("Builder#withInFlightPlaceholder — placeholder installation for mid-transition catalogs")
+	class WithInFlightPlaceholder {
+
+		private static final Path PLACEHOLDER_PATH = Paths.get("target", "in-flight-placeholder-test");
+
+		/**
+		 * Builds an `UnusableCatalog` placeholder identical to the one `UpgradeCatalogFormatMutationOperator`
+		 * installs during its transition phase — `BEING_UPGRADED` state, dummy folder, throwing stub accessor.
+		 */
+		@Nonnull
+		private static UnusableCatalog beingUpgradedPlaceholder(@Nonnull String name) {
+			return new UnusableCatalog(
+				name,
+				CatalogState.BEING_UPGRADED,
+				PLACEHOLDER_PATH,
+				(cn, p) -> new IllegalStateException("Placeholder `" + cn + "` must not be queried.")
+			);
+		}
+
+		@Test
+		@DisplayName("should keep the catalog name in activeCatalogs when it was active before")
+		void shouldKeepActiveCatalogInActiveBucket() {
+			// given — a single active catalog recorded in the engine state
+			final CatalogContract priorCatalog = contract("alpha", 9);
+			final EngineState<LogRecordReference> base = engineState(
+				5L, new String[]{"alpha"}, new String[0], new String[0], null
+			);
+			final Map<String, CatalogContract> catalogs = new HashMap<>();
+			catalogs.put("alpha", priorCatalog);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, catalogs);
+
+			// when — an in-flight BEING_UPGRADED placeholder is staged via withInFlightPlaceholder
+			final ExpandedEngineState updated = ExpandedEngineState
+				.builder(expanded)
+				.withVersion(6L)
+				.withInFlightPlaceholder(beingUpgradedPlaceholder("alpha"))
+				.build();
+
+			// then — the bucket arrays are untouched: the name must remain in activeCatalogs and NOT
+			// have been moved to inactiveCatalogs (which is the critical property for crash-safe retry).
+			assertArrayEquals(new String[]{"alpha"}, updated.engineState().activeCatalogs());
+			assertArrayEquals(new String[0], updated.engineState().inactiveCatalogs());
+			assertEquals(6L, updated.version());
+		}
+
+		@Test
+		@DisplayName("should keep the catalog name in inactiveCatalogs when it was inactive before")
+		void shouldKeepInactiveCatalogInInactiveBucket() {
+			// given — a single inactive catalog recorded in the engine state
+			final CatalogContract priorCatalog = contract("beta", 3);
+			final EngineState<LogRecordReference> base = engineState(
+				5L, new String[0], new String[]{"beta"}, new String[0], null
+			);
+			final Map<String, CatalogContract> catalogs = new HashMap<>();
+			catalogs.put("beta", priorCatalog);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, catalogs);
+
+			// when
+			final ExpandedEngineState updated = ExpandedEngineState
+				.builder(expanded)
+				.withInFlightPlaceholder(beingUpgradedPlaceholder("beta"))
+				.build();
+
+			// then — the name must remain in inactiveCatalogs (symmetrical guarantee for the inactive bucket)
+			assertArrayEquals(new String[0], updated.engineState().activeCatalogs());
+			assertArrayEquals(new String[]{"beta"}, updated.engineState().inactiveCatalogs());
+		}
+
+		@Test
+		@DisplayName("should install the placeholder in the catalogs map so getCatalog returns it")
+		void shouldInstallPlaceholderInCatalogsMap() {
+			// given
+			final CatalogContract priorCatalog = contract("gamma", 1);
+			final EngineState<LogRecordReference> base = engineState(
+				5L, new String[]{"gamma"}, new String[0], new String[0], null
+			);
+			final Map<String, CatalogContract> catalogs = new HashMap<>();
+			catalogs.put("gamma", priorCatalog);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, catalogs);
+			final UnusableCatalog placeholder = beingUpgradedPlaceholder("gamma");
+
+			// when
+			final ExpandedEngineState updated = ExpandedEngineState
+				.builder(expanded)
+				.withInFlightPlaceholder(placeholder)
+				.build();
+
+			// then — getCatalog must return the exact placeholder instance (not the prior catalog) and
+			// the placeholder must expose BEING_UPGRADED so concurrent callers fail fast with a transient
+			// error instead of reading the half-migrated catalog.
+			final Optional<CatalogContract> lookup = updated.getCatalog("gamma");
+			assertTrue(lookup.isPresent());
+			assertSame(placeholder, lookup.get());
+			assertEquals(CatalogState.BEING_UPGRADED, lookup.get().getCatalogState());
+		}
+
+		@Test
+		@DisplayName("should differ from withCatalog(UnusableCatalog) which moves the name to inactiveCatalogs")
+		void shouldContrastWithCatalogBehavior() {
+			// given — an active catalog to be replaced with an UnusableCatalog placeholder
+			final CatalogContract priorCatalog = contract("delta", 1);
+			final EngineState<LogRecordReference> base = engineState(
+				5L, new String[]{"delta"}, new String[0], new String[0], null
+			);
+			final Map<String, CatalogContract> catalogs = new HashMap<>();
+			catalogs.put("delta", priorCatalog);
+			final ExpandedEngineState expanded = ExpandedEngineState.create(base, catalogs);
+
+			final UnusableCatalog placeholder = beingUpgradedPlaceholder("delta");
+
+			// when — the very same placeholder is installed via two different builder entry points
+			final ExpandedEngineState viaWithInFlight = ExpandedEngineState
+				.builder(expanded)
+				.withInFlightPlaceholder(placeholder)
+				.build();
+			final ExpandedEngineState viaWithCatalog = ExpandedEngineState
+				.builder(expanded)
+				.withCatalog(placeholder)
+				.build();
+
+			// then — `withInFlightPlaceholder` preserves the active bucket; `withCatalog` demotes the
+			// UnusableCatalog to the inactive bucket (because it is not a runtime Catalog instance).
+			// This is the exact contrast that motivated adding `withInFlightPlaceholder`.
+			assertArrayEquals(new String[]{"delta"}, viaWithInFlight.engineState().activeCatalogs());
+			assertArrayEquals(new String[0], viaWithInFlight.engineState().inactiveCatalogs());
+
+			assertArrayEquals(new String[0], viaWithCatalog.engineState().activeCatalogs());
+			assertArrayEquals(new String[]{"delta"}, viaWithCatalog.engineState().inactiveCatalogs());
+		}
 	}
 }

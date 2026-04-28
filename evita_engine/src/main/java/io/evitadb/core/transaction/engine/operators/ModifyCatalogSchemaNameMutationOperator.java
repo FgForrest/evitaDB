@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,6 +51,11 @@ import static io.evitadb.utils.Assert.isTrue;
 
 /**
  * Replaces or renames existing catalog in evitaDB.
+ *
+ * Forward-replay is intentionally **not** implemented here. The completion phase returns a `replacedCatalog`
+ * produced by `catalogToBeReplacedWith.replace(...)`, which performs a deep rename on disk and terminates the
+ * original catalog. Neither can be re-run safely at replay time without risking state divergence. The default
+ * `Optional.empty()` in `EngineMutationOperator` causes the transaction manager to wedge loudly.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -188,7 +193,7 @@ public class ModifyCatalogSchemaNameMutationOperator implements EngineMutationOp
 											catalogNameToBeReplaced))
 								);
 								Assert.isPremiseValid(
-									previous == null || previous == removedCatalogSessionRegistry.get(),
+									previous == null || previous == removedCatalogSessionRegistry.orElse(null),
 									"Unexpected instance of the session registry was replaced!"
 								);
 								sessionRegistry.resumeOperations();
