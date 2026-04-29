@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceIndexType;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
@@ -132,11 +131,6 @@ public class HierarchyOfReferenceTranslator
 					)
 					.orElse(null);
 
-				// partitioning is determined by reference schema and scope alone — both stable per outer iteration,
-				// so every reduced index returned by getReducedEntityIndexes(scope, ...) takes the same branch
-				final boolean partitioned = referenceSchema.getReferenceIndexType(scope)
-					== ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
-
 				// the request is more complex
 				hierarchyStatisticsProducer.interpret(
 					extraResultPlanner.getQueryContext()::getRootHierarchyNodes,
@@ -164,17 +158,6 @@ public class HierarchyOfReferenceTranslator
 								formulas[i] = reducedIndexes.get(i).getAllPrimaryKeysFormula();
 							}
 							return FormulaFactory.or(formulas);
-						} else if (partitioned) {
-							// single FilterByVisitor analysis covering every reduced index at once —
-							// avoids the per-index planning overhead that dominates with many references
-							return createFilterFormula(
-								extraResultPlanner.getQueryContext(),
-								filter,
-								ReducedEntityIndex.class,
-								entitySchema,
-								reducedIndexes,
-								extraResultPlanner.getAttributeSchemaAccessor()
-							);
 						} else {
 							// non-partitioned — AND each reduced index with the cached global-index formula
 							final Formula cachedGlobal = extraResultPlanner.computeOnlyOnce(
