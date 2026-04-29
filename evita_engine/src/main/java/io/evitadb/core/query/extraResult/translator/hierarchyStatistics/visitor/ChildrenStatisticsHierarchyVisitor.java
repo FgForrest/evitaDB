@@ -25,7 +25,6 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor
 
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.StatisticsType;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -168,42 +167,41 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 				}
 			} else {
 				if (this.scopePredicate.test(entityPrimaryKey, level, distance + this.distanceCompensation)) {
-					// and create element in accumulator that will be filled in
-					final EntityClassifier entityRef = this.entityFetcher.apply(this.executionContext, entityPrimaryKey);
-					if (entityRef != null) {
-						this.accumulator.push(
-							new Accumulator(
-								this.executionContext,
-								this.requestedPredicate.test(entityPrimaryKey),
-								entityRef,
-								() -> this.queriedEntityComputer.apply(node.entityPrimaryKey())
-							)
-						);
-						// traverse subtree - filling up the accumulator on previous row
-						if (this.scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
-							selfTraversingPredicate.traverse(entityPrimaryKey, level, distance + this.distanceCompensation, traverser);
-						} else {
-							traverser.run();
-						}
-						// now remove current accumulator from stack
-						final Accumulator finalizedAccumulator = this.accumulator.pop();
-						// and if its cardinality is greater than zero (contains at least one queried entity)
-						// add it to the result
-						if (this.removeEmptyResults) {
-							if (this.statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
-								// we need to fully compute cardinality of queried entities
-								if (!finalizedAccumulator.getQueriedEntitiesFormula().compute().isEmpty()) {
-									topAccumulator.add(finalizedAccumulator);
-								}
-							} else {
-								// we may choose more optimal path finding at least one queried entity
-								if (finalizedAccumulator.hasQueriedEntity()) {
-									topAccumulator.add(finalizedAccumulator);
-								}
+					// push a lazy-fetch accumulator: the underlying EntityClassifier is materialised only if
+					// this node survives `removeEmptyResults` pruning and reaches Accumulator#toLevelInfo
+					this.accumulator.push(
+						new Accumulator(
+							this.executionContext,
+							this.requestedPredicate.test(entityPrimaryKey),
+							entityPrimaryKey,
+							this.entityFetcher,
+							() -> this.queriedEntityComputer.apply(node.entityPrimaryKey())
+						)
+					);
+					// traverse subtree - filling up the accumulator on previous row
+					if (this.scopePredicate instanceof SelfTraversingPredicate selfTraversingPredicate) {
+						selfTraversingPredicate.traverse(entityPrimaryKey, level, distance + this.distanceCompensation, traverser);
+					} else {
+						traverser.run();
+					}
+					// now remove current accumulator from stack
+					final Accumulator finalizedAccumulator = this.accumulator.pop();
+					// and if its cardinality is greater than zero (contains at least one queried entity)
+					// add it to the result
+					if (this.removeEmptyResults) {
+						if (this.statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
+							// we need to fully compute cardinality of queried entities
+							if (!finalizedAccumulator.getQueriedEntitiesFormula().compute().isEmpty()) {
+								topAccumulator.add(finalizedAccumulator);
 							}
 						} else {
-							topAccumulator.add(finalizedAccumulator);
+							// we may choose more optimal path finding at least one queried entity
+							if (finalizedAccumulator.hasQueriedEntity()) {
+								topAccumulator.add(finalizedAccumulator);
+							}
 						}
+					} else {
+						topAccumulator.add(finalizedAccumulator);
 					}
 				} else if (!this.statisticsType.isEmpty() || this.removeEmptyResults) {
 					// and create element in accumulator that will be filled in

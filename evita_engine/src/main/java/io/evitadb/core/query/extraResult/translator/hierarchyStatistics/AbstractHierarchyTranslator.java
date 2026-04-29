@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
@@ -58,6 +59,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -137,15 +139,30 @@ public abstract class AbstractHierarchyTranslator {
 			ofNullable(context.fetchRequirementCollector())
 				.ifPresent(it -> it.addRequirementsToPrefetch(entityFetch.getRequirements()));
 			EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(context.entitySchema(), entityFetch, extraResultPlanner);
-			return (executionContext, entityPk) ->
-				executionContext.fetchEntity(hierarchicalEntityType, entityPk, executionContext.enrichEntityFetch(entityFetch))
-					.orElse(null);
+			// the enriched entity fetch is a deep clone produced by ConstraintCloneVisitor — stable for the
+			// lifetime of one QueryExecutionContext, so memoise it on first call instead of recomputing per visit
+			return new HierarchyEntityFetcher() {
+				@Nullable private EntityFetch enrichedFetch;
+
+				@Nullable
+				@Override
+				public EntityClassifier apply(QueryExecutionContext executionContext, Integer entityPk) {
+					EntityFetch enriched = this.enrichedFetch;
+					if (enriched == null) {
+						enriched = executionContext.enrichEntityFetch(entityFetch);
+						this.enrichedFetch = enriched;
+					}
+					return executionContext.fetchEntity(hierarchicalEntityType, entityPk, enriched).orElse(null);
+				}
+			};
 		}
 	}
 
 	/**
 	 * Method creates formula that is responsible for computing the queried entity count for
-	 * {@link HierarchyStatisticsProducer}.
+	 * {@link HierarchyStatisticsProducer}. The provided indexes are analysed by a single
+	 * {@link FilterByVisitor} pass — passing several reduced indexes that share the same filter
+	 * is significantly cheaper than running the analysis once per index.
 	 */
 	@Nonnull
 	protected <T extends EntityIndex> Formula createFilterFormula(
@@ -153,11 +170,11 @@ public abstract class AbstractHierarchyTranslator {
 		@Nonnull FilterBy filterBy,
 		@Nonnull Class<T> indexType,
 		@Nonnull EntitySchemaContract targetEntitySchema,
-		@Nonnull T entityIndex,
+		@Nonnull List<T> entityIndexes,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
 	) {
 		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + targetEntitySchema.getName() + "` on index `" + entityIndex + "`: " +
+			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + targetEntitySchema.getName() + "` on " + entityIndexes.size() + " index(es): " +
 				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
 			queryContext.pushStep(
 				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
@@ -173,7 +190,7 @@ public abstract class AbstractHierarchyTranslator {
 			final Formula theFormula = queryContext.analyse(
 				theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
 					indexType,
-					() -> Collections.singletonList(entityIndex),
+					() -> entityIndexes,
 					null,
 					targetEntitySchema,
 					null,

@@ -56,6 +56,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -150,7 +151,7 @@ public class HierarchyOfSelfTranslator
 								filter,
 								GlobalEntityIndex.class,
 								queriedSchema,
-								globalIndex,
+								List.of(globalIndex),
 								extraResultPlanner.getAttributeSchemaAccessor()
 							)
 						);
@@ -173,7 +174,7 @@ public class HierarchyOfSelfTranslator
 								filter,
 								GlobalEntityIndex.class,
 								queriedSchema,
-								globalIndex,
+								List.of(globalIndex),
 								extraResultPlanner.getAttributeSchemaAccessor()
 							)
 						);
