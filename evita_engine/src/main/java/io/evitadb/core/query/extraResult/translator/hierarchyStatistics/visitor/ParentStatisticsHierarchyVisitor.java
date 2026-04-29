@@ -134,8 +134,8 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 				final List<Accumulator> siblings = this.siblingsStatisticsComputer.createStatistics(
 					this.executionContext,
 					this.filterPredicate,
-					next.getEntity().getPrimaryKey(),
-					current.getEntity().getPrimaryKey()
+					next.getEntityPrimaryKey(),
+					current.getEntityPrimaryKey()
 				);
 				if (this.omitSiblings) {
 					siblings.forEach(s -> {
@@ -156,11 +156,11 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 					this.siblingsStatisticsComputer.createStatistics(
 						this.executionContext,
 						this.filterPredicate, null,
-						current.getEntity().getPrimaryKey()
+						current.getEntityPrimaryKey()
 					).stream(),
 					Stream.of(current)
 				)
-				.sorted(Comparator.comparingInt(levelInfo -> levelInfo.getEntity().getPrimaryKey()))
+				.sorted(Comparator.comparingInt(Accumulator::getEntityPrimaryKey))
 				.collect(Collectors.toList());
 		}
 	}
@@ -177,12 +177,14 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 
 		if (this.scopePredicate.test(entityPrimaryKey, level, distance)) {
 			if (this.filterPredicate.test(entityPrimaryKey)) {
-				// and create element in accumulator that will be filled in
+				// push a lazy-fetch accumulator: the underlying EntityClassifier is materialised only when
+				// the result is rendered into a LevelInfo
 				this.accumulator.push(
 					new Accumulator(
 						this.executionContext,
 						this.requestedPredicate.test(entityPrimaryKey),
-						this.entityFetcher.apply(this.executionContext, entityPrimaryKey),
+						entityPrimaryKey,
+						this.entityFetcher,
 						() -> this.queriedEntityComputer.apply(node.entityPrimaryKey())
 					)
 				);
