@@ -425,11 +425,20 @@ jobs:
     # Patch the drafted release body with the enriched notes if Claude
     # produced them. Soft failure: missing file or API error is logged
     # and ignored — the skeleton body stays in place as a fallback.
+    #
+    # IMPORTANT: every PATCH on a draft release whose underlying git tag
+    # does not yet exist MUST include `tag_name` (and `name`) explicitly.
+    # If you omit them, GitHub silently rewrites `tag_name` to a fresh
+    # `untagged-<sha>` placeholder — and on publish the release ends up
+    # at `releases/tag/untagged-<sha>` instead of `releases/tag/vX.Y.Z`.
+    # The Create release step already pins both fields; we mirror the
+    # same jq-built payload here.
     - name: Update draft release body with enriched notes
       if: steps.claude_notes.outcome == 'success'
       continue-on-error: true
       env:
         RELEASE_ID: ${{ steps.create_release.outputs.id }}
+        VERSION: ${{ steps.release_version.outputs.version }}
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         if [ ! -s release-notes.md ]; then
@@ -437,9 +446,20 @@ jobs:
           exit 0
         fi
         echo "Patching release $RELEASE_ID with enriched notes from release-notes.md"
-        gh api --method PATCH "/repos/${{ github.repository }}/releases/$RELEASE_ID" \
-          --field body=@release-notes.md
-        echo "Release body updated."
+        jq -n \
+          --arg tag "$VERSION" \
+          --arg name "$VERSION" \
+          --rawfile body release-notes.md \
+          '{tag_name:$tag, name:$name, body:$body}' \
+          | gh api --method PATCH "/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+              --input - > /dev/null
+
+        ACTUAL=$(gh api "/repos/${{ github.repository }}/releases/$RELEASE_ID" --jq '.tag_name')
+        if [ "$ACTUAL" != "$VERSION" ]; then
+          echo "::error::body PATCH dropped tag_name to '$ACTUAL' — release would publish as untagged"
+          exit 1
+        fi
+        echo "Release body updated; tag_name pinned to $VERSION."
 
     - name: Upload dist.zip to release
       uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
