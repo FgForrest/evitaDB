@@ -441,14 +441,20 @@ public final class Evita implements EvitaContract {
 		).whenComplete(
 			(__, throwable) -> {
 				if (throwable != null) {
-					log.error(
-						"Errors encountered during start - {} catalog(s) could not be loaded!",
-						this.getCatalogs()
-						    .stream()
-						    .map(CatalogContract::getCatalogState)
-						    .filter(CatalogState.CORRUPTED::equals)
-						    .count()
-					);
+					// CORRUPTED is the source of truth for genuine boot-time failures; the
+					// auto-upgrade path completes the first-attempt future exceptionally by
+					// design and is logged separately by `scheduleStorageProtocolUpgradeAndRetry`.
+					final long corruptedCount = this.getCatalogs()
+						.stream()
+						.map(CatalogContract::getCatalogState)
+						.filter(CatalogState.CORRUPTED::equals)
+						.count();
+					if (corruptedCount > 0) {
+						log.error(
+							"Errors encountered during start - {} catalog(s) could not be loaded!",
+							corruptedCount
+						);
+					}
 				}
 				// clear the initial load catalog futures, we don't need them anymore
 				this.initialLoadCatalogFutures.set(null);

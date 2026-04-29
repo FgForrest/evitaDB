@@ -28,6 +28,7 @@ import com.linecorp.armeria.server.HttpService;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
@@ -48,6 +49,7 @@ import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.graphql.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.externalApi.graphql.utils.GraphQLSchemaPrinter;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ExceptionUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -140,7 +142,16 @@ public class GraphQLManager {
 		).whenComplete(
 			(__, throwable) -> {
 				if (throwable != null) {
-					log.error("Failed to register initial catalogs for GraphQL API.", throwable);
+					// CatalogRequiresUpgradeException is the engine's signal that boot-time auto-upgrade
+					// is in flight — the first-attempt load future fails by design and the retried load
+					// will register the catalog asynchronously. Treat as INFO; ERROR is reserved for
+					// genuine load failures (corruption, IO errors, etc.).
+					final Throwable cause = ExceptionUtils.unwrapCompletionWrappers(throwable);
+					if (cause instanceof CatalogRequiresUpgradeException) {
+						log.info("GraphQL API initialized; one or more catalogs are pending storage-protocol upgrade and will register after the retried load completes.");
+					} else {
+						log.error("Failed to register initial catalogs for GraphQL API.", throwable);
+					}
 				} else {
 					log.info("GraphQL API initialized with {} registered catalogs.", this.registeredCatalogs.size());
 				}

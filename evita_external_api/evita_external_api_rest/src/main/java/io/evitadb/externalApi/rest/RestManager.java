@@ -26,6 +26,7 @@ package io.evitadb.externalApi.rest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
@@ -44,6 +45,7 @@ import io.evitadb.externalApi.rest.io.RestRouter;
 import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent;
 import io.evitadb.externalApi.rest.metric.event.instance.BuiltEvent.BuildType;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ExceptionUtils;
 import io.swagger.v3.oas.models.OpenAPI;
 import lombok.extern.slf4j.Slf4j;
 
@@ -131,7 +133,16 @@ public class RestManager {
 		).whenComplete(
 			(__, throwable) -> {
 				if (throwable != null) {
-					log.error("Failed to register initial catalogs for GraphQL API.", throwable);
+					// CatalogRequiresUpgradeException is the engine's signal that boot-time auto-upgrade
+					// is in flight — the first-attempt load future fails by design and the retried load
+					// will register the catalog asynchronously. Treat as INFO; ERROR is reserved for
+					// genuine load failures (corruption, IO errors, etc.).
+					final Throwable cause = ExceptionUtils.unwrapCompletionWrappers(throwable);
+					if (cause instanceof CatalogRequiresUpgradeException) {
+						log.info("REST API initialized; one or more catalogs are pending storage-protocol upgrade and will register after the retried load completes.");
+					} else {
+						log.error("Failed to register initial catalogs for REST API.", throwable);
+					}
 				} else {
 					log.info("REST API initialized with {} registered catalogs.", this.registeredCatalogs.size());
 				}
