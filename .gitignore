@@ -89,7 +89,7 @@ mcp-jdwp-inspector.log
 .vscode/*
 
 ### Hole
-.hole/*
+.hole/logs/*
 
 ### Claude settings
 /.claude/settings.local.json
