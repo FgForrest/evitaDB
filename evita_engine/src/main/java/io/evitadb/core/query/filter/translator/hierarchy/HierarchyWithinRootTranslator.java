@@ -149,10 +149,12 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 		}
 
 		final Formula matchingHierarchyNodeIds = createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor);
-		if (hierarchyWithinRoot.getReferenceName().isEmpty()) {
-			return new HierarchyFormula(matchingHierarchyNodeIds);
+		final String referenceName = hierarchyWithinRoot.getReferenceName().orElse(null);
+		if (referenceName == null) {
+			return new HierarchyFormula(null, matchingHierarchyNodeIds);
 		} else {
 			return new HierarchyFormula(
+				referenceName,
 				createFormulaForReferencingEntities(
 					hierarchyWithinRoot,
 					filterByVisitor,

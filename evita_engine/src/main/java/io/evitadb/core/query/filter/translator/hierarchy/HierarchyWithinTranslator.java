@@ -284,10 +284,12 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 		}
 
 		final Formula matchingHierarchyNodeIds = createFormulaFromHierarchyIndex(hierarchyWithin, filterByVisitor);
-		if (hierarchyWithin.getReferenceName().isEmpty()) {
-			return new HierarchyFormula(matchingHierarchyNodeIds);
+		final String referenceName = hierarchyWithin.getReferenceName().orElse(null);
+		if (referenceName == null) {
+			return new HierarchyFormula(null, matchingHierarchyNodeIds);
 		} else {
 			return new HierarchyFormula(
+				referenceName,
 				createFormulaForReferencingEntities(
 					hierarchyWithin,
 					filterByVisitor,

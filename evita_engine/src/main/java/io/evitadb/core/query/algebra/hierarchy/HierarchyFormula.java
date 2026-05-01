@@ -26,6 +26,7 @@ package io.evitadb.core.query.algebra.hierarchy;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceTerminationFormula;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
@@ -37,15 +38,27 @@ import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Simple formula container that allows excluding in {@link HierarchyWithinTranslator}
  * or {@link HierarchyWithinRootTranslator} when there are {@link AttributeFormula} targeting non-global index or
  * {@link PriceTerminationFormula}.
  *
+ * The optional {@link #referenceName} carries the name of the reference whose hierarchy this formula represents
+ * (or {@code null} when the formula represents a self-hierarchy `hierarchyWithin`/`hierarchyWithinRoot` constraint).
+ * It enables downstream consumers — most notably the hierarchy-statistics planner — to selectively strip a single
+ * hierarchy branch from a cloned filter formula tree without having to re-translate the original query constraints.
+ *
+ * Implements {@link NonCacheableFormula} so that any cacheable parent (e.g. an enclosing `AND`/`OR`) is forbidden
+ * from being flattened into a {@link io.evitadb.core.cache.payload.FlattenedFormula}. Flattening would erase the
+ * `HierarchyFormula` wrapper from the formula tree, which would break the hierarchy-statistics planner's filter
+ * cloning — it relies on locating `HierarchyFormula` instances by type to selectively strip them per
+ * {@link io.evitadb.api.query.require.StatisticsBase} mode.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula {
+public class HierarchyFormula extends AbstractFormula implements ChildrenDependentFormula, NonCacheableFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
@@ -54,17 +67,42 @@ public class HierarchyFormula extends AbstractFormula implements ChildrenDepende
 	 * Error message thrown when the formula does not contain exactly one inner formula.
 	 */
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
+	/**
+	 * Name of the reference whose hierarchy this formula represents, or {@code null} when the formula represents
+	 * the queried entity's own hierarchy (a non-referenced `hierarchyWithin`/`hierarchyWithinRoot` constraint).
+	 */
+	@Nullable private final String referenceName;
 
-	public HierarchyFormula(@Nonnull Formula innerFormula) {
+	/**
+	 * Creates a new {@link HierarchyFormula} wrapping the given inner hierarchy-resolution formula and remembering
+	 * which reference name (`hierarchyWithin(referenceName, …)` / `hierarchyWithinRoot(referenceName, …)`) it
+	 * represents.
+	 *
+	 * @param referenceName name of the reference whose hierarchy this formula represents, or {@code null} when the
+	 *                      formula represents the queried entity's own hierarchy (a non-referenced
+	 *                      `hierarchyWithin`/`hierarchyWithinRoot` constraint)
+	 * @param innerFormula  the single child formula resolving the hierarchy node set
+	 */
+	public HierarchyFormula(@Nullable String referenceName, @Nonnull Formula innerFormula) {
+		this.referenceName = referenceName;
 		this.innerFormulas = new Formula[]{ innerFormula };
 		this.initFields(innerFormula);
+	}
+
+	/**
+	 * Returns the name of the reference whose hierarchy is represented by this formula, or {@code null} when the
+	 * formula represents the queried entity's own hierarchy.
+	 */
+	@Nullable
+	public String getReferenceName() {
+		return this.referenceName;
 	}
 
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new HierarchyFormula(innerFormulas[0]);
+		return new HierarchyFormula(this.referenceName, innerFormulas[0]);
 	}
 
 	@Override
@@ -91,7 +129,7 @@ public class HierarchyFormula extends AbstractFormula implements ChildrenDepende
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0L;
+		return this.referenceName == null ? 0L : hashFunction.hashChars(this.referenceName);
 	}
 
 	@Override
@@ -101,12 +139,16 @@ public class HierarchyFormula extends AbstractFormula implements ChildrenDepende
 
 	@Override
 	public String toString() {
-		return "HIERARCHY: " + this.innerFormulas[0].toString();
+		return this.referenceName == null
+			? "HIERARCHY: " + this.innerFormulas[0].toString()
+			: "HIERARCHY (" + this.referenceName + "): " + this.innerFormulas[0].toString();
 	}
 
 	@Nonnull
 	@Override
 	public String toStringVerbose() {
-		return "HIERARCHY: " + this.innerFormulas[0].toStringVerbose();
+		return this.referenceName == null
+			? "HIERARCHY: " + this.innerFormulas[0].toStringVerbose()
+			: "HIERARCHY (" + this.referenceName + "): " + this.innerFormulas[0].toStringVerbose();
 	}
 }

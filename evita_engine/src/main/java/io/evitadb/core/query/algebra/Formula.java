@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.algebra;
 
+import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.filter.FormulaOptimizer;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.index.bitmap.Bitmap;
@@ -69,7 +71,9 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	Bitmap compute();
 
 	/**
-	 * Returns copy of this formula with replaced inner formulas.
+	 * Returns copy of this formula with replaced inner formulas. When {@link EmptyFormula#INSTANCE} is returned,
+	 * entire formula is removed in {@link FormulaOptimizer}. In other situations, the returned formula is retained
+	 * and in conjunction case it eliminates the results up in the formula tree.
 	 *
 	 * @param innerFormulas the new inner formulas to use in the cloned formula
 	 * @return a new formula instance of the same type with the given inner formulas

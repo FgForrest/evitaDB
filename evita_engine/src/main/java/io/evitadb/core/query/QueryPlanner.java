@@ -24,6 +24,7 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap;
@@ -38,8 +39,12 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.debug.CacheableVariantsGeneratingVisitor;
+import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
+import io.evitadb.core.query.algebra.prefetch.PrefetchOrder;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -231,10 +236,23 @@ public class QueryPlanner {
 	 * placement/relation.
 	 */
 	private static IndexSelectionResult<?> selectIndexes(@Nonnull QueryPlanningContext queryContext) {
+		return selectIndexes(queryContext, queryContext.getFilterBy());
+	}
+
+	/**
+	 * Variant of {@link #selectIndexes(QueryPlanningContext)} that runs index selection against a caller-supplied
+	 * `FilterBy` instead of the outer query's. Used by {@link #planNestedFilteringFormula} when planning a rewritten
+	 * filter for hierarchy statistics.
+	 */
+	@Nonnull
+	private static IndexSelectionResult<?> selectIndexes(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nullable FilterBy filterBy
+	) {
 		queryContext.pushStep(QueryPhase.PLANNING_INDEX_USAGE);
 		try {
 			final IndexSelectionVisitor indexSelectionVisitor = new IndexSelectionVisitor(queryContext);
-			ofNullable(queryContext.getFilterBy()).ifPresent(indexSelectionVisitor::visit);
+			ofNullable(filterBy).ifPresent(indexSelectionVisitor::visit);
 			//noinspection rawtypes,unchecked
 			return new IndexSelectionResult<>((List) indexSelectionVisitor.getTargetIndexes());
 		} finally {
@@ -253,6 +271,20 @@ public class QueryPlanner {
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<TargetIndexes<T>> targetIndexes
 	) {
+		return createFilterFormula(queryContext, targetIndexes, queryContext.getFilterBy());
+	}
+
+	/**
+	 * Variant of {@link #createFilterFormula(QueryPlanningContext, List)} that plans a caller-supplied `FilterBy`
+	 * (typically the outer query's filter rewritten for an extra-result computation) instead of
+	 * {@link QueryPlanningContext#getFilterBy()}. Used by {@link #planNestedFilteringFormula}.
+	 */
+	@Nonnull
+	private static <T extends Index<?>> List<QueryPlanBuilder> createFilterFormula(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull List<TargetIndexes<T>> targetIndexes,
+		@Nullable FilterBy filterBy
+	) {
 		final LinkedList<QueryPlanBuilder> result = new LinkedList<>();
 		queryContext.pushStep(QueryPhase.PLANNING_FILTER);
 		try {
@@ -266,7 +298,7 @@ public class QueryPlanner {
 						);
 
 						final PrefetchFormulaVisitor prefetchFormulaVisitor = new PrefetchFormulaVisitor(queryContext, targetIndex);
-						ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
+						ofNullable(filterBy).ifPresent(filterByVisitor::visit);
 						adeptFormula = queryContext.analyse(
 							filterByVisitor.getFormula(
 								new FormulaOptimizer(),
@@ -302,6 +334,83 @@ public class QueryPlanner {
 			} else {
 				queryContext.popStep("Selected index: " + result.get(0).getDescriptionWithCosts());
 			}
+		}
+	}
+
+	/**
+	 * Plans a caller-supplied `FilterBy` against the same engine that plans the outer query, picks the cheapest
+	 * candidate by estimated cost, and returns the chosen formula wrapped in {@link DeferredFormula} carrying the
+	 * `EXECUTION_FILTER_NESTED_QUERY` telemetry step.
+	 *
+	 * Used by {@link ExtraResultPlanningVisitor#getFilteringFormulaForStatisticsBase} when the
+	 * {@link FormulaCloner}-based shortcut over the already-planned filter is unsafe and the rewritten `FilterBy`
+	 * must be re-translated. Mirrors the outer-query pipeline (`IndexSelectionVisitor` + per-candidate
+	 * `FilterByVisitor` with `FormulaOptimizer` + `PrefetchFormulaVisitor`) — same primitives, same cost estimation,
+	 * so prefetch remains a viable planning alternative when the rewritten filter narrows down to a small set of
+	 * entities even if the outer filter alone wouldn't have justified it.
+	 *
+	 * The cheapest candidate's `PrefetchFormulaVisitor` populates a per-candidate {@link PrefetchOrder}, but only
+	 * the OUTER query plan can fire prefetch (it's a one-shot pre-execution step). The chosen formula is therefore
+	 * fed to `outerPrefetchFormulaVisitor` (when supplied) so the outer plan can fold the nested filter's prefetch
+	 * demand into its single prefetch decision. The nested plan goes through a fresh {@link FilterByVisitor} pass,
+	 * so any `SelectionFormula` instances it produces are new and contribute their full demand to the outer
+	 * prefetcher without double-counting.
+	 *
+	 * Returns {@link EmptyFormula#INSTANCE} when `IndexSelectionVisitor` finds no eligible candidate (vanishingly
+	 * rare — the GLOBAL fallback is always offered when the schema has a global index).
+	 *
+	 * @param queryContext                planning context inherited from the outer query
+	 * @param filterBy                    rewritten `FilterBy` to plan
+	 * @param outerPrefetchFormulaVisitor the outer query's `PrefetchFormulaVisitor` to fold nested prefetch
+	 *                                    demand into; {@code null} skips the merge
+	 * @param stepDescriptionSupplier     description used in `PLANNING_FILTER_NESTED_QUERY` /
+	 *                                    `EXECUTION_FILTER_NESTED_QUERY` telemetry
+	 * @return the cheapest planned formula wrapped with execution telemetry
+	 */
+	@Nonnull
+	public static Formula planNestedFilteringFormula(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull FilterBy filterBy,
+		@Nullable PrefetchFormulaVisitor outerPrefetchFormulaVisitor,
+		@Nonnull Supplier<String> stepDescriptionSupplier
+	) {
+		queryContext.pushStep(QueryPhase.PLANNING_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+		try {
+			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(queryContext, filterBy);
+			if (indexSelectionResult.isEmpty()) {
+				return EmptyFormula.INSTANCE;
+			}
+			//noinspection rawtypes,unchecked
+			final List<QueryPlanBuilder> builders = createFilterFormula(
+				queryContext, (List) indexSelectionResult.targetIndexes(), filterBy
+			);
+			if (builders.isEmpty()) {
+				return EmptyFormula.INSTANCE;
+			}
+			final Formula nestedFormula = builders.get(0).getFilterFormula();
+
+			// fold the nested filter's prefetch demand into the outer plan so prefetch can fire when the rewrite
+			// narrows down to a small set of entities even if the outer filter alone wouldn't have triggered it
+			if (outerPrefetchFormulaVisitor != null) {
+				nestedFormula.accept(outerPrefetchFormulaVisitor);
+			}
+
+			// preserve telemetry continuity with the legacy nested-planning path
+			return new DeferredFormula(
+				new FormulaWrapper(
+					nestedFormula,
+					(executionContext, formula) -> {
+						try {
+							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
+							return formula.compute();
+						} finally {
+							executionContext.popStep();
+						}
+					}
+				)
+			);
+		} finally {
+			queryContext.popStep();
 		}
 	}
 
@@ -465,7 +574,8 @@ public class QueryPlanner {
 							builder.getTargetIndexes(),
 							builder.getFilterFormula(),
 							builder.getFilterByVisitor(),
-							builder.getSorters()
+							builder.getSorters(),
+							builder.getPrefetchFormulaVisitor()
 						);
 						extraResultPlanner.visit(queryContext.getRequire());
 						builder.setExtraResultProducers(extraResultPlanner.getExtraResultProducers());

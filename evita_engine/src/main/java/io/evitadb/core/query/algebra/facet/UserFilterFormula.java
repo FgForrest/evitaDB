@@ -34,6 +34,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 
 /**
@@ -54,7 +55,7 @@ public class UserFilterFormula extends AbstractFormula implements NonCacheableFo
 	 * Lazily initialized list of inner formulas sorted by their estimated cost in ascending order, used to
 	 * short-circuit AND evaluation starting from the cheapest formula.
 	 */
-	private List<Formula> sortedFormulasByComplexity;
+	@Nullable private List<Formula> sortedFormulasByComplexity;
 
 	public UserFilterFormula(@Nonnull Formula... innerFormulas) {
 		this.initFields(innerFormulas);

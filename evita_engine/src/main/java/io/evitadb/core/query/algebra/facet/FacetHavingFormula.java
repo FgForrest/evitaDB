@@ -26,11 +26,13 @@ package io.evitadb.core.query.algebra.facet;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Pass-through wrapper emitted by `FacetHavingTranslator` around the composite formula it builds for a
@@ -48,7 +50,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class FacetHavingFormula extends AbstractFormula implements ChildrenDependentFormula {
+public class FacetHavingFormula extends AbstractFormula implements ChildrenDependentFormula, NonCacheableFormula {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
@@ -57,21 +59,40 @@ public class FacetHavingFormula extends AbstractFormula implements ChildrenDepen
 	 * Error message thrown when the formula is constructed with anything other than a single inner formula.
 	 */
 	private static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
+	/**
+	 * Name of the reference that this `facetHaving` constraint targets (e.g. `"brands"`). Used by downstream
+	 * planners — most notably hierarchy-statistics — to identify and strip user-filter facet selections that
+	 * target the same reference for which statistics are being computed, preserving the
+	 * `COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER` semantics.
+	 */
+	@Nullable private final String referenceName;
 
 	/**
-	 * Creates a new {@link FacetHavingFormula} wrapping the given composite facet formula.
+	 * Creates a new {@link FacetHavingFormula} wrapping the given composite facet formula and remembering which
+	 * reference name (`facetHaving(referenceName, …)`) it represents.
 	 *
-	 * @param innerFormula the single child formula to delegate to
+	 * @param referenceName name of the reference this wrapper targets, or {@code null} when unknown
+	 * @param innerFormula  the single child formula to delegate to
 	 */
-	public FacetHavingFormula(@Nonnull Formula innerFormula) {
+	public FacetHavingFormula(@Nullable String referenceName, @Nonnull Formula innerFormula) {
+		this.referenceName = referenceName;
 		this.initFields(innerFormula);
+	}
+
+	/**
+	 * Returns the name of the reference this `facetHaving` wrapper targets, or {@code null} when the reference
+	 * name is unknown.
+	 */
+	@Nullable
+	public String getReferenceName() {
+		return this.referenceName;
 	}
 
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new FacetHavingFormula(innerFormulas[0]);
+		return new FacetHavingFormula(this.referenceName, innerFormulas[0]);
 	}
 
 	@Override
@@ -91,7 +112,9 @@ public class FacetHavingFormula extends AbstractFormula implements ChildrenDepen
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return CLASS_ID;
+		return this.referenceName == null
+			? CLASS_ID
+			: CLASS_ID + hashFunction.hashChars(this.referenceName) * 31;
 	}
 
 	@Override

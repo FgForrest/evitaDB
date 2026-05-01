@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.utils.visitor;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import lombok.Getter;
 
@@ -165,21 +166,38 @@ public class FormulaCloner implements FormulaVisitor {
 				if (childrenHaveNotChanged) {
 					// use entire formula tree block
 					formulaToStore = formula;
-				} else if (formula instanceof NotFormula notFormula && updatedChildren.size() == 1) {
-					// Determine which child survived
-					final Formula processedSuperset = this.formulasProcessed.get(notFormula.getSupersetFormula());
-					if (processedSuperset != null && updatedChildren.contains(processedSuperset)) {
-						// Superset survived, subtracted was removed → S \ nothing = S
-						formulaToStore = processedSuperset;
-					} else {
-						// Subtracted survived, superset was removed → nothing to subtract from → drop
+				} else if (formula instanceof NotFormula notFormula && updatedChildren.size() < 2) {
+					if (updatedChildren.isEmpty()) {
+						// both children stripped — nothing left to subtract from, drop the wrapper
 						formulaToStore = null;
+					} else {
+						// Determine which child survived
+						final Formula processedSuperset = this.formulasProcessed.get(notFormula.getSupersetFormula());
+						if (processedSuperset != null && updatedChildren.contains(processedSuperset)) {
+							// Superset survived, subtracted was removed → S \ nothing = S
+							formulaToStore = processedSuperset;
+						} else {
+							// Subtracted survived, superset was removed → nothing to subtract from → drop
+							formulaToStore = null;
+						}
 					}
 				} else {
 					// recreate parent formula with new children
-					formulaToStore = formula.getCloneWithInnerFormulas(
+					final Formula recreated = formula.getCloneWithInnerFormulas(
 						updatedChildren.toArray(Formula[]::new)
 					);
+					if (updatedChildren.isEmpty() && recreated == EmptyFormula.INSTANCE) {
+						// The wrapper signalled (via the EmptyFormula-on-empty convention shared by
+						// AndFormula/OrFormula/UserFilterFormula/ScopeContainerFormula/etc.) that with no
+						// children it has no meaningful representation. In a strip-clone context this means
+						// "drop me as the identity element of my parent" rather than letting EmptyFormula
+						// propagate up as the absorbing element through the surrounding AND/OR chain.
+						// Wrappers that genuinely want to remain when stripped (e.g. FacetGroupOrFormula,
+						// FacetGroupAndFormula) opt out simply by not returning EmptyFormula on empty input.
+						formulaToStore = null;
+					} else {
+						formulaToStore = recreated;
+					}
 				}
 			} else {
 				formulaToStore = mutatedFormula;
