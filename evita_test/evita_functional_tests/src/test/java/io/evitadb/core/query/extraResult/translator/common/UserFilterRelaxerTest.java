@@ -419,7 +419,7 @@ class UserFilterRelaxerTest {
 	 */
 	@Nonnull
 	private static FacetHavingFormula newFacetCarrier(int pk) {
-		return new FacetHavingFormula(new ConstantFormula(new ArrayBitmap(pk)));
+		return new FacetHavingFormula("brand", new ConstantFormula(new ArrayBitmap(pk)));
 	}
 
 	/**

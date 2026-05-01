@@ -73,7 +73,7 @@ class ExtraResultPlanningVisitorTest {
 		final Formula formula = mock(Formula.class);
 		final FilterByVisitor filterByVisitor = mock(FilterByVisitor.class);
 		return new ExtraResultPlanningVisitor(
-			queryContext, indexes, formula, filterByVisitor, Collections.emptyList()
+			queryContext, indexes, formula, filterByVisitor, Collections.emptyList(), null
 		);
 	}
 

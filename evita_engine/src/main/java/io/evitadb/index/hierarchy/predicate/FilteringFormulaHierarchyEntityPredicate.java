@@ -262,21 +262,27 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	}
 
 	/**
-	 * This constructor could be used when the filtered set is already known.
+	 * Constructor used when only the pre-computed filtering formula is available — typically because the formula
+	 * was derived by cloning the main query's filter tree (see
+	 * {@link io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor#getFilteringFormulaForStatisticsBase}).
+	 * Identity for {@link #equals(Object)}/{@link #hashCode()} relies on the formula's hash because no
+	 * {@link FilterBy} is captured.
 	 *
-	 * @param filterBy         the original filtering constraint that led to the formula
-	 * @param filteringFormula the formula containing valid entity primary keys that should be matched by this predicate
+	 * @param targetEntityType  name of the entity type whose hierarchy is being filtered by this predicate
+	 * @param requestedScopes   set of {@link Scope}s the surrounding query operates against; used to constrain
+	 *                          hierarchy traversal to the indexes the query is allowed to read from
+	 * @param filteringFormula  the formula containing valid entity primary keys that should be matched by this
+	 *                          predicate
 	 */
 	public FilteringFormulaHierarchyEntityPredicate(
 		@Nonnull String targetEntityType,
 		@Nonnull Set<Scope> requestedScopes,
-		@Nonnull FilterBy filterBy,
 		@Nonnull Formula filteringFormula
 	) {
 		this.parent = null;
 		this.targetEntityType = targetEntityType;
 		this.requestedScopes = requestedScopes;
-		this.filterBy = filterBy;
+		this.filterBy = null;
 		this.anyChildFilter = null;
 		this.filteringFormula = filteringFormula;
 		this.hash = this.filteringFormula.getHash();
@@ -417,6 +423,10 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		result = 31 * result + (this.filterBy == null ? 0 : this.filterBy.hashCode());
 		result = 31 * result + this.targetEntityType.hashCode();
 		result = 31 * result + this.requestedScopes.hashCode();
+		// fold in the formula's hash so predicates that share `(parent, targetEntityType, requestedScopes)` but
+		// were built from different filtering formulas (e.g. cached pre-computed formulas with `filterBy == null`)
+		// remain distinguishable
+		result = 31 * result + Long.hashCode(this.hash);
 		return result;
 	}
 
@@ -426,10 +436,15 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		if (o == null || getClass() != o.getClass()) return false;
 
 		FilteringFormulaHierarchyEntityPredicate that = (FilteringFormulaHierarchyEntityPredicate) o;
+		// `hash` is a 64-bit content hash of `filteringFormula` (xxhash, uniformly distributed) and is one of
+		// five equality components — a collision alone cannot make two predicates equal. The alternative
+		// (deep formula-tree structural equality) is exactly the cost this predicate is built to avoid; the
+		// 64-bit collision risk across the predicate identities used in a single query context is negligible.
 		return Arrays.equals(this.parent, that.parent) &&
 			Objects.equals(this.filterBy, that.filterBy) &&
 			this.targetEntityType.equals(that.targetEntityType) &&
-			this.requestedScopes.equals(that.requestedScopes);
+			this.requestedScopes.equals(that.requestedScopes) &&
+			this.hash.longValue() == that.hash.longValue();
 	}
 
 	@Override

@@ -29,7 +29,9 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
+import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -75,9 +77,9 @@ class FormulaClonerTest {
 		@Test
 		@DisplayName("should return same instance when mutator is identity")
 		void shouldLeaveFormulaUntouched() {
-			final Formula cloneResult = FormulaCloner.clone(formula, UnaryOperator.identity());
+			final Formula cloneResult = FormulaCloner.clone(FormulaClonerTest.this.formula, UnaryOperator.identity());
 
-			assertSame(formula, cloneResult);
+			assertSame(FormulaClonerTest.this.formula, cloneResult);
 		}
 
 		@Test
@@ -85,7 +87,7 @@ class FormulaClonerTest {
 		void shouldReplaceEntireFormula() {
 			final ConstantFormula replacedFormula = new ConstantFormula(new ArrayBitmap(7));
 
-			final Formula cloneResult = FormulaCloner.clone(formula, examinedFormula -> replacedFormula);
+			final Formula cloneResult = FormulaCloner.clone(FormulaClonerTest.this.formula, examinedFormula -> replacedFormula);
 
 			assertSame(replacedFormula, cloneResult);
 		}
@@ -130,37 +132,37 @@ class FormulaClonerTest {
 		@DisplayName("should remove EmptyFormula and preserve other children")
 		void shouldGetRidOfEmptyFormulas() {
 			final Formula cloneResult = FormulaCloner.clone(
-				formula,
+				FormulaClonerTest.this.formula,
 				examinedFormula -> examinedFormula instanceof EmptyFormula ? null : examinedFormula
 			);
 
-			assertNotSame(formula, cloneResult);
-			assertTrue(FormulaLocator.contains(formula, EmptyFormula.class));
+			assertNotSame(FormulaClonerTest.this.formula, cloneResult);
+			assertTrue(FormulaLocator.contains(FormulaClonerTest.this.formula, EmptyFormula.class));
 			assertFalse(FormulaLocator.contains(cloneResult, EmptyFormula.class));
 
-			assertNotSame(formula.getInnerFormulas()[0], cloneResult.getInnerFormulas()[0]);
+			assertNotSame(FormulaClonerTest.this.formula.getInnerFormulas()[0], cloneResult.getInnerFormulas()[0]);
 			assertSame(
-				formula.getInnerFormulas()[0].getInnerFormulas()[1],
+				FormulaClonerTest.this.formula.getInnerFormulas()[0].getInnerFormulas()[1],
 				cloneResult.getInnerFormulas()[0].getInnerFormulas()[0]
 			);
 			assertSame(
-				formula.getInnerFormulas()[0].getInnerFormulas()[2],
+				FormulaClonerTest.this.formula.getInnerFormulas()[0].getInnerFormulas()[2],
 				cloneResult.getInnerFormulas()[0].getInnerFormulas()[1]
 			);
-			assertSame(formula.getInnerFormulas()[1], cloneResult.getInnerFormulas()[1]);
+			assertSame(FormulaClonerTest.this.formula.getInnerFormulas()[1], cloneResult.getInnerFormulas()[1]);
 		}
 
 		@Test
 		@DisplayName("should collapse parent to single child when sibling removed")
 		void shouldHandleUnnecessaryFormulas() {
 			final Formula cloneResult = FormulaCloner.clone(
-				formula,
+				FormulaClonerTest.this.formula,
 				examinedFormula -> examinedFormula instanceof UserFilterFormula ? null : examinedFormula
 			);
 
-			assertNotSame(formula, cloneResult);
+			assertNotSame(FormulaClonerTest.this.formula, cloneResult);
 			// When AndFormula loses one of two children, getCloneWithInnerFormulas returns the surviving child
-			assertSame(formula.getInnerFormulas()[0], cloneResult);
+			assertSame(FormulaClonerTest.this.formula.getInnerFormulas()[0], cloneResult);
 		}
 
 		@Test
@@ -168,16 +170,125 @@ class FormulaClonerTest {
 		void shouldReplaceSpecificInnerFormula() {
 			final ConstantFormula replacement = new ConstantFormula(new ArrayBitmap(77));
 			final Formula cloneResult = FormulaCloner.clone(
-				formula,
+				FormulaClonerTest.this.formula,
 				f -> f instanceof EmptyFormula ? replacement : f
 			);
 
-			assertNotSame(formula, cloneResult);
+			assertNotSame(FormulaClonerTest.this.formula, cloneResult);
 			// EmptyFormula should be gone, replaced by ConstantFormula(77)
 			assertFalse(FormulaLocator.contains(cloneResult, EmptyFormula.class));
 			// OrFormula should have replacement as first child now
 			final Formula orClone = cloneResult.getInnerFormulas()[0];
 			assertSame(replacement, orClone.getInnerFormulas()[0]);
+		}
+
+		@Test
+		@DisplayName("should drop nested empty container chain instead of propagating EmptyFormula upward")
+		void shouldDropNestedEmptyContainerChain() {
+			// Reproduces the bug case where strip mutators empty out an *intermediate* container
+			// inside UserFilterFormula (e.g. userFilter(and(stripA, stripB))). The inner AND ends up
+			// with no children and `AndFormula.getCloneWithInnerFormulas([])` returns EmptyFormula —
+			// the cloner used to let that propagate through UserFilter and into the surrounding AND,
+			// collapsing the entire result to "no entities". The convention-driven rule now drops
+			// any wrapper that returns EmptyFormula on empty children, cascading the cleanup so the
+			// surrounding tree is preserved as if the user-filter wasn't there at all.
+			final ConstantFormula stripA = new ConstantFormula(new ArrayBitmap(101));
+			final ConstantFormula stripB = new ConstantFormula(new ArrayBitmap(102));
+			final ConstantFormula keepMe = new ConstantFormula(new ArrayBitmap(7, 8));
+			final Formula tree = new AndFormula(
+				keepMe,
+				new UserFilterFormula(
+					new AndFormula(stripA, stripB)
+				)
+			);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree,
+				examined -> examined == stripA || examined == stripB ? null : examined
+			);
+
+			assertNotSame(tree, cloneResult);
+			// UserFilter is gone (its only child — the inner AND — was emptied and dropped, so the
+			// UserFilter itself ends up empty and is dropped too)
+			assertFalse(FormulaLocator.contains(cloneResult, UserFilterFormula.class));
+			// EmptyFormula must NOT have leaked into the cloned tree
+			assertFalse(FormulaLocator.contains(cloneResult, EmptyFormula.class));
+			// outer AND collapses to its single surviving child
+			assertSame(keepMe, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should drop AndFormula when all its children are stripped")
+		void shouldDropAndFormulaWhenAllChildrenStripped() {
+			// Validates the generalised empty-drop convention — once both children of the inner AND are
+			// stripped, AndFormula.getCloneWithInnerFormulas([]) returns EmptyFormula and the cloner must
+			// drop the wrapper instead of letting EmptyFormula leak into the surrounding OR.
+			final ConstantFormula stripA = new ConstantFormula(new ArrayBitmap(101));
+			final ConstantFormula stripB = new ConstantFormula(new ArrayBitmap(102));
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(7, 8));
+			final Formula tree = new OrFormula(
+				keep,
+				new AndFormula(stripA, stripB)
+			);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree,
+				f -> f == stripA || f == stripB ? null : f
+			);
+
+			assertNotNull(cloneResult);
+			assertFalse(FormulaLocator.contains(cloneResult, EmptyFormula.class));
+			// OR with one surviving child collapses to that child
+			assertSame(keep, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should drop OrFormula when all its children are stripped")
+		void shouldDropOrFormulaWhenAllChildrenStripped() {
+			// Mirrors the AND case: stripping every child of an OR leaves OrFormula.getCloneWithInnerFormulas([])
+			// returning EmptyFormula; the cloner must drop the wrapper, not propagate it through the surrounding AND.
+			final ConstantFormula stripA = new ConstantFormula(new ArrayBitmap(201));
+			final ConstantFormula stripB = new ConstantFormula(new ArrayBitmap(202));
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(11, 12));
+			final Formula tree = new AndFormula(
+				keep,
+				new OrFormula(stripA, stripB)
+			);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree,
+				f -> f == stripA || f == stripB ? null : f
+			);
+
+			assertNotNull(cloneResult);
+			assertFalse(FormulaLocator.contains(cloneResult, EmptyFormula.class));
+			// AND with one surviving child collapses to that child
+			assertSame(keep, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should drop ScopeContainerFormula when all its children are stripped")
+		void shouldDropScopeContainerFormulaWhenAllChildrenStripped() {
+			// ScopeContainerFormula.getCloneWithInnerFormulas([]) returns EmptyFormula too — the cloner must
+			// honour the generalised convention and drop the scope container instead of leaking EmptyFormula upwards.
+			final ConstantFormula stripA = new ConstantFormula(new ArrayBitmap(301));
+			final ConstantFormula stripB = new ConstantFormula(new ArrayBitmap(302));
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(21, 22));
+			final Formula tree = new AndFormula(
+				keep,
+				new ScopeContainerFormula(Scope.LIVE, stripA, stripB)
+			);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree,
+				f -> f == stripA || f == stripB ? null : f
+			);
+
+			assertNotNull(cloneResult);
+			assertFalse(FormulaLocator.contains(cloneResult, EmptyFormula.class));
+			assertFalse(FormulaLocator.contains(cloneResult, ScopeContainerFormula.class));
+			// AND with one surviving child collapses to that child
+			assertSame(keep, cloneResult);
 		}
 	}
 
@@ -240,6 +351,28 @@ class FormulaClonerTest {
 			final Formula firstChild = cloneResult.getInnerFormulas()[0];
 			assertSame(superset, firstChild);
 		}
+
+		@Test
+		@DisplayName("should drop NotFormula when both children are stripped")
+		void shouldDropNotFormulaWhenBothChildrenStripped() {
+			final ConstantFormula stripSubtracted = new ConstantFormula(new ArrayBitmap(5));
+			final ConstantFormula stripSuperset = new ConstantFormula(new ArrayBitmap(5, 8, 10));
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(1));
+			final Formula tree = new OrFormula(
+				keep,
+				new NotFormula(stripSubtracted, stripSuperset)
+			);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree,
+				f -> f == stripSubtracted || f == stripSuperset ? null : f
+			);
+
+			assertNotNull(cloneResult);
+			assertFalse(FormulaLocator.contains(cloneResult, NotFormula.class));
+			// OR with one surviving child collapses to that child
+			assertSame(keep, cloneResult);
+		}
 	}
 
 	@Nested
@@ -247,10 +380,16 @@ class FormulaClonerTest {
 	class ParentContextTest {
 
 		@Test
-		@DisplayName("should resolve isWithin with class parameter")
+		@DisplayName("should resolve isWithin with class parameter and drop the empty UserFilterFormula")
 		void shouldResolveIsWithin() {
+			// Strip every formula inside the UserFilterFormula. After the strip the wrapper has no children;
+			// the cloner treats an empty UserFilterFormula as AND-identity (drops it from the parent) instead
+			// of letting `getCloneWithInnerFormulas([])` short-circuit it to EmptyFormula. The root AND now
+			// has a single surviving child — the untouched OrFormula sub-tree — and `AndFormula.getCloneWithInnerFormulas`
+			// collapses an AND with one child to that child, so the result is the original OrFormula instance
+			// itself (memoised identity preserved).
 			final Formula cloneResult = FormulaCloner.clone(
-				formula, (formulaCloner, currentFormula) -> {
+				FormulaClonerTest.this.formula, (formulaCloner, currentFormula) -> {
 					if (formulaCloner.isWithin(UserFilterFormula.class)) {
 						return null;
 					} else {
@@ -259,20 +398,19 @@ class FormulaClonerTest {
 				}
 			);
 
-			assertNotSame(formula, cloneResult);
-			assertTrue(FormulaLocator.contains(formula, UserFilterFormula.class));
-
-			assertSame(formula.getInnerFormulas()[0], cloneResult.getInnerFormulas()[0]);
-			assertNotSame(formula.getInnerFormulas()[1], cloneResult.getInnerFormulas()[1]);
-			assertEquals(0, cloneResult.getInnerFormulas()[1].getInnerFormulas().length);
+			assertNotSame(FormulaClonerTest.this.formula, cloneResult);
+			assertTrue(FormulaLocator.contains(FormulaClonerTest.this.formula, UserFilterFormula.class));
+			assertFalse(FormulaLocator.contains(cloneResult, UserFilterFormula.class));
+			// AND with 1 surviving child collapses to that child — the cloned root IS the original OrFormula
+			assertSame(FormulaClonerTest.this.formula.getInnerFormulas()[0], cloneResult);
 		}
 
 		@Test
 		@DisplayName("should resolve isWithin with predicate parameter")
 		void shouldResolveIsWithinWithPredicate() {
 			final Formula cloneResult = FormulaCloner.clone(
-				formula, (formulaCloner, currentFormula) -> {
-					if (formulaCloner.isWithin(f -> f instanceof OrFormula)) {
+				FormulaClonerTest.this.formula, (formulaCloner, currentFormula) -> {
+					if (formulaCloner.isWithin(OrFormula.class::isInstance)) {
 						return null;
 					} else {
 						return currentFormula;
@@ -291,11 +429,11 @@ class FormulaClonerTest {
 		void shouldReportAllParentsMatchCorrectly() {
 			// Track which formulas see all parents matching
 			final Formula cloneResult = FormulaCloner.clone(
-				formula, (formulaCloner, currentFormula) -> {
+				FormulaClonerTest.this.formula, (formulaCloner, currentFormula) -> {
 					// At root level (no parents), allParentsMatch should be true vacuously
-					if (currentFormula == formula) {
+					if (currentFormula == FormulaClonerTest.this.formula) {
 						assertTrue(
-							formulaCloner.allParentsMatch(f -> f instanceof AndFormula),
+							formulaCloner.allParentsMatch(AndFormula.class::isInstance),
 							"allParentsMatch should be vacuously true at root"
 						);
 					}
@@ -303,7 +441,7 @@ class FormulaClonerTest {
 				}
 			);
 
-			assertSame(formula, cloneResult);
+			assertSame(FormulaClonerTest.this.formula, cloneResult);
 		}
 
 		@Test
@@ -322,9 +460,9 @@ class FormulaClonerTest {
 				tree, (formulaCloner, currentFormula) -> {
 					if (currentFormula == targetLeaf) {
 						// parents are OrFormula + AndFormula, not all are OrFormula
-						assertFalse(formulaCloner.allParentsMatch(f -> f instanceof OrFormula));
+						assertFalse(formulaCloner.allParentsMatch(OrFormula.class::isInstance));
 						// but all parents are Formula
-						assertTrue(formulaCloner.allParentsMatch(f -> f instanceof Formula));
+						assertTrue(formulaCloner.allParentsMatch(Formula.class::isInstance));
 					}
 					return currentFormula;
 				}

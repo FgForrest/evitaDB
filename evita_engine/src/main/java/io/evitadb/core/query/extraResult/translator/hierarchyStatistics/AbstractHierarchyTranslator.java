@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics;
 
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyDistance;
 import io.evitadb.api.query.require.HierarchyLevel;
@@ -34,35 +33,27 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.core.query.AttributeSchemaAccessor;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.deferred.DeferredFormula;
-import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
+import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor.ProcessingScope;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
 import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
-import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.index.EntityIndex;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Set;
 
 import static java.util.Optional.ofNullable;
 
@@ -83,6 +74,39 @@ public abstract class AbstractHierarchyTranslator {
 	) {
 		return ofNullable(extraResultPlanner.findExistingProducer(HierarchyStatisticsProducer.class))
 			.orElseGet(() -> new HierarchyStatisticsProducer(extraResultPlanner.getLocale()));
+	}
+
+	/**
+	 * Resolves the single {@link Scope} from the processing scope and asserts the given hierarchical schema has
+	 * its hierarchy indexed in that scope. Hierarchies cannot be produced from multiple scopes — they would
+	 * represent two distinct trees — so any request involving more than one scope is rejected up front.
+	 *
+	 * @param processingScope    current processing scope carrying the requested scopes
+	 * @param hierarchicalSchema the schema whose hierarchy is to be queried (the queried schema for self,
+	 *                           the referenced schema for hierarchy-of-reference)
+	 * @return the single {@link Scope} that is both requested and confirmed to have the hierarchy indexed
+	 * @throws EvitaInvalidUsageException  when more than one scope is requested
+	 * @throws HierarchyNotIndexedException when the hierarchy is not indexed in the requested scope
+	 */
+	@Nonnull
+	protected static Scope resolveSingleHierarchicalScope(
+		@Nonnull ProcessingScope processingScope,
+		@Nonnull EntitySchemaContract hierarchicalSchema
+	) {
+		final Set<Scope> scopes = processingScope.getScopes();
+		// hierarchy cannot be produced from multiple scopes — they represent two distinct trees
+		if (scopes.size() > 1) {
+			throw new EvitaInvalidUsageException(
+				"Hierarchies of `" + hierarchicalSchema.getName() + "` from multiple scopes cannot be combined. " +
+					"They represent two distinct trees."
+			);
+		}
+		final Scope scope = scopes.iterator().next();
+		Assert.isTrue(
+			hierarchicalSchema.isHierarchyIndexedInScope(scope),
+			() -> new HierarchyNotIndexedException(hierarchicalSchema, scope)
+		);
+		return scope;
 	}
 
 	/**
@@ -155,72 +179,6 @@ public abstract class AbstractHierarchyTranslator {
 					return executionContext.fetchEntity(hierarchicalEntityType, entityPk, enriched).orElse(null);
 				}
 			};
-		}
-	}
-
-	/**
-	 * Method creates formula that is responsible for computing the queried entity count for
-	 * {@link HierarchyStatisticsProducer}. The provided indexes are analysed by a single
-	 * {@link FilterByVisitor} pass — passing several reduced indexes that share the same filter
-	 * is significantly cheaper than running the analysis once per index.
-	 */
-	@Nonnull
-	protected <T extends EntityIndex> Formula createFilterFormula(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull FilterBy filterBy,
-		@Nonnull Class<T> indexType,
-		@Nonnull EntitySchemaContract targetEntitySchema,
-		@Nonnull List<T> entityIndexes,
-		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
-	) {
-		try {
-			final Supplier<String> stepDescriptionSupplier = () -> "Hierarchy statistics of `" + targetEntitySchema.getName() + "` on " + entityIndexes.size() + " index(es): " +
-				Arrays.stream(filterBy.getChildren()).map(Object::toString).collect(Collectors.joining(", "));
-			queryContext.pushStep(
-				QueryPhase.PLANNING_FILTER_NESTED_QUERY,
-				stepDescriptionSupplier
-			);
-			// create a visitor
-			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
-				queryContext,
-				Collections.emptyList(),
-				TargetIndexes.EMPTY
-			);
-			// now analyze the filter by in a nested context with exchanged primary entity index
-			final Formula theFormula = queryContext.analyse(
-				theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
-					indexType,
-					() -> entityIndexes,
-					null,
-					targetEntitySchema,
-					null,
-					null,
-					null,
-					attributeSchemaAccessor,
-					(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
-					() -> {
-						filterBy.accept(theFilterByVisitor);
-						// get the result and clear the visitor internal structures
-						return theFilterByVisitor.getFormulaAndClear();
-					}
-				)
-			);
-			// create a deferred formula that will log the execution time to query telemetry
-			return new DeferredFormula(
-				new FormulaWrapper(
-					theFormula,
-					(executionContext, formula) -> {
-						try {
-							executionContext.pushStep(QueryPhase.EXECUTION_FILTER_NESTED_QUERY, stepDescriptionSupplier);
-							return formula.compute();
-						} finally {
-							executionContext.popStep();
-						}
-					}
-				)
-			);
-		} finally {
-			queryContext.popStep();
 		}
 	}
 

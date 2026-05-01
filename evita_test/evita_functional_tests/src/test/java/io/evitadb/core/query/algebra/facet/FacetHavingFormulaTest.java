@@ -71,6 +71,12 @@ class FacetHavingFormulaTest {
 	 */
 	@Nonnull
 	private static final Bitmap REFERENCE_BITMAP = new ArrayBitmap(10, 20, 30);
+	/**
+	 * Reference name passed to every wrapper under test — keeps construction sites short while still
+	 * exercising the active (non-{@code null}) branch of {@link FacetHavingFormula#includeAdditionalHash}.
+	 */
+	@Nonnull
+	private static final String REFERENCE_NAME = "brand";
 
 	/**
 	 * Builds a fresh inner formula around {@link #REFERENCE_BITMAP}. Each test that asserts hash equality
@@ -93,7 +99,7 @@ class FacetHavingFormulaTest {
 			// the wrapper must forward compute() verbatim — any copy would add allocations and break
 			// the no-overhead guarantee documented in the class-level comment
 			final Formula inner = newInnerFormula();
-			final FacetHavingFormula formula = new FacetHavingFormula(inner);
+			final FacetHavingFormula formula = new FacetHavingFormula(REFERENCE_NAME, inner);
 
 			final Bitmap result = formula.compute();
 
@@ -106,7 +112,7 @@ class FacetHavingFormulaTest {
 			// empty inner formula should propagate as EmptyBitmap.INSTANCE — confirms the wrapper
 			// doesn't accidentally wrap empty into a fresh BaseBitmap, which would break the
 			// downstream `bitmap == EmptyBitmap.INSTANCE` fast-path used by AND/OR combinators
-			final FacetHavingFormula formula = new FacetHavingFormula(EmptyFormula.INSTANCE);
+			final FacetHavingFormula formula = new FacetHavingFormula(REFERENCE_NAME, EmptyFormula.INSTANCE);
 
 			assertSame(EmptyBitmap.INSTANCE, formula.compute());
 		}
@@ -121,7 +127,7 @@ class FacetHavingFormulaTest {
 		void shouldForwardOperationCostToInnerFormula() {
 			// wrapper must add zero per-element cost — otherwise inserting it would change plan choice
 			final Formula inner = newInnerFormula();
-			final FacetHavingFormula formula = new FacetHavingFormula(inner);
+			final FacetHavingFormula formula = new FacetHavingFormula(REFERENCE_NAME, inner);
 
 			assertEquals(inner.getOperationCost(), formula.getOperationCost());
 		}
@@ -132,7 +138,7 @@ class FacetHavingFormulaTest {
 			// cardinality drives the multiplier in getEstimatedCost — delegating keeps the cost model
 			// transparent to the wrapper
 			final Formula inner = newInnerFormula();
-			final FacetHavingFormula formula = new FacetHavingFormula(inner);
+			final FacetHavingFormula formula = new FacetHavingFormula(REFERENCE_NAME, inner);
 
 			assertEquals(inner.getEstimatedCardinality(), formula.getEstimatedCardinality());
 		}
@@ -143,7 +149,7 @@ class FacetHavingFormulaTest {
 			// getEstimatedCostInternal must return the child's estimate untouched — no base-cost term
 			// and no additional per-wrapper contribution
 			final Formula inner = newInnerFormula();
-			final FacetHavingFormula formula = new FacetHavingFormula(inner);
+			final FacetHavingFormula formula = new FacetHavingFormula(REFERENCE_NAME, inner);
 
 			assertEquals(inner.getEstimatedCost(), formula.getEstimatedCost());
 		}
@@ -156,7 +162,7 @@ class FacetHavingFormulaTest {
 		@Test
 		@DisplayName("should re-wrap provided single inner formula")
 		void shouldReWrapProvidedSingleInnerFormula() {
-			final FacetHavingFormula original = new FacetHavingFormula(newInnerFormula());
+			final FacetHavingFormula original = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
 			final Formula replacement = new ConstantFormula(new ArrayBitmap(1, 2));
 
 			final Formula clone = original.getCloneWithInnerFormulas(replacement);
@@ -172,7 +178,7 @@ class FacetHavingFormulaTest {
 		void shouldPreserveFacetHavingFormulaTypeOnClone() {
 			// the concrete class is how the facet-impact relaxer finds facet carriers — returning a different
 			// type on clone would make every refold invisible to the relaxer
-			final Formula clone = new FacetHavingFormula(newInnerFormula())
+			final Formula clone = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula())
 				.getCloneWithInnerFormulas(new ConstantFormula(new ArrayBitmap(5)));
 
 			assertInstanceOf(FacetHavingFormula.class, clone);
@@ -184,7 +190,7 @@ class FacetHavingFormulaTest {
 			// "exactly one inner formula" is a hard invariant — Assert.isTrue maps to
 			// EvitaInvalidUsageException; the message identifies the constraint so a failing refold is
 			// traceable in logs
-			final FacetHavingFormula original = new FacetHavingFormula(newInnerFormula());
+			final FacetHavingFormula original = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
 
 			final EvitaInvalidUsageException ex = assertThrows(
 				EvitaInvalidUsageException.class,
@@ -200,7 +206,7 @@ class FacetHavingFormulaTest {
 		@DisplayName("should throw when more than one inner formula is supplied")
 		void shouldThrowWhenMoreThanOneInnerFormulaIsSupplied() {
 			// same invariant — clone cannot introduce multiple children where the wrapper expects one
-			final FacetHavingFormula original = new FacetHavingFormula(newInnerFormula());
+			final FacetHavingFormula original = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
 			final Formula a = new ConstantFormula(new ArrayBitmap(1));
 			final Formula b = new ConstantFormula(new ArrayBitmap(2));
 
@@ -224,8 +230,8 @@ class FacetHavingFormulaTest {
 		void shouldProduceIdenticalHashForTwoWrappersAroundIdenticalChildren() {
 			// stable hashing is what lets the formula cache recognise "two facetHaving wrappers around
 			// the same subtree" as equivalent — a drift here silently misses cache hits
-			final FacetHavingFormula a = new FacetHavingFormula(newInnerFormula());
-			final FacetHavingFormula b = new FacetHavingFormula(newInnerFormula());
+			final FacetHavingFormula a = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
+			final FacetHavingFormula b = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
 
 			assertEquals(a.getHash(), b.getHash());
 		}
@@ -234,8 +240,8 @@ class FacetHavingFormulaTest {
 		@DisplayName("should produce different hash for wrappers around different children")
 		void shouldProduceDifferentHashForWrappersAroundDifferentChildren() {
 			// hash must change when the child changes — otherwise sibling facet picks would collide
-			final FacetHavingFormula a = new FacetHavingFormula(new ConstantFormula(new ArrayBitmap(1)));
-			final FacetHavingFormula b = new FacetHavingFormula(new ConstantFormula(new ArrayBitmap(2)));
+			final FacetHavingFormula a = new FacetHavingFormula(REFERENCE_NAME, new ConstantFormula(new ArrayBitmap(1)));
+			final FacetHavingFormula b = new FacetHavingFormula(REFERENCE_NAME, new ConstantFormula(new ArrayBitmap(2)));
 
 			assertNotEquals(a.getHash(), b.getHash());
 		}
@@ -246,7 +252,7 @@ class FacetHavingFormulaTest {
 			// the wrapper's own class ID must enter the hash — otherwise `facetHaving(x)` and `x` would
 			// cache-collide and the relaxer's type-based lookup would see a false carrier
 			final Formula inner = newInnerFormula();
-			final FacetHavingFormula wrapper = new FacetHavingFormula(inner);
+			final FacetHavingFormula wrapper = new FacetHavingFormula(REFERENCE_NAME, inner);
 
 			assertNotEquals(inner.getHash(), wrapper.getHash());
 		}
@@ -260,7 +266,7 @@ class FacetHavingFormulaTest {
 		@DisplayName("should render FACET HAVING as short label identifying the wrapper")
 		void shouldRenderFacetHavingAsShortLabelIdentifyingTheWrapper() {
 			// the short toString is used in plan dumps — must be stable and exactly "FACET HAVING"
-			final FacetHavingFormula formula = new FacetHavingFormula(newInnerFormula());
+			final FacetHavingFormula formula = new FacetHavingFormula(REFERENCE_NAME, newInnerFormula());
 
 			assertEquals("FACET HAVING", formula.toString());
 		}
@@ -271,7 +277,7 @@ class FacetHavingFormulaTest {
 			// toStringVerbose is used by debug tooling — must embed the child's verbose rendering so
 			// a plan dump can be read top-to-bottom without descending manually
 			final Formula inner = newInnerFormula();
-			final FacetHavingFormula formula = new FacetHavingFormula(inner);
+			final FacetHavingFormula formula = new FacetHavingFormula(REFERENCE_NAME, inner);
 
 			final String verbose = formula.toStringVerbose();
 			assertNotNull(verbose);

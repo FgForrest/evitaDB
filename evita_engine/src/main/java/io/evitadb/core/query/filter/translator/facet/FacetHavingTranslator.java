@@ -360,7 +360,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			.map(it -> FormulaFactory.or(it.toArray(Formula[]::new)))
 			.orElse(null);
 
-		return composeFacetSelectionFormula(notFormula, andFormula, orFormula);
+		return composeFacetSelectionFormula(facetHaving.getReferenceName(), notFormula, andFormula, orFormula);
 	}
 
 	/**
@@ -386,6 +386,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 	 */
 	@Nonnull
 	static Formula composeFacetSelectionFormula(
+		@Nonnull String referenceName,
 		@Nullable Formula notFormula,
 		@Nullable Formula andFormula,
 		@Nullable Formula orFormula
@@ -413,7 +414,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				// sentinel into a regular `NotFormula(inner, superset)` inside `UserFilterFormula`, the wrapper
 				// stays reachable — otherwise `UserFilterRelaxer.FACET_IMPACT` has no carrier to peel and the
 				// user's NOT-only facet pick leaks into every impact projection.
-				return new FutureNotFormula(new FacetHavingFormula(notFormula));
+				return new FutureNotFormula(new FacetHavingFormula(referenceName, notFormula));
 			} else if (andFormula == null) {
 				composed = new NotFormula(notFormula, orFormula);
 			} else if (orFormula == null) {
@@ -425,7 +426,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				);
 			}
 		}
-		return new FacetHavingFormula(composed);
+		return new FacetHavingFormula(referenceName, composed);
 	}
 
 	/**
