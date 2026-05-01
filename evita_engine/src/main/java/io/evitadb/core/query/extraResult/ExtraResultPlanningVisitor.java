@@ -613,6 +613,10 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * referenced hierarchy it wraps the predicate in `referenceHaving(referenceName, entityHaving(...))` so the
 	 * nested visitor can reach the referenced entity. Returns `null` when the original constraint had no predicates,
 	 * letting the {@link ConstraintCloneVisitor} drop the node entirely.
+	 *
+	 * When both `having(...)` and `excluding(...)` are present they are combined as `and(having, not(excluding))`
+	 * to mirror the main hierarchy translator (`HierarchyIndex` applies both predicates conjunctively when
+	 * computing `matchingHierarchyNodeIds`).
 	 */
 	@Nullable
 	private static FilterConstraint rewriteHierarchyFilter(
@@ -627,16 +631,23 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		if (ArrayUtils.isEmpty(excludedChildrenFilter)) {
 			if (ArrayUtils.isEmpty(havingChildrenFilter)) {
 				return null;
-			} else if (havingChildrenFilter.length == 1) {
-				return wrapper.apply(havingChildrenFilter[0]);
-			} else {
-				return wrapper.apply(and(havingChildrenFilter));
 			}
-		} else if (excludedChildrenFilter.length == 1) {
-			return wrapper.apply(not(excludedChildrenFilter[0]));
-		} else {
-			return wrapper.apply(not(and(excludedChildrenFilter)));
+			return wrapper.apply(combine(havingChildrenFilter));
 		}
+		final FilterConstraint excludePart = not(combine(excludedChildrenFilter));
+		if (ArrayUtils.isEmpty(havingChildrenFilter)) {
+			return wrapper.apply(excludePart);
+		}
+		return wrapper.apply(and(combine(havingChildrenFilter), excludePart));
+	}
+
+	/**
+	 * Returns the single child unwrapped, or `and(children)` when more than one child is present. Used by
+	 * {@link #rewriteHierarchyFilter} to avoid producing a single-element `and(...)` wrapper.
+	 */
+	@Nonnull
+	private static FilterConstraint combine(@Nonnull FilterConstraint[] children) {
+		return children.length == 1 ? children[0] : and(children);
 	}
 
 	/**
