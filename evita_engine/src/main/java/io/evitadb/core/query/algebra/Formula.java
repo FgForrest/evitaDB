@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra;
 
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.filter.FormulaOptimizer;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
@@ -71,9 +72,24 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	Bitmap compute();
 
 	/**
-	 * Returns copy of this formula with replaced inner formulas. When {@link EmptyFormula#INSTANCE} is returned,
-	 * entire formula is removed in {@link FormulaOptimizer}. In other situations, the returned formula is retained
-	 * and in conjunction case it eliminates the results up in the formula tree.
+	 * Returns a copy of this formula with replaced inner formulas. The return value also encodes a behaviour
+	 * contract used by both {@link FormulaOptimizer} and {@link FormulaCloner} when the wrapper has been emptied
+	 * by removal of its children:
+	 *
+	 * - **Returning {@link EmptyFormula#INSTANCE}** declares this wrapper as the **identity element** of its
+	 *   parent. `FormulaOptimizer` removes the entire wrapper from the tree; `FormulaCloner` (used during
+	 *   strip-clone passes such as the hierarchy-statistics shortcut) drops the wrapper from its parent's
+	 *   child list rather than letting the empty result propagate upward as the absorbing element through the
+	 *   surrounding `AND`/`OR` chain. This is the right answer for wrappers that have no meaningful semantics
+	 *   without children — `AndFormula`, `OrFormula`, `UserFilterFormula`, `ScopeContainerFormula`, etc.
+	 * - **Returning anything other than {@link EmptyFormula#INSTANCE}** keeps the wrapper as the **absorbing
+	 *   element** when emptied — its emptiness propagates up the conjunction normally and reduces the parent
+	 *   to empty too. This is the right answer for wrappers whose presence carries semantics independently of
+	 *   their children (e.g. `FacetGroupOrFormula` / `FacetGroupAndFormula` carriers that the FACET_IMPACT
+	 *   relaxer must still find by type).
+	 *
+	 * Wrapper implementations must therefore choose deliberately: returning `EmptyFormula.INSTANCE` on empty
+	 * input is an explicit opt-in to drop-on-strip semantics, not a defensive no-op.
 	 *
 	 * @param innerFormulas the new inner formulas to use in the cloned formula
 	 * @return a new formula instance of the same type with the given inner formulas

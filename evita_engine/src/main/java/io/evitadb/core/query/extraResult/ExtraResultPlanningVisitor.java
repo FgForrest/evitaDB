@@ -462,8 +462,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 		if (referenceSchema != null) {
 			final Set<Scope> scopes = getProcessingScope().getScopes();
 			return !scopes.stream().allMatch(
-				scope -> referenceSchema.getReferenceIndexType(
-					scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+				scope -> referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
 			);
 		} else {
 			return true;
@@ -503,8 +502,12 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 * formula is wrapped with execution telemetry and its prefetch demand is folded into the outer query's
 	 * {@link PrefetchFormulaVisitor} so the outer plan can decide prefetch on the combined signal.
 	 *
-	 * Returns `null` when the rewrite leaves an empty / non-applicable filter, signalling the caller to skip the
-	 * AND with the per-node primary-key formula.
+	 * Returns `null` only when the rewrite leaves no applicable filter constraint (`rewritten == null`); in that
+	 * case the caller skips the AND with the per-node primary-key formula. An {@link EmptyFormula#INSTANCE}
+	 * coming back from {@link QueryPlanner#planNestedFilteringFormula} (no eligible index — practically
+	 * unreachable when the queried collection has a global index) is propagated as-is so callers AND it normally
+	 * and produce an empty bitmap, preserving "no plan possible" semantics rather than degrading into "unfiltered"
+	 * which would over-count.
 	 */
 	@Nullable
 	private Formula fallbackFormula(@Nonnull StatisticsBase base, @Nullable ReferenceSchemaContract referenceSchema) {
@@ -513,14 +516,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			return null;
 		}
 		final String referenceName = referenceSchema == null ? null : referenceSchema.getName();
-		final Formula planned = QueryPlanner.planNestedFilteringFormula(
+		return QueryPlanner.planNestedFilteringFormula(
 			getQueryContext(),
 			rewritten,
 			this.outerPrefetchFormulaVisitor,
 			() -> "Hierarchy statistics filter (" + base + (referenceName == null ? "" : ", reference=" + referenceName)
 				+ ")"
 		);
-		return planned == EmptyFormula.INSTANCE ? null : planned;
 	}
 
 	/**
@@ -545,13 +547,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			original,
 			(visitor, constraint) -> switch (base) {
 				case COMPLETE_FILTER -> {
-					if (constraint instanceof HierarchyFilterConstraint hfc) {
+					if (constraint instanceof HierarchyFilterConstraint hfc && hierarchyMatches(hfc, referenceName)) {
 						yield rewriteHierarchyFilter(hfc, referenceName);
 					}
 					yield constraint;
 				}
 				case WITHOUT_USER_FILTER -> {
-					if (constraint instanceof HierarchyFilterConstraint hfc) {
+					if (constraint instanceof HierarchyFilterConstraint hfc && hierarchyMatches(hfc, referenceName)) {
 						yield rewriteHierarchyFilter(hfc, referenceName);
 					}
 					if (constraint instanceof UserFilter) {
@@ -572,22 +574,37 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						if (matchesUnnamedVariant || matchesNamedVariantInsideUserFilter) {
 							yield null;
 						}
-					} else if (constraint instanceof FacetHaving fh) {
-						final boolean matchesUnnamedVariant =
-							referenceName == null && fh.getReferenceName().isEmpty();
-						final boolean matchesNamedVariantInsideUserFilter =
-							referenceName != null
-								&& fh.getReferenceName().equals(referenceName)
-								&& visitor.isWithin(UserFilter.class);
-						if (matchesUnnamedVariant || matchesNamedVariantInsideUserFilter) {
-							yield null;
-						}
+					} else if (
+						// facets are always reference-bound (`FacetHaving.getReferenceName()` is `@Nonnull`
+						// and `@Classifier`-validated non-empty), so they can only ever match named-reference
+						// stats — never self-stats
+						referenceName != null
+							&& constraint instanceof FacetHaving fh
+							&& fh.getReferenceName().equals(referenceName)
+							&& visitor.isWithin(UserFilter.class)
+					) {
+						yield null;
 					}
 					yield constraint;
 				}
 			}
 		);
 		return result != null && result.isApplicable() ? result : null;
+	}
+
+	/**
+	 * Returns `true` when the given {@link HierarchyFilterConstraint} targets the same hierarchy reference for
+	 * which statistics are being computed — `null` `referenceName` matches an empty-reference `hierarchyWithin`
+	 * (self-hierarchy), a non-`null` `referenceName` matches an `hfc` carrying the same reference name. Mirrors
+	 * the formula-tree match condition used by {@link #stripHierarchyMatching} so the fallback path strips
+	 * exactly the same set of hierarchy constraints as the shortcut.
+	 */
+	private static boolean hierarchyMatches(
+		@Nonnull HierarchyFilterConstraint hfc,
+		@Nullable String referenceName
+	) {
+		final Optional<String> hfcRef = hfc.getReferenceName();
+		return referenceName == null ? hfcRef.isEmpty() : hfcRef.map(referenceName::equals).orElse(false);
 	}
 
 	/**
@@ -655,11 +672,14 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 	/**
 	 * Mutator for `COMPLETE_FILTER_EXCLUDING_SELF_IN_USER_FILTER`. For a `null` stats reference (self-hierarchy
-	 * statistics) every self-{@link HierarchyFormula} and every empty-name {@link FacetHavingFormula} is stripped
-	 * regardless of its position; for a non-`null` stats reference, {@link HierarchyFormula} and
-	 * {@link FacetHavingFormula} matching the stats reference are stripped only when reached through a
-	 * {@link UserFilterFormula} parent — anything outside the user filter (including the mandatory hierarchy anchor)
-	 * is preserved.
+	 * statistics) every self-{@link HierarchyFormula} is stripped regardless of its position; for a non-`null`
+	 * stats reference, {@link HierarchyFormula} and {@link FacetHavingFormula} matching the stats reference are
+	 * stripped only when reached through a {@link UserFilterFormula} parent — anything outside the user filter
+	 * (including the mandatory hierarchy anchor) is preserved.
+	 *
+	 * {@link FacetHavingFormula} is never stripped for self-stats: facets are always reference-bound
+	 * (`FacetHaving.getReferenceName()` is `@Nonnull` and `@Classifier`-validated non-empty), so they can only
+	 * ever match named-reference stats.
 	 */
 	@Nonnull
 	private static BiFunction<FormulaCloner, Formula, Formula> stripHierarchyAndFacetForSelfInUserFilter(
@@ -675,16 +695,13 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 					&& cloner.isWithin(UserFilterFormula.class)) {
 					return null;
 				}
-			} else if (formula instanceof FacetHavingFormula fh) {
-				final String facetRef = fh.getReferenceName();
-				if (referenceName == null && (facetRef == null || facetRef.isEmpty())) {
-					return null;
-				}
-				if (referenceName != null
-					&& referenceName.equals(facetRef)
-					&& cloner.isWithin(UserFilterFormula.class)) {
-					return null;
-				}
+			} else if (
+				referenceName != null
+					&& formula instanceof FacetHavingFormula fh
+					&& referenceName.equals(fh.getReferenceName())
+					&& cloner.isWithin(UserFilterFormula.class)
+			) {
+				return null;
 			}
 			return formula;
 		};

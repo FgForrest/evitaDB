@@ -436,6 +436,10 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		if (o == null || getClass() != o.getClass()) return false;
 
 		FilteringFormulaHierarchyEntityPredicate that = (FilteringFormulaHierarchyEntityPredicate) o;
+		// `hash` is a 64-bit content hash of `filteringFormula` (xxhash, uniformly distributed) and is one of
+		// five equality components — a collision alone cannot make two predicates equal. The alternative
+		// (deep formula-tree structural equality) is exactly the cost this predicate is built to avoid; the
+		// 64-bit collision risk across the predicate identities used in a single query context is negligible.
 		return Arrays.equals(this.parent, that.parent) &&
 			Objects.equals(this.filterBy, that.filterBy) &&
 			this.targetEntityType.equals(that.targetEntityType) &&
