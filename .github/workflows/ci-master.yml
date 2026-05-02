@@ -46,7 +46,7 @@ jobs:
 
     - name: Compilation Check
       run: |
-        mvn -T 1C -B -Dmaven.test.skip=true install --file pom.xml
+        mvn -T 1C -B -P full -Dmaven.test.skip=true install --file pom.xml
 
     - name: PGP Keys Check
       run: |

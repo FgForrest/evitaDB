@@ -150,6 +150,15 @@
 		<minio.version>8.6.0</minio.version>
 	</properties>
 
+	<!--
+		Default reactor — kept lean for fast local builds and CI gates that don't
+		need the heavy artifacts. Activate the `full` profile to also build:
+		  * jacoco (aggregate coverage report)
+		  * evita_performance_tests (JMH benchmarks uber-jar)
+		  * evita_java_driver_all_in_one (shaded gRPC driver)
+		The release pipeline MUST run with `-P full` or the all-in-one driver
+		will silently stop being published to Maven Central.
+	-->
 	<modules>
 		<module>evita_common</module>
 		<module>evita_api</module>
@@ -163,8 +172,6 @@
 		<module>evita_server</module>
 		<module>evita_test/evita_test_support</module>
 		<module>evita_test/evita_functional_tests</module>
-		<module>evita_test/evita_performance_tests</module>
-		<module>jacoco</module>
 	</modules>
 
 	<dependencyManagement>
@@ -462,6 +469,20 @@
 			<build>
 				<directory>${project.basedir}/out</directory>
 			</build>
+		</profile>
+		<!--
+			Adds the heavy modules that are excluded from the default reactor.
+			Activate for: CI dev/PR builds (jacoco aggregate report), performance
+			pipeline (benchmarks uber-jar) and — most importantly — the release
+			deploy (otherwise evita_java_driver_all_in_one is not published).
+		-->
+		<profile>
+			<id>full</id>
+			<modules>
+				<module>evita_test/evita_performance_tests</module>
+				<module>evita_external_api/evita_external_api_grpc/client_all_in_one</module>
+				<module>jacoco</module>
+			</modules>
 		</profile>
 	</profiles>
 	<build>

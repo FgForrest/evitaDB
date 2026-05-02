@@ -44,9 +44,9 @@ jobs:
          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
-    - name: Build with Maven       # run Maven with tests
+    - name: Build with Maven       # run Maven with tests; `full` activates the jacoco aggregator module
       run: |
-        mvn -T 1C -B package -P unitAndFunctional jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
+        mvn -T 1C -B package -P unitAndFunctional,full jacoco:report-aggregate -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
         jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
     - name: Upload test results    # upload XML with unit test results for debugging
@@ -76,9 +76,9 @@ jobs:
     - name: Update dependency graph
       uses: advanced-security/maven-dependency-submission-action@b275d12641ac2d2108b2cbb7598b154ad2f2cee8 # v5.0.0
 
-    - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository
+    - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository (`full` includes the all-in-one driver)
       run: |
-        mvn -T 1C -B javadoc:jar source:jar deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
+        mvn -T 1C -B -P full javadoc:jar source:jar deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
       continue-on-error: true
       env:
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}

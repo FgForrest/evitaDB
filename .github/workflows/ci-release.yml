@@ -156,8 +156,12 @@ jobs:
         export NEW_VERSION="$( echo "${SANITIZED_VERSION}" | sed 's/^v//; s/-.*//')"
         echo $NEW_VERSION > version.txt
         echo "Version: $(cat version.txt)"
-        mvn versions:set -DnewVersion=$NEW_VERSION
-        mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true javadoc:jar source:jar deploy --file pom.xml
+        # `full` must be active for versions:set so the heavy modules
+        # (jacoco, performance tests, all-in-one driver) get their parent
+        # version rewritten too — otherwise the deploy below fails resolving
+        # the now-mismatched -SNAPSHOT parent reference.
+        mvn -P full versions:set -DnewVersion=$NEW_VERSION
+        mvn -T 1C -B -P release-sign-artifacts,full -Dmaven.test.skip=true javadoc:jar source:jar deploy --file pom.xml
       env:
         EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
