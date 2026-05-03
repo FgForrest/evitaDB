@@ -50,7 +50,9 @@ import static org.mockito.Mockito.mock;
  * - `coerceToAttributeType(BigDecimal, Class)` — converts a boundary threshold into the attribute's
  *   concrete numeric type, returning `null` when the value is out of range;
  * - `requestedBucketPredicate(RequestedBucketRange)` — produces the predicate used to flip a
- *   bucket's `requested` flag; returns `threshold -> false` when the range is `null`.
+ *   bucket's `requested` flag; returns `threshold -> true` when the range is `null` so that
+ *   "no slider in `userFilter`" reads as "everything is selected", matching the long-standing
+ *   `AttributeHistogramProducer` contract.
  *
  * The full `injectHistograms` public API is covered by
  * `ReferenceHistogramFunctionalTest`, which exercises the accumulator end-to-end against a real
@@ -85,13 +87,13 @@ class ReferenceHistogramAccumulatorTest {
 	class RequestedBucketPredicate {
 
 		@Test
-		@DisplayName("should produce an always-false predicate when range is null")
-		void shouldProduceAlwaysFalsePredicateWhenRangeIsNull() throws Exception {
+		@DisplayName("should produce an always-true predicate when range is null (no slider == full range selected)")
+		void shouldProduceAlwaysTruePredicateWhenRangeIsNull() throws Exception {
 			final Predicate<BigDecimal> predicate = requestedPredicate(null);
 
-			assertFalse(predicate.test(BigDecimal.ZERO));
-			assertFalse(predicate.test(new BigDecimal("100")));
-			assertFalse(predicate.test(new BigDecimal("-50")));
+			assertTrue(predicate.test(BigDecimal.ZERO));
+			assertTrue(predicate.test(new BigDecimal("100")));
+			assertTrue(predicate.test(new BigDecimal("-50")));
 		}
 
 		@Test

@@ -894,13 +894,16 @@ final class ReferenceHistogramAccumulator {
 	 * Produces the predicate used to flag per-bucket {@code requested} at conversion time. Mirrors the
 	 * semantics of {@code AttributeBetweenTranslator.createBigDecimalPredicate} — a bucket threshold is
 	 * considered "requested" when it sits inside the closed `[from, to]` range extracted from the
-	 * `userFilter → referenceHaving(... attributeBetween ...)` subtree. Returns a no-op predicate when no
-	 * range was registered (e.g. the query had no matching `userFilter` subtree).
+	 * `userFilter → referenceHaving(... attributeBetween ...)` subtree. Returns an always-true predicate
+	 * when no range was registered (e.g. the query had no matching `userFilter` subtree) so that "nothing
+	 * selected" reads as "everything selected" — this matches the long-standing
+	 * {@link io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer}
+	 * contract and lets clients render a min-to-max slider widget without special-casing the empty state.
 	 */
 	@Nonnull
 	private static Predicate<BigDecimal> requestedBucketPredicate(@Nullable RequestedBucketRange range) {
 		if (range == null) {
-			return Functions.alwaysFalse();
+			return Functions.alwaysTrue();
 		}
 		final BigDecimal from = range.from();
 		final BigDecimal to = range.to();
@@ -982,7 +985,8 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull
 		HistogramContract materialize(@Nonnull BoundaryEntityCache entityCache) {
 			// fall back to NON_GROUPED_SENTINEL for groupSelector-less histogramHaving; absent on both
-			// keys means no slider was registered — requestedBucketPredicate returns always-false
+			// keys means no slider was registered — requestedBucketPredicate returns always-true so
+			// every bucket is rendered as "selected" (the empty userFilter == full range convention)
 			final Map<Integer, RequestedBucketRange> rangesByGroupPk = this.request.requestedRangesByGroupPk();
 			RequestedBucketRange range = rangesByGroupPk.get(this.groupPk);
 			if (range == null) {

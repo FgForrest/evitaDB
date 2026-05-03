@@ -74,7 +74,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenceSummaryHistogramFunctionalTest {
 
 	// ==========================================================================================
-	// baseline: no userFilter at all — flag must never flip
+	// baseline: no userFilter at all — every bucket must be flagged requested=true so clients
+	// can render the slider widget from min to max without special-casing the empty state
 	// ==========================================================================================
 
 	@Nested
@@ -83,8 +84,8 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
-		@DisplayName("should leave all `requested` false when userFilter carries no matching histogramHaving")
-		void shouldLeaveBucketsRequestedFalseWhenUserFilterDoesNotMatch(@Nonnull Evita evita) {
+		@DisplayName("should mark all `requested` true when userFilter carries no matching histogramHaving")
+		void shouldMarkAllBucketsRequestedWhenUserFilterDoesNotMatch(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -109,9 +110,10 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 					final HistogramContract histogram = group1.getHistogramStatistics(HISTOGRAM_PRICE);
 					assertNotNull(histogram);
 					for (final Bucket bucket : histogram.getBuckets()) {
-						assertFalse(
+						assertTrue(
 							bucket.requested(),
-							"Without userFilter match every bucket must have requested=false"
+							"Without a histogramHaving slider every bucket must have requested=true "
+								+ "(no selection is rendered as full-range selection by clients)"
 						);
 					}
 				}
@@ -141,7 +143,8 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					// baseline: no userFilter — every bucket must be requested=false, capture occurrences
+					// baseline: no userFilter — every bucket must be requested=true (full range
+					// selected by default); capture occurrences for the range comparison below
 					final EvitaResponse<EntityReferenceContract> baseline = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -160,7 +163,7 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 						.getHistogramStatistics(HISTOGRAM_MARKET_SHARE);
 					assertNotNull(baseHistogram);
 					for (final Bucket b : baseHistogram.getBuckets()) {
-						assertFalse(b.requested(), "Baseline buckets must all be requested=false");
+						assertTrue(b.requested(), "Baseline buckets must all be requested=true");
 					}
 
 					// requested range [10, 50] on the reference-level histogram (REFERENCE_ATTRIBUTE source)
@@ -344,14 +347,15 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
-		@DisplayName("should not flip requested when histogram name does not match the requested histogram")
-		void shouldNotFlipRequestedWhenHistogramNameDoesNotMatch(@Nonnull Evita evita) {
+		@DisplayName("should leave the unrelated histogram with all buckets requested when histogramHaving targets a different histogram")
+		void shouldLeaveUnrelatedHistogramAllRequestedWhenHistogramNameDoesNotMatch(@Nonnull Evita evita) {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
 					// Asking for histogram `priceBucket` (sources `basicUnitValue`) while the
-					// histogramHaving targets the `marketShareBucket` slot — no flip expected
-					// on the requested `priceBucket` histogram.
+					// histogramHaving targets the `marketShareBucket` slot — the `priceBucket`
+					// histogram has no slider of its own so every bucket must be requested=true,
+					// matching the "no selection == full range" convention.
 					final EvitaResponse<EntityReferenceContract> result = session.query(
 						query(
 							collection(ENTITY_PRODUCT),
@@ -380,8 +384,9 @@ public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenc
 					final HistogramContract histogram = group1.getHistogramStatistics(HISTOGRAM_PRICE);
 					assertNotNull(histogram);
 					for (final Bucket bucket : histogram.getBuckets()) {
-						assertFalse(bucket.requested(),
-							"histogramHaving targeting a different histogram must not flip any bucket");
+						assertTrue(bucket.requested(),
+							"histogramHaving targeting a different histogram leaves the unrelated "
+								+ "histogram with no slider — every bucket must remain requested=true");
 					}
 				}
 			);

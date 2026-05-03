@@ -404,8 +404,8 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 					assertEquals(0, new BigDecimal("120.00").compareTo(heightBaseline.getMax()));
 					assertEquals(0, new BigDecimal("130.00").compareTo(weightBaseline.getMin()));
 					assertEquals(0, new BigDecimal("260.00").compareTo(weightBaseline.getMax()));
-					assertNoBucketRequested(heightBaseline);
-					assertNoBucketRequested(weightBaseline);
+					assertAllBucketsRequested(heightBaseline);
+					assertAllBucketsRequested(weightBaseline);
 				}
 			);
 		}
@@ -433,7 +433,7 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 					assertEquals(0, new BigDecimal("130.00").compareTo(weight.getMin()));
 					assertEquals(0, new BigDecimal("260.00").compareTo(weight.getMax()));
 					assertAnyBucketRequestedWithin(height, 10, 50);
-					assertNoBucketRequested(weight);
+					assertAllBucketsRequested(weight);
 				}
 			);
 		}
@@ -458,7 +458,7 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 					assertEquals(0, new BigDecimal("10.00").compareTo(height.getMin()));
 					assertEquals(0, new BigDecimal("120.00").compareTo(height.getMax()));
 					assertAnyBucketRequestedWithin(weight, 130, 170);
-					assertNoBucketRequested(height);
+					assertAllBucketsRequested(height);
 				}
 			);
 		}
@@ -756,7 +756,9 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 						"dimensionB has no slider — its baseline is the catalog max"
 					);
 					assertAnyBucketRequestedWithin(a, 10, 30);
-					// (b) has no slider → every bucket is `requested=true` (producer quirk); skip.
+					// (b) has no slider → by the "no selection == full range" convention every
+					// bucket carries requested=true; asserted explicitly to lock the contract in.
+					assertAllBucketsRequested(b);
 				}
 			);
 		}
@@ -2037,14 +2039,17 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts no bucket of the supplied histogram has `requested=true`. The implementation avoids
-	 * streams for the sake of explicit control flow.
+	 * Asserts every bucket of the supplied histogram carries `requested=true`. This is the expected
+	 * shape for a histogram whose `userFilter` has no `histogramHaving` slider for it — the engine
+	 * treats "no selection" as "everything selected" so that clients can render a min-to-max slider
+	 * widget without special-casing the empty state. The implementation avoids streams for the sake
+	 * of explicit control flow.
 	 *
 	 * @param histogram the histogram to inspect
 	 */
-	private static void assertNoBucketRequested(@Nonnull HistogramContract histogram) {
+	private static void assertAllBucketsRequested(@Nonnull HistogramContract histogram) {
 		for (final Bucket bucket : histogram.getBuckets()) {
-			assertFalse(bucket.requested(), "bucket at " + bucket.threshold() + " must not be requested");
+			assertTrue(bucket.requested(), "bucket at " + bucket.threshold() + " must be requested");
 		}
 	}
 
