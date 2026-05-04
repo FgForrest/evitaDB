@@ -101,7 +101,7 @@ Následující ukázka obsahuje dotaz, který vypíše všechny (tranzitivní) k
 vrací položky menu, které obsahují přímé potomky kategorie *Audio* a její přímou rodičovskou kategorii (kterou je
 *Accessories*):
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Asociace požadavku na hierarchii s výsledkem](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java)
 </SourceCodeTabs>
@@ -365,7 +365,7 @@ vyžaduje vypočtenou datovou strukturu *megaMenu*, která uvádí horní 2 úro
 vypočteným počtem podkategorií pro každou položku menu a agregovaným počtem všech filtrovaných produktů, které by
 spadaly do dané kategorie.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití `hierarchyWithin` a `fromRoot` v jednom dotazu](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-root.java)
 </SourceCodeTabs>
@@ -466,7 +466,7 @@ vrací vypočtené datové struktury *sideMenu1* a *sideMenu2*, které uváděj�
 *Portables* a *Laptops* s vypočteným počtem podkategorií pro každou položku menu a agregovaným počtem všech
 produktů, které by spadaly do dané kategorie.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití `hierarchyWithin` a `fromNode` v jednom dotazu](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-from-node.java)
 </SourceCodeTabs>
@@ -558,7 +558,7 @@ vrací vypočtenou datovou strukturu *subcategories*, která uvádí plochý sez
 *Audio* s vypočteným počtem podkategorií pro každou položku menu a agregovaným počtem všech produktů, které
 by spadaly do dané kategorie.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití požadavku `children`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-children.java)
 </SourceCodeTabs>
@@ -654,7 +654,7 @@ vrací vypočtenou datovou strukturu *parentAxis*, která uvádí všechny rodi�
 *True wireless* s vypočteným počtem podkategorií pro každou položku menu a agregovaným počtem všech produktů, které
 by spadaly do dané kategorie.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití požadavku `children`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents.java)
 </SourceCodeTabs>
@@ -685,7 +685,7 @@ Vypočtený výsledek *parentAxis* vypadá takto:
 
 Můžete také vypsat všechny sourozence rodičovského uzlu při pohybu vzhůru stromem:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití požadavku `children`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parents-siblings.java)
 </SourceCodeTabs>
@@ -822,7 +822,7 @@ vrací vypočtenou datovou strukturu *audioSiblings*, která uvádí plochý sez
 *Audio* s vypočteným počtem podkategorií pro každou položku menu a agregovaným počtem všech produktů, které
 by spadaly do dané kategorie.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití požadavku `siblings`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings.java)
 </SourceCodeTabs>
@@ -855,7 +855,7 @@ Pokud potřebujete vrátit všechny sourozence a také úroveň pod nimi (jejich
 omezení `stopAt` <LS to="e,j,c,r">omezení</LS><LS to="g">argument</LS> a
 rozšířit výchozí rozsah omezení `siblings` <LS to="e,j,c,r">omezení</LS><LS to="g">datové struktury</LS>.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití požadavku `siblings` s podstromem](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-siblings-with-subtree.java)
 </SourceCodeTabs>
@@ -949,7 +949,7 @@ Následující dotaz vypíše produkty v kategorii *Audio* a jejích podkategori
 vrací vypočtenou datovou strukturu *subcategories*, která uvádí plochý seznam kategorií aktuálně zaměřené kategorie
 *Audio*.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití `distance` s požadavkem `children`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-direct-children.java)
 </SourceCodeTabs>
@@ -978,7 +978,7 @@ Následující dotaz vypíše produkty v kategorii *Audio* a jejích podkategori
 vrací vypočtenou datovou strukturu *parent*, která uvádí jedinou přímou rodičovskou kategorii aktuálně zaměřené
 kategorie *Audio*.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití `distance` s požadavkem `parents`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-parent.java)
 </SourceCodeTabs>
@@ -1039,7 +1039,7 @@ následující obrázek:
 Následující dotaz vypíše produkty v kategorii *Audio* a jejích podkategoriích. Spolu s vrácenými produkty také
 vrací vypočtenou datovou strukturu *megaMenu*, která uvádí horní dvě úrovně celé hierarchie.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití `level` s požadavkem `fromRoot`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level.java)
 </SourceCodeTabs>
@@ -1068,7 +1068,7 @@ Následující dotaz vypíše produkty v kategorii *Audio* a jejích podkategori
 vrací vypočtenou datovou strukturu *parent*, která uvádí všechny rodiče aktuálně zaměřené kategorie *True wireless*
 až do úrovně dvě.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití `level` s požadavkem `parents`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-level-parent.java)
 </SourceCodeTabs>
@@ -1123,7 +1123,7 @@ Filtrační kontejner `node` je alternativou k ukončovacím omezením [`distanc
 Situace, kdy potřebujete toto dynamické chování, jsou spíše výjimečné. Bohužel nemáme
 smysluplný příklad v demo datasetu, takže náš ukázkový dotaz bude trochu "mimo". Ale pro demonstraci si vypíšeme celou hierarchii *Accessories*, ale procházení zastavíme u uzlů, jejichž kód začíná písmenem *w*.
 
-<SourceCodeTabs  requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs  requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad použití `node` s požadavkem `children`](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-node.java)
 </SourceCodeTabs>

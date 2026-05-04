@@ -96,7 +96,7 @@ below.
 
 To demonstrate the use of the histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Attribute histogram over `width` and `height` attributes](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram.evitaql)
 
@@ -145,7 +145,7 @@ experience.
 
 To demonstrate the optimization of the histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Optimized attribute histogram over `width` attribute](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql)
 
@@ -206,7 +206,7 @@ adapted for filter slider UX. The algorithm:
 
 To demonstrate equalized histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Equalized attribute histogram over `width` attribute](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-equalized.evitaql)
 
@@ -294,7 +294,7 @@ requirement, the histogram visualizes the price with tax.
 
 To demonstrate the use of the histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram.evitaql)
 
@@ -343,7 +343,7 @@ experience.
 
 To demonstrate the optimization of the histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql)
 
@@ -395,7 +395,7 @@ for e-commerce catalogs with diverse price ranges.
 
 To demonstrate equalized price histogram, we will use the following example:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Equalized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-equalized.evitaql)
 

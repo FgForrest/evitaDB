@@ -235,7 +235,7 @@ Požadavek <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/ap
 spouští výpočet <LS to="j,e,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass></LS>
 jako vedlejší výsledek hlavního dotazu na entity a respektuje všechna filtrační omezení na dotazované entity. Pro demonstraci výpočtu fasetového souhrnu použijeme následující příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpočet fasetového souhrnu pro produkty v kategorii "e-čtečky"](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql)
 
@@ -248,7 +248,7 @@ jako vedlejší výsledek hlavního dotazu na entity a respektuje všechna filtr
 Pokud je pole `facetSummary` zadáno s konkrétními referencemi v rámci pole `extraResults`, spustí se výpočet fasetového souhrnu jako extra výsledek.
 Fasetový souhrn je vždy vypočítán jako vedlejší výsledek hlavního dotazu na entity a respektuje všechna filtrační omezení na dotazované entity. Pro demonstraci výpočtu fasetového souhrnu použijeme následující příklad:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpočet fasetového souhrnu pro produkty v kategorii "e-čtečky"](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-simple.evitaql)
 
@@ -311,7 +311,7 @@ Fasetový souhrn má malý smysl bez těl skupin faset a faset. Pro jejich získ
 
 <LS to="e,j,r,c">
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpočet fasetového souhrnu s těly pro produkty v kategorii "e-čtečky"](/documentation/user/en/query/requirements/examples/facet/facet-summary-bodies.evitaql)
 
@@ -321,7 +321,7 @@ Fasetový souhrn má malý smysl bez těl skupin faset a faset. Pro jejich získ
 
 <LS to="g">
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpočet fasetového souhrnu s těly pro produkty v kategorii "e-čtečky"](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-bodies.evitaql)
 
@@ -359,7 +359,7 @@ Pokud do dotazu přidáte požadovaný jazyk a také vypíšete lokalizované n�
 
 <LS to="e,j,r,c">
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpočet fasetového souhrnu s lokalizovanými názvy pro produkty v kategorii "e-čtečky"](/documentation/user/en/query/requirements/examples/facet/facet-summary-localized-bodies.evitaql)
 
@@ -368,7 +368,7 @@ Pokud do dotazu přidáte požadovaný jazyk a také vypíšete lokalizované n�
 </LS>
 <LS to="g">
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpočet fasetového souhrnu s lokalizovanými názvy pro produkty v kategorii "e-čtečky"](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-localized-bodies.evitaql)
 
@@ -423,7 +423,7 @@ Je těžké najít dobrý příklad pro filtrování obecného fasetového souhr
 
 <LS to="e,j,c">
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Filtrování možností fasetového souhrnu](/documentation/user/en/query/requirements/examples/facet/facet-summary-filtering.evitaql)
 
@@ -432,7 +432,7 @@ Je těžké najít dobrý příklad pro filtrování obecného fasetového souhr
 </LS>
 <LS to="g">
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Filtrování možností fasetového souhrnu](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.evitaql)
 
@@ -491,7 +491,7 @@ Seřaďme skupiny faset i fasety abecedně podle jejich anglických názvů:
 
 <LS to="e,j,c">
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Řazení možností fasetového souhrnu](/documentation/user/en/query/requirements/examples/facet/facet-summary-ordering.evitaql)
 
@@ -500,7 +500,7 @@ Seřaďme skupiny faset i fasety abecedně podle jejich anglických názvů:
 </LS>
 <LS to="g,r">
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Řazení možností fasetového souhrnu](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.evitaql)
 
@@ -605,7 +605,7 @@ Požadavky `facetSummaryOfReference` přepisují všechna omezení z obecného p
 
 Řekněme, že chceme zobrazit fasetový souhrn pro produkty v kategorii _e-čtečky_, ale chceme, aby byl souhrn vypočítán pouze pro reference `brand` a `parameterValues`. Fasety v rámci reference `brand` by měly být seřazeny podle názvu abecedně a fasety v rámci reference `parameterValues` by měly být seřazeny podle atributu `order`, a to jak na úrovni skupin, tak na úrovni faset. Pro souhrn by měly být počítány pouze fasety uvnitř skupin faset (`parameter`) s atributem `isVisible` roven `TRUE`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpočet fasetového souhrnu pro vybrané reference](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.evitaql)
 
@@ -650,7 +650,7 @@ Fasetové a skupinové filtry lze použít pouze s `facetSummaryOfReference`, pr
 
 Je těžké najít dobrý příklad pro filtrování obecného fasetového souhrnu i pro naši demo datovou sadu, takže příklad bude trochu umělý. Řekněme, že chceme zobrazit pouze možnosti faset, jejichž atribut *code* obsahuje podřetězec *ar*, a pouze ty, které jsou ve skupinách s *code* začínajícím písmenem *o*:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Filtrování možností fasetového souhrnu](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.evitaql)
 
@@ -688,7 +688,7 @@ Fasetové a skupinové řazení lze použít pouze s `facetSummaryOfReference`, 
 
 Seřaďme skupiny faset i fasety abecedně podle jejich anglických názvů:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Řazení možností fasetového souhrnu](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.evitaql)
 
@@ -779,7 +779,7 @@ Namísto výchozího vztahu ([buď systémové výchozí hodnoty](#výchozí-pra
 
 Pro pochopení rozdílu mezi výchozím chováním a chováním tohoto požadavku porovnejme výpočet fasetového souhrnu pro stejný dotaz s a bez tohoto požadavku. Potřebujeme dotaz, který cílí na nějakou referenci (například `groups`) a předstírá, že uživatel již některé fasety vybral (zaškrtl). Pokud nyní chceme vypočítat analýzu `IMPACT` pro zbytek faset ve skupině, uvidíme, že změna výchozího chování mění produkovaná čísla:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad konjunkce skupin faset](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.evitaql)
 
@@ -863,7 +863,7 @@ Namísto výchozího vztahu ([buď systémové výchozí hodnoty](#výchozí-pra
 
 Pro pochopení rozdílu mezi výchozím chováním a chováním tohoto omezení porovnejme výpočet fasetového souhrnu pro stejný dotaz s a bez tohoto omezení. Potřebujeme dotaz, který cílí na nějakou referenci (například `parameterValues`) a předstírá, že uživatel již některé fasety vybral (zaškrtl). Pokud nyní chceme vypočítat analýzu `IMPACT` pro druhou skupinu ve fasetovém souhrnu, uvidíme, že místo snižování čísel analýza dopadu předpovídá jejich rozšíření:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad disjunkce skupin faset](/documentation/user/en/query/requirements/examples/facet/facet-groups-disjunction.evitaql)
 
@@ -946,7 +946,7 @@ Pokud ponecháte druhý argument na systémové výchozí hodnotě, nezáleží 
 
 Pro demonstraci tohoto efektu potřebujeme dotaz, který cílí na nějakou referenci (například `parameterValues`) a některé ze skupin označí jako negované.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad disjunkce skupin faset](/documentation/user/en/query/requirements/examples/facet/facet-groups-negation.evitaql)
 
@@ -1026,7 +1026,7 @@ Protože tento operátor neovlivňuje skutečný výstup výsledkové množiny, 
 
 Pro demonstraci tohoto efektu potřebujeme dotaz, který cílí na nějakou referenci (například `parameterValues`) a některé ze skupin označí jako exkluzivní.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad exkluzivity skupin faset](/documentation/user/en/query/requirements/examples/facet/facet-groups-exclusivity.evitaql)
 
@@ -1138,7 +1138,7 @@ Změna výchozích pravidel výpočtu faset je podobná konfiguraci vztahu každ
 
 Ukázkový dotaz, který mění výchozí pravidla výpočtu, je následující
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad změny výchozích pravidel výpočtu](/documentation/user/en/query/requirements/examples/facet/change-default-calculation-rules.evitaql)
 

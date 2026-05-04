@@ -38,7 +38,7 @@ Příklad takového dotazu může vypadat následovně:
 
 </LS>
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad evitaQL](/documentation/user/en/use/api/example/evita-query-example.java)
 
@@ -83,7 +83,7 @@ Toto je příklad, jak je dotaz složen a jak se volá evitaDB. Příklad static
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> a
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad Java dotazu](/documentation/user/en/use/api/example/java-query-example.java)
 
@@ -93,7 +93,7 @@ Toto je příklad, jak je dotaz složen a jak se volá evitaDB. Příklad static
 
 Dotaz může obsahovat i "nečisté" části – tedy null omezení a zbytečné části:
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad nečistého Java dotazu](/documentation/user/en/use/api/example/java-dirty-query-example.java)
 
@@ -136,7 +136,7 @@ Ve výchozím nastavení jsou ve výsledku dotazu vráceny pouze primární klí
 reprezentována rozhraním
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad výchozího dotazu](/documentation/user/en/use/api/example/default-query-example.java)
 
@@ -155,7 +155,7 @@ Pokud je použito takové require omezení, data budou načtena *nenasytně* př
 pak bude obsahovat entity ve formě
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad načítání dat](/documentation/user/en/use/api/example/fetching-example.java)
 
@@ -171,7 +171,7 @@ Ačkoliv existují jednodušší varianty dotazování entit, typická metoda je
 
 Další příklad dokumentuje načítání druhé stránky produktů v kategorii s vypočtenými statistikami facet:
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad načítání dat](/documentation/user/en/use/api/example/query-example.java)
 
@@ -192,7 +192,7 @@ Pro obohacení, tj. líné načtení chybějících dat do existující entity, 
 a specifikovat sadu dodatečných require omezení, která mají být splněna. Díky vlastnostem neměnnosti vynuceným návrhem databáze
 vrací obohacení entity nový objekt entity.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad líného načítání](/documentation/user/en/use/api/example/lazy-fetch-example.java)
 
@@ -494,7 +494,7 @@ Toto je příklad, jak je dotaz složen a jak se volá evitaDB.
 Příklad staticky importuje výše zmíněné rozhraní
 <SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad C# dotazu](/documentation/user/en/use/api/example/csharp-query-example.cs)
 
@@ -504,7 +504,7 @@ Příklad staticky importuje výše zmíněné rozhraní
 
 Dotaz může obsahovat i "nečisté" části – tedy null omezení a zbytečné části:
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad nečistého C# dotazu](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
 
@@ -527,7 +527,7 @@ Ve výchozím nastavení jsou ve výsledku dotazu vráceny pouze primární klí
 reprezentována rozhraním
 <SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad výchozího dotazu](/documentation/user/en/use/api/example/default-query-example.cs)
 
@@ -546,7 +546,7 @@ Pokud je použito takové `require` omezení, data budou načtena *nenasytně* p
 pak bude obsahovat entity ve formě
 <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad načítání dat](/documentation/user/en/use/api/example/fetching-example.cs)
 
@@ -562,7 +562,7 @@ Ačkoliv existují jednodušší varianty dotazování entit, typická metoda je
 
 Další příklad dokumentuje načítání druhé stránky produktů v kategorii s vypočtenými statistikami facet:
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad načítání dat](/documentation/user/en/use/api/example/query-example.cs)
 
@@ -583,7 +583,7 @@ Pro obohacení, tj. líné načtení chybějících dat do existující entity, 
 a specifikovat sadu dodatečných require omezení, která mají být splněna. Díky vlastnostem neměnnosti vynuceným návrhem databáze
 vrací obohacení entity nový objekt entity.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Příklad líného načítání](/documentation/user/en/use/api/example/lazy-fetch-example.cs)
 

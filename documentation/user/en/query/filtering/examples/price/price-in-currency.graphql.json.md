@@ -7681,11 +7681,6 @@
           "taxRate" : "21.0"
         },
         {
-          "priceWithoutTax" : "305.24",
-          "priceWithTax" : "369.34",
-          "taxRate" : "21.0"
-        },
-        {
           "priceWithoutTax" : "272.0",
           "priceWithTax" : "329.12",
           "taxRate" : "21.0"

@@ -20,7 +20,7 @@ V prvním scénáři můžeme použít typ jedinečnosti `UNIQUE_WITHIN_CATALOG`
 
 Pokud je atribut označen jako jedinečný, můžeme jednoduše vyhledat vlastnickou entitu podle hodnoty atributu. Následující dotaz vrátí entitu podle kódu, což je jednoduchý jedinečný atribut entity (není jedinečný v rámci celého katalogu):
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání produktu podle jedinečného atributu](/documentation/user/en/solve/examples/routing/get-by-unique-attribute.evitaql)
 
@@ -55,7 +55,7 @@ Pokud je atribut označen jako jedinečný, můžeme jednoduše vyhledat vlastni
 
 Jak můžete vidět, musíme specifikovat název kolekce, abychom získali entitu podle kódu. Protože je URL jedinečná v rámci katalogu, můžeme entitu vyhledat bez zadání názvu kolekce:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly ignoreTest>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly ignoreTest>
 
 [Získání produktu podle globálně jedinečného atributu](/documentation/user/en/solve/examples/routing/get-by-globally-unique-attribute.evitaql)
 
@@ -69,7 +69,7 @@ Tento dotaz selže na demo datasetu evitaDB, protože URL je označena jako `UNI
 
 Pokud je URL jedinečná pouze v rámci lokalizace, musíme také specifikovat <LS to="e,j,c">omezení `entityLocaleEquals`</LS><LS to="g,r">parametr `locale`</LS>:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání produktu podle globálně jedinečného lokalizovaného atributu](/documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql)
 
@@ -141,7 +141,7 @@ Pro ukázku chování takového dotazu si definujme dotaz, který vyžaduje vše
 
 </LS>
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání produktu s daty podle globálně jedinečného lokalizovaného atributu](/documentation/user/en/solve/examples/routing/get-product-with-data.evitaql)
 </SourceCodeTabs>
@@ -201,7 +201,7 @@ GraphQL server pak automaticky vybere správný fragment podle typu entity, pod�
 Odpověď obsahuje všechna data, která odpovídají schématu entity `Product`, a zbytek je jednoduše ignorován.
 Nyní se podívejme na stejný dotaz, ale pro URL entity `Category`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Získání kategorie s daty podle globálně jedinečného lokalizovaného atributu](/documentation/user/en/solve/examples/routing/get-category-with-data.evitaql)
 </SourceCodeTabs>

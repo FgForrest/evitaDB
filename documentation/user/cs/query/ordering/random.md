@@ -16,7 +16,7 @@ random()
 
 Tato podmínka způsobí, že pořadí entit ve výsledku je náhodné a nepřijímá žádné argumenty.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entity seřazené náhodně](/documentation/user/en/query/ordering/examples/random/random.evitaql)
 
@@ -71,7 +71,7 @@ Tato podmínka způsobí, že pořadí entit ve výsledku je pseudo-náhodné na
 
 Tato varianta náhodného řazení je užitečná, když potřebujete, aby byl výstup náhodný, ale vždy stejným způsobem (například pro testovací účely nebo pro konzistentní výstup pro daného uživatele).
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entity seřazené pseudo-náhodně](/documentation/user/en/query/ordering/examples/random/pseudo-random.evitaql)
 

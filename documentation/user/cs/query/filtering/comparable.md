@@ -42,7 +42,7 @@ attributeEquals(
 
 `attributeEquals` porovnává filtrovatelný nebo unikátní [atribut](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity na přesnou rovnost s předanou hodnotou.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkt s atributem `code` roven `apple-iphone-13-pro-3`](/documentation/user/en/query/filtering/examples/comparable/attribute-equals.evitaql)
 </SourceCodeTabs>
@@ -98,7 +98,7 @@ attributeGreaterThan(
 
 `attributeGreaterThan` porovnává filtrovatelný nebo unikátní [atribut](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity s hodnotou ve druhém argumentu a je splněn pouze tehdy, pokud je atribut entity větší než hodnota.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty s atributem `battery-life` větším než 40 hodin](/documentation/user/en/query/filtering/examples/comparable/attribute-greater-than.evitaql)
 </SourceCodeTabs>
@@ -154,7 +154,7 @@ attributeGreaterThanEquals(
 
 `attributeGreaterThanEquals` porovnává filtrovatelný nebo unikátní [atribut](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity s hodnotou ve druhém argumentu a je splněn pouze tehdy, pokud je atribut entity větší nebo roven hodnotě.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty s atributem `battery-life` větším nebo rovným 40 hodin](/documentation/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.evitaql)
 
@@ -211,7 +211,7 @@ attributeLessThan(
 
 `attributeLessThan` porovnává filtrovatelný nebo unikátní [atribut](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity s hodnotou ve druhém argumentu a je splněn pouze tehdy, pokud je atribut entity menší než hodnota.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty s atributem `battery-life` menším než 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-less-than.evitaql)
 </SourceCodeTabs>
@@ -267,7 +267,7 @@ attributeLessThanEquals(
 
 `attributeLessThanEquals` porovnává filtrovatelný nebo unikátní [atribut](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity s hodnotou ve druhém argumentu a je splněn pouze tehdy, pokud je atribut entity menší nebo roven hodnotě.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty s atributem `battery-life` menším nebo rovným 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-less-than-equals.evitaql)
 </SourceCodeTabs>
@@ -328,7 +328,7 @@ attributeBetween(
 
 `attributeBetween` porovnává filtrovatelný nebo unikátní [atribut](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity a je splněn pouze tehdy, pokud je atribut entity menší nebo roven prvnímu argumentu a zároveň větší nebo roven druhému argumentu omezení.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkty s atributem `battery-life` menším nebo rovným 125 mWH](/documentation/user/en/query/filtering/examples/comparable/attribute-between.evitaql)
 </SourceCodeTabs>
@@ -384,7 +384,7 @@ attributeInSet(
 
 `attributeInSet` porovnává filtrovatelný nebo unikátní [atribut](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity na přesnou rovnost s libovolnou z předaných hodnot.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkt nalezený podle atributu `code` v dané množině](/documentation/user/en/query/filtering/examples/comparable/attribute-in-set.evitaql)
 </SourceCodeTabs>
@@ -437,7 +437,7 @@ attributeIs(
 
 `attributeIs` lze použít k ověření existence [atributu](../../use/data-model.md#atributy-unikátní-filtrovatelné-řaditelné-lokalizované) entity se zadaným názvem.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkt s přítomným atributem `catalogNumber`](/documentation/user/en/query/filtering/examples/comparable/attribute-is-not-null.evitaql)
 </SourceCodeTabs>
@@ -473,7 +473,7 @@ Vrací stovky produktů s nastaveným atributem *catalogNumber*.
 
 Když se pokusíte vypsat produkty bez tohoto atributu:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Produkt s chybějícím atributem `catalog-number`](/documentation/user/en/query/filtering/examples/comparable/attribute-is-null.evitaql)
 </SourceCodeTabs>

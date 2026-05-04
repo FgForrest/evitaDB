@@ -17,7 +17,7 @@
           "global" : {
             "code" : "alcatel-3-1",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:31:12.283+02:00"
+            "published" : "2026-04-27T14:40:57.813+02:00"
           }
         },
         "prices" : [
@@ -70,7 +70,7 @@
           "global" : {
             "code" : "logitech-mx-keys",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:31:04.038+02:00"
+            "published" : "2026-04-27T14:40:46.174+02:00"
           }
         },
         "prices" : [
@@ -123,7 +123,7 @@
           "global" : {
             "code" : "immax-neo-lite-smart-christmas-led-tree",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:31:03.79+02:00"
+            "published" : "2026-04-27T14:40:46.075+02:00"
           }
         },
         "prices" : [
@@ -176,7 +176,7 @@
           "global" : {
             "code" : "genius-sp-hf2800bt",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:31:03.227+02:00"
+            "published" : "2026-04-27T14:40:45.789+02:00"
           }
         },
         "prices" : [
@@ -229,7 +229,7 @@
           "global" : {
             "code" : "24v5c",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:56.643+02:00"
+            "published" : "2026-04-27T14:40:41.443+02:00"
           }
         },
         "prices" : [
@@ -282,7 +282,7 @@
           "global" : {
             "code" : "logitech-mx-anywhere-3",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:55.052+02:00"
+            "published" : "2026-04-27T14:40:40.613+02:00"
           }
         },
         "prices" : [
@@ -335,7 +335,7 @@
           "global" : {
             "code" : "fitbit-luxe",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:29.836+02:00"
+            "published" : "2026-04-27T14:40:19.418+02:00"
           }
         },
         "prices" : [
@@ -388,7 +388,7 @@
           "global" : {
             "code" : "oppo-a16e",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:20.298+02:00"
+            "published" : "2026-04-27T14:40:10.858+02:00"
           }
         },
         "prices" : [
@@ -441,7 +441,7 @@
           "global" : {
             "code" : "alcatel-3",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:14.217+02:00"
+            "published" : "2026-04-27T14:40:03.546+02:00"
           }
         },
         "prices" : [
@@ -506,7 +506,7 @@
           "global" : {
             "code" : "amazon-kindle-paperwhite-signature-edition",
             "orderedQuantity" : "0.00000",
-            "published" : "2025-10-23T13:30:11.129+02:00"
+            "published" : "2026-04-27T14:40:01.088+02:00"
           }
         },
         "prices" : [

@@ -16,7 +16,7 @@ Tato kapitola obsahuje popis constraintů evitaDB, které vám pomáhají kontro
 
 Ve většině scénářů bude váš dotaz na entity s cenami vypadat takto:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis produktů s platnou cenou v EUR](/documentation/user/en/query/filtering/examples/price/price.evitaql)
 
@@ -126,7 +126,7 @@ který může být předán v surové podobě bez nutnosti vytvářet instanci t
 Constraint <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInCurrency.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInCurrency.cs</SourceClass></LS>
 lze použít k omezení výsledné množiny na entity, které mají cenu ve zvolené měně. Kromě [standardního použití](#typické-použití-cenových-constraintů) můžete vytvořit dotaz pouze s tímto constraintem:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis produktů s jakoukoliv cenou v měně EUR](/documentation/user/en/query/filtering/examples/price/price-in-currency.evitaql)
 
@@ -182,7 +182,7 @@ a rozlišují velká a malá písmena. Ceníky nemusí být v databázi uloženy
 
 Kromě [standardního použití](#typické-použití-cenových-constraintů) můžete vytvořit dotaz pouze s tímto constraintem:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis produktů s jakýmkoliv VIP ceníkem](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.evitaql)
 
@@ -237,7 +237,7 @@ entity, které nemají platnou cenu pro prodej v zadaném datu a čase. Pokud ce
 
 Pro demonstraci efektu constraintů platnosti vytvořme dotaz, který vypíše produkty v kategorii *Vánoční elektronika* a zkusí přistupovat k cenám v jejich *Vánočním ceníku*, s fallbackem na *Základní ceník*, přičemž jako referenční bod pro kontrolu platnosti ceny použije datum a čas jarních svátků:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis produktů s vánočními cenami v květnu](/documentation/user/en/query/filtering/examples/price/price-valid-in.evitaql)
 
@@ -245,7 +245,7 @@ Pro demonstraci efektu constraintů platnosti vytvořme dotaz, který vypíše p
 
 Nyní dotaz aktualizujme na datum a čas v prosinci:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis produktů s vánočními cenami v prosinci](/documentation/user/en/query/filtering/examples/price/price-valid-in-correct.evitaql)
 
@@ -359,7 +359,7 @@ kontejneru constraintu [`userFilter`](behavioral.md#uživatelský-filtr), aby mo
 Pro demonstraci constraintu cenového rozmezí vytvořme dotaz, který vypíše produkty v kategorii *Čtečky knih* a
 vyfiltruje pouze ty, které mají cenu mezi `€150` a `€170.5`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Výpis čteček knih s cenou mezi `€150` a `€170.5`](/documentation/user/en/query/filtering/examples/price/price-between.evitaql)
 

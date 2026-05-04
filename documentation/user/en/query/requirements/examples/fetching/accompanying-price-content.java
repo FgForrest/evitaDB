@@ -10,7 +10,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					priceInPriceLists("basic")
 				),
 				require(
-					defaultAccompanyingPriceLists("reference"),
+					defaultAccompanyingPriceLists("b2b-reference-price"),
 					entityFetch(
 						priceContentRespectingFilter(),
 						accompanyingPriceContentDefault(),

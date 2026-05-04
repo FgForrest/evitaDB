@@ -43,7 +43,7 @@ Je zřejmé, že kontejner `inScope` není nutný, pokud dotazujeme entity pouze
 
 Například v naší demo databázi máme v archivu indexováno jen několik atributů – konkrétně `url` a `code` a několik dalších. V archivu není žádný atribut s indexem pro řazení. Pokud bychom tedy chtěli vybrat několik entit z obou rozsahů a pokusili se je seřadit podle `name`, dostali bychom chybu. Pokud však použijeme kontejner `inScope`, můžeme entity v živém rozsahu řadit podle `name` a archivované entity nechat seřadit podle pořadí v zadání dotazu.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Odlišení řazení v různých rozsazích](/documentation/user/en/query/ordering/examples/behavioral/archived-entities-ordering.evitaql)
 

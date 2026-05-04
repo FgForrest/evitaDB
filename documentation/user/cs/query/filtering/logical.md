@@ -19,7 +19,7 @@ Aby byl dotazovací jazyk stručnější, vynecháváme logickou vazbu v omezuj�
 logickou konjunkci „a zároveň“ ([`and`](#and)), pokud není explicitně nastavena jiná vazba.
 Například můžete zadat následující dotaz:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad implicitní vazby](/documentation/user/en/query/filtering/examples/logical/implicit-binding.evitaql)
 </SourceCodeTabs>
@@ -56,7 +56,7 @@ představuje [logickou konjunkci](https://cs.wikipedia.org/wiki/Konjunkce), což
 
 Následující dotaz:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad logické konjunkce](/documentation/user/en/query/filtering/examples/logical/and.evitaql)
 </SourceCodeTabs>
@@ -117,7 +117,7 @@ představuje [logickou disjunkci](https://cs.wikipedia.org/wiki/Disjunkce), což
 
 Následující dotaz:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad logické disjunkce](/documentation/user/en/query/filtering/examples/logical/or.evitaql)
 </SourceCodeTabs>
@@ -176,7 +176,7 @@ představuje [logickou negaci](https://cs.wikipedia.org/wiki/Negace), což je zn
 
 Následující dotaz:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad logické negace](/documentation/user/en/query/filtering/examples/logical/not.evitaql)
 </SourceCodeTabs>
@@ -212,7 +212,7 @@ Následující dotaz:
 
 Protože je tato situace obtížně představitelná – zúžíme naši nadmnožinu pouze na několik entit:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad logické konjunkce](/documentation/user/en/query/filtering/examples/logical/not-narrowed.evitaql)
 </SourceCodeTabs>

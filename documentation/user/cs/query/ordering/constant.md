@@ -18,7 +18,7 @@ entityPrimaryKeyInFilter()
 
 Toto omezení umožňuje seřadit výstupní entity podle hodnot primárních klíčů přesně v tom pořadí, v jakém byly filtrovány. Omezení vyžaduje přítomnost právě jednoho omezení [`entityPrimaryKeyInSet`](../filtering/constant.md#primární-klíč-entity-v-množině) ve filtrační části dotazu. Používá zadané pole primárních klíčů entit k seřazení výsledku vráceného dotazem.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entity seřazené podle pořadí filtrovaných primárních klíčů](/documentation/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql)
 </SourceCodeTabs>
@@ -69,7 +69,7 @@ entityPrimaryKeyExact(
 
 Toto omezení umožňuje seřadit výstupní entity podle primárních klíčů přesně v pořadí, které je určeno druhým až N-tým argumentem tohoto omezení.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entity seřazené podle zadaného pořadí primárních klíčů](/documentation/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql)
 </SourceCodeTabs>
@@ -120,7 +120,7 @@ attributeSetInFilter(
 
 Toto omezení umožňuje seřadit výstupní entity podle hodnot zadaného atributu přesně v tom pořadí, v jakém byly filtrovány. Omezení vyžaduje přítomnost právě jednoho omezení [`attribute-in-set`](../filtering/comparable.md#atribut-v-množině) ve filtrační části dotazu, které odkazuje na atribut se stejným názvem, jaký je použit v prvním argumentu tohoto omezení. Používá zadané pole hodnot atributu k seřazení výsledku vráceného dotazem.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entity seřazené podle pořadí atributu `code` filtrovaných entit](/documentation/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
 </SourceCodeTabs>
@@ -177,7 +177,7 @@ attributeSetExact(
 
 Toto omezení umožňuje seřadit výstupní entity podle hodnot atributu přesně v pořadí, které je určeno druhým až N-tým argumentem tohoto omezení.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Entity seřazené podle zadaného pořadí hodnot atributu `code`](/documentation/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql)
 </SourceCodeTabs>

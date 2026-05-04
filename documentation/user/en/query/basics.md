@@ -64,7 +64,7 @@ The grammar of a query is as follows:
 The grammar of a full query is as follows:
 </LS>
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of grammar of a query](/documentation/user/en/query/examples/grammar.evitaql)
 
@@ -72,7 +72,7 @@ The grammar of a full query is as follows:
 
 Or more complex one:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of grammar of a complex query](/documentation/user/en/query/examples/complexGrammar.evitaql)
 
@@ -136,7 +136,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 
 </LS>
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example of the simplest query](/documentation/user/en/query/examples/simplestQuery.evitaql)
 
@@ -145,7 +145,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 ... or even this one (although it is recommended to keep the order for better readability:
 `head`, `filterBy`, `orderBy`, `require`):
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Example random order of query parts](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
 

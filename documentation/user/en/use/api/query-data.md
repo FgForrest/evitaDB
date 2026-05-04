@@ -41,7 +41,7 @@ constraints in those arguments. An example of such a query might look like this:
 
 </LS>
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)
 
@@ -91,7 +91,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> and
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Java query example](/documentation/user/en/use/api/example/java-query-example.java)
 
@@ -101,7 +101,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Java dirty query example](/documentation/user/en/use/api/example/java-dirty-query-example.java)
 
@@ -148,7 +148,7 @@ represented by the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>
 interface.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.java)
 
@@ -167,7 +167,7 @@ When such a require constraint is used, data will be fetched *greedily* during t
 will then contain entities in the form of
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/fetching-example.java)
 
@@ -184,7 +184,7 @@ Although there are simpler variants for querying entities, the typical method is
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.java)
 
@@ -206,7 +206,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.java)
 
@@ -520,7 +520,7 @@ This is an example of how the query is composed and how evitaDB is called.
 The example imports previously mentioned interface
 <SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass> statically.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [C# query example](/documentation/user/en/use/api/example/csharp-query-example.cs)
 
@@ -530,7 +530,7 @@ The example imports previously mentioned interface
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [C# dirty query example](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
 
@@ -554,7 +554,7 @@ represented by the
 <SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass>
 interface.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.cs)
 
@@ -573,7 +573,7 @@ When such a `require` constraint is used, data will be fetched *greedily* during
 will then contain entities in the form of
 <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/fetching-example.cs)
 
@@ -590,7 +590,7 @@ Although there are simpler variants for querying entities, the typical method is
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.cs)
 
@@ -612,7 +612,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs setup="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
+<SourceCodeTabs setup="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.cs)
 

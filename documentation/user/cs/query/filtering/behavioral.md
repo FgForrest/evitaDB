@@ -56,7 +56,7 @@ Například v naší demo databázi máme v archivu indexováno pouze několik a
 dalších. V archivním rozsahu neindexujeme reference, hierarchii ani ceny. Pokud chceme vyhledávat entity v obou
 rozsazích a použít odpovídající filtrační podmínky, musíme použít kontejner `inScope` následujícím způsobem:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Odlišení filtrů v různých rozsazích](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-filtering.evitaql)
 
@@ -122,7 +122,7 @@ nebo [histogramu](../requirements/histogram.md)), zatímco povinná část mimo 
 Podívejme se na příklad, kde je podmínka [`facetHaving`](references.md#facet-having) použita uvnitř
 kontejneru `userFilter`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad kontejneru user filter](/documentation/user/en/query/filtering/examples/behavioral/user-filter.evitaql)
 

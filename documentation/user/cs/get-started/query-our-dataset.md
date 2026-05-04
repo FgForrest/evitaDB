@@ -148,7 +148,7 @@ Poté vytvořte instanci <SourceClass>evita_external_api/evita_external_api_grpc
 Následně můžete vytvořit novou session a vyzkoušet libovolné evitaQL dotazy popsané v
 [referenční dokumentaci](../query/basics.md):
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Dotazování na demo server](/documentation/user/en/get-started/example/query-demo-server.java)
 

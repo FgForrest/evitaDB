@@ -25,7 +25,7 @@ entityPrimaryKeyInSet(
 
 Tato podmínka omezuje seznam vrácených entit přesným určením jejich primárních klíčů.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Seznam produktů filtrovaný podle primárního klíče entity](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql)
 
@@ -132,7 +132,7 @@ V našem demo datasetu je několik archivovaných entit. Naše schéma je nakonf
 `URL` a `code` v archivním scope, takže můžeme vyhledávat archivované entity pouze podle těchto atributů a samozřejmě
 podle primárního klíče.
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad přístupu k archivovaným entitám](/documentation/user/en/query/filtering/examples/behavioral/archived-entities-listing.evitaql)
 

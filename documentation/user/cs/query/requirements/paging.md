@@ -165,7 +165,7 @@ je jako datový blok použit
 je nejpřirozenějším a nejčastěji používaným požadavkem pro stránkování výsledků dotazu.
 Chcete-li získat druhou stránku výsledku dotazu, použijte následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad získání druhé stránky výsledků](/documentation/user/en/query/requirements/examples/paging/page.evitaql)
 
@@ -289,7 +289,7 @@ a chcete správně načíst záznamy pro 5. stránku, musíte požadovat strip s
 (4 stránky * 20 pozic na stránku – 4 záznamy vynechány na předchozích 4 stránkách) a limitem 19. Pro získání takového stripu použijte
 následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad získání neuniformního stripu výsledků](/documentation/user/en/query/requirements/examples/paging/strip.evitaql)
 </SourceCodeTabs>
@@ -362,7 +362,7 @@ například pro reklamy, bannery, blogové příspěvky nebo jiný externí obsa
 Například, pokud chcete zobrazit reklamu na každé sudé stránce až do 10. stránky a zároveň chcete zobrazit
 blogový příspěvek na 1. a 4. stránce. K tomu byste použili následující dotaz:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad vloženého spacingu](/documentation/user/en/query/requirements/examples/paging/spacing_page1.evitaql)
 
@@ -397,7 +397,7 @@ První stránka obsahuje 9 záznamů (jeden slot ponechán pro blogový přísp�
 
 **Druhá stránka:**
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad vloženého spacingu](/documentation/user/en/query/requirements/examples/paging/spacing_page2.evitaql)
 
@@ -421,7 +421,7 @@ První stránka obsahuje 9 záznamů (jeden slot ponechán pro blogový přísp�
 
 **Čtvrtá stránka:**
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad vloženého spacingu](/documentation/user/en/query/requirements/examples/paging/spacing_page4.evitaql)
 

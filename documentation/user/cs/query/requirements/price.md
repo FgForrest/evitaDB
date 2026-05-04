@@ -38,7 +38,7 @@ požadavek zadán, **výchozí je cena s daní**.
 Abychom ukázali vliv tohoto požadavku, předpokládejme, že uživatel chce najít všechny produkty s prodejní cenou
 mezi `€100` a `€105`. Následující dotaz toto provede:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad dotazu pro filtrování produktů s cenou mezi `€100` a `€105`](/documentation/user/en/query/requirements/examples/price/price-type.evitaql)
 
@@ -75,7 +75,7 @@ Výsledek obsahuje některé produkty, které můžete vidět v následující t
 Pokud je však uživatel právnickou osobou a může si odečíst DPH z ceny, pravděpodobně bude chtít najít všechny produkty
 v tomto rozmezí s cenou bez daně. K tomu je potřeba upravit dotaz a přidat požadavek `priceType`:
 
-<SourceCodeTabs requires="evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Příklad dotazu pro filtrování produktů s cenou mezi `€100` a `€105` bez daně](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.evitaql)
 

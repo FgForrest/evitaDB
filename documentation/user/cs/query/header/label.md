@@ -38,7 +38,7 @@ s dotazem.
 
 Každý štítek je dvojice klíč-hodnota připojená k hlavičce dotazu, jak je ukázáno v následujícím příkladu:
 
-<SourceCodeTabs requires="/evita_test/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Připojení štítků k dotazu](/documentation/user/en/query/header/examples/labels.evitaql)
 

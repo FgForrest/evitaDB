@@ -17,7 +17,7 @@
       "availability" : "ALWAYS_AVAILABLE",
       "brandCode" : "apple",
       "catalogNumber" : "3872990",
-      "changed" : "2025-04-10T08:12:30+02:00",
+      "changed" : "2025-11-04T16:34:50+01:00",
       "code" : "macbook-pro-13-2022",
       "codeShort" : "macbook-pro-13-2022",
       "displaySize" : "13.30000",
@@ -28,7 +28,7 @@
       "order" : 104526,
       "orderedQuantity" : "0.00000",
       "productType" : "MASTER",
-      "published" : "2025-10-23T13:30:08.667+02:00",
+      "published" : "2026-04-27T14:39:58.791+02:00",
       "rating" : "0",
       "ratingVotes" : 0,
       "saleRestriction" : "WITHOUT_RESTRICTION",
@@ -64,16 +64,16 @@
           "labels" : {
             "metaOgDescription" : "Macbook Pro 13 2022",
             "metaTwitterDescription" : "Macbook Pro 13 2022",
-            "metaOgTitle" : "Macbook Pro 13 2022",
-            "unitCode" : "pcs",
-            "metaTitle" : "Macbook Pro 13 2022",
-            "name" : "Macbook Pro 13 2022",
             "metaTwitterTitle" : "Macbook Pro 13 2022",
             "zboziTitle" : "Macbook Pro 13 2022",
             "fulltextKeywords" : "Macbook Pro 13 2022",
             "title" : "Macbook Pro 13 2022",
             "metaDescription" : "Macbook Pro 13 2022",
-            "heurekaTitle" : "Macbook Pro 13 2022"
+            "heurekaTitle" : "Macbook Pro 13 2022",
+            "metaOgTitle" : "Macbook Pro 13 2022",
+            "unitCode" : "pcs",
+            "metaTitle" : "Macbook Pro 13 2022",
+            "name" : "Macbook Pro 13 2022"
           }
         }
       }
