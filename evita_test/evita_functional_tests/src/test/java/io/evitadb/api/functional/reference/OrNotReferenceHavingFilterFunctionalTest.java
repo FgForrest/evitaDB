@@ -58,9 +58,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * `or(referenceX_Having, not(referenceX_Having))` returned only a partial result instead of
  * the entire entity collection.
  *
- * The fix landed via [commit a5ee5a8e22](https://github.com/FgForrest/evitaDB/commit/a5ee5a8e22)
- * which corrected `FutureNotFormula.postProcess` to apply DeMorgan-aware aggregators when a
- * `NOT` term appears within an `OR` container. These tests guard that behaviour against
+ * The fix is in `FormulaCloner` (detecting dedup-collapsed positional siblings of
+ * `NotFormula` / `DisentangleFormula` and collapsing the wrapper to `EmptyFormula`),
+ * with defensive identity guards added in `NotFormula.computeInternal` and
+ * `DisentangleFormula.computeInternal`. These tests guard that behaviour against
  * regressions for reference-based predicates (the original reproduction used
  * `referenceShippingMethodHaving`).
  *
@@ -139,10 +140,11 @@ public class OrNotReferenceHavingFilterFunctionalTest extends AbstractReferenceF
 	 * Same `or(P, not(P))` shape as the universe test, but with an inner reference predicate
 	 * (`entityPrimaryKeyInSet`). The two branches still form an exhaustive partition of the
 	 * collection — every product either has a STORE reference matching `targetStorePk` or it
-	 * does not — so the engine must return every product. Currently fails: 83/100 are returned,
-	 * the 17 missing products are exactly those that have **no** STORE reference at all,
-	 * suggesting that `not(referenceHaving(...))` only complements within products that have at
-	 * least one matching reference type, not within the entire collection.
+	 * does not — so the engine must return every product. Before the fix in this PR, only
+	 * 83/100 were returned — the 17 missing products were exactly those that had **no** STORE
+	 * reference at all, because `FormulaDeduplicator` collapsed the two structurally equivalent
+	 * positional siblings of the inner `NotFormula(P, P)` into a single instance and the
+	 * `FormulaCloner` mistakenly returned the surviving superset rather than `EmptyFormula`.
 	 */
 	@DisplayName("Should return all products for or(referenceHaving(filter), not(referenceHaving(filter)))")
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -186,8 +188,7 @@ public class OrNotReferenceHavingFilterFunctionalTest extends AbstractReferenceF
 
 	/**
 	 * The empty set — `and(P, not(P))` must return no products. This is the dual of the
-	 * `or(P, not(P))` guarantee and exercises the CONJUNCTION path of
-	 * `FutureNotFormula.postProcess`.
+	 * `or(P, not(P))` guarantee for the conjunction path of `FutureNotFormula.postProcess`.
 	 */
 	@DisplayName("Should return no products for and(referenceHaving, not(referenceHaving))")
 	@UseDataSet(HUNDRED_PRODUCTS)

@@ -26,6 +26,7 @@ package io.evitadb.core.query.algebra.utils.visitor;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
@@ -377,6 +378,131 @@ class FormulaClonerTest {
 			assertFalse(FormulaLocator.contains(cloneResult, NotFormula.class));
 			// OR with one surviving child collapses to that child
 			assertSame(keep, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should collapse NotFormula to EmptyFormula when both siblings dedup to same instance")
+		void shouldCollapseNotFormulaWhenSiblingsDedupToSameInstance() {
+			// Reproduces the dedup-collapse path: two distinct ConstantFormula positional siblings
+			// of NotFormula post-process to the *same* instance (mutator returns the same target
+			// formula for both inputs). The LinkedHashSet of updated children then has size 1, but
+			// this is mathematically X \ X = ∅, NOT "subtracted stripped, return superset".
+			final ConstantFormula original = new ConstantFormula(new ArrayBitmap(5));
+			final ConstantFormula clone = new ConstantFormula(new ArrayBitmap(5));
+			final ConstantFormula shared = new ConstantFormula(new ArrayBitmap(5));
+			final Formula notFormula = new NotFormula(original, clone);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				notFormula,
+				f -> f == original || f == clone ? shared : f
+			);
+
+			assertSame(EmptyFormula.INSTANCE, cloneResult);
+		}
+	}
+
+	@Nested
+	@DisplayName("DisentangleFormula special handling")
+	class DisentangleFormulaHandlingTest {
+
+		@Test
+		@DisplayName("should return main when control child is stripped from DisentangleFormula")
+		void shouldReturnMainWhenControlChildStripped() {
+			// disentangle(main, ∅) = main per RangeIndex.createDisentangleFormulaIfNecessary
+			final ConstantFormula main = new ConstantFormula(new ArrayBitmap(5, 8, 10));
+			final ConstantFormula control = new ConstantFormula(new ArrayBitmap(8));
+			final Formula disentangleFormula = new DisentangleFormula(main, control);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				disentangleFormula,
+				f -> f == control ? null : f
+			);
+
+			assertSame(main, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should drop DisentangleFormula when main child is stripped")
+		void shouldDropDisentangleFormulaWhenMainChildStripped() {
+			// No main → nothing to disentangle → drop the wrapper
+			final ConstantFormula main = new ConstantFormula(new ArrayBitmap(5, 8, 10));
+			final ConstantFormula control = new ConstantFormula(new ArrayBitmap(8));
+			final Formula disentangleFormula = new DisentangleFormula(main, control);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				disentangleFormula,
+				f -> f == main ? null : f
+			);
+
+			assertNull(cloneResult);
+		}
+
+		@Test
+		@DisplayName("should drop DisentangleFormula when both children are stripped")
+		void shouldDropDisentangleFormulaWhenBothChildrenStripped() {
+			final ConstantFormula main = new ConstantFormula(new ArrayBitmap(5, 8, 10));
+			final ConstantFormula control = new ConstantFormula(new ArrayBitmap(8));
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(1));
+			final Formula tree = new OrFormula(
+				keep,
+				new DisentangleFormula(main, control)
+			);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree,
+				f -> f == main || f == control ? null : f
+			);
+
+			assertNotNull(cloneResult);
+			assertFalse(FormulaLocator.contains(cloneResult, DisentangleFormula.class));
+			// OR with one surviving child collapses to that child
+			assertSame(keep, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should collapse DisentangleFormula to EmptyFormula when both siblings dedup to same instance")
+		void shouldCollapseDisentangleFormulaWhenSiblingsDedupToSameInstance() {
+			// Mirrors the NotFormula dedup-collapse case for DisentangleFormula:
+			// disentangle(X, X) = ∅, so when both positional siblings post-process to the same
+			// instance the wrapper must collapse to EmptyFormula — *not* return the survivor as
+			// if `disentangle(main, ∅) = main` had triggered.
+			final ConstantFormula original = new ConstantFormula(new ArrayBitmap(5, 8, 10));
+			final ConstantFormula clone = new ConstantFormula(new ArrayBitmap(5, 8, 10));
+			final ConstantFormula shared = new ConstantFormula(new ArrayBitmap(5, 8, 10));
+			final Formula disentangleFormula = new DisentangleFormula(original, clone);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				disentangleFormula,
+				f -> f == original || f == clone ? shared : f
+			);
+
+			assertSame(EmptyFormula.INSTANCE, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should preserve main in nested tree when control is stripped")
+		void shouldPreserveMainInNestedTreeWhenControlStripped() {
+			final ConstantFormula main = new ConstantFormula(new ArrayBitmap(5, 8, 10));
+			final ConstantFormula control = new ConstantFormula(new ArrayBitmap(8));
+			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(1));
+			final Formula tree = new OrFormula(
+				keep,
+				new DisentangleFormula(main, control)
+			);
+
+			final Formula cloneResult = FormulaCloner.clone(
+				tree,
+				f -> f == control ? null : f
+			);
+
+			assertNotNull(cloneResult);
+			assertInstanceOf(OrFormula.class, cloneResult);
+			assertFalse(FormulaLocator.contains(cloneResult, DisentangleFormula.class));
+			// OrFormula(keep, main) — main replaced the DisentangleFormula
+			final Formula[] children = cloneResult.getInnerFormulas();
+			assertEquals(2, children.length);
+			assertSame(keep, children[0]);
+			assertSame(main, children[1]);
 		}
 	}
 

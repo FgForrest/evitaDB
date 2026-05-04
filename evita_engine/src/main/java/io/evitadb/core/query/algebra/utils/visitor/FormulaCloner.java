@@ -193,14 +193,34 @@ public class FormulaCloner implements FormulaVisitor {
 							formulaToStore = null;
 						}
 					}
-				} else if (formula instanceof DisentangleFormula && updatedChildren.size() < 2) {
+				} else if (formula instanceof DisentangleFormula disentangleFormula && updatedChildren.size() < 2) {
 					// DisentangleFormula(main, control) requires two positional siblings — the same
 					// dedup-collapse pattern that hits NotFormula above can drop one of them when
 					// FormulaDeduplicator unifies structurally equivalent inputs. Without this guard
-					// the fall-through would call `getCloneWithInnerFormulas([X])` and NPE on
-					// `innerFormulas[1]`. Mathematically `disentangle(X, X) = ∅`, so collapse to
-					// EmptyFormula instead.
-					formulaToStore = EmptyFormula.INSTANCE;
+					// the fall-through would call `getCloneWithInnerFormulas([X])` and throw
+					// ArrayIndexOutOfBoundsException on `innerFormulas[1]`.
+					if (updatedChildren.isEmpty()) {
+						// both children stripped — no operation possible, drop the wrapper
+						formulaToStore = null;
+					} else {
+						// Determine which child survived
+						final Formula processedMain = this.formulasProcessed.get(disentangleFormula.getInnerFormulas()[0]);
+						final Formula processedControl = this.formulasProcessed.get(disentangleFormula.getInnerFormulas()[1]);
+						if (processedMain != null && processedMain == processedControl
+							&& updatedChildren.contains(processedMain)) {
+							// Both positional siblings post-process to the same formula instance
+							// (FormulaDeduplicator collapsing structurally equivalent inputs).
+							// Mathematically `disentangle(X, X) = ∅`.
+							formulaToStore = EmptyFormula.INSTANCE;
+						} else if (processedMain != null && updatedChildren.contains(processedMain)) {
+							// Main survived, control was removed → `disentangle(main, ∅) = main`
+							// (matches RangeIndex.createDisentangleFormulaIfNecessary semantics).
+							formulaToStore = processedMain;
+						} else {
+							// Control survived, main was removed → nothing to disentangle → drop
+							formulaToStore = null;
+						}
+					}
 				} else {
 					// recreate parent formula with new children
 					final Formula recreated = formula.getCloneWithInnerFormulas(
