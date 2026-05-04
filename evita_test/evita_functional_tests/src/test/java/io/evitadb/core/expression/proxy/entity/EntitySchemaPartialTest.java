@@ -35,12 +35,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link EntitySchemaPartial} verifying that schema-related method implementations correctly delegate to the
@@ -48,6 +52,9 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("rawtypes")
 @DisplayName("Entity schema partial")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(SCHEMA)
 class EntitySchemaPartialTest {
 
 	/**

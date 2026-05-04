@@ -36,17 +36,22 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TASK;
 
 /**
  * This test verifies the correct functionality of the {@link Scheduler} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(ENGINE)
+@Tag(TASK)
 class SchedulerTest {
 	private final Scheduler scheduler = new Scheduler(
 		ThreadPoolOptions

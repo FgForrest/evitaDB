@@ -31,10 +31,17 @@ import io.evitadb.dataType.expression.Expression;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FACET;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link SetReferenceSchemaFacetedMutationConverter} verifying gRPC round-trip
@@ -43,6 +50,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("SetReferenceSchemaFacetedMutationConverter")
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(FACET)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class SetReferenceSchemaFacetedMutationConverterTest {
 
 	private static SetReferenceSchemaFacetedMutationConverter converter;

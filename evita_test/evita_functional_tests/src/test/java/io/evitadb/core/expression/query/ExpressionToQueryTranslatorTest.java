@@ -32,6 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
@@ -54,6 +55,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link ExpressionToQueryTranslator}.
@@ -61,6 +64,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ExpressionToQueryTranslator")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class ExpressionToQueryTranslatorTest {
 
 	private static final String REF_NAME = "refName";

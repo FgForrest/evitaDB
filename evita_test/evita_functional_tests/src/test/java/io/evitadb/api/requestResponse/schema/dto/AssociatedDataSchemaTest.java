@@ -30,13 +30,18 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link AssociatedDataSchema}.
  */
 @DisplayName("AssociatedDataSchema")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class AssociatedDataSchemaTest {
 
 	@Nested

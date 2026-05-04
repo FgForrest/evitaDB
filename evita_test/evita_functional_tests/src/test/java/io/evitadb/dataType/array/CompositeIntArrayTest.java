@@ -35,8 +35,11 @@ import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Random;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies contract of {@link CompositeIntArray}.
@@ -46,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("CompositeIntArray")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class CompositeIntArrayTest {
 
 	@Nested

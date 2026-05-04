@@ -33,18 +33,27 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * Tests for {@link OrderConstraintResolver}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(ORDER)
 class OrderConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	private OrderConstraintResolver resolver;

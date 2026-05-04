@@ -36,6 +36,7 @@ import java.util.Currency;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -46,6 +47,8 @@ import static io.evitadb.api.query.require.PriceContentMode.*;
 import static io.evitadb.api.query.require.QueryPriceMode.WITHOUT_TAX;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link EvitaRequest} verifying lazy-memoized accessor
@@ -55,6 +58,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("EvitaRequest")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EvitaRequestTest {
 
 	/** Shared timestamp for all tests. */

@@ -45,9 +45,13 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies functionalities of methods in {@link QueryConverter} class.
@@ -55,6 +59,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Tomáš Pozler, 2022
  */
 @SuppressWarnings("FieldCanBeLocal")
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class QueryConverterTest {
 	private static final boolean enabled = true;
 	private static final String name = "test";

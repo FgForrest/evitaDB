@@ -94,6 +94,8 @@ import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile;
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getIndexFromWalFileName;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * Integration tests for verifying the behavior of {@link CatalogWriteAheadLog}.
@@ -113,6 +115,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @SuppressWarnings({"ResultOfMethodCallIgnored", "SameParameterValue"})
 @Slf4j
 @DisplayName("Catalog Write-Ahead Log Integration Tests")
+@Tag(STORAGE)
+@Tag(WAL)
 public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	private final Path walDirectory = getTestDirectory().resolve(getClass().getSimpleName());
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {
@@ -125,13 +129,9 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(
 		Mockito.mock(Scheduler.class)
 	);
-	private final CatalogOffHeapMemoryManager noOffHeapMemoryManager = new CatalogOffHeapMemoryManager(
-		TEST_CATALOG, 0, 0, Crc32CChecksumFactory.INSTANCE
-	);
 	private final CatalogOffHeapMemoryManager bigOffHeapMemoryManager = new CatalogOffHeapMemoryManager(
 		TEST_CATALOG, 10_000_000, 4, Crc32CChecksumFactory.INSTANCE
 	);
-	private final int[] txSizes = new int[]{1000, 2000, 3000, 4000, 5000, 7000, 9000};
 	private final MockCatalogVersionConsumer offsetConsumer = new MockCatalogVersionConsumer();
 	private CatalogWriteAheadLog wal;
 
@@ -405,52 +405,6 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 
 		assertEquals(transactionSizes.length, firstCatalogVersion);
 		assertEquals(transactionSizes.length - (transactionSizes.length - startIndex) + 1, txRead);
-	}
-
-	/**
-	 * Nested tests for basic transaction read/write operations.
-	 */
-	@Nested
-	@DisplayName("Transaction Read/Write Tests")
-	class TransactionReadWriteTests {
-
-		@Tag(LONG_RUNNING_TEST)
-		@Test
-		@DisplayName("should write and read small amount of transactions and reuse cache on next access")
-		void shouldWriteAndReadSmallAmountOfTransactionsAndReuseCacheOnNextAccess() {
-			final int[] aFewTransactions = {1, 2, 3, 2, 1};
-			final Map<Long, List<Mutation>> txInMutations = writeWal(
-				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, aFewTransactions);
-			readAndVerifyWal(txInMutations, aFewTransactions, 0);
-
-			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 4);
-			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 3);
-			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 2);
-			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 1);
-			createCachedSupplierReadAndVerifyFrom(txInMutations, aFewTransactions, 0);
-		}
-
-		@Tag(LONG_RUNNING_TEST)
-		@Test
-		@DisplayName("should read all transactions using off-heap isolated WAL")
-		void shouldReadAllTransactionsUsingOffHeapIsolatedWal() {
-			final Map<Long, List<Mutation>> txInMutations = writeWal(
-				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager,
-				CatalogWriteAheadLogIntegrationTest.this.txSizes
-			);
-			readAndVerifyWal(txInMutations, CatalogWriteAheadLogIntegrationTest.this.txSizes, 0);
-		}
-
-		@Tag(LONG_RUNNING_TEST)
-		@Test
-		@DisplayName("should read all transactions using file isolated WAL")
-		void shouldReadAllTransactionsUsingFileIsolatedWal() {
-			final Map<Long, List<Mutation>> txInMutations = writeWal(
-				CatalogWriteAheadLogIntegrationTest.this.noOffHeapMemoryManager,
-				CatalogWriteAheadLogIntegrationTest.this.txSizes
-			);
-			readAndVerifyWal(txInMutations, CatalogWriteAheadLogIntegrationTest.this.txSizes, 0);
-		}
 	}
 
 	/**

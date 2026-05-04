@@ -29,17 +29,22 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.head;
 import static io.evitadb.api.query.QueryConstraints.label;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies contract of {@link Head} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class HeadTest {
 
 	@Test

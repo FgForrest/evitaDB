@@ -25,29 +25,17 @@ package io.evitadb.index.cardinality;
 
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
-
-import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeCardinalityIndex} covering construction, non-transactional operations,
@@ -56,7 +44,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("AttributeCardinalityIndex")
-class AttributeCardinalityIndexTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
+class AttributeCardinalityIndexTest {
 
 	@Nested
 	@DisplayName("Construction")
@@ -393,125 +383,5 @@ class AttributeCardinalityIndexTest implements TimeBoundedTestSupport {
 			);
 		}
 	}
-
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalProofTest {
-
-		@DisplayName("survives generational randomized test applying modifications on it")
-		@ParameterizedTest(name = "AttributeCardinalityIndex should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final int initialCount = 30;
-			final Map<AttributeCardinalityKey, Integer> initialMap =
-				generateRandomInitialMap(new Random(input.randomSeed()), initialCount);
-
-			runFor(
-				input,
-				10_000,
-				new TestState(new StringBuilder(256), initialMap),
-				(random, testState) -> {
-					final AttributeCardinalityIndex index = new AttributeCardinalityIndex(
-						String.class, new HashMap<>(testState.referenceMap())
-					);
-					final Map<AttributeCardinalityKey, Integer> referenceMap =
-						new HashMap<>(testState.referenceMap());
-
-					assertStateAfterCommit(
-						index,
-						original -> {
-							final int opCount = random.nextInt(5) + 1;
-							for (int i = 0; i < opCount; i++) {
-								final int operation = referenceMap.isEmpty() ? 0 : random.nextInt(4);
-								if (operation == 0) {
-									// add new (value, recordId) — may coincide with existing, incrementing count
-									final String value = String.valueOf((char) ('a' + random.nextInt(8)));
-									final int recordId = random.nextInt(10) + 1;
-									final AttributeCardinalityKey key = new AttributeCardinalityKey(recordId, value);
-									original.addRecord(value, recordId);
-									referenceMap.merge(key, 1, Integer::sum);
-								} else if (operation == 1) {
-									// increment cardinality of a randomly chosen existing entry
-									final List<AttributeCardinalityKey> keys =
-										new ArrayList<>(referenceMap.keySet());
-									final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-									original.addRecord((String) key.value(), key.recordId());
-									referenceMap.merge(key, 1, Integer::sum);
-								} else if (operation == 2) {
-									// decrement an entry with count > 1; fall back to increment when none exists
-									final List<AttributeCardinalityKey> candidates =
-										new ArrayList<>(referenceMap.size());
-									for (final Map.Entry<AttributeCardinalityKey, Integer> e : referenceMap.entrySet()) {
-										if (e.getValue() > 1) {
-											candidates.add(e.getKey());
-										}
-									}
-									if (candidates.isEmpty()) {
-										final List<AttributeCardinalityKey> keys =
-											new ArrayList<>(referenceMap.keySet());
-										final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-										original.addRecord((String) key.value(), key.recordId());
-										referenceMap.merge(key, 1, Integer::sum);
-									} else {
-										final AttributeCardinalityKey key =
-											candidates.get(random.nextInt(candidates.size()));
-										original.removeRecord((String) key.value(), key.recordId());
-										referenceMap.merge(key, -1, Integer::sum);
-									}
-								} else {
-									// fully remove an entry with count == 1; fall back to increment when none exists
-									final List<AttributeCardinalityKey> candidates =
-										new ArrayList<>(referenceMap.size());
-									for (final Map.Entry<AttributeCardinalityKey, Integer> e : referenceMap.entrySet()) {
-										if (e.getValue() == 1) {
-											candidates.add(e.getKey());
-										}
-									}
-									if (candidates.isEmpty()) {
-										final List<AttributeCardinalityKey> keys =
-											new ArrayList<>(referenceMap.keySet());
-										final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-										original.addRecord((String) key.value(), key.recordId());
-										referenceMap.merge(key, 1, Integer::sum);
-									} else {
-										final AttributeCardinalityKey key =
-											candidates.get(random.nextInt(candidates.size()));
-										original.removeRecord((String) key.value(), key.recordId());
-										referenceMap.remove(key);
-									}
-								}
-							}
-						},
-						(original, committed) -> {
-							assertEquals(referenceMap, committed.getCardinalities());
-							assertEquals(referenceMap.isEmpty(), committed.isEmpty());
-						}
-					);
-
-					return new TestState(new StringBuilder(256), referenceMap);
-				}
-			);
-		}
-
-	}
-
-	@Nonnull
-	private static Map<AttributeCardinalityKey, Integer> generateRandomInitialMap(
-		@Nonnull Random random, int count
-	) {
-		final Map<AttributeCardinalityKey, Integer> map = new HashMap<>(count * 2);
-		for (int i = 0; i < count; i++) {
-			final String value = String.valueOf((char) ('a' + random.nextInt(8)));
-			final int recordId = random.nextInt(10) + 1;
-			map.merge(new AttributeCardinalityKey(recordId, value), 1, Integer::sum);
-		}
-		return map;
-	}
-
-	private record TestState(
-		@Nonnull StringBuilder code,
-		@Nonnull Map<AttributeCardinalityKey, Integer> referenceMap
-	) {}
 
 }

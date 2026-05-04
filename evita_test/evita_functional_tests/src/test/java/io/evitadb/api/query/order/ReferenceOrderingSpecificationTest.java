@@ -28,8 +28,12 @@ import io.evitadb.api.query.OrderConstraint;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ORDER;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferenceOrderingSpecification} verifying that the marker interface extends the correct
@@ -38,6 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ReferenceOrderingSpecification interface")
+@Tag(CONTRACT)
+@Tag(ORDER)
+@Tag(REFERENCE)
 class ReferenceOrderingSpecificationTest {
 
 	@Nested

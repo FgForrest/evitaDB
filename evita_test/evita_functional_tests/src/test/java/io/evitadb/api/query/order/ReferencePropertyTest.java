@@ -37,11 +37,15 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ORDER;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferenceProperty} verifying construction, applicability, necessity, accessor methods,
@@ -50,6 +54,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Luk&#225;&#353; Hornych, FG Forrest a.s. (c) 2023
  */
 @DisplayName("ReferenceProperty constraint")
+@Tag(CONTRACT)
+@Tag(ORDER)
+@Tag(REFERENCE)
 class ReferencePropertyTest implements EvitaTestSupport {
 
 	@Nested

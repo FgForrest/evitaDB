@@ -30,9 +30,12 @@ import org.junit.jupiter.api.Test;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies contract of {@link ComparatorUtils} class.
@@ -40,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ComparatorUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class ComparatorUtilsTest {
 
 	@Nested

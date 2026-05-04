@@ -44,8 +44,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link InitialAssociatedDataBuilder} verifying
@@ -55,6 +58,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("InitialAssociatedDataBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class InitialAssociatedDataBuilderTest extends AbstractBuilderTest {
 	private final InitialAssociatedDataBuilder associatedData =
 		new InitialAssociatedDataBuilder(

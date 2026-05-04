@@ -38,8 +38,12 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.function.Predicate;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link BetweenAttributeFormula} pinning its role as a **tagged subclass of
@@ -59,6 +63,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("BetweenAttributeFormula tagged attribute subclass")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(ATTRIBUTE)
 class BetweenAttributeFormulaTest {
 
 	/**

@@ -42,12 +42,15 @@ import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Unit tests for {@link ExpressionDependencyClassifier} — verifies path classification logic using
@@ -58,6 +61,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ExpressionDependencyClassifier")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class ExpressionDependencyClassifierTest {
 
 	private static final String ENTITY_TYPE = "product";

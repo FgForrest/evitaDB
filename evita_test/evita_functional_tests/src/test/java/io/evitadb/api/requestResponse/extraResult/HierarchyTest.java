@@ -37,8 +37,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * This test verifies {@link Hierarchy} contract.
@@ -46,6 +50,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("Hierarchy")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(HIERARCHY)
 public class HierarchyTest implements EvitaTestSupport {
 	private LevelInfo levelInfo;
 

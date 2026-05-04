@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Predicate;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -64,12 +65,18 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for GraphQL catalog unknown single entity query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
 	private static final String GET_ENTITY_PATH = "data.getEntity";

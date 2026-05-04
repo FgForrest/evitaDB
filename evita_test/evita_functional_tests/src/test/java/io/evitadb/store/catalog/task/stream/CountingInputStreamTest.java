@@ -29,14 +29,19 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This class verifies behavior of {@link CountingInputStream}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 public class CountingInputStreamTest {
 	private CountingInputStream countingInputStream;
 	private ByteArrayInputStream byteArrayInputStream;

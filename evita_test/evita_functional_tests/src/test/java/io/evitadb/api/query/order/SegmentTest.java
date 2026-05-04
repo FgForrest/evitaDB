@@ -37,10 +37,13 @@ import java.io.Serializable;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * Tests for {@link Segment} verifying construction, applicability, accessor methods,
@@ -49,6 +52,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("Segment constraint")
+@Tag(CONTRACT)
+@Tag(ORDER)
 class SegmentTest {
 
 	@Nested

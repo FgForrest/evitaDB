@@ -40,12 +40,17 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 @DisplayName("ExpandedEngineState builder and state transitions")
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
 class ExpandedEngineStateTest {
 
 	private static EngineState<LogRecordReference> engineState(

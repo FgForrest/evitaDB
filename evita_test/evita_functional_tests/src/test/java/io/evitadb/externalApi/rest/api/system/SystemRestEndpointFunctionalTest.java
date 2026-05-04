@@ -44,18 +44,25 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for REST system management endpoints.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 	private static final String SYSTEM_URL = "system";

@@ -33,8 +33,11 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link FormulaFactory} verifying static factory methods produce correct formula types
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("FormulaFactory")
+@Tag(ENGINE)
+@Tag(QUERY)
 class FormulaFactoryTest {
 
 	@Nested

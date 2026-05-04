@@ -24,24 +24,16 @@
 package io.evitadb.index.facet;
 
 import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
-
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetIdIndex} covering construction, non-transactional operations,
@@ -50,85 +42,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("FacetIdIndex")
-class FacetIdIndexTest implements TimeBoundedTestSupport {
-
-	@ParameterizedTest(name = "FacetIdIndex should survive generational randomized test applying modifications on it")
-	@Tag(LONG_RUNNING_TEST)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalProofTest(GenerationalTestInput input) {
-		final int maxEntityId = 50;
-
-		runFor(
-			input,
-			10_000,
-			new TestState(new StringBuilder(512), new HashSet<>()),
-			(random, testState) -> {
-				final Set<Integer> referenceIds = testState.entityIds();
-				final StringBuilder codeBuffer = testState.code();
-
-				// Rebuild index from reference model each iteration
-				codeBuffer.append("final FacetIdIndex index = new FacetIdIndex(1);\n");
-				final FacetIdIndex index = new FacetIdIndex(1);
-				for (int entityId : referenceIds) {
-					codeBuffer.append("index.addFacet(").append(entityId).append(");\n");
-					index.addFacet(entityId);
-				}
-
-				assertStateAfterCommit(
-					index,
-					original -> {
-						final int operationsInTransaction = random.nextInt(5) + 1;
-						for (int i = 0; i < operationsInTransaction; i++) {
-							if (referenceIds.isEmpty() || (referenceIds.size() < maxEntityId && random.nextBoolean())) {
-								// Add a random entityId not already in the reference
-								int newEntityId;
-								do {
-									newEntityId = random.nextInt(maxEntityId) + 1;
-								} while (referenceIds.contains(newEntityId));
-
-								codeBuffer.append("index.addFacet(").append(newEntityId).append(");\n");
-								try {
-									original.addFacet(newEntityId);
-									referenceIds.add(newEntityId);
-								} catch (Exception ex) {
-									fail(ex.getMessage() + "\n" + codeBuffer, ex);
-								}
-							} else if (!referenceIds.isEmpty()) {
-								// Pick and remove a random existing entityId
-								final ArrayList<Integer> idList = new ArrayList<>(referenceIds);
-								final int entityIdToRemove = idList.get(random.nextInt(idList.size()));
-
-								codeBuffer.append("index.removeFacet(").append(entityIdToRemove).append(");\n");
-								try {
-									original.removeFacet(entityIdToRemove);
-									referenceIds.remove(entityIdToRemove);
-								} catch (Exception ex) {
-									fail(ex.getMessage() + "\n" + codeBuffer, ex);
-								}
-							}
-						}
-					},
-					(original, committed) -> {
-						assertEquals(referenceIds.size(), committed.size(),
-							"Size mismatch after commit!\n" + codeBuffer);
-						assertEquals(referenceIds.isEmpty(), committed.isEmpty(),
-							"isEmpty mismatch after commit!\n" + codeBuffer);
-						for (int id : referenceIds) {
-							assertTrue(committed.getRecords().contains(id),
-								"Entity ID " + id + " not found in committed index!\n" + codeBuffer);
-						}
-					}
-				);
-
-				return new TestState(new StringBuilder(512), referenceIds);
-			}
-		);
-	}
-
-	private record TestState(
-		StringBuilder code,
-		Set<Integer> entityIds
-	) {}
+@Tag(INDEXING)
+@Tag(FACET)
+class FacetIdIndexTest {
 
 	@Nested
 	@DisplayName("Constructor")

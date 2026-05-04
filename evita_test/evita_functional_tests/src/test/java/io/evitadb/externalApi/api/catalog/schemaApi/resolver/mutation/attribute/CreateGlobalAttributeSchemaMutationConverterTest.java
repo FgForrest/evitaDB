@@ -42,6 +42,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
@@ -49,12 +50,20 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link CreateGlobalAttributeSchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class CreateGlobalAttributeSchemaMutationConverterTest {
 
 	private CreateGlobalAttributeSchemaMutationConverter converter;

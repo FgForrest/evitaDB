@@ -216,29 +216,25 @@
 		</dependency>
 	</dependencies>
 
-	<profiles>
-		<profile>
-			<id>generate-javadoc</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.codehaus.mojo</groupId>
-						<artifactId>exec-maven-plugin</artifactId>
-						<version>3.5.0</version>
-						<executions>
-							<execution>
-								<goals>
-									<goal>java</goal>
-								</goals>
-							</execution>
-						</executions>
-						<configuration>
-							<mainClass>io.evitadb.documentation.javadoc.JavaDocSummarizer</mainClass>
-							<classpathScope>test</classpathScope>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-	</profiles>
+	<build>
+		<plugins>
+			<!--
+				Publish a test-jar so other test modules (notably evita_long_running_tests)
+				can reuse helper / fixture / mock classes that live in src/test/java here.
+				The test-jar contains compiled .class files only; test resources are not
+				bundled (long-running tests have their own resources where needed).
+			-->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>test-jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>

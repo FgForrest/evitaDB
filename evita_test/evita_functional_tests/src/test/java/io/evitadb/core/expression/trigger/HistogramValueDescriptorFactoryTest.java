@@ -49,6 +49,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -56,6 +57,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * Tests for {@link HistogramValueDescriptorFactory} — validates expression classification,
@@ -65,6 +69,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("HistogramValueDescriptorFactory")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(HISTOGRAM)
 class HistogramValueDescriptorFactoryTest {
 
 	private static final String ENTITY_TYPE = "product";

@@ -63,15 +63,20 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link EntitySchema} serialization and deserialization.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(STORAGE)
+@Tag(SCHEMA)
 class SchemaSerializationServiceTest {
 
 	@Test

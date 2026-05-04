@@ -31,9 +31,13 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * This test verifies {@link HistogramDataCruncher} contract.
@@ -41,6 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("HistogramDataCruncher tests")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
 class HistogramDataCruncherTest {
 
 	@Test

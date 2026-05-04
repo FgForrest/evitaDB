@@ -31,15 +31,22 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePo
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * Tests for {@link OrderConstraintToJsonConverter}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
+@Tag(ORDER)
 class OrderConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 
 	private OrderConstraintToJsonConverter converter;

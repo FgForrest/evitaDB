@@ -44,17 +44,24 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiScalar.scalarFrom;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link OpenApiScalar}
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class OpenApiScalarTest {
 
 	@Test

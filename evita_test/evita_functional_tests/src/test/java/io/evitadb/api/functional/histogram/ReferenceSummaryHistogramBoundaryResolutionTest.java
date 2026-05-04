@@ -43,6 +43,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -50,6 +51,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Pins the boundary-resolution behavior for `REFERENCE_ATTRIBUTE` histograms: min/max boundary
@@ -76,6 +80,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Reference summary histogram — REFERENCE_ATTRIBUTE boundary resolution")
+@Tag(CONTRACT)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 public class ReferenceSummaryHistogramBoundaryResolutionTest extends AbstractReferenceSummaryHistogramFunctionalTest {
 
 	@Nested

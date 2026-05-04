@@ -29,14 +29,21 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link DelegatingEntitySchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class DelegatingLocalMutationConverterTest {
 
 	private static DelegatingLocalMutationConverter converter;

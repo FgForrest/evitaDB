@@ -42,11 +42,14 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Integration tests for {@link CatalogExpressionTriggerRegistry} lifecycle within {@link Catalog}.
@@ -59,6 +62,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("CatalogExpressionTriggerRegistry Integration")
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
 class CatalogExpressionTriggerRegistryIntegrationTest implements EvitaTestSupport {
 
 	private static final String PRODUCT = "product";

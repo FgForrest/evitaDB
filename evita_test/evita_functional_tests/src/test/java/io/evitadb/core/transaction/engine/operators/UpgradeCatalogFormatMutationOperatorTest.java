@@ -51,6 +51,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -60,6 +61,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests `UpgradeCatalogFormatMutationOperator` — the state-transition driver for the per-catalog storage-protocol
@@ -74,6 +77,8 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("UpgradeCatalogFormatMutationOperator tests")
+@Tag(ENGINE)
+@Tag(TRANSACTION)
 class UpgradeCatalogFormatMutationOperatorTest {
 
 	private static final String CATALOG_NAME = "upgradableCatalog";

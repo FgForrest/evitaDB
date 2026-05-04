@@ -39,8 +39,12 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PriceListCombinationFormula} verifying NOT-like subtraction semantics,
@@ -49,6 +53,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("PriceListCombinationFormula")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(PRICE)
 class PriceListCombinationFormulaTest {
 
 	private static final Currency CZK = Currency.getInstance("CZK");

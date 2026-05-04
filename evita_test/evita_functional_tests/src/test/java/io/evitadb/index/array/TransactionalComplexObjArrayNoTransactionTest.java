@@ -38,8 +38,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.TreeSet;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link TransactionalComplexObjArray} verifying non-transactional behaviour
@@ -49,6 +53,9 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @DisplayName("Non-transactional complex object array")
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
 class TransactionalComplexObjArrayNoTransactionTest {
 
 	/**

@@ -35,9 +35,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Defense-in-depth runtime guard: even if a catalog manages to install a reference
@@ -56,6 +60,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Reference summary histogram — runtime guard for missing group RTEI")
+@Tag(CONTRACT)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 public class ReferenceSummaryHistogramGroupComponentRuntimeTest
 	extends AbstractReferenceSummaryHistogramFunctionalTest {
 

@@ -48,9 +48,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
 
 /**
  * Tests for group entity reference indexing operations introduced by `REFERENCED_GROUP_ENTITY_TYPE` and
@@ -61,6 +64,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Group entity reference indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
 class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private TestPaths paths;

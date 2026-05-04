@@ -25,39 +25,32 @@ package io.evitadb.index;
 
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.UniqueValueViolationException;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Random;
 import java.util.Set;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link CatalogIndex} verifying construction, unique attribute management,
@@ -67,7 +60,9 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("SameParameterValue")
 @DisplayName("CatalogIndex functionality")
-class CatalogIndexTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(MANAGEMENT)
+class CatalogIndexTest {
 
 	private static final String ENTITY_TYPE = "Product";
 	private static final String ATTR_CODE = "code";
@@ -560,186 +555,4 @@ class CatalogIndexTest implements TimeBoundedTestSupport {
 		}
 	}
 
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalProofTest {
-
-		/**
-		 * Mutable state carried across generations. Tracks both the CatalogIndex
-		 * under test and a reference HashMap that mirrors expected state.
-		 *
-		 * @param catalogIndex the CatalogIndex being tested
-		 * @param reference the reference map: AttributeKey -> (value -> recordId)
-		 * @param nextRecordId the next record ID to assign
-		 */
-		private record TestState(
-			@Nonnull CatalogIndex catalogIndex,
-			@Nonnull HashMap<AttributeKey, HashMap<Object, Integer>> reference,
-			int nextRecordId
-		) {}
-
-		@Tag(LONG_RUNNING_TEST)
-		@DisplayName(
-			"should match reference implementation across random generations"
-		)
-		@ParameterizedTest(name = "seed={0}")
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void shouldMatchReferenceAcrossGenerations(
-			@Nonnull GenerationalTestInput input
-		) {
-			runFor(
-				input,
-				1000,
-				new TestState(
-					createLiveCatalogIndex(),
-					new HashMap<>(),
-					1
-				),
-				GenerationalProofTest::executeGeneration
-			);
-		}
-
-		/**
-		 * Executes a single generation: performs random insert/remove operations
-		 * inside a transaction, commits, then verifies the committed CatalogIndex
-		 * matches the reference map.
-		 *
-		 * @param random the random source for this generation
-		 * @param state the current test state
-		 * @return the updated test state for the next generation
-		 */
-		@Nonnull
-		private static TestState executeGeneration(
-			@Nonnull Random random,
-			@Nonnull TestState state
-		) {
-			final CatalogIndex index = state.catalogIndex();
-			final HashMap<AttributeKey, HashMap<Object, Integer>> reference =
-				state.reference();
-			final int[] nextId = {state.nextRecordId()};
-
-			// pick a random attribute name
-			final String[] attrNames = {"code", "url", "sku", "ean"};
-			final String attrName =
-				attrNames[random.nextInt(attrNames.length)];
-			final GlobalAttributeSchemaContract attrSchema =
-				createNonLocalizedAttributeSchema(attrName, String.class);
-			final EntitySchemaContract entitySchema =
-				createEntitySchema(ENTITY_TYPE);
-			final AttributeKey attrKey = new AttributeKey(attrName);
-
-			final CatalogIndex[] committedHolder = new CatalogIndex[1];
-
-			assertStateAfterCommit(
-				index,
-				original -> {
-					// decide: insert or remove
-					final HashMap<Object, Integer> existing =
-						reference.getOrDefault(attrKey, new HashMap<>());
-					final boolean shouldInsert =
-						existing.isEmpty() || random.nextBoolean();
-
-					if (shouldInsert) {
-						// generate a unique value
-						final String value =
-							attrName + "-" + nextId[0];
-						final int recordId = nextId[0]++;
-
-						original.insertUniqueAttribute(
-							entitySchema, attrSchema,
-							Collections.emptySet(), null,
-							value, recordId
-						);
-
-						// update reference
-						reference.computeIfAbsent(
-							attrKey, k -> new HashMap<>()
-						).put(value, recordId);
-					} else {
-						// remove a random existing entry
-						final Object[] keys =
-							existing.keySet().toArray();
-						final Object keyToRemove =
-							keys[random.nextInt(keys.length)];
-						final int recordId =
-							existing.get(keyToRemove);
-
-						original.removeUniqueAttribute(
-							entitySchema, attrSchema,
-							Collections.emptySet(), null,
-							keyToRemove, recordId
-						);
-
-						// update reference
-						existing.remove(keyToRemove);
-						if (existing.isEmpty()) {
-							reference.remove(attrKey);
-						}
-					}
-				},
-				(original, committed) -> {
-					committedHolder[0] = committed;
-
-					// verify: the committed index's emptiness matches
-					// whether the reference is empty
-					assertEquals(
-						reference.isEmpty(),
-						committed.isEmpty(),
-						"Emptiness mismatch"
-					);
-
-					// verify: each attribute in reference has a
-					// corresponding GlobalUniqueIndex
-					for (Map.Entry<AttributeKey, HashMap<Object, Integer>> entry :
-						reference.entrySet()) {
-						final String name = entry.getKey().attributeName();
-						final GlobalAttributeSchemaContract schema =
-							createNonLocalizedAttributeSchema(
-								name, String.class
-							);
-						final GlobalUniqueIndex gui =
-							committed.getGlobalUniqueIndex(schema, null);
-						assertNotNull(
-							gui,
-							"Missing GlobalUniqueIndex for " + name
-						);
-						assertFalse(
-							gui.isEmpty(),
-							"GlobalUniqueIndex for " + name
-								+ " should not be empty"
-						);
-					}
-
-					// verify: attributes NOT in reference should not
-					// have a GlobalUniqueIndex
-					for (String name : attrNames) {
-						if (!reference.containsKey(
-							new AttributeKey(name))
-						) {
-							final GlobalAttributeSchemaContract schema =
-								createNonLocalizedAttributeSchema(
-									name, String.class
-								);
-							assertNull(
-								committed.getGlobalUniqueIndex(
-									schema, null
-								),
-								"Unexpected GlobalUniqueIndex for "
-									+ name
-							);
-						}
-					}
-				}
-			);
-
-			// carry committed CatalogIndex forward; re-attach catalog
-			final CatalogIndex committed = committedHolder[0];
-			committed.attachToCatalog(
-				null,
-				createMockCatalog(ENTITY_TYPE, ENTITY_TYPE_PK)
-			);
-
-			return new TestState(committed, reference, nextId[0]);
-		}
-	}
 }

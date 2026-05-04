@@ -36,16 +36,23 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for GraphQL catalog collections query.
  *
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class CatalogRestCollectionsQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 

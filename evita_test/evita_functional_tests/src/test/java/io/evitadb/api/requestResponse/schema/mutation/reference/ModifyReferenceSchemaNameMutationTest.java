@@ -42,6 +42,7 @@ import org.mockito.Mockito;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_NAME;
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.createExistingReferenceSchema;
@@ -52,6 +53,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This test verifies {@link ModifyReferenceSchemaNameMutation} class.
@@ -59,6 +63,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("ModifyReferenceSchemaNameMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class ModifyReferenceSchemaNameMutationTest {
 
 	@Nested

@@ -42,14 +42,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for REST WebSocket streaming endpoints.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTest implements
 	ExternalApiFunctionTestsSupport,
 	ExternalApiWebSocketFunctionTestsSupport {

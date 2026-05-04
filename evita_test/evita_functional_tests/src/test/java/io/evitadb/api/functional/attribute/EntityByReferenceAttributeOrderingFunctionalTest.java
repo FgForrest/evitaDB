@@ -33,7 +33,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ORDER;
+
 
 /**
  * This test verifies whether entities can be filtered by attributes.
@@ -43,9 +47,12 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
  */
 @DisplayName("Evita referenced entity ordering by reference attribute functionality")
 @IsolateDataSetBySuffix("filtering")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(ATTRIBUTE)
+@Tag(REFERENCE)
+@Tag(ORDER)
 public class EntityByReferenceAttributeOrderingFunctionalTest extends AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 
 	@Nonnull

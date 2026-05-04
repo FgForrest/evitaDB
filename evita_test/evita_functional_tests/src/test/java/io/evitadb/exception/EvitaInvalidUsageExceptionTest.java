@@ -24,20 +24,25 @@
 package io.evitadb.exception;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies behaviour of {@link EvitaInvalidUsageException}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
 class EvitaInvalidUsageExceptionTest {
 
 	@Test
 	void shouldProduceCorrectErrorCode() {
 		final EvitaInvalidUsageException someError = new EvitaInvalidUsageException("Whatever");
-		assertEquals("fdc283bf43fed9ce991971c972e242d1:c44f193800fc6962d8987aa7cd6ed71d:39", someError.getErrorCode());
+		assertEquals("fdc283bf43fed9ce991971c972e242d1:c44f193800fc6962d8987aa7cd6ed71d:44", someError.getErrorCode());
 	}
 
 }

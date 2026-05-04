@@ -31,9 +31,13 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.directRelation;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * Tests for {@link HierarchyDirectRelation} verifying construction, applicability, cloning,
@@ -42,6 +46,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("HierarchyDirectRelation constraint")
+@Tag(CONTRACT)
+@Tag(FILTER)
+@Tag(HIERARCHY)
 class HierarchyDirectRelationTest {
 
 	@Nested

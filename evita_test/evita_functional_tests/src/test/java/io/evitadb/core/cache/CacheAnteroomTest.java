@@ -41,18 +41,23 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.core.cache.CacheEden.COOL_ENOUGH;
 import static io.evitadb.core.cache.FormulaCacheVisitorTest.toConstantFormula;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * This test verifies behaviour of {@link FormulaCacheVisitor}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(CACHE)
 class CacheAnteroomTest {
 	public static final String SOME_ENTITY = "SomeEntity";
 	public static final long MINIMAL_COMPLEXITY_THRESHOLD = 1L;

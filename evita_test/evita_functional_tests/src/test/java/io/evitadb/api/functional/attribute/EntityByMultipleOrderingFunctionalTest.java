@@ -74,10 +74,12 @@ import java.util.stream.Collectors;
 import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.*;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static java.util.Optional.ofNullable;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * This test verifies the behavior related to the situation when hierarchy is traversed and sorted on different levels
@@ -86,9 +88,11 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Evita entity ordering by multiple aspects within traversed hierarchy")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(ATTRIBUTE)
+@Tag(ORDER)
 public class EntityByMultipleOrderingFunctionalTest {
 	private static final String HIERARCHY_MULTIPLE_ASPECT_ORDERING = "hierarchy-multiple-aspect-ordering";
 	private static final String ATTRIBUTE_ORDER = "order";

@@ -26,16 +26,21 @@ package io.evitadb.api.requestResponse.schema.mutation.engine;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link CreateCatalogSchemaMutation} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 public class CreateCatalogSchemaMutationTest {
 
 	@Test

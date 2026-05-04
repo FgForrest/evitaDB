@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
@@ -53,12 +54,20 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for GraphQL updating entity schema.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends CatalogGraphQLEvitaSchemaEndpointFunctionalTest {
 
 	private static final String EMPTY_SCHEMA_PATH = "data.getEmptySchema";

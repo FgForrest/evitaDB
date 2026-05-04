@@ -46,11 +46,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link EvitaQLFilterConstraintVisitor}
@@ -58,6 +62,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvitaQL filter constraint visitor")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(FILTER)
 class EvitaQLFilterConstraintVisitorTest {
 
 	public static final Currency CZK = Currency.getInstance("CZK");

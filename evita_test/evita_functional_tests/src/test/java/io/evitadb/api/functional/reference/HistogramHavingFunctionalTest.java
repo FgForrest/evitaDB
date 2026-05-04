@@ -85,8 +85,10 @@ import static io.evitadb.api.query.QueryConstraints.referenceSummary;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReferenceWithHistograms;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.userFilter;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * End-to-end regression suite for the cross-cutting `histogramHaving` behaviour. The fundamental
@@ -106,10 +108,12 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @DisplayName("histogramHaving — cross-cutting regression suite")
 @Slf4j
+@Tag(CONTRACT)
+@Tag(REFERENCE)
+@Tag(HISTOGRAM)
 public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 
 	/** Shared read-only fixture that seeds the cross-cutting schema once per run. */

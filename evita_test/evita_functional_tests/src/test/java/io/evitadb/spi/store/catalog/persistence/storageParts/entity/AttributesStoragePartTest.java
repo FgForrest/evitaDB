@@ -39,10 +39,14 @@ import javax.annotation.Nonnull;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributesStoragePart} verifying unique part ID computation, attribute find and upsert,
@@ -51,6 +55,9 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("AttributesStoragePart behavioral tests")
+@Tag(ENGINE)
+@Tag(EXPORT)
+@Tag(ATTRIBUTE)
 class AttributesStoragePartTest {
 
 	private static final int ENTITY_PK = 10;

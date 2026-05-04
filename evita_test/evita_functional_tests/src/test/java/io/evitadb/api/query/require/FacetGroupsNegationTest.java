@@ -33,11 +33,15 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetGroupsNegation} verifying construction, applicability, getters,
@@ -46,6 +50,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("FacetGroupsNegation constraint")
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(FACET)
 class FacetGroupsNegationTest {
 
 	@Nested

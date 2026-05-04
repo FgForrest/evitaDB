@@ -28,16 +28,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.gap;
 import static io.evitadb.api.query.QueryConstraints.spacing;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
  * This tests verifies basic properties of {@link Page} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
 class SpacingTest {
 
 	@Test

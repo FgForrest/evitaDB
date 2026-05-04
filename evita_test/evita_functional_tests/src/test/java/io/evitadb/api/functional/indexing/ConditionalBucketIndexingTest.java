@@ -56,9 +56,12 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
 
 /**
  * End-to-end integration tests for the conditional bucketed histogram indexing infrastructure.
@@ -70,6 +73,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Conditional bucket indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
 class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private static final String ENTITY_PRODUCT = "product";

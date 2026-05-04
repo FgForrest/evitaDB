@@ -30,14 +30,21 @@ import io.evitadb.dataType.array.CompositeObjectArray;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.ORDER;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link AttributeComparator} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(ORDER)
+@Tag(ATTRIBUTE)
 class AttributeComparatorTest {
 	public static final String ATTRIBUTE_NAME = "test";
 	private final AttributeComparator comparator = new AttributeComparator(

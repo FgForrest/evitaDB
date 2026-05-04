@@ -58,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeHistogram;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -77,6 +78,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies functionalities of methods in {@link GrpcExtraResultsBuilder} class.
@@ -84,6 +88,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Tomáš Pozler, 2022
  */
 @SuppressWarnings("deprecation")
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class GrpcExtraResultsBuilderTest {
 	private final static ReferenceSchemaContract REFENCE_SCHEMA = ReferenceSchema._internalBuild(
 		"test1", "test1", true, Cardinality.ONE_OR_MORE, "testGroup1", false,

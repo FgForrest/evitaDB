@@ -64,8 +64,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.EXPORT;
 
 /**
  * This test verifies behavior of {@link ExportS3Service}.
@@ -77,6 +80,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("S3 Export Service Test")
+@Tag(CONTRACT)
+@Tag(EXPORT)
 class ExportS3ServiceTest {
 
 	/**

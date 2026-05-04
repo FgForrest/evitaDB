@@ -31,15 +31,22 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This tests verifies basic properties of {@link ReferenceContent} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 202"a"
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(REFERENCE)
 class ReferenceContentTest {
 
 	@Test

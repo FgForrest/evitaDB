@@ -30,10 +30,13 @@ import org.junit.jupiter.api.Test;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies contract of {@link NetworkUtils} class.
@@ -41,6 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("NetworkUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class NetworkUtilsTest {
 
 	@Nested

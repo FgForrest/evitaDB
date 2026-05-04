@@ -41,8 +41,12 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * This test verifies {@link FacetSummary} contract.
@@ -50,6 +54,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("FacetSummary")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(FACET)
 class FacetSummaryTest implements EvitaTestSupport {
 
 	@Nested

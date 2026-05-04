@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -44,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Tests for {@link ProxyUtils#createOptionalWrapper(Method, Class)} and the various
@@ -52,6 +55,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ProxyUtils ResultWrapper")
+@Tag(CONTRACT)
+@Tag(PROXY)
 class ProxyUtilsResultWrapperTest {
 
 	/**

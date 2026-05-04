@@ -33,11 +33,15 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ORDER;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeNatural} verifying construction, applicability, property accessors,
@@ -47,6 +51,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @DisplayName("AttributeNatural constraint")
+@Tag(CONTRACT)
+@Tag(ORDER)
+@Tag(ATTRIBUTE)
 class AttributeNaturalTest {
 
 	@Nested

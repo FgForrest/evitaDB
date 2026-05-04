@@ -80,10 +80,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.property;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.SERVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test tries to start up the {@link EvitaServer} with default configuration.
@@ -91,6 +94,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
+@Tag(SERVER)
+@Tag(MANAGEMENT)
 class EvitaServerTest implements TestConstants, EvitaTestSupport {
 	private static final String DIR_EVITA_SERVER_TEST = "evitaServerTest";
 	public static final int TIMEOUT_IN_MILLIS = 30_000;

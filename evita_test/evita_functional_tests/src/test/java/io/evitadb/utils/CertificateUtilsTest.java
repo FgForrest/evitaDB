@@ -26,9 +26,12 @@ package io.evitadb.utils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies contract of {@link CertificateUtils} class.
@@ -36,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("CertificateUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class CertificateUtilsTest {
 
 	@Nested

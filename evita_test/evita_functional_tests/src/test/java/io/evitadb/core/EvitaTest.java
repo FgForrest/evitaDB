@@ -133,11 +133,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -146,6 +149,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @Slf4j
 @DisplayName("Evita Read/Write Integration Tests")
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
 class EvitaTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_URL = "url";

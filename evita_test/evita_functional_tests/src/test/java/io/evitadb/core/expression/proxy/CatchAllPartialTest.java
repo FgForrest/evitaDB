@@ -35,18 +35,23 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link CatchAllPartial} verifying that the catch-all safety net correctly intercepts unhandled method calls
  * on expression proxies while allowing Object methods to pass through.
  */
 @DisplayName("CatchAll partial")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class CatchAllPartialTest {
 
 	/**

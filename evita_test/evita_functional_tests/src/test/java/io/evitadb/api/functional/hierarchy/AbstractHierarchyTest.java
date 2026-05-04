@@ -48,17 +48,22 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static java.util.Optional.ofNullable;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * The class contains shared logic for integration tests verifying hierarchy filtering and computation logic.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(CONTRACT)
+@Tag(HIERARCHY)
 abstract class AbstractHierarchyTest {
 
 	protected static Stream<Arguments> statisticTypeVariants() {

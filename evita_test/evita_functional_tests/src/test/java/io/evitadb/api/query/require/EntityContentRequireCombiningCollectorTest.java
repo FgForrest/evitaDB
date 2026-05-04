@@ -37,9 +37,12 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
  * Tests for {@link EntityContentRequireCombiningCollector} verifying stream collector contract, supplier, accumulator,
@@ -48,6 +51,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EntityContentRequireCombiningCollector")
+@Tag(CONTRACT)
+@Tag(REQUIRE)
 class EntityContentRequireCombiningCollectorTest {
 
 	@Nested

@@ -74,8 +74,11 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * Tests for {@link EngineMutationLog} functionality, organized into nested classes by feature area.
@@ -95,6 +98,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SuppressWarnings({"ResultOfMethodCallIgnored", "SameParameterValue"})
 @DisplayName("Engine Mutation Log functionality tests")
+@Tag(STORAGE)
+@Tag(WAL)
 class EngineMutationLogTest implements EvitaTestSupport {
 	private static final StorageSettings LARGE_FILE_STORAGE_SETTINGS = new StorageSettings(
 		StorageOptions.builder()

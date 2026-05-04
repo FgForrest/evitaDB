@@ -46,6 +46,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -53,12 +54,18 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for GraphQL catalog collections query.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class CatalogGraphQLAsyncQueriesFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();

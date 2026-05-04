@@ -46,9 +46,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for reflected reference indexing operations verifying that reflected references are automatically
@@ -57,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Reflected reference indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(REFERENCE)
 class ReflectedReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private TestPaths paths;

@@ -34,10 +34,15 @@ import org.junit.jupiter.api.Test;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link ReferenceAttributeValueSerializablePredicate} verifying
@@ -47,6 +52,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Reference attribute value predicate")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
+@Tag(ATTRIBUTE)
 class ReferenceAttributeValueSerializablePredicateTest {
 
 	@Nested

@@ -33,11 +33,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyNatural;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * Tests for {@link EntityPrimaryKeyNatural} verifying construction, applicability, property accessors,
@@ -46,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("EntityPrimaryKeyNatural constraint")
+@Tag(CONTRACT)
+@Tag(ORDER)
 class EntityPrimaryKeyNaturalTest {
 
 	@Nested

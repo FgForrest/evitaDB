@@ -27,8 +27,12 @@ import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * Tests for {@link CacheOptions} record and its builder.
@@ -36,6 +40,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("CacheOptions")
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
+@Tag(CACHE)
 class CacheOptionsTest {
 
 	@Test

@@ -46,9 +46,13 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link CreateAttributeSchemaMutation} class.
@@ -56,6 +60,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("CreateAttributeSchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class CreateAttributeSchemaMutationTest {
 	static final String ATTRIBUTE_NAME = "name";
 

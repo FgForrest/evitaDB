@@ -39,8 +39,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
+import org.junit.jupiter.api.Tag;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link PlainPriceTerminationFormulaWithPriceFilter} verifying construction, hashing, cloning,
@@ -54,6 +59,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("PlainPriceTerminationFormulaWithPriceFilter")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(PRICE)
+@Tag(FILTER)
 class PlainPriceTerminationFormulaWithPriceFilterTest {
 
 	private static final Currency CZK = Currency.getInstance("CZK");

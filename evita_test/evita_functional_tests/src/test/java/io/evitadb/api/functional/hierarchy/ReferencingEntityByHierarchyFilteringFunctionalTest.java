@@ -33,7 +33,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HIERARCHY;
+import static io.evitadb.test.TestTags.FILTER;
+
 
 /**
  * This test verifies whether entities that reference other - hierarchical entity can be filtered by hierarchy constraints.
@@ -43,9 +46,11 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
  */
 @DisplayName("Evita referenced entity filtering by hierarchy functionality")
 @IsolateDataSetBySuffix("filtering")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(HIERARCHY)
+@Tag(FILTER)
 public class ReferencingEntityByHierarchyFilteringFunctionalTest extends AbstractReferencingEntityByHierarchyFunctionalTest {
 
 	@Nonnull

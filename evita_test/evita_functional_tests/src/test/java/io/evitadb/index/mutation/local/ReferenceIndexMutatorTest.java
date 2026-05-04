@@ -54,11 +54,15 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.index.mutation.local.ReferenceIndexMutator.attributeUpdate;
 import static io.evitadb.index.mutation.local.ReferenceIndexMutator.referenceInsert;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferenceIndexMutator} verifying correct reference insertion into entity indexes
@@ -68,6 +72,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReferenceIndexMutator — reference index operations")
+@Tag(INDEXING)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_BRAND_CODE = "brandCode";
 	private static final String ATTRIBUTE_BRAND_EAN = "brandEan";

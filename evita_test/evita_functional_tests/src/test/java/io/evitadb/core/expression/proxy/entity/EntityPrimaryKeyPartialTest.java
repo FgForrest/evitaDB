@@ -36,12 +36,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link EntityPrimaryKeyPartial} verifying that the primary key method implementation correctly delegates to
@@ -49,6 +52,8 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("rawtypes")
 @DisplayName("Entity primary key partial")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class EntityPrimaryKeyPartialTest {
 
 	/** Unique marker interface to avoid Proxycian classification cache pollution between test classes. */

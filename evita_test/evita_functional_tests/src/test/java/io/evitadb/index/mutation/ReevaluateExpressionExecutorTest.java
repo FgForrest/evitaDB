@@ -76,11 +76,14 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link ReevaluateExpressionExecutor} verifying condition evaluation logic,
@@ -93,6 +96,8 @@ import static org.mockito.Mockito.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ReevaluateExpressionExecutor")
+@Tag(INDEXING)
+@Tag(SCHEMA)
 class ReevaluateExpressionExecutorTest {
 
 	private static final String REFERENCE_NAME = "parameterValues";

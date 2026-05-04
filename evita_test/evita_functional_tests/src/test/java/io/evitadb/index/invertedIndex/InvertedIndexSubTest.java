@@ -32,14 +32,19 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies contract of {@link InvertedIndexSubSet}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
 class InvertedIndexSubTest {
 	/**
 	 * Two-bucket subset used by non-empty tests.

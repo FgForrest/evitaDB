@@ -44,10 +44,11 @@ import java.util.Objects;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Functional tests for entity lazy loading operations including lazy loading of
@@ -56,9 +57,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity lazy loading functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EntityLazyLoadFunctionalTest extends AbstractEntityFetchingFunctionalTest {
 
 	@DisplayName("Attributes can be lazy auto loaded")

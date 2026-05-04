@@ -35,15 +35,20 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * This test verifies compress behavior of the {@link ObservableOutput} and {@link ObservableInput}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Tag(STORAGE)
+@Tag(SERIALIZATION)
 public class CompressedInputOutputTest extends AbstractObservableInputOutputTest {
 	public static final int REPETITIONS = 50;
 	private final static int BIG_PAYLOAD_SIZE = PAYLOAD_SIZE * REPETITIONS;

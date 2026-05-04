@@ -30,15 +30,22 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Description
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class RequireQueryConstraintsBuilderTest {
 
 	@Test

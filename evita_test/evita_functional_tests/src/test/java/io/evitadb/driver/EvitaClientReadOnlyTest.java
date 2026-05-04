@@ -105,6 +105,7 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -115,6 +116,8 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.DRIVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies the read-only behavior of {@link EvitaClient}.
@@ -131,6 +134,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 @DisplayName("EvitaClient read-only tests - should")
 @ExtendWith(EvitaParameterResolver.class)
+@Tag(DRIVER)
+@Tag(MANAGEMENT)
 class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
 	public static final String ATTRIBUTE_CATEGORY_ORDER = "orderInCategory";

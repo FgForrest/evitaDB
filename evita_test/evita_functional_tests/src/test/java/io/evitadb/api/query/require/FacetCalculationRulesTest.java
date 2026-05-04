@@ -33,10 +33,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.facetCalculationRules;
 import static io.evitadb.api.query.require.FacetRelationType.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetCalculationRules} verifying construction, applicability, getters,
@@ -45,6 +49,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("FacetCalculationRules constraint")
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(FACET)
 class FacetCalculationRulesTest {
 
 	@Nested

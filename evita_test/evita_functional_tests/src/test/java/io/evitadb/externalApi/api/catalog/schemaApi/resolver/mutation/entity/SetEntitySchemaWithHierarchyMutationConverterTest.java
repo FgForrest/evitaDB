@@ -35,12 +35,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HIERARCHY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link SetEntitySchemaWithHierarchyMutationConverter}.
@@ -53,6 +58,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @DisplayName("SetEntitySchemaWithHierarchyMutationConverter functionality")
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(HIERARCHY)
+@Tag(SCHEMA)
 class SetEntitySchemaWithHierarchyMutationConverterTest {
 
 	private SetEntitySchemaWithHierarchyMutationConverter converter;

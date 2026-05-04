@@ -26,8 +26,12 @@ package io.evitadb.api.observability.trace;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.OBSERVABILITY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link DefaultTracingBlockReference} verifying that
@@ -38,6 +42,9 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DefaultTracingBlockReference - no-op tracing")
+@Tag(CONTRACT)
+@Tag(OBSERVABILITY)
+@Tag(REFERENCE)
 class DefaultTracingBlockReferenceTest {
 
 	@Nested

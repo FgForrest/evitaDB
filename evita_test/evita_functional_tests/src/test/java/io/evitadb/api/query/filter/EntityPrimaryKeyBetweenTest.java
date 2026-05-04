@@ -26,9 +26,12 @@ package io.evitadb.api.query.filter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyBetween;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This tests verifies basic properties of {@link EntityPrimaryKeyBetween} query.
@@ -36,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("EntityPrimaryKeyBetween query")
+@Tag(CONTRACT)
+@Tag(FILTER)
 class EntityPrimaryKeyBetweenTest {
 
 	@Test

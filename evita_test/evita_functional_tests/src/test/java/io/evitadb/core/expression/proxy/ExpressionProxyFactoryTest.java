@@ -39,14 +39,21 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Tests for {@link ExpressionProxyFactory} verifying that the full pipeline from expression string to
  * {@link ExpressionProxyDescriptor} produces correct partial arrays and storage part recipes.
  */
 @DisplayName("Expression proxy factory")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(PROXY)
 class ExpressionProxyFactoryTest {
 
 	/**

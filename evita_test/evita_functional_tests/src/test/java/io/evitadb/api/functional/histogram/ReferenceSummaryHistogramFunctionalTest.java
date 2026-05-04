@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -69,6 +70,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Core functional coverage for `referenceSummary` / `referenceSummaryOfReference` wired together
@@ -84,6 +88,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Reference summary histogram — core functional tests")
+@Tag(CONTRACT)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSummaryHistogramFunctionalTest {
 
 	// ==========================================================================================

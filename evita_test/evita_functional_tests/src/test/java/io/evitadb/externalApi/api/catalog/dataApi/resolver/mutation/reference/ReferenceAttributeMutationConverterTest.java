@@ -53,17 +53,26 @@ import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link ReferenceAttributeMutationConverter}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(REFERENCE)
+@Tag(ATTRIBUTE)
 class ReferenceAttributeMutationConverterTest {
 
 	private static final String REFERENCE_TAGS = "tags";

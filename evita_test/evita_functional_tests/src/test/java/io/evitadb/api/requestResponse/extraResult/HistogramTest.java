@@ -33,10 +33,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * This test verifies {@link Histogram} contract.
@@ -44,6 +48,9 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Histogram")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
 class HistogramTest implements EvitaTestSupport {
 
 	@Nested

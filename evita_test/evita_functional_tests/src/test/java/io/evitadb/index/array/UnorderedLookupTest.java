@@ -24,15 +24,20 @@
 package io.evitadb.index.array;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies contract of {@link UnorderedLookup}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
 class UnorderedLookupTest {
 	private UnorderedLookup tested;
 

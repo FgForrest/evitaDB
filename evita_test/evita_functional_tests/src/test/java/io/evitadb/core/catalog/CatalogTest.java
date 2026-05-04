@@ -35,15 +35,20 @@ import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies behaviour of {@link Catalog}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
 class CatalogTest implements EvitaTestSupport {
 
 	@Test

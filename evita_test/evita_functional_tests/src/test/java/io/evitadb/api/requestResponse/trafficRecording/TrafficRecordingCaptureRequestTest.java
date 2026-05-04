@@ -33,8 +33,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 
 /**
  * Tests for the {@link TrafficRecordingCaptureRequest} record and its builder.
@@ -42,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("TrafficRecordingCaptureRequest")
+@Tag(CONTRACT)
+@Tag(TRAFFIC_ENGINE)
 class TrafficRecordingCaptureRequestTest {
 
 	@Nested

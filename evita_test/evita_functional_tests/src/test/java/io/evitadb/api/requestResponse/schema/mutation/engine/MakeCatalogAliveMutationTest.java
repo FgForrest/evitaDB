@@ -32,10 +32,13 @@ import org.mockito.Mockito;
 
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link MakeCatalogAliveMutation} class.
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("MakeCatalogAliveMutation tests")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 public class MakeCatalogAliveMutationTest {
 
     @Test

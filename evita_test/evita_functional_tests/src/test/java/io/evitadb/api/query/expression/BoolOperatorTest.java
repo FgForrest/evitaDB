@@ -48,10 +48,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for all boolean operators in the expression language verifying
@@ -60,6 +63,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Boolean operators")
+@Tag(CONTRACT)
+@Tag(EXPRESSION)
 class BoolOperatorTest {
 
 	private static final ExpressionEvaluationContext CONTEXT =

@@ -37,12 +37,16 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferenceVersionAndDroppablePartial} verifying that version and dropped method implementations
@@ -50,6 +54,9 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("rawtypes")
 @DisplayName("Reference version and droppable partial")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(REFERENCE)
 class ReferenceVersionAndDroppablePartialTest {
 
 	/** Unique marker interface to avoid Proxycian classification cache pollution between test classes. */

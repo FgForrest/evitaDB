@@ -76,6 +76,7 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -90,6 +91,9 @@ import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.summingInt;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies whether entities can be filtered by attributes.
@@ -98,6 +102,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SuppressWarnings({"SuspiciousArrayCast"})
 @Slf4j
+@Tag(CONTRACT)
+@Tag(ATTRIBUTE)
+@Tag(FILTER)
 public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForAttributeTesting";
 	private static final String REFERENCE_BRAND_PRODUCTS = "products";

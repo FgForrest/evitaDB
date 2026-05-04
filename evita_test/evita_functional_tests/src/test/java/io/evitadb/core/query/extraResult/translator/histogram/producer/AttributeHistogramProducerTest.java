@@ -29,14 +29,23 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import org.junit.jupiter.api.Test;
 
 import java.util.Comparator;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link AttributeHistogramProducer} contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
+@Tag(ATTRIBUTE)
 class AttributeHistogramProducerTest {
 
 	@Test

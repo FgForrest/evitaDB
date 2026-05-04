@@ -38,7 +38,6 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
-import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.offsetIndex.OffsetIndexSerializationService.FileLocationAndWrittenBytes;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
@@ -48,10 +47,6 @@ import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -60,12 +55,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.support.ParameterDeclarations;
 import org.mockito.Mockito;
 import org.opentest4j.AssertionFailedError;
 
@@ -76,9 +68,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Random;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -86,8 +83,13 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.computeExpectedRecordCount;
-import static java.util.Optional.ofNullable;
-import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.STORAGE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies functionality of {@link OffsetIndex} operations.
@@ -95,7 +97,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
+class OffsetIndexTest implements EvitaTestSupport {
 	public static final String ENTITY_TYPE = "whatever";
 	private static final Locale[] AVAILABLE_LOCALES = new Locale[]{
 		Locale.ENGLISH, Locale.FRENCH, Locale.GERMAN, new Locale("cs", "CZ")
@@ -120,31 +124,6 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		return Stream.of(ChecksumCheck.values())
 			.flatMap(crc32Check -> Stream.of(OffsetIndexTest.Compression.values())
 				.map(compression -> Arguments.of(crc32Check, compression)));
-	}
-
-	/**
-	 * Retrieves a non-existing record primary key and generates an {@code EntityBodyStoragePart} object
-	 * associated with that primary key. The method ensures that the generated primary key is unique and
-	 * does not exist in the provided sets of record IDs and recently touched IDs.
-	 *
-	 * @param recordIds          the set of existing record primary keys that must not be reused
-	 * @param touchedInThisRound the set of record primary keys that were interacted with in the current operation
-	 * @param random             an instance of {@code Random} used to generate a random primary key
-	 * @return an {@code EntityBodyStoragePart} object initialized with the generated unique primary key
-	 */
-	private static EntityBodyStoragePart getNonExisting(
-		@Nonnull Set<Integer> recordIds,
-		@Nonnull Set<Integer> touchedInThisRound,
-		@Nonnull StorageSettings storageSettings,
-		@Nonnull Random random
-	) {
-		int recPrimaryKey;
-		do {
-			recPrimaryKey = Math.abs(random.nextInt());
-		} while (recPrimaryKey != 0 && (recordIds.contains(recPrimaryKey) || touchedInThisRound.contains(
-			recPrimaryKey)));
-
-		return createEntityBodyStoragePartOfRandomSize(storageSettings, random, recPrimaryKey);
 	}
 
 	/**
@@ -177,37 +156,6 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		return new EntityBodyStoragePart(
 			1, recPrimaryKey, Scope.LIVE, null, Set.of(), Set.of(), associatedData, 0
 		);
-	}
-
-	/**
-	 * Retrieves an existing entity body storage part based on a set of records and a set of recently used identifiers.
-	 * The method randomly selects an entry from the provided map, ensuring that the selected entry has not already been
-	 * touched in the current round. If the selected entry has been used, the method recursively retries selection.
-	 *
-	 * @param records            a map of record IDs to their corresponding {@link EntityBodyStoragePart} objects
-	 * @param touchedInThisRound a set of IDs that have been accessed in the current round
-	 * @param random             an instance of {@link Random} used for randomized selection of entries
-	 * @return a new {@link EntityBodyStoragePart} derived from the selected entity, incrementing its version
-	 */
-	private static EntityBodyStoragePart getExisting(
-		@Nonnull Map<Integer, EntityBodyStoragePart> records,
-		@Nonnull Set<Integer> touchedInThisRound,
-		@Nonnull Random random
-	) {
-		final Iterator<Integer> it = records.keySet().iterator();
-		final int bound = records.size() - 1;
-		if (bound > 0) {
-			final int steps = random.nextInt(bound);
-			for (int i = 0; i < steps; i++) {
-				it.next();
-			}
-		}
-		final Integer adept = it.next();
-		// retry if this id was picked already in this round
-		return touchedInThisRound.contains(adept) ?
-			getExisting(records, touchedInThisRound, random) :
-			new EntityBodyStoragePart(
-				records.get(adept).getVersion() + 1, adept, Scope.LIVE, null, Set.of(), Set.of(), Set.of(), 0);
 	}
 
 	@Nonnull
@@ -783,229 +731,6 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		}
 	}
 
-	@ParameterizedTest(name = "OffsetIndex should survive generational randomized test applying modifications on it, compression: {1}")
-	@Tag(LONG_RUNNING_TEST)
-	@ArgumentsSource(TimeAndCompressionArgumentProvider.class)
-	void generationalProofTest(GenerationalTestInput input, Compression compression) {
-		final AtomicReference<Path> currentFilePath = new AtomicReference<>(this.targetFile);
-		final StorageSettings storageSettings = buildOptionsWithLimitedBuffer(ChecksumCheck.YES, compression);
-		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
-			final AtomicReference<OffsetIndex> fileOffsetIndex = new AtomicReference<>(
-				createNewOffsetIndex(
-					0L,
-					storageSettings,
-					createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
-					this.offsetIndexRecordTypeRegistry
-				)
-			);
-
-			final int maximalRecordCount = 10_000;
-			final int minimalRecordCount = 1_000;
-			final int historySize = 10;
-			final Map<Long, Map<Integer, EntityBodyStoragePart>> recordIdsHistory = CollectionUtils.createHashMap(
-				historySize);
-
-			runFor(
-				input,
-				1L,
-				(random, transactionId) -> {
-					final Map<Integer, EntityBodyStoragePart> currentSnapshot = ofNullable(
-						recordIdsHistory.get(transactionId - 1))
-						.map(HashMap::new)
-						.orElseGet(() -> CollectionUtils.createHashMap(maximalRecordCount));
-
-					final int recordCountToTouch = random.nextInt(minimalRecordCount);
-					final List<RecordOperation> plannedOps = new ArrayList<>(recordCountToTouch);
-					final Set<Integer> touchedInThisRound = new HashSet<>();
-					for (int i = 1; i <= recordCountToTouch; i++) {
-						final int rndOp = random.nextInt(3);
-						final RecordOperation operation;
-						if (currentSnapshot.isEmpty() || (rndOp == 0 && currentSnapshot.size() < maximalRecordCount)) {
-							operation = new RecordOperation(
-								getNonExisting(currentSnapshot.keySet(), touchedInThisRound, storageSettings, random),
-								Operation.INSERT
-							);
-							currentSnapshot.put(operation.record().getPrimaryKey(), operation.record());
-						} else if (currentSnapshot.size() - touchedInThisRound.size() > minimalRecordCount && rndOp == 1) {
-							operation = new RecordOperation(
-								getExisting(currentSnapshot, touchedInThisRound, random), Operation.UPDATE);
-							currentSnapshot.put(operation.record().getPrimaryKey(), operation.record());
-						} else if (currentSnapshot.size() - touchedInThisRound.size() > minimalRecordCount && rndOp == 2) {
-							operation = new RecordOperation(
-								getExisting(currentSnapshot, touchedInThisRound, random), Operation.REMOVE);
-							currentSnapshot.remove(operation.record().getPrimaryKey());
-						} else {
-							continue;
-						}
-						touchedInThisRound.add(operation.record().getPrimaryKey());
-						plannedOps.add(operation);
-					}
-
-					final OffsetIndex currentOffsetIndex = fileOffsetIndex.get();
-					for (RecordOperation plannedOp : plannedOps) {
-						switch (plannedOp.operation()) {
-							case INSERT -> {
-								final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(
-									transactionId, plannedOp.record()
-										.getPrimaryKey(), EntityBodyStoragePart.class
-								);
-								assertNull(
-									existingContainer, "The container with id " + plannedOp.record()
-										.getPrimaryKey() + " unexpectedly found!"
-								);
-								currentOffsetIndex.put(transactionId, plannedOp.record());
-							}
-							case UPDATE -> {
-								final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(
-									transactionId, plannedOp.record()
-										.getPrimaryKey(), EntityBodyStoragePart.class
-								);
-								assertNotNull(
-									existingContainer, "The container with id " + plannedOp.record()
-										.getPrimaryKey() + " unexpectedly not found!"
-								);
-								currentOffsetIndex.put(transactionId, plannedOp.record());
-							}
-							case REMOVE -> {
-								final EntityBodyStoragePart existingContainer = currentOffsetIndex.get(
-									transactionId, plannedOp.record()
-										.getPrimaryKey(), EntityBodyStoragePart.class
-								);
-								assertNotNull(
-									existingContainer, "The container with id " + plannedOp.record()
-										.getPrimaryKey() + " unexpectedly not found!"
-								);
-								currentOffsetIndex.remove(
-									transactionId, plannedOp.record.getPrimaryKey(), EntityBodyStoragePart.class);
-							}
-						}
-					}
-
-					final OffsetIndexDescriptor fileOffsetIndexDescriptor = currentOffsetIndex.flush(transactionId);
-
-					long start = System.nanoTime();
-					final OffsetIndex loadedFileOffsetIndex = loadOffsetIndex(
-						transactionId,
-						fileOffsetIndexDescriptor,
-						storageSettings,
-						createWriteOnlyFileHandle(currentFilePath.get(), storageSettings, observableOutputKeeper),
-						this.offsetIndexRecordTypeRegistry
-					);
-					long end = System.nanoTime();
-
-					assertTrue(currentOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
-
-					final FileOffsetIndexStatistics stats = currentOffsetIndex.verifyContents();
-
-					assertEquals(currentSnapshot.size(), currentOffsetIndex.count(transactionId));
-					assertEquals(
-						currentSnapshot.size(), currentOffsetIndex.count(transactionId, EntityBodyStoragePart.class));
-
-					for (Entry<Integer, EntityBodyStoragePart> entry : currentSnapshot.entrySet()) {
-						assertTrue(
-							currentOffsetIndex.contains(transactionId, entry.getKey(), EntityBodyStoragePart.class),
-							"Cnt " + entry.getKey() + " should be non null but was!"
-						);
-						assertEquals(
-							entry.getValue(),
-							currentOffsetIndex.get(transactionId, entry.getKey(), EntityBodyStoragePart.class)
-						);
-					}
-					for (RecordOperation plannedOp : plannedOps) {
-						if (plannedOp.operation == Operation.REMOVE) {
-							assertFalse(
-								currentOffsetIndex.contains(
-									transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class),
-								"Cnt " + plannedOp.record().getPrimaryKey() + " should be null but was not!"
-							);
-							assertNull(
-								currentOffsetIndex.get(
-									transactionId, plannedOp.record().getPrimaryKey(), EntityBodyStoragePart.class),
-								"Cnt " + plannedOp.record().getPrimaryKey() + " should be null but was not!"
-							);
-						}
-					}
-
-					// randomly verify the contents of the previous versions
-					for (int i = 0; i < recordIdsHistory.size() / 2; i++) {
-						final long historyTxId = transactionId - (random.nextInt(recordIdsHistory.size() - 1) + 1);
-						final Map<Integer, EntityBodyStoragePart> historySnapshot = recordIdsHistory.get(historyTxId);
-						assertEquals(
-							historySnapshot.size(), currentOffsetIndex.count(historyTxId),
-							"History snapshot #" + historyTxId + " size mismatch: expected " + historySnapshot.size() + " but was " + currentOffsetIndex.count(
-								transactionId)
-						);
-						assertEquals(
-							historySnapshot.size(), currentOffsetIndex.count(historyTxId, EntityBodyStoragePart.class),
-							"History snapshot #" + historyTxId + " size mismatch: expected " + historySnapshot.size() + " but was " + currentOffsetIndex.count(
-								transactionId)
-						);
-						final int averageSkip = recordIdsHistory.size() / 1000;
-						if (averageSkip > 0) {
-							final Iterator<Entry<Long, Map<Integer, EntityBodyStoragePart>>> it = recordIdsHistory.entrySet()
-								.iterator();
-							int index = 0;
-							while (it.hasNext()) {
-								final Entry<Long, Map<Integer, EntityBodyStoragePart>> entry = it.next();
-								if (index++ % averageSkip == 0) {
-									assertEquals(
-										entry.getValue(),
-										currentOffsetIndex.get(historyTxId, entry.getKey(), EntityBodyStoragePart.class)
-									);
-								}
-							}
-						}
-					}
-
-					System.out.println(
-						"Round trip #" + transactionId + " (loaded in " +
-							StringUtils.formatNano(end - start) + ", " + loadedFileOffsetIndex.count(transactionId) +
-							" living recs. / " + stats.getRecordCount() + " total recs.)"
-					);
-
-					if (stats.getActiveRecordShare() < 0.5) {
-						System.out.println("Living object share is below 50%! Compacting ...");
-						final long compactionStart = System.currentTimeMillis();
-
-						final Path pathToCompact = currentFilePath.get();
-						final Path newPath = pathToCompact.getParent().resolve(
-							"fileOffsetIndex_" + transactionId + ".kryo");
-						currentFilePath.set(newPath);
-
-						final OffsetIndexDescriptor compactedDescriptor = currentOffsetIndex.compact(newPath);
-						final OffsetIndex newOffsetIndex = loadOffsetIndex(
-							transactionId,
-							compactedDescriptor,
-							storageSettings,
-							createWriteOnlyFileHandle(newPath, storageSettings, observableOutputKeeper),
-							this.offsetIndexRecordTypeRegistry
-						);
-						final FileOffsetIndexStatistics newStats = newOffsetIndex.verifyContents();
-						assertTrue(newStats.getActiveRecordShare() > 0.5);
-						fileOffsetIndex.set(newOffsetIndex);
-
-						System.out.println(
-							"Compaction from " + StringUtils.formatByteSize(pathToCompact.toFile().length()) +
-								" to " + StringUtils.formatByteSize(newPath.toFile().length()) + " took " +
-								StringUtils.formatNano(System.currentTimeMillis() - compactionStart)
-						);
-
-						// delete previous file
-						pathToCompact.toFile().delete();
-
-						// and collected history
-						recordIdsHistory.clear();
-					}
-
-					recordIdsHistory.put(transactionId, currentSnapshot);
-					recordIdsHistory.remove(transactionId - historySize);
-
-					return transactionId + 1;
-				}
-			);
-		}
-	}
-
 	@Nonnull
 	private StorageSettings buildOptionsWithLimitedBuffer(ChecksumCheck crc32Check, Compression compression) {
 		return new StorageSettings(
@@ -1110,39 +835,12 @@ class OffsetIndexTest implements EvitaTestSupport, TimeBoundedTestSupport {
 		return createRecordsInFileOffsetIndex(fileOffsetIndex, recordCount, removedRecords, iterationCount);
 	}
 
-	private enum Operation {
-		INSERT, UPDATE, REMOVE
-	}
-
 	private enum ChecksumCheck {
 		YES, NO
 	}
 
 	private enum Compression {
 		YES, NO
-	}
-
-	/**
-	 * Custom argument provider that combines {@link TimeArgumentProvider} functionality
-	 * with {@link Compression} enum values to provide parameterized test arguments
-	 * for generational tests that need both time input and compression settings.
-	 */
-	public static class TimeAndCompressionArgumentProvider extends TimeArgumentProvider {
-
-		@Nonnull
-		@Override
-		public Stream<? extends Arguments> provideArguments(
-			ParameterDeclarations parameters, ExtensionContext context) {
-			final Arguments arguments = super.provideArguments(parameters, context).findFirst().orElseThrow();
-			return Stream.of(Compression.values())
-				.map(compression -> Arguments.of(arguments.get()[0], compression));
-		}
-	}
-
-	private record RecordOperation(
-		@Nonnull EntityBodyStoragePart record,
-		@Nonnull Operation operation
-	) {
 	}
 
 	private record InsertionOutput(

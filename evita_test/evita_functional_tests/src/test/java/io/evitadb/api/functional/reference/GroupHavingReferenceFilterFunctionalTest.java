@@ -54,7 +54,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -62,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Functional tests for the `groupHaving` filtering constraint within `referenceHaving`.
@@ -76,9 +78,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Group having reference filtering")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(REFERENCE)
+@Tag(FILTER)
 public class GroupHavingReferenceFilterFunctionalTest extends AbstractReferenceFilterFunctionalTest implements EvitaTestSupport {
 
 	/**

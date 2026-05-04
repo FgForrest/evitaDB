@@ -57,17 +57,22 @@ import java.util.Currency;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * Test verifies behavior of {@link WalKryoConfigurer} and subsequent serialization.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(STORAGE)
+@Tag(WAL)
 class WalSerializationServiceTest {
 
 	@Nonnull

@@ -40,17 +40,24 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link DelegatingLocalCatalogSchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class DelegatingLocalCatalogSchemaMutationConverterTest {
 
 	private DelegatingLocalCatalogSchemaMutationConverter converter;

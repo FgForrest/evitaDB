@@ -37,10 +37,13 @@ import javax.annotation.Nonnull;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
 
 /**
  * Tests for {@link AssociatedDataStoragePart} verifying unique part ID computation, emptiness detection,
@@ -50,6 +53,8 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("SameParameterValue")
 @DisplayName("AssociatedDataStoragePart behavioral tests")
+@Tag(ENGINE)
+@Tag(EXPORT)
 class AssociatedDataStoragePartTest {
 
 	private static final int ENTITY_PK = 42;

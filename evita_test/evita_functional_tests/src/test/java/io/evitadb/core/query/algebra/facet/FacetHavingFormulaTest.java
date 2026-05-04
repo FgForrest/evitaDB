@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -44,6 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetHavingFormula} pinning its role as a **pass-through wrapper** around a single
@@ -63,6 +67,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author evitaDB
  */
 @DisplayName("FacetHavingFormula pass-through wrapper")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(FACET)
 class FacetHavingFormulaTest {
 
 	/**

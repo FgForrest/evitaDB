@@ -130,7 +130,7 @@
 		<jackson.annotations.version>2.21</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
 		<roaringbitmap.version>1.6.12</roaringbitmap.version>
-		<junit.jupiter.version>6.1.0-M1</junit.jupiter.version>
+		<junit.jupiter.version>6.1.0-RC1</junit.jupiter.version>
 		<mockito.junit.version>5.22.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.15.0</maven.compiler.version>
@@ -172,6 +172,8 @@
 		<module>evita_server</module>
 		<module>evita_test/evita_test_support</module>
 		<module>evita_test/evita_functional_tests</module>
+		<module>evita_test/evita_documentation_tests</module>
+		<module>evita_test/evita_long_running_tests</module>
 	</modules>
 
 	<dependencyManagement>
@@ -291,6 +293,26 @@
 				<artifactId>commons-lang3</artifactId>
 				<version>3.20.0</version>
 			</dependency>
+			<!--
+				Pin junit-platform-* to the same version as junit-jupiter so that
+				transitive deps (e.g. s3mock-junit5) cannot drag in a different
+				platform release alongside the jupiter line.
+			-->
+			<dependency>
+				<groupId>org.junit.platform</groupId>
+				<artifactId>junit-platform-commons</artifactId>
+				<version>${junit.jupiter.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.junit.platform</groupId>
+				<artifactId>junit-platform-engine</artifactId>
+				<version>${junit.jupiter.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.junit.platform</groupId>
+				<artifactId>junit-platform-launcher</artifactId>
+				<version>${junit.jupiter.version}</version>
+			</dependency>
 		</dependencies>
 	</dependencyManagement>
 	<dependencies>
@@ -386,6 +408,14 @@
 			</build>
 		</profile>
 		<profile>
+			<!--
+				Default fast-loop profile: runs everything that is not slow/flaky.
+				The documentation tests live in their own module
+				(`evita_test/evita_documentation_tests`) and are skipped by default
+				there, so no path-based exclusion is needed here. With the new tag
+				taxonomy `unit` and `unitAndFunctional` are equivalent; both names
+				are kept for compatibility with developer muscle memory.
+			-->
 			<id>unit</id>
 			<build>
 				<plugins>
@@ -393,7 +423,7 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<excludedGroups>integration,functional,longRunning,documentation</excludedGroups>
+							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
@@ -409,7 +439,7 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<excludedGroups>integration,longRunning,documentation</excludedGroups>
+							<excludedGroups>slow,flaky</excludedGroups>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>true</useUnlimitedThreads>
 						</configuration>
@@ -418,22 +448,12 @@
 			</build>
 		</profile>
 		<profile>
-			<id>functional</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-surefire-plugin</artifactId>
-						<configuration>
-							<groups>functional</groups>
-							<parallel>all</parallel>
-							<useUnlimitedThreads>true</useUnlimitedThreads>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
+			<!--
+				Activates the documentation test suite. Across the reactor surefire
+				is set to skip everything; the matching profile in the documentation
+				module's pom.xml flips skipTests back to `false` for that module
+				only, so `mvn -P documentation` runs documentation tests exclusively.
+			-->
 			<id>documentation</id>
 			<build>
 				<plugins>
@@ -441,13 +461,19 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<groups>documentation</groups>
+							<skipTests>true</skipTests>
 						</configuration>
 					</plugin>
 				</plugins>
 			</build>
 		</profile>
 		<profile>
+			<!--
+				Activates the long-running test suite. Across the reactor surefire is
+				set to skip everything; the matching profile in the long-running
+				module's pom.xml flips skipTests back to `false` and adds the larger
+				`-Xmx5g` heap, so `mvn -P longRunning` runs only long-running tests.
+			-->
 			<id>longRunning</id>
 			<build>
 				<plugins>
@@ -455,10 +481,7 @@
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
-							<groups>integration,functional,longRunning</groups>
-							<parallel>all</parallel>
-							<useUnlimitedThreads>true</useUnlimitedThreads>
-							<argLine>-Xmx5g</argLine>
+							<skipTests>true</skipTests>
 						</configuration>
 					</plugin>
 				</plugins>

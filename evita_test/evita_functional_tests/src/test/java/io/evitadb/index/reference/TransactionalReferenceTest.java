@@ -24,21 +24,17 @@
 package io.evitadb.index.reference;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,7 +51,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("Transactional reference")
-class TransactionalReferenceTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(REFERENCE)
+@Tag(TRANSACTION)
+class TransactionalReferenceTest {
 
 	/**
 	 * Tests for {@link TransactionalReference} constructors verifying correct initial state.
@@ -676,74 +675,6 @@ class TransactionalReferenceTest implements TimeBoundedTestSupport {
 				}
 			);
 		}
-
-	}
-
-	/**
-	 * Generational randomized proof test that applies random reference modifications
-	 * within transactions and verifies the committed state matches expectations.
-	 */
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalProofTest {
-
-		@DisplayName("survives generational randomized test applying modifications")
-		@ParameterizedTest(name = "TransactionalReference should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final AtomicReference<Boolean> nextBooleanToCompare = new AtomicReference<>();
-
-			runFor(
-				input,
-				50_000,
-				new TestState(false),
-				(random, testState) -> {
-					final TransactionalReference<Boolean> transactionalBoolean =
-						new TransactionalReference<>(testState.initialState());
-					final AtomicReference<Boolean> committedResult = new AtomicReference<>();
-
-					assertStateAfterCommit(
-						transactionalBoolean,
-						original -> {
-							final int operationsInTransaction = random.nextInt(100);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								if (random.nextBoolean()) {
-									transactionalBoolean.set(true);
-									nextBooleanToCompare.set(true);
-								} else {
-									transactionalBoolean.set(false);
-									nextBooleanToCompare.set(false);
-								}
-							}
-
-							assertEquals(
-								nextBooleanToCompare.get(),
-								transactionalBoolean.get()
-							);
-						},
-						(original, committed) -> {
-							assertEquals(
-								nextBooleanToCompare.get(),
-								committed.orElse(null)
-							);
-							committedResult.set(committed.orElse(null));
-						}
-					);
-
-					return new TestState(
-						committedResult.get()
-					);
-				}
-			);
-		}
-
-		/**
-		 * Holds the state carried between generational test iterations.
-		 */
-		private record TestState(
-			boolean initialState
-		) {}
 
 	}
 

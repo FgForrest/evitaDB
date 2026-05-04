@@ -46,10 +46,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.OBSERVABILITY_API;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.OBSERVABILITY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ObservabilityTracingBlockReference} verifying
@@ -63,6 +68,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName(
 	"ObservabilityTracingBlockReference - OTel span lifecycle"
 )
+@Tag(OBSERVABILITY_API)
+@Tag(EXTERNAL_API)
+@Tag(OBSERVABILITY)
+@Tag(REFERENCE)
 class ObservabilityTracingBlockReferenceTest {
 
 	private InMemorySpanExporter spanExporter;

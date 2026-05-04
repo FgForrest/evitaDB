@@ -41,9 +41,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetSummary} verifying construction, applicability, getters,
@@ -56,6 +60,9 @@ import static org.junit.jupiter.api.Assertions.*;
 // TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 @Deprecated(since = "2026.2", forRemoval = true)
 @DisplayName("FacetSummary constraint (deprecated)")
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(FACET)
 class FacetSummaryTest {
 
 	@Nested

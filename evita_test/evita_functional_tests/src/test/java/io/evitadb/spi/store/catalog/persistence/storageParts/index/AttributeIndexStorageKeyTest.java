@@ -32,9 +32,13 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeIndexStorageKey} verifying the `compareTo` method which implements a 3-level cascade:
@@ -43,6 +47,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("AttributeIndexStorageKey compareTo")
+@Tag(ENGINE)
+@Tag(EXPORT)
+@Tag(ATTRIBUTE)
 class AttributeIndexStorageKeyTest {
 
 	private static final AttributeIndexKey ATTR_CODE = new AttributeIndexKey(null, "code", null);

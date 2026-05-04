@@ -36,9 +36,12 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Tests for {@link ConstraintCloneVisitor} verifying constraint cloning and transformation logic.
@@ -46,6 +49,8 @@ import org.junit.jupiter.api.Nested;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("ConstraintCloneVisitor functionality")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ConstraintCloneVisitorTest {
 	private FilterConstraint filterConstraint;
 	private RequireConstraint requireConstraint;

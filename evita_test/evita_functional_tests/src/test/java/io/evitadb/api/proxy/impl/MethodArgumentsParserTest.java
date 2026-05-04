@@ -33,10 +33,13 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.function.Predicate;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Tests for {@link MethodArgumentsParser} which parses method signatures to identify
@@ -45,6 +48,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("MethodArgumentsParser")
+@Tag(CONTRACT)
+@Tag(PROXY)
 class MethodArgumentsParserTest {
 
 	/** Predicate that accepts String and Integer types. */

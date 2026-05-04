@@ -31,8 +31,13 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link AttributeHistogram} contract.
@@ -40,6 +45,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("AttributeHistogram")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
+@Tag(ATTRIBUTE)
 class AttributeHistogramTest implements EvitaTestSupport {
 
 	@Nested

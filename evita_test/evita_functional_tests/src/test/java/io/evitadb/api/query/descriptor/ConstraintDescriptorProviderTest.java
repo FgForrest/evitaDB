@@ -47,8 +47,11 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link ConstraintDescriptorProvider}.
@@ -56,6 +59,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Lukas Hornych, FG Forrest a.s. (c) 2022
  */
 @DisplayName("ConstraintDescriptorProvider")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ConstraintDescriptorProviderTest {
 
 	@Nested

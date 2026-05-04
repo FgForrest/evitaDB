@@ -77,6 +77,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -85,12 +86,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 
 /**
  * This test is a integration test for on-demand traffic recording facility in evitaDB.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(TRAFFIC_ENGINE)
 public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_CODE = "code";
 	/**

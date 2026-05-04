@@ -24,28 +24,20 @@
 package io.evitadb.index.bitmap;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 import org.roaringbitmap.RoaringBitmap;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -56,7 +48,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("TransactionalBitmap")
-class TransactionalBitmapTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class TransactionalBitmapTest {
 
 	@Nested
 	@DisplayName("Construction")
@@ -1251,99 +1246,6 @@ class TransactionalBitmapTest implements TimeBoundedTestSupport {
 		}
 	}
 
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalRandomizedProofTest {
-
-		@ParameterizedTest(name = "TransactionalBitmap should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final int initialCount = 100;
-			final int[] initialState =
-				generateRandomInitialBitmap(new Random(input.randomSeed()), initialCount);
-
-			runFor(
-				input,
-				10_000,
-				new TestState(initialState),
-				(random, testState) -> {
-					final TransactionalBitmap transactionalBitmap =
-						new TransactionalBitmap(testState.initialBitmap());
-					final AtomicReference<int[]> nextBitmapToCompare =
-						new AtomicReference<>(testState.initialBitmap());
-
-					assertStateAfterCommit(
-						transactionalBitmap,
-						original -> {
-							final int operationsInTransaction = random.nextInt(100);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								final int length = transactionalBitmap.size();
-								if (random.nextBoolean() || length < 10) {
-									// insert new item
-									final int newRecId =
-										random.nextInt(initialCount * 2);
-									transactionalBitmap.add(newRecId);
-									nextBitmapToCompare.set(
-										ArrayUtils.insertIntIntoOrderedArray(
-											newRecId, nextBitmapToCompare.get()
-										)
-									);
-								} else {
-									// remove existing item
-									final int removedRecId =
-										transactionalBitmap.get(
-											random.nextInt(length)
-										);
-									transactionalBitmap.remove(removedRecId);
-									nextBitmapToCompare.set(
-										ArrayUtils.removeIntFromOrderedArray(
-											removedRecId,
-											nextBitmapToCompare.get()
-										)
-									);
-								}
-							}
-
-							assertTransactionalBitmapIs(
-								nextBitmapToCompare.get(), transactionalBitmap
-							);
-						},
-						(original, committed) -> {
-							assertArrayEquals(
-								nextBitmapToCompare.get(),
-								committed.getArray()
-							);
-						}
-					);
-
-					return new TestState(
-						nextBitmapToCompare.get()
-					);
-				}
-			);
-		}
-	}
-
-	/**
-	 * Generates a random sorted array of unique integers for use as initial bitmap state.
-	 */
-	private int[] generateRandomInitialBitmap(Random rnd, int count) {
-		final Set<Integer> uniqueSet = new HashSet<>();
-		final int[] initialBitmap = new int[count];
-		for (int i = 0; i < count; i++) {
-			boolean added;
-			do {
-				final int recId = rnd.nextInt(count * 2);
-				added = uniqueSet.add(recId);
-				if (added) {
-					initialBitmap[i] = recId;
-				}
-			} while (!added);
-		}
-		Arrays.sort(initialBitmap);
-		return initialBitmap;
-	}
 
 	/**
 	 * Asserts that the given {@link TransactionalBitmap} contains exactly the expected
@@ -1383,7 +1285,4 @@ class TransactionalBitmapTest implements TimeBoundedTestSupport {
 		);
 	}
 
-	private record TestState(
-		int[] initialBitmap
-	) {}
 }

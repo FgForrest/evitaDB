@@ -40,9 +40,12 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link UserFilter} verifying construction, forbidden children enforcement, applicability,
@@ -51,6 +54,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("UserFilter constraint")
+@Tag(CONTRACT)
+@Tag(FILTER)
 class UserFilterTest {
 
 	@Nested

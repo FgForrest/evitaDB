@@ -36,9 +36,14 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.function.Predicate;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Unit tests for static helpers inside {@link ReferenceHistogramAccumulator}. Both helpers under
@@ -61,6 +66,10 @@ import static org.mockito.Mockito.mock;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ReferenceHistogramAccumulator static helpers")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 class ReferenceHistogramAccumulatorTest {
 
 	/**

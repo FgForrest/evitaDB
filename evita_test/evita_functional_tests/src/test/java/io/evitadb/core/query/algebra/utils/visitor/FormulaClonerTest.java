@@ -39,8 +39,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.function.UnaryOperator;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link FormulaCloner} verifying deep cloning, mutation, and structural
@@ -49,6 +52,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("FormulaCloner - formula tree cloning and mutation")
+@Tag(ENGINE)
+@Tag(QUERY)
 class FormulaClonerTest {
 	private Formula formula;
 

@@ -50,10 +50,13 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Test class for {@link LocalMutationInputAggregateConverter}. This test suite verifies
@@ -63,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class LocalMutationInputAggregateConverterTest {
 
 	private static final String ATTRIBUTE_QUANTITY = "quantity";

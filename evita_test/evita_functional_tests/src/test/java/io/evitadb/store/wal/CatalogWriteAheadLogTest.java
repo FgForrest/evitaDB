@@ -56,9 +56,12 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * This test class verifies the behavior of the {@link CatalogWriteAheadLog} component, which is responsible
@@ -81,6 +84,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SuppressWarnings({"ResultOfMethodCallIgnored", "SameParameterValue"})
 @DisplayName("Catalog Write-Ahead Log functionality tests")
+@Tag(STORAGE)
+@Tag(WAL)
 class CatalogWriteAheadLogTest implements EvitaTestSupport {
 	private final Path walDirectory = getTestDirectory().resolve(getClass().getSimpleName());
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 1) {

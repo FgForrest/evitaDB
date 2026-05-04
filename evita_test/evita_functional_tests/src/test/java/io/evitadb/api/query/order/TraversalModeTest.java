@@ -33,8 +33,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * Tests for {@link TraversalMode} verifying enum values, their ordinals, valueOf behavior,
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("TraversalMode enum")
+@Tag(CONTRACT)
+@Tag(ORDER)
 class TraversalModeTest {
 
 	@Nested

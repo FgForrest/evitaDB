@@ -38,8 +38,11 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for the supporting records inside {@link ReevaluateExpressionExecutor}: {@link AffectedEntityResolution},
@@ -49,6 +52,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("AffectedEntityResolution supporting records")
+@Tag(INDEXING)
+@Tag(SCHEMA)
 class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 
 	/**

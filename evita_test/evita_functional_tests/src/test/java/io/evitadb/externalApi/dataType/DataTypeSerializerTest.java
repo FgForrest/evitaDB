@@ -26,14 +26,21 @@ package io.evitadb.externalApi.dataType;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * Tests for {@link DataTypeSerializer}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(DATA_TYPE)
+@Tag(SERIALIZATION)
 class DataTypeSerializerTest {
 
 	@Test

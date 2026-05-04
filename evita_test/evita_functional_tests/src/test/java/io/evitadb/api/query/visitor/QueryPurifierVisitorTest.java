@@ -30,9 +30,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link QueryPurifierVisitor} verifying constraint purification, flattening and transformation logic.
@@ -40,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("QueryPurifierVisitor functionality")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class QueryPurifierVisitorTest {
 
 	@Nested

@@ -47,15 +47,22 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test contains various integration tests for {@link Evita}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class EvitaSchemaCallbackTest implements EvitaTestSupport {
 	private TestPaths paths;
 	private Evita evita;

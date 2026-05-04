@@ -58,8 +58,11 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.EXPORT;
 
 /**
  * This test verifies behavior of {@link ExportFileService}.
@@ -67,6 +70,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("ExportFileService")
+@Tag(CONTRACT)
+@Tag(EXPORT)
 class ExportFileServiceTest implements EvitaTestSupport {
 	private static final String SUBDIR_NAME = "exportFileServiceTest";
 	private final FileSystemExportOptions exportOptions = FileSystemExportOptions.builder()

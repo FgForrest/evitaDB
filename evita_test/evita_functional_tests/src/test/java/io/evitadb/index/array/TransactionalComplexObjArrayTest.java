@@ -25,10 +25,6 @@ package io.evitadb.index.array;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
-import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import org.apache.commons.lang3.ArrayUtils;
@@ -36,29 +32,22 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.Random;
-import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
-import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArray;
-import static io.evitadb.utils.ArrayUtils.insertRecordIntoArrayOnIndex;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.ArrayUtils.isEmpty;
-import static io.evitadb.utils.ArrayUtils.removeRecordFromOrderedArray;
 import static io.evitadb.utils.AssertionUtils.assertIteratorContains;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -73,7 +62,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @DisplayName("Transactional complex object array")
-class TransactionalComplexObjArrayTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class TransactionalComplexObjArrayTest {
 
 	/**
 	 * Asserts that the given {@link TransactionalComplexObjArray} of {@link TransactionalInteger}
@@ -1645,244 +1637,6 @@ class TransactionalComplexObjArrayTest implements TimeBoundedTestSupport {
 			);
 		}
 
-	}
-
-	/**
-	 * Generational randomized test that verifies correctness of
-	 * {@link TransactionalComplexObjArray} under many random transactional operations.
-	 */
-	@Nested
-	@DisplayName("Generational proof")
-	class GenerationalProofTest {
-
-		@ParameterizedTest(name = "TransactionalComplexObjArray should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final int initialCount = 20;
-			final int subCount = 30;
-			final DistinctValueHolder[] initialState = generateRandomInitialArray(
-				new Random(input.randomSeed()), initialCount, subCount
-			);
-
-			runFor(
-				input,
-				1000,
-				new TestState(
-					new StringBuilder(),
-					initialState
-				),
-				(random, testState) -> {
-					final StringBuilder codeBuffer = testState.code();
-					final TransactionalComplexObjArray<DistinctValueHolder> transactionalArray =
-						new TransactionalComplexObjArray<>(
-							testState.initialArray(),
-							DistinctValueHolder::combineWith,
-							DistinctValueHolder::subtract,
-							DistinctValueHolder::isEmpty,
-							DistinctValueHolder::equals
-						);
-					final AtomicReference<DistinctValueHolder[]> nextArrayToCompare =
-						new AtomicReference<>(testState.initialArray());
-
-					assertStateAfterCommit(
-						transactionalArray,
-						original -> {
-							codeBuffer.append("\nSTART:\n")
-								.append(
-									Arrays.stream(nextArrayToCompare.get())
-										.map(DistinctValueHolder::toString)
-										.collect(Collectors.joining("\n")))
-								.append("\n\n");
-
-							final int operationsInTransaction = random.nextInt(10);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								if (random.nextBoolean() || transactionalArray.getLength() < 10) {
-									// upsert new item
-									final String recKey = String.valueOf((char) (40 + random.nextInt(initialCount * 2)));
-									final DistinctValueHolder upsertItem = new DistinctValueHolder(recKey, generateRandomArray(random, random.nextInt(subCount)));
-									codeBuffer.append("+ ").append(upsertItem).append("\n");
-									final int txPosition = transactionalArray.addReturningIndex(upsertItem);
-									final DistinctValueHolder[] referenceArray = nextArrayToCompare.get();
-									final InsertionPosition position = computeInsertPositionOfObjInOrderedArray(upsertItem, referenceArray);
-									if (position.alreadyPresent()) {
-										referenceArray[position.position()] = mergeArrays(upsertItem, referenceArray[position.position()]);
-									} else if (!upsertItem.getValues().isEmpty()) {
-										nextArrayToCompare.set(insertRecordIntoArrayOnIndex(upsertItem, referenceArray, position.position()));
-									}
-									if (!upsertItem.getValues().isEmpty()) {
-										assertEquals(position.position(), txPosition, codeBuffer.toString());
-									}
-								} else {
-									// remove existing item
-									final int position = random.nextInt(transactionalArray.getLength());
-									final DistinctValueHolder removedRecId = transactionalArray.get(position);
-									final DistinctValueHolder removedItem = new DistinctValueHolder(removedRecId.getKey(), pickSomethingRandomlyFrom(random, removedRecId.getValues()));
-									codeBuffer.append("- ").append(removedItem).append("\n");
-									transactionalArray.remove(removedItem);
-									final Integer[] restArray = subtractArrays(removedItem.getValues(), removedRecId.getValues());
-									final DistinctValueHolder[] existingArray = nextArrayToCompare.get();
-									if (isEmpty(restArray)) {
-										nextArrayToCompare.set(removeRecordFromOrderedArray(removedRecId, existingArray));
-									} else {
-										existingArray[position] = new DistinctValueHolder(removedRecId.getKey(), restArray);
-									}
-								}
-							}
-
-							// after operations the transactional array must match expected array
-							assertTransactionalObjArray(nextArrayToCompare.get(), transactionalArray);
-						},
-						(original, committed) -> {
-							codeBuffer.append("\nEXPECTED:\n")
-								.append(
-									Arrays.stream(nextArrayToCompare.get())
-										.map(DistinctValueHolder::toString)
-										.collect(Collectors.joining("\n"))
-								)
-								.append("\n");
-							codeBuffer.append("\nGOT:\n")
-								.append(
-									Arrays.stream(committed)
-										.map(DistinctValueHolder::toString)
-										.collect(Collectors.joining("\n"))
-								)
-								.append("\n");
-							assertArrayEquals(nextArrayToCompare.get(), committed, codeBuffer.toString());
-						}
-					);
-
-					return new TestState(
-						new StringBuilder(), nextArrayToCompare.get()
-					);
-				}
-			);
-		}
-
-	}
-
-	/**
-	 * Subtracts elements of `subtractedArray` from `baseArray` and returns the remainder.
-	 *
-	 * @param subtractedArray the set of values to subtract
-	 * @param baseArray       the original set of values
-	 * @return array of remaining values after subtraction
-	 */
-	@Nonnull
-	private Integer[] subtractArrays(
-		@Nonnull TreeSet<Integer> subtractedArray,
-		@Nonnull TreeSet<Integer> baseArray
-	) {
-		final TreeSet<Integer> baseArrayCopy = new TreeSet<>(baseArray);
-		baseArrayCopy.removeAll(subtractedArray);
-		return baseArrayCopy.toArray(new Integer[0]);
-	}
-
-	/**
-	 * Randomly selects a subset of elements from the given sorted set.
-	 *
-	 * @param rnd    the random number generator
-	 * @param values the source set of values
-	 * @return a random subset as an array
-	 */
-	@Nonnull
-	private Integer[] pickSomethingRandomlyFrom(
-		@Nonnull Random rnd,
-		@Nonnull TreeSet<Integer> values
-	) {
-		final TreeSet<Integer> newSet = new TreeSet<>(values);
-		newSet.removeIf(it -> rnd.nextBoolean());
-		return newSet.toArray(new Integer[0]);
-	}
-
-	/**
-	 * Merges the inner values of two {@link DistinctValueHolder} instances into a new holder.
-	 *
-	 * @param upsertItem   the item being upserted
-	 * @param existingItem the existing item in the array
-	 * @return a new holder with merged values
-	 */
-	@Nonnull
-	private DistinctValueHolder mergeArrays(
-		@Nonnull DistinctValueHolder upsertItem,
-		@Nonnull DistinctValueHolder existingItem
-	) {
-		final Set<Integer> mergedValues = new TreeSet<>(existingItem.getValues());
-		mergedValues.addAll(upsertItem.getValues());
-		final Integer[] values = mergedValues.toArray(new Integer[0]);
-		return new DistinctValueHolder(existingItem.getKey(), values);
-	}
-
-	/**
-	 * Generates a random initial array of {@link DistinctValueHolder} with unique keys.
-	 *
-	 * @param rnd      the random number generator
-	 * @param count    the number of holders to generate
-	 * @param subCount the maximum number of inner values per holder
-	 * @return a sorted array of randomly generated holders
-	 */
-	@Nonnull
-	private DistinctValueHolder[] generateRandomInitialArray(
-		@Nonnull Random rnd,
-		int count,
-		int subCount
-	) {
-		final Set<String> uniqueSet = new HashSet<>();
-		final DistinctValueHolder[] initialArray = new DistinctValueHolder[count];
-		for (int i = 0; i < count; i++) {
-			boolean added;
-			do {
-				final String recKey = String.valueOf((char) (40 + rnd.nextInt(count * 2)));
-				added = uniqueSet.add(recKey);
-				if (added) {
-					final Integer[] values = generateRandomArray(rnd, subCount);
-					if (ArrayUtils.isNotEmpty(values)) {
-						initialArray[i] = new DistinctValueHolder(recKey, values);
-					} else {
-						added = false;
-					}
-				}
-			} while (!added);
-		}
-		Arrays.sort(initialArray);
-		return initialArray;
-	}
-
-	/**
-	 * Generates a random sorted array of unique integers.
-	 *
-	 * @param rnd   the random number generator
-	 * @param count the number of elements to generate
-	 * @return a sorted array of unique integers
-	 */
-	@Nonnull
-	private Integer[] generateRandomArray(@Nonnull Random rnd, int count) {
-		final Set<Integer> uniqueSet = new HashSet<>();
-		final Integer[] initialArray = new Integer[count];
-		for (int i = 0; i < count; i++) {
-			boolean added;
-			do {
-				final int recId = rnd.nextInt(count * 2);
-				added = uniqueSet.add(recId);
-				if (added) {
-					initialArray[i] = recId;
-				}
-			} while (!added);
-		}
-		Arrays.sort(initialArray);
-		return initialArray;
-	}
-
-	/**
-	 * Internal test state for generational proof testing.
-	 *
-	 * @param code         the StringBuilder accumulating test operation log
-	 * @param initialArray the initial array state for the current iteration
-	 */
-	private record TestState(
-		@Nonnull StringBuilder code,
-		@Nonnull DistinctValueHolder[] initialArray
-	) {
 	}
 
 	/**

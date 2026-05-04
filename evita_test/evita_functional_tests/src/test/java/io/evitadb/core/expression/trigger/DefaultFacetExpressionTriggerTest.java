@@ -67,6 +67,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
@@ -78,6 +79,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link DefaultFacetExpressionTrigger} — construction, getters, immutability, and evaluate() behavior.
@@ -87,6 +91,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @SuppressWarnings("SameParameterValue")
 @DisplayName("DefaultFacetExpressionTrigger")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(FACET)
 class DefaultFacetExpressionTriggerTest {
 
 	private static final String ENTITY_TYPE = "product";

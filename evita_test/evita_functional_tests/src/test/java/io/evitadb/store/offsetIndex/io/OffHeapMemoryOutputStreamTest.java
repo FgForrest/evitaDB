@@ -43,8 +43,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies the behaviour of {@link OffHeapMemoryOutputStream}.
@@ -62,6 +65,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("OffHeapMemoryOutputStream comprehensive tests")
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 class OffHeapMemoryOutputStreamTest {
 	private static final int DEFAULT_BUFFER_SIZE = 32;
 

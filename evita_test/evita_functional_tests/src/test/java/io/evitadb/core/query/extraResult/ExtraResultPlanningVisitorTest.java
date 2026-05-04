@@ -39,12 +39,15 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.Set;
 import java.util.function.Predicate;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Unit tests for the producer-discovery logic of {@link ExtraResultPlanningVisitor}. The class is
@@ -59,6 +62,8 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ExtraResultPlanningVisitor — findExistingProducer")
+@Tag(ENGINE)
+@Tag(QUERY)
 class ExtraResultPlanningVisitorTest {
 
 	/**

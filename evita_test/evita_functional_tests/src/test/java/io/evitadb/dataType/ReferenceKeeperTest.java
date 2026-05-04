@@ -30,10 +30,14 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferenceKeeper} verifying basic operations,
@@ -42,6 +46,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReferenceKeeper functionality")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
+@Tag(REFERENCE)
 class ReferenceKeeperTest {
 
 	@Nested

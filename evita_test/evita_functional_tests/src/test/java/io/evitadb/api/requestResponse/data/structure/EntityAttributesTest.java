@@ -42,8 +42,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link EntityAttributes} verifying construction,
@@ -52,6 +56,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EntityAttributes")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(ATTRIBUTE)
 class EntityAttributesTest extends AbstractBuilderTest {
 	private static final String CODE = "code";
 	private static final String NAME = "name";

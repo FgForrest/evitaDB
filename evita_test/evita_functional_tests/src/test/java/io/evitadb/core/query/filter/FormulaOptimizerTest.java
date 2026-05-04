@@ -39,8 +39,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Exhaustive test suite for {@link FormulaOptimizer} verifying correctness of boolean algebra
@@ -63,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("FormulaOptimizer correctness tests")
+@Tag(ENGINE)
+@Tag(FILTER)
 class FormulaOptimizerTest {
 
 	/**

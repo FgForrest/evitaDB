@@ -38,10 +38,13 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link And} verifying construction, applicability, necessity, copy/clone operations,
@@ -50,6 +53,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("And constraint")
+@Tag(CONTRACT)
+@Tag(FILTER)
 class AndTest {
 
 	@Nested

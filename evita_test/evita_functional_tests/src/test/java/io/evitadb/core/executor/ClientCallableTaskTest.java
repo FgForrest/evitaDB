@@ -31,15 +31,20 @@ import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TASK;
 
 /**
  * This test verifies behavior of the {@link ClientCallableTask} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(ENGINE)
+@Tag(TASK)
 class ClientCallableTaskTest implements TestConstants {
 
 	@Test

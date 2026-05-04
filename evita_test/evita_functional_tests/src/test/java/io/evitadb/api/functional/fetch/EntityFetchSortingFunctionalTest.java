@@ -44,11 +44,12 @@ import java.util.List;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies entity fetch sorting functionality including primary key ordering
@@ -58,9 +59,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity fetch sorting functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EntityFetchSortingFunctionalTest extends AbstractEntityFetchingFunctionalTest {
 
 	@DisplayName("Should return products sorted by primary key in descending order")

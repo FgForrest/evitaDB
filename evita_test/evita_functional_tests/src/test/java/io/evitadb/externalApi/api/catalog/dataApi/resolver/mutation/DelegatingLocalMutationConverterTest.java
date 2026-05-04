@@ -38,11 +38,14 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.array;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Test class for {@link DelegatingLocalMutationConverter}. This test suite verifies
@@ -52,6 +55,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class DelegatingLocalMutationConverterTest {
 
 	private static final String ATTRIBUTE_QUANTITY = "quantity";

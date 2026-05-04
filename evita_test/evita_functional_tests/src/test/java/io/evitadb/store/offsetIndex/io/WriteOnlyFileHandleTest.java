@@ -55,8 +55,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Unit tests for {@link WriteOnlyFileHandle} verifying write operations, concurrency handling,
@@ -65,6 +68,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("WriteOnlyFileHandle unit tests")
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 class WriteOnlyFileHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyFileHandle");
 	private ObservableOutputKeeper outputKeeper;

@@ -85,6 +85,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -101,6 +102,9 @@ import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for REST catalog entity list query.
@@ -108,6 +112,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
 @SuppressWarnings("deprecation")
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	private static final String DATA_PATH = ResponseDescriptor.RECORD_PAGE.name() + ".data";

@@ -48,6 +48,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -58,12 +59,18 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.WAL;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * This test verifies behavior of {@link TransactionalStoragePartPersistenceService}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(STORAGE)
+@Tag(WAL)
+@Tag(TRANSACTION)
 class TransactionalStoragePartPersistenceServiceTest {
 	private TransactionalStoragePartPersistenceService service;
 	private CatalogOffHeapMemoryManager offHeapMemoryManager;

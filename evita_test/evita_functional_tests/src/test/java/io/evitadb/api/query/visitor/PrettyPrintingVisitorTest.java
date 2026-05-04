@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -38,6 +39,8 @@ import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link PrettyPrintingVisitor} verifying constraint pretty printing functionality.
@@ -45,6 +48,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("PrettyPrintingVisitor functionality")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class PrettyPrintingVisitorTest {
 
 	@Nested

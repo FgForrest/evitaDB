@@ -52,11 +52,15 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * End-to-end test that verifies the boot-time catalog-inventory-divergence drain. The persistence
@@ -76,6 +80,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @Slf4j
 @DisplayName("Evita boot-time catalog inventory divergence drain")
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
+@Tag(WAL)
 class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 	private TestPaths testPaths;
 	private Path storageDirectory;

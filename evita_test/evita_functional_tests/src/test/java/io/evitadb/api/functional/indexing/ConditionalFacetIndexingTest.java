@@ -55,9 +55,13 @@ import org.junit.jupiter.params.provider.EnumSource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * End-to-end integration tests for the conditional facet indexing infrastructure.
@@ -67,6 +71,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Conditional facet indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(FACET)
 class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private static final String ENTITY_PRODUCT = "product";

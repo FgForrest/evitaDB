@@ -37,9 +37,12 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.StringUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This class verifies behaviour of {@link StringUtils}
@@ -47,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("StringUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class StringUtilsTest {
 	private static final Locale SYSTEM_DEFAULT_LOCALE = Locale.getDefault();
 

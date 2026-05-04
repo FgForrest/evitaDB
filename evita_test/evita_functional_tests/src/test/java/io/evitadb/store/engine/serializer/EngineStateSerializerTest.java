@@ -38,10 +38,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.time.OffsetDateTime;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * This test verifies the correctness of the {@link EngineStateSerializer} class.
@@ -49,6 +53,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("EngineStateSerializer should serialize and deserialize")
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
+@Tag(SERIALIZATION)
 class EngineStateSerializerTest {
 
 	/**

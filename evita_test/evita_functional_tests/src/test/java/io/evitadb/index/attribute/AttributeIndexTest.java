@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -56,6 +57,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeIndex} covering construction, non-transactional
@@ -66,6 +69,8 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("SameParameterValue")
 @DisplayName("AttributeIndex")
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
 class AttributeIndexTest implements TimeBoundedTestSupport {
 
 	private static final String ENTITY_TYPE = "product";

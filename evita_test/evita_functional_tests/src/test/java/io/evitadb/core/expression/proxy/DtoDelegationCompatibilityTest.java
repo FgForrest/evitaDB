@@ -74,6 +74,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
@@ -81,6 +82,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for DTO delegation compatibility, verifying that ByteBuddy-generated expression proxies work correctly
@@ -92,6 +95,8 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings({"rawtypes", "SameParameterValue"})
 @DisplayName("DTO delegation compatibility")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class DtoDelegationCompatibilityTest {
 
 	/** Unique marker interface for entity proxies to avoid Proxycian classification cache pollution. */

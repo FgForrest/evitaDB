@@ -41,11 +41,14 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutationTest.ASSOCIATED_DATA_NAME;
 import static io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutationTest.createExistingAssociatedDataSchema;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Test verifies {@link ModifyAssociatedDataSchemaNameMutation} class.
@@ -53,6 +56,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("ModifyAssociatedDataSchemaNameMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class ModifyAssociatedDataSchemaNameMutationTest {
 
 	@Nested

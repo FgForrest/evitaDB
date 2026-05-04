@@ -39,8 +39,6 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,23 +46,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Arrays;
 import java.util.Currency;
-import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -77,7 +67,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PriceListAndCurrencyPriceRefIndex} verifying catalog attachment, price add/remove
@@ -87,6 +78,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("PriceListAndCurrencyPriceRefIndex functionality")
+@Tag(INDEXING)
+@Tag(PRICE)
 class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 
 	private static final String ENTITY_TYPE = "product";
@@ -949,209 +942,6 @@ class PriceListAndCurrencyPriceRefIndexTest implements TimeBoundedTestSupport {
 				}
 			);
 		}
-	}
-
-	/**
-	 * Generational proof test that exercises random add/remove sequences within transactions,
-	 * verifying the committed state matches the expected price subset after each iteration.
-	 */
-	@ParameterizedTest(
-		name = "PriceListAndCurrencyPriceRefIndex should survive generational randomized test"
-	)
-	@Tag(LONG_RUNNING_TEST)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	@DisplayName("Generational proof test")
-	void generationalProofTest(@Nonnull GenerationalTestInput input) {
-		final int maxPrices = 50;
-		final AtomicInteger priceIdSequence = new AtomicInteger(0);
-
-		// pre-populate super index with a pool of prices
-		final PriceRecordContract[] pricePool = new PriceRecordContract[maxPrices];
-		final DateTimeRange[] validityPool = new DateTimeRange[maxPrices];
-		for (int i = 0; i < maxPrices; i++) {
-			final int internalId = priceIdSequence.incrementAndGet();
-			final int entityPk = 1 + (i % 10);
-			pricePool[i] = createPriceRecordWithPrice(
-				internalId, internalId, entityPk,
-				(int) ((100 + i * 10) * 1.21), 100 + i * 10
-			);
-			final OffsetDateTime from = OffsetDateTime.now().minusDays(30 + i);
-			validityPool[i] = DateTimeRange.between(from, from.plusDays(60));
-		}
-
-		final PriceListAndCurrencyPriceSuperIndex baseSuperIndex =
-			new PriceListAndCurrencyPriceSuperIndex(PRICE_INDEX_KEY);
-		for (int i = 0; i < maxPrices; i++) {
-			baseSuperIndex.addPrice(pricePool[i], validityPool[i]);
-		}
-
-		runFor(
-			input,
-			1_000,
-			new GenerationalTestState(
-				new StringBuilder(256),
-				new int[0]
-			),
-			(random, testState) -> {
-				// build ref from current tracked state
-				final int[] trackedIds = testState.trackedInternalPriceIds();
-				final PriceListAndCurrencyPriceRefIndex tested;
-				if (trackedIds.length > 0) {
-					tested = createAttachedRefIndexFromPriceIds(baseSuperIndex, trackedIds);
-					// also add each price to make ref aware of them
-					for (final int id : trackedIds) {
-						final int arrayIdx = id - 1;
-						tested.addPrice(id, validityPool[arrayIdx]);
-					}
-					tested.resetDirty();
-				} else {
-					tested = createAttachedRefIndex(baseSuperIndex);
-				}
-
-				final AtomicReference<int[]> nextTrackedIds = new AtomicReference<>(trackedIds);
-				final StringBuilder codeBuffer = testState.code();
-				codeBuffer.setLength(0);
-
-				assertStateAfterCommit(
-					tested,
-					index -> {
-						final int operationsInTransaction = 1 + random.nextInt(8);
-						final Set<Integer> addedInThisRound = new HashSet<>(8);
-						final Set<Integer> removedInThisRound = new HashSet<>(8);
-
-						for (int i = 0; i < operationsInTransaction; i++) {
-							final int currentLength = nextTrackedIds.get().length;
-							if ((currentLength < maxPrices / 2 && random.nextBoolean())
-								|| currentLength < 3) {
-								// add a random price not already tracked
-								int newId;
-								int attempts = 0;
-								do {
-									newId = 1 + random.nextInt(maxPrices);
-									attempts++;
-								} while (
-									(addedInThisRound.contains(newId) ||
-										ArrayUtils.indexOf(newId, nextTrackedIds.get()) >= 0) &&
-										attempts < 100
-								);
-
-								if (attempts >= 100) {
-									continue;
-								}
-
-								final int arrayIdx = newId - 1;
-								codeBuffer.append("addPrice(").append(newId).append(")\n");
-
-								try {
-									index.addPrice(newId, validityPool[arrayIdx]);
-									final int finalNewId = newId;
-									final int[] current = nextTrackedIds.get();
-									final int[] updated = new int[current.length + 1];
-									System.arraycopy(current, 0, updated, 0, current.length);
-									updated[current.length] = finalNewId;
-									Arrays.sort(updated);
-									nextTrackedIds.set(updated);
-									addedInThisRound.add(newId);
-									removedInThisRound.remove(newId);
-								} catch (Exception ex) {
-									fail(ex.getMessage() + "\n" + codeBuffer, ex);
-								}
-							} else if (currentLength > 0) {
-								// remove a random tracked price
-								int idToRemove;
-								int attempts = 0;
-								do {
-									final int[] current = nextTrackedIds.get();
-									idToRemove = current[random.nextInt(current.length)];
-									attempts++;
-								} while (
-									removedInThisRound.contains(idToRemove) && attempts < 100
-								);
-
-								if (attempts >= 100) {
-									continue;
-								}
-
-								final int arrayIdx = idToRemove - 1;
-								codeBuffer.append("removePrice(")
-									.append(idToRemove).append(")\n");
-
-								try {
-									index.removePrice(idToRemove, validityPool[arrayIdx]);
-									final int[] current = nextTrackedIds.get();
-									final int removeIdx = ArrayUtils.indexOf(
-										idToRemove, current
-									);
-									final int[] updated =
-										new int[current.length - 1];
-									System.arraycopy(
-										current, 0,
-										updated, 0, removeIdx
-									);
-									System.arraycopy(
-										current, removeIdx + 1,
-										updated, removeIdx,
-										current.length - removeIdx - 1
-									);
-									nextTrackedIds.set(updated);
-									removedInThisRound.add(idToRemove);
-									addedInThisRound.remove(idToRemove);
-								} catch (Exception ex) {
-									fail(ex.getMessage() + "\n" + codeBuffer, ex);
-								}
-							}
-						}
-					},
-					(original, committed) -> {
-						final int[] expectedIds = nextTrackedIds.get();
-						Arrays.sort(expectedIds);
-
-						// verify indexedPriceIds match expected
-						assertArrayEquals(
-							expectedIds,
-							committed.getIndexedPriceIds(),
-							"IndexedPriceIds mismatch.\n" + codeBuffer
-						);
-
-						// verify entity ids
-						final Set<Integer> expectedEntityIds = new HashSet<>(8);
-						for (final int id : expectedIds) {
-							expectedEntityIds.add(pricePool[id - 1].entityPrimaryKey());
-						}
-						final int[] actualEntityIds =
-							committed.getIndexedPriceEntityIds().getArray();
-						assertEquals(
-							expectedEntityIds.size(),
-							actualEntityIds.length,
-							"Entity id count mismatch.\n" + codeBuffer
-						);
-						for (final int entityId : actualEntityIds) {
-							assertTrue(
-								expectedEntityIds.contains(entityId),
-								"Unexpected entity id " + entityId + ".\n" + codeBuffer
-							);
-						}
-					}
-				);
-
-				return new GenerationalTestState(
-					codeBuffer,
-					nextTrackedIds.get()
-				);
-			}
-		);
-	}
-
-	/**
-	 * Holds the state carried between generational proof test iterations.
-	 *
-	 * @param code                     debug code buffer for reproducibility
-	 * @param trackedInternalPriceIds  sorted array of internal price ids currently tracked by the ref index
-	 */
-	private record GenerationalTestState(
-		@Nonnull StringBuilder code,
-		@Nonnull int[] trackedInternalPriceIds
-	) {
 	}
 
 }

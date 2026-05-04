@@ -33,15 +33,20 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * This class verifies {@link TransactionalMemory} contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
+@Tag(ENGINE)
+@Tag(TRANSACTION)
 class TransactionalMemoryTest {
 	private HashMap<String, Integer> underlyingData1;
 	private HashMap<String, Integer> underlyingData2;

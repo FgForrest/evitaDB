@@ -26,10 +26,13 @@ package io.evitadb.api.requestResponse.schema;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link EvolutionMode} enum verifying all 9 evolution mode values
@@ -38,6 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvolutionMode enum")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class EvolutionModeTest {
 
 	@Nested

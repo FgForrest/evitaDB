@@ -44,9 +44,11 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies whether entities can be filtered by prices.
@@ -54,9 +56,11 @@ import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_REFERENCE;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity filtering by prices functionality - find first")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(PRICE)
+@Tag(FILTER)
 public class FindFirstPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS_WITH_FIND_FIRST_PRICES = "HundredProductsWithFindFirstPrices";
 

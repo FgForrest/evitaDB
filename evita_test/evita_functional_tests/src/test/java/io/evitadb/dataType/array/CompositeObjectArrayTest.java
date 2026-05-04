@@ -36,8 +36,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies the contract of {@link CompositeObjectArray}, covering construction,
@@ -47,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("CompositeObjectArray")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class CompositeObjectArrayTest {
 
 	/**

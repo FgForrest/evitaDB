@@ -32,14 +32,21 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link SortableAttributeCompoundSchema} and
  * {@link EntitySortableAttributeCompoundSchema}.
  */
 @DisplayName("SortableAttributeCompoundSchema")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class SortableAttributeCompoundSchemaTest {
 
 	private static final List<AttributeElement> ELEMENTS = List.of(

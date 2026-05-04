@@ -40,13 +40,18 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link CatalogSchema}.
  */
 @DisplayName("CatalogSchema")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class CatalogSchemaTest {
 
 	private static final EntitySchemaProvider EMPTY_PROVIDER = new EntitySchemaProvider() {

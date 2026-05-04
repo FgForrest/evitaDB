@@ -25,17 +25,22 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.associatedDataContent;
 import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
  * This tests verifies basic properties of {@link AssociatedDataContent} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 202"a"
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
 class AssociatedDataContentTest {
 
 	@Test

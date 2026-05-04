@@ -30,9 +30,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeIndexKey} verifying the `compareTo` method which implements a 3-level comparison:
@@ -41,6 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("AttributeIndexKey compareTo")
+@Tag(ENGINE)
+@Tag(EXPORT)
+@Tag(ATTRIBUTE)
 class AttributeIndexKeyTest {
 
 	private static final String ATTR_CODE = "code";

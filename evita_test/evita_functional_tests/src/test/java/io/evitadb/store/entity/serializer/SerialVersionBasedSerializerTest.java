@@ -42,9 +42,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Serial;
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * This test verifies whether it is possible to use special instance for deserializing old versions of the class
@@ -52,6 +56,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
+@Tag(SERIALIZATION)
 class SerialVersionBasedSerializerTest {
 	private final Kryo kryo = new Kryo();
 	private io.evitadb.store.entity.serializer.SerialVersionBasedSerializer<AttributeSchema> attributeSchemaSerializer;

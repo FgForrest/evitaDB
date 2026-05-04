@@ -26,14 +26,19 @@ package io.evitadb.externalApi.api.model;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests {@link UnionDescriptor}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class UnionDescriptorTest {
 
 	@Test

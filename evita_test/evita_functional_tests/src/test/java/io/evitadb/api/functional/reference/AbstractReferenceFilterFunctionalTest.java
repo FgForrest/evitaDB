@@ -33,8 +33,12 @@ import io.evitadb.test.extension.DataCarrier;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.function.Predicate;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Abstract base class for reference filtering functional tests. Provides shared dataset setup
@@ -43,6 +47,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Tag(CONTRACT)
+@Tag(REFERENCE)
+@Tag(FILTER)
 public abstract class AbstractReferenceFilterFunctionalTest extends AbstractHundredProductsFunctionalTest {
 	static final String HUNDRED_PRODUCTS = "HundredProductsForReferenceFilter";
 

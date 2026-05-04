@@ -64,9 +64,10 @@ import java.util.Locale;
 import java.util.Optional;
 
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface which is isolated from the original
@@ -75,10 +76,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("Evita isolated entity editor interface proxying functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @TestMethodOrder(OrderAnnotation.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(PROXY)
 public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
 	protected static final String HUNDRED_PRODUCTS = "HundredProxyProducts_IsolatedEntityEditorProxyingFunctionalTest";
 	private static final DateTimeRange VALIDITY = DateTimeRange.between(OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));

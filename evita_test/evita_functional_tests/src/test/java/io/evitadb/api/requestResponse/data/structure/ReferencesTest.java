@@ -37,9 +37,13 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.data.structure.References.DEFAULT_CHUNK_TRANSFORMER;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link References} verifying construction,
@@ -48,6 +52,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("References")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
 class ReferencesTest extends AbstractBuilderTest {
 	private static final String BRAND = "brand";
 	private static final String CATEGORY = "category";

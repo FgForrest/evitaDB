@@ -28,14 +28,19 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.SERVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * The test verifies conversion logic for loading yaml file.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(SERVER)
+@Tag(MANAGEMENT)
 class SpecialConfigInputFormatsHandlerTest {
 	private static final DeserializationContext MOCK_CONTEXT = Mockito.mock(DeserializationContext.class);
 	private static final SpecialConfigInputFormatsHandler TESTED_HANDLER = new SpecialConfigInputFormatsHandler();

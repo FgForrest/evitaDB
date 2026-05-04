@@ -33,10 +33,13 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies contract of {@link ConsoleWriter} class.
@@ -44,6 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ConsoleWriter contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class ConsoleWriterTest {
 	private ByteArrayOutputStream outputCapture;
 	private PrintStream originalOut;

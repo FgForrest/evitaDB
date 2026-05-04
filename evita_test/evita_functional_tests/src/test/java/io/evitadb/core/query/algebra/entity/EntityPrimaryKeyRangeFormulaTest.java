@@ -35,8 +35,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link EntityPrimaryKeyRangeFormula} — filters a superset bitmap to the inclusive
@@ -57,6 +60,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("EntityPrimaryKeyRangeFormula inclusive signed PK range filter")
+@Tag(ENGINE)
+@Tag(QUERY)
 class EntityPrimaryKeyRangeFormulaTest {
 
 	@Nested

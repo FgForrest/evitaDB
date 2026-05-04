@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -43,6 +44,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Unit tests for {@link TrunkIncorporationTransactionStage} focused on completion guarantees of the
@@ -54,6 +57,8 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Trunk incorporation commit progress completion")
+@Tag(ENGINE)
+@Tag(TRANSACTION)
 class TrunkIncorporationTransactionStageTest {
 
 	private static final String CATALOG_NAME = "testCatalog";

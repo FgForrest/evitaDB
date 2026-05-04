@@ -36,17 +36,26 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link FilterConstraintResolver}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(FILTER)
 class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	private FilterConstraintResolver resolver;

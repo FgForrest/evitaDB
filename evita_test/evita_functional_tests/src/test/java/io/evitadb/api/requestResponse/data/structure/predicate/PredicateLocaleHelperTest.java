@@ -34,8 +34,11 @@ import org.mockito.Mockito;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link PredicateLocaleHelper} utility methods.
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Predicate locale helper")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class PredicateLocaleHelperTest implements EvitaTestSupport {
 
 	@Nested

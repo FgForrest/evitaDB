@@ -75,8 +75,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies contract of {@link ClassSchemaAnalyzer}.
@@ -84,6 +87,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("Class schema analyzer")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_DCODE = "code";
 	public static final String ATTRIBUTE_NAME = "name";

@@ -47,10 +47,12 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.require.DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS;
 import static io.evitadb.api.query.require.DebugMode.VERIFY_POSSIBLE_CACHING_TREES;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies whether entities can be filtered by primary key comparison constraints.
@@ -60,9 +62,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Evita entity filtering by primary key comparison constraints")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(FILTER)
 public class EntityByPrimaryKeyFilteringFunctionalTest {
 	private static final String HUNDRED_PRODUCTS = "HundredProductsForPrimaryKeyFiltering";
 

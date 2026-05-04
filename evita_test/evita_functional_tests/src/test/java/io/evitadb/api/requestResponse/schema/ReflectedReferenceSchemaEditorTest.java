@@ -43,11 +43,15 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReflectedReferenceSchemaEditor} default methods that throw
@@ -56,6 +60,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReflectedReferenceSchemaEditor default methods")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class ReflectedReferenceSchemaEditorTest {
 
 	private static final EntitySchema PRODUCT_SCHEMA =

@@ -38,10 +38,14 @@ import org.mockito.Mockito;
 
 import java.io.Serializable;
 import java.util.Arrays;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.createExistingGlobalAttributeSchema;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link CreateGlobalAttributeSchemaMutation} class.
@@ -49,6 +53,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("CreateGlobalAttributeSchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class CreateGlobalAttributeSchemaMutationTest {
 	static final String ATTRIBUTE_NAME = "name";
 

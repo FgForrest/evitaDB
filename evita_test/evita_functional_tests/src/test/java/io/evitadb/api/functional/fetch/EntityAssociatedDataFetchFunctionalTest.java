@@ -40,11 +40,12 @@ import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies entity associated data fetching functionality including:
@@ -57,9 +58,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity associated data fetch functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EntityAssociatedDataFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest {
 
 	@DisplayName("Single entity with associated data only by primary key should be found")

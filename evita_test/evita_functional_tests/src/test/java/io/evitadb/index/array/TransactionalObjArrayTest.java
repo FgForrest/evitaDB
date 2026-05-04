@@ -24,29 +24,22 @@
 package io.evitadb.index.array;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
-import io.evitadb.utils.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.Random;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -61,7 +54,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Transactional object array")
-class TransactionalObjArrayTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class TransactionalObjArrayTest {
 
 	/**
 	 * Asserts that the given {@link TransactionalObjArray} matches the
@@ -1007,164 +1003,6 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 					);
 				}
 			);
-		}
-
-	}
-
-	/**
-	 * Generational randomized proof test that applies random add/remove
-	 * modifications within transactions and verifies the committed state
-	 * matches a reference JDK array.
-	 */
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalProofTest {
-
-		@DisplayName(
-			"survives generational randomized test applying modifications"
-		)
-		@ParameterizedTest(
-			name = "TransactionalObjArray should survive generational"
-				+ " randomized test applying modifications on it"
-		)
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			runFor(
-				input,
-				10_000,
-				new TestState(new Random(), 100),
-				(random, testState) -> {
-					final Random rnd = testState.rnd();
-					final TransactionalObjArray<Integer> tested =
-						new TransactionalObjArray<>(
-							testState.initialArray(),
-							Comparator.naturalOrder()
-						);
-					final AtomicReference<Integer[]> control =
-						new AtomicReference<>(
-							Arrays.copyOf(
-								testState.initialArray(),
-								testState.initialArray().length
-							)
-						);
-					final AtomicReference<Integer[]>
-						nextArrayToCompare = new AtomicReference<>();
-
-					assertStateAfterCommit(
-						tested,
-						original -> {
-							final int operationsInTransaction =
-								rnd.nextInt(100);
-							for (
-								int i = 0;
-								i < operationsInTransaction;
-								i++
-							) {
-								final int length =
-									tested.getLength();
-								if (
-									rnd.nextBoolean()
-										|| length < 10
-								) {
-									// insert new item
-									final int newRecId = rnd.nextInt(
-										testState.initialCount() * 2
-									);
-									tested.add(newRecId);
-									control.set(
-										ArrayUtils
-											.insertRecordIntoOrderedArray(
-												newRecId,
-												control.get()
-											)
-									);
-								} else {
-									// remove existing item
-									final int removedRecId =
-										tested.get(
-											rnd.nextInt(length)
-										);
-									tested.remove(removedRecId);
-									control.set(
-										ArrayUtils
-											.removeRecordFromOrderedArray(
-												removedRecId,
-												control.get()
-											)
-									);
-								}
-							}
-						},
-						(original, committed) -> {
-							assertArrayEquals(
-								control.get(), committed
-							);
-							nextArrayToCompare.set(committed);
-						}
-					);
-
-					return new TestState(
-						testState,
-						nextArrayToCompare.get()
-					);
-				}
-			);
-		}
-
-		/**
-		 * Holds the state carried between generational test iterations.
-		 */
-		private record TestState(
-			Random rnd,
-			int initialCount,
-			Integer[] initialArray,
-			int iteration
-		) {
-
-			public TestState(
-				@Nonnull Random rnd,
-				int initialCount
-			) {
-				this(
-					rnd,
-					initialCount,
-					generateRandomInitialArray(rnd, initialCount),
-					0
-				);
-			}
-
-			public TestState(
-				@Nonnull TestState testState,
-				Integer[] initialArray
-			) {
-				this(
-					testState.rnd,
-					testState.initialCount,
-					initialArray,
-					testState.iteration + 1
-				);
-			}
-
-			private static Integer[] generateRandomInitialArray(
-				Random rnd,
-				int count
-			) {
-				final Set<Integer> uniqueSet = new HashSet<>();
-				final Integer[] initialArray = new Integer[count];
-				for (int i = 0; i < count; i++) {
-					boolean added;
-					do {
-						final int recId = rnd.nextInt(count * 2);
-						added = uniqueSet.add(recId);
-						if (added) {
-							initialArray[i] = recId;
-						}
-					} while (!added);
-				}
-				Arrays.sort(initialArray);
-				return initialArray;
-			}
 		}
 
 	}

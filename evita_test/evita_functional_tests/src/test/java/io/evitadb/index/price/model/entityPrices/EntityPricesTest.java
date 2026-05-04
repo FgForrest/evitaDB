@@ -32,8 +32,11 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link EntityPrices} verifying the polymorphic entity price hierarchy including
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EntityPrices functionality")
+@Tag(INDEXING)
+@Tag(PRICE)
 class EntityPricesTest {
 
 	@Nested

@@ -61,11 +61,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This tests verifies the process of evitaDB schema update.
@@ -73,6 +76,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Entity schema builder should")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class EntitySchemaBuilderTest {
 	private final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 	private final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);

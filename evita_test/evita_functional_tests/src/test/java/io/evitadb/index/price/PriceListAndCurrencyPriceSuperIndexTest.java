@@ -62,6 +62,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -76,6 +77,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This class verifies contract of {@link PriceListAndCurrencyPriceSuperIndex}.
@@ -83,6 +86,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("PriceListAndCurrencyPriceSuperIndex functionality")
+@Tag(INDEXING)
+@Tag(PRICE)
 class PriceListAndCurrencyPriceSuperIndexTest {
 	private static final PriceIndexKey PRICE_INDEX_KEY = new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE);
 	private static final Consumer<PriceRecordContract> NOOP_PRICE_RECORD_CALLBACK = priceRecordContract -> {};

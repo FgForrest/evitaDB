@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,6 +48,9 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * Unit tests for {@link ConflictResolutionAndWalAppendingTransactionStage} focused on the catalog-version
@@ -60,6 +64,9 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Catalog version bookkeeping in the conflict-resolution / WAL appending stage")
+@Tag(ENGINE)
+@Tag(TRANSACTION)
+@Tag(WAL)
 class ConflictResolutionAndWalAppendingTransactionStageTest {
 
 	private static final String CATALOG_NAME = "testCatalog";

@@ -50,10 +50,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * Tests for {@link ChangeCaptureRingBuffer} class.
@@ -63,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Ring buffer should")
+@Tag(ENGINE)
+@Tag(CDC)
 class ChangeCaptureRingBufferTest {
 
     public static final BiConsumer<Integer, ChangeCatalogCapture> DEFAULT_ASSERTIONS = (i, capture) -> {

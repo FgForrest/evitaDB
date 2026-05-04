@@ -41,12 +41,13 @@ import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests verifying proper exception handling when accessing non-fetched, non-existing,
@@ -56,9 +57,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Evita entity fetch exception handling")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EntityFetchExceptionFunctionalTest extends AbstractEntityFetchingFunctionalTest {
 
 	@DisplayName("Should throw exception when accessing non-existing attributes")

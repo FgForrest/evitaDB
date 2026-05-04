@@ -59,11 +59,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReflectedReferenceSchemaBuilder} verifying description, deprecation,
@@ -76,6 +80,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ReflectedReferenceSchemaBuilder")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class ReflectedReferenceSchemaBuilderTest {
 
 	private EntitySchema productSchema;

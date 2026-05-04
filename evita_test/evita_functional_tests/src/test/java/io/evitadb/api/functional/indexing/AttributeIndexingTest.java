@@ -49,6 +49,7 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
@@ -68,6 +69,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for attribute indexing operations verifying unique constraints, non-nullable validation,
@@ -76,6 +80,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Attribute indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
 class AttributeIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private TestPaths paths;

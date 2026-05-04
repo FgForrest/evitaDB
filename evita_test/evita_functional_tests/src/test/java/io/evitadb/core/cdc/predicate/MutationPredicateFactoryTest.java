@@ -45,10 +45,13 @@ import org.junit.jupiter.api.Test;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * This test class verifies the functionality of the {@link MutationPredicateFactory} which is responsible for creating
@@ -63,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("MutationPredicateFactory should")
+@Tag(ENGINE)
+@Tag(CDC)
 class MutationPredicateFactoryTest {
 
     /**

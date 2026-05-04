@@ -38,11 +38,14 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
 
 /**
  * Tests for the `computeUniquePartId` static method and `computeUniquePartIdAndSet` default method
@@ -52,6 +55,8 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("computeUniquePartId pattern and CatalogIndexStoragePart scope mapping")
+@Tag(ENGINE)
+@Tag(EXPORT)
 class ComputeUniquePartIdTest {
 
 	private static final int ENTITY_INDEX_PK = 5;

@@ -44,10 +44,13 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.dataType.EvitaDataTypes.formatValue;
 import static io.evitadb.dataType.EvitaDataTypes.getWrappingPrimitiveClass;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Tests verifying {@link EvitaDataTypes} contract including value
@@ -57,6 +60,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EvitaDataTypes")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class EvitaDataTypesTest {
 
 	@Nested

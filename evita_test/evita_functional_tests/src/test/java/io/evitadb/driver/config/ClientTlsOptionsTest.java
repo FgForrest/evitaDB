@@ -28,8 +28,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.DRIVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link ClientTlsOptions} record and its builder.
@@ -37,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("ClientTlsOptions")
+@Tag(DRIVER)
+@Tag(MANAGEMENT)
 class ClientTlsOptionsTest {
 
 	@Test

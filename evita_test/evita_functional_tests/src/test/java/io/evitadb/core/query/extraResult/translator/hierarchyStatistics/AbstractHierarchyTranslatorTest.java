@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -42,6 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * Tests for [AbstractHierarchyTranslator.resolveSingleHierarchicalScope] verifying scope-resolution rules
@@ -54,6 +58,9 @@ import static org.mockito.Mockito.when;
  * @author evitaDB
  */
 @DisplayName("AbstractHierarchyTranslator — resolveSingleHierarchicalScope")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(HIERARCHY)
 class AbstractHierarchyTranslatorTest {
 
 	private static final String QUERIED_SCHEMA_NAME = "Product";

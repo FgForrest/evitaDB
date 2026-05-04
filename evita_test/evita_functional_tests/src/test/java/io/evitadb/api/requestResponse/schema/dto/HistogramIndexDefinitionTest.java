@@ -36,8 +36,12 @@ import javax.annotation.Nonnull;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * Tests for {@link HistogramIndexDefinition}.
@@ -45,6 +49,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("HistogramIndexDefinition")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(HISTOGRAM)
 class HistogramIndexDefinitionTest {
 
 	/**

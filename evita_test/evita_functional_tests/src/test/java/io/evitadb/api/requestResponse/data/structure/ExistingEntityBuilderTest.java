@@ -91,6 +91,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.data.structure.InitialEntityBuilderTest.assertCardinality;
 import static io.evitadb.test.Entities.BRAND;
@@ -99,6 +100,8 @@ import static io.evitadb.test.Entities.PARAMETER;
 import static io.evitadb.test.Entities.STORE;
 import static java.util.OptionalInt.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies contract of {@link ExistingEntityBuilder}.
@@ -106,6 +109,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ExistingEntityBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	private static final Currency CZK = Currency.getInstance("CZK");
 	private static final Currency EUR = Currency.getInstance("EUR");

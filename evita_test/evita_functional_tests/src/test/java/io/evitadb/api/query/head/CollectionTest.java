@@ -28,14 +28,19 @@ import io.evitadb.api.query.QueryConstraints;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies contract of {@link Collection} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class CollectionTest {
 
 	@Test

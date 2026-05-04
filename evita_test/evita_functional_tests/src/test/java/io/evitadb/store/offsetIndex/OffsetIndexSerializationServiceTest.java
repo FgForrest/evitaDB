@@ -27,14 +27,19 @@ import io.evitadb.api.configuration.StorageOptions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies {@link OffsetIndexSerializationService} contract.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 class OffsetIndexSerializationServiceTest {
 
 	@Test

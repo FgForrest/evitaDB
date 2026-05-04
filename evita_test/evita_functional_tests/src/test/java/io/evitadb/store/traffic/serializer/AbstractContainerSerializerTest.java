@@ -34,14 +34,21 @@ import io.evitadb.store.wal.WalKryoConfigurer;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * Abstract test class for container serializers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(STORAGE)
+@Tag(TRAFFIC_ENGINE)
+@Tag(SERIALIZATION)
 abstract class AbstractContainerSerializerTest {
 	protected final Kryo kryo = KryoFactory.createKryo(
 		WalKryoConfigurer.INSTANCE

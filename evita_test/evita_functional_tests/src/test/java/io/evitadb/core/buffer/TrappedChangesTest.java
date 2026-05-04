@@ -32,14 +32,19 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * Test for {@link TrappedChanges} functionality.
  */
+@Tag(ENGINE)
+@Tag(CACHE)
 class TrappedChangesTest {
 
 	/**

@@ -36,8 +36,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetGroupAndFormula} and {@link FacetGroupOrFormula} verifying
@@ -46,6 +50,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("FacetGroupFormula (And + Or) functionality")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(FACET)
 class FacetGroupFormulaTest {
 
 	@Nested

@@ -31,10 +31,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeKeyWithIndexType} verifying the `compareTo` method which uses
@@ -44,6 +48,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("AttributeKeyWithIndexType compareTo and isLocalized")
+@Tag(ENGINE)
+@Tag(EXPORT)
+@Tag(ATTRIBUTE)
 class AttributeKeyWithIndexTypeTest {
 
 	private static final String ATTR_CODE = "code";

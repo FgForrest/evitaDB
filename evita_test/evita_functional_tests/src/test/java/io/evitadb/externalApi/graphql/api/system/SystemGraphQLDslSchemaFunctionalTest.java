@@ -27,16 +27,25 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLSchemaTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for GraphQL system DSL endpoint.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 public class SystemGraphQLDslSchemaFunctionalTest extends SystemGraphQLEndpointFunctionalTest {
 
 	@Test

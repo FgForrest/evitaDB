@@ -58,6 +58,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.and;
@@ -69,6 +70,9 @@ import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for catalog-level and schema-level indexing operations in {@link Evita}, covering direct mutations,
@@ -77,6 +81,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Catalog and schema indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(SCHEMA)
 class CatalogAndSchemaIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private TestPaths paths;

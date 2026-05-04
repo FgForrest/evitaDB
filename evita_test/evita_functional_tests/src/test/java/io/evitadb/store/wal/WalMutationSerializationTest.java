@@ -104,10 +104,13 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * This test verifies serialization and deserialization of all mutation serializers configured in WalKryoConfigurer.
@@ -116,6 +119,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * @author Generated Test (generated), FG Forrest a.s. (c) 2024
  */
 @DisplayName("WAL mutation serialization test")
+@Tag(STORAGE)
+@Tag(WAL)
 public class WalMutationSerializationTest {
 	private final Kryo kryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 

@@ -37,13 +37,20 @@ import org.junit.jupiter.api.Test;
 
 import java.util.EnumMap;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeSchema} and its sealed subtypes.
  */
 @DisplayName("AttributeSchema")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class AttributeSchemaTest {
 
 	@Nested

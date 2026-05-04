@@ -55,15 +55,22 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static java.util.Optional.of;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This test verifies behaviour of {@link SellingPriceAvailableBitmapFilter}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(FILTER)
+@Tag(PRICE)
 class SellingPriceAvailableBitmapFilterTest {
 	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(Entities.PRODUCT);
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(

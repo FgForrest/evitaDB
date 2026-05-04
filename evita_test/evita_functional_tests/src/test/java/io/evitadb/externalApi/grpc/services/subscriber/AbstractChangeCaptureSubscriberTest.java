@@ -51,6 +51,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -68,6 +69,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * Verifies the termination and cancellation-race semantics of
@@ -89,6 +94,10 @@ import static org.mockito.Mockito.when;
  * @author evitaDB
  */
 @DisplayName("AbstractChangeCaptureSubscriber - lifecycle and cancellation races")
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(CDC)
 class AbstractChangeCaptureSubscriberTest implements TestConstants {
 
 	/**

@@ -49,6 +49,7 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -64,6 +65,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * End-to-end query-side verification tests for the conditional facet indexing feature.
@@ -73,6 +77,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Conditional facet query operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(FACET)
 class ConditionalFacetQueryTest implements EvitaTestSupport {
 
 	private static final String ENTITY_PRODUCT = "product";

@@ -28,10 +28,13 @@ import io.evitadb.exception.InvalidClassifierFormatException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ClassifierUtils.validateClassifierFormat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Tests for {@link ClassifierUtils}
@@ -39,6 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @DisplayName("ClassifierUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class ClassifierUtilsTest {
 
 	@Nested

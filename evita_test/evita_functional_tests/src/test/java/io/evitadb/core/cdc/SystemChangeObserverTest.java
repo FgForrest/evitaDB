@@ -53,11 +53,12 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static tool.ReflectionUtils.getNonnullFieldValue;
+import static io.evitadb.test.utils.ReflectionUtils.getNonnullFieldValue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * This test class verifies the functionality of the {@link SystemChangeObserver} which is responsible for
@@ -80,9 +81,10 @@ import static tool.ReflectionUtils.getNonnullFieldValue;
  * @see ChangeCapturePublisher
  */
 @DisplayName("SystemChangeObserver should")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(ENGINE)
+@Tag(CDC)
 class SystemChangeObserverTest implements EvitaTestSupport {
 	/**
 	 * Name of the dataset used for this test. This identifier is used by the test framework

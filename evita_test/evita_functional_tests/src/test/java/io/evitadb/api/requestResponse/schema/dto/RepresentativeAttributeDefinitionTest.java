@@ -41,13 +41,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link RepresentativeAttributeDefinition}.
  */
 @DisplayName("RepresentativeAttributeDefinition")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class RepresentativeAttributeDefinitionTest {
 
 	/**

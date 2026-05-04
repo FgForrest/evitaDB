@@ -33,12 +33,16 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies {@link RestoreCatalogSchemaMutation} class.
@@ -46,6 +50,9 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("RestoreCatalogSchemaMutation functionality")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(MANAGEMENT)
 public class RestoreCatalogSchemaMutationTest {
 
 	@Test

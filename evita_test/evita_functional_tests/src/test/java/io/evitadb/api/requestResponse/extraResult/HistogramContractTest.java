@@ -31,8 +31,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * This test verifies {@link HistogramContract} contract, including the EMPTY constant,
@@ -41,6 +45,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("HistogramContract")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
 class HistogramContractTest implements EvitaTestSupport {
 
 	@Nested

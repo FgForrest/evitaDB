@@ -38,18 +38,25 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * Tests for {@link EvitaQLOrderConstraintVisitor}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(ORDER)
 class EvitaQLOrderConstraintVisitorTest {
 
     @Test

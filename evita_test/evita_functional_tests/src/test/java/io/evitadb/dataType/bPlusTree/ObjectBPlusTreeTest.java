@@ -26,17 +26,12 @@ package io.evitadb.dataType.bPlusTree;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -44,7 +39,8 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Random;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -58,7 +54,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("Object B+ tree")
-class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
+class ObjectBPlusTreeTest {
 
 	/**
 	 * Verifies tree consistency by checking the internal consistency
@@ -1581,114 +1579,6 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 		}
 	}
 
-	@Nested
-	@DisplayName("Generational proof test")
-	class GenerationalProofTestClass {
-
-		@ParameterizedTest(
-			name = "ObjectBPlusTreeTest should survive "
-				+ "generational randomized test applying "
-				+ "modifications on it"
-		)
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		@DisplayName(
-			"survives randomized insert/delete operations"
-		)
-		void generationalProofTest(
-			GenerationalTestInput input
-		) {
-			final int limitElements = 1000;
-			final TreeTuple testTree = prepareRandomTree(
-				16, 7, 7, 3, 42, limitElements
-			);
-			final ObjectBPlusTree<Integer, String> theTree =
-				testTree.bPlusTree();
-			final Integer[] initialArray =
-				testTree.plainArray();
-			verifyTreeConsistency(theTree, initialArray);
-
-			runFor(
-				input,
-				1000,
-				new TestState(
-					new StringBuilder(),
-					initialArray,
-					true
-				),
-				(random, testState) -> {
-					final Integer[] startArray =
-						testState.initialArray();
-					final Integer[] endArray;
-					int key = -1;
-					final boolean delete =
-						(startArray.length > 0
-							&& random.nextInt(3) == 0)
-						|| (testState.limitReached()
-							&& startArray.length
-								> limitElements / 2);
-
-					try {
-						if (delete) {
-							final int index = random.nextInt(
-								startArray.length
-							);
-							key = startArray[index];
-							endArray =
-								ArrayUtils
-									.removeRecordFromOrderedArray(
-										key, startArray
-									);
-							theTree.delete(key);
-						} else {
-							key = random.nextInt(
-								limitElements * 2
-							);
-							endArray =
-								ArrayUtils
-									.insertRecordIntoOrderedArray(
-										key, startArray
-									);
-							theTree.insert(
-								key, "Value" + key
-							);
-						}
-
-						verifyTreeConsistency(
-							theTree, endArray
-						);
-
-						return new TestState(
-							testState.code()
-								.append(
-									delete ? "D:" : "I:"
-								)
-								.append(key),
-							endArray,
-							testState.limitReached()
-								? endArray.length
-									> limitElements / 2
-								: endArray.length
-									>= limitElements
-						);
-					} catch (Exception ex) {
-						fail(
-							"Failed to "
-								+ (delete
-									? "delete"
-									: "insert")
-								+ " key " + key
-								+ " with initial state: "
-								+ theTree,
-							ex
-						);
-						throw ex;
-					}
-				}
-			);
-		}
-	}
-
 	/**
 	 * Holds a tree instance together with a sorted array of its
 	 * keys for verification purposes.
@@ -1724,18 +1614,5 @@ class ObjectBPlusTreeTest implements TimeBoundedTestSupport {
 
 	}
 
-	/**
-	 * Tracks the state of a generational proof test iteration.
-	 *
-	 * @param code         log of operations performed
-	 * @param initialArray current sorted key array
-	 * @param limitReached whether the element limit has been hit
-	 */
-	private record TestState(
-		@Nonnull StringBuilder code,
-		@Nonnull Integer[] initialArray,
-		boolean limitReached
-	) {
-	}
 
 }

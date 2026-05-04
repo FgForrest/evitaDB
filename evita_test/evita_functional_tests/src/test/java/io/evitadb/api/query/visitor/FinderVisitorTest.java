@@ -53,11 +53,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link FinderVisitor} verifying constraint tree search with matcher and stopper predicates,
@@ -66,6 +69,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("FinderVisitor functionality")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class FinderVisitorTest {
 	/**
 	 * Shared filter tree: `and(attributeEquals("a","b"), or(isNotNull("def"), equalsTrue("xev"),

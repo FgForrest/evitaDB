@@ -52,6 +52,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,6 +66,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests `MarkCatalogMissingMutationOperator` — the state-transition driver that records the engine's awareness of a
@@ -81,6 +84,8 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("MarkCatalogMissingMutationOperator tests")
+@Tag(ENGINE)
+@Tag(TRANSACTION)
 class MarkCatalogMissingMutationOperatorTest {
 
 	private static final String CATALOG_NAME = "doomedCatalog";

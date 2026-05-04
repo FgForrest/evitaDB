@@ -55,10 +55,13 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link ConstraintProcessor}.
@@ -66,6 +69,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Lukas Hornych, FG Forrest a.s. (c) 2022
  */
 @DisplayName("ConstraintProcessor")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ConstraintProcessorTest {
 
 	@Nested

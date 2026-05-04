@@ -33,7 +33,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FACET;
+import static io.evitadb.test.TestTags.FILTER;
+
 
 /**
  * This test verifies whether entities can be filtered by facets.
@@ -43,9 +46,11 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
  */
 @DisplayName("Evita entity filtering by partitioned facets functionality")
 @IsolateDataSetBySuffix("filteringAndPartitioning")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(FACET)
+@Tag(FILTER)
 public class EntityByFacetFilteringAndPartitioningFunctionalTest extends AbstractEntityByFacetFilteringFunctionalTest {
 
 	@Nonnull

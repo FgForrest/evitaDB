@@ -39,10 +39,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Exercises cross-entity validation semantics of batched catalog schema mutations.
@@ -59,6 +63,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Batched catalog schema mutation cross-entity validation")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(SCHEMA)
 class BatchedCatalogSchemaMutationTest implements EvitaTestSupport {
 
 	private static final String ENTITY_A = "entityA";

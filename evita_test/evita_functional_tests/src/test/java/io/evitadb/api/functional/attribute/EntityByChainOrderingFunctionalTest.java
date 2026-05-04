@@ -92,13 +92,15 @@ import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 import static io.evitadb.utils.AssertionUtils.assertSortedResultEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * This test verifies the behavior related to the chained ordering of entities.
@@ -106,9 +108,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("Evita entity ordering by chained elements")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(ATTRIBUTE)
+@Tag(ORDER)
 public class EntityByChainOrderingFunctionalTest {
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String ATTRIBUTE_CATEGORY_ORDER = "categoryOrder";

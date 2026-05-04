@@ -31,14 +31,19 @@ import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Example of the test with empty database.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
 public class EmptyDataSetTest implements EvitaTestSupport {
 	private TestPaths paths;
 	private Evita evita;

@@ -36,15 +36,20 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.zip.Deflater;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * Abstract superclass for tests in this package.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Tag(STORAGE)
+@Tag(SERIALIZATION)
 abstract class AbstractObservableInputOutputTest {
 	public static final int HEADER_SIZE = 1 + 4;
 	/**

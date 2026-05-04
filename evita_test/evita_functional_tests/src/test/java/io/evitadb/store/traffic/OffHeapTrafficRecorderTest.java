@@ -67,16 +67,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 
 /**
  * This test verifies {@link OffHeapTrafficRecorder} functionality.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(STORAGE)
+@Tag(TRAFFIC_ENGINE)
 public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 	private final Path workDirectory = getPathInTargetDirectory(UUID.randomUUID() + "/work");
 	private OffHeapTrafficRecorder trafficRecorder;

@@ -45,14 +45,23 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Ancestor for tests for GraphQL catalog endpoint.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@Tag(GRAPHQL)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
 
 	@Nonnull

@@ -24,16 +24,11 @@
 package io.evitadb.index.set;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -44,11 +39,12 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -59,7 +55,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 @SuppressWarnings("SameParameterValue")
-class TransactionalSetTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class TransactionalSetTest {
 	private TransactionalSet<String> tested;
 
 	@BeforeEach
@@ -1186,103 +1185,7 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 
 	}
 
-	/**
-	 * Generational randomized proof test.
-	 */
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalProofTest {
 
-		@DisplayName("survives generational randomized test")
-		@ParameterizedTest(name = "TransactionalSet should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final int initialCount = 100;
-			final Set<String> initialSet = generateRandomInitialSet(new Random(input.randomSeed()), initialCount);
-
-			runFor(
-				input,
-				50_000,
-				new TestState(new StringBuilder(256), initialSet),
-				(random, testState) -> {
-					final TransactionalSet<String> transactionalMap = new TransactionalSet<>(testState.initialSet());
-					final Set<String> referenceMap = new HashSet<>(testState.initialSet());
-					final AtomicReference<Set<String>> committedResult = new AtomicReference<>();
-
-					assertStateAfterCommit(
-						transactionalMap,
-						original -> {
-							final StringBuilder codeBuffer = testState.code();
-							codeBuffer.setLength(0);
-							codeBuffer.append("\nSTART: ")
-								.append(String.join(",", transactionalMap))
-								.append("\n");
-
-							final int operationsInTransaction = random.nextInt(5);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								final int length = transactionalMap.size();
-								assertEquals(referenceMap.size(), length);
-								final int operation = random.nextInt(3);
-								if ((operation == 0 || length < 10) && length < 120) {
-									final String newRecKey =
-										String.valueOf(
-											(char) (40 + random.nextInt(64))
-										);
-									transactionalMap.add(newRecKey);
-									referenceMap.add(newRecKey);
-									codeBuffer.append("+")
-										.append(newRecKey);
-								} else if (operation == 1) {
-									String recKey = null;
-									final int index = random.nextInt(length);
-									final Iterator<String> it = referenceMap.iterator();
-									for (int j = 0; j <= index; j++) {
-										final String key = it.next();
-										if (j == index) {
-											recKey = key;
-										}
-									}
-									codeBuffer.append("-")
-										.append(recKey);
-									transactionalMap.remove(recKey);
-									referenceMap.remove(recKey);
-								} else {
-									final int updateIndex = random.nextInt(length);
-									codeBuffer.append("#")
-										.append(updateIndex);
-									final Iterator<String> it = transactionalMap.iterator();
-									for (int j = 0; j <= updateIndex; j++) {
-										final String entry = it.next();
-										if (j == updateIndex) {
-											it.remove();
-											referenceMap.remove(entry);
-										}
-									}
-								}
-							}
-							codeBuffer.append("\n");
-						},
-						(original, committed) -> {
-							assertSetContains(
-								committed,
-								referenceMap.toArray(String[]::new)
-							);
-							committedResult.set(committed);
-						}
-					);
-
-					return new TestState(
-						new StringBuilder(256),
-						committedResult.get()
-					);
-				},
-				(testState, exc) ->
-					System.out.println(testState.code())
-			);
-		}
-
-	}
 
 	/**
 	 * Tests exposing real bugs in TransactionalSet and SetChanges.
@@ -1351,34 +1254,6 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 			final String entry = it.next();
 			assertTrue(expectedSet.contains(entry));
 		}
-	}
-
-	/**
-	 * Generates a random set of single-character strings.
-	 */
-	@Nonnull
-	private static Set<String> generateRandomInitialSet(
-		@Nonnull Random rnd,
-		int count
-	) {
-		final Set<String> initialArray = new HashSet<>(count);
-		for (int i = 0; i < count; i++) {
-			final String recKey = String.valueOf((char) (40 + rnd.nextInt(64)));
-			initialArray.add(recKey);
-		}
-		return initialArray;
-	}
-
-	/**
-	 * Carries state between generational test iterations.
-	 *
-	 * @param code       accumulated operation log
-	 * @param initialSet the set state for the next iteration
-	 */
-	private record TestState(
-		@Nonnull StringBuilder code,
-		@Nonnull Set<String> initialSet
-	) {
 	}
 
 }

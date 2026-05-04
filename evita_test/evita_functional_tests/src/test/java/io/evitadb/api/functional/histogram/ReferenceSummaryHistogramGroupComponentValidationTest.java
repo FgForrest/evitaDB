@@ -33,9 +33,13 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Pins the fail-fast contract for bucketed histograms declared on grouped references:
@@ -62,6 +66,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Reference summary histogram — REFERENCED_GROUP_ENTITY indexing requirement")
+@Tag(CONTRACT)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 public class ReferenceSummaryHistogramGroupComponentValidationTest
 	extends AbstractReferenceSummaryHistogramFunctionalTest {
 

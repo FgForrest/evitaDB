@@ -34,9 +34,12 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.EnumSet;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.debug;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
  * Tests for {@link Debug} verifying construction, applicability, getters,
@@ -45,6 +48,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Debug constraint")
+@Tag(CONTRACT)
+@Tag(REQUIRE)
 class DebugTest {
 
 	@Nested

@@ -56,10 +56,13 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.*;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
 
 /**
  * Tests for sortable attribute compound indexing, verifying that compounds are correctly
@@ -69,6 +72,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Sortable attribute compound indexing")
+@Tag(CONTRACT)
+@Tag(INDEXING)
 class SortableCompoundIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private TestPaths paths;

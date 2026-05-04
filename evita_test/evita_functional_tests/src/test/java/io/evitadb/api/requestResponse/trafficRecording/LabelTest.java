@@ -28,8 +28,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 
 /**
  * Tests for the {@link Label} record.
@@ -37,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Label")
+@Tag(CONTRACT)
+@Tag(TRAFFIC_ENGINE)
 class LabelTest {
 
 	@Nested

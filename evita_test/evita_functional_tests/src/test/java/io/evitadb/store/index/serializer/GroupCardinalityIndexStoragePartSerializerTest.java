@@ -41,10 +41,14 @@ import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * Tests for {@link GroupCardinalityIndexStoragePartSerializer} verifying correct
@@ -53,6 +57,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("GroupCardinalityIndexStoragePartSerializer round-trip")
+@Tag(STORAGE)
+@Tag(INDEXING)
+@Tag(SERIALIZATION)
 class GroupCardinalityIndexStoragePartSerializerTest {
 
 	private Kryo kryo;

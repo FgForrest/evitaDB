@@ -30,16 +30,21 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * This test verifies contract of {@link SortUtils}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(ENGINE)
+@Tag(ORDER)
 public class SortUtilsTest {
 
 	public static final int[] BUFFER = new int[16];

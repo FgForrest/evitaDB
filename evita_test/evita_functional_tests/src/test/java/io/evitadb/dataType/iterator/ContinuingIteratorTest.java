@@ -33,11 +33,14 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Tests for {@link ContinuingIterator} verifying the composite
@@ -47,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotn&#253; (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ContinuingIterator functionality")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class ContinuingIteratorTest {
 
 	@Nested

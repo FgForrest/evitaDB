@@ -48,8 +48,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.zip.Deflater;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * This test verifies {@link ObservableInput} behaviour.
@@ -58,6 +61,8 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DisplayName("ObservableInput tests")
 @SuppressWarnings("ResultOfMethodCallIgnored")
+@Tag(STORAGE)
+@Tag(SERIALIZATION)
 class ObservableInputTest extends AbstractObservableInputOutputTest {
 	private static final int REPETITIONS = 50;
 	private static final int BIG_PAYLOAD_SIZE = PAYLOAD_SIZE * REPETITIONS;

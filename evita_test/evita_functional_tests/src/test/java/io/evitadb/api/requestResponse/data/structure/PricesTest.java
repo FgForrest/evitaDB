@@ -42,8 +42,12 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link Prices} verifying construction, price
@@ -53,6 +57,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Prices")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(PRICE)
 class PricesTest extends AbstractBuilderTest {
 	private static final Currency CZK =
 		Currency.getInstance("CZK");

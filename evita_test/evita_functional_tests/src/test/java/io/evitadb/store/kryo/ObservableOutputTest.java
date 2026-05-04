@@ -43,8 +43,11 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.stream.Stream;
 import java.util.zip.Deflater;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * Tests for {@link ObservableOutput} covering:
@@ -58,6 +61,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ObservableOutput comprehensive tests")
+@Tag(STORAGE)
+@Tag(SERIALIZATION)
 public class ObservableOutputTest {
 	private static final int DEFAULT_BUFFER = ObservableOutput.DEFAULT_FLUSH_SIZE << 2;
 

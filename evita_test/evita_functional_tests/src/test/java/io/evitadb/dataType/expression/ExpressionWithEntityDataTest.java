@@ -57,7 +57,6 @@ import java.util.Objects;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.ListBuilder.list;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -68,6 +67,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Evaluation of expressions with entity data using entity-specific accessors.
@@ -75,8 +76,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @DisplayName("Expression evaluation with entity data")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 public class ExpressionWithEntityDataTest {
 
 	public static final String BRAND = "brand";

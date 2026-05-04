@@ -49,11 +49,15 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.*;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for reference indexing operations in evitaDB, verifying cardinality validation,
@@ -62,6 +66,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Reference indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(REFERENCE)
 class ReferenceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private TestPaths paths;

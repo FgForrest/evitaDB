@@ -39,6 +39,7 @@ import java.io.ObjectOutputStream;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.function.Predicate;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -48,6 +49,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * Unit tests for {@link CacheableHistogram}. Exercises:
@@ -58,6 +63,10 @@ import static org.mockito.Mockito.mock;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("CacheableHistogram")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
+@Tag(CACHE)
 class CacheableHistogramTest {
 
 	private static final Predicate<BigDecimal> NEVER_REQUESTED = value -> false;

@@ -46,14 +46,19 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.ofNullable;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Base mutation class that contains initalized schemas for testing.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 public abstract class AbstractMutationTest {
 	protected final EntitySchema productSchema = EntitySchema._internalBuild(
 		1, "PRODUCT",

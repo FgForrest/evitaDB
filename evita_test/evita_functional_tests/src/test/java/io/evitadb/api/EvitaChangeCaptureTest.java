@@ -52,11 +52,15 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.List;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * This test contains various integration tests for {@link Evita}.
@@ -64,6 +68,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(CDC)
 class EvitaChangeCaptureTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";

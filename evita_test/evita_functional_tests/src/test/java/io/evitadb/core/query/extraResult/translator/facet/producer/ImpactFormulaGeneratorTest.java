@@ -44,16 +44,21 @@ import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies behaviour of {@link ImpactFormulaGenerator} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(ENGINE)
+@Tag(QUERY)
 class ImpactFormulaGeneratorTest {
 	private final Set<EntityReference> facetGroupConjunction = new HashSet<>();
 	private final Set<EntityReference> facetGroupDisjunction = new HashSet<>();

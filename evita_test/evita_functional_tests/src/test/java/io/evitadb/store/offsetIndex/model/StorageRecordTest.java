@@ -73,9 +73,12 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies the behaviour of {@link StorageRecord}.
@@ -84,6 +87,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 @DisplayName("StorageRecord comprehensive tests")
 @SuppressWarnings({"SameParameterValue", "ResultOfMethodCallIgnored"})
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 class StorageRecordTest {
 	private final Random random = new Random();
 	private File tempFile;

@@ -29,9 +29,12 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
  * Tests for {@link DefaultPrefetchRequirementCollector} verifying construction, adding requirements, combining logic,
@@ -40,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DefaultPrefetchRequirementCollector")
+@Tag(CONTRACT)
+@Tag(REQUIRE)
 class DefaultPrefetchRequirementCollectorTest {
 
 	@Nested

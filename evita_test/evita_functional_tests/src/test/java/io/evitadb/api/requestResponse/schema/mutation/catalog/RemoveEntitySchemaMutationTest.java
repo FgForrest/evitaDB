@@ -40,9 +40,12 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link RemoveEntitySchemaMutation} class.
@@ -50,6 +53,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("RemoveEntitySchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class RemoveEntitySchemaMutationTest {
 
 	@Nested

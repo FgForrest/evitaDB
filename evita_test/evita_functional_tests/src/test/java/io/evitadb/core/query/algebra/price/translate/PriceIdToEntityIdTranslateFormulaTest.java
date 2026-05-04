@@ -31,8 +31,12 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PriceIdToEntityIdTranslateFormula} verifying construction, hashing, cloning,
@@ -47,6 +51,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("PriceIdToEntityIdTranslateFormula")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(PRICE)
 class PriceIdToEntityIdTranslateFormulaTest {
 
 	@Nested

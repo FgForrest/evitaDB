@@ -30,9 +30,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Tests for {@link UnsatisfiedDependencyFactory} - the fallback factory used when
@@ -41,6 +44,8 @@ import static org.mockito.Mockito.mock;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("UnsatisfiedDependencyFactory")
+@Tag(CONTRACT)
+@Tag(PROXY)
 class UnsatisfiedDependencyFactoryTest {
 
 	@Test

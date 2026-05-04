@@ -43,8 +43,11 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link Value} verifying type conversions, array
@@ -53,6 +56,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Value")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ValueTest {
 
 	/**

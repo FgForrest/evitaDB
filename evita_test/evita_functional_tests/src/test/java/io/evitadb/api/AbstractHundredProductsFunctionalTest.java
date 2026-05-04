@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
@@ -50,12 +51,16 @@ import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_LABELS;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Abstract parent that sets up a shared schema and testing data set for multiple functional tests.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 public class AbstractHundredProductsFunctionalTest {
 	public static final String ATTRIBUTE_CATEGORY_LABEL = "label";
 	public static final String ATTRIBUTE_CATEGORY_SHADOW = "shadow";

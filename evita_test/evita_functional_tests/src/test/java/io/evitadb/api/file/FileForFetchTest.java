@@ -33,8 +33,11 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link FileForFetch} record covering construction, path resolution,
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("FileForFetch")
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
 class FileForFetchTest implements EvitaTestSupport {
 
 	private static final UUID FILE_ID =

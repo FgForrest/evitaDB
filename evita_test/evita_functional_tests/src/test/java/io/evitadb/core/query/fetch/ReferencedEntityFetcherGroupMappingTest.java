@@ -25,9 +25,13 @@ package io.evitadb.core.query.fetch;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link GroupMapping} covering:
@@ -36,6 +40,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * - multiple groups for the same entityPrimaryKey
  */
 @DisplayName("GroupMapping should correctly map entities to groups in all scenarios")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(REFERENCE)
 class ReferencedEntityFetcherGroupMappingTest {
 	@Test
 	@DisplayName("shouldReturnDefaultGroupWhenEntityMappedToDefaultGroupOnly")

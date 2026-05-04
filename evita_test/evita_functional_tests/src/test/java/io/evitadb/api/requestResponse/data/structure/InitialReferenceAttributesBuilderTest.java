@@ -35,9 +35,14 @@ import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for InitialReferenceAttributesBuilder built on top
@@ -46,6 +51,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("InitialReferenceAttributesBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
+@Tag(ATTRIBUTE)
 class InitialReferenceAttributesBuilderTest
 	extends InitialAttributesBuilderTest {
 

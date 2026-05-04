@@ -33,15 +33,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link FilterConstraintToJsonConverter}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
+@Tag(FILTER)
 class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 
 	private FilterConstraintToJsonConverter converter;

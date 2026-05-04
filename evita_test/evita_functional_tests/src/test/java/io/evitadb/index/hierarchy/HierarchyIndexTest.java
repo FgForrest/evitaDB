@@ -36,8 +36,6 @@ import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.MatchNodeIdHierarchyFilteringPredicate;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HierarchyIndexStoragePart;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -48,8 +46,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -60,20 +56,21 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * This test verifies contract of {@link HierarchyIndex} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(INDEXING)
+@Tag(HIERARCHY)
 class HierarchyIndexTest implements TimeBoundedTestSupport {
 	private HierarchyIndex hierarchyIndex;
 
@@ -545,134 +542,6 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 
 			assertEquals(testRoot.toString(), hierarchyIndex.toString());
 			testRoot.assertIdentical(hierarchyIndex, "Fuck");
-		}
-
-		@ParameterizedTest(name = "HierarchyIndex should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final int maxNodes = 50;
-			final TestHierarchyNode testHierarchyNode = new TestHierarchyNode();
-
-			runFor(
-				new GenerationalTestInput(1, 1),
-				1_000,
-				new TestState(
-					new StringBuilder(),
-					new HierarchyIndex()
-				),
-				(random, testState) -> {
-					final StringBuilder codeBuffer = new StringBuilder();
-					codeBuffer.append("final HierarchyIndex hierarchyIndex = new HierarchyIndex();\n")
-						.append(testHierarchyNode.getAllChildren().stream()
-							.map(it ->
-								"setHierarchyFor(hierarchyIndex, testRoot, " +
-									it.getId() + ", " +
-									(it.getParentId() == Integer.MIN_VALUE ? "null" : it.getParentId()) +
-									");"
-							)
-							.collect(Collectors.joining("\n")))
-						.append("\nOps:\n");
-
-					final HierarchyIndex hierarchyIndex = testState.initialState();
-					final AtomicReference<HierarchyIndex> committedResult = new AtomicReference<>();
-
-					assertStateAfterCommit(
-						hierarchyIndex,
-						original -> {
-							final int operationsInTransaction = random.nextInt(10);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								final int length = hierarchyIndex.getHierarchySizeIncludingOrphans();
-								final int operation = random.nextInt(3);
-								if (length < maxNodes && (operation == 0 || length < 10)) {
-									// insert new item
-									int newNodeId;
-									do {
-										newNodeId = random.nextInt(maxNodes * 2);
-									} while (testHierarchyNode.contains(newNodeId));
-
-									final int[] childrenIds = testHierarchyNode.getChildrenIds();
-									int parentNodeId;
-									do {
-										final int rndForParent = random.nextInt(childrenIds.length + 1);
-										if (rndForParent == 0) {
-											parentNodeId = Integer.MIN_VALUE;
-										} else {
-											parentNodeId = childrenIds[rndForParent - 1];
-										}
-									} while (newNodeId == parentNodeId);
-
-									codeBuffer.append("setHierarchyFor(hierarchyIndex, testRoot, ")
-										.append(newNodeId).append(",")
-										.append(parentNodeId == Integer.MIN_VALUE ? "null" : parentNodeId)
-										.append(");\n");
-
-									try {
-										setHierarchyFor(hierarchyIndex, testHierarchyNode, newNodeId, parentNodeId == Integer.MIN_VALUE ? null : parentNodeId);
-									} catch (Exception ex) {
-										fail(ex.getMessage() + "\n" + codeBuffer, ex);
-									}
-								} else if (operation == 1) {
-									// move existing item
-									final int[] childrenIds = testHierarchyNode.getChildrenIds();
-									final int rndNo = random.nextInt(childrenIds.length);
-									final int nodeIdToMove = childrenIds[rndNo];
-
-									int parentNodeId;
-									do {
-										final int rndForParent = random.nextInt(childrenIds.length + 1);
-										if (rndForParent == 0) {
-											parentNodeId = Integer.MIN_VALUE;
-										} else {
-											parentNodeId = childrenIds[rndForParent - 1];
-										}
-									} while (nodeIdToMove == parentNodeId);
-
-									codeBuffer.append("setHierarchyFor(hierarchyIndex, testRoot, ")
-										.append(nodeIdToMove).append(",")
-										.append(parentNodeId == Integer.MIN_VALUE ? "null" : parentNodeId)
-										.append(");\n");
-
-									try {
-										setHierarchyFor(hierarchyIndex, testHierarchyNode, nodeIdToMove, parentNodeId == Integer.MIN_VALUE ? null : parentNodeId);
-									} catch (Exception ex) {
-										fail(ex.getMessage() + "\n" + codeBuffer, ex);
-									}
-								} else {
-									// remove existing item
-									final int[] childrenIds = testHierarchyNode.getChildrenIds();
-									final int rndNo = random.nextInt(childrenIds.length);
-									final int nodeIdToRemove = childrenIds[rndNo];
-
-									codeBuffer.append("removeHierarchyFor(hierarchyIndex, testRoot, ")
-										.append(nodeIdToRemove)
-										.append(");\n");
-
-									try {
-										removeHierarchyFor(hierarchyIndex, testHierarchyNode, nodeIdToRemove);
-									} catch (Exception ex) {
-										fail(ex.getMessage() + "\n" + codeBuffer, ex);
-									}
-								}
-							}
-						},
-						(original, committed) -> {
-							testHierarchyNode.assertIdentical(
-								committed,
-								"\nExpected: " + testHierarchyNode + "\n" +
-									"Actual:   " + committed + "\n\n" +
-									codeBuffer
-							);
-							committedResult.set(committed);
-						}
-					);
-
-					return new TestState(
-						new StringBuilder(),
-						committedResult.get()
-					);
-				}
-			);
 		}
 
 	}

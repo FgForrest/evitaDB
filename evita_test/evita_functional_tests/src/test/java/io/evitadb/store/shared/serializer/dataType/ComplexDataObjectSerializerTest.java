@@ -43,16 +43,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * This test verifies contract of {@link ComplexDataObjectSerializer} and {@link TrieSerializer}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(STORAGE)
+@Tag(SERIALIZATION)
 class ComplexDataObjectSerializerTest {
 	private final ReflectionLookup reflectionLookup = new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE);
 

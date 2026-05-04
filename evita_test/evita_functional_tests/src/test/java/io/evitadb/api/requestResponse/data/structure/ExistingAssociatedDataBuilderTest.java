@@ -41,8 +41,11 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies contract of {@link ExistingAssociatedDataBuilder}
@@ -52,6 +55,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ExistingAssociatedDataBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ExistingAssociatedDataBuilderTest extends AbstractBuilderTest {
 	private AssociatedData initialAssociatedData;
 

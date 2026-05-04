@@ -42,12 +42,16 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.UnaryOperator;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferencedEntityIndexPrimaryKeyTranslatingFormula} verifying computation,
@@ -56,6 +60,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * @author evitaDB
  */
 @DisplayName("ReferencedEntityIndexPrimaryKeyTranslatingFormula")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(REFERENCE)
 class ReferencedEntityIndexPrimaryKeyTranslatingFormulaTest {
 
 	private static final long[] TRANSACTIONAL_IDS = {42L};

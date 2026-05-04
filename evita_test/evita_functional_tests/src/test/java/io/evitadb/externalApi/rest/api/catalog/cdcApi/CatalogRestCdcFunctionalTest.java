@@ -43,15 +43,24 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * Tests for REST CDC API/
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(CDC)
 public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 	implements ExternalApiFunctionTestsSupport, ExternalApiWebSocketFunctionTestsSupport {
 

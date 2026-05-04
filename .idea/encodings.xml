@@ -59,8 +59,12 @@
     <file url="file://$PROJECT_DIR$/evita_store/evita_traffic_engine/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_store/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_store/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_test/evita_documentation_tests/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_test/evita_documentation_tests/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_test/evita_functional_tests/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_test/evita_functional_tests/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_test/evita_long_running_tests/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_test/evita_long_running_tests/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_test/evita_performance_tests/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_test/evita_performance_tests/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_test/evita_test_support/src/main/java" charset="UTF-8" />

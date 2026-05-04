@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link UpgradeCatalogFormatMutation} class.
@@ -60,6 +63,8 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("UpgradeCatalogFormatMutation tests")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 public class UpgradeCatalogFormatMutationTest {
 
 	private static final String CATALOG_NAME = "upgradableCatalog";

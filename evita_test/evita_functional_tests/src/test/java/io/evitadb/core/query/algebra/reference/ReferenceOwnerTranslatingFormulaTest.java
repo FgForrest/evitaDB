@@ -36,12 +36,16 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.function.IntFunction;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferenceOwnerTranslatingFormula} verifying computation, memoization,
@@ -50,6 +54,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * @author evitaDB
  */
 @DisplayName("ReferenceOwnerTranslatingFormula")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(REFERENCE)
 class ReferenceOwnerTranslatingFormulaTest {
 
 	private static final long TRANSACTIONAL_ID = 42L;

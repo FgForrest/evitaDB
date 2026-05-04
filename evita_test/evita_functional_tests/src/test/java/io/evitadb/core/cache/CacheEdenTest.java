@@ -38,12 +38,18 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.Random;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * This test verifies behaviour of {@link CacheEden}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(ENGINE)
+@Tag(CACHE)
 class CacheEdenTest {
 	public static final String SOME_ENTITY = "Product";
 	public static final Currency CZK = Currency.getInstance("CZK");

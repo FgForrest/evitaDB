@@ -37,8 +37,11 @@ import java.io.NotSerializableException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Arrays;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PriceRecord}, {@link PriceRecordInnerRecordSpecific}, and
@@ -49,6 +52,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Price record model classes")
+@Tag(INDEXING)
+@Tag(PRICE)
 class PriceRecordTest {
 
 	@Nested

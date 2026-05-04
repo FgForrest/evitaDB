@@ -46,8 +46,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * Tests for {@link PreMutationHistogramSnapshot} verifying correct capture of pre-mutation histogram
@@ -56,6 +60,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("PreMutationHistogramSnapshot")
+@Tag(INDEXING)
+@Tag(SCHEMA)
+@Tag(HISTOGRAM)
 class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 
 	private static final String ENTITY_TYPE = "product";

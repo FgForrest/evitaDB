@@ -44,12 +44,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link EntityAssociatedDataPartial} verifying that associated data method implementations correctly
@@ -57,6 +60,8 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("rawtypes")
 @DisplayName("Entity associated data partial")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class EntityAssociatedDataPartialTest {
 
 	/** Unique marker interface to avoid Proxycian classification cache pollution between test classes. */

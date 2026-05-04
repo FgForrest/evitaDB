@@ -55,9 +55,10 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static org.junit.jupiter.api.Assertions.*;
-import static tool.ReflectionUtils.getNonnullFieldValue;
+import static io.evitadb.test.utils.ReflectionUtils.getNonnullFieldValue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.CDC;
 
 /**
  * This test class verifies the functionality of the {@link CatalogChangeObserver} which is responsible for
@@ -80,9 +81,10 @@ import static tool.ReflectionUtils.getNonnullFieldValue;
  * @see ChangeCapturePublisher
  */
 @DisplayName("CatalogChangeObserver should")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(ENGINE)
+@Tag(CDC)
 class CatalogChangeObserverTest implements EvitaTestSupport {
 	/**
 	 * Name of the dataset used for this test. This identifier is used by the test framework

@@ -32,9 +32,12 @@ import org.junit.jupiter.api.Test;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Tests for {@link EntityLocaleEquals} verifying construction, applicability, property accessors,
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("EntityLocaleEquals constraint")
+@Tag(CONTRACT)
+@Tag(FILTER)
 class EntityLocaleEqualsTest {
 
 	@Nested

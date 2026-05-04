@@ -85,6 +85,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -99,6 +100,9 @@ import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FACET;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * This test verifies whether entities can be filtered by facets.
@@ -107,6 +111,9 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 // TOBEDONE: deprecated - remove all facetSummary tests when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(FACET)
+@Tag(FILTER)
 public abstract class AbstractEntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_ORDER = "order";
 	private static final String THOUSAND_PRODUCTS_WITH_FACETS = "ThousandsProductsWithFacets";

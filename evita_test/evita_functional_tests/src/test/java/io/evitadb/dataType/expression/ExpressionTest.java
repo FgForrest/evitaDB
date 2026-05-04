@@ -46,16 +46,21 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.list;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test class for the {@link ExpressionFactory}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 public class ExpressionTest {
 
 	@BeforeAll

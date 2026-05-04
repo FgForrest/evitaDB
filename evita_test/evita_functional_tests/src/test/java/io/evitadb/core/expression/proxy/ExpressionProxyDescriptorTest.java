@@ -30,14 +30,21 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Tests for {@link ExpressionProxyDescriptor} verifying that each `*OrThrowException()` method correctly returns the
  * value when present or throws {@link ExpressionEvaluationException} when null.
  */
 @DisplayName("Expression proxy descriptor")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(PROXY)
 class ExpressionProxyDescriptorTest {
 
 	/**

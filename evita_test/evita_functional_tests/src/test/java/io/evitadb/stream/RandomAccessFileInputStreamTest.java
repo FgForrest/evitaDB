@@ -35,8 +35,11 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.STREAM;
 
 /**
  * Tests for {@link RandomAccessFileInputStream} verifying read, seek, skip, available,
@@ -45,6 +48,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("RandomAccessFileInputStream")
+@Tag(ENGINE)
+@Tag(STREAM)
 class RandomAccessFileInputStreamTest implements EvitaTestSupport {
 
 	/**

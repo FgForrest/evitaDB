@@ -33,8 +33,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Currency;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for all conflict key record types: equality, hashCode, and toString verification.
@@ -42,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("Conflict keys")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class ConflictKeyTest implements EvitaTestSupport {
 
 	@Nested

@@ -39,10 +39,14 @@ import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Tests for {@link EntityProxyState} verifying that the record's accessor methods, or-throw-exception methods,
@@ -50,6 +54,9 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("SameParameterValue")
 @DisplayName("Entity proxy state")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(PROXY)
 class EntityProxyStateTest {
 
 	private static final int ENTITY_PK = 1;

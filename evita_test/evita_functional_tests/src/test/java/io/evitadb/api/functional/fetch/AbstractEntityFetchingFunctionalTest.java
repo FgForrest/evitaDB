@@ -57,11 +57,14 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Abstract base class for entity fetching functional tests. Provides shared constants,
@@ -76,6 +79,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 abstract class AbstractEntityFetchingFunctionalTest extends AbstractHundredProductsFunctionalTest {
 	static final String HUNDRED_PRODUCTS = "HundredProducts";
 	static final Locale LOCALE_CZECH = CZECH_LOCALE;

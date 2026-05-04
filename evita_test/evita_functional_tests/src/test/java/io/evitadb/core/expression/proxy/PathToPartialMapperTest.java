@@ -50,14 +50,19 @@ import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link PathToPartialMapper} verifying that expression paths are correctly mapped to proxy partials
  * and storage part recipes.
  */
 @DisplayName("Path to partial mapper")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class PathToPartialMapperTest {
 
 	/**

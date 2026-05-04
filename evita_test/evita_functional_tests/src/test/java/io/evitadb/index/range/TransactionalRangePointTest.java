@@ -25,23 +25,17 @@ package io.evitadb.index.range;
 
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
-import java.util.HashSet;
-import java.util.Random;
-import java.util.Set;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -54,7 +48,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("TransactionalRangePoint")
-class TransactionalRangePointTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class TransactionalRangePointTest {
 
 	@Nested
 	@DisplayName("Construction")
@@ -589,269 +586,4 @@ class TransactionalRangePointTest implements TimeBoundedTestSupport {
 		}
 	}
 
-	/**
-	 * Generational randomized proof test that applies random bitmap mutations within
-	 * transactions and verifies the committed state matches a reference model tracking
-	 * the same operations.
-	 */
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalProofTest {
-
-		@DisplayName("survives generational randomized test applying modifications on it")
-		@ParameterizedTest(
-			name = "TransactionalRangePoint should survive generational randomized test"
-		)
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final int maxId = 50;
-			final Random seedRandom = new Random(input.randomSeed());
-			final long initialThreshold = seedRandom.nextLong(1000);
-			final Set<Integer> initialStarts =
-				generateRandomIdSet(seedRandom, maxId);
-			final Set<Integer> initialEnds =
-				generateRandomIdSet(seedRandom, maxId);
-
-			runFor(
-				input,
-				1_000,
-				new TestState(
-					new StringBuilder(256),
-					initialThreshold,
-					initialStarts,
-					initialEnds
-				),
-				(random, testState) -> {
-					final TransactionalRangePoint rangePoint =
-						new TransactionalRangePoint(
-							testState.threshold(),
-							toSortedIntArray(testState.starts()),
-							toSortedIntArray(testState.ends())
-						);
-					final Set<Integer> referenceStarts =
-						new HashSet<>(testState.starts());
-					final Set<Integer> referenceEnds =
-						new HashSet<>(testState.ends());
-
-					final StringBuilder codeBuffer = testState.code();
-					codeBuffer.setLength(0);
-					codeBuffer.append("\nSTART threshold=")
-						.append(testState.threshold())
-						.append(" starts=")
-						.append(referenceStarts)
-						.append(" ends=")
-						.append(referenceEnds)
-						.append("\n");
-
-					assertStateAfterCommit(
-						rangePoint,
-						original -> {
-							final int operationsInTransaction =
-								1 + random.nextInt(10);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								final int operation = random.nextInt(6);
-								switch (operation) {
-									case 0 -> {
-										// addStart — single ID
-										final int id = 1 + random.nextInt(maxId);
-										original.addStart(id);
-										referenceStarts.add(id);
-										codeBuffer.append("+S")
-											.append(id).append(" ");
-									}
-									case 1 -> {
-										// addEnd — single ID
-										final int id = 1 + random.nextInt(maxId);
-										original.addEnd(id);
-										referenceEnds.add(id);
-										codeBuffer.append("+E")
-											.append(id).append(" ");
-									}
-									case 2 -> {
-										// addStarts — bulk add
-										final int[] ids =
-											generateRandomIds(random, maxId);
-										original.addStarts(ids);
-										for (int id : ids) {
-											referenceStarts.add(id);
-										}
-										codeBuffer.append("+SS")
-											.append(java.util.Arrays.toString(ids))
-											.append(" ");
-									}
-									case 3 -> {
-										// addEnds — bulk add
-										final int[] ids =
-											generateRandomIds(random, maxId);
-										original.addEnds(ids);
-										for (int id : ids) {
-											referenceEnds.add(id);
-										}
-										codeBuffer.append("+EE")
-											.append(java.util.Arrays.toString(ids))
-											.append(" ");
-									}
-									case 4 -> {
-										// removeStarts — bulk remove
-										final int[] ids =
-											generateRandomIds(random, maxId);
-										original.removeStarts(ids);
-										for (int id : ids) {
-											referenceStarts.remove(id);
-										}
-										codeBuffer.append("-SS")
-											.append(java.util.Arrays.toString(ids))
-											.append(" ");
-									}
-									case 5 -> {
-										// removeEnds — bulk remove
-										final int[] ids =
-											generateRandomIds(random, maxId);
-										original.removeEnds(ids);
-										for (int id : ids) {
-											referenceEnds.remove(id);
-										}
-										codeBuffer.append("-EE")
-											.append(java.util.Arrays.toString(ids))
-											.append(" ");
-									}
-								}
-							}
-							codeBuffer.append("\n");
-						},
-						(original, committed) -> {
-							assertBitmapMatchesSet(
-								committed.getStarts(),
-								referenceStarts,
-								"starts mismatch\n" + codeBuffer
-							);
-							assertBitmapMatchesSet(
-								committed.getEnds(),
-								referenceEnds,
-								"ends mismatch\n" + codeBuffer
-							);
-							assertEquals(
-								testState.threshold(),
-								committed.getThreshold(),
-								"threshold changed unexpectedly"
-							);
-						}
-					);
-
-					return new TestState(
-						new StringBuilder(256),
-						testState.threshold(),
-						referenceStarts,
-						referenceEnds
-					);
-				}
-			);
-		}
-	}
-
-	// -----------------------------------------------------------------------
-	// Shared helpers
-	// -----------------------------------------------------------------------
-
-	/**
-	 * Carries the state between generational test iterations.
-	 *
-	 * @param code      accumulated operation log for diagnosing failures
-	 * @param threshold the immutable threshold value
-	 * @param starts    the expected starts set at the start of the next iteration
-	 * @param ends      the expected ends set at the start of the next iteration
-	 */
-	private record TestState(
-		@Nonnull StringBuilder code,
-		long threshold,
-		@Nonnull Set<Integer> starts,
-		@Nonnull Set<Integer> ends
-	) {}
-
-	/**
-	 * Generates a random set of positive record IDs (1..maxId) with random size (0..maxId/2).
-	 *
-	 * @param random the random source for reproducibility
-	 * @param maxId  the upper bound (exclusive) for generated IDs
-	 * @return a set of random positive record IDs
-	 */
-	@Nonnull
-	private static Set<Integer> generateRandomIdSet(
-		@Nonnull Random random,
-		int maxId
-	) {
-		final int count = random.nextInt(maxId / 2);
-		final Set<Integer> result = new HashSet<>(count);
-		for (int i = 0; i < count; i++) {
-			result.add(1 + random.nextInt(maxId));
-		}
-		return result;
-	}
-
-	/**
-	 * Generates a small array of random positive IDs (1..maxId) for bulk operations.
-	 * Array length is between 1 and 5.
-	 *
-	 * @param random the random source
-	 * @param maxId  the upper bound (exclusive) for generated IDs
-	 * @return an array of random positive record IDs
-	 */
-	@Nonnull
-	private static int[] generateRandomIds(
-		@Nonnull Random random,
-		int maxId
-	) {
-		final int count = 1 + random.nextInt(5);
-		final int[] ids = new int[count];
-		for (int i = 0; i < count; i++) {
-			ids[i] = 1 + random.nextInt(maxId);
-		}
-		return ids;
-	}
-
-	/**
-	 * Converts a set of integers to a sorted int array suitable for
-	 * {@link TransactionalRangePoint} constructors.
-	 *
-	 * @param idSet the set of IDs to convert
-	 * @return a sorted int array containing all IDs from the set
-	 */
-	@Nonnull
-	private static int[] toSortedIntArray(@Nonnull Set<Integer> idSet) {
-		return idSet.stream().mapToInt(Integer::intValue).sorted().toArray();
-	}
-
-	/**
-	 * Asserts that a {@link Bitmap} contains exactly the same IDs as the given reference set,
-	 * no more and no fewer.
-	 *
-	 * @param bitmap       the bitmap under test
-	 * @param referenceSet the expected set of IDs
-	 * @param message      context message for assertion failures
-	 */
-	private static void assertBitmapMatchesSet(
-		@Nonnull Bitmap bitmap,
-		@Nonnull Set<Integer> referenceSet,
-		@Nonnull String message
-	) {
-		assertEquals(
-			referenceSet.size(), bitmap.size(),
-			"size mismatch: " + message
-		);
-		for (final int id : referenceSet) {
-			assertTrue(
-				bitmap.contains(id),
-				"bitmap missing ID " + id + ": " + message
-			);
-		}
-		// verify no extra IDs exist in the bitmap
-		final int[] bitmapArray = bitmap.getArray();
-		for (final int id : bitmapArray) {
-			assertTrue(
-				referenceSet.contains(id),
-				"bitmap has unexpected ID " + id + ": " + message
-			);
-		}
-	}
 }

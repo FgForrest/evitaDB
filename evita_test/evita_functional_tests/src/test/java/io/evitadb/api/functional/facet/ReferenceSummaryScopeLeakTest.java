@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.HashSet;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -52,6 +53,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FACET;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Behavioral regression guard for BUG-1: the `ReferenceSummaryOfReferenceTranslator` and its sibling
@@ -82,6 +86,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Reference summary must not leak facets across scopes")
+@Tag(CONTRACT)
+@Tag(FACET)
+@Tag(REFERENCE)
 class ReferenceSummaryScopeLeakTest implements EvitaTestSupport {
 
 	private static final String ENTITY_PRODUCT = "product";

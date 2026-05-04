@@ -53,15 +53,20 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link ConstraintDescriptorResolver}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class ConstraintDescriptorResolverTest {
 
 	private static ConstraintDescriptorResolver parser;

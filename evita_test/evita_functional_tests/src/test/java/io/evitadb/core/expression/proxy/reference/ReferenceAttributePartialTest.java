@@ -43,12 +43,17 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link ReferenceAttributePartial} verifying that attribute method implementations correctly delegate to the
@@ -56,6 +61,10 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("rawtypes")
 @DisplayName("Reference attribute partial")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(REFERENCE)
+@Tag(ATTRIBUTE)
 class ReferenceAttributePartialTest {
 
 	/** Unique marker interface to avoid Proxycian classification cache pollution between test classes. */

@@ -56,10 +56,13 @@ import java.util.Currency;
 import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Kryo round-trip tests for every constraint surface exposed by
@@ -74,6 +77,8 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("Query — Kryo serialization round-trip")
+@Tag(STORAGE)
+@Tag(QUERY)
 public class QuerySerializationTest {
 	/**
 	 * Fully-qualified name of the {@code HistogramHavingSerializer} class. The serializer lives

@@ -32,8 +32,11 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link BooleanExpressionChecker}.
@@ -41,6 +44,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2026
  */
 @DisplayName("BooleanExpressionChecker")
+@Tag(CONTRACT)
+@Tag(EXPRESSION)
 public class BooleanExpressionCheckerTest {
 
 	@ParameterizedTest(name = "\"{1}\" -> {0}")

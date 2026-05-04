@@ -75,15 +75,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.Entities.CATEGORY;
 import static io.evitadb.test.Entities.STORE;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies contract and behavior of InitialEntityBuilder.
  */
 @DisplayName("InitialEntityBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class InitialEntityBuilderTest extends AbstractBuilderTest {
 	private static final String SORTABLE_ATTRIBUTE = "toSort";
 	private static final String BRAND = Entities.BRAND;

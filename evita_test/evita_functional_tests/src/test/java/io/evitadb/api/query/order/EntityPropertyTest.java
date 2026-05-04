@@ -34,10 +34,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ORDER;
 
 /**
  * Tests for {@link EntityProperty} verifying construction, applicability, necessity, accessor methods,
@@ -46,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Luk&#225;&#353; Hornych, FG Forrest a.s. (c) 2023
  */
 @DisplayName("EntityProperty constraint")
+@Tag(CONTRACT)
+@Tag(ORDER)
 class EntityPropertyTest implements EvitaTestSupport {
 
 	@Nested

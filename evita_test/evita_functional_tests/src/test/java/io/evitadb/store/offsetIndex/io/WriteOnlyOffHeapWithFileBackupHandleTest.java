@@ -42,8 +42,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies {@link WriteOnlyOffHeapWithFileBackupHandle} behaviour, including data writing
@@ -53,6 +56,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("WriteOnlyOffHeapWithFileBackupHandle functionality")
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	private final Path targetDirectory = getPathInTargetDirectory("WriteOnlyOffHeapWithFileBackupHandle");
 	private final ObservableOutputKeeper outputKeeper = ObservableOutputKeeper._internalBuild(

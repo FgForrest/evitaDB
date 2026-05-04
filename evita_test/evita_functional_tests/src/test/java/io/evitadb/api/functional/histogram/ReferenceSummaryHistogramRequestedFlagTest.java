@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.and;
@@ -57,6 +58,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Behavioral coverage of the {@code userFilter → histogramHaving} walker that flips per-bucket
@@ -71,6 +75,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Reference summary histogram — userFilter requested-flag behavior")
+@Tag(CONTRACT)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 public class ReferenceSummaryHistogramRequestedFlagTest extends AbstractReferenceSummaryHistogramFunctionalTest {
 
 	// ==========================================================================================

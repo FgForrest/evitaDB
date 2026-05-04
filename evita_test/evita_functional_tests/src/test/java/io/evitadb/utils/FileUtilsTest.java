@@ -39,8 +39,11 @@ import java.nio.file.StandardOpenOption;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies behaviour of {@link FileUtils}.
@@ -48,6 +51,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("FileUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class FileUtilsTest {
 	private final Path tmpFolder = Path.of(System.getProperty("java.io.tmpdir") + File.separator);
 	private Path directoryTest;

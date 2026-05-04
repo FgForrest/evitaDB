@@ -41,10 +41,13 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link io.evitadb.api.requestResponse.schema.builder.AssociatedDataSchemaBuilder}
@@ -55,6 +58,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("AssociatedDataSchemaBuilder")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class AssociatedDataSchemaBuilderTest {
 
 	private EntitySchema productSchema;

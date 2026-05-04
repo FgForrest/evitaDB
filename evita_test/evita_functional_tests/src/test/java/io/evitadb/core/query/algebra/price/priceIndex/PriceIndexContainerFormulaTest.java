@@ -39,12 +39,16 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PriceIndexContainerFormula} verifying delegation, caching, hashing,
@@ -53,6 +57,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author evitaDB
  */
 @DisplayName("PriceIndexContainerFormula")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(PRICE)
 class PriceIndexContainerFormulaTest {
 
 	private static final Currency CZK = Currency.getInstance("CZK");

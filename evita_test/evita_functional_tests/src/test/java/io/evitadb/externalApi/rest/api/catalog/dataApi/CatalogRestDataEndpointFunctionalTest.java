@@ -71,6 +71,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAssociatedDataKeysByLocale;
@@ -80,6 +81,9 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_EAN;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_QUANTITY;
 import static io.evitadb.utils.MapBuilder.map;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Ancestor for tests for REST catalog endpoint.
@@ -87,6 +91,9 @@ import static io.evitadb.utils.MapBuilder.map;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpointFunctionalTest implements ExternalApiFunctionTestsSupport {
 
 	protected static final int SEED = 40;

@@ -60,16 +60,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.List;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SESSION;
 
 @DisplayName("EvitaSystemService gRPC functional test")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SESSION)
 class EvitaSessionServiceWarmupCatalogTest {
 	private static final String GRPC_THOUSAND_PRODUCTS_WARM_UP = "GrpcThousandProductsInWarmUpState";
 

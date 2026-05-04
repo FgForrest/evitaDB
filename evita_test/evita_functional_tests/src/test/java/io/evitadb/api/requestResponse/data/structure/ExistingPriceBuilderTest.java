@@ -40,9 +40,13 @@ import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.data.structure.InitialPricesBuilderTest.assertPrice;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This test verifies contract of {@link ExistingPricesBuilder}.
@@ -50,6 +54,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ExistingPricesBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(PRICE)
 class ExistingPriceBuilderTest extends AbstractBuilderTest {
 	public static final Currency CZK =
 		Currency.getInstance("CZK");

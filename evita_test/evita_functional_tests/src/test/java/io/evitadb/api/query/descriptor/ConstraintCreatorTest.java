@@ -45,8 +45,11 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Constructor;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link ConstraintCreator}.
@@ -54,6 +57,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Lukas Hornych, FG Forrest a.s. (c) 2022
  */
 @DisplayName("ConstraintCreator")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ConstraintCreatorTest {
 
 	@Nested

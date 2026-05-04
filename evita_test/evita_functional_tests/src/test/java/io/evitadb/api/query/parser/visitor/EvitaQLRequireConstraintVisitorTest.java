@@ -46,6 +46,7 @@ import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
@@ -59,12 +60,16 @@ import static io.evitadb.api.query.require.FacetStatisticsDepth.IMPACT;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link EvitaQLRequireConstraintVisitor}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EvitaQLRequireConstraintVisitorTest {
 
 	@Test

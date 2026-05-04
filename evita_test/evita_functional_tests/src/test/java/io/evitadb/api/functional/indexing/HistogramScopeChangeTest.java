@@ -52,9 +52,13 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * End-to-end integration tests for histogram de/indexing when entities change scope (LIVE/ARCHIVED).
@@ -64,6 +68,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Histogram scope change operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(HISTOGRAM)
 class HistogramScopeChangeTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private static final String ENTITY_PRODUCT = "product";

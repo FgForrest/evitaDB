@@ -57,17 +57,24 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * This test verifies that the default implementation of the {@link IsolatedWalPersistenceService} interface works as expected.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
+@Tag(WAL)
 class DefaultIsolatedWalServiceTest implements EvitaTestSupport {
 	static final ModifyEntitySchemaMutation SCHEMA_MUTATION_EXAMPLE = new ModifyEntitySchemaMutation(
 		Entities.PRODUCT,

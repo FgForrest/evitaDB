@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttributeDelta;
 import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttributeRemoval;
@@ -71,6 +72,9 @@ import static io.evitadb.index.mutation.local.AttributeIndexMutator.executeAttri
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_EAN;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link AttributeIndexMutator} contract.
@@ -78,6 +82,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("AttributeIndexMutator — attribute index operations")
+@Tag(INDEXING)
+@Tag(SCHEMA)
+@Tag(ATTRIBUTE)
 class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
 	};

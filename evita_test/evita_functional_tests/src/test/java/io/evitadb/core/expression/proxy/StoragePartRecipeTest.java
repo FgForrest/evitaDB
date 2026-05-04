@@ -32,14 +32,19 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link StoragePartRecipe} verifying the record construction, the EMPTY constant, and the recipe flags
  * produced by {@link ExpressionProxyFactory#buildDescriptor(ExpressionNode)} for various expression paths.
  */
 @DisplayName("Storage part recipe")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class StoragePartRecipeTest {
 
 	@Test

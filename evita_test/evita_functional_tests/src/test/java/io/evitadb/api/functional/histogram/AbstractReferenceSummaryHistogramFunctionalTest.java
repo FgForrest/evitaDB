@@ -60,7 +60,10 @@ import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
+
 
 /**
  * Shared test base for the reference-summary histogram functional test suite. Hosts two
@@ -79,9 +82,11 @@ import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements EvitaTestSupport {
 
 	/**

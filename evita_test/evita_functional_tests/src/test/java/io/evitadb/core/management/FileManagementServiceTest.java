@@ -43,14 +43,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies behavior of {@link FileManagementService}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Tag(ENGINE)
+@Tag(MANAGEMENT)
 class FileManagementServiceTest implements EvitaTestSupport {
 	private static final String SUBDIR_NAME = "fileManagementServiceTest";
 	private StorageOptions storageOptions;

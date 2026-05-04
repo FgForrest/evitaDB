@@ -33,10 +33,14 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * Tests for {@link WriteAheadLogVersionDescriptor} verifying
@@ -45,6 +49,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("WriteAheadLogVersionDescriptor")
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
+@Tag(WAL)
 class WriteAheadLogVersionDescriptorTest {
 
 	/**

@@ -65,16 +65,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.data.structure.References.DEFAULT_CHUNK_TRANSFORMER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for Entity class: internal builders and mutateEntity behavior.
  */
 @DisplayName("Entity tests")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class EntityTest extends AbstractBuilderTest {
 	private static final String BRAND = "brand";
 	private static final String GROUP = "group";

@@ -24,23 +24,17 @@
 package io.evitadb.index.bool;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -54,7 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("Transactional boolean")
-class TransactionalBooleanTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class TransactionalBooleanTest {
 
 	/**
 	 * Tests for {@link TransactionalBoolean} constructors verifying correct initial state.
@@ -408,65 +405,6 @@ class TransactionalBooleanTest implements TimeBoundedTestSupport {
 				}
 			);
 		}
-
-	}
-
-	/**
-	 * Generational randomized proof test that applies random boolean modifications
-	 * within transactions and verifies the committed state matches expectations.
-	 */
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalProofTest {
-
-		@DisplayName("survives generational randomized test applying modifications")
-		@ParameterizedTest(name = "TransactionalBoolean should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final AtomicBoolean nextBooleanToCompare = new AtomicBoolean();
-
-			runFor(
-				input,
-				10_000,
-				new TestState(false),
-				(random, testState) -> {
-					final TransactionalBoolean transactionalBoolean = new TransactionalBoolean(testState.initialValue());
-
-					assertStateAfterCommit(
-						transactionalBoolean,
-						original -> {
-							final int operationsInTransaction = random.nextInt(100);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								if (random.nextBoolean()) {
-									transactionalBoolean.setToTrue();
-									nextBooleanToCompare.set(true);
-								} else {
-									transactionalBoolean.setToFalse();
-									nextBooleanToCompare.set(false);
-								}
-							}
-
-							assertEquals(nextBooleanToCompare.get(), transactionalBoolean.isTrue());
-						},
-						(original, committed) -> {
-							assertEquals(nextBooleanToCompare.get(), committed);
-						}
-					);
-
-					return new TestState(
-						nextBooleanToCompare.get()
-					);
-				}
-			);
-		}
-
-		/**
-		 * Holds the state carried between generational test iterations.
-		 */
-		private record TestState(
-			boolean initialValue
-		) {}
 
 	}
 

@@ -51,12 +51,17 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * End-to-end integration tests for histogram indexing of array-typed numeric attributes.
@@ -66,6 +71,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Array attribute histogram indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(HISTOGRAM)
+@Tag(ATTRIBUTE)
 class ArrayAttributeHistogramTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private static final String ENTITY_PRODUCT = "product";

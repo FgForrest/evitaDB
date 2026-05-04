@@ -31,11 +31,15 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.excluding;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * Tests for {@link HierarchyExcluding} verifying construction, applicability, necessity,
@@ -44,6 +48,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Lukas Hornych, FG Forrest a.s. (c) 2023
  */
 @DisplayName("HierarchyExcluding constraint")
+@Tag(CONTRACT)
+@Tag(FILTER)
+@Tag(HIERARCHY)
 class HierarchyExcludingTest {
 
 	@Nested

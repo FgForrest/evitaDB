@@ -30,10 +30,13 @@ import org.junit.jupiter.api.Test;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.OBSERVABILITY;
 
 /**
  * Tests for {@link DefaultExternalApiTracingContext} verifying that the NOOP implementation directly invokes
@@ -42,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DefaultExternalApiTracingContext - NOOP passthrough")
+@Tag(EXTERNAL_API)
+@Tag(OBSERVABILITY)
 class DefaultExternalApiTracingContextTest {
 
 	@Test

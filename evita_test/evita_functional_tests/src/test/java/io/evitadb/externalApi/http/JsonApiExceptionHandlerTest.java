@@ -40,9 +40,12 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Verifies that {@link JsonApiExceptionHandler#renderError(EvitaError, HttpRequest)} maps the catalog
@@ -55,6 +58,8 @@ import static org.mockito.Mockito.mock;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("JsonApiExceptionHandler - catalog lifecycle exception mapping")
+@Tag(EXTERNAL_API)
+@Tag(MANAGEMENT)
 class JsonApiExceptionHandlerTest {
 
 	private JsonApiExceptionHandler handler;

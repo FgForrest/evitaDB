@@ -25,15 +25,20 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.dataType.expression.Expression;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.gap;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
 
 /**
  * This tests verifies basic properties of {@link Page} query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(CONTRACT)
+@Tag(REQUIRE)
 class SpacingGapTest {
 
 	@Test

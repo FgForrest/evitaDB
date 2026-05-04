@@ -31,8 +31,11 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Checks creation and behavior of the {@link NumberRange} data type hierarchy.
@@ -40,6 +43,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotn\u00fd (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("NumberRange hierarchy")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class NumberRangeTest {
 
 	@Nested

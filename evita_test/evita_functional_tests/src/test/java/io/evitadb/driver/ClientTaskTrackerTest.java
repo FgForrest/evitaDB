@@ -40,16 +40,21 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.DRIVER;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies the functionality of the ClientTaskTracker class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(DRIVER)
+@Tag(MANAGEMENT)
 class ClientTaskTrackerTest implements TestConstants {
 	final EvitaManagementContract evitaClientMock = Mockito.mock(EvitaManagementContract.class);
 	private final ClientTaskTracker tested = new ClientTaskTracker(this.evitaClientMock, 100, 1);

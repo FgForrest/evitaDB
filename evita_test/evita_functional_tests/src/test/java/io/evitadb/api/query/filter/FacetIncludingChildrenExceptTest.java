@@ -32,11 +32,15 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.includingChildrenExcept;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link FacetIncludingChildrenExcept} verifying construction, applicability, necessity,
@@ -45,6 +49,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("FacetIncludingChildrenExcept constraint")
+@Tag(CONTRACT)
+@Tag(FILTER)
+@Tag(FACET)
 class FacetIncludingChildrenExceptTest {
 
 	@Nested

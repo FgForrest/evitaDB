@@ -42,10 +42,14 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for price indexing operations in evitaDB, verifying price sellability changes
@@ -54,6 +58,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Price indexing operations")
+@Tag(CONTRACT)
+@Tag(INDEXING)
+@Tag(PRICE)
 class PriceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 	private TestPaths paths;

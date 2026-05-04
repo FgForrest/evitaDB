@@ -36,10 +36,13 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.assertj.core.api.Assertions.assertThat;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Test class for {@link DelegatingEngineMutationConverter}. This test suite
@@ -49,6 +52,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Lukáš Hornych, 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class DelegatingEngineMutationConverterTest {
 
 	private DelegatingEngineMutationConverter converter;

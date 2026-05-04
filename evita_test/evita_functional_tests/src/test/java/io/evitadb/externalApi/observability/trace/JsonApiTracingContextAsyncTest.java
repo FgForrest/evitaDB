@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -55,6 +56,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mockStatic;
+import static io.evitadb.test.TestTags.OBSERVABILITY_API;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.OBSERVABILITY;
 
 /**
  * Tests for the async tracing path in {@link JsonApiTracingContext#executeWithinBlockAsync}. Uses real OTel SDK
@@ -64,6 +68,9 @@ import static org.mockito.Mockito.mockStatic;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("JsonApiTracingContext - async span lifecycle")
+@Tag(OBSERVABILITY_API)
+@Tag(EXTERNAL_API)
+@Tag(OBSERVABILITY)
 class JsonApiTracingContextAsyncTest {
 
 	private InMemorySpanExporter spanExporter;

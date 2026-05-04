@@ -46,11 +46,15 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FILTER;
 
 /**
  * Unit tests for {@link UserFilterRelaxer} — the shared helper that rebuilds a filter formula tree with one of
@@ -74,6 +78,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("UserFilterRelaxer")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(FILTER)
 class UserFilterRelaxerTest {
 
 	@Nested

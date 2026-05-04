@@ -70,7 +70,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
 import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
@@ -78,6 +77,8 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface.
@@ -85,10 +86,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("Evita entity interface proxying functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @TestMethodOrder(MethodOrderer.MethodName.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(PROXY)
 public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
 	private static final String HUNDRED_PRODUCTS = "HundredProxyProducts_EntityInterfaceProxyingFunctionalTest";
 	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");

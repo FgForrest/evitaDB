@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.store.traffic.DiskRingBuffer.LEAD_DESCRIPTOR_BYTE_SIZE;
 import static io.evitadb.store.traffic.DiskRingBuffer.segmentsOverlap;
@@ -55,6 +56,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.TRAFFIC_ENGINE;
 
 /**
  * This test verifies {@link DiskRingBuffer} functionality.
@@ -62,6 +65,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("DiskRingBuffer")
+@Tag(STORAGE)
+@Tag(TRAFFIC_ENGINE)
 class DiskRingBufferTest {
 	private DiskRingBuffer diskRingBuffer;
 	private Path tempFile;

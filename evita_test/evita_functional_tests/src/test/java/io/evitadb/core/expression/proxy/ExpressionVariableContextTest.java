@@ -33,14 +33,19 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link ExpressionVariableContext} verifying that the evaluation context correctly manages variable bindings,
  * `this` object, and random generator.
  */
 @DisplayName("Expression variable context")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class ExpressionVariableContextTest {
 
 	@Test

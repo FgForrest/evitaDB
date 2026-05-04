@@ -37,12 +37,17 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link ExistingReferenceAttributesBuilder} verifying
@@ -52,6 +57,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ExistingReferenceAttributesBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
+@Tag(ATTRIBUTE)
 class ExistingReferenceAttributesBuilderTest
 	extends AbstractBuilderTest {
 

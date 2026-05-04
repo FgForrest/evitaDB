@@ -34,8 +34,11 @@ import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
 
 /**
  * Tests for {@link EntityBodyStoragePart} verifying scope management, parent management, versioning,
@@ -44,6 +47,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("EntityBodyStoragePart behavioral tests")
+@Tag(ENGINE)
+@Tag(EXPORT)
 class EntityBodyStoragePartTest {
 
 	private static final int PRIMARY_KEY = 1;

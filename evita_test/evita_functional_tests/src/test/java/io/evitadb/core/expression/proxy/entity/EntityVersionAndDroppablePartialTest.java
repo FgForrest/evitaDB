@@ -40,12 +40,15 @@ import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
 
 /**
  * Tests for {@link EntityVersionAndDroppablePartial} verifying that version, droppable, scope, and locale method
@@ -53,6 +56,8 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("rawtypes")
 @DisplayName("Entity version and droppable partial")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
 class EntityVersionAndDroppablePartialTest {
 
 	/**

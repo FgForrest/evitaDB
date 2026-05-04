@@ -35,8 +35,12 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.OptionalInt;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PricesStoragePart} verifying construction validation, emptiness detection,
@@ -45,6 +49,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("PricesStoragePart behavioral tests")
+@Tag(ENGINE)
+@Tag(EXPORT)
+@Tag(PRICE)
 class PricesStoragePartTest {
 
 	private static final int ENTITY_PK = 1;

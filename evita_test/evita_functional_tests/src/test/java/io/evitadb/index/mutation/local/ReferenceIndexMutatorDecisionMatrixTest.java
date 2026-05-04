@@ -41,8 +41,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferenceIndexMutator#applyFacetDecisionMatrix} verifying the four-way decision matrix
@@ -51,6 +55,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ReferenceIndexMutator — applyFacetDecisionMatrix")
+@Tag(INDEXING)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class ReferenceIndexMutatorDecisionMatrixTest {
 	private static final String ENTITY_TYPE = Entities.PRODUCT;
 	private static final String REFERENCE_NAME = Entities.BRAND;

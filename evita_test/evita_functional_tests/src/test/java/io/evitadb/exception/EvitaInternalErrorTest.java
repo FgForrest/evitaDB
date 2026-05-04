@@ -24,14 +24,19 @@
 package io.evitadb.exception;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies behaviour of {@link EvitaInternalErrorTest}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
 class EvitaInternalErrorTest {
 
 	@Test

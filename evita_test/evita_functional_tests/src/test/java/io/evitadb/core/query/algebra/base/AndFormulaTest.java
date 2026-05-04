@@ -33,8 +33,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link AndFormula} verifying boolean conjunction (AND) computation, memoization,
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("AndFormula — boolean conjunction")
+@Tag(ENGINE)
+@Tag(QUERY)
 class AndFormulaTest {
 
 	private static final long[] INDEX_TRANSACTION_ID = {1L};

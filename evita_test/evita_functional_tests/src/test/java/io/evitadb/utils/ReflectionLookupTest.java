@@ -50,8 +50,11 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies behaviour of {@link ReflectionLookup} class.
@@ -59,6 +62,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2020
  */
 @DisplayName("ReflectionLookup contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class ReflectionLookupTest {
 	private final ReflectionLookup tested = new ReflectionLookup(ReflectionCachingBehaviour.NO_CACHE);
 

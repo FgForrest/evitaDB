@@ -28,8 +28,11 @@ import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link ConflictGenerationContext} scoped lifecycle management.
@@ -37,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ConflictGenerationContext")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 class ConflictGenerationContextTest implements EvitaTestSupport {
 
 	@Nested

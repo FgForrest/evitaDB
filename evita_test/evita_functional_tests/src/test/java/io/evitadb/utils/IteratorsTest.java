@@ -28,6 +28,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.PrimitiveIterator.OfInt;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies {@link Iterators} class.
@@ -35,6 +39,8 @@ import java.util.PrimitiveIterator.OfInt;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("Iterators contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class IteratorsTest {
 
 	@Test

@@ -58,11 +58,16 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static io.evitadb.utils.MapBuilder.map;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Ancestor for tests for REST catalog endpoint.
@@ -70,6 +75,10 @@ import static io.evitadb.utils.MapBuilder.map;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  * @author Martin Veska, FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 	@Nonnull

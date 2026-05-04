@@ -59,12 +59,20 @@ import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies functionalities of methods in {@link EntityConverter} class.
  *
  * @author Tomáš Pozler, 2022
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class EntityConverterTest {
 
 	@Test

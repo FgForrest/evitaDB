@@ -34,9 +34,13 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.defaultAccompanyingPriceLists;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REQUIRE;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link DefaultAccompanyingPriceLists} verifying construction, applicability, getters,
@@ -45,6 +49,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DefaultAccompanyingPriceLists constraint")
+@Tag(CONTRACT)
+@Tag(REQUIRE)
+@Tag(PRICE)
 class DefaultAccompanyingPriceListsTest {
 
 	@Nested

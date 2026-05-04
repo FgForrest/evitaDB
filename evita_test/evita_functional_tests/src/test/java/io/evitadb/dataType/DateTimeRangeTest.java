@@ -33,11 +33,14 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.dataType.DateTimeRange.between;
 import static io.evitadb.dataType.DateTimeRange.since;
 import static io.evitadb.dataType.DateTimeRange.until;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Checks creation and behavior of the {@link DateTimeRange} data type.
@@ -45,6 +48,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotn\u00fd (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DateTimeRange")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class DateTimeRangeTest {
 
 	@Nested

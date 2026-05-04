@@ -38,10 +38,13 @@ import javax.annotation.Nonnull;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Abstract base test class for {@link EntityIndex} behavior. Tests in this class verify
@@ -57,6 +60,8 @@ import static org.mockito.Mockito.when;
  * @param <T> the concrete EntityIndex subtype being tested
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Tag(INDEXING)
+@Tag(MANAGEMENT)
 abstract class AbstractEntityIndexTest<T extends EntityIndex> {
 
 	protected static final String ENTITY_TYPE = "Product";

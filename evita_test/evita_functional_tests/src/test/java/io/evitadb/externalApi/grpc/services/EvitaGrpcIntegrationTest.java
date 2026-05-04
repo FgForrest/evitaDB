@@ -57,17 +57,21 @@ import org.junit.jupiter.api.function.Executable;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 @DisplayName("Evita gRPC integration test")
 @ExtendWith(EvitaParameterResolver.class)
-@Tag(FUNCTIONAL_TEST)
 @Slf4j
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 public class EvitaGrpcIntegrationTest {
 	private static final String GRPC_THOUSAND_PRODUCTS = "GrpcEvitaGrpcIntegrationTest";
 

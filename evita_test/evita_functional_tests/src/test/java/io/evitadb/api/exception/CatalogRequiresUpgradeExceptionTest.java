@@ -25,10 +25,13 @@ package io.evitadb.api.exception;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Pins the wire-level payload of `CatalogRequiresUpgradeException` — `Evita#loadCatalogInternal`
@@ -39,6 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("CatalogRequiresUpgradeException — catalog-name + protocol-version payload")
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
 class CatalogRequiresUpgradeExceptionTest {
 
 	private static final String CATALOG = "testCatalog";

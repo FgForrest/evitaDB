@@ -26,8 +26,11 @@ package io.evitadb.api.configuration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link ServerOptions} record and its builder.
@@ -35,6 +38,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("ServerOptions")
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
 class ServerOptionsTest {
 
 	@Test

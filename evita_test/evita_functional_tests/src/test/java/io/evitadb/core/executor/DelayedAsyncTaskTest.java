@@ -31,15 +31,20 @@ import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TASK;
 
 /**
  * This test verifies behavior of DelayedAsyncTask class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Tag(ENGINE)
+@Tag(TASK)
 class DelayedAsyncTaskTest implements TestConstants {
 	private Scheduler scheduler;
 

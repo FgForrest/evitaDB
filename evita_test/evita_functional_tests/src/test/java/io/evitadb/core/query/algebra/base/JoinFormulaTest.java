@@ -31,8 +31,11 @@ import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link JoinFormula} verifying duplicate-preserving merge, memoization,
@@ -41,6 +44,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("JoinFormula — duplicate-preserving merge")
+@Tag(ENGINE)
+@Tag(QUERY)
 class JoinFormulaTest {
 
 	@Nested

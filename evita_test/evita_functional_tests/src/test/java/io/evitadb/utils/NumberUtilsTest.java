@@ -33,12 +33,15 @@ import java.util.Map;
 import static io.evitadb.utils.NumberUtils.join;
 import static io.evitadb.utils.NumberUtils.split;
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies contract of {@link NumberUtils} class.
@@ -46,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("NumberUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class NumberUtilsTest {
 
 	@Nested

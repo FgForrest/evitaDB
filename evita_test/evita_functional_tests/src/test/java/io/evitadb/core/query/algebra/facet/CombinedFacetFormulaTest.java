@@ -32,8 +32,12 @@ import io.evitadb.index.bitmap.Bitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Tests for {@link CombinedFacetFormula} verifying computation, memoization, cloning,
@@ -42,6 +46,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("CombinedFacetFormula functionality")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(FACET)
 class CombinedFacetFormulaTest {
 
 	@Nested

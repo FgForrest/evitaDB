@@ -55,6 +55,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -67,6 +68,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests `RestoreCatalogSchemaMutationOperator` — the state-transition driver that registers a previously-unloaded
@@ -85,6 +90,10 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("RestoreCatalogSchemaMutationOperator tests")
+@Tag(ENGINE)
+@Tag(TRANSACTION)
+@Tag(SCHEMA)
+@Tag(MANAGEMENT)
 class RestoreCatalogSchemaMutationOperatorTest {
 
 	private static final String CATALOG_NAME = "restoredCatalog";

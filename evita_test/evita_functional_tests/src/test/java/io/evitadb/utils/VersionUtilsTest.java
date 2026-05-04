@@ -27,8 +27,11 @@ package io.evitadb.utils;
 import io.evitadb.utils.VersionUtils.SemVer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies contract of  the {@link VersionUtils} class.
@@ -36,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("VersionUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 public class VersionUtilsTest {
 
 	@Test

@@ -49,12 +49,17 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.time.LocalDateTime;
 import java.util.*;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies functionalities of methods in {@link EntitySchemaConverter} class.
@@ -62,6 +67,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class EntitySchemaConverterTest {
 
 	@Nonnull

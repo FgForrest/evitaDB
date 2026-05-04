@@ -40,8 +40,11 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TASK;
 
 /**
  * Tests verifying cancellation behavior of {@link ObservableRunnable} and {@link ObservableCallable}.
@@ -49,6 +52,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @SuppressWarnings("ResultOfMethodCallIgnored")
+@Tag(ENGINE)
+@Tag(TASK)
 class ObservableThreadExecutorCancellationTest {
 
 	// ---- Bug 2: dangling result future on pre-start cancellation ----

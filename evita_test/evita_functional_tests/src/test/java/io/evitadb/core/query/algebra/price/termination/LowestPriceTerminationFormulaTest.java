@@ -40,7 +40,11 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
+import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link LowestPriceTerminationFormula} verifying construction, hashing, cloning,
@@ -54,6 +58,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("LowestPriceTerminationFormula")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(PRICE)
 class LowestPriceTerminationFormulaTest {
 
 	private static final Currency CZK = Currency.getInstance("CZK");

@@ -31,8 +31,12 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.EnumSet;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link TransactionOptions} record and its builder.
@@ -40,6 +44,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("TransactionOptions")
+@Tag(CONTRACT)
+@Tag(MANAGEMENT)
+@Tag(TRANSACTION)
 class TransactionOptionsTest {
 
 	@Nested

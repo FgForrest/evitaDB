@@ -28,9 +28,12 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test class for the {@link BigDecimalNumberRange} set operations (union, intersection, inverse).
@@ -38,6 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  * @author Jan Novotn\u00fd (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("BigDecimalNumberRange set operations")
+@Tag(CONTRACT)
+@Tag(DATA_TYPE)
 class BigDecimalNumberRangeTest {
 
 	@Nested

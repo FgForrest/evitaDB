@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -67,6 +68,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Unit tests for {@link ReferenceHistogramStatisticsTranslator}. The translator is normally invoked
@@ -85,6 +90,10 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ReferenceHistogramStatisticsTranslator")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 class ReferenceHistogramStatisticsTranslatorTest {
 
 	private static final String REF_NAME = "categories";

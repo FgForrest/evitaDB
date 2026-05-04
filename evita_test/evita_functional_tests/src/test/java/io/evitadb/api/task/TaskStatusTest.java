@@ -36,8 +36,11 @@ import java.time.OffsetDateTime;
 import java.util.EnumSet;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.TASK;
 
 /**
  * Tests for {@link TaskStatus} record verifying state resolution, progress updates, state transitions,
@@ -46,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("TaskStatus record functionality")
+@Tag(CONTRACT)
+@Tag(TASK)
 class TaskStatusTest {
 
 	private static final String TASK_TYPE = "TestTask";

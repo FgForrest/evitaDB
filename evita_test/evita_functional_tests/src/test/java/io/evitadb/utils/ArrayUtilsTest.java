@@ -34,9 +34,12 @@ import java.util.function.IntBinaryOperator;
 import java.util.function.ToIntBiFunction;
 import javax.annotation.Nonnull;
 import java.util.function.UnaryOperator;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test verifies contract of {@link ArrayUtils} class.
@@ -44,6 +47,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ArrayUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class ArrayUtilsTest {
 
 	/**

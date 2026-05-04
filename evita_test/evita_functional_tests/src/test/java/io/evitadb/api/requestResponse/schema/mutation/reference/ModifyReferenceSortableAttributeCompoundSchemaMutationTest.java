@@ -43,6 +43,7 @@ import org.mockito.Mockito;
 
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_ATTRIBUTE_COMPOUND;
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_ATTRIBUTE_PRIORITY;
@@ -55,6 +56,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link ModifyReferenceSortableAttributeCompoundSchemaMutation} class.
@@ -62,6 +67,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @DisplayName("ModifyReferenceSortableAttributeCompoundSchemaMutation")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
+@Tag(ATTRIBUTE)
 class ModifyReferenceSortableAttributeCompoundSchemaMutationTest {
 
 	@Nested

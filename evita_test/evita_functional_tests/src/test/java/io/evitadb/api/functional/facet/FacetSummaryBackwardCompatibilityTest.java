@@ -50,8 +50,9 @@ import java.util.Iterator;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FACET;
 
 /**
  * Backward-compatibility regression tests that pin the runtime extra-result class returned by
@@ -85,9 +86,10 @@ import static org.junit.jupiter.api.Assertions.*;
 // TOBEDONE: deprecated - remove when FacetSummary constraint is removed (https://github.com/FgForrest/evitaDB/issues/538)
 @Deprecated(since = "2026.2", forRemoval = true)
 @DisplayName("Facet summary backward-compatibility dispatch contract")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(FACET)
 public class FacetSummaryBackwardCompatibilityTest extends AbstractEntityByFacetFilteringFunctionalTest {
 
 	/**

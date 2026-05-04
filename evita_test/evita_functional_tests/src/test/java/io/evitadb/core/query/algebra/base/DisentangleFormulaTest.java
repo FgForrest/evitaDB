@@ -35,8 +35,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link DisentangleFormula} verifying index-aware duplicate removal,
@@ -45,6 +48,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("DisentangleFormula — index-aware duplicate removal")
+@Tag(ENGINE)
+@Tag(QUERY)
 class DisentangleFormulaTest {
 
 	@Nested

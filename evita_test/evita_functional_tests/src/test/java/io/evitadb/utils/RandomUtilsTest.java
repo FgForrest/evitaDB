@@ -28,8 +28,11 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Random;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * This test verifies the functionality of the {@link RandomUtils} class.
@@ -37,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("RandomUtils contract tests")
+@Tag(ENGINE)
+@Tag(DATA_TYPE)
 class RandomUtilsTest {
 
 	@Test

@@ -83,10 +83,12 @@ import static graphql.Assert.assertNotNull;
 import static io.evitadb.api.functional.attribute.EntityByChainOrderingFunctionalTest.collectProductIndex;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This test verifies the behavior related to the duplicate references of the same type in entities and reflected
@@ -95,9 +97,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("Evita entity duplicate references handling")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(ATTRIBUTE)
+@Tag(REFERENCE)
 public class EntityByDuplicateReferencesFunctionalTest {
 	private static final String DUPLICATE_REFERENCES = "duplicateReferences";
 	private static final String DUPLICATE_REFERENCES_SCHEMA_ONLY = "duplicateReferencesSchemaOnly";

@@ -34,8 +34,11 @@ import javax.annotation.Nonnull;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPORT;
 
 /**
  * Verifies that {@link ReadOnlyKeyCompressorView} correctly delegates read-only operations to the underlying
@@ -43,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@Tag(ENGINE)
+@Tag(EXPORT)
 class ReadOnlyKeyCompressorViewTest {
 
 	private static final AttributeKey KEY_NAME = new AttributeKey("name");

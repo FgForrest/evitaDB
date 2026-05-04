@@ -24,25 +24,21 @@
 package io.evitadb.index.map;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -56,7 +52,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @SuppressWarnings("SameParameterValue")
 @DisplayName("TransactionalMap")
-class TransactionalMapTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class TransactionalMapTest {
 	/** The map under test, pre-populated with {"a"->1, "b"->2} before each test. */
 	private TransactionalMap<String, Integer> tested;
 
@@ -1141,121 +1140,6 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 
 	}
 
-	/**
-	 * Generational randomized proof test that applies random map modifications within transactions and verifies
-	 * the committed state matches a reference map that tracks the same operations.
-	 */
-	@Nested
-	@DisplayName("Generational randomized proof")
-	class GenerationalProofTest {
-
-		@DisplayName("survives generational randomized test applying modifications on it")
-		@ParameterizedTest(name = "TransactionalMap should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final int initialCount = 100;
-			final Map<String, Integer> initialState = generateRandomInitialMap(new Random(input.randomSeed()), initialCount);
-
-			runFor(
-				input,
-				10_000,
-				new TestState(
-					new StringBuilder(256),
-					initialState
-				),
-				(random, testState) -> {
-					final TransactionalMap<String, Integer> transactionalMap = new TransactionalMap<>(testState.initialMap());
-					final Map<String, Integer> referenceMap = new HashMap<>(testState.initialMap());
-
-					final StringBuilder codeBuffer = testState.code();
-					codeBuffer.append("\nSTART: ")
-						.append(
-							transactionalMap.entrySet()
-								.stream()
-								.map(entry -> entry.getKey() + ": " + entry.getValue())
-								.collect(Collectors.joining(","))
-						)
-						.append("\n");
-
-					assertStateAfterCommit(
-						transactionalMap,
-						original -> {
-							final int operationsInTransaction = random.nextInt(5);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								final int length = transactionalMap.size();
-								assertEquals(referenceMap.size(), length);
-								final int operation = random.nextInt(4);
-								if ((operation == 0 || length < 10) && length < 120) {
-									// insert / update item
-									final String newRecKey = String.valueOf((char) (40 + random.nextInt(64)));
-									final Integer newRecId = random.nextInt(initialCount << 1);
-									transactionalMap.put(newRecKey, newRecId);
-									referenceMap.put(newRecKey, newRecId);
-									codeBuffer.append("+").append(newRecKey).append(":").append(newRecId);
-								} else if (operation == 1) {
-									String recKey = null;
-									final int index = random.nextInt(length);
-									final Iterator<String> it = referenceMap.keySet().iterator();
-									for (int j = 0; j <= index; j++) {
-										final String key = it.next();
-										if (j == index) {
-											recKey = key;
-										}
-									}
-									codeBuffer.append("-").append(recKey);
-									transactionalMap.remove(recKey);
-									referenceMap.remove(recKey);
-								} else if (operation == 2) {
-									// update existing item by iterator
-									final int updateIndex = random.nextInt(length);
-									final Integer updatedValue = random.nextInt(initialCount << 1);
-									codeBuffer.append("!").append(updateIndex).append(":").append(updatedValue);
-									final Iterator<Entry<String, Integer>> it = transactionalMap.entrySet().iterator();
-									for (int j = 0; j <= updateIndex; j++) {
-										final Entry<String, Integer> entry = it.next();
-										if (j == updateIndex) {
-											entry.setValue(updatedValue);
-											referenceMap.put(entry.getKey(), updatedValue);
-										}
-									}
-								} else {
-									// remove existing item by iterator
-									final int updateIndex = random.nextInt(length);
-									codeBuffer.append("#").append(updateIndex);
-									final Iterator<Entry<String, Integer>> it = transactionalMap.entrySet().iterator();
-									for (int j = 0; j <= updateIndex; j++) {
-										final Entry<String, Integer> entry = it.next();
-										if (j == updateIndex) {
-											it.remove();
-											referenceMap.remove(entry.getKey());
-										}
-									}
-								}
-							}
-							codeBuffer.append("\n");
-						},
-						(original, committed) -> {
-							assertMapContains(
-								committed,
-								referenceMap.entrySet()
-									.stream()
-									.map(it -> new Tuple(it.getKey(), it.getValue()))
-									.toArray(Tuple[]::new)
-							);
-						}
-					);
-
-					return new TestState(
-						new StringBuilder(256),
-						referenceMap
-					);
-				}
-			);
-		}
-
-	}
-
 	// -----------------------------------------------------------------------
 	// Shared helpers
 	// -----------------------------------------------------------------------
@@ -1302,25 +1186,6 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 			final Integer value = valueIt.next();
 			assertTrue(expectedMap.containsValue(value));
 		}
-	}
-
-	/**
-	 * Generates a randomized initial map of the given size, using single printable characters as keys
-	 * and random integers as values.
-	 *
-	 * @param rnd   the random source — pass a seeded instance for reproducibility
-	 * @param count the number of entries to generate (actual size may be smaller due to key collisions)
-	 * @return the generated map
-	 */
-	@Nonnull
-	private static Map<String, Integer> generateRandomInitialMap(@Nonnull Random rnd, int count) {
-		final Map<String, Integer> initialArray = new HashMap<>(count);
-		for (int i = 0; i < count; i++) {
-			final String recKey = String.valueOf((char) (40 + rnd.nextInt(64)));
-			final int recId = rnd.nextInt(count << 1);
-			initialArray.put(recKey, recId);
-		}
-		return initialArray;
 	}
 
 	/**
@@ -1438,17 +1303,6 @@ class TransactionalMapTest implements TimeBoundedTestSupport {
 		}
 
 	}
-
-	/**
-	 * Carries the state between generational test iterations.
-	 *
-	 * @param code       accumulated operation log for diagnosing failures
-	 * @param initialMap the map state to use at the start of the next iteration
-	 */
-	private record TestState(
-		@Nonnull StringBuilder code,
-		@Nonnull Map<String, Integer> initialMap
-	) {}
 
 	/**
 	 * A simple key-value pair used as expected data in {@link #assertMapContains}.

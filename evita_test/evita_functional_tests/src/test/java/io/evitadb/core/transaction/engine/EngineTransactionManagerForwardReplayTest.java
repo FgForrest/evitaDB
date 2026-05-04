@@ -56,6 +56,7 @@ import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.spi.store.engine.EnginePersistenceService.STORAGE_PROTOCOL_VERSION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,6 +66,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests the forward WAL replay path of `EngineTransactionManager`.
@@ -90,6 +93,8 @@ import static org.mockito.Mockito.when;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("EngineTransactionManager forward WAL replay")
+@Tag(ENGINE)
+@Tag(TRANSACTION)
 class EngineTransactionManagerForwardReplayTest implements EvitaTestSupport {
 	private TestPaths paths;
 	private StorageOptions storageOptions;

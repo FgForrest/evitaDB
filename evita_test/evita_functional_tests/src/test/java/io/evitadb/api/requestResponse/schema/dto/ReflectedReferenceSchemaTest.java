@@ -60,13 +60,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReflectedReferenceSchema}.
  */
 @DisplayName("ReflectedReferenceSchema")
+@Tag(CONTRACT)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
 class ReflectedReferenceSchemaTest {
 
 	/**

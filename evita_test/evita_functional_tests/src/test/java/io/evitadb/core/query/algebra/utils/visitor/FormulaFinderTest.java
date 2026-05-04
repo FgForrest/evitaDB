@@ -37,8 +37,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link FormulaFinder} verifying formula search in trees with SHALLOW and DEEP modes.
@@ -46,6 +49,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("FormulaFinder - formula search in trees")
+@Tag(ENGINE)
+@Tag(QUERY)
 class FormulaFinderTest {
 
 	@Nested

@@ -30,8 +30,13 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This test verifies {@link PriceHistogram} contract including delegation via @Delegate.
@@ -39,6 +44,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("PriceHistogram")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(HISTOGRAM)
+@Tag(PRICE)
 class PriceHistogramTest implements EvitaTestSupport {
 
 	@Nested

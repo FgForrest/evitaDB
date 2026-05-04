@@ -32,8 +32,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests the widest possible range of constraints and variants of evitaDB query through REST API. It tests if
@@ -42,6 +46,9 @@ import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_T
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2024
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class CatalogRestQueryTranslationVerifyingFunctionalTest extends CatalogRestDataEndpointFunctionalTest {
 
 	@Test

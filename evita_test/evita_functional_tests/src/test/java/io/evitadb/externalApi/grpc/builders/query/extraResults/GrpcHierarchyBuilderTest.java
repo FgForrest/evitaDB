@@ -47,12 +47,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.HIERARCHY;
 
 /**
  * This test verifies functionalities of methods in {@link GrpcHierarchyStatisticsBuilder} class.
  *
  * @author Tomáš Pozler, 2022
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(HIERARCHY)
 public class GrpcHierarchyBuilderTest {
 
 	@Test

@@ -40,6 +40,7 @@ import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,6 +51,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link SelectionFormula} verifying computation delegation, memoization,
@@ -63,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author evitaDB
  */
 @DisplayName("SelectionFormula")
+@Tag(ENGINE)
+@Tag(QUERY)
 class SelectionFormulaTest {
 
 	@Nested

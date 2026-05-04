@@ -60,8 +60,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Tests for nested entity proxy wiring in {@link ExpressionProxyInstantiator}. Verifies that
@@ -71,6 +75,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Nested entity proxy wiring")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(PROXY)
 class NestedEntityProxyWiringTest {
 
 	private static final int ENTITY_PK = 42;

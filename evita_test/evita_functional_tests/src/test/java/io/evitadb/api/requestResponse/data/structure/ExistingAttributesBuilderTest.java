@@ -46,8 +46,12 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies contract of {@link ExistingAttributesBuilder}
@@ -57,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ExistingEntityAttributesBuilder (attributes)")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(ATTRIBUTE)
 class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 	private EntityAttributes initialAttributes;
 

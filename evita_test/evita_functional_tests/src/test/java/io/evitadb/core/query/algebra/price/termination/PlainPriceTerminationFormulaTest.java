@@ -37,8 +37,12 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Currency;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PlainPriceTerminationFormula} verifying delegation, hashing, cloning,
@@ -47,6 +51,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("PlainPriceTerminationFormula")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(PRICE)
 class PlainPriceTerminationFormulaTest {
 
 	private static final Currency CZK = Currency.getInstance("CZK");

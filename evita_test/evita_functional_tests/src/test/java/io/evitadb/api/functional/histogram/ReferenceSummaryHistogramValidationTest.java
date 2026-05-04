@@ -46,10 +46,14 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.function.Consumer;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Validation and edge-case coverage for `referenceSummary` / `referenceSummaryOfReference`
@@ -65,6 +69,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Reference summary histogram — validation and edge cases")
+@Tag(CONTRACT)
+@Tag(HISTOGRAM)
+@Tag(REFERENCE)
 public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSummaryHistogramFunctionalTest {
 
 	// ==========================================================================================

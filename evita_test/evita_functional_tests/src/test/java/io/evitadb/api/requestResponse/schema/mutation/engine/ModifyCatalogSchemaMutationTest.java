@@ -32,15 +32,20 @@ import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.Cata
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.junit.jupiter.api.Tag;
 
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * This test verifies {@link ModifyCatalogSchemaMutation} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(CONTRACT)
+@Tag(SCHEMA)
 public class ModifyCatalogSchemaMutationTest {
 
 	@Test

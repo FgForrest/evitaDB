@@ -52,6 +52,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This test verifies functionalities of methods in {@link GrpcReferenceSummaryBuilder} class.
@@ -59,6 +65,10 @@ import java.util.Objects;
  * @author Tomáš Pozler, 2022
  */
 @SuppressWarnings("deprecation")
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(REFERENCE)
 public class GrpcReferenceSummaryBuilderTest {
 
 	@Test

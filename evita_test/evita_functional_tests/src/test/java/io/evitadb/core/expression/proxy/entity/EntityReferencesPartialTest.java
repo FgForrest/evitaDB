@@ -44,12 +44,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link EntityReferencesPartial} verifying that reference method implementations correctly delegate to the
@@ -57,6 +61,9 @@ import static org.mockito.Mockito.when;
  */
 @SuppressWarnings("rawtypes")
 @DisplayName("Entity references partial")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(REFERENCE)
 class EntityReferencesPartialTest {
 
 	/** Unique marker interface to avoid Proxycian classification cache pollution between test classes. */

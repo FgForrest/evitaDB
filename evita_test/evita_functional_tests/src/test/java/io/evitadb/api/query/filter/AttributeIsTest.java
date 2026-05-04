@@ -33,11 +33,15 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeIs;
 import static io.evitadb.api.query.QueryConstraints.attributeIsNotNull;
 import static io.evitadb.api.query.QueryConstraints.attributeIsNull;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeIs} verifying construction, applicability, property accessors,
@@ -46,6 +50,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("AttributeIs constraint")
+@Tag(CONTRACT)
+@Tag(FILTER)
+@Tag(ATTRIBUTE)
 class AttributeIsTest {
 
 	@Nested

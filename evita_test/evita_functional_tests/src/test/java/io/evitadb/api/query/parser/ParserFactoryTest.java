@@ -28,8 +28,11 @@ import io.evitadb.api.query.parser.exception.SyntaxErrorReporter;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link ParserFactory} verifying parser creation
@@ -38,6 +41,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ParserFactory")
+@Tag(CONTRACT)
+@Tag(QUERY)
 class ParserFactoryTest {
 
 	@Test

@@ -41,10 +41,14 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Optional;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests verifying cross-scope reference entity fetching behavior. When a product is archived,
@@ -57,6 +61,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Cross-scope reference entity fetching")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
 class EntityCrossScopeReferenceFetchFunctionalTest implements EvitaTestSupport {
 
 	private static final String TEST_CATALOG = "crossScopeFetch";

@@ -60,6 +60,11 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.WAL;
 
 /**
  * Manual replay tool that opens an `EvitaClient` against an externally running evitaDB
@@ -83,6 +88,9 @@ import java.util.stream.Stream;
  */
 @Slf4j
 @Disabled("Manual recovery / replay test - run from the IDE only.")
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
+@Tag(WAL)
 public class WalReplayAgainstLocalServerTest implements EvitaTestSupport {
 	/**
 	 * Catalog name to be replayed.

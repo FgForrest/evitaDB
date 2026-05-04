@@ -37,12 +37,16 @@ import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * This test verifies contract of {@link ExistingReferenceBuilder}.
@@ -50,6 +54,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("ExistingReferenceBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
 class ExistingReferenceBuilderTest extends AbstractBuilderTest {
 	private ReferenceContract initialReference;
 	private final HashMap<String, AttributeSchemaContract>

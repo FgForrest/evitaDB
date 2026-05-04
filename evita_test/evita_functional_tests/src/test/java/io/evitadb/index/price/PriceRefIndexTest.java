@@ -36,34 +36,25 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -73,7 +64,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for {@link PriceRefIndex} verifying catalog attachment, add/remove price delegation,
@@ -82,6 +74,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("PriceRefIndex functionality")
+@Tag(INDEXING)
+@Tag(PRICE)
 class PriceRefIndexTest implements TimeBoundedTestSupport {
 
 	private static final String ENTITY_TYPE = "product";
@@ -928,208 +922,6 @@ class PriceRefIndexTest implements TimeBoundedTestSupport {
 
 			assertTrue(tested.isPriceIndexEmpty());
 		}
-	}
-
-	/**
-	 * Generational proof test that randomly adds and removes prices via PriceRefIndex
-	 * inside transactions, then verifies committed state matches expected state.
-	 *
-	 * Each iteration builds a fresh super index and ref index from the tracked state,
-	 * then performs random add/remove operations within a transaction. Super index
-	 * operations happen OUTSIDE the transaction so their transactional layers don't
-	 * interfere with the ref index commit.
-	 */
-	@Tag(LONG_RUNNING_TEST)
-	@DisplayName("generational proof test with random add/remove operations")
-	@ParameterizedTest(name = "generational proof test with seed {0}")
-	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalProofTest(@Nonnull GenerationalTestInput input) {
-		final AtomicInteger globalInternalPriceId = new AtomicInteger(0);
-
-		// keys used for random operations
-		final PriceIndexKey[] keys = {KEY_BASIC_CZK, KEY_VIP_CZK, KEY_BASIC_EUR};
-
-		runFor(
-			input, 1_000,
-			new TestState(
-				new StringBuilder(8192),
-				new HashMap<>(8)
-			),
-			(random, testState) -> {
-				final StringBuilder codeBuffer = testState.code();
-				codeBuffer.setLength(0);
-
-				// rebuild a fresh super index from the tracked state each iteration
-				final PriceSuperIndex superIndex = new PriceSuperIndex();
-				final Map<PriceIndexKey, Set<Integer>> currentState = testState.trackedPricesByKey();
-
-				// populate the super index from state
-				for (final Map.Entry<PriceIndexKey, Set<Integer>> entry : currentState.entrySet()) {
-					for (final Integer ipId : entry.getValue()) {
-						// use ipId as both entityPK and priceId for simplicity
-						superIndex.addPrice(
-							null, ipId, ipId,
-							new PriceKey(ipId, entry.getKey().getPriceList(), entry.getKey().getCurrency()),
-							entry.getKey().getRecordHandling(),
-							null, null, 10000, 12100
-						);
-					}
-				}
-
-				// build a fresh PriceRefIndex and attach it
-				final PriceRefIndex priceRefIndex = new PriceRefIndex(SCOPE);
-				final GlobalEntityIndex mockGlobalIndex = Mockito.mock(GlobalEntityIndex.class);
-				Mockito.when(mockGlobalIndex.getPriceIndex(ArgumentMatchers.any(PriceIndexKey.class)))
-					.thenAnswer(inv -> superIndex.getPriceIndex(inv.getArgument(0)));
-				final Catalog mockCatalog = Mockito.mock(Catalog.class);
-				Mockito.when(mockCatalog.getEntityIndexIfExists(
-					ArgumentMatchers.eq(ENTITY_TYPE),
-					ArgumentMatchers.eq(new EntityIndexKey(EntityIndexType.GLOBAL, SCOPE)),
-					ArgumentMatchers.eq(GlobalEntityIndex.class)
-				)).thenReturn(Optional.of(mockGlobalIndex));
-				priceRefIndex.attachToCatalog(ENTITY_TYPE, mockCatalog);
-
-				// populate the ref index from state
-				for (final Map.Entry<PriceIndexKey, Set<Integer>> entry : currentState.entrySet()) {
-					for (final Integer ipId : entry.getValue()) {
-						priceRefIndex.addPrice(
-							null, ipId, ipId,
-							new PriceKey(ipId, entry.getKey().getPriceList(), entry.getKey().getCurrency()),
-							entry.getKey().getRecordHandling(),
-							null, null, 10000, 12100
-						);
-					}
-				}
-
-				// plan random operations
-				final Map<PriceIndexKey, Set<Integer>> nextState = new HashMap<>(8);
-				for (final Map.Entry<PriceIndexKey, Set<Integer>> entry : currentState.entrySet()) {
-					nextState.put(entry.getKey(), new HashSet<>(entry.getValue()));
-				}
-
-				// collect planned operations: {ipId, priceId, entityPK, keyIdx} for adds,
-				// {ipId, keyIdx} for removes
-				final List<int[]> addOps = new ArrayList<>(8);
-				final List<int[]> removeOps = new ArrayList<>(8);
-
-				final int opCount = 1 + random.nextInt(5);
-				for (int i = 0; i < opCount; i++) {
-					final int keyIdx = random.nextInt(keys.length);
-					final PriceIndexKey selectedKey = keys[keyIdx];
-					final Set<Integer> pricesForKey =
-						nextState.computeIfAbsent(selectedKey, k -> new HashSet<>(4));
-
-					if (pricesForKey.isEmpty() || random.nextBoolean()) {
-						// plan an add -- use ipId as entityPK and priceId for consistency
-						final int ipId = globalInternalPriceId.incrementAndGet();
-
-						codeBuffer.append("ADD: ipId=").append(ipId)
-							.append(" key=").append(selectedKey).append('\n');
-
-						addOps.add(new int[]{ipId, keyIdx});
-						pricesForKey.add(ipId);
-					} else {
-						// plan a remove
-						final Integer ipIdToRemove = pricesForKey.iterator().next();
-
-						codeBuffer.append("REMOVE: ipId=").append(ipIdToRemove)
-							.append(" key=").append(selectedKey).append('\n');
-
-						removeOps.add(new int[]{ipIdToRemove, keyIdx});
-						pricesForKey.remove(ipIdToRemove);
-						if (pricesForKey.isEmpty()) {
-							nextState.remove(selectedKey);
-						}
-					}
-				}
-
-				// execute super index additions OUTSIDE the transaction
-				for (final int[] op : addOps) {
-					final PriceIndexKey key = keys[op[1]];
-					superIndex.addPrice(
-						null, op[0], op[0],
-						new PriceKey(op[0], key.getPriceList(), key.getCurrency()),
-						key.getRecordHandling(),
-						null, null, 10000, 12100
-					);
-				}
-
-				try {
-					assertStateAfterCommit(
-						priceRefIndex,
-						original -> {
-							// additions inside transaction
-							for (final int[] op : addOps) {
-								final PriceIndexKey key = keys[op[1]];
-								original.addPrice(
-									null, op[0], op[0],
-									new PriceKey(op[0], key.getPriceList(), key.getCurrency()),
-									key.getRecordHandling(),
-									null, null, 10000, 12100
-								);
-							}
-							// removals inside transaction
-							for (final int[] op : removeOps) {
-								final PriceIndexKey key = keys[op[1]];
-								original.priceRemove(
-									null, op[0], op[0],
-									new PriceKey(op[0], key.getPriceList(), key.getCurrency()),
-									key.getRecordHandling(),
-									null, null, 10000, 12100
-								);
-							}
-						},
-						(original, committed) -> {
-							for (final PriceIndexKey key : keys) {
-								final Set<Integer> expectedPrices =
-									nextState.getOrDefault(key, Set.of());
-								final PriceListAndCurrencyPriceRefIndex childIndex =
-									committed.getPriceIndex(key);
-
-								if (expectedPrices.isEmpty()) {
-									assertNull(
-										childIndex,
-										"Expected no child for " + key +
-											" but found one.\n" + codeBuffer
-									);
-								} else {
-									assertNotNull(
-										childIndex,
-										"Expected child for " + key +
-											" but found none.\n" + codeBuffer
-									);
-									assertFalse(
-										childIndex.isEmpty(),
-										"Child for " + key +
-											" is empty but should not be.\n" + codeBuffer
-									);
-								}
-							}
-						}
-					);
-				} catch (Exception ex) {
-					fail(ex.getMessage() + "\n" + codeBuffer, ex);
-				}
-
-				return new TestState(
-					new StringBuilder(8192),
-					nextState
-				);
-			}
-		);
-	}
-
-	/**
-	 * State carried across generational test iterations.
-	 *
-	 * @param code              StringBuilder for debugging output on failure
-	 * @param trackedPricesByKey mapping from `PriceIndexKey` to set of internal price ids
-	 *                          currently in the ref index
-	 */
-	private record TestState(
-		@Nonnull StringBuilder code,
-		@Nonnull Map<PriceIndexKey, Set<Integer>> trackedPricesByKey
-	) {
 	}
 
 }

@@ -38,16 +38,27 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link ReferenceAttributeSchemaMutationInputAggregateConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
+@Tag(REFERENCE)
+@Tag(ATTRIBUTE)
 class ReferenceAttributeSchemaMutationInputAggregateConverterTest {
 
 	private ReferenceAttributeSchemaMutationInputAggregateConverter converter;

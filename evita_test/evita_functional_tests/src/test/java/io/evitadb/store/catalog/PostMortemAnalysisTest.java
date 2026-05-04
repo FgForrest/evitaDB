@@ -69,6 +69,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -80,6 +81,8 @@ import static io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceS
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.VERSIONED_KRYO_FACTORY;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.createWalIfAnyWalFilePresent;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This tests is expected to be used only manually to inspect the contents of the catalog files when the crash happens.
@@ -88,6 +91,8 @@ import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.getCatal
  */
 @Slf4j
 @Disabled("This test is not meant to be run in CI, it is for manual post-mortem analysis of the catalog file remnants.")
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 public class PostMortemAnalysisTest implements EvitaTestSupport {
 	private final ObservableOutputKeeper observableOutputKeeper = ObservableOutputKeeper._internalBuild(
 		Mockito.mock(Scheduler.class)

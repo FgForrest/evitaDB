@@ -24,17 +24,12 @@
 package io.evitadb.index.list;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -47,12 +42,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
+import static io.evitadb.test.TestTags.DATA_TYPE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
@@ -67,7 +63,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2018
  */
 @DisplayName("TransactionalList")
-class TransactionalListTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
+@Tag(TRANSACTION)
+class TransactionalListTest {
 
 	/** Underlying mutable list initialised to [1, 2] before each test. */
 	private List<Integer> underlyingData;
@@ -1764,123 +1763,6 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Tests verifying long-running randomised operation sequences remain consistent
-	 * between the transactional list and a plain ArrayList reference implementation.
-	 */
-	@Nested
-	@DisplayName("Generational proof")
-	class GenerationalProofTest {
-
-		@ParameterizedTest(name = "TransactionalList should survive generational randomized test applying modifications on it")
-		@Tag(LONG_RUNNING_TEST)
-		@ArgumentsSource(TimeArgumentProvider.class)
-		void generationalProofTest(GenerationalTestInput input) {
-			final int initialCount = 20;
-			final List<Integer> initialState =
-				generateRandomInitialArray(new Random(input.randomSeed()), initialCount);
-
-			runFor(
-				input,
-				10_000,
-				new TestState(
-					new StringBuilder(),
-					initialState
-				),
-				(random, testState) -> {
-					final List<Integer> referenceList = new ArrayList<>(testState.initialState);
-					final TransactionalList<Integer> transactionalList =
-						new TransactionalList<>(testState.initialState());
-
-					final StringBuilder codeBuffer = testState.code();
-					codeBuffer.append("\nSTART: ")
-						.append(transactionalList.stream().map(Object::toString).collect(Collectors.joining(",")))
-						.append("\n");
-
-					assertStateAfterCommit(
-						transactionalList,
-						original -> {
-
-							final int operationsInTransaction = random.nextInt(5);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								final int length = transactionalList.size();
-								assertEquals(referenceList.size(), length);
-								final int operation = random.nextInt(3);
-								if ((operation == 0 || length < 10) && length < 120) {
-									if (random.nextBoolean()) {
-										// insert new item at the end
-										final Integer newRecId = random.nextInt(initialCount * 2);
-										transactionalList.add(newRecId);
-										referenceList.add(newRecId);
-										codeBuffer.append("+").append(newRecId);
-									} else if (length > 0) {
-										// insert new item in the middle
-										final int addIndex = random.nextInt(length - 1);
-										final Integer newRecId = random.nextInt(initialCount * 2);
-										transactionalList.add(addIndex, newRecId);
-										referenceList.add(addIndex, newRecId);
-										codeBuffer.append("++(").append(addIndex).append(")").append(newRecId);
-									}
-								} else if (operation == 1) {
-									if (random.nextBoolean()) {
-										// remove existing item by index
-										final int removeIndex = random.nextInt(length);
-										codeBuffer.append("-").append(removeIndex);
-										transactionalList.remove(removeIndex);
-										referenceList.remove(removeIndex);
-									} else {
-										// remove existing item by value
-										final Integer removedRecId = transactionalList.get(random.nextInt(length));
-										transactionalList.remove(removedRecId);
-										referenceList.remove(removedRecId);
-										codeBuffer.append("--").append(removedRecId);
-									}
-								} else {
-									// update existing item by index
-									final int updateIndex = random.nextInt(length);
-									final Integer updatedValue = random.nextInt(initialCount * 2);
-									codeBuffer.append("!").append(updateIndex);
-									transactionalList.set(updateIndex, updatedValue);
-									referenceList.set(updateIndex, updatedValue);
-								}
-							}
-							codeBuffer.append("\n");
-						},
-						(original, committed) ->
-							assertListContains(committed, referenceList.stream().mapToInt(it -> it).toArray())
-					);
-
-					return new TestState(
-						new StringBuilder(),
-						referenceList
-					);
-				}
-			);
-		}
-
-	}
-
-	// =========================================================================
-	// Shared helper methods
-	// =========================================================================
-
-	/**
-	 * Generates a random list of `count` integers in the range `[0, count * 2)`.
-	 *
-	 * @param rnd   random source — must be non-null
-	 * @param count number of elements to generate
-	 * @return a new mutable list of random integers
-	 */
-	@Nonnull
-	private List<Integer> generateRandomInitialArray(@Nonnull Random rnd, int count) {
-		final List<Integer> initialArray = new ArrayList<>(count);
-		for (int i = 0; i < count; i++) {
-			final int recId = rnd.nextInt(count * 2);
-			initialArray.add(recId);
-		}
-		return initialArray;
-	}
-
-	/**
 	 * Asserts that `list` contains exactly `recordIds` (in order) and that all standard
 	 * List access methods agree: size, element-by-index, contains, forward and backward
 	 * ListIterator traversal, and isEmpty.
@@ -1928,17 +1810,5 @@ class TransactionalListTest implements TimeBoundedTestSupport {
 		}
 		assertEquals(0, index, errorMessage);
 	}
-
-	/**
-	 * Immutable state carrier for the generational proof test, holding the code buffer
-	 * used to reproduce a failing sequence and the current list state.
-	 *
-	 * @param code         accumulated operation log for debugging
-	 * @param initialState current list state that becomes the next iteration's delegate
-	 */
-	private record TestState(
-		StringBuilder code,
-		List<Integer> initialState
-	) {}
 
 }

@@ -32,12 +32,20 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.Random;
 import java.util.UUID;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * This test verifies functionalities of methods in {@link GrpcQueryTelemetryBuilder} class.
  *
  * @author Tomáš Pozler, 2022
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
 class GrpcQueryTelemetryBuilderTest {
 	private static final Random random = new Random();
 	private static final int queryPhaseCount = QueryPhase.values().length;

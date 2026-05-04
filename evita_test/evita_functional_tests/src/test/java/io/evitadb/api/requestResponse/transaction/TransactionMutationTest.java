@@ -50,8 +50,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.TRANSACTION;
 
 /**
  * Tests for {@link TransactionMutation} verifying construction, getter
@@ -61,6 +64,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("TransactionMutation")
+@Tag(CONTRACT)
+@Tag(TRANSACTION)
 class TransactionMutationTest implements EvitaTestSupport {
 
 	private static final UUID TX_ID =

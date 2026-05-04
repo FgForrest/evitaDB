@@ -46,8 +46,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.TASK;
 
 /**
  * Comprehensive test suite for {@link ProgressRecord}
@@ -65,6 +68,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ProgressRecord functionality")
+@Tag(CONTRACT)
+@Tag(TASK)
 class ProgressRecordTest implements EvitaTestSupport {
 
 	private Executor executor;

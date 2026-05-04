@@ -59,9 +59,12 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.spi.store.engine.EnginePersistenceService.STORAGE_PROTOCOL_VERSION;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.STORAGE;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * This test verifies the behavior of {@link DefaultEnginePersistenceService}.
@@ -79,6 +82,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("DefaultEnginePersistenceService functionality")
+@Tag(STORAGE)
+@Tag(MANAGEMENT)
 class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 	private DefaultEnginePersistenceService service;
 	private StorageOptions storageOptions;

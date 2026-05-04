@@ -30,14 +30,23 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPa
 import io.evitadb.dataType.Scope;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for {@link DelegatingEntitySchemaMutationConverter}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Tag(GRPC)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SCHEMA)
 class DelegatingEntitySchemaMutationConverterTest {
 
 	private static DelegatingEntitySchemaMutationConverter converter;

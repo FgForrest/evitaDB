@@ -41,47 +41,37 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
-import io.evitadb.test.duration.TimeArgumentProvider;
-import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
-import io.evitadb.test.duration.TimeBoundedTestSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
-import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static java.text.Normalizer.Form;
 import static java.text.Normalizer.normalize;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies contract of {@link SortIndex}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class SortIndexTest implements TimeBoundedTestSupport {
+@Tag(INDEXING)
+@Tag(ATTRIBUTE)
+class SortIndexTest {
 
 	private static final Locale CZECH_LOCALE = new Locale("cs");
 
@@ -356,108 +346,6 @@ class SortIndexTest implements TimeBoundedTestSupport {
 			sortIndex.sortedRecordsValues.getArray()
 		);
 		assertArrayEquals(new int[]{1, 4, 7, 6, 2, 3, 5}, sortIndex.sortedRecords.getArray());
-	}
-
-	@ParameterizedTest(name = "SortIndex should survive generational randomized test applying modifications on it")
-	@Tag(LONG_RUNNING_TEST)
-	@ArgumentsSource(TimeArgumentProvider.class)
-	void generationalProofTest(GenerationalTestInput input) {
-		final Random rnd = new Random();
-		final int initialCount = 100;
-		final TreeSet<ValueRecord> setToCompare = new TreeSet<>();
-		final Set<Integer> currentRecordSet = new HashSet<>();
-
-		runFor(
-			input,
-			1_000,
-			new TestState(
-				new StringBuilder(256),
-				new SortIndex(String.class, new AttributeIndexKey(null, "whatever", null))
-			),
-			(random, testState) -> {
-				final StringBuilder ops = testState.code();
-				ops.append("final SortIndex sortIndex = new SortIndex(String.class);\n")
-					.append(
-						setToCompare.stream()
-							.map(it -> "sortIndex.addRecord(\"" + it.value() + "\"," + it.recordId() + ");")
-							.collect(Collectors.joining("\n"))
-					)
-					.append("\nOps:\n");
-
-				final SortIndex sortIndex = testState.sortIndex();
-				final AtomicReference<SortIndex> committedResult = new AtomicReference<>();
-
-				assertStateAfterCommit(
-					sortIndex,
-					original -> {
-						try {
-							final int operationsInTransaction = rnd.nextInt(100);
-							for (int i = 0; i < operationsInTransaction; i++) {
-								final int length = sortIndex.size();
-								if ((rnd.nextBoolean() || length < 10) && length < 50) {
-									// insert new item
-									final String newValue = Character.toString(65 + rnd.nextInt(28));
-									int newRecId;
-									do {
-										newRecId = rnd.nextInt(initialCount * 2);
-									} while (currentRecordSet.contains(newRecId));
-									setToCompare.add(new ValueRecord(newValue, newRecId));
-									currentRecordSet.add(newRecId);
-
-									ops.append("sortIndex.addRecord(\"")
-										.append(newValue).append("\",")
-										.append(newRecId).append(");\n");
-									sortIndex.addRecord(newValue, newRecId);
-								} else {
-									// remove existing item
-									final Iterator<ValueRecord> it = setToCompare.iterator();
-									ValueRecord valueToRemove = null;
-									for (int j = 0; j < rnd.nextInt(length) + 1; j++) {
-										valueToRemove = it.next();
-									}
-									it.remove();
-									currentRecordSet.remove(valueToRemove.recordId());
-
-									ops.append("sortIndex.removeRecord(\"")
-										.append(valueToRemove.value()).append("\",")
-										.append(valueToRemove.recordId()).append(");\n");
-									sortIndex.removeRecord(valueToRemove.value(), valueToRemove.recordId());
-								}
-							}
-						} catch (Exception ex) {
-							fail("\n" + ops, ex);
-						}
-					},
-					(original, committed) -> {
-						final int[] expected = setToCompare.stream().mapToInt(ValueRecord::recordId).toArray();
-						assertArrayEquals(
-							expected,
-							committed.getAscendingOrderRecordsSupplier().getSortedRecordIds(),
-							"\nExpected: " + Arrays.toString(expected) + "\n" +
-								"Actual:  " + Arrays.toString(
-								committed.getAscendingOrderRecordsSupplier().getSortedRecordIds()
-							) + "\n\n" + ops
-						);
-
-						committedResult.set(
-							new SortIndex(
-								committed.comparatorBase,
-								null,
-								committed.getAttributeIndexKey(),
-								committed.sortedRecords.getArray(),
-								committed.sortedRecordsValues.getArray(),
-								new HashMap<>(committed.valueCardinalities)
-							)
-						);
-					}
-				);
-
-				return new TestState(
-					new StringBuilder(512),
-					committedResult.get()
-				);
-			}
-		);
 	}
 
 	@Nonnull
@@ -1180,19 +1068,4 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		}
 	}
 
-	private record TestState(
-		StringBuilder code,
-		SortIndex sortIndex
-	) {
-
-	}
-
-	private record ValueRecord(String value, int recordId) implements Comparable<ValueRecord> {
-		@Override
-		public int compareTo(ValueRecord o) {
-			final int cmp1 = this.value.compareTo(o.value);
-			return cmp1 == 0 ? Integer.compare(this.recordId, o.recordId) : cmp1;
-		}
-
-	}
 }

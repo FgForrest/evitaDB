@@ -34,8 +34,11 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
 
 /**
  * Tests for {@link PrettyPrintingFormulaVisitor} verifying formula tree rendering
@@ -44,6 +47,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author evitaDB
  */
 @DisplayName("PrettyPrintingFormulaVisitor - formula tree rendering")
+@Tag(ENGINE)
+@Tag(QUERY)
 class PrettyPrintingFormulaVisitorTest {
 
 	@Nested

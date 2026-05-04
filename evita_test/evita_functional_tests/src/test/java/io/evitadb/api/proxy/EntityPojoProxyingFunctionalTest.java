@@ -67,13 +67,14 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.CURRENCY_CZK;
 import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface.
@@ -81,9 +82,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("Evita entity POJO proxying functionality")
-@Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
+@Tag(CONTRACT)
+@Tag(PROXY)
 public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest {
 	protected static final String HUNDRED_PRODUCTS = "HundredProxyProducts_EntityPojoProxyingFunctionalTest";
 

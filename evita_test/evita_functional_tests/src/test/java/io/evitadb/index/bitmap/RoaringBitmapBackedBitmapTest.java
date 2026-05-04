@@ -28,6 +28,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
+import org.junit.jupiter.api.Tag;
+
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Verifies methods in {@link RoaringBitmapBackedBitmap}
@@ -35,6 +39,8 @@ import org.roaringbitmap.RoaringBitmapWriter;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @DisplayName("RoaringBitmapBackedBitmap tests")
+@Tag(INDEXING)
+@Tag(DATA_TYPE)
 class RoaringBitmapBackedBitmapTest {
 
 	@Test

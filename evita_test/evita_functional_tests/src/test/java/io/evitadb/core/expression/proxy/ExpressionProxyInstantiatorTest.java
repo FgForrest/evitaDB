@@ -57,17 +57,24 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.utils.ArrayUtils.EMPTY_CLASS_ARRAY;
 import static io.evitadb.utils.ArrayUtils.EMPTY_OBJECT_ARRAY;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.EXPRESSION;
+import static io.evitadb.test.TestTags.PROXY;
 
 /**
  * Tests for {@link ExpressionProxyInstantiator} verifying that the trigger-time proxy instantiation correctly fetches
  * storage parts per recipe and produces working proxy objects.
  */
 @DisplayName("Expression proxy instantiator")
+@Tag(ENGINE)
+@Tag(EXPRESSION)
+@Tag(PROXY)
 class ExpressionProxyInstantiatorTest {
 
 	private static final int ENTITY_PK = 42;

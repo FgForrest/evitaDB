@@ -26,10 +26,14 @@ package io.evitadb.api.proxy.impl;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.PROXY;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * Tests for {@link ProxyEntityCacheKey} record which serves as cache key for proxy recipe lookup.
@@ -37,6 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @DisplayName("ProxyEntityCacheKey")
+@Tag(CONTRACT)
+@Tag(PROXY)
+@Tag(CACHE)
 class ProxyEntityCacheKeyTest {
 
 	@Test

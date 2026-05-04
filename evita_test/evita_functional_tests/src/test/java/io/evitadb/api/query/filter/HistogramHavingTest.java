@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
@@ -46,6 +47,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 
 /**
  * Tests for {@link HistogramHaving} pinning its public API contract — the four factory arities, the
@@ -61,6 +65,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author evitaDB
  */
 @DisplayName("HistogramHaving constraint")
+@Tag(CONTRACT)
+@Tag(FILTER)
+@Tag(HISTOGRAM)
 class HistogramHavingTest {
 
 	/**

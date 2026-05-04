@@ -45,14 +45,23 @@ import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 
 /**
  * Description
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Tag(REST)
+@Tag(EXTERNAL_API)
+@Tag(QUERY)
+@Tag(SERIALIZATION)
 class ObjectJsonSerializerTest {
 	private final ObjectMapper mapper = new ObjectMapper();
 	private final ObjectJsonSerializer tested = new ObjectJsonSerializer(this.mapper);

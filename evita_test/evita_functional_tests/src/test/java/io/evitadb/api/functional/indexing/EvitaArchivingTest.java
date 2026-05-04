@@ -73,6 +73,7 @@ import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getGlobalIndex;
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedEntityIndex;
@@ -82,6 +83,8 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.utils.StringUtils.normalizeLineEndings;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
 
 /**
  * This test verifies archiving (changing scope) of the entities.
@@ -89,6 +92,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @SuppressWarnings("SameParameterValue")
+@Tag(CONTRACT)
+@Tag(INDEXING)
 public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport {
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_URL = "url";

@@ -37,8 +37,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This abstract test verifies shared contract of
@@ -49,6 +53,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @DisplayName("InitialAttributesBuilder")
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(ATTRIBUTE)
 abstract class InitialAttributesBuilderTest extends AbstractBuilderTest {
 	/**
 	 * Provides fresh builder instance for each test.
