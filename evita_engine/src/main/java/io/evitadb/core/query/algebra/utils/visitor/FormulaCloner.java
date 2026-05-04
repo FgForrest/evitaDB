@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.utils.visitor;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
+import io.evitadb.core.query.algebra.base.DisentangleFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import lombok.Getter;
@@ -172,8 +173,19 @@ public class FormulaCloner implements FormulaVisitor {
 						formulaToStore = null;
 					} else {
 						// Determine which child survived
+						final Formula processedSubtracted = this.formulasProcessed.get(notFormula.getSubtractedFormula());
 						final Formula processedSuperset = this.formulasProcessed.get(notFormula.getSupersetFormula());
-						if (processedSuperset != null && updatedChildren.contains(processedSuperset)) {
+						if (processedSubtracted != null && processedSubtracted == processedSuperset
+							&& updatedChildren.contains(processedSuperset)) {
+							// Both positional siblings post-process to the same formula instance
+							// (typically due to FormulaDeduplicator collapsing two structurally
+							// equivalent ConstantFormula children of `or(P, not(P))`). The single
+							// Set entry hides what used to be two distinct positional siblings.
+							// Mathematically `X \ X = ∅`, so collapse the wrapper to EmptyFormula
+							// rather than mistakenly returning the surviving child as if subtracted
+							// had been dropped.
+							formulaToStore = EmptyFormula.INSTANCE;
+						} else if (processedSuperset != null && updatedChildren.contains(processedSuperset)) {
 							// Superset survived, subtracted was removed → S \ nothing = S
 							formulaToStore = processedSuperset;
 						} else {
@@ -181,6 +193,14 @@ public class FormulaCloner implements FormulaVisitor {
 							formulaToStore = null;
 						}
 					}
+				} else if (formula instanceof DisentangleFormula && updatedChildren.size() < 2) {
+					// DisentangleFormula(main, control) requires two positional siblings — the same
+					// dedup-collapse pattern that hits NotFormula above can drop one of them when
+					// FormulaDeduplicator unifies structurally equivalent inputs. Without this guard
+					// the fall-through would call `getCloneWithInnerFormulas([X])` and NPE on
+					// `innerFormulas[1]`. Mathematically `disentangle(X, X) = ∅`, so collapse to
+					// EmptyFormula instead.
+					formulaToStore = EmptyFormula.INSTANCE;
 				} else {
 					// recreate parent formula with new children
 					final Formula recreated = formula.getCloneWithInnerFormulas(

@@ -30,6 +30,7 @@ import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -132,8 +133,8 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 			bitmapIdCount++;
 		}
 		int innerIdCount = 0;
-		for (int i = 0; i < this.innerFormulas.length; i++) {
-			innerIdCount += this.innerFormulas[i].gatherTransactionalIds().length;
+		for (final Formula formula : this.innerFormulas) {
+			innerIdCount += formula.gatherTransactionalIds().length;
 		}
 		final long[] result = new long[bitmapIdCount + innerIdCount];
 		int pos = 0;
@@ -143,8 +144,8 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 		if (this.controlBitmap instanceof TransactionalLayerProducer) {
 			result[pos++] = ((TransactionalLayerProducer<?, ?>) this.controlBitmap).getId();
 		}
-		for (int i = 0; i < this.innerFormulas.length; i++) {
-			final long[] ids = this.innerFormulas[i].gatherTransactionalIds();
+		for (final Formula innerFormula : this.innerFormulas) {
+			final long[] ids = innerFormula.gatherTransactionalIds();
 			System.arraycopy(ids, 0, result, pos, ids.length);
 			pos += ids.length;
 		}
@@ -274,6 +275,14 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 	@Nonnull
 	@Override
 	protected Bitmap computeInternal() {
+		// disentangle(X, X) = ∅ — every element in main is at the same position in control,
+		// so all entries are swallowed. Guards against direct construction with identical inputs
+		// and against FormulaCloner-induced collapse when FormulaDeduplicator unifies the two
+		// positional siblings (see analogous guard in NotFormula).
+		if ((this.mainBitmap != null && this.mainBitmap == this.controlBitmap) ||
+			(this.mainBitmap == null && this.innerFormulas[0] == this.innerFormulas[1])) {
+			return EmptyBitmap.INSTANCE;
+		}
 		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		final OfInt controlIt = this.controlBitmap != null
 			? this.controlBitmap.iterator()
