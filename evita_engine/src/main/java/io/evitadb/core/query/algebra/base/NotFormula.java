@@ -250,7 +250,8 @@ public class NotFormula extends AbstractCacheableFormula {
 	protected Bitmap computeInternal() {
 		final Bitmap theResult;
 		if (this.subtractedBitmap != null && this.supersetBitmap != null) {
-			if (this.supersetBitmap.isEmpty()) {
+			// X \ X = ∅ — guards against direct construction with the same bitmap on both sides
+			if (this.supersetBitmap.isEmpty() || this.subtractedBitmap == this.supersetBitmap) {
 				theResult = EmptyBitmap.INSTANCE;
 			} else {
 				theResult = new BaseBitmap(
@@ -260,6 +261,9 @@ public class NotFormula extends AbstractCacheableFormula {
 					)
 				);
 			}
+		} else if (getSubtractedFormula() == getSupersetFormula()) {
+			// X \ X = ∅ — guards against direct construction with the same formula on both sides
+			theResult = EmptyBitmap.INSTANCE;
 		} else {
 			final Bitmap supersetBitmap = getSupersetFormula().compute();
 			if (supersetBitmap.isEmpty()) {
