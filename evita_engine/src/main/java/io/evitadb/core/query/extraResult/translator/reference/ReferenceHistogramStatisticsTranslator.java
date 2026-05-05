@@ -126,9 +126,11 @@ public class ReferenceHistogramStatisticsTranslator implements RequireConstraint
 
 		// snapshot the resolved `histogramHaving` registry once per translator invocation — the filter
 		// translator has already done all the walking, descriptor resolution, and group-selector bitmap
-		// computation so we just read back the pre-computed tuples
+		// computation so we just read back the pre-computed tuples. The registry is owned by this
+		// plan's FilterByVisitor (not the shared QueryPlanningContext) so alternative-plan filter
+		// translations don't contribute duplicate entries.
 		final List<ResolvedHistogramHaving> resolvedHistogramHavings =
-			extraResultPlanner.getQueryContext().getResolvedHistogramHavings();
+			extraResultPlanner.getFilterByVisitor().getResolvedHistogramHavings();
 		for (final String histogramName : constraint.getIndexNames()) {
 			final HistogramValueDescriptor descriptor = resolveDescriptor(
 				referenceSchema, referenceName, histogramName, scopes, extraResultPlanner

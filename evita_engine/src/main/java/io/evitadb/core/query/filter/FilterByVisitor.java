@@ -81,6 +81,7 @@ import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.core.query.filter.translator.histogram.HistogramHavingTranslator;
+import io.evitadb.core.query.filter.translator.histogram.ResolvedHistogramHaving;
 import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceInCurrencyTranslator;
 import io.evitadb.core.query.filter.translator.price.PriceInPriceListsTranslator;
@@ -272,6 +273,20 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nullable
 	private Formula computedFormula;
+	/**
+	 * Plan-time registry of resolved `histogramHaving` carriers populated by
+	 * {@link HistogramHavingTranslator} during this visitor's filter translation pass and consumed
+	 * by `ReferenceHistogramStatisticsTranslator` during extra-result planning of the same plan.
+	 *
+	 * The registry lives on the visitor (not on the shared {@link QueryPlanningContext}) because
+	 * {@link io.evitadb.core.query.QueryPlanner#createFilterFormula} constructs a fresh
+	 * {@link FilterByVisitor} per eligible {@link io.evitadb.core.query.indexSelection.TargetIndexes}
+	 * — every alternative plan re-translates the filter tree and would otherwise append duplicate
+	 * entries to a shared registry. Per-visitor scoping ensures each plan's extra-result phase reads
+	 * exactly its own pass's resolved tuples.
+	 */
+	@Nonnull
+	private final List<ResolvedHistogramHaving> resolvedHistogramHavings = new ArrayList<>(4);
 
 	/**
 	 * Method returns true for all {@link FilterConstraint} types that are conjunctive.
@@ -456,6 +471,31 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		return ofNullable(this.computedFormula)
 			.map(formula -> this.constructFinalFormula(formula, additionalPostProcessors))
 			.orElseGet(this::getSuperSetFormula);
+	}
+
+	/**
+	 * Records a `histogramHaving` carrier resolved by {@link HistogramHavingTranslator} during this
+	 * visitor's filter translation pass. Called once per `histogramHaving` constraint in the filter
+	 * tree; alternative-plan re-walks (a fresh {@link FilterByVisitor} per
+	 * {@link io.evitadb.core.query.indexSelection.TargetIndexes}) maintain their own independent
+	 * registries, so duplicate appends are impossible.
+	 *
+	 * @param entry the fully resolved tuple describing the histogram slot and its `[from, to]` range
+	 */
+	public void registerResolvedHistogramHaving(@Nonnull ResolvedHistogramHaving entry) {
+		this.resolvedHistogramHavings.add(entry);
+	}
+
+	/**
+	 * Returns an unmodifiable view of all `histogramHaving` carriers resolved during this visitor's
+	 * filter translation pass. Consumers filter the list by their own `(referenceName, histogramName)`
+	 * tuple to locate the slot(s) they care about.
+	 *
+	 * @return the resolved carriers in document order; empty when the query has no `histogramHaving`
+	 */
+	@Nonnull
+	public List<ResolvedHistogramHaving> getResolvedHistogramHavings() {
+		return Collections.unmodifiableList(this.resolvedHistogramHavings);
 	}
 
 	/**
