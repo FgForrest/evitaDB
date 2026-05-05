@@ -36,6 +36,7 @@ import org.junit.jupiter.api.Test;
 import static io.evitadb.test.TestTags.OBSERVABILITY;
 import static io.evitadb.test.TestTags.OBSERVABILITY_API;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -70,10 +71,12 @@ class MetricHandlerBuildInfoTest {
 		assertTrue(labels.contains("commit"), "evitadb_build_info is missing the `commit` label");
 		assertTrue(labels.contains("java_version"), "evitadb_build_info is missing the `java_version` label");
 
-		// Values are environment-dependent (no shaded jar in tests), so we only check non-null.
-		assertNotNull(labels.get("version"));
-		assertNotNull(labels.get("commit"));
-		assertNotNull(labels.get("java_version"));
+		// Values are environment-dependent (no shaded jar in tests), so we can only check
+		// that none of the labels was registered with an empty value — which would mask a
+		// regression in the manifest-reading or `java.version` system-property logic.
+		assertFalse(labels.get("version").isEmpty(), "evitadb_build_info `version` label is empty");
+		assertFalse(labels.get("commit").isEmpty(), "evitadb_build_info `commit` label is empty");
+		assertFalse(labels.get("java_version").isEmpty(), "evitadb_build_info `java_version` label is empty");
 	}
 
 	/**

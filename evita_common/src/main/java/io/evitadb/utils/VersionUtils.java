@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -41,6 +41,13 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class VersionUtils {
+	/**
+	 * Fallback returned by {@link #readVersion()} and {@link #readCommitHash()} when the
+	 * manifest cannot be located or the requested attribute is missing — typically inside
+	 * the IDE, in unit tests, or when building from a source tarball without a `.git`
+	 * directory. Also used in place of unresolved Maven placeholders that may slip into
+	 * the manifest when the build runs without a Git working copy.
+	 */
 	public static final String UNKNOWN_VALUE = "?";
 	private static final String DEFAULT_MANIFEST_LOCATION = "META-INF/MANIFEST.MF";
 	private static final String IMPLEMENTATION_VENDOR_TITLE = "Implementation-Title";
@@ -85,7 +92,13 @@ public class VersionUtils {
 					final Attributes mainAttributes = manifest.getMainAttributes();
 					if (IO_EVITADB_SERVER_TITLE.equals(mainAttributes.getValue(IMPLEMENTATION_VENDOR_TITLE)) ||
 						IO_EVITADB_CLIENT_TITLE.equals(mainAttributes.getValue(IMPLEMENTATION_VENDOR_TITLE))) {
-						return ofNullable(mainAttributes.getValue(attributeName)).orElse(UNKNOWN_VALUE);
+						final String value = mainAttributes.getValue(attributeName);
+						// guard against unresolved Maven placeholders that survive when a build
+						// runs outside a Git checkout (e.g. `${git.commit.id.abbrev}` literal)
+						if (value == null || value.startsWith("${")) {
+							return UNKNOWN_VALUE;
+						}
+						return value;
 					}
 				}
 			}
