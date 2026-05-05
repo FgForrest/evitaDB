@@ -188,8 +188,9 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		@Nonnull Collection<PriceContract> prices,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling
 	) {
-		if (this.cachedResult != null) {
-			return ofNullable(this.cachedResult.value());
+		final ComputedHolder<PriceForSaleWithAccompanyingPrices> snapshot = this.cachedResult;
+		if (snapshot != null) {
+			return ofNullable(snapshot.value());
 		}
 		final PriceForSaleComputationResult computation = ensureComputation(prices, innerRecordHandling);
 		final PriceForSaleWithAccompanyingPrices result = computation == null
@@ -274,8 +275,9 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		@Nonnull Collection<PriceContract> prices,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling
 	) {
-		if (this.cachedResult != null) {
-			return ofNullable(this.cachedResult.value())
+		final ComputedHolder<PriceForSaleWithAccompanyingPrices> snapshot = this.cachedResult;
+		if (snapshot != null) {
+			return ofNullable(snapshot.value())
 				.map(PriceForSaleWithAccompanyingPrices::priceForSale);
 		}
 		final PriceForSaleComputationResult computation = ensureComputation(prices, innerRecordHandling);
@@ -295,8 +297,9 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		@Nonnull Collection<PriceContract> prices,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling
 	) {
-		if (this.cachedComputation != null) {
-			return this.cachedComputation.value();
+		final ComputedHolder<PriceForSaleComputationResult> snapshot = this.cachedComputation;
+		if (snapshot != null) {
+			return snapshot.value();
 		}
 		final PriceForSaleComputationResult computation = PricesContract.computePriceForSaleResult(
 			prices,

@@ -303,8 +303,11 @@ public interface PricesContract extends Versioned, Serializable {
 			case NONE -> {
 				PriceContract bestForSale = null;
 				int bestPriority = Integer.MAX_VALUE;
-				// candidates collected during the first pass — reused for accompanying-price calc
-				final List<PriceContract> candidates = new ArrayList<>(entityPrices.size());
+				// candidates collected during the first pass — reused for accompanying-price calc.
+				// Mirrors the `distinctInnerEstimate` heuristic used by the inner-record branches: assume that
+				// roughly half of `entityPrices` survives the currency / validity filter (multi-currency
+				// catalogues are common), with a small reserve to absorb noise.
+				final List<PriceContract> candidates = new ArrayList<>(entityPrices.size() / 2 + 2);
 				for (final PriceContract price : entityPrices) {
 					if (isNotCandidate(price, currency, atTheMoment)) {
 						continue;
