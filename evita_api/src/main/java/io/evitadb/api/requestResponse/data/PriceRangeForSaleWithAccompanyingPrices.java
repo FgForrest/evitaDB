@@ -35,11 +35,20 @@ import java.util.Optional;
  * are interchangeable in terms of the accompanying-price contents — only the price-range information is
  * added on top.
  *
+ * Bound-vs-accompanying scope: under `LOWEST_PRICE`, `accompanyingPrices` are scoped to the inner record of
+ * the **selling** price (i.e. the cheapest variant), not to the inner record of `priceRange.highestPrice()`.
+ * The same map is returned regardless of which bound the consumer subsequently surfaces (`priceForSaleMin`
+ * vs `priceForSaleMax`). This is intentional — the engine resolves accompanying prices once per request and
+ * the bound fields are presentation-layer views over the same resolved context. Consumers wanting the
+ * accompanying prices of a specific variant should query that variant directly rather than via the bound
+ * field.
+ *
  * @param priceRange         price range for sale (lowest/highest/priceForSale)
  * @param accompanyingPrices map of accompanying prices keyed by their requested
  *                           {@link PricesContract.AccompanyingPrice#priceName()}; values are wrapped in
  *                           {@link Optional} so that absent accompanying prices may be represented
- *                           explicitly
+ *                           explicitly. See the "Bound-vs-accompanying scope" note above for how the map
+ *                           relates to the range bounds under `LOWEST_PRICE`
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

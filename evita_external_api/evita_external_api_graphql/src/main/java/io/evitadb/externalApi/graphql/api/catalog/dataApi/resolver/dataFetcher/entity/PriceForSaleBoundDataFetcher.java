@@ -51,6 +51,14 @@ import java.util.Optional;
  * {@link io.evitadb.api.requestResponse.data.PriceForSaleContextWithCachedResult} ensures that fetching both
  * `priceForSaleMin` and `priceForSaleMax` on the same entity runs the price-for-sale computation once.
  *
+ * Accompanying-price scope: when a client queries `priceForSaleMin { accompanyingPrice(...) }` or
+ * `priceForSaleMax { accompanyingPrice(...) }`, the accompanying prices returned are those resolved against
+ * the **selling** price's context (under `LOWEST_PRICE` strategy: the cheapest variant's inner record). They
+ * are **not** re-resolved per bound. This mirrors the engine's single-pass computation and matches the
+ * `accompanyingPrices` field on {@link PriceRangeForSaleWithAccompanyingPrices}. Clients needing
+ * accompanying prices for a specific variant should query that variant entity directly rather than reading
+ * them off a bound field.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class PriceForSaleBoundDataFetcher extends AbstractPriceForSaleDataFetcher<PriceContract> {

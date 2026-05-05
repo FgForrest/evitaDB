@@ -86,15 +86,18 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	/**
 	 * Rich computation cache populated lazily by the first {@code compute*} call that needs the per-bucket
 	 * detail. Drives {@link #computePriceForSale}, {@link #computeRange}, and
-	 * {@link #computeRangeWithAccompanyingPrices}.
+	 * {@link #computeRangeWithAccompanyingPrices}. Declared `volatile` so the field reference is safely
+	 * published to concurrent readers — multiple GraphQL / REST data fetchers may evaluate fields on the same
+	 * {@link io.evitadb.api.requestResponse.data.structure.EntityDecorator} in parallel.
 	 */
-	private AtomicReference<PriceForSaleComputationResult> cachedComputation;
+	private volatile AtomicReference<PriceForSaleComputationResult> cachedComputation;
 	/**
 	 * Cache for the assembled {@link PriceForSaleWithAccompanyingPrices} returned by {@link #compute}. May be
 	 * pre-seeded at construction (gRPC reverse path) or populated on the first {@code compute()} call so the
-	 * accompanying-price selection runs at most once.
+	 * accompanying-price selection runs at most once. Declared `volatile` for the same safe-publication reason
+	 * as {@link #cachedComputation}.
 	 */
-	private AtomicReference<PriceForSaleWithAccompanyingPrices> cachedResult;
+	private volatile AtomicReference<PriceForSaleWithAccompanyingPrices> cachedResult;
 
 	public PriceForSaleContextWithCachedResult(
 		@Nullable String[] priceListPriority,
@@ -272,8 +275,11 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 
 	/**
 	 * Returns the rich computation result, running the full {@link PricesContract#computePriceForSaleResult}
-	 * pass and caching the result on the first call. Concurrent first-callers may both run the computation;
-	 * the last writer wins.
+	 * pass and caching the result on the first call. The cache field is `volatile`, so the value written by
+	 * the first completing thread is visible to subsequent readers. Concurrent first-callers may both run
+	 * the computation (no compare-and-set on the field); the last writer wins. The cached
+	 * {@link PriceForSaleComputationResult} is deterministic for a given input set, so duplicate computation
+	 * is wasteful but not incorrect.
 	 */
 	@Nullable
 	private PriceForSaleComputationResult ensureComputation(

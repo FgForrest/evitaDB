@@ -1675,6 +1675,102 @@ class PricesContractTest extends AbstractBuilderTest {
 	}
 
 	/**
+	 * Regression guard for the LOWEST_PRICE accompanying-price helper: when the caller supplies an entity-prices
+	 * collection that mixes currencies (the realistic case for a multi-currency catalogue), the chosen accompanying
+	 * price must match the requested `currency`. Without the currency / validity gate added to
+	 * `filterCandidatesByInnerRecordRelation`, the LOWEST_PRICE branch was free to pick a foreign-currency price
+	 * that happened to share the selling price's `innerRecordId` and hit a higher-priority price list.
+	 */
+	@Test
+	@DisplayName("LOWEST_PRICE accompanying-price helper filters foreign-currency candidates")
+	void shouldRejectForeignCurrencyAccompanyingPriceUnderLowestPriceStrategy() {
+		// Inner record 1 carries the cheapest CZK basket; the standard set ships CZK and EUR variants for every
+		// (priceList, innerRecord) combination — exactly the layout that exposed the missing currency filter.
+		final List<PriceContract> mixedCurrencySet = Arrays.asList(
+			ArrayUtils.mergeArrays(
+				createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+				createStandardPriceSetWithMultiplier(2, new BigDecimal("2"))
+			)
+		);
+
+		final PriceContract czkSelling = PricesContract.computePriceForSale(
+			mixedCurrencySet, PriceInnerRecordHandling.LOWEST_PRICE,
+			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC},
+			Objects::nonNull
+		).orElseThrow();
+		assertEquals(CZK, czkSelling.currency(), "selling price must be in requested currency");
+
+		final Map<String, Optional<PriceContract>> accompanying = PricesContract.calculateAccompanyingPrices(
+			czkSelling, mixedCurrencySet, PriceInnerRecordHandling.LOWEST_PRICE,
+			CZK, MOMENT_2020,
+			new AccompanyingPrice[]{new AccompanyingPrice("ref", REFERENCE)}
+		);
+
+		final PriceContract acc = accompanying.get("ref").orElseThrow(
+			() -> new AssertionError("accompanying REFERENCE price must be selectable")
+		);
+		assertEquals(CZK, acc.currency(),
+			"accompanying price must honour the requested currency, not leak in EUR siblings");
+	}
+
+	/**
+	 * Regression guard for the SUM accompanying-price helper: when several prices share the same
+	 * `(innerRecord, priceList)` and `atTheMoment` is `null` (so multiple non-overlapping validities all pass
+	 * the validity gate), the per-bucket map must pick the winner deterministically. Before the fix, the raw
+	 * `Map.put` overwrote silently, so the result depended on iteration order and could change between runs.
+	 * The fix uses `merge` with the existing `isBetterByPriceIdThenInner` tie-break (lower priceId wins).
+	 */
+	@Test
+	@DisplayName("SUM accompanying-price helper is deterministic on duplicate (innerRecord, priceList) entries")
+	void shouldDeterministicallyPickAccompanyingPriceWhenDuplicateInnerListEntriesExist() {
+		// Build two prices for inner record 1 / REFERENCE / CZK with non-overlapping validity ranges. With
+		// `atTheMoment == null` both are considered valid, so the SUM accompanying-price map collides on
+		// `(1, REFERENCE)` and the deterministic tie-break (lower priceId) must pick price 200 over 201.
+		final DateTimeRange firstHalf = DateTimeRange.between(
+			LocalDateTime.of(2010, 1, 1, 0, 0, 0, 0),
+			LocalDateTime.of(2010, 6, 30, 23, 59, 59, 0),
+			ZoneOffset.UTC
+		);
+		final DateTimeRange secondHalf = DateTimeRange.between(
+			LocalDateTime.of(2010, 7, 1, 0, 0, 0, 0),
+			LocalDateTime.of(2010, 12, 31, 23, 59, 59, 0),
+			ZoneOffset.UTC
+		);
+		final List<PriceContract> entityPrices = Arrays.asList(
+			// non-colliding base set — needed so SUM has a selling price
+			new Price(new PriceKey(1, BASIC, CZK), 1, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true),
+			new Price(new PriceKey(2, BASIC, CZK), 2, new BigDecimal("200"), new BigDecimal("21"), new BigDecimal("242"), null, true),
+			// the colliding pair — same (innerRecord 1, REFERENCE, CZK), distinct priceIds, distinct validities
+			new Price(new PriceKey(200, REFERENCE, CZK), 1, new BigDecimal("140"), new BigDecimal("21"), new BigDecimal("169.4"), firstHalf, false),
+			new Price(new PriceKey(201, REFERENCE, CZK), 1, new BigDecimal("180"), new BigDecimal("21"), new BigDecimal("217.8"), secondHalf, false)
+		);
+
+		final PriceContract sumSelling = PricesContract.computePriceForSale(
+			entityPrices, PriceInnerRecordHandling.SUM,
+			CZK, null, new String[]{REFERENCE, BASIC},
+			Objects::nonNull
+		).orElseThrow();
+
+		// repeat the resolution with a reshuffled input — the deterministic tie-break must yield the same
+		// accompanying price regardless of iteration order
+		final List<PriceContract> shuffled = Arrays.asList(
+			entityPrices.get(3), entityPrices.get(0), entityPrices.get(2), entityPrices.get(1)
+		);
+
+		final AccompanyingPrice[] requested = new AccompanyingPrice[]{new AccompanyingPrice("ref", REFERENCE)};
+		final Map<String, Optional<PriceContract>> a = PricesContract.calculateAccompanyingPrices(
+			sumSelling, entityPrices, PriceInnerRecordHandling.SUM, CZK, null, requested
+		);
+		final Map<String, Optional<PriceContract>> b = PricesContract.calculateAccompanyingPrices(
+			sumSelling, shuffled, PriceInnerRecordHandling.SUM, CZK, null, requested
+		);
+
+		final BigDecimal aRef = a.get("ref").orElseThrow().priceWithoutTax();
+		final BigDecimal bRef = b.get("ref").orElseThrow().priceWithoutTax();
+		assertEquals(aRef, bRef, "accompanying price must be deterministic across input orderings");
+	}
+
+	/**
 	 * Verifies that `computePriceRangeForSale` rejects the `UNKNOWN` strategy with `GenericEvitaInternalError`,
 	 * matching the behaviour of `computePriceForSale` and `calculateAccompanyingPrices`. The `UNKNOWN` value is a
 	 * sentinel used during deserialization and must never reach the price-resolution path.

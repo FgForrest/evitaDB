@@ -256,7 +256,7 @@ public interface PricesContract extends Versioned, Serializable {
 				accompanyingPrices
 			);
 			case LOWEST_PRICE -> selectAccompanyingPrices(
-				filterCandidatesByInnerRecordRelation(entityPrices, priceForSale),
+				filterCandidatesByInnerRecordRelation(entityPrices, priceForSale, currency, atTheMoment),
 				accompanyingPrices
 			);
 			case SUM -> calculateAccompanyingPricesForSumInnerRecordHandling(
@@ -395,8 +395,17 @@ public interface PricesContract extends Versioned, Serializable {
 						continue;
 					}
 					final int innerKey = innerRecordKey(price);
-					byInnerByListAll.computeIfAbsent(innerKey, k -> CollectionUtils.createHashMap(innerBucketEstimate))
-						.put(price.priceList(), price);
+					// merge with deterministic tie-break: when two prices share `(innerRecord, priceList)` —
+					// possible when `atTheMoment == null` and several prices have non-overlapping but currently
+					// valid validity ranges — the winner is decided by `isBetterByPriceIdThenInner` (lower
+					// priceId then lower innerRecordId), matching the per-bucket selection used everywhere else.
+					byInnerByListAll
+						.computeIfAbsent(innerKey, k -> CollectionUtils.createHashMap(innerBucketEstimate))
+						.merge(
+							price.priceList(),
+							price,
+							(existing, candidate) -> isBetterByPriceIdThenInner(candidate, existing) ? candidate : existing
+						);
 					updateBestPerInner(price, innerKey, priorityIndex, bestPerInner, bestPriorityPerInner);
 				}
 				if (bestPerInner.isEmpty()) {
@@ -493,16 +502,26 @@ public interface PricesContract extends Versioned, Serializable {
 	}
 
 	/**
-	 * Filters the supplied prices to those that share an inner record with the supplied selling price. Used as
-	 * the candidate basis for accompanying-price calculation under `LOWEST_PRICE`.
+	 * Filters the supplied prices to those that (a) exist, (b) match the requested `currency`, (c) are valid
+	 * at `atTheMoment`, and (d) share an inner record with the supplied selling price. Used as the candidate
+	 * basis for accompanying-price calculation under `LOWEST_PRICE`. The currency / validity gate keeps this
+	 * helper consistent with the NONE branch (which calls
+	 * {@link #filterCandidatesByCurrencyAndValidity}) and with the {@link #computeInternal} fast path that
+	 * already applies {@link #isNotCandidate} before bucketing — the `entityPrices` collection passed by
+	 * external callers may contain prices in other currencies / dropped or out-of-validity prices.
 	 */
 	@Nonnull
 	private static List<PriceContract> filterCandidatesByInnerRecordRelation(
 		@Nonnull Collection<PriceContract> entityPrices,
-		@Nonnull PriceContract priceForSale
+		@Nonnull PriceContract priceForSale,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime atTheMoment
 	) {
 		final List<PriceContract> result = new ArrayList<>(entityPrices.size());
 		for (final PriceContract price : entityPrices) {
+			if (isNotCandidate(price, currency, atTheMoment)) {
+				continue;
+			}
 			if (Objects.equals(priceForSale.innerRecordId(), price.innerRecordId())) {
 				result.add(price);
 			}
@@ -546,8 +565,16 @@ public interface PricesContract extends Versioned, Serializable {
 				continue;
 			}
 			final int innerKey = innerRecordKey(price);
-			byInnerByList.computeIfAbsent(innerKey, k -> CollectionUtils.createHashMap(4))
-				.put(price.priceList(), price);
+			// see byInnerByListAll merge comment in computeInternal — same deterministic tie-break for
+			// `(innerRecord, priceList)` collisions that arise from multiple non-overlapping validities
+			// when `atTheMoment` is `null`.
+			byInnerByList
+				.computeIfAbsent(innerKey, k -> CollectionUtils.createHashMap(4))
+				.merge(
+					price.priceList(),
+					price,
+					(existing, candidate) -> isBetterByPriceIdThenInner(candidate, existing) ? candidate : existing
+				);
 		}
 		return resolveSumAccompanyingPrices(priceForSale, byInnerByList, accompanyingPrices);
 	}

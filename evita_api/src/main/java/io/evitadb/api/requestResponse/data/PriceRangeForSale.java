@@ -43,8 +43,20 @@ import java.io.Serializable;
  * The bounds are always concrete, indexed inner-record prices that satisfy the same filter as the selling
  * price.
  *
- * @param lowestPrice  the lowest selling price (or component price for `SUM`)
- * @param highestPrice the highest selling price (or component price for `SUM`)
+ * Predicate-filter asymmetry under `LOWEST_PRICE`: the `filterPredicate` passed to
+ * {@link PricesContract#computePriceRangeForSale} is a selling-price scoped filter inherited from the legacy
+ * {@code getPriceForSale*} API. It applies to `lowestPrice` (which equals the selling price by construction)
+ * but **not** to `highestPrice` — the upper bound describes the unfiltered indexed catalogue spread for the
+ * resolved currency / valid-in / price-list filters, which is the value e-commerce front-ends typically need
+ * for "price from / to" displays. Symmetric clipping would amount to "the highest price that still passes the
+ * selling-price filter", which is rarely useful and would break the invariant that the bounds describe the
+ * real catalogue spread.
+ *
+ * @param lowestPrice  the lowest selling price (or component price for `SUM`); under `LOWEST_PRICE` this is
+ *                     the cheapest indexed candidate that **passes** the selling-price `filterPredicate`
+ * @param highestPrice the highest selling price (or component price for `SUM`); under `LOWEST_PRICE` this is
+ *                     the most expensive indexed candidate **regardless** of the `filterPredicate` — see the
+ *                     "Predicate-filter asymmetry" note above
  * @param priceForSale the resolved selling price (per-strategy semantics — see above)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
