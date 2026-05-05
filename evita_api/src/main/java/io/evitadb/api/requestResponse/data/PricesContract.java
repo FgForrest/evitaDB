@@ -415,12 +415,16 @@ public interface PricesContract extends Versioned, Serializable {
 				final List<PriceContract> components = new ArrayList<>(bestPerInner.size());
 				PriceContract lowest = null;
 				PriceContract highest = null;
+				// share the deterministic tie-break with LOWEST_PRICE so that ties on `priceWithTax` resolve by
+				// `priceId` (then `innerRecordId`) instead of leaving the running incumbent untouched. Keeps the
+				// SUM range bounds independent of input iteration order — same invariant as the LOWEST_PRICE
+				// branch above.
 				for (final PriceContract candidate : bestPerInner.values()) {
 					components.add(candidate);
-					if (lowest == null || candidate.priceWithTax().compareTo(lowest.priceWithTax()) < 0) {
+					if (isBetterPriceForSaleCandidate(lowest, candidate, true)) {
 						lowest = candidate;
 					}
-					if (highest == null || candidate.priceWithTax().compareTo(highest.priceWithTax()) > 0) {
+					if (isBetterPriceForSaleCandidate(highest, candidate, false)) {
 						highest = candidate;
 					}
 				}
