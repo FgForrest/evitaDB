@@ -39,6 +39,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -47,11 +48,10 @@ import java.io.Serializable;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link ConstraintDescriptorProvider}.
@@ -70,7 +70,7 @@ class ConstraintDescriptorProviderTest {
 		@Test
 		@DisplayName("should have processed all registered constraints")
 		void shouldHaveProcessedConstraints() {
-			assertEquals(124, ConstraintDescriptorProvider.getAllConstraints().size());
+			assertEquals(125, ConstraintDescriptorProvider.getAllConstraints().size());
 		}
 	}
 
@@ -180,7 +180,7 @@ class ConstraintDescriptorProviderTest {
 		@DisplayName("should find all constraints for specific type")
 		void shouldFindAllConstraintsForSpecificType() {
 			assertEquals(
-				49, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size()
+				50, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size()
 			);
 			assertEquals(
 				21, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size()
