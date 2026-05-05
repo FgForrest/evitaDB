@@ -28,6 +28,8 @@ import io.evitadb.api.query.require.AccompanyingPriceContent;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
+import io.evitadb.api.requestResponse.data.PriceRangeForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -532,6 +534,110 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 						.orElse(null))
 					.build())
 				.toList())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithPriceForSaleRange(@Nonnull SealedEntity entity) {
+		final PriceRangeForSale range = entity
+			.getPriceRangeForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC)
+			.orElseThrow();
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), priceMap(range.priceForSale()))
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE_MIN.name(), priceMap(range.lowestPrice()))
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE_MAX.name(), priceMap(range.highestPrice()))
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithPriceForSaleRangeForCustomPriceLists(@Nonnull SealedEntity entity,
+	                                                                                      @Nonnull String... priceLists) {
+		final PriceRangeForSale range = entity
+			.getPriceRangeForSale(CURRENCY_CZK, null, priceLists)
+			.orElseThrow();
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(), priceMapWithInnerRecord(range.priceForSale()))
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE_MIN.name(), priceMapWithInnerRecord(range.lowestPrice()))
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE_MAX.name(), priceMapWithInnerRecord(range.highestPrice()))
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createEntityDtoWithAccompanyingPricesForPriceForSaleRange(@Nonnull SealedEntity entity) {
+		final String vipPrice = "vipPrice";
+
+		final EntityDecorator entityDecorator = ((EntityDecorator) entity);
+		final PriceRangeForSaleWithAccompanyingPrices priceRangeWithAccompanying = entityDecorator
+			.getPriceRangeForSaleWithAccompanyingPrices(
+				CURRENCY_CZK,
+				null,
+				new String[]{PRICE_LIST_BASIC},
+				new AccompanyingPrice[]{
+					new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+					new AccompanyingPrice(vipPrice, PRICE_LIST_VIP)
+				}
+			)
+			.orElseThrow();
+		final PriceRangeForSale range = priceRangeWithAccompanying.priceRange();
+		final Map<String, Optional<PriceContract>> accompanyingPrices = priceRangeWithAccompanying.accompanyingPrices();
+		assertTrue(accompanyingPrices.get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent());
+		assertTrue(accompanyingPrices.get(vipPrice).isPresent());
+
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE.name(),
+				priceMapWithAccompanyingPrices(range.priceForSale(), accompanyingPrices, vipPrice))
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE_MIN.name(),
+				priceMapWithAccompanyingPrices(range.lowestPrice(), accompanyingPrices, vipPrice))
+			.e(GraphQLEntityDescriptor.PRICE_FOR_SALE_MAX.name(),
+				priceMapWithAccompanyingPrices(range.highestPrice(), accompanyingPrices, vipPrice))
+			.build();
+	}
+
+	@Nonnull
+	private static Map<String, Object> priceMap(@Nonnull PriceContract price) {
+		return map()
+			.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+			.e(PriceDescriptor.CURRENCY.name(), price.currency().toString())
+			.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
+			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+			.build();
+	}
+
+	@Nonnull
+	private static Map<String, Object> priceMapWithInnerRecord(@Nonnull PriceContract price) {
+		return map()
+			.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+			.e(PriceDescriptor.CURRENCY.name(), price.currency().toString())
+			.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
+			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+			.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
+			.build();
+	}
+
+	@Nonnull
+	private static Map<String, Object> priceMapWithAccompanyingPrices(@Nonnull PriceContract price,
+	                                                                  @Nonnull Map<String, Optional<PriceContract>> accompanyingPrices,
+	                                                                  @Nonnull String vipPriceName) {
+		return map()
+			.e(TYPENAME_FIELD, PriceForSaleDescriptor.THIS.name())
+			.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax().toString())
+			.e(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(),
+				accompanyingPrices.get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name())
+					.map(p -> map()
+						.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+						.e(PriceDescriptor.PRICE_WITH_TAX.name(), p.priceWithTax().toString()))
+					.orElse(null))
+			.e(vipPriceName, accompanyingPrices.get(vipPriceName)
+				.map(p -> map()
+					.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), p.priceWithTax().toString()))
+				.orElse(null))
 			.build();
 	}
 

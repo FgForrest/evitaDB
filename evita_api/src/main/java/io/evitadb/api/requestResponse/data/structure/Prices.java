@@ -34,6 +34,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
@@ -253,21 +254,57 @@ public class Prices implements PricesContract, Versioned, ContentComparator<Pric
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSale() throws ContextMissingException {
-		return this.getPriceForSaleContext()
-			.map(
-				it -> getPriceForSale(
-					it.currency().orElseThrow(ContextMissingException::new),
-					it.atTheMoment().orElse(null),
-					it.priceListPriority().orElseThrow(ContextMissingException::new)
-				)
-			)
+		final PriceForSaleContext context = this.getPriceForSaleContext()
 			.orElseThrow(ContextMissingException::new);
+		return getPriceForSale(
+			context.currency().orElseThrow(ContextMissingException::new),
+			context.atTheMoment().orElse(null),
+			context.priceListPriority().orElseThrow(ContextMissingException::new)
+		);
 	}
 
 	@Nonnull
 	@Override
 	public Optional<PriceContract> getPriceForSaleIfAvailable() {
-		return Optional.empty();
+		return this.getPriceForSaleContext()
+			.flatMap(context -> {
+				final Optional<Currency> currency = context.currency();
+				final Optional<String[]> priceListPriority = context.priceListPriority();
+				if (currency.isEmpty() || priceListPriority.isEmpty()) {
+					return Optional.empty();
+				}
+				return getPriceForSale(
+					currency.get(), context.atTheMoment().orElse(null), priceListPriority.get()
+				);
+			});
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSale() throws ContextMissingException {
+		final PriceForSaleContext context = this.getPriceForSaleContext()
+			.orElseThrow(ContextMissingException::new);
+		return getPriceRangeForSale(
+			context.currency().orElseThrow(ContextMissingException::new),
+			context.atTheMoment().orElse(null),
+			context.priceListPriority().orElseThrow(ContextMissingException::new)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSaleIfAvailable() {
+		return this.getPriceForSaleContext()
+			.flatMap(context -> {
+				final Optional<Currency> currency = context.currency();
+				final Optional<String[]> priceListPriority = context.priceListPriority();
+				if (currency.isEmpty() || priceListPriority.isEmpty()) {
+					return Optional.empty();
+				}
+				return getPriceRangeForSale(
+					currency.get(), context.atTheMoment().orElse(null), priceListPriority.get()
+				);
+			});
 	}
 
 	@Nonnull

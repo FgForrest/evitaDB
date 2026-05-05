@@ -32,6 +32,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesEditor.PricesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
@@ -193,6 +194,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		if (mutation instanceof UpsertPriceMutation upsertPriceMutation) {
 			final PriceKey priceKey = upsertPriceMutation.getPriceKey();
 			assertPricesAllowed(this.entitySchema, priceKey.currency());
+			InitialPricesBuilder.assertInnerRecordIdValid(upsertPriceMutation.getInnerRecordId());
 			final PriceContract existingValue = this.basePrices
 				.getPriceWithoutSchemaCheck(priceKey)
 				.orElse(null);
@@ -514,6 +516,44 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		assertPricesFetched(PriceContentMode.RESPECTING_FILTER);
 		if (this.pricePredicate.getCurrency() != null && !ArrayUtils.isEmpty(this.pricePredicate.getPriceLists())) {
 			return getPriceForSale(
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
+			);
+		} else {
+			return empty();
+		}
+	}
+
+	/**
+	 * Returns the full price range (lowest, highest, selling price) for the active predicate context.
+	 *
+	 * @throws ContextMissingException when predicate lacks currency or price lists
+	 */
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSale() throws ContextMissingException {
+		assertPricesFetched(PriceContentMode.RESPECTING_FILTER);
+		if (this.pricePredicate.getCurrency() != null && !ArrayUtils.isEmpty(this.pricePredicate.getPriceLists())) {
+			return getPriceRangeForSale(
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
+			);
+		} else {
+			throw new ContextMissingException();
+		}
+	}
+
+	/**
+	 * Same as {@link #getPriceRangeForSale()} but never throws, returning empty when context is missing.
+	 */
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSaleIfAvailable() {
+		assertPricesFetched(PriceContentMode.RESPECTING_FILTER);
+		if (this.pricePredicate.getCurrency() != null && !ArrayUtils.isEmpty(this.pricePredicate.getPriceLists())) {
+			return getPriceRangeForSale(
 				this.pricePredicate.getCurrency(),
 				this.pricePredicate.getValidIn(),
 				this.pricePredicate.getPriceLists()

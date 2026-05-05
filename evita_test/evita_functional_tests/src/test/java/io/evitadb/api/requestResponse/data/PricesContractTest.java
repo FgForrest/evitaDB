@@ -29,13 +29,19 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.structure.AbstractBuilderTest;
+import io.evitadb.api.requestResponse.data.structure.CumulatedPrice;
+import io.evitadb.api.requestResponse.data.structure.InitialPricesBuilder;
 import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -45,20 +51,18 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import org.junit.jupiter.api.Tag;
 
-import static java.util.Optional.ofNullable;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
+import static io.evitadb.test.TestTags.QUERY;
+import static java.util.Optional.ofNullable;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies {@link Prices} contract implementation by testing various price handling scenarios.
@@ -1098,8 +1102,11 @@ class PricesContractTest extends AbstractBuilderTest {
 		final PricesContract fewerPrices = new Prices(
 			PRODUCT_SCHEMA,
 			1,
-			Arrays.asList(
-				new Price(new PriceKey(1, BASIC, CZK), null, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true)
+			List.of(
+				new Price(
+					new PriceKey(1, BASIC, CZK), null, new BigDecimal("100"), new BigDecimal("21"),
+					new BigDecimal("121"), null, true
+				)
 			),
 			PriceInnerRecordHandling.NONE,
 			true
@@ -1135,7 +1142,7 @@ class PricesContractTest extends AbstractBuilderTest {
 		final PricesContract pricesWithNoPrices = new Prices(
 			PRODUCT_SCHEMA,
 			1,
-			Arrays.asList(),
+			List.of(),
 			PriceInnerRecordHandling.NONE,
 			true
 		);
@@ -1389,6 +1396,671 @@ class PricesContractTest extends AbstractBuilderTest {
 			// VIP price is only valid in 2011, not in 2020, so it should be empty
 			assertTrue(result.accompanyingPrices().get("testPrice2").isEmpty());
 		}
+	}
+
+	/**
+	 * Verifies that under {@link PriceInnerRecordHandling#NONE} the price range collapses — the lowest, highest
+	 * and selling price are all the same instance because there is only ever one selling-price candidate.
+	 */
+	@Test
+	@DisplayName("Range for NONE strategy collapses to a single price")
+	void shouldReturnPriceRangeForSaleForNoneStrategy() {
+		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+			),
+			PriceInnerRecordHandling.NONE,
+			true
+		);
+
+		final PriceRangeForSale range = prices.getPriceRangeForSale(
+			CZK, MOMENT_2020, REFERENCE, VIP, LOGGED_ONLY, BASIC
+		).orElseThrow();
+
+		// LOGGED_ONLY (price id 3) wins under the chosen priority
+		assertEquals(3, range.priceForSale().priceId());
+		assertEquals(range.priceForSale(), range.lowestPrice());
+		assertEquals(range.priceForSale(), range.highestPrice());
+	}
+
+	/**
+	 * Verifies that under {@link PriceInnerRecordHandling#LOWEST_PRICE} the lowest price equals the selling price
+	 * and the highest price is the most expensive per-inner-record selling price computed with identical filter
+	 * rules.
+	 */
+	@Test
+	@DisplayName("Range for LOWEST_PRICE picks min/max of per-inner-record selling prices")
+	void shouldReturnPriceRangeForSaleForLowestPriceStrategy() {
+		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				ArrayUtils.mergeArrays(
+					createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+					createStandardPriceSetWithMultiplier(2, new BigDecimal("2")),
+					createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
+				)
+			),
+			PriceInnerRecordHandling.LOWEST_PRICE,
+			true
+		);
+
+		// LOGGED_ONLY is highest priority that is sellable; per-inner-record selling prices are
+		// 80 (variant 1), 160 (variant 2 = 80 * 2) and 40 (variant 3 = 80 * 0.5)
+		final PriceRangeForSale range = prices.getPriceRangeForSale(
+			CZK, MOMENT_2020, REFERENCE, VIP, LOGGED_ONLY, BASIC
+		).orElseThrow();
+
+		// lowest is the selling price (cheapest variant)
+		assertEquals(range.priceForSale(), range.lowestPrice());
+		assertEquals(3, (int) range.lowestPrice().innerRecordId());
+		assertEquals(0, range.lowestPrice().priceWithoutTax().compareTo(new BigDecimal("40.0")));
+		// highest is the most expensive variant's selling price
+		assertEquals(2, (int) range.highestPrice().innerRecordId());
+		assertEquals(0, range.highestPrice().priceWithoutTax().compareTo(new BigDecimal("160")));
+	}
+
+	/**
+	 * Verifies that under {@link PriceInnerRecordHandling#SUM} the lowest and highest prices are real component
+	 * prices (cheapest and most expensive per-inner-record selling component), while the selling price itself is
+	 * the cumulated sum across all components.
+	 */
+	@Test
+	@DisplayName("Range for SUM exposes component bounds while selling price stays cumulated")
+	void shouldReturnPriceRangeForSaleForSumStrategy() {
+		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				ArrayUtils.mergeArrays(
+					createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+					createStandardPriceSetWithMultiplier(2, new BigDecimal("2")),
+					createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
+				)
+			),
+			PriceInnerRecordHandling.SUM,
+			true
+		);
+
+		final PriceRangeForSale range = prices.getPriceRangeForSale(
+			CZK, MOMENT_2020, REFERENCE, VIP, LOGGED_ONLY, BASIC
+		).orElseThrow();
+
+		// LOGGED_ONLY price tier — components are 80, 160, 40 → sum = 280
+		assertInstanceOf(CumulatedPrice.class, range.priceForSale());
+		assertEquals(0, range.priceForSale().priceWithoutTax().compareTo(new BigDecimal("280.0")));
+		assertEquals(3, (int) range.lowestPrice().innerRecordId());
+		assertEquals(0, range.lowestPrice().priceWithoutTax().compareTo(new BigDecimal("40.0")));
+		assertEquals(2, (int) range.highestPrice().innerRecordId());
+		assertEquals(0, range.highestPrice().priceWithoutTax().compareTo(new BigDecimal("160")));
+	}
+
+	/**
+	 * Verifies that when filters eliminate every candidate, all `getPriceRangeForSale*` methods return
+	 * {@link Optional#empty()} — including under each inner-record handling strategy.
+	 */
+	@Test
+	@DisplayName("Range returns empty when filter eliminates everything")
+	void shouldReturnEmptyRangeWhenNothingMatches() {
+		// NONE: ask for GBP that doesn't exist anywhere
+		final PricesContract pricesNone = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+			),
+			PriceInnerRecordHandling.NONE,
+			true
+		);
+		assertTrue(pricesNone.getPriceRangeForSale(GBP, MOMENT_2020, REFERENCE, VIP, LOGGED_ONLY, BASIC).isEmpty());
+
+		// LOWEST_PRICE: same — nothing matches GBP
+		final PricesContract pricesLowest = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				ArrayUtils.mergeArrays(
+					createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+					createStandardPriceSetWithMultiplier(2, new BigDecimal("2"))
+				)
+			),
+			PriceInnerRecordHandling.LOWEST_PRICE,
+			true
+		);
+		assertTrue(pricesLowest.getPriceRangeForSale(GBP, MOMENT_2020, REFERENCE, VIP, LOGGED_ONLY, BASIC).isEmpty());
+
+		// SUM: only sellable price tier with no matches at all
+		final PricesContract pricesSum = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				ArrayUtils.mergeArrays(
+					createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+					createStandardPriceSetWithMultiplier(2, new BigDecimal("2"))
+				)
+			),
+			PriceInnerRecordHandling.SUM,
+			true
+		);
+		// REFERENCE alone leaves no sellable (indexed) candidate at all
+		assertTrue(pricesSum.getPriceRangeForSale(CZK, MOMENT_2020, REFERENCE).isEmpty());
+	}
+
+	/**
+	 * Verifies parity between the new range/accompanying-price API and the existing
+	 * {@link PricesContract#getPriceForSaleWithAccompanyingPrices(Currency, OffsetDateTime, String[], AccompanyingPrice[])}
+	 * — for identical inputs the accompanying-price map and the resolved selling price must match. This is the
+	 * regression guard against future divergence between the two code paths.
+	 */
+	@Test
+	@DisplayName("Accompanying-price parity between range and non-range APIs (all strategies)")
+	void shouldReturnSameAccompanyingPricesAsLegacyApi() {
+		final AccompanyingPrice[] requested = new AccompanyingPrice[]{
+			new AccompanyingPrice("p1", REFERENCE),
+			new AccompanyingPrice("p2", REFERENCE, VIP),
+			new AccompanyingPrice("p3", LOGGED_ONLY, VIP),
+			new AccompanyingPrice("p", VIP)
+		};
+		// NONE
+		assertAccompanyingPriceParity(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)),
+				PriceInnerRecordHandling.NONE,
+				true
+			),
+			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC}, requested
+		);
+		// LOWEST_PRICE
+		assertAccompanyingPriceParity(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(
+					ArrayUtils.mergeArrays(
+						createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+						createStandardPriceSetWithMultiplier(2, new BigDecimal("2")),
+						createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
+					)
+				),
+				PriceInnerRecordHandling.LOWEST_PRICE,
+				true
+			),
+			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC}, requested
+		);
+		// SUM
+		assertAccompanyingPriceParity(
+			new Prices(
+				PRODUCT_SCHEMA,
+				1,
+				Arrays.asList(
+					ArrayUtils.mergeArrays(
+						createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+						createStandardPriceSetWithMultiplier(2, new BigDecimal("2")),
+						createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
+					)
+				),
+				PriceInnerRecordHandling.SUM,
+				true
+			),
+			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC}, requested
+		);
+	}
+
+	/**
+	 * Direct-test the public shared accompanying-price helper
+	 * {@link PricesContract#calculateAccompanyingPrices} for all three strategies. This is the regression guard
+	 * that the per-strategy handling did not silently re-diverge after the de-duplication rewrite.
+	 */
+	@Test
+	@DisplayName("Shared calculateAccompanyingPrices helper handles all three strategies consistently")
+	void shouldExerciseSharedCalculateAccompanyingPricesHelper() {
+		final AccompanyingPrice[] requested = new AccompanyingPrice[]{
+			new AccompanyingPrice("p1", REFERENCE),
+			new AccompanyingPrice("p3", LOGGED_ONLY, VIP)
+		};
+
+		// NONE — accompanying lookup over the whole entity-prices set
+		final List<PriceContract> noneSet = Arrays.asList(createStandardPriceSetWithMultiplier(null, BigDecimal.ONE));
+		final PriceContract noneSelling = PricesContract.computePriceForSale(
+			noneSet, PriceInnerRecordHandling.NONE,
+			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC},
+			java.util.Objects::nonNull
+		).orElseThrow();
+		final Map<String, Optional<PriceContract>> noneAcc = PricesContract.calculateAccompanyingPrices(
+			noneSelling, noneSet, PriceInnerRecordHandling.NONE, CZK, MOMENT_2020, requested
+		);
+		assertEquals(2, noneAcc.size());
+		assertEquals(7, noneAcc.get("p1").orElseThrow().priceId());
+		assertEquals(3, noneAcc.get("p3").orElseThrow().priceId());
+
+		// LOWEST_PRICE — accompanying restricted to the same inner record as the selling price
+		final List<PriceContract> lowestSet = Arrays.asList(
+			ArrayUtils.mergeArrays(
+				createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+				createStandardPriceSetWithMultiplier(2, new BigDecimal("2")),
+				createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
+			)
+		);
+		final PriceContract lowestSelling = PricesContract.computePriceForSale(
+			lowestSet, PriceInnerRecordHandling.LOWEST_PRICE,
+			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC},
+			java.util.Objects::nonNull
+		).orElseThrow();
+		final Map<String, Optional<PriceContract>> lowestAcc = PricesContract.calculateAccompanyingPrices(
+			lowestSelling, lowestSet, PriceInnerRecordHandling.LOWEST_PRICE, CZK, MOMENT_2020, requested
+		);
+		assertEquals(2, lowestAcc.size());
+		// inner record 3 is the cheapest, so accompanying prices must come from inner record 3
+		assertEquals(combineIntoId(3, 7), lowestAcc.get("p1").orElseThrow().priceId());
+		assertEquals(combineIntoId(3, 3), lowestAcc.get("p3").orElseThrow().priceId());
+
+		// SUM — accompanying summed across components, matching the existing behaviour for SUM strategy
+		final PriceContract sumSelling = PricesContract.computePriceForSale(
+			lowestSet, PriceInnerRecordHandling.SUM,
+			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC},
+			java.util.Objects::nonNull
+		).orElseThrow();
+		final Map<String, Optional<PriceContract>> sumAcc = PricesContract.calculateAccompanyingPrices(
+			sumSelling, lowestSet, PriceInnerRecordHandling.SUM, CZK, MOMENT_2020, requested
+		);
+		assertEquals(2, sumAcc.size());
+		// REFERENCE summed over all inner records: 140 + 280 + 70 = 490
+		assertEquals(new BigDecimal("490.0"), sumAcc.get("p1").orElseThrow().priceWithoutTax());
+		// LOGGED_ONLY summed: 80 + 160 + 40 = 280
+		assertEquals(new BigDecimal("280.0"), sumAcc.get("p3").orElseThrow().priceWithoutTax());
+	}
+
+	/**
+	 * Regression guard for the LOWEST_PRICE accompanying-price helper: when the caller supplies an entity-prices
+	 * collection that mixes currencies (the realistic case for a multi-currency catalogue), the chosen accompanying
+	 * price must match the requested `currency`. Without the currency / validity gate added to
+	 * `filterCandidatesByInnerRecordRelation`, the LOWEST_PRICE branch was free to pick a foreign-currency price
+	 * that happened to share the selling price's `innerRecordId` and hit a higher-priority price list.
+	 */
+	@Test
+	@DisplayName("LOWEST_PRICE accompanying-price helper filters foreign-currency candidates")
+	void shouldRejectForeignCurrencyAccompanyingPriceUnderLowestPriceStrategy() {
+		// Inner record 1 carries the cheapest CZK basket; the standard set ships CZK and EUR variants for every
+		// (priceList, innerRecord) combination — exactly the layout that exposed the missing currency filter.
+		final List<PriceContract> mixedCurrencySet = Arrays.asList(
+			ArrayUtils.mergeArrays(
+				createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+				createStandardPriceSetWithMultiplier(2, new BigDecimal("2"))
+			)
+		);
+
+		final PriceContract czkSelling = PricesContract.computePriceForSale(
+			mixedCurrencySet, PriceInnerRecordHandling.LOWEST_PRICE,
+			CZK, MOMENT_2020, new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC},
+			Objects::nonNull
+		).orElseThrow();
+		assertEquals(CZK, czkSelling.currency(), "selling price must be in requested currency");
+
+		final Map<String, Optional<PriceContract>> accompanying = PricesContract.calculateAccompanyingPrices(
+			czkSelling, mixedCurrencySet, PriceInnerRecordHandling.LOWEST_PRICE,
+			CZK, MOMENT_2020,
+			new AccompanyingPrice[]{new AccompanyingPrice("ref", REFERENCE)}
+		);
+
+		final PriceContract acc = accompanying.get("ref").orElseThrow(
+			() -> new AssertionError("accompanying REFERENCE price must be selectable")
+		);
+		assertEquals(CZK, acc.currency(),
+			"accompanying price must honour the requested currency, not leak in EUR siblings");
+	}
+
+	/**
+	 * Regression guard for the SUM accompanying-price helper: when several prices share the same
+	 * `(innerRecord, priceList)` and `atTheMoment` is `null` (so multiple non-overlapping validities all pass
+	 * the validity gate), the per-bucket map must pick the winner deterministically. Before the fix, the raw
+	 * `Map.put` overwrote silently, so the result depended on iteration order and could change between runs.
+	 * The fix uses `merge` with the existing `isBetterByPriceIdThenInner` tie-break (lower priceId wins).
+	 */
+	@Test
+	@DisplayName("SUM accompanying-price helper is deterministic on duplicate (innerRecord, priceList) entries")
+	void shouldDeterministicallyPickAccompanyingPriceWhenDuplicateInnerListEntriesExist() {
+		// Build two prices for inner record 1 / REFERENCE / CZK with non-overlapping validity ranges. With
+		// `atTheMoment == null` both are considered valid, so the SUM accompanying-price map collides on
+		// `(1, REFERENCE)` and the deterministic tie-break (lower priceId) must pick price 200 over 201.
+		final DateTimeRange firstHalf = DateTimeRange.between(
+			LocalDateTime.of(2010, 1, 1, 0, 0, 0, 0),
+			LocalDateTime.of(2010, 6, 30, 23, 59, 59, 0),
+			ZoneOffset.UTC
+		);
+		final DateTimeRange secondHalf = DateTimeRange.between(
+			LocalDateTime.of(2010, 7, 1, 0, 0, 0, 0),
+			LocalDateTime.of(2010, 12, 31, 23, 59, 59, 0),
+			ZoneOffset.UTC
+		);
+		final List<PriceContract> entityPrices = Arrays.asList(
+			// non-colliding base set — needed so SUM has a selling price
+			new Price(new PriceKey(1, BASIC, CZK), 1, new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true),
+			new Price(new PriceKey(2, BASIC, CZK), 2, new BigDecimal("200"), new BigDecimal("21"), new BigDecimal("242"), null, true),
+			// the colliding pair — same (innerRecord 1, REFERENCE, CZK), distinct priceIds, distinct validities
+			new Price(new PriceKey(200, REFERENCE, CZK), 1, new BigDecimal("140"), new BigDecimal("21"), new BigDecimal("169.4"), firstHalf, false),
+			new Price(new PriceKey(201, REFERENCE, CZK), 1, new BigDecimal("180"), new BigDecimal("21"), new BigDecimal("217.8"), secondHalf, false)
+		);
+
+		final PriceContract sumSelling = PricesContract.computePriceForSale(
+			entityPrices, PriceInnerRecordHandling.SUM,
+			CZK, null, new String[]{REFERENCE, BASIC},
+			Objects::nonNull
+		).orElseThrow();
+
+		// repeat the resolution with a reshuffled input — the deterministic tie-break must yield the same
+		// accompanying price regardless of iteration order
+		final List<PriceContract> shuffled = Arrays.asList(
+			entityPrices.get(3), entityPrices.get(0), entityPrices.get(2), entityPrices.get(1)
+		);
+
+		final AccompanyingPrice[] requested = new AccompanyingPrice[]{new AccompanyingPrice("ref", REFERENCE)};
+		final Map<String, Optional<PriceContract>> a = PricesContract.calculateAccompanyingPrices(
+			sumSelling, entityPrices, PriceInnerRecordHandling.SUM, CZK, null, requested
+		);
+		final Map<String, Optional<PriceContract>> b = PricesContract.calculateAccompanyingPrices(
+			sumSelling, shuffled, PriceInnerRecordHandling.SUM, CZK, null, requested
+		);
+
+		final BigDecimal aRef = a.get("ref").orElseThrow().priceWithoutTax();
+		final BigDecimal bRef = b.get("ref").orElseThrow().priceWithoutTax();
+		assertEquals(aRef, bRef, "accompanying price must be deterministic across input orderings");
+	}
+
+	/**
+	 * Verifies that `computePriceRangeForSale` rejects the `UNKNOWN` strategy with `GenericEvitaInternalError`,
+	 * matching the behaviour of `computePriceForSale` and `calculateAccompanyingPrices`. The `UNKNOWN` value is a
+	 * sentinel used during deserialization and must never reach the price-resolution path.
+	 */
+	@Test
+	@DisplayName("computePriceRangeForSale throws on UNKNOWN inner-record handling")
+	void shouldThrowInternalErrorWhenComputingRangeWithUnknownInnerRecordHandling() {
+		final List<PriceContract> entityPrices = Arrays.asList(
+			createStandardPriceSetWithMultiplier(null, BigDecimal.ONE)
+		);
+
+		final GenericEvitaInternalError thrown = assertThrows(
+			GenericEvitaInternalError.class,
+			() -> PricesContract.computePriceRangeForSale(
+				entityPrices,
+				PriceInnerRecordHandling.UNKNOWN,
+				CZK,
+				MOMENT_2020,
+				new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC},
+				Objects::nonNull
+			)
+		);
+
+		// the public message hints at the offending strategy so users can locate the corrupted entity
+		assertNotNull(thrown.getMessage());
+		assertTrue(
+			thrown.getMessage().contains("UNKNOWN"),
+			"Error message should mention UNKNOWN strategy, was: " + thrown.getMessage()
+		);
+	}
+
+	/**
+	 * Verifies that `calculateAccompanyingPrices` short-circuits to `Collections.emptyMap()` for every strategy
+	 * when the caller passes `NO_ACCOMPANYING_PRICES`. The empty-map contract must hold across NONE / LOWEST_PRICE
+	 * / SUM so that the no-accompanying-price fast path stays allocation-free regardless of strategy.
+	 */
+	@ParameterizedTest
+	@EnumSource(value = PriceInnerRecordHandling.class, names = {"NONE", "LOWEST_PRICE", "SUM"})
+	@DisplayName("calculateAccompanyingPrices returns empty map when no accompanying prices requested")
+	void shouldReturnEmptyMapWhenNoAccompanyingPricesRequested(
+		@Nonnull final PriceInnerRecordHandling strategy
+	) {
+		// build a price set rich enough to produce a selling price under any of the three strategies
+		final List<PriceContract> entityPrices = Arrays.asList(
+			ArrayUtils.mergeArrays(
+				createStandardPriceSetWithMultiplier(1, BigDecimal.ONE),
+				createStandardPriceSetWithMultiplier(2, new BigDecimal("2")),
+				createStandardPriceSetWithMultiplier(3, new BigDecimal("0.5"))
+			)
+		);
+		final PriceContract sellingPrice = PricesContract.computePriceForSale(
+			entityPrices, strategy, CZK, MOMENT_2020,
+			new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC}, Objects::nonNull
+		).orElseThrow();
+
+		final Map<String, Optional<PriceContract>> result = PricesContract.calculateAccompanyingPrices(
+			sellingPrice, entityPrices, strategy, CZK, MOMENT_2020,
+			PricesContract.NO_ACCOMPANYING_PRICES
+		);
+
+		assertTrue(result.isEmpty(), "no-accompanying-prices fast path must produce an empty map");
+		// instance equality with Collections.emptyMap() guards the allocation-free fast path
+		assertSame(
+			Collections.emptyMap(),
+			result,
+			"fast path should return Collections.emptyMap() singleton, not an allocated empty map"
+		);
+	}
+
+	/**
+	 * Documents the LOWEST_PRICE collapse — when only a single inner record matches the filter, the resulting
+	 * range degenerates so that `lowestPrice()` and `highestPrice()` reference the same price. The selling price
+	 * coincides with both bounds since LOWEST_PRICE selects the cheapest variant directly.
+	 */
+	@Test
+	@DisplayName("LOWEST_PRICE range collapses to a single point when only one inner record matches")
+	void shouldCollapseRangeWhenLowestPriceStrategyHasSingleInnerRecord() {
+		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				createStandardPriceSetWithMultiplier(7, BigDecimal.ONE)
+			),
+			PriceInnerRecordHandling.LOWEST_PRICE,
+			true
+		);
+
+		final PriceRangeForSale range = prices.getPriceRangeForSale(
+			CZK, MOMENT_2020, REFERENCE, VIP, LOGGED_ONLY, BASIC
+		).orElseThrow();
+
+		// with one inner record, lowest, highest and selling price must all be the same instance
+		assertEquals(range.priceForSale(), range.lowestPrice());
+		assertEquals(range.priceForSale(), range.highestPrice());
+		assertEquals(range.lowestPrice(), range.highestPrice());
+		// inner record id is preserved on the bound prices
+		assertEquals(7, (int) range.lowestPrice().innerRecordId());
+		assertEquals(7, (int) range.highestPrice().innerRecordId());
+	}
+
+	/**
+	 * Documents the SUM degenerate case — even with a single inner record the SUM strategy still wraps the
+	 * selling price into a `CumulatedPrice`, while the lowest / highest bounds collapse onto the only component.
+	 * Guards against a future "skip wrapping when there is only one component" optimisation breaking the
+	 * uniform SUM contract.
+	 */
+	@Test
+	@DisplayName("SUM range exposes a CumulatedPrice and collapsed bounds for a single inner record")
+	void shouldComputeRangeWhenSumStrategyHasSingleInnerRecord() {
+		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				createStandardPriceSetWithMultiplier(4, BigDecimal.ONE)
+			),
+			PriceInnerRecordHandling.SUM,
+			true
+		);
+
+		final PriceRangeForSale range = prices.getPriceRangeForSale(
+			CZK, MOMENT_2020, REFERENCE, VIP, LOGGED_ONLY, BASIC
+		).orElseThrow();
+
+		// the selling price must remain a CumulatedPrice — the SUM contract is wrapper-uniform regardless
+		// of how many components participate
+		assertInstanceOf(
+			CumulatedPrice.class, range.priceForSale(),
+			"SUM strategy must always wrap the selling price into a CumulatedPrice"
+		);
+		// LOGGED_ONLY price tier (without VAT = 80) is the only sellable price for inner record 4
+		assertEquals(0, range.priceForSale().priceWithoutTax().compareTo(new BigDecimal("80")));
+		// with one inner record, the bounds collapse — and reference the underlying component price
+		assertEquals(0, range.lowestPrice().priceWithoutTax().compareTo(new BigDecimal("80")));
+		assertEquals(0, range.highestPrice().priceWithoutTax().compareTo(new BigDecimal("80")));
+		assertEquals(4, (int) range.lowestPrice().innerRecordId());
+		assertEquals(4, (int) range.highestPrice().innerRecordId());
+	}
+
+	/**
+	 * Verifies that under LOWEST_PRICE a `null` inner record id and a numbered inner record id are treated as
+	 * distinct buckets: the cheapest per-bucket candidate becomes `lowestPrice`, the most expensive becomes
+	 * `highestPrice`. The explicit `0` inner record id is rejected at the builder layer (see
+	 * {@link InitialPricesBuilder#assertInnerRecordIdValid}), so no risk of conflation with the synthetic
+	 * `null`-bucket key remains.
+	 */
+	@Test
+	@DisplayName("LOWEST_PRICE keeps null and numbered innerRecordId in distinct buckets")
+	void shouldKeepNullAndNumberedInnerRecordIdInDistinctBucketsUnderLowestPriceStrategy() {
+		final PricesContract prices = new Prices(
+			PRODUCT_SCHEMA,
+			1,
+			Arrays.asList(
+				new Price(new PriceKey(1, BASIC, CZK), null,
+					new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true),
+				new Price(new PriceKey(combineIntoId(1, 1), BASIC, CZK), 1,
+					new BigDecimal("200"), new BigDecimal("21"), new BigDecimal("242"), null, true)
+			),
+			PriceInnerRecordHandling.LOWEST_PRICE,
+			true
+		);
+
+		final PriceRangeForSale range = prices.getPriceRangeForSale(
+			CZK, null, BASIC
+		).orElseThrow();
+
+		// the null-bucket candidate (100 / 121) is the cheapest, the numbered bucket (200 / 242) is the most expensive
+		assertEquals(0, range.lowestPrice().priceWithoutTax().compareTo(new BigDecimal("100")));
+		assertNull(range.lowestPrice().innerRecordId());
+		assertEquals(0, range.highestPrice().priceWithoutTax().compareTo(new BigDecimal("200")));
+		assertEquals(1, (int) range.highestPrice().innerRecordId());
+	}
+
+	/**
+	 * Verifies that under LOWEST_PRICE the supplied `filterPredicate` only constrains the SELLING price
+	 * (== `lowestPrice` under this strategy), never the upper bound of the resulting range. The range
+	 * bounds describe the real catalogue spread and must remain pinned to actual indexed inner-record
+	 * candidates; clipping `highestPrice` by a predicate aimed at the selling price would misrepresent
+	 * the underlying catalogue.
+	 *
+	 * Three inner records with multipliers 0.5 / 1 / 2 yield LOGGED_ONLY selling-price candidates of
+	 * 48.4 / 96.8 / 193.6 with-tax. A predicate rejecting anything above 100 with-tax excludes the
+	 * variant-3 candidate from the selling-price slot, but the variant-3 candidate (193.6) must still
+	 * be the `highestPrice` because it is the most expensive real per-inner-record candidate.
+	 */
+	@Test
+	@DisplayName("LOWEST_PRICE filterPredicate constrains only selling price, not range bounds")
+	void shouldNotConstrainRangeHighestPriceWithFilterPredicate() {
+		final List<PriceContract> entityPrices = Arrays.asList(
+			ArrayUtils.mergeArrays(
+				createStandardPriceSetWithMultiplier(1, new BigDecimal("0.5")),
+				createStandardPriceSetWithMultiplier(2, BigDecimal.ONE),
+				createStandardPriceSetWithMultiplier(3, new BigDecimal("2"))
+			)
+		);
+
+		// reject anything more expensive than 100 with-tax — this excludes the variant-3 LOGGED_ONLY
+		// candidate (priceWithTax = 96.8 * 2 = 193.6) but spares variants 1 and 2
+		final java.util.function.Predicate<PriceContract> filterPredicate = price ->
+			price.priceWithTax().compareTo(new BigDecimal("100")) <= 0;
+
+		final PriceRangeForSale range = PricesContract.computePriceRangeForSale(
+			entityPrices,
+			PriceInnerRecordHandling.LOWEST_PRICE,
+			CZK, MOMENT_2020,
+			new String[]{REFERENCE, VIP, LOGGED_ONLY, BASIC},
+			filterPredicate
+		).orElseThrow();
+
+		// Variant-1 selling price (LOGGED_ONLY priceWithTax = 96.8 * 0.5 = 48.4) is the cheapest predicate-
+		// passing candidate and becomes both the selling price and the lowest range bound
+		assertEquals(0, range.lowestPrice().priceWithTax().compareTo(new BigDecimal("48.400")));
+		assertEquals(1, (int) range.lowestPrice().innerRecordId());
+		// Variant-3 candidate (priceWithTax = 193.6) is the most expensive real per-inner-record candidate
+		// and remains the `highestPrice` even though it would not pass the filterPredicate. The predicate
+		// is scoped to the selling price, not to the range bounds.
+		assertEquals(0, range.highestPrice().priceWithTax().compareTo(new BigDecimal("193.600")));
+		assertEquals(3, (int) range.highestPrice().innerRecordId());
+	}
+
+	/**
+	 * Verifies the deterministic LOWEST_PRICE tie-break order: when two inner records resolve to the
+	 * same `priceWithTax`, the candidate with the lower `priceId` wins (then by lower `innerRecordId`,
+	 * with `null` sorting before non-null). The order is independent of input iteration — swapping
+	 * the order of `entityPrices` produces the same winner.
+	 *
+	 * Concretely: with two inner records `5` and `9` priced identically at `121` with-tax, the
+	 * candidate with the lower `priceId` (inner record `5`, since `combineIntoId(5, 1)` < `combineIntoId(9, 2)`)
+	 * always wins, regardless of which one appears first in `entityPrices`.
+	 */
+	@Test
+	@DisplayName("LOWEST_PRICE breaks priceWithTax ties by lower priceId deterministically")
+	void shouldBreakLowestPriceTieByLowestPriceId() {
+		// two inner records (5 and 9) with identical priceWithTax = 121 in BASIC list — distinct price ids
+		final Price price5 = new Price(new PriceKey(combineIntoId(5, 1), BASIC, CZK), 5,
+			new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true);
+		final Price price9 = new Price(new PriceKey(combineIntoId(9, 2), BASIC, CZK), 9,
+			new BigDecimal("100"), new BigDecimal("21"), new BigDecimal("121"), null, true);
+
+		// natural order: inner 5 first, inner 9 second
+		final PricesContract pricesNatural = new Prices(
+			PRODUCT_SCHEMA, 1, Arrays.asList(price5, price9), PriceInnerRecordHandling.LOWEST_PRICE, true
+		);
+		final PriceRangeForSale rangeNatural = pricesNatural.getPriceRangeForSale(
+			CZK, null, BASIC
+		).orElseThrow();
+
+		// reversed order: inner 9 first, inner 5 second — the deterministic tie-break must still pick
+		// the same winner (lower priceId)
+		final PricesContract pricesReversed = new Prices(
+			PRODUCT_SCHEMA, 1, Arrays.asList(price9, price5), PriceInnerRecordHandling.LOWEST_PRICE, true
+		);
+		final PriceRangeForSale rangeReversed = pricesReversed.getPriceRangeForSale(
+			CZK, null, BASIC
+		).orElseThrow();
+
+		// inner record 5 wins the selling price assignment in BOTH orderings — its priceId
+		// (combineIntoId(5, 1)) is lower than inner record 9's priceId (combineIntoId(9, 2))
+		assertEquals(combineIntoId(5, 1), rangeNatural.priceForSale().priceId());
+		assertEquals(5, (int) rangeNatural.priceForSale().innerRecordId());
+		assertEquals(combineIntoId(5, 1), rangeNatural.lowestPrice().priceId());
+
+		assertEquals(combineIntoId(5, 1), rangeReversed.priceForSale().priceId());
+		assertEquals(5, (int) rangeReversed.priceForSale().innerRecordId());
+		assertEquals(combineIntoId(5, 1), rangeReversed.lowestPrice().priceId());
+
+		// the highestPrice is also subject to tie-break — under tie, the lower priceId still wins
+		// (a single representative candidate is chosen deterministically for the upper bound as well)
+		assertEquals(combineIntoId(5, 1), rangeNatural.highestPrice().priceId());
+		assertEquals(combineIntoId(5, 1), rangeReversed.highestPrice().priceId());
+	}
+
+	/**
+	 * Verifies that the new range API delivers the same accompanying-price map as the legacy API for the same
+	 * input and exposes the same selling price.
+	 */
+	private static void assertAccompanyingPriceParity(
+		@Nonnull PricesContract prices,
+		@Nonnull Currency currency,
+		@Nullable OffsetDateTime moment,
+		@Nonnull String[] priceLists,
+		@Nonnull AccompanyingPrice[] accompanyingPrices
+	) {
+		final PriceForSaleWithAccompanyingPrices legacy = prices.getPriceForSaleWithAccompanyingPrices(
+			currency, moment, priceLists, accompanyingPrices
+		).orElseThrow();
+		final PriceRangeForSaleWithAccompanyingPrices range = prices.getPriceRangeForSaleWithAccompanyingPrices(
+			currency, moment, priceLists, accompanyingPrices
+		).orElseThrow();
+		assertEquals(legacy.priceForSale(), range.priceRange().priceForSale());
+		assertEquals(legacy.accompanyingPrices(), range.accompanyingPrices());
 	}
 
 }

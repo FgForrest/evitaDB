@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -407,6 +408,13 @@ public class EntityConverter {
 						);
 					}
 				}
+				// emit price-range bounds whenever the selling price was emitted; the bounds use the same
+				// currency / valid-in / price-list filters as the selling price (see PriceRangeForSale)
+				final Optional<PriceRangeForSale> priceRange = entity.getPriceRangeForSaleIfAvailable();
+				priceRange.ifPresent(range -> {
+					entityBuilder.setPriceForSaleMin(toGrpcPrice(range.lowestPrice()));
+					entityBuilder.setPriceForSaleMax(toGrpcPrice(range.highestPrice()));
+				});
 			});
 		}
 

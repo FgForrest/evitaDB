@@ -355,6 +355,23 @@ public class EntityJsonSerializer {
 			entity.getPriceForSaleWithAccompanyingPricesIfAvailable().ifPresent(it -> {
 				rootNode.putIfAbsent(EntityDescriptor.PRICE_FOR_SALE.name(), this.objectJsonSerializer.serializeObject(it.priceForSale()));
 
+				// Range fields are emitted unconditionally — even under NONE inner-record handling, where
+				// `lowestPrice == highestPrice == priceForSale` and the three values are necessarily identical.
+				// The redundancy is intentional: REST clients receive a stable schema that does not depend on
+				// the entity's strategy, so generated client code can dereference the bounds without nullness or
+				// strategy checks. (Contrast with GraphQL, where the bound fields are opt-in via the selection
+				// set and clients explicitly request them.)
+				entity.getPriceRangeForSaleIfAvailable().ifPresent(range -> {
+					rootNode.putIfAbsent(
+						EntityDescriptor.PRICE_FOR_SALE_MIN.name(),
+						this.objectJsonSerializer.serializeObject(range.lowestPrice())
+					);
+					rootNode.putIfAbsent(
+						EntityDescriptor.PRICE_FOR_SALE_MAX.name(),
+						this.objectJsonSerializer.serializeObject(range.highestPrice())
+					);
+				});
+
 				final Map<String, Optional<PriceContract>> accompanyingPrices = it.accompanyingPrices();
 				if (!accompanyingPrices.isEmpty()) {
 					final ObjectNode accompanyingPricesNode = this.objectJsonSerializer.objectNode();

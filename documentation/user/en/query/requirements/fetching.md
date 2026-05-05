@@ -5,7 +5,7 @@ perex: |
   reduce the amount of data transferred over the network and to reduce the load on the server. Fetching is similar to
   joins and column selection in SQL, but is inspired by data fetching in the GraphQL protocol by incrementally following
   the relationships in the data.
-date: '23.7.2023'
+date: '5.5.2026'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'evitaql'
@@ -1195,6 +1195,92 @@ As you can see, the price for sale matching the filter constraints is returned, 
 flag indicating that there are multiple prices for sale available.
 
 </Note>
+
+</LS>
+<LS to="g,r">
+
+### Price for sale range
+
+When rendering category listings or master-product cards, a typical front store wants to show the canonical selling
+price together with a "from / to" span across the variants (e.g. _"iPad 10 — from €479 to €528"_) without paging
+through `allPricesForSale` and folding it client-side. Two sibling fields, `priceForSaleMin` and `priceForSaleMax`,
+return exactly that pair of bounds — both computed from the same currency / valid-in / price-list filters that produce
+`priceForSale`, so all three values are directly comparable.
+
+The semantics depend on the [inner record handling](../filtering/price.md#price-for-sale-selection-in-a-nutshell)
+strategy of the entity:
+
+- **`NONE`** — `priceForSaleMin == priceForSaleMax == priceForSale` (a single selling price candidate).
+- **`LOWEST_PRICE`** — `priceForSaleMin == priceForSale` (the cheapest per-inner-record selling price),
+  `priceForSaleMax` is the most expensive per-inner-record selling price.
+- **`SUM`** — `priceForSaleMin` and `priceForSaleMax` are the cheapest and most expensive per-inner-record components;
+  `priceForSale` is the cumulated (summed) price across all components.
+
+The bounds reuse the same internal computation as `priceForSale`, so asking for all three siblings on the same entity
+costs the same as asking for `priceForSale` alone.
+
+</LS>
+<LS to="g">
+
+Both fields accept the same arguments (`priceLists`, `currency`, `validIn`, `validNow`, `locale`) as `priceForSale`;
+when omitted, they fall back to the surrounding query's price constraints.
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Getting entity with price for sale and its variant range](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.graphql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its price for sale range
+
+</NoteTitle>
+
+The query returns the canonical selling price together with the lowest and highest variant prices:
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with its price for sale range](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.graphql.json.md)</MDInclude>
+
+The bounds reflect the cheapest and most expensive per-variant prices, while `priceForSale` is the resolved selling
+price for the master entity itself.
+
+</Note>
+
+</LS>
+<LS to="r">
+
+Both fields are emitted alongside `priceForSale` whenever a `priceContent` (e.g. `priceContentRespectingFilter`)
+requirement is present in the entity fetch; the bounds reflect the price constraints in the surrounding `filterBy`
+clause.
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Getting entity with price for sale and its variant range](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.rest)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with its price for sale range
+
+</NoteTitle>
+
+The response carries the canonical selling price together with the lowest and highest variant prices as siblings of
+`priceForSale`:
+
+<MDInclude sourceVariable="recordPage">[The result of an entity fetched with its price for sale range](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.rest.json.md)</MDInclude>
+
+The bounds reflect the cheapest and most expensive per-variant prices, while `priceForSale` is the resolved selling
+price for the master entity itself.
+
+</Note>
+
+</LS>
+<LS to="g">
 
 ### Accompanying prices
 

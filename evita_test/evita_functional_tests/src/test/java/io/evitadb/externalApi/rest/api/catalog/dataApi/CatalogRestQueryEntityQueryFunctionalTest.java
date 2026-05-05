@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
@@ -105,6 +106,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * Tests for REST catalog entity list query.
@@ -1868,6 +1870,280 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.executeAndThen()
 			.statusCode(200)
 			.body(DATA_PATH, equalTo(createEntityDtos(entities)));
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for sale range for products with NONE inner record handling")
+	void shouldReturnPriceForSaleRangeForNoneInnerRecordHandling(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
+		final Integer[] pks = findEntityPks(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1,
+			2
+		);
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pks),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(PRICE_LIST_BASIC)
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
+
+		// sanity: ensure SDK reports the expected NONE-strategy collapse so the test asserts something meaningful
+		entities.forEach(classifier -> {
+			final SealedEntity entity = (SealedEntity) classifier;
+			final PriceRangeForSale range = entity.getPriceRangeForSale().orElseThrow();
+			assertEqualPrices(range.lowestPrice(), range.priceForSale());
+			assertEqualPrices(range.highestPrice(), range.priceForSale());
+		});
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": ["basic"]
+						},
+						"require": {
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(pks)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)))
+			.body(
+				DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MIN.name(),
+				notNullValue()
+			)
+			.body(
+				DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MAX.name(),
+				notNullValue()
+			);
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for sale range for master products with LOWEST_PRICE inner record handling")
+	void shouldReturnPriceForSaleRangeForLowestPriceInnerRecordHandling(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
+		final Integer[] pks = findEntityPks(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::indexed)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final Set<Integer> pksSet = Arrays.stream(pks).collect(Collectors.toSet());
+		final List<String> priceLists = originalProductEntities.stream()
+			.filter(it -> pksSet.contains(it.getPrimaryKey()))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pks),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(priceLists.toArray(String[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
+
+		// sanity: ensure SDK reports lowest == priceForSale and highest >= priceForSale for LOWEST_PRICE strategy
+		entities.forEach(classifier -> {
+			final SealedEntity entity = (SealedEntity) classifier;
+			final PriceRangeForSale range = entity.getPriceRangeForSale().orElseThrow();
+			assertEqualPrices(range.lowestPrice(), range.priceForSale());
+			assertTrue(
+				range.highestPrice().priceWithTax().compareTo(range.lowestPrice().priceWithTax()) >= 0,
+				"Highest price must be greater than or equal to the lowest price for LOWEST_PRICE strategy."
+			);
+		});
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": %s
+						},
+						"require": {
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(pks),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)))
+			.body(
+				DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MIN.name(),
+				notNullValue()
+			)
+			.body(
+				DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MAX.name(),
+				notNullValue()
+			);
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for sale range for master products with SUM inner record handling")
+	void shouldReturnPriceForSaleRangeForSumInnerRecordHandling(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
+		final Integer[] pks = findEntityPks(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.SUM) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::indexed)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final Set<Integer> pksSet = Arrays.stream(pks).collect(Collectors.toSet());
+		final List<String> priceLists = originalProductEntities.stream()
+			.filter(it -> pksSet.contains(it.getPrimaryKey()))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pks),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(priceLists.toArray(String[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentRespectingFilter()
+					)
+				)
+			)
+		);
+
+		// sanity: ensure SDK reports component prices for SUM strategy bounded by priceForSale
+		entities.forEach(classifier -> {
+			final SealedEntity entity = (SealedEntity) classifier;
+			final PriceRangeForSale range = entity.getPriceRangeForSale().orElseThrow();
+			assertTrue(
+				range.lowestPrice().priceWithTax().compareTo(range.highestPrice().priceWithTax()) <= 0,
+				"Lowest price must be less than or equal to the highest price for SUM strategy."
+			);
+			assertTrue(
+				range.priceForSale().priceWithTax().compareTo(range.highestPrice().priceWithTax()) >= 0,
+				"Cumulated SUM price must be at least as large as the highest component price."
+			);
+		});
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": %s
+						},
+						"require": {
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(pks),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)))
+			.body(
+				DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MIN.name(),
+				notNullValue()
+			)
+			.body(
+				DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MAX.name(),
+				notNullValue()
+			);
+	}
+
+	/**
+	 * Asserts the two price contracts represent the same price by comparing their identity tuple
+	 * (priceId, priceList, currency, innerRecordId).
+	 */
+	private static void assertEqualPrices(
+		@Nonnull PriceContract expected, @Nonnull PriceContract actual
+	) {
+		assertTrue(
+			expected.priceId() == actual.priceId() &&
+				expected.priceList().equals(actual.priceList()) &&
+				expected.currency().equals(actual.currency()) &&
+				Objects.equals(expected.innerRecordId(), actual.innerRecordId()),
+			"Expected the same price (priceId/priceList/currency/innerRecordId), but got `" +
+				expected + "` vs `" + actual + "`."
+		);
 	}
 
 	@Test

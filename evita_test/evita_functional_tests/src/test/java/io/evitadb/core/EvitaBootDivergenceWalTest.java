@@ -52,6 +52,7 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -73,7 +74,8 @@ import static io.evitadb.test.TestTags.WAL;
  *
  * - the resulting catalog states (ALIVE/INACTIVE/MISSING),
  * - the engine version (must advance by `becomeMissing + reappeared + autoDiscovered`),
- * - the engine WAL contents (one mutation per divergence entry, applied in the documented order),
+ * - the engine WAL contents (one mutation per divergence entry; `becomeMissing` records strictly precede any
+ *   restore, but `reappeared` and `autoDiscovered` are dispatched in parallel and may appear in either order),
  * - the next-boot idempotency (no further divergence after the first drain).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -168,13 +170,13 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("should drain mixed divergence in becomeMissing → reappeared → autoDiscovered order")
-	void shouldDrainMixedDivergenceInDocumentedOrder() throws IOException {
+	@DisplayName("should drain mixed divergence with becomeMissing committed before any restore")
+	void shouldDrainMixedDivergenceWithBecomeMissingBeforeRestores() throws IOException {
 		// Baseline: inactive=[b], missing=[d]. On disk: d, c (c is brand new, b is gone).
 		// Expected drain sequence:
-		// 1) MarkCatalogMissingMutation(b)
-		// 2) RestoreCatalogSchemaMutation(d)
-		// 3) RestoreCatalogSchemaMutation(c)
+		// 1) MarkCatalogMissingMutation(b)                     — Phase 1, awaited to completion
+		// 2) RestoreCatalogSchemaMutation(d) and RestoreCatalogSchemaMutation(c) in EITHER order — Phase 2
+		//    dispatches them in parallel so their relative WAL order is non-deterministic by design.
 		Files.createDirectory(this.storageDirectory.resolve("d"));
 		Files.createDirectory(this.storageDirectory.resolve("c"));
 		final long seedVersion = seedEngineState(2L, ArrayUtils.EMPTY_STRING_ARRAY, new String[]{"b"}, new String[]{"d"});
@@ -189,12 +191,18 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 
 			final List<EngineMutation<?>> walMutations = readWalMutations(evita, seedVersion + 1);
 			assertEquals(3, walMutations.size());
+			// Phase 1 — strictly first, regardless of Phase 2 races.
 			assertInstanceOf(MarkCatalogMissingMutation.class, walMutations.get(0));
 			assertEquals("b", ((MarkCatalogMissingMutation) walMutations.get(0)).getCatalogName());
+			// Phase 2 — both restores must be present, but their relative order is not guaranteed.
 			assertInstanceOf(RestoreCatalogSchemaMutation.class, walMutations.get(1));
-			assertEquals("d", ((RestoreCatalogSchemaMutation) walMutations.get(1)).getCatalogName());
 			assertInstanceOf(RestoreCatalogSchemaMutation.class, walMutations.get(2));
-			assertEquals("c", ((RestoreCatalogSchemaMutation) walMutations.get(2)).getCatalogName());
+			final Set<String> phase2Names = Set.of(
+				((RestoreCatalogSchemaMutation) walMutations.get(1)).getCatalogName(),
+				((RestoreCatalogSchemaMutation) walMutations.get(2)).getCatalogName()
+			);
+			assertEquals(Set.of("c", "d"), phase2Names,
+				"Phase 2 must restore both 'c' (auto-discovered) and 'd' (reappeared); their WAL order is racy by design.");
 		}
 	}
 
