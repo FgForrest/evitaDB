@@ -143,6 +143,20 @@ message GrpcSealedEntity {
   map<string, GrpcOffsetAndLimit> referenceOffsetAndLimits = 18;
   // Contains prices that has been requested to be calculated beside the main price for sale.
   map<string, GrpcPrice> accompanyingPrices = 19;
+  // Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+  // price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+  // The exact semantics depend on the price inner record handling strategy:
+  // - `NONE`: equal to `priceForSale`.
+  // - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+  // - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+  GrpcPrice priceForSaleMin = 20;
+  // Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+  // price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+  // The exact semantics depend on the price inner record handling strategy:
+  // - `NONE`: equal to `priceForSale`.
+  // - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+  // - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+  GrpcPrice priceForSaleMax = 21;
 }
 
 // Response carries entities in a binary format and is part of the PRIVATE API that is used by Java driver. The client

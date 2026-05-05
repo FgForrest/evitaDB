@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
@@ -601,6 +602,23 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 				basicPrices.iterator().next().priceId()
 			);
 		}
+
+		@Test
+		@DisplayName("should reject explicit zero inner record id")
+		void shouldRejectExplicitZeroInnerRecordId() {
+			// `0` is reserved as the null sentinel inside per-inner-record bookkeeping; allowing it would
+			// silently merge the price into the `null` bucket and corrupt LOWEST_PRICE/SUM aggregations
+			assertThrows(
+				InvalidMutationException.class,
+				() -> ExistingPriceBuilderTest.this.builder.setPrice(
+					20, "basic", CZK, 0,
+					BigDecimal.ONE,
+					BigDecimal.ZERO,
+					BigDecimal.ONE,
+					true
+				)
+			);
+		}
 	}
 
 	@Nested
@@ -617,7 +635,7 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 			assertTrue(price.isPresent());
 			assertEquals(1, price.get().priceId());
 			assertEquals("basic", price.get().priceList());
-			assertEquals(CZK, price.get().currency());
+			assertSame(CZK, price.get().currency());
 		}
 
 		@Test

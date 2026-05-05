@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.AmbiguousPriceException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.PricesContract;
@@ -44,13 +45,10 @@ import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.PRICE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link InitialPricesBuilder} verifying price
@@ -215,6 +213,34 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 					.anyMatch(it -> it.priceId() == 2)
 			);
 		}
+
+		@Test
+		@DisplayName("should reject explicit zero inner record id")
+		void shouldRejectExplicitZeroInnerRecordId() {
+			// `0` is reserved as the null sentinel inside per-inner-record bookkeeping; allowing it would
+			// silently merge the price into the `null` bucket and corrupt LOWEST_PRICE/SUM aggregations
+			assertThrows(
+				InvalidMutationException.class,
+				() -> InitialPricesBuilderTest.this.builder.setPrice(
+					1, "basic", CZK, 0,
+					BigDecimal.ONE, BigDecimal.ZERO,
+					BigDecimal.ONE, true
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject explicit zero inner record id when validity is provided")
+		void shouldRejectExplicitZeroInnerRecordIdWithValidity() {
+			assertThrows(
+				InvalidMutationException.class,
+				() -> InitialPricesBuilderTest.this.builder.setPrice(
+					1, "basic", CZK, 0,
+					BigDecimal.ONE, BigDecimal.ZERO,
+					BigDecimal.ONE, null, true
+				)
+			);
+		}
 	}
 
 	@Nested
@@ -372,23 +398,49 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 				);
 
 			assertEquals(1, allPricesForSale.size());
-			final PriceContract priceContract =
-				allPricesForSale.get(0);
+			final CumulatedPrice cumulatedPrice =
+				assertInstanceOf(
+					CumulatedPrice.class,
+					allPricesForSale.get(0)
+				);
 
+			// vip wins for buckets 1 & 2 (priceIds 2, 4 = 10 each); bucket 3 falls back to basic
+			// (priceId 5 = 1) because vip is absent for that bucket → cumulated 21 with-tax / without-tax
 			assertEquals(
-				new CumulatedPrice(
-					1,
-					new PriceKey(2, "vip", CZK),
-					Map.of(
-						3,
-						prices.getPrice(3, "basic", CZK)
-							.orElseThrow()
-					),
-					new BigDecimal("21"),
-					BigDecimal.ZERO,
-					new BigDecimal("21")
-				),
-				priceContract
+				0,
+				cumulatedPrice.priceWithoutTax()
+					.compareTo(new BigDecimal("21"))
+			);
+			assertEquals(
+				0,
+				cumulatedPrice.priceWithTax()
+					.compareTo(new BigDecimal("21"))
+			);
+			assertEquals(
+				0,
+				cumulatedPrice.taxRate()
+					.compareTo(BigDecimal.ZERO)
+			);
+			final Map<Integer, PriceContract> innerRecordPrices =
+				cumulatedPrice.innerRecordPrices();
+			assertEquals(3, innerRecordPrices.size());
+			assertEquals(
+				2,
+				innerRecordPrices.get(1).priceId()
+			);
+			assertEquals(
+				4,
+				innerRecordPrices.get(2).priceId()
+			);
+			assertEquals(
+				5,
+				innerRecordPrices.get(3).priceId()
+			);
+			// the anchor priceKey is one of the contributing components — its precise identity is
+			// HashMap-iteration dependent, so we accept any of the three winners (priceId 2, 4 or 5)
+			assertTrue(
+				Set.of(2, 4, 5)
+					.contains(cumulatedPrice.priceKey().priceId())
 			);
 		}
 	}
@@ -488,7 +540,7 @@ class InitialPricesBuilderTest extends AbstractBuilderTest {
 			assertTrue(price.isPresent());
 			assertEquals(1, price.get().priceId());
 			assertEquals("basic", price.get().priceList());
-			assertEquals(CZK, price.get().currency());
+			assertSame(CZK, price.get().currency());
 		}
 
 		@Test

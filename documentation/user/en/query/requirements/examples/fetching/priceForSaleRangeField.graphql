@@ -1,0 +1,38 @@
+{
+  queryProduct(
+    filterBy: {
+      entityPrimaryKeyInSet: [
+        103911
+      ],
+      priceInCurrency: EUR,
+      priceInPriceLists: [
+        "employee-basic-price",
+        "basic"
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+        priceForSaleMin {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+        priceForSaleMax {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

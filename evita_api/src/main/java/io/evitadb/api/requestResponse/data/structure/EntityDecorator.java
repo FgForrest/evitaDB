@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
 import io.evitadb.api.requestResponse.data.PricesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -1438,6 +1439,40 @@ public class EntityDecorator implements SealedEntity {
 			// method context available does NullPointer check
 			// noinspection DataFlowIssue
 			return getPriceForSale(
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
+			);
+		} else {
+			return empty();
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSale() throws ContextMissingException {
+		if (this.pricePredicate.isContextAvailable()) {
+			this.pricePredicate.checkPricesFetched();
+			// method context available does NullPointer check
+			// noinspection DataFlowIssue
+			return SealedEntity.super.getPriceRangeForSale(
+				this.pricePredicate.getCurrency(),
+				this.pricePredicate.getValidIn(),
+				this.pricePredicate.getPriceLists()
+			);
+		} else {
+			throw new ContextMissingException();
+		}
+	}
+
+	@Nonnull
+	@Override
+	public Optional<PriceRangeForSale> getPriceRangeForSaleIfAvailable() {
+		if (this.pricePredicate.isContextAvailable()) {
+			this.pricePredicate.checkPricesFetched();
+			// method context available does NullPointer check
+			// noinspection DataFlowIssue
+			return SealedEntity.super.getPriceRangeForSale(
 				this.pricePredicate.getCurrency(),
 				this.pricePredicate.getValidIn(),
 				this.pricePredicate.getPriceLists()

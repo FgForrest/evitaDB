@@ -29,6 +29,7 @@ import graphql.schema.GraphQLObjectType.Builder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.CollectionGraphQLSchemaBuildingContext;
@@ -46,6 +47,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.e
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.MultiplePricesForSaleAvailableDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.PriceBigDecimalDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.PriceDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.PriceForSaleBoundDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.PriceForSaleDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.PricesDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
@@ -115,6 +117,16 @@ public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 				entityObjectName,
 				entityObjectBuilder,
 				buildEntityPriceForSaleField()
+			);
+			this.buildingContext.registerFieldToObject(
+				entityObjectName,
+				entityObjectBuilder,
+				buildEntityPriceForSaleMinField()
+			);
+			this.buildingContext.registerFieldToObject(
+				entityObjectName,
+				entityObjectBuilder,
+				buildEntityPriceForSaleMaxField()
 			);
 			this.buildingContext.registerFieldToObject(
 				entityObjectName,
@@ -227,6 +239,50 @@ public class EntityObjectPriceDecorator implements EntityObjectDecorator {
 		}
 
 		return new BuiltFieldDescriptor(fieldBuilder.build(), PriceForSaleDataFetcher.getInstance());
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildEntityPriceForSaleMinField() {
+		return new BuiltFieldDescriptor(
+			buildPriceForSaleBoundFieldBuilder(GraphQLEntityDescriptor.PRICE_FOR_SALE_MIN).build(),
+			PriceForSaleBoundDataFetcher.getMinInstance()
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildEntityPriceForSaleMaxField() {
+		return new BuiltFieldDescriptor(
+			buildPriceForSaleBoundFieldBuilder(GraphQLEntityDescriptor.PRICE_FOR_SALE_MAX).build(),
+			PriceForSaleBoundDataFetcher.getMaxInstance()
+		);
+	}
+
+	/**
+	 * Shared argument set for the `priceForSaleMin` / `priceForSaleMax` fields — same as `priceForSale` so
+	 * clients have a uniform calling convention.
+	 */
+	@Nonnull
+	private GraphQLFieldDefinition.Builder buildPriceForSaleBoundFieldBuilder(
+		@Nonnull PropertyDescriptor descriptor
+	) {
+		final GraphQLFieldDefinition.Builder fieldBuilder = descriptor
+			.to(this.fieldBuilderTransformer)
+			.argument(PriceForSaleFieldHeaderDescriptor.PRICE_LISTS
+				          .to(this.argumentBuilderTransformer))
+			.argument(PriceForSaleFieldHeaderDescriptor.CURRENCY
+				          .to(this.argumentBuilderTransformer)
+				          .type(typeRef(CURRENCY_ENUM.name())))
+			.argument(PriceForSaleFieldHeaderDescriptor.VALID_IN
+				          .to(this.argumentBuilderTransformer))
+			.argument(PriceForSaleFieldHeaderDescriptor.VALID_NOW
+				          .to(this.argumentBuilderTransformer));
+
+		if (!this.buildingContext.getSupportedLocales().isEmpty()) {
+			fieldBuilder.argument(PriceForSaleFieldHeaderDescriptor.LOCALE
+				                      .to(this.argumentBuilderTransformer)
+				                      .type(typeRef(LOCALE_ENUM.name())));
+		}
+		return fieldBuilder;
 	}
 
 	@Nonnull

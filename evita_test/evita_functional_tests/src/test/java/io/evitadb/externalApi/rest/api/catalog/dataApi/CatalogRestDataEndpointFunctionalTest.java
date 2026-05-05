@@ -371,6 +371,11 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 			entity.getPriceForSaleWithAccompanyingPricesIfAvailable().ifPresent(price -> {
 				entityDto.e(EntityDescriptor.PRICE_FOR_SALE.name(), createEntityPriceDto(price.priceForSale()));
 
+				entity.getPriceRangeForSaleIfAvailable().ifPresent(range -> {
+					entityDto.e(EntityDescriptor.PRICE_FOR_SALE_MIN.name(), createEntityPriceDto(range.lowestPrice()));
+					entityDto.e(EntityDescriptor.PRICE_FOR_SALE_MAX.name(), createEntityPriceDto(range.highestPrice()));
+				});
+
 				final Map<String, Optional<PriceContract>> accompanyingPrices = price.accompanyingPrices();
 				if (!accompanyingPrices.isEmpty()) {
 					final MapBuilder accompanyingPricesObject = map();

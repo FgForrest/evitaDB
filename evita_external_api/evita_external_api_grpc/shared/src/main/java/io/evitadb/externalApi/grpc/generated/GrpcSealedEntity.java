@@ -1173,6 +1173,112 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
     return map.get(key);
   }
 
+  public static final int PRICEFORSALEMIN_FIELD_NUMBER = 20;
+  private io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin_;
+  /**
+   * <pre>
+   * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+   * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+   * The exact semantics depend on the price inner record handling strategy:
+   * - `NONE`: equal to `priceForSale`.
+   * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+   * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+   * @return Whether the priceForSaleMin field is set.
+   */
+  @java.lang.Override
+  public boolean hasPriceForSaleMin() {
+    return ((bitField0_ & 0x00000010) != 0);
+  }
+  /**
+   * <pre>
+   * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+   * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+   * The exact semantics depend on the price inner record handling strategy:
+   * - `NONE`: equal to `priceForSale`.
+   * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+   * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+   * @return The priceForSaleMin.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcPrice getPriceForSaleMin() {
+    return priceForSaleMin_ == null ? io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSaleMin_;
+  }
+  /**
+   * <pre>
+   * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+   * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+   * The exact semantics depend on the price inner record handling strategy:
+   * - `NONE`: equal to `priceForSale`.
+   * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+   * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPriceForSaleMinOrBuilder() {
+    return priceForSaleMin_ == null ? io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSaleMin_;
+  }
+
+  public static final int PRICEFORSALEMAX_FIELD_NUMBER = 21;
+  private io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax_;
+  /**
+   * <pre>
+   * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+   * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+   * The exact semantics depend on the price inner record handling strategy:
+   * - `NONE`: equal to `priceForSale`.
+   * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+   * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+   * @return Whether the priceForSaleMax field is set.
+   */
+  @java.lang.Override
+  public boolean hasPriceForSaleMax() {
+    return ((bitField0_ & 0x00000020) != 0);
+  }
+  /**
+   * <pre>
+   * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+   * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+   * The exact semantics depend on the price inner record handling strategy:
+   * - `NONE`: equal to `priceForSale`.
+   * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+   * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+   * @return The priceForSaleMax.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcPrice getPriceForSaleMax() {
+    return priceForSaleMax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSaleMax_;
+  }
+  /**
+   * <pre>
+   * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+   * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+   * The exact semantics depend on the price inner record handling strategy:
+   * - `NONE`: equal to `priceForSale`.
+   * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+   * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPriceForSaleMaxOrBuilder() {
+    return priceForSaleMax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSaleMax_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -1262,6 +1368,12 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
         internalGetAccompanyingPrices(),
         AccompanyingPricesDefaultEntryHolder.defaultEntry,
         19);
+    if (((bitField0_ & 0x00000010) != 0)) {
+      output.writeMessage(20, getPriceForSaleMin());
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      output.writeMessage(21, getPriceForSaleMax());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -1382,6 +1494,14 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
       size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(19, accompanyingPrices__);
     }
+    if (((bitField0_ & 0x00000010) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(20, getPriceForSaleMin());
+    }
+    if (((bitField0_ & 0x00000020) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(21, getPriceForSaleMax());
+    }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
     return size;
@@ -1445,6 +1565,16 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
         other.internalGetReferenceOffsetAndLimits())) return false;
     if (!internalGetAccompanyingPrices().equals(
         other.internalGetAccompanyingPrices())) return false;
+    if (hasPriceForSaleMin() != other.hasPriceForSaleMin()) return false;
+    if (hasPriceForSaleMin()) {
+      if (!getPriceForSaleMin()
+          .equals(other.getPriceForSaleMin())) return false;
+    }
+    if (hasPriceForSaleMax() != other.hasPriceForSaleMax()) return false;
+    if (hasPriceForSaleMax()) {
+      if (!getPriceForSaleMax()
+          .equals(other.getPriceForSaleMax())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -1519,6 +1649,14 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
     if (!internalGetAccompanyingPrices().getMap().isEmpty()) {
       hash = (37 * hash) + ACCOMPANYINGPRICES_FIELD_NUMBER;
       hash = (53 * hash) + internalGetAccompanyingPrices().hashCode();
+    }
+    if (hasPriceForSaleMin()) {
+      hash = (37 * hash) + PRICEFORSALEMIN_FIELD_NUMBER;
+      hash = (53 * hash) + getPriceForSaleMin().hashCode();
+    }
+    if (hasPriceForSaleMax()) {
+      hash = (37 * hash) + PRICEFORSALEMAX_FIELD_NUMBER;
+      hash = (53 * hash) + getPriceForSaleMax().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -1705,6 +1843,8 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
         getPriceForSaleFieldBuilder();
         getReferencesFieldBuilder();
         getLocalesFieldBuilder();
+        getPriceForSaleMinFieldBuilder();
+        getPriceForSaleMaxFieldBuilder();
       }
     }
     @java.lang.Override
@@ -1764,6 +1904,16 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
       scope_ = 0;
       internalGetMutableReferenceOffsetAndLimits().clear();
       internalGetMutableAccompanyingPrices().clear();
+      priceForSaleMin_ = null;
+      if (priceForSaleMinBuilder_ != null) {
+        priceForSaleMinBuilder_.dispose();
+        priceForSaleMinBuilder_ = null;
+      }
+      priceForSaleMax_ = null;
+      if (priceForSaleMaxBuilder_ != null) {
+        priceForSaleMaxBuilder_.dispose();
+        priceForSaleMaxBuilder_ = null;
+      }
       return this;
     }
 
@@ -1888,6 +2038,18 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
       }
       if (((from_bitField0_ & 0x00040000) != 0)) {
         result.accompanyingPrices_ = internalGetAccompanyingPrices().build(AccompanyingPricesDefaultEntryHolder.defaultEntry);
+      }
+      if (((from_bitField0_ & 0x00080000) != 0)) {
+        result.priceForSaleMin_ = priceForSaleMinBuilder_ == null
+            ? priceForSaleMin_
+            : priceForSaleMinBuilder_.build();
+        to_bitField0_ |= 0x00000010;
+      }
+      if (((from_bitField0_ & 0x00100000) != 0)) {
+        result.priceForSaleMax_ = priceForSaleMaxBuilder_ == null
+            ? priceForSaleMax_
+            : priceForSaleMaxBuilder_.build();
+        to_bitField0_ |= 0x00000020;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -2064,6 +2226,12 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
       internalGetMutableAccompanyingPrices().mergeFrom(
           other.internalGetAccompanyingPrices());
       bitField0_ |= 0x00040000;
+      if (other.hasPriceForSaleMin()) {
+        mergePriceForSaleMin(other.getPriceForSaleMin());
+      }
+      if (other.hasPriceForSaleMax()) {
+        mergePriceForSaleMax(other.getPriceForSaleMax());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -2241,6 +2409,20 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
               bitField0_ |= 0x00040000;
               break;
             } // case 154
+            case 162: {
+              input.readMessage(
+                  getPriceForSaleMinFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00080000;
+              break;
+            } // case 162
+            case 170: {
+              input.readMessage(
+                  getPriceForSaleMaxFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00100000;
+              break;
+            } // case 170
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -5393,6 +5575,410 @@ io.evitadb.externalApi.grpc.generated.GrpcPrice defaultValue) {
         builderMap.put(key, entry);
       }
       return (io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder) entry;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> priceForSaleMinBuilder_;
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     * @return Whether the priceForSaleMin field is set.
+     */
+    public boolean hasPriceForSaleMin() {
+      return ((bitField0_ & 0x00080000) != 0);
+    }
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     * @return The priceForSaleMin.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcPrice getPriceForSaleMin() {
+      if (priceForSaleMinBuilder_ == null) {
+        return priceForSaleMin_ == null ? io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSaleMin_;
+      } else {
+        return priceForSaleMinBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     */
+    public Builder setPriceForSaleMin(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
+      if (priceForSaleMinBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        priceForSaleMin_ = value;
+      } else {
+        priceForSaleMinBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     */
+    public Builder setPriceForSaleMin(
+        io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder builderForValue) {
+      if (priceForSaleMinBuilder_ == null) {
+        priceForSaleMin_ = builderForValue.build();
+      } else {
+        priceForSaleMinBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     */
+    public Builder mergePriceForSaleMin(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
+      if (priceForSaleMinBuilder_ == null) {
+        if (((bitField0_ & 0x00080000) != 0) &&
+          priceForSaleMin_ != null &&
+          priceForSaleMin_ != io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance()) {
+          getPriceForSaleMinBuilder().mergeFrom(value);
+        } else {
+          priceForSaleMin_ = value;
+        }
+      } else {
+        priceForSaleMinBuilder_.mergeFrom(value);
+      }
+      if (priceForSaleMin_ != null) {
+        bitField0_ |= 0x00080000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     */
+    public Builder clearPriceForSaleMin() {
+      bitField0_ = (bitField0_ & ~0x00080000);
+      priceForSaleMin_ = null;
+      if (priceForSaleMinBuilder_ != null) {
+        priceForSaleMinBuilder_.dispose();
+        priceForSaleMinBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder getPriceForSaleMinBuilder() {
+      bitField0_ |= 0x00080000;
+      onChanged();
+      return getPriceForSaleMinFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPriceForSaleMinOrBuilder() {
+      if (priceForSaleMinBuilder_ != null) {
+        return priceForSaleMinBuilder_.getMessageOrBuilder();
+      } else {
+        return priceForSaleMin_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSaleMin_;
+      }
+    }
+    /**
+     * <pre>
+     * Lowest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: equal to `priceForSale` (the cheapest per-inner-record selling price).
+     * - `SUM`: cheapest per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMin = 20;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+        getPriceForSaleMinFieldBuilder() {
+      if (priceForSaleMinBuilder_ == null) {
+        priceForSaleMinBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>(
+                getPriceForSaleMin(),
+                getParentForChildren(),
+                isClean());
+        priceForSaleMin_ = null;
+      }
+      return priceForSaleMinBuilder_;
+    }
+
+    private io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> priceForSaleMaxBuilder_;
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     * @return Whether the priceForSaleMax field is set.
+     */
+    public boolean hasPriceForSaleMax() {
+      return ((bitField0_ & 0x00100000) != 0);
+    }
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     * @return The priceForSaleMax.
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcPrice getPriceForSaleMax() {
+      if (priceForSaleMaxBuilder_ == null) {
+        return priceForSaleMax_ == null ? io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSaleMax_;
+      } else {
+        return priceForSaleMaxBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     */
+    public Builder setPriceForSaleMax(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
+      if (priceForSaleMaxBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        priceForSaleMax_ = value;
+      } else {
+        priceForSaleMaxBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00100000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     */
+    public Builder setPriceForSaleMax(
+        io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder builderForValue) {
+      if (priceForSaleMaxBuilder_ == null) {
+        priceForSaleMax_ = builderForValue.build();
+      } else {
+        priceForSaleMaxBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00100000;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     */
+    public Builder mergePriceForSaleMax(io.evitadb.externalApi.grpc.generated.GrpcPrice value) {
+      if (priceForSaleMaxBuilder_ == null) {
+        if (((bitField0_ & 0x00100000) != 0) &&
+          priceForSaleMax_ != null &&
+          priceForSaleMax_ != io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance()) {
+          getPriceForSaleMaxBuilder().mergeFrom(value);
+        } else {
+          priceForSaleMax_ = value;
+        }
+      } else {
+        priceForSaleMaxBuilder_.mergeFrom(value);
+      }
+      if (priceForSaleMax_ != null) {
+        bitField0_ |= 0x00100000;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     */
+    public Builder clearPriceForSaleMax() {
+      bitField0_ = (bitField0_ & ~0x00100000);
+      priceForSaleMax_ = null;
+      if (priceForSaleMaxBuilder_ != null) {
+        priceForSaleMaxBuilder_.dispose();
+        priceForSaleMaxBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder getPriceForSaleMaxBuilder() {
+      bitField0_ |= 0x00100000;
+      onChanged();
+      return getPriceForSaleMaxFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder getPriceForSaleMaxOrBuilder() {
+      if (priceForSaleMaxBuilder_ != null) {
+        return priceForSaleMaxBuilder_.getMessageOrBuilder();
+      } else {
+        return priceForSaleMax_ == null ?
+            io.evitadb.externalApi.grpc.generated.GrpcPrice.getDefaultInstance() : priceForSaleMax_;
+      }
+    }
+    /**
+     * <pre>
+     * Highest selling price (or component price for `SUM` strategy) computed with the same currency / valid-in /
+     * price-list filters as `priceForSale`. Populated when the price-range-for-sale is available on the entity.
+     * The exact semantics depend on the price inner record handling strategy:
+     * - `NONE`: equal to `priceForSale`.
+     * - `LOWEST_PRICE`: most expensive per-inner-record selling price.
+     * - `SUM`: most expensive per-inner-record component price (`priceForSale` is the cumulated sum).
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPrice priceForSaleMax = 21;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder> 
+        getPriceForSaleMaxFieldBuilder() {
+      if (priceForSaleMaxBuilder_ == null) {
+        priceForSaleMaxBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcPrice, io.evitadb.externalApi.grpc.generated.GrpcPrice.Builder, io.evitadb.externalApi.grpc.generated.GrpcPriceOrBuilder>(
+                getPriceForSaleMax(),
+                getParentForChildren(),
+                isClean());
+        priceForSaleMax_ = null;
+      }
+      return priceForSaleMaxBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

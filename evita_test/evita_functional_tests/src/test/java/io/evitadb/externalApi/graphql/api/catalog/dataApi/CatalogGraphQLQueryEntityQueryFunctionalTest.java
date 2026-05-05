@@ -38,10 +38,13 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.PriceRangeForSale;
+import io.evitadb.api.requestResponse.data.PriceRangeForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.PricesContract.AccompanyingPrice;
 import io.evitadb.api.requestResponse.data.PricesContract.PriceForSaleWithAccompanyingPrices;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
@@ -123,6 +126,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.GRAPHQL;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.QUERY;
 
 /**
@@ -3474,6 +3478,475 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				}
 				""",
 				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectErrorsAndThen();
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for sale range for products with NONE inner record handling")
+	void shouldReturnPriceForSaleRangeForNoneInnerRecordHandling(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> entities = findEntities(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1,
+			2
+		);
+
+		// sanity: ensure SDK reports the expected NONE-strategy collapse so the test asserts something meaningful
+		entities.forEach(entity -> {
+			final PriceRangeForSale range = entity.getPriceRangeForSale(CURRENCY_CZK, null, PRICE_LIST_BASIC).orElseThrow();
+			assertEquals(range.priceForSale().priceWithTax(), range.lowestPrice().priceWithTax());
+			assertEquals(range.priceForSale().priceWithTax(), range.highestPrice().priceWithTax());
+		});
+
+		final List<Map<String, Object>> expectedBody = entities.stream()
+			.map(this::createEntityDtoWithPriceForSaleRange)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(
+							filterBy: {
+								entityPrimaryKeyInSet: [%d, %d]
+								priceInCurrency: CZK
+								priceInPriceLists: "basic"
+							}
+						) {
+							recordPage {
+								data {
+									primaryKey
+									type
+									priceForSale {
+										__typename
+										currency
+										priceList
+										priceWithTax
+									}
+									priceForSaleMin {
+										__typename
+										currency
+										priceList
+										priceWithTax
+									}
+									priceForSaleMax {
+										__typename
+										currency
+										priceList
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for sale range for master products with LOWEST_PRICE inner record handling")
+	void shouldReturnPriceForSaleRangeForLowestPriceInnerRecordHandling(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> entities = findEntities(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::indexed)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final List<String> priceLists = entities.stream()
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+
+		// sanity: confirm the strategy actually produces a non-collapsed range for the picked entities
+		entities.forEach(entity -> {
+			final PriceRangeForSale range = entity.getPriceRangeForSale(
+				CURRENCY_CZK, null, priceLists.toArray(String[]::new)
+			).orElseThrow();
+			assertTrue(
+				range.lowestPrice().priceWithTax().compareTo(range.highestPrice().priceWithTax()) <= 0,
+				"Lowest price must be less than or equal to highest price for LOWEST_PRICE strategy."
+			);
+		});
+
+		final List<Map<String, Object>> expectedBody = entities.stream()
+			.map(entity -> createEntityDtoWithPriceForSaleRangeForCustomPriceLists(entity, priceLists.toArray(String[]::new)))
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(
+							filterBy: {
+								entityPrimaryKeyInSet: [%d, %d]
+								priceInCurrency: CZK
+								priceInPriceLists: %s
+							}
+						) {
+							recordPage {
+								data {
+									primaryKey
+									type
+									priceForSale {
+										__typename
+										currency
+										priceList
+										priceWithTax
+										innerRecordId
+									}
+									priceForSaleMin {
+										__typename
+										currency
+										priceList
+										priceWithTax
+										innerRecordId
+									}
+									priceForSaleMax {
+										__typename
+										currency
+										priceList
+										priceWithTax
+										innerRecordId
+									}
+								}
+							}
+						}
+					}
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for sale range for master products with SUM inner record handling")
+	void shouldReturnPriceForSaleRangeForSumInnerRecordHandling(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
+		final List<SealedEntity> entities = findEntities(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.SUM) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::indexed)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final List<String> priceLists = entities.stream()
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+
+		// sanity: SUM ⇒ priceForSale (cumulated) >= highestPrice >= lowestPrice (component prices)
+		entities.forEach(entity -> {
+			final PriceRangeForSale range = entity.getPriceRangeForSale(
+				CURRENCY_CZK, null, priceLists.toArray(String[]::new)
+			).orElseThrow();
+			assertTrue(
+				range.lowestPrice().priceWithTax().compareTo(range.highestPrice().priceWithTax()) <= 0,
+				"Lowest component price must be <= highest component price under SUM."
+			);
+			assertTrue(
+				range.priceForSale().priceWithTax().compareTo(range.highestPrice().priceWithTax()) >= 0,
+				"Cumulated SUM price must be >= the highest per-inner-record component price."
+			);
+		});
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(
+							filterBy: {
+								entityPrimaryKeyInSet: [%d, %d]
+								priceInCurrency: CZK
+								priceInPriceLists: %s
+							}
+						) {
+							recordPage {
+								data {
+									primaryKey
+									type
+									priceForSale {
+										priceWithTax
+									}
+									priceForSaleMin {
+										priceWithTax
+									}
+									priceForSaleMax {
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey(),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_DATA_PATH + "[0].priceForSale", notNullValue())
+			.body(PRODUCT_QUERY_DATA_PATH + "[0].priceForSaleMin.priceWithTax",
+				equalTo(entities.get(0).getPriceRangeForSale(CURRENCY_CZK, null, priceLists.toArray(String[]::new))
+					.orElseThrow().lowestPrice().priceWithTax().toString()))
+			.body(PRODUCT_QUERY_DATA_PATH + "[0].priceForSaleMax.priceWithTax",
+				equalTo(entities.get(0).getPriceRangeForSale(CURRENCY_CZK, null, priceLists.toArray(String[]::new))
+					.orElseThrow().highestPrice().priceWithTax().toString()))
+			.body(PRODUCT_QUERY_DATA_PATH + "[0].priceForSale.priceWithTax",
+				equalTo(entities.get(0).getPriceRangeForSale(CURRENCY_CZK, null, priceLists.toArray(String[]::new))
+					.orElseThrow().priceForSale().priceWithTax().toString()));
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price for sale range with custom field arguments overriding query constraints")
+	void shouldReturnCustomPriceForSaleRangeForProducts(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
+		// pick entities that have prices in both CZK basic AND EUR — to prove the field arguments override
+		// the surrounding query constraint (which here is `priceInCurrency: EUR`).
+		final List<SealedEntity> entities = findEntities(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1 &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).stream().allMatch(PriceContract::indexed) &&
+				!it.getPrices(CURRENCY_EUR).isEmpty() &&
+				it.getPrices(CURRENCY_EUR).stream().allMatch(PriceContract::indexed),
+			2
+		);
+
+		final List<Map<String, Object>> expectedBody = entities.stream()
+			.map(this::createEntityDtoWithPriceForSaleRange)
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(
+							filterBy: {
+								entityPrimaryKeyInSet: [%d, %d]
+								priceInCurrency: EUR
+							}
+						) {
+							recordPage {
+								data {
+									primaryKey
+									type
+									priceForSale(currency: CZK, priceLists: ["basic"]) {
+										__typename
+										currency
+										priceList
+										priceWithTax
+									}
+									priceForSaleMin(currency: CZK, priceLists: ["basic"]) {
+										__typename
+										currency
+										priceList
+										priceWithTax
+									}
+									priceForSaleMax(currency: CZK, priceLists: ["basic"]) {
+										__typename
+										currency
+										priceList
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return accompanying prices nested under each sub-price of price for sale range")
+	void shouldReturnAccompanyingPricesForPriceForSaleRange(Evita evita, GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
+		final List<Integer> desiredEntities = originalProductEntities.stream()
+			.filter(entity -> {
+				if (!entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE)) {
+					return false;
+				}
+				final Optional<PriceForSaleWithAccompanyingPrices> prices = entity.getPriceForSaleWithAccompanyingPrices(
+					CURRENCY_CZK,
+					null,
+					new String[]{PRICE_LIST_BASIC},
+					new AccompanyingPrice[]{
+						new AccompanyingPrice(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), PRICE_LIST_REFERENCE),
+						new AccompanyingPrice("vipPrice", PRICE_LIST_VIP)
+					}
+				);
+				return prices.isPresent() &&
+					prices.get().accompanyingPrices().get(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name()).isPresent() &&
+					prices.get().accompanyingPrices().get("vipPrice").isPresent();
+			})
+			.map(EntityContract::getPrimaryKey)
+			.toList();
+		assertTrue(desiredEntities.size() > 1);
+
+		final EvitaResponse<SealedEntity> exampleResponse = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(desiredEntities.toArray(Integer[]::new)),
+					priceInPriceLists(PRICE_LIST_BASIC),
+					priceInCurrency(CURRENCY_CZK)
+				),
+				require(
+					entityFetch(
+						priceContent(PriceContentMode.RESPECTING_FILTER, PRICE_LIST_REFERENCE, PRICE_LIST_VIP)
+					)
+				)
+			),
+			SealedEntity.class
+		);
+
+		final List<Map<String, Object>> expectedBody = exampleResponse.getRecordData().stream()
+			.map(this::createEntityDtoWithAccompanyingPricesForPriceForSaleRange)
+			.toList();
+		tester.test(TEST_CATALOG)
+			.document("""
+				query {
+					queryProduct(
+						filterBy: {
+							entityPrimaryKeyInSet: %s,
+							priceInPriceLists: "basic",
+							priceInCurrency: CZK
+						}
+					) {
+						recordPage {
+							data {
+								primaryKey
+								type
+								priceForSale {
+									__typename
+									priceWithTax
+									accompanyingPrice(priceLists: "reference") {
+										__typename
+										priceWithTax
+									}
+									vipPrice: accompanyingPrice(priceLists: "vip") {
+										__typename
+										priceWithTax
+									}
+								}
+								priceForSaleMin {
+									__typename
+									priceWithTax
+									accompanyingPrice(priceLists: "reference") {
+										__typename
+										priceWithTax
+									}
+									vipPrice: accompanyingPrice(priceLists: "vip") {
+										__typename
+										priceWithTax
+									}
+								}
+								priceForSaleMax {
+									__typename
+									priceWithTax
+									accompanyingPrice(priceLists: "reference") {
+										__typename
+										priceWithTax
+									}
+									vipPrice: accompanyingPrice(priceLists: "vip") {
+										__typename
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+				}
+				""",
+				serializeIntArrayToQueryString(desiredEntities))
+			.executeAndExpectOkAndThen()
+			.body(PRODUCT_QUERY_DATA_PATH, equalTo(expectedBody));
+	}
+
+	/**
+	 * Verifies that the `priceForSaleMin` field rejects callers that provide `priceLists` without an
+	 * accompanying `priceInCurrency` constraint anywhere in the query. The field arguments deliberately allow
+	 * overriding only the surrounding query-level price context, so a missing currency anywhere in the chain
+	 * must surface as a GraphQL error rather than silently using a fallback currency. (Same rule applies to
+	 * `priceForSaleMax`.)
+	 */
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error when priceForSaleMin arguments lack currency anywhere in the query")
+	void shouldThrowExceptionWhenPriceForSaleRangeArgumentsLackCurrency(GraphQLTester tester,
+		List<SealedEntity> originalProductEntities) {
+		// pick any two entities — the query is expected to fail at validation, before any data fetch
+		final List<SealedEntity> entities = findEntities(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE) &&
+				it.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).size() == 1,
+			2
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(
+							filterBy: {
+								entityPrimaryKeyInSet: [%d, %d]
+							}
+						) {
+							recordPage {
+								data {
+									primaryKey
+									type
+									priceForSaleMin(priceLists: ["basic"]) {
+										priceWithTax
+									}
+								}
+							}
+						}
+					}
+					""",
+				entities.get(0).getPrimaryKey(),
+				entities.get(1).getPrimaryKey()
+			)
 			.executeAndExpectErrorsAndThen();
 	}
 

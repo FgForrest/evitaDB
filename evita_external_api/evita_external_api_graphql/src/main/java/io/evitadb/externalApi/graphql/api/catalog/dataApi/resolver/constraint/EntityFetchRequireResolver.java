@@ -67,6 +67,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -94,6 +95,8 @@ public class EntityFetchRequireResolver {
 
 	private static final Set<String> PRICE_FOR_SALE_FIELDS = Set.of(
 		GraphQLEntityDescriptor.PRICE_FOR_SALE.name(),
+		GraphQLEntityDescriptor.PRICE_FOR_SALE_MIN.name(),
+		GraphQLEntityDescriptor.PRICE_FOR_SALE_MAX.name(),
 		GraphQLEntityDescriptor.ALL_PRICES_FOR_SALE.name()
 	);
 	private static final Set<String> CUSTOM_PRICE_FIELDS = Set.of(
@@ -362,27 +365,38 @@ public class EntityFetchRequireResolver {
 	}
 
 	/**
-	 * Resolves {@link AccompanyingPriceContent} for default `priceForSale` field (i.e., without parameters). Custom
-	 * `priceForSale` fields are computed during serialization manually.
+	 * Resolves {@link AccompanyingPriceContent} for default `priceForSale` / `priceForSaleMin` / `priceForSaleMax`
+	 * / `allPricesForSale` fields (i.e., without parameters). Custom price-for-sale fields are computed during
+	 * serialization manually.
+	 *
+	 * `priceForSaleMin` / `priceForSaleMax` are now flat siblings of `priceForSale`, so their `accompanyingPrice`
+	 * selection sits directly under each — same shape as `priceForSale`. Selections are deduplicated by name so
+	 * the engine does not compute the same accompanying price multiple times.
 	 */
 	@Nonnull
 	private static List<AccompanyingPriceContent> resolveAccompanyingPriceContents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
-		return selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)
-			.stream()
-			.filter(f -> f.getArguments().isEmpty())
-			.flatMap(f -> SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), f.getSelectionSet())
-				.stream()
-				.map(apf -> {
-					final String priceName = apf.getAlias() != null ? apf.getAlias() : apf.getName();
-					if (apf.getArguments().isEmpty()) {
-						return accompanyingPriceContent(priceName);
-					} else {
-						//noinspection unchecked
-						final String[] priceLists = ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).toArray(String[]::new);
-						return accompanyingPriceContent(priceName, priceLists);
-					}
-				}))
-			.toList();
+		final Map<String, AccompanyingPriceContent> deduplicated = new LinkedHashMap<>();
+		for (final SelectedField priceForSaleField : selectionSetAggregator.getImmediateFields(PRICE_FOR_SALE_FIELDS)) {
+			if (!priceForSaleField.getArguments().isEmpty()) {
+				// custom price for sale → accompanying prices are computed during serialization manually
+				continue;
+			}
+
+			for (final SelectedField apf : SelectionSetAggregator.getImmediateFields(PriceForSaleDescriptor.ACCOMPANYING_PRICE.name(), priceForSaleField.getSelectionSet())) {
+				final String priceName = apf.getAlias() != null ? apf.getAlias() : apf.getName();
+				final AccompanyingPriceContent content;
+				if (apf.getArguments().isEmpty()) {
+					content = accompanyingPriceContent(priceName);
+				} else {
+					//noinspection unchecked
+					final String[] priceLists = ((List<String>) apf.getArguments().get(AccompanyingPriceFieldHeaderDescriptor.PRICE_LISTS.name())).toArray(String[]::new);
+					content = accompanyingPriceContent(priceName, priceLists);
+				}
+				// same `priceName` across sibling price-for-sale fields ⇒ same accompanying price; engine only needs to compute it once
+				deduplicated.putIfAbsent(priceName, content);
+			}
+		}
+		return List.copyOf(deduplicated.values());
 	}
 
 	@Nonnull

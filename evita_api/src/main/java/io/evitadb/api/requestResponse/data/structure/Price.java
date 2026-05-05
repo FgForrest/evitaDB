@@ -89,7 +89,7 @@ public record Price(
 	private static final String PRICE_WITHOUT_TAX_IS_MANDATORY_VALUE = "Price without tax is mandatory value!";
 	private static final String PRICE_TAX_IS_MANDATORY_VALUE = "Price tax is mandatory value!";
 	private static final String PRICE_WITH_TAX_IS_MANDATORY_VALUE = "Price with tax is mandatory value!";
-	private static final String PRICE_INNER_RECORD_ID_MUST_BE_POSITIVE_VALUE = "Price inner record id must be positive value!";
+	private static final String PRICE_INNER_RECORD_ID_MUST_BE_POSITIVE_VALUE = "Price inner record id must be a positive value (use `null` for no inner record id; `0` is reserved as the no-inner-record sentinel)!";
 
 	public Price {
 		Assert.notNull(priceKey, PRICE_KEY_IS_MANDATORY_VALUE);
