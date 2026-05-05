@@ -37,7 +37,6 @@ import java.util.Collection;
 import java.util.Currency;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Optional.ofNullable;
 
@@ -68,6 +67,16 @@ import static java.util.Optional.ofNullable;
  */
 public class PriceForSaleContextWithCachedResult implements PriceForSaleContext {
 	/**
+	 * Tiny two-state holder used purely as a nullability sentinel for the cache slots — a `null` field
+	 * reference means "not yet computed", a non-null holder wrapping a (possibly `null`) `value` means
+	 * "computed; value may legitimately be `null` for entities with no sellable price". Replaces a previous
+	 * `AtomicReference` whose CAS capabilities were unused; safe publication is provided by the `volatile`
+	 * declaration on the cache fields, not by this holder.
+	 */
+	private record ComputedHolder<T>(@Nullable T value) {
+	}
+
+	/**
 	 * List of price lists sorted by priority.
 	 */
 	@Nullable private final String[] priceListPriority;
@@ -90,14 +99,14 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	 * published to concurrent readers — multiple GraphQL / REST data fetchers may evaluate fields on the same
 	 * {@link io.evitadb.api.requestResponse.data.structure.EntityDecorator} in parallel.
 	 */
-	private volatile AtomicReference<PriceForSaleComputationResult> cachedComputation;
+	private volatile ComputedHolder<PriceForSaleComputationResult> cachedComputation;
 	/**
 	 * Cache for the assembled {@link PriceForSaleWithAccompanyingPrices} returned by {@link #compute}. May be
 	 * pre-seeded at construction (gRPC reverse path) or populated on the first {@code compute()} call so the
 	 * accompanying-price selection runs at most once. Declared `volatile` for the same safe-publication reason
 	 * as {@link #cachedComputation}.
 	 */
-	private volatile AtomicReference<PriceForSaleWithAccompanyingPrices> cachedResult;
+	private volatile ComputedHolder<PriceForSaleWithAccompanyingPrices> cachedResult;
 
 	public PriceForSaleContextWithCachedResult(
 		@Nullable String[] priceListPriority,
@@ -119,7 +128,7 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		@Nonnull PriceForSaleWithAccompanyingPrices priceForSaleWithAccompanyingPrices
 	) {
 		this(priceListPriority, currency, atTheMoment, accompanyingPrices);
-		this.cachedResult = new AtomicReference<>(priceForSaleWithAccompanyingPrices);
+		this.cachedResult = new ComputedHolder<>(priceForSaleWithAccompanyingPrices);
 	}
 
 	@Nonnull
@@ -180,7 +189,7 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		@Nonnull PriceInnerRecordHandling innerRecordHandling
 	) {
 		if (this.cachedResult != null) {
-			return ofNullable(this.cachedResult.get());
+			return ofNullable(this.cachedResult.value());
 		}
 		final PriceForSaleComputationResult computation = ensureComputation(prices, innerRecordHandling);
 		final PriceForSaleWithAccompanyingPrices result = computation == null
@@ -192,7 +201,7 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 						.orElse(PricesContract.NO_ACCOMPANYING_PRICES)
 				)
 			);
-		this.cachedResult = new AtomicReference<>(result);
+		this.cachedResult = new ComputedHolder<>(result);
 		return ofNullable(result);
 	}
 
@@ -266,7 +275,7 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		@Nonnull PriceInnerRecordHandling innerRecordHandling
 	) {
 		if (this.cachedResult != null) {
-			return ofNullable(this.cachedResult.get())
+			return ofNullable(this.cachedResult.value())
 				.map(PriceForSaleWithAccompanyingPrices::priceForSale);
 		}
 		final PriceForSaleComputationResult computation = ensureComputation(prices, innerRecordHandling);
@@ -287,7 +296,7 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 		@Nonnull PriceInnerRecordHandling innerRecordHandling
 	) {
 		if (this.cachedComputation != null) {
-			return this.cachedComputation.get();
+			return this.cachedComputation.value();
 		}
 		final PriceForSaleComputationResult computation = PricesContract.computePriceForSaleResult(
 			prices,
@@ -297,7 +306,7 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 			ofNullable(this.priceListPriority).orElseThrow(ContextMissingException::new),
 			Objects::nonNull
 		);
-		this.cachedComputation = new AtomicReference<>(computation);
+		this.cachedComputation = new ComputedHolder<>(computation);
 		return computation;
 	}
 }
