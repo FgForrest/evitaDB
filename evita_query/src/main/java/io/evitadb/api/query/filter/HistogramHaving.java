@@ -49,7 +49,7 @@ import java.io.Serializable;
  *
  * A single `histogramHaving` denotes one `(referenceName, histogramName, groupSelector, [from, to])` tuple. The
  * `histogramName` may be omitted when the reference hosts exactly one histogram. The `groupSelector` — a single
- * {@link EntityHaving} filter constraint over the referenced **group** entity — identifies the group slot for
+ * {@link GroupHaving} filter constraint over the referenced **group** entity — identifies the group slot for
  * grouped histograms; it is omitted for non-grouped slots.
  *
  * ## Usage inside `userFilter`
@@ -66,12 +66,12 @@ import java.io.Serializable;
  *     histogramHaving(
  *         "parameterValues", "basicUnitValue",
  *         50, 120,
- *         entityHaving(attributeEquals("code", "height"))
+ *         groupHaving(attributeEquals("code", "height"))
  *     ),
  *     histogramHaving(
  *         "parameterValues", "basicUnitValue",
  *         90, 140,
- *         entityHaving(attributeEquals("code", "weight"))
+ *         groupHaving(attributeEquals("code", "weight"))
  *     )
  * )
  * ```
@@ -121,11 +121,11 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	 * @param histogramName   the histogram name within the reference (nullable; empty string is normalised to null)
 	 * @param from            the inclusive lower bound of the range (nullable if {@code to} is non-null)
 	 * @param to              the inclusive upper bound of the range (nullable if {@code from} is non-null)
-	 * @param groupSelector   optional single {@link EntityHaving} constraint selecting the group entity for grouped
+	 * @param groupHaving     optional single {@link GroupHaving} constraint selecting the group entity for grouped
 	 *                        histograms; must be null for non-grouped slots
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when both bounds are null, when
 	 *                                                        {@code from.compareTo(to) > 0}, or when
-	 *                                                        {@code groupSelector} is not a single child
+	 *                                                        {@code groupHaving} is not a single child
 	 */
 	@Creator
 	public HistogramHaving(
@@ -133,14 +133,11 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 		@Nullable String histogramName,
 		@Nullable @Value(requiresPlainType = true) Serializable from,
 		@Nullable @Value(requiresPlainType = true) Serializable to,
-		@Nullable @Child(
-			domain = ConstraintDomain.ENTITY,
-			allowed = { EntityHaving.class }
-		) FilterConstraint groupSelector
+		@Nullable @Child GroupHaving groupHaving
 	) {
 		super(
 			buildArguments(referenceName, histogramName, from, to),
-			groupSelector == null ? FilterConstraint.EMPTY_ARRAY : new FilterConstraint[] { groupSelector }
+			groupHaving == null ? FilterConstraint.EMPTY_ARRAY : new FilterConstraint[] { groupHaving }
 		);
 		validateBounds(from, to);
 	}
@@ -190,15 +187,15 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	}
 
 	/**
-	 * Returns the group selector — a single {@link EntityHaving} filter constraint identifying which group slot this
+	 * Returns the group selector — a single {@link GroupHaving} filter constraint identifying which group slot this
 	 * `histogramHaving` targets, or null for the non-grouped slot.
 	 *
 	 * @return the group selector child, or null
 	 */
 	@Nullable
-	public FilterConstraint getGroupSelector() {
+	public GroupHaving getGroupHaving() {
 		final FilterConstraint[] children = getChildren();
-		return children.length == 0 ? null : children[0];
+		return children.length == 0 ? null : (GroupHaving) children[0];
 	}
 
 	@Override

@@ -546,13 +546,33 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType) && Constraint.class.isAssignableFrom(childParameterType)) {
 				//noinspection unchecked
 				final Set<ConstraintDescriptor> constraints = ConstraintDescriptorProvider.getConstraints((Class<Constraint<?>>) childParameterType);
-				for (ConstraintDescriptor constraint : constraints) {
+				if (constraints.size() == 1) {
+					// schema-side flattening (GraphQLConstraintSchemaBuilder, OpenApiConstraintSchemaBuilder):
+					// when there's exactly one valid constraint variant, the wrapper field name is the
+					// parameter name (not the constraint key). Mirror that here so the value is found, but
+					// propagate the constraint key as `argumentName` so downstream `resolve(...)` looks up
+					// the right constraint. This fallback is required for cases where the inner-key
+					// simplification in ConstraintKeyBuilder does NOT collapse the prefix — e.g. when a
+					// classifier-bearing parent (HistogramHaving on a reference) puts the resolver into a
+					// REFERENCE-domain context while the @Child has a different property type (GroupHaving
+					// is an EntityConstraint), so the prefix `entity` stays on the constraint key and would
+					// not match the schema-flattened wrapper field name.
+					final ConstraintDescriptor constraint = constraints.iterator().next();
 					final String expectedConstraintKey = this.keyBuilder.build(resolveContext, constraint, null);
-					final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, expectedConstraintKey);
+					final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor.name());
 					if (possibleValue != null) {
 						argumentName = expectedConstraintKey;
 						argument = possibleValue;
-						break;
+					}
+				} else {
+					for (ConstraintDescriptor constraint : constraints) {
+						final String expectedConstraintKey = this.keyBuilder.build(resolveContext, constraint, null);
+						final Object possibleValue = extractChildArgumentFromWrapperObject(parsedConstraintDescriptor, value, expectedConstraintKey);
+						if (possibleValue != null) {
+							argumentName = expectedConstraintKey;
+							argument = possibleValue;
+							break;
+						}
 					}
 				}
 			} else {

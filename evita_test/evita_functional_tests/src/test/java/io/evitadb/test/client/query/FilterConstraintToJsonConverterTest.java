@@ -228,22 +228,24 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 
 	@Test
 	void shouldResolveHistogramHavingFullArityWithGroupSelector() {
-		// full-arity histogramHaving with classifier, histogramName, bounds and an entityHaving
-		// groupSelector — the child is rendered under `groupSelector` as a single wrapper object;
-		// the `entityHaving` descriptor key is simplified to `having` because the child's inner
-		// data locator shares its domain with the child's own parent locator (same referenced
-		// entity domain), per ConstraintKeyBuilder's naming rules
+		// full-arity histogramHaving with classifier, histogramName, bounds and a groupHaving
+		// child — the child is rendered under the parameter name `groupHaving` (single-variant
+		// `@Child GroupHaving` parameter, so the converter mirrors the schema flattening that
+		// uses the parameter name as the wrapper key). The inner constraint key is
+		// `entityGroupHaving` — the property-type-prefixed full name produced by the descriptor
+		// key builder (GroupHaving implements EntityConstraint, so the entity prefix is added to
+		// its `groupHaving` short name).
 		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
 		wrapperObject.putIfAbsent("histogramName", jsonNodeFactory.textNode("basicUnitValue"));
 		wrapperObject.putIfAbsent("from", jsonNodeFactory.numberNode(50));
 		wrapperObject.putIfAbsent("to", jsonNodeFactory.numberNode(120));
 
-		final ObjectNode entityHavingValue = jsonNodeFactory.objectNode();
-		entityHavingValue.putIfAbsent("attributeNameEquals", jsonNodeFactory.textNode("height"));
+		final ObjectNode groupHavingValue = jsonNodeFactory.objectNode();
+		groupHavingValue.putIfAbsent("attributeNameEquals", jsonNodeFactory.textNode("height"));
 
-		final ObjectNode groupSelectorWrapper = jsonNodeFactory.objectNode();
-		groupSelectorWrapper.putIfAbsent("having", entityHavingValue);
-		wrapperObject.putIfAbsent("groupSelector", groupSelectorWrapper);
+		final ObjectNode groupHavingWrapper = jsonNodeFactory.objectNode();
+		groupHavingWrapper.putIfAbsent("entityGroupHaving", groupHavingValue);
+		wrapperObject.putIfAbsent("groupHaving", groupHavingWrapper);
 
 		assertEquals(
 			new JsonConstraint("referenceCategoryHistogramHaving", wrapperObject),
@@ -254,7 +256,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 					"basicUnitValue",
 					50,
 					120,
-					entityHaving(attributeEquals("NAME", "height"))
+					groupHaving(attributeEquals("NAME", "height"))
 				)
 			).orElseThrow()
 		);

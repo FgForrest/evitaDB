@@ -198,6 +198,10 @@ public class QuerySerializationKryoConfigurer implements Consumer<Kryo> {
 
 		kryo.register(HistogramHaving.class, new HistogramHavingSerializer(), index++);
 
+		kryo.register(ReferenceHistogramStatistics.class, new ReferenceHistogramStatisticsSerializer(), index++);
+		kryo.register(ReferenceSummary.class, new ReferenceSummarySerializer(), index++);
+		kryo.register(ReferenceSummaryOfReference.class, new ReferenceSummaryOfReferenceSerializer(), index++);
+
 		Assert.isPremiseValid(index < 2000, "Index count overflow.");
 	}
 

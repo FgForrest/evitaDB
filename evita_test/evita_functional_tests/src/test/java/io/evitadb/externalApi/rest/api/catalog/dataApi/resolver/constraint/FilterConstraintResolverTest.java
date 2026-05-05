@@ -255,16 +255,19 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldResolveHistogramHavingFullArityWithGroupSelector() {
-		// full-arity histogramHaving with an entityHaving groupSelector — the resolver accepts the
-		// canonical `entityHaving` key (entity property-type prefix + fullName) for the child; the
-		// wrapper `and` containers the resolver adds around the single child are then purified away
+		// full-arity histogramHaving with a groupHaving child — the `@Child GroupHaving groupHaving`
+		// parameter is single-variant, so the GraphQL/REST schema flattens the field name to the
+		// parameter name `groupHaving`, and the inner constraint key simplifies to `groupHaving`
+		// (since GroupHaving's domain matches HistogramHaving's parent domain — see
+		// ConstraintKeyBuilder.build's simplification rule). The resolver finds the value via the
+		// simplified constraint key.
 		assertEquals(
 			histogramHaving(
 				"CATEGORY",
 				"basicUnitValue",
 				50,
 				120,
-				entityHaving(attributeEquals("NAME", "height"))
+				groupHaving(attributeEquals("NAME", "height"))
 			),
 			QueryPurifierVisitor.purify(
 				this.resolver.resolve(
@@ -274,9 +277,8 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 						.e("histogramName", "basicUnitValue")
 						.e("from", 50)
 						.e("to", 120)
-						.e("groupSelector", map()
-							.e("entityHaving", map()
-								.e("attributeNameEquals", "height")))
+						.e("groupHaving", map()
+							.e("attributeNameEquals", "height"))
 						.build()
 				)
 			)

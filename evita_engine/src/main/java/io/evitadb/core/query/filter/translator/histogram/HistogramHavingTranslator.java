@@ -28,6 +28,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HistogramHaving;
 import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -64,12 +65,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static io.evitadb.api.query.QueryConstraints.and;
-import static io.evitadb.api.query.QueryConstraints.attributeBetween;
-import static io.evitadb.api.query.QueryConstraints.entityHaving;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
+import static io.evitadb.api.query.QueryConstraints.*;
 
 /**
  * Translator for the {@link HistogramHaving} filter constraint. Rewrites the user-facing
@@ -90,7 +86,7 @@ import static io.evitadb.api.query.QueryConstraints.referenceHaving;
  *    processing scope and enforces cross-scope consistency of the resolved {@link HistogramValueDescriptor}
  *    (same source, attribute, plain type, localization flag).
  *
- * 2. When a `groupSelector` is present, it must be an {@link EntityHaving} container (enforced at
+ * 2. When a `groupSelector` is present, it must be a {@link GroupHaving} container (enforced at
  *    constraint-construction time). The translator evaluates the inner filter against the referenced-group's
  *    global index and asserts that the result contains exactly one primary key. A zero-match or multi-match
  *    result is rejected — the slot addressed by a single `histogramHaving` must identify a single group.
@@ -99,21 +95,19 @@ import static io.evitadb.api.query.QueryConstraints.referenceHaving;
  *    - `REFERENCED_ENTITY_ATTRIBUTE`:
  *      ```
  *      referenceHaving(refName,
- *          entityHaving(
- *              attributeBetween(attr, from, to),
- *              referenceHaving(groupRef, entityPrimaryKeyInSet(resolvedGroupPk))
- *          )
+ *          entityHaving(attributeBetween(attr, from, to)),
+ *          groupHaving(entityPrimaryKeyInSet(resolvedGroupPk))
  *      )
  *      ```
  *    - `REFERENCE_ATTRIBUTE`:
  *      ```
  *      referenceHaving(refName,
  *          attributeBetween(attr, from, to),
- *          referenceHaving(groupRef, entityPrimaryKeyInSet(resolvedGroupPk))
+ *          groupHaving(entityPrimaryKeyInSet(resolvedGroupPk))
  *      )
  *      ```
- *    When `groupSelector` is null, the inner group-selecting `referenceHaving` is omitted — the rewrite
- *    targets the ungrouped histogram slot.
+ *    When `groupSelector` is null, the `groupHaving` sibling is omitted — the rewrite targets the
+ *    ungrouped histogram slot.
  *
  * 4. Dispatches the rewrite through {@link FilterByVisitor#visit(io.evitadb.api.query.Constraint)} so the
  *    standard translator pipeline produces a {@link Formula}. Because the visitor's level stack tracks
@@ -124,10 +118,10 @@ import static io.evitadb.api.query.QueryConstraints.referenceHaving;
  *    that the attribute-family histogram baseline cloner will peel when computing its own `[min, max]` span.
  *
  * The translator implements {@link SelfTraversingTranslator} because the {@link HistogramHaving} constraint is
- * a container whose `groupSelector` child is an {@link EntityHaving} — default child traversal would attempt
- * to translate that {@link EntityHaving} in the entity domain, which requires a surrounding `ReferenceHaving`
- * parent scope. By self-traversing, the translator controls the dispatch order and emits the fully rewritten
- * tree into the visitor.
+ * a container whose `groupSelector` child is a {@link GroupHaving} — default child traversal would attempt
+ * to translate that {@link GroupHaving} outside a surrounding `ReferenceHaving` parent scope, which is its
+ * natural domain. By self-traversing, the translator controls the dispatch order and emits the fully
+ * rewritten tree into the visitor.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -209,7 +203,7 @@ public class HistogramHavingTranslator
 		final Serializable to = histogramHaving.getTo();
 
 		final Integer resolvedGroupPk = resolveGroupPk(
-			histogramHaving.getGroupSelector(), referenceSchema, scopes, filterByVisitor
+			histogramHaving.getGroupHaving(), referenceSchema, scopes, filterByVisitor
 		);
 
 		// stash the resolved tuple so ReferenceHistogramStatisticsTranslator can consume it without
@@ -272,22 +266,21 @@ public class HistogramHavingTranslator
 		final String referenceName = referenceSchema.getName();
 		final String attributeName = descriptor.sourceAttributeName();
 		final FilterConstraint attrBetween = attributeBetween(attributeName, from, to);
-		final FilterConstraint innerGroupSelector = resolvedGroupPk == null ? null : referenceHaving(
-			Objects.requireNonNull(
-				referenceSchema.getReferencedGroupType(),
-				"Reference `" + referenceName + "` does not declare a referenced group type, " +
-					"but a group selector was supplied to `histogramHaving`."
-			),
-			entityPrimaryKeyInSet(resolvedGroupPk)
-		);
+		// the group is filtered via `groupHaving(...)` — a sibling of the value filter inside the same
+		// `referenceHaving(...)`. Nesting it as a `referenceHaving(<groupType>, ...)` would push the lookup
+		// into the referenced entity's schema and fail to resolve.
+		final FilterConstraint innerGroupSelector = resolvedGroupPk == null
+			? null
+			: groupHaving(entityPrimaryKeyInSet(resolvedGroupPk));
 
 		return switch (descriptor.source()) {
 			case REFERENCED_ENTITY_ATTRIBUTE -> {
-				// attribute lives on the referenced entity — nest inside EntityHaving
-				final FilterConstraint entityInner = innerGroupSelector == null
-					? entityHaving(attrBetween)
-					: entityHaving(and(attrBetween, innerGroupSelector));
-				yield referenceHaving(referenceName, entityInner);
+				// attribute lives on the referenced entity — value filter goes inside EntityHaving,
+				// group selector stays at the reference scope alongside it
+				final FilterConstraint entityInner = entityHaving(attrBetween);
+				yield innerGroupSelector == null
+					? referenceHaving(referenceName, entityInner)
+					: referenceHaving(referenceName, entityInner, innerGroupSelector);
 			}
 			case REFERENCE_ATTRIBUTE -> {
 				// attribute lives on the reference itself — place attributeBetween directly inside
@@ -299,8 +292,8 @@ public class HistogramHavingTranslator
 	}
 
 	/**
-	 * Resolves the single group primary key identified by the supplied `groupSelector`. The selector must be an
-	 * {@link EntityHaving} container (enforced at constraint-construction time). The inner filter constraint is
+	 * Resolves the single group primary key identified by the supplied `groupSelector`. The selector must be a
+	 * {@link GroupHaving} container (enforced at constraint-construction time). The inner filter constraint is
 	 * evaluated against the referenced-group's global index across all active scopes; the resulting bitmap must
 	 * contain exactly one primary key — otherwise an {@link EvitaInvalidUsageException} is thrown.
 	 *
@@ -315,7 +308,7 @@ public class HistogramHavingTranslator
 	 */
 	@Nullable
 	private static Integer resolveGroupPk(
-		@Nullable FilterConstraint groupSelector,
+		@Nullable GroupHaving groupSelector,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Set<Scope> scopes,
 		@Nonnull FilterByVisitor filterByVisitor
@@ -323,32 +316,13 @@ public class HistogramHavingTranslator
 		if (groupSelector == null) {
 			return null;
 		}
-		if (!(groupSelector instanceof EntityHaving entityHavingSelector)) {
-			throw new EvitaInvalidUsageException(
-				"`groupSelector` of `histogramHaving` must be an `entityHaving(...)` container."
-			);
-		}
-		final FilterConstraint innerSelector = entityHavingSelector.getChild();
+		final FilterConstraint innerSelector = groupSelector.getChild();
 		if (innerSelector == null) {
 			throw new EvitaInvalidUsageException(
 				"`groupSelector` of `histogramHaving` must contain a non-empty filter."
 			);
 		}
-		final String groupEntityType = referenceSchema.getReferencedGroupType();
-		if (groupEntityType == null) {
-			throw new EvitaInvalidUsageException(
-				"Reference `" + referenceSchema.getName() +
-					"` does not declare a referenced group type, but `groupSelector` was supplied " +
-					"to `histogramHaving`."
-			);
-		}
-		if (!referenceSchema.isReferencedGroupTypeManaged()) {
-			throw new EvitaInvalidUsageException(
-				"Reference `" + referenceSchema.getName() +
-					"` targets a non-managed group type `" + groupEntityType +
-					"` — `groupSelector` requires a managed group type."
-			);
-		}
+		final String groupEntityType = getGroupEntityType(referenceSchema);
 
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final FilterBy groupFilterBy = filterBy(innerSelector);
@@ -390,6 +364,36 @@ public class HistogramHavingTranslator
 			);
 		}
 		return resolved.getFirst();
+	}
+
+	/**
+	 * Retrieves the group entity type associated with the provided reference schema contract.
+	 * The method ensures that the group entity type is defined and that it is managed. If these
+	 * conditions are not met, an exception is thrown.
+	 *
+	 * @param referenceSchema the reference schema contract containing information about the referenced group type
+	 * @return the group entity type as a non-null string
+	 * @throws EvitaInvalidUsageException if the referenced group type is not declared or if it
+	 *         is not managed
+	 */
+	@Nonnull
+	private static String getGroupEntityType(@Nonnull ReferenceSchemaContract referenceSchema) {
+		final String groupEntityType = referenceSchema.getReferencedGroupType();
+		if (groupEntityType == null) {
+			throw new EvitaInvalidUsageException(
+				"Reference `" + referenceSchema.getName() +
+					"` does not declare a referenced group type, but `groupSelector` was supplied " +
+					"to `histogramHaving`."
+			);
+		}
+		if (!referenceSchema.isReferencedGroupTypeManaged()) {
+			throw new EvitaInvalidUsageException(
+				"Reference `" + referenceSchema.getName() +
+					"` targets a non-managed group type `" + groupEntityType +
+					"` — `groupSelector` requires a managed group type."
+			);
+		}
+		return groupEntityType;
 	}
 
 	/**

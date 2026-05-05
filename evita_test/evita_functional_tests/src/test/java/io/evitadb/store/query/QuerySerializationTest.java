@@ -493,29 +493,29 @@ public class QuerySerializationTest {
 							new BigDecimal("50.5"), new BigDecimal("120.75"))),
 					arguments("classifier + from/to + groupSelector",
 						histogramHaving("parameterValues", 50, 120,
-							entityHaving(attributeEquals("code", "height")))),
+							groupHaving(attributeEquals("code", "height")))),
 					arguments("full arity, Integer + groupSelector",
 						histogramHaving("parameterValues", "basicUnitValue", 50, 120,
-							entityHaving(attributeEquals("code", "height")))),
+							groupHaving(attributeEquals("code", "height")))),
 					arguments("full arity, Long + groupSelector",
 						histogramHaving("parameterValues", "basicUnitValue", 50L, 120L,
-							entityHaving(attributeEquals("code", "weight")))),
+							groupHaving(attributeEquals("code", "weight")))),
 					arguments("full arity, BigDecimal + groupSelector",
 						histogramHaving("parameterValues", "basicUnitValue",
 							new BigDecimal("50.5"), new BigDecimal("120.75"),
-							entityHaving(attributeEquals("code", "depth")))),
+							groupHaving(attributeEquals("code", "depth")))),
 					arguments("open lower + histogramName + groupSelector",
 						histogramHaving("parameterValues", "basicUnitValue", null, 120,
-							entityHaving(attributeEquals("code", "height")))),
+							groupHaving(attributeEquals("code", "height")))),
 					arguments("open upper + histogramName + groupSelector",
 						histogramHaving("parameterValues", "basicUnitValue", 50, null,
-							entityHaving(attributeEquals("code", "height")))),
+							groupHaving(attributeEquals("code", "height")))),
 					arguments("nested inside userFilter, two siblings",
 						userFilter(
 							histogramHaving("parameterValues", "basicUnitValue", 50, 120,
-								entityHaving(attributeEquals("code", "height"))),
+								groupHaving(attributeEquals("code", "height"))),
 							histogramHaving("parameterValues", "basicUnitValue", 90, 140,
-								entityHaving(attributeEquals("code", "weight")))
+								groupHaving(attributeEquals("code", "weight")))
 						))
 				);
 			}
@@ -937,6 +937,74 @@ public class QuerySerializationTest {
 							orderBy(random()),
 							orderGroupBy(attributeNatural("a", OrderDirection.DESC)),
 							entityFetchAll()))
+				);
+			}
+		}
+
+		/**
+		 * Round-trip coverage for `referenceSummary`, `referenceSummaryOfReference`, and the
+		 * `histogramStatistics` child constraint. These were missing from the Kryo registry; a
+		 * `traffic.engine` query recorder hit `Class is not registered:
+		 * io.evitadb.api.query.require.ReferenceSummaryOfReference` in production, surfacing the gap.
+		 * The shapes mirror the {@code FacetSummary} nest above so we cover bound combinations
+		 * (statistics depth, filter / order siblings, entity / group fetch children) plus the
+		 * reference-specific addition: nested `histogramStatistics` children.
+		 */
+		@Nested
+		@DisplayName("referenceSummary")
+		class ReferenceSummary {
+			@ParameterizedTest(name = "{0}")
+			@MethodSource("variants")
+			void shouldRoundTrip(@Nonnull String desc, @Nonnull Object constraint) {
+				assertSerializationRound(constraint);
+			}
+
+			@Nonnull
+			static Stream<Arguments> variants() {
+				return Stream.of(
+					arguments("referenceSummary()",
+						referenceSummary()),
+					arguments("referenceSummary(IMPACT)",
+						referenceSummary(FacetStatisticsDepth.IMPACT)),
+					arguments("referenceSummary(IMPACT + entityFetchAll)",
+						referenceSummary(FacetStatisticsDepth.IMPACT, entityFetchAll())),
+					arguments("referenceSummary(IMPACT + entityFetchAll + entityGroupFetchAll)",
+						referenceSummary(FacetStatisticsDepth.IMPACT,
+							entityFetchAll(), entityGroupFetchAll())),
+					arguments("referenceSummary(null + filterBy + filterGroupBy + orderBy + orderGroupBy + fetches)",
+						referenceSummary(null,
+							filterBy(attributeEquals("a", "b")),
+							filterGroupBy(attributeEquals("d", "e")),
+							orderBy(random()),
+							orderGroupBy(attributeNatural("d", OrderDirection.DESC)),
+							entityFetchAll(), entityGroupFetchAll())),
+					arguments("referenceSummaryWithHistograms(IMPACT + histogramStatistics single)",
+						referenceSummaryWithHistograms(FacetStatisticsDepth.IMPACT,
+							null, null,
+							histogramStatistics(20, "priceIndex"))),
+					arguments("referenceSummaryWithHistograms(IMPACT + entityFetchAll + histogramStatistics OPTIMIZED)",
+						referenceSummaryWithHistograms(FacetStatisticsDepth.IMPACT,
+							entityFetchAll(), null,
+							histogramStatistics(20, HistogramBehavior.OPTIMIZED, "priceIndex"))),
+
+					arguments("referenceSummaryOfReference(a)",
+						referenceSummaryOfReference("a")),
+					arguments("referenceSummaryOfReference(a, IMPACT)",
+						referenceSummaryOfReference("a", FacetStatisticsDepth.IMPACT)),
+					arguments("referenceSummaryOfReference(a, IMPACT + entityFetchAll + entityGroupFetchAll)",
+						referenceSummaryOfReference("a", FacetStatisticsDepth.IMPACT,
+							entityFetchAll(), entityGroupFetchAll())),
+					arguments("referenceSummaryOfReference(a, null + filterBy + filterGroupBy + orderBy + orderGroupBy + fetches)",
+						referenceSummaryOfReference("a", null,
+							filterBy(attributeEquals("a", "b")),
+							filterGroupBy(attributeEquals("d", "e")),
+							orderBy(random()),
+							orderGroupBy(attributeNatural("d", OrderDirection.DESC)),
+							entityFetchAll(), entityGroupFetchAll())),
+					arguments("referenceSummaryOfReferenceWithHistograms(a, IMPACT + histogramStatistics)",
+						referenceSummaryOfReferenceWithHistograms("a", FacetStatisticsDepth.IMPACT,
+							null, null,
+							histogramStatistics(20, "priceIndex")))
 				);
 			}
 		}

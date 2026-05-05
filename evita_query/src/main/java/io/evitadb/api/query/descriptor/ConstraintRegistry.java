@@ -83,6 +83,7 @@ class ConstraintRegistry {
 		EntityPrimaryKeyBetween.class,
 		EntityLocaleEquals.class,
 		EntityHaving.class,
+		GroupHaving.class,
 		// attribute
 		AttributeBetween.class,
 		AttributeContains.class,

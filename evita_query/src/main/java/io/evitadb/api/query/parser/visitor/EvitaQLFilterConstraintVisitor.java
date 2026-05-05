@@ -592,9 +592,9 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 					from = null;
 					to = null;
 				}
-				final FilterConstraint groupSelector = ctx.args.groupSelector == null
+				final GroupHaving groupSelector = ctx.args.groupSelector == null
 					? null
-					: visitChildConstraint(ctx.args.groupSelector, FilterConstraint.class);
+					: visitChildConstraint(ctx.args.groupSelector, GroupHaving.class);
 				return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
 			}
 		);

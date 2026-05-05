@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HistogramHaving;
 import lombok.RequiredArgsConstructor;
 
@@ -42,7 +42,7 @@ import java.io.Serializable;
  * 2. histogram name (nullable string — Kryo's `writeString` / `readString` encode null natively)
  * 3. `from` bound (nullable {@link Serializable} via `writeClassAndObject`)
  * 4. `to` bound (nullable {@link Serializable} via `writeClassAndObject`)
- * 5. group selector (nullable {@link FilterConstraint} via `writeClassAndObject`)
+ * 5. group selector (nullable {@link GroupHaving} via `writeClassAndObject`)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -64,7 +64,7 @@ public class HistogramHavingSerializer extends Serializer<HistogramHaving> {
 		output.writeString(object.getHistogramName());
 		kryo.writeClassAndObject(output, object.getFrom());
 		kryo.writeClassAndObject(output, object.getTo());
-		kryo.writeClassAndObject(output, object.getGroupSelector());
+		kryo.writeClassAndObject(output, object.getGroupHaving());
 	}
 
 	/**
@@ -83,7 +83,7 @@ public class HistogramHavingSerializer extends Serializer<HistogramHaving> {
 		final String histogramName = input.readString();
 		final Serializable from = (Serializable) kryo.readClassAndObject(input);
 		final Serializable to = (Serializable) kryo.readClassAndObject(input);
-		final FilterConstraint groupSelector = (FilterConstraint) kryo.readClassAndObject(input);
+		final GroupHaving groupSelector = (GroupHaving) kryo.readClassAndObject(input);
 		return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
 	}
 

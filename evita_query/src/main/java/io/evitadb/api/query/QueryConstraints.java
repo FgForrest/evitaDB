@@ -1261,13 +1261,13 @@ public interface QueryConstraints {
 	 * group selector.
 	 *
 	 * Use this overload for grouped histograms when the reference hosts a single histogram per group (no
-	 * histogram-name disambiguation needed). The group selector must be a single {@code entityHaving(...)}
+	 * histogram-name disambiguation needed). The group selector must be a single {@code groupHaving(...)}
 	 * constraint that resolves to exactly one group entity.
 	 *
 	 * ```evitaql
 	 * userFilter(
 	 *     histogramHaving("parameterValues", 50, 120,
-	 *         entityHaving(attributeEquals("code", "height")))
+	 *         groupHaving(attributeEquals("code", "height")))
 	 * )
 	 * ```
 	 *
@@ -1276,7 +1276,7 @@ public interface QueryConstraints {
 	 * @param referenceName the reference name that hosts the target histogram; when null the factory returns null
 	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
 	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
-	 * @param groupSelector optional single {@code entityHaving} constraint selecting the group slot; may be null
+	 * @param groupHaving   optional single {@code groupHaving} constraint selecting the group slot; may be null
 	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
@@ -1285,12 +1285,12 @@ public interface QueryConstraints {
 		@Nullable String referenceName,
 		@Nullable T from,
 		@Nullable T to,
-		@Nullable FilterConstraint groupSelector
+		@Nullable GroupHaving groupHaving
 	) {
 		if (referenceName == null || (from == null && to == null)) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, null, from, to, groupSelector);
+		return new HistogramHaving(referenceName, null, from, to, groupHaving);
 	}
 
 	/**
@@ -1304,9 +1304,9 @@ public interface QueryConstraints {
 	 * ```evitaql
 	 * userFilter(
 	 *     histogramHaving("parameterValues", "basicUnitValue", 50, 120,
-	 *         entityHaving(attributeEquals("code", "height"))),
+	 *         groupHaving(attributeEquals("code", "height"))),
 	 *     histogramHaving("parameterValues", "basicUnitValue", 90, 140,
-	 *         entityHaving(attributeEquals("code", "weight")))
+	 *         groupHaving(attributeEquals("code", "weight")))
 	 * )
 	 * ```
 	 *
@@ -1316,7 +1316,7 @@ public interface QueryConstraints {
 	 * @param histogramName the histogram name within the reference; may be null for single-histogram references
 	 * @param from          the inclusive lower bound of the range; may be null for an open-ended lower bound
 	 * @param to            the inclusive upper bound of the range; may be null for an open-ended upper bound
-	 * @param groupSelector optional single {@code entityHaving} constraint selecting the group slot; may be null
+	 * @param groupHaving   optional single {@code groupHaving} constraint selecting the group slot; may be null
 	 * @return a new {@link HistogramHaving} instance or null when the call is not applicable
 	 * @see io.evitadb.api.query.filter.HistogramHaving
 	 */
@@ -1326,12 +1326,12 @@ public interface QueryConstraints {
 		@Nullable String histogramName,
 		@Nullable T from,
 		@Nullable T to,
-		@Nullable FilterConstraint groupSelector
+		@Nullable GroupHaving groupHaving
 	) {
 		if (referenceName == null || (from == null && to == null)) {
 			return null;
 		}
-		return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
+		return new HistogramHaving(referenceName, histogramName, from, to, groupHaving);
 	}
 
 	/**

@@ -277,7 +277,21 @@ public abstract class ConstraintToJsonConverter {
 			if (parameterValue.isEmpty()) {
 				return Optional.empty();
 			}
-			return convert(childConvertContext, (Constraint<?>) parameterValue.get());
+			// concrete (single-variant) child types are flattened in the GraphQL/REST schema to use
+			// the parameter name as the wrapper key — see GraphQLConstraintSchemaBuilder's
+			// buildChildConstraintValue and the matching ConstraintResolver flattening branch. Mirror
+			// that here so the JSON the converter produces round-trips through the resolver: the
+			// inner constraint's key→value pair is nested under `parameterDescriptor.name()`.
+			final Optional<JsonConstraint> innerResult = convert(
+				childConvertContext, (Constraint<?>) parameterValue.get()
+			);
+			if (innerResult.isEmpty()) {
+				return Optional.empty();
+			}
+			final JsonConstraint inner = innerResult.get();
+			final ObjectNode wrapperContainer = this.jsonNodeFactory.objectNode();
+			wrapperContainer.putIfAbsent(inner.key(), inner.value());
+			return Optional.of(new JsonConstraint(parameterDescriptor.name(), wrapperContainer));
 		}
 		if (childParameterType.isArray()) {
 			if (parameterValue.isEmpty()) {

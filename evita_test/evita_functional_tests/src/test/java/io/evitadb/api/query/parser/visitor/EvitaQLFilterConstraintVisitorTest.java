@@ -1532,13 +1532,13 @@ class EvitaQLFilterConstraintVisitorTest {
 		}
 
 		@Test
-		@DisplayName("Should parse histogramHaving with histogramName plus trailing entityHaving group selector")
+		@DisplayName("Should parse histogramHaving with histogramName plus trailing groupHaving group selector")
 		void shouldParseHistogramHavingWithGroupSelector() {
-			// The five-argument overload threads an entityHaving group selector after the
+			// The five-argument overload threads a groupHaving group selector after the
 			// bounds — it targets a specific group of reference entities for which the slider
-			// is evaluated. Both unsafe and safe modes must accept a nested entityHaving.
+			// is evaluated. Both unsafe and safe modes must accept a nested groupHaving.
 			final FilterConstraint constraint1 = parseFilterConstraintUnsafe(
-				"histogramHaving('parameterValues','basicValue',50,120,entityHaving(attributeEquals('code','height')))"
+				"histogramHaving('parameterValues','basicValue',50,120,groupHaving(attributeEquals('code','height')))"
 			);
 			assertEquals(
 				histogramHaving(
@@ -1546,13 +1546,13 @@ class EvitaQLFilterConstraintVisitorTest {
 					"basicValue",
 					50L,
 					120L,
-					entityHaving(attributeEquals("code", "height"))
+					groupHaving(attributeEquals("code", "height"))
 				),
 				constraint1
 			);
 
 			final FilterConstraint constraint2 = parseFilterConstraint(
-				"histogramHaving(?,?,?,?,entityHaving(attributeEquals(?,?)))",
+				"histogramHaving(?,?,?,?,groupHaving(attributeEquals(?,?)))",
 				"parameterValues", "basicValue", 50L, 120L, "code", "height"
 			);
 			assertEquals(
@@ -1561,27 +1561,27 @@ class EvitaQLFilterConstraintVisitorTest {
 					"basicValue",
 					50L,
 					120L,
-					entityHaving(attributeEquals("code", "height"))
+					groupHaving(attributeEquals("code", "height"))
 				),
 				constraint2
 			);
 		}
 
 		@Test
-		@DisplayName("Should parse histogramHaving with trailing entityHaving while histogramName is omitted")
+		@DisplayName("Should parse histogramHaving with trailing groupHaving while histogramName is omitted")
 		void shouldParseHistogramHavingWithGroupSelectorButNoHistogramName() {
 			// Guards the four-argument overload where histogramName is dropped but the group
 			// selector is retained — the parser must pick the correct constructor based on
 			// argument types rather than arity alone.
 			final FilterConstraint constraint1 = parseFilterConstraintUnsafe(
-				"histogramHaving('parameterValues',50,120,entityHaving(attributeEquals('code','height')))"
+				"histogramHaving('parameterValues',50,120,groupHaving(attributeEquals('code','height')))"
 			);
 			assertEquals(
 				histogramHaving(
 					"parameterValues",
 					50L,
 					120L,
-					entityHaving(attributeEquals("code", "height"))
+					groupHaving(attributeEquals("code", "height"))
 				),
 				constraint1
 			);

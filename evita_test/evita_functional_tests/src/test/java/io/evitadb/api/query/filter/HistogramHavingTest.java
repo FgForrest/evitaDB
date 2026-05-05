@@ -36,8 +36,8 @@ import java.io.Serializable;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
-import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.groupHaving;
 import static io.evitadb.api.query.QueryConstraints.histogramHaving;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -54,7 +54,7 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
 /**
  * Tests for {@link HistogramHaving} pinning its public API contract — the four factory arities, the
  * normalisation of an empty `histogramName` to null, the bound-validation invariants (at-least-one-bound
- * rule, ordered-bounds-when-same-type rule), the `EntityHaving`-only child whitelist enforced via
+ * rule, ordered-bounds-when-same-type rule), the `GroupHaving`-only child whitelist enforced via
  * `getCopyWithNewChildren`, and the standard applicability / necessity / equality / toString contract
  * inherited from `AbstractFilterConstraintContainer`.
  *
@@ -71,16 +71,16 @@ import static io.evitadb.test.TestTags.HISTOGRAM;
 class HistogramHavingTest {
 
 	/**
-	 * Builds a fully qualified `entityHaving(attributeEquals("code", value))` selector used as the
+	 * Builds a fully qualified `groupHaving(attributeEquals("code", value))` selector used as the
 	 * optional group-selector child. Centralising construction keeps the value of `code` consistent and
 	 * lets tests assert by equality without repeating the nested builder.
 	 *
 	 * @param code the `code` attribute value that selects a single group entity
-	 * @return a single-child `entityHaving` filter constraint
+	 * @return a single-child `groupHaving` filter constraint
 	 */
 	@Nonnull
-	private static FilterConstraint groupSelector(@Nonnull String code) {
-		return entityHaving(attributeEquals("code", code));
+	private static GroupHaving groupSelector(@Nonnull String code) {
+		return groupHaving(attributeEquals("code", code));
 	}
 
 	@Nested
@@ -96,7 +96,7 @@ class HistogramHavingTest {
 			assertNull(constraint.getHistogramName());
 			assertEquals(50, (Integer) constraint.getFrom());
 			assertEquals(120, (Integer) constraint.getTo());
-			assertNull(constraint.getGroupSelector());
+			assertNull(constraint.getGroupHaving());
 			assertEquals(0, constraint.getChildren().length);
 		}
 
@@ -111,13 +111,13 @@ class HistogramHavingTest {
 			assertEquals("basicUnitValue", constraint.getHistogramName());
 			assertEquals(50, (Integer) constraint.getFrom());
 			assertEquals(120, (Integer) constraint.getTo());
-			assertNull(constraint.getGroupSelector());
+			assertNull(constraint.getGroupHaving());
 		}
 
 		@Test
 		@DisplayName("should build via 4-arg factory with classifier, bounds and group selector")
 		void shouldBuildVia4ArgFactoryWithClassifierBoundsAndGroupSelector() {
-			final FilterConstraint selector = groupSelector("height");
+			final GroupHaving selector = groupSelector("height");
 			final HistogramHaving constraint = histogramHaving(
 				"parameterValues", 50, 120, selector
 			);
@@ -126,14 +126,14 @@ class HistogramHavingTest {
 			assertNull(constraint.getHistogramName());
 			assertEquals(50, (Integer) constraint.getFrom());
 			assertEquals(120, (Integer) constraint.getTo());
-			assertSame(selector, constraint.getGroupSelector());
+			assertSame(selector, constraint.getGroupHaving());
 			assertEquals(1, constraint.getChildren().length);
 		}
 
 		@Test
 		@DisplayName("should build via 5-arg factory with all fields populated")
 		void shouldBuildVia5ArgFactoryWithAllFieldsPopulated() {
-			final FilterConstraint selector = groupSelector("weight");
+			final GroupHaving selector = groupSelector("weight");
 			final HistogramHaving constraint = histogramHaving(
 				"parameterValues", "basicUnitValue", 50, 120, selector
 			);
@@ -142,7 +142,7 @@ class HistogramHavingTest {
 			assertEquals("basicUnitValue", constraint.getHistogramName());
 			assertEquals(50, (Integer) constraint.getFrom());
 			assertEquals(120, (Integer) constraint.getTo());
-			assertSame(selector, constraint.getGroupSelector());
+			assertSame(selector, constraint.getGroupHaving());
 		}
 
 		@Test
@@ -216,7 +216,7 @@ class HistogramHavingTest {
 			);
 
 			// null group selector is the non-grouped slot — children must be empty, not a single-null slot
-			assertNull(constraint.getGroupSelector());
+			assertNull(constraint.getGroupHaving());
 			assertEquals(0, constraint.getChildren().length);
 		}
 
@@ -410,7 +410,7 @@ class HistogramHavingTest {
 			);
 
 			final HistogramHaving copied = assertInstanceOf(HistogramHaving.class, copy);
-			assertNull(copied.getGroupSelector());
+			assertNull(copied.getGroupHaving());
 			assertEquals("parameterValues", copied.getReferenceName());
 			assertEquals("basicUnitValue", copied.getHistogramName());
 		}
@@ -428,7 +428,7 @@ class HistogramHavingTest {
 			);
 
 			final HistogramHaving copied = assertInstanceOf(HistogramHaving.class, copy);
-			assertSame(newSelector, copied.getGroupSelector());
+			assertSame(newSelector, copied.getGroupHaving());
 			// arguments must be carried verbatim — arguments array is reused, not rebuilt
 			assertEquals("parameterValues", copied.getReferenceName());
 			assertEquals("basicUnitValue", copied.getHistogramName());
@@ -472,8 +472,8 @@ class HistogramHavingTest {
 		}
 
 		@Test
-		@DisplayName("should accept a non-EntityHaving child structurally without failing at clone time")
-		void shouldAcceptNonEntityHavingChildStructurallyWithoutFailingAtCloneTime() {
+		@DisplayName("should accept a non-GroupHaving child structurally without failing at clone time")
+		void shouldAcceptNonGroupHavingChildStructurallyWithoutFailingAtCloneTime() {
 			// structural clone does not re-enforce the @Child(allowed=...) whitelist — that is the query
 			// validator's job; this test pins the boundary between structural and semantic validation
 			final HistogramHaving original = histogramHaving("price-range", 50, 120);
@@ -495,7 +495,7 @@ class HistogramHavingTest {
 		@Test
 		@DisplayName("should clone preserving children when arguments change")
 		void shouldClonePreservingChildrenWhenArgumentsChange() {
-			final FilterConstraint selector = groupSelector("height");
+			final GroupHaving selector = groupSelector("height");
 			final HistogramHaving original = histogramHaving(
 				"parameterValues", "basicUnitValue", 50, 120, selector
 			);
@@ -511,7 +511,7 @@ class HistogramHavingTest {
 			assertEquals(10, (Integer) copy.getFrom());
 			assertEquals(20, (Integer) copy.getTo());
 			// children (the group selector) must pass through untouched — arguments and children are disjoint
-			assertSame(selector, copy.getGroupSelector());
+			assertSame(selector, copy.getGroupHaving());
 		}
 	}
 
@@ -615,11 +615,11 @@ class HistogramHavingTest {
 			).toString();
 
 			// group selector must be rendered as a child inside the constraint payload — pin the exact
-			// nested entityHaving(attributeEquals(...)) shape so a structural drift surfaces here;
+			// nested groupHaving(attributeEquals(...)) shape so a structural drift surfaces here;
 			// when the histogramName is omitted the 3-arg factory leaves that slot null and the
 			// generic argument-renderer emits the `<NULL>` placeholder, which must also stay stable
 			assertEquals(
-				"histogramHaving('parameterValues',<NULL>,50,120,entityHaving(attributeEquals('code','height')))",
+				"histogramHaving('parameterValues',<NULL>,50,120,groupHaving(attributeEquals('code','height')))",
 				text
 			);
 		}

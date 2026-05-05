@@ -9143,6 +9143,194 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should narrow histogramHaving via groupSelector picking a single parameter group")
+	void shouldApplyHistogramHavingWithGroupSelectorInUserFilter(Evita evita, GraphQLTester tester) {
+		// Regression for the silent-drop of `groupSelector` in the GraphQL filter resolver: the
+		// GraphQLConstraintSchemaBuilder flattens single-variant `@Child EntityHaving` parameters to
+		// the parameter-name field (`groupSelector: { ... }`), but the constraint resolver was
+		// looking up the value by constraint key — meaning the selector silently disappeared and the
+		// query degraded to a `histogramHaving` without group narrowing. This test pins down the
+		// GraphQL → resolver → translator → engine path: a `groupSelector` that picks a single
+		// `PARAMETER_GROUP` must narrow the result strictly below the equivalent query *without* the
+		// selector. We pre-compute both counts via the Java API and assert the GraphQL mirror.
+		// Pick the first PARAMETER_GROUP that actually narrows the result when used as a selector —
+		// the `priceIndex` histogram is sparse, so not every group covers products in the chosen
+		// range. We iterate group PKs until we find one that produces a non-empty, strictly-narrower
+		// result than the no-selector baseline.
+		final BigDecimal baselineMin;
+		final BigDecimal baselineMax;
+		final BigDecimal rangeFrom;
+		final BigDecimal rangeTo;
+		final int baselineNoSelectorCount;
+		final int narrowedWithSelectorCount;
+		final int chosenGroupPk;
+
+		// Step 1: capture the catalog-wide priceIndex span so we can pick a slider sub-range.
+		final EvitaResponse<EntityReference> baselineResponse = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							referenceSummaryOfReferenceWithHistograms(
+								Entities.PARAMETER,
+								FacetStatisticsDepth.COUNTS,
+								null,
+								null,
+								histogramStatistics(20, HISTOGRAM_PRICE_INDEX)
+							)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+		final HistogramContract baselineHistogram = baselineResponse.getExtraResult(ReferenceSummary.class)
+			.getReferenceStatistics()
+			.stream()
+			.map(stats -> stats.getHistogramStatistics(HISTOGRAM_PRICE_INDEX))
+			.filter(histogram -> histogram != null && histogram.getBuckets().length > 0)
+			.findFirst()
+			.orElseThrow();
+		baselineMin = baselineHistogram.getMin();
+		baselineMax = baselineHistogram.getMax();
+		rangeFrom = baselineMin;
+		rangeTo = baselineMin.add(
+			baselineMax.subtract(baselineMin).divide(new BigDecimal("2"), java.math.RoundingMode.HALF_UP)
+		);
+
+		// Step 2: baseline count for `histogramHaving` WITHOUT the group selector — the upper bound.
+		final EvitaResponse<EntityReference> baselineNoSelector = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								histogramHaving(
+									Entities.PARAMETER,
+									HISTOGRAM_PRICE_INDEX,
+									rangeFrom,
+									rangeTo
+								)
+							)
+						),
+						require(page(1, 1))
+					),
+					EntityReference.class
+				);
+			}
+		);
+		baselineNoSelectorCount = baselineNoSelector.getTotalRecordCount();
+		assertTrue(baselineNoSelectorCount > 0,
+			"baseline (no group selector) must produce at least one product — fixture sanity check");
+
+		// Step 3: scan parameter-group PKs and pick the first one that strictly narrows the baseline
+		// when used as the `groupSelector`. The fixture is randomly generated; iteration is the
+		// deterministic way to find a stable selector across re-seedings.
+		int foundPk = -1;
+		int foundCount = -1;
+		final int parameterGroupCount = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.getEntityCollectionSize(Entities.PARAMETER_GROUP);
+			}
+		);
+		for (int pk = 1; pk <= parameterGroupCount; pk++) {
+			final int candidatePk = pk;
+			final EvitaResponse<EntityReference> candidate = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								userFilter(
+									histogramHaving(
+										Entities.PARAMETER,
+										HISTOGRAM_PRICE_INDEX,
+										rangeFrom,
+										rangeTo,
+										groupHaving(entityPrimaryKeyInSet(candidatePk))
+									)
+								)
+							),
+							require(page(1, 1))
+						),
+						EntityReference.class
+					);
+				}
+			);
+			final int count = candidate.getTotalRecordCount();
+			if (count > 0 && count < baselineNoSelectorCount) {
+				foundPk = candidatePk;
+				foundCount = count;
+				break;
+			}
+		}
+		assertTrue(foundPk > 0,
+			"no parameter group narrowed the baseline — fixture cannot exercise the groupSelector");
+		chosenGroupPk = foundPk;
+		narrowedWithSelectorCount = foundCount;
+
+		// Step 4: assert the GraphQL surface mirrors the engine-side numbers when `groupSelector` is
+		// supplied as `groupHaving { entityPrimaryKeyInSet }`. If the resolver silently drops the
+		// selector (the regression this test guards), the GraphQL count would equal
+		// `baselineNoSelectorCount` instead of `narrowedWithSelectorCount`.
+		// `groupSelector` is typed as a concrete `@Child GroupHaving` parameter — the schema
+		// builder flattens single-variant `@Child` parameters to the parameter name, so the
+		// inner `groupHaving` payload appears directly under `groupSelector` without an explicit
+		// `groupHaving` wrapper key (see `ConstraintResolver` flattening branch).
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+					query {
+						queryProduct(
+							filterBy: {
+								userFilter: {
+									referenceParameterHistogramHaving: {
+										histogramName: "%s",
+										from: "%s",
+										to: "%s",
+										groupHaving: {
+											entityPrimaryKeyInSet: [%d]
+										}
+									}
+								}
+							}
+						) {
+							recordPage(size: %d) {
+								totalRecordCount
+							}
+						}
+					}
+					""",
+				HISTOGRAM_PRICE_INDEX,
+				rangeFrom.toPlainString(),
+				rangeTo.toPlainString(),
+				chosenGroupPk,
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.RECORD_PAGE.name() + "." +
+					DataChunkDescriptor.TOTAL_RECORD_COUNT.name(),
+				equalTo(narrowedWithSelectorCount)
+			);
+		// Sanity: `narrowedWithSelectorCount < baselineNoSelectorCount` was already proven above
+		// — this final assertion guards against a future regression where both forms accidentally
+		// converge (e.g., if the engine starts ignoring the selector again).
+		assertTrue(narrowedWithSelectorCount < baselineNoSelectorCount,
+			"groupSelector must strictly narrow the result set (got " + narrowedWithSelectorCount +
+				" with selector vs " + baselineNoSelectorCount + " without)");
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for reference summary with histogram statistics for non-bucketed reference for products")
 	void shouldReturnErrorForReferenceSummaryWithHistogramStatisticsForNonBucketedReferenceForProducts(Evita evita, GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
