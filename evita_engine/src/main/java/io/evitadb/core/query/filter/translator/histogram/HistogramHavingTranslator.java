@@ -131,8 +131,8 @@ public class HistogramHavingTranslator
 	/**
 	 * Error message emitted when the resolved group-selector bitmap does not contain exactly one primary key.
 	 */
-	private static final String ERROR_GROUP_SELECTOR_NOT_UNIQUE =
-		"`groupSelector` must select exactly one group entity";
+	private static final String ERROR_GROUP_HAVING_NOT_UNIQUE =
+		"`groupHaving` must select exactly one group entity";
 
 	/**
 	 * Rejects {@link HistogramHaving} when it is nested inside a non-{@link And}, non-{@link UserFilter}
@@ -355,12 +355,12 @@ public class HistogramHavingTranslator
 		final int size = resolved.size();
 		if (size == 0) {
 			throw new EvitaInvalidUsageException(
-				ERROR_GROUP_SELECTOR_NOT_UNIQUE + " (got 0 matches)."
+				ERROR_GROUP_HAVING_NOT_UNIQUE + " (got 0 matches)."
 			);
 		}
 		if (size > 1) {
 			throw new EvitaInvalidUsageException(
-				ERROR_GROUP_SELECTOR_NOT_UNIQUE + " (got " + size + " matches)."
+				ERROR_GROUP_HAVING_NOT_UNIQUE + " (got " + size + " matches)."
 			);
 		}
 		return resolved.getFirst();
