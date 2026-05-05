@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Currency;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -107,6 +108,14 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 	 * as {@link #cachedComputation}.
 	 */
 	private volatile ComputedHolder<PriceForSaleWithAccompanyingPrices> cachedResult;
+	/**
+	 * Lazily computed `priceList -> priority` lookup derived from {@link #priceListPriority}. The map is a pure
+	 * function of the priority array, so building it once per cache instance avoids the otherwise-repeated
+	 * {@link PricesContract#getPriceListPriorityIndex} allocation inside the engine's hot path. Declared
+	 * `volatile` for the same safe-publication reason as the other cache slots — the holder reference is
+	 * published to concurrent readers atomically.
+	 */
+	private volatile ComputedHolder<Map<String, Integer>> cachedPriorityIndex;
 
 	public PriceForSaleContextWithCachedResult(
 		@Nullable String[] priceListPriority,
@@ -306,10 +315,29 @@ public class PriceForSaleContextWithCachedResult implements PriceForSaleContext 
 			innerRecordHandling,
 			ofNullable(this.currency).orElseThrow(ContextMissingException::new),
 			this.atTheMoment,
-			ofNullable(this.priceListPriority).orElseThrow(ContextMissingException::new),
+			ensurePriorityIndex(),
 			Objects::nonNull
 		);
 		this.cachedComputation = new ComputedHolder<>(computation);
 		return computation;
+	}
+
+	/**
+	 * Lazily builds the `priceList -> priority` lookup from {@link #priceListPriority} and caches it for
+	 * future calls. Concurrent first-callers may both run the conversion (no compare-and-set on the field);
+	 * the last writer wins. The result is deterministic for a given input array, so duplicate computation is
+	 * wasteful but not incorrect.
+	 */
+	@Nonnull
+	private Map<String, Integer> ensurePriorityIndex() {
+		final ComputedHolder<Map<String, Integer>> snapshot = this.cachedPriorityIndex;
+		if (snapshot != null && snapshot.value() != null) {
+			return snapshot.value();
+		}
+		final Map<String, Integer> priorityIndex = PricesContract.getPriceListPriorityIndex(
+			ofNullable(this.priceListPriority).orElseThrow(ContextMissingException::new)
+		);
+		this.cachedPriorityIndex = new ComputedHolder<>(priorityIndex);
+		return priorityIndex;
 	}
 }

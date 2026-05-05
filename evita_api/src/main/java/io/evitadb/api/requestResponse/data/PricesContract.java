@@ -100,7 +100,8 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull AccompanyingPrice[] accompanyingPrices
 	) {
 		final PriceForSaleComputationResult computation = computeInternal(
-			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority, filterPredicate
+			entityPrices, innerRecordHandling, currency, atTheMoment,
+			getPriceListPriorityIndex(priceListPriority), filterPredicate
 		);
 		if (computation == null) {
 			return empty();
@@ -120,6 +121,10 @@ public interface PricesContract extends Versioned, Serializable {
 	 * callers must use the public {@code computePriceForSale} / {@code computePriceRangeForSale} entry
 	 * points instead — this method is part of the cache plumbing.
 	 *
+	 * The caller passes a pre-computed {@code priorityIndex} (built once via
+	 * {@link #getPriceListPriorityIndex}) so that long-lived cache instances do not rebuild the same
+	 * `priceList -> priority` map on every call.
+	 *
 	 * @apiNote internal — not part of the public API; subject to change without notice.
 	 */
 	@Nullable
@@ -128,10 +133,10 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment,
-		@Nonnull String[] priceListPriority,
+		@Nonnull Map<String, Integer> priorityIndex,
 		@Nonnull Predicate<PriceContract> filterPredicate
 	) {
-		return computeInternal(entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority, filterPredicate);
+		return computeInternal(entityPrices, innerRecordHandling, currency, atTheMoment, priorityIndex, filterPredicate);
 	}
 
 	/**
@@ -174,7 +179,8 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull AccompanyingPrice[] accompanyingPrices
 	) {
 		final PriceForSaleComputationResult computation = computeInternal(
-			entityPrices, innerRecordHandling, currency, atTheMoment, priceListPriority, filterPredicate
+			entityPrices, innerRecordHandling, currency, atTheMoment,
+			getPriceListPriorityIndex(priceListPriority), filterPredicate
 		);
 		if (computation == null) {
 			return empty();
@@ -282,21 +288,20 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
 		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment,
-		@Nonnull String[] priceListPriority,
+		@Nonnull Map<String, Integer> priorityIndex,
 		@Nonnull Predicate<PriceContract> filterPredicate
 	) {
 		if (entityPrices.isEmpty()) {
 			return null;
 		}
 
-		// hoisted out of the hot loop
-		final Map<String, Integer> priorityIndex = getPriceListPriorityIndex(priceListPriority);
 		// presize estimates: assume each inner record carries roughly one price per priority list, so the
 		// number of distinct inner records ≈ N/L. A small reserve absorbs noise (entities with extra price
 		// lists outside the priority, or sparse inner records).
-		final int innerBucketEstimate = Math.max(2, priceListPriority.length + 2);
+		final int priorityCount = Math.max(1, priorityIndex.size());
+		final int innerBucketEstimate = Math.max(2, priorityCount + 2);
 		final int distinctInnerEstimate = Math.max(
-			2, entityPrices.size() / Math.max(1, priceListPriority.length) + 2
+			2, entityPrices.size() / priorityCount + 2
 		);
 
 		return switch (innerRecordHandling) {
@@ -498,7 +503,9 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment
 	) {
-		final List<PriceContract> result = new ArrayList<>(entityPrices.size());
+		// see the matching `candidates` allocation in `computeInternal#NONE` — same multi-currency
+		// survival-rate heuristic
+		final List<PriceContract> result = new ArrayList<>(entityPrices.size() / 2 + 2);
 		for (final PriceContract price : entityPrices) {
 			if (isNotCandidate(price, currency, atTheMoment)) {
 				continue;
@@ -524,7 +531,9 @@ public interface PricesContract extends Versioned, Serializable {
 		@Nonnull Currency currency,
 		@Nullable OffsetDateTime atTheMoment
 	) {
-		final List<PriceContract> result = new ArrayList<>(entityPrices.size());
+		// see the matching `candidates` allocation in `computeInternal#NONE` — same multi-currency
+		// survival-rate heuristic
+		final List<PriceContract> result = new ArrayList<>(entityPrices.size() / 2 + 2);
 		for (final PriceContract price : entityPrices) {
 			if (isNotCandidate(price, currency, atTheMoment)) {
 				continue;
@@ -849,12 +858,19 @@ public interface PricesContract extends Versioned, Serializable {
 
 	/**
 	 * Creates a map of price list priorities where the key is the price list and the value is the priority.
+	 * The result is a pure function of the input array — the same input always yields an equivalent map.
+	 * Long-lived cache instances (e.g. {@link PriceForSaleContextWithCachedResult}) build the index once and
+	 * reuse it across calls; callers without their own cache can hand the array directly to the public
+	 * {@code computePriceForSale*} / {@code computePriceRangeForSale*} entry points, which handle the
+	 * conversion internally.
 	 *
 	 * @param priceListPriority array of price list priorities
 	 * @return map of price list priorities
+	 * @apiNote internal — exposed across {@code io.evitadb.api.requestResponse.data} only; subject to
+	 * change without notice.
 	 */
 	@Nonnull
-	private static Map<String, Integer> getPriceListPriorityIndex(@Nonnull String[] priceListPriority) {
+	static Map<String, Integer> getPriceListPriorityIndex(@Nonnull String[] priceListPriority) {
 		final Map<String, Integer> pLists = createHashMap(priceListPriority.length);
 		for (int i = 0; i < priceListPriority.length; i++) {
 			final String pList = priceListPriority[i];

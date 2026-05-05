@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
@@ -39,6 +40,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -87,6 +89,8 @@ class PriceForSaleContextWithCachedResultTest extends AbstractBuilderTest {
 		final PriceForSaleContextWithCachedResult cache = new PriceForSaleContextWithCachedResult(
 			PRICE_LIST_PRIORITY, CZK, null, null
 		);
+		// pre-compute outside the MockedStatic context so the call is not recorded as a matcher invocation
+		final Map<String, Integer> expectedPriorityIndex = PricesContract.getPriceListPriorityIndex(PRICE_LIST_PRIORITY);
 
 		try (MockedStatic<PricesContract> mocked = Mockito.mockStatic(PricesContract.class, Mockito.CALLS_REAL_METHODS)) {
 			// touch every entry point — none should trigger a second underlying pass
@@ -101,12 +105,12 @@ class PriceForSaleContextWithCachedResultTest extends AbstractBuilderTest {
 
 			mocked.verify(
 				() -> PricesContract.computePriceForSaleResult(
-					Mockito.eq(SAMPLE_PRICES),
-					Mockito.eq(PriceInnerRecordHandling.LOWEST_PRICE),
-					Mockito.eq(CZK),
-					Mockito.isNull(),
-					Mockito.eq(PRICE_LIST_PRIORITY),
-					Mockito.any()
+					ArgumentMatchers.eq(SAMPLE_PRICES),
+					ArgumentMatchers.eq(PriceInnerRecordHandling.LOWEST_PRICE),
+					ArgumentMatchers.eq(CZK),
+					ArgumentMatchers.isNull(),
+					ArgumentMatchers.eq(expectedPriorityIndex),
+					ArgumentMatchers.any()
 				),
 				Mockito.times(1)
 			);
@@ -171,7 +175,7 @@ class PriceForSaleContextWithCachedResultTest extends AbstractBuilderTest {
 			new PriceForSaleWithAccompanyingPrices(seedPrice, Collections.emptyMap());
 
 		final PriceForSaleContextWithCachedResult cache = new PriceForSaleContextWithCachedResult(
-			PRICE_LIST_PRIORITY, CZK, null, new AccompanyingPrice[0], seed
+			PRICE_LIST_PRIORITY, CZK, null, AccompanyingPrice.EMPTY_ARRAY, seed
 		);
 
 		// range query fills `cachedComputation` from SAMPLE_PRICES — entirely separate from the seed
