@@ -47,9 +47,12 @@ import java.util.List;
  * - **autoDiscovered** — names whose storage is present but unknown to the engine state. Drained as
  *   `RestoreCatalogSchemaMutation` (the operator registers them as `INACTIVE`).
  *
- * All lists are deterministically ordered (alphabetically) so repeated boots over the same backing-store inventory
- * produce an identical WAL trail. Apply order is `becomeMissing` first (frees up names), then `reappeared`, then
- * `autoDiscovered` — see `Evita`'s drain loop for the rationale.
+ * All lists are deterministically ordered (alphabetically) so the divergence record itself is reproducible across
+ * boots over the same backing-store inventory. The WAL trail produced by draining is only partially ordered:
+ * `becomeMissing` mutations are applied (and committed to the WAL) before any restore is dispatched — Phase 1 is
+ * awaited to completion before Phase 2 begins. `reappeared` and `autoDiscovered` are then dispatched in parallel
+ * (they operate on disjoint name sets), so their relative WAL order is non-deterministic. See `Evita`'s drain loop
+ * for the rationale.
  *
  * @param becomeMissing  catalogs to mark as missing, alphabetically ordered; never null
  * @param reappeared     catalogs to move from missing back to inactive, alphabetically ordered; never null
