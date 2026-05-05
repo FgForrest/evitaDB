@@ -40,10 +40,12 @@ import io.evitadb.function.ChainableConsumer;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
+import io.evitadb.utils.VersionUtils;
 import io.prometheus.metrics.core.metrics.Counter;
 import io.prometheus.metrics.core.metrics.Gauge;
 import io.prometheus.metrics.core.metrics.Histogram;
 import io.prometheus.metrics.core.metrics.Histogram.Builder;
+import io.prometheus.metrics.core.metrics.Info;
 import io.prometheus.metrics.core.metrics.Metric;
 import io.prometheus.metrics.core.metrics.Summary;
 import io.prometheus.metrics.instrumentation.jvm.*;
@@ -132,9 +134,30 @@ public class MetricHandler {
 			"JvmRuntimeInfoMetric", () -> JvmRuntimeInfoMetric.builder().register(),
 			"ProcessMetrics", () -> ProcessMetrics.builder().register()
 		);
+		registerBuildInfo();
 	}
 
 	private final ObservabilityOptions observabilityConfig;
+
+	/**
+	 * Registers the `evitadb_build_info` Prometheus `info` metric and stamps it with the
+	 * current build's version, commit hash and JVM version. The metric is a constant —
+	 * its labels are resolved once at class-loading time and never mutated again, so the
+	 * `Info` instance is intentionally not retained as a field; the default Prometheus
+	 * registry owns the only live reference and exposes it via the scrape endpoint.
+	 */
+	private static void registerBuildInfo() {
+		final Info info = Info.builder()
+			.name("evitadb_build_info")
+			.labelNames("version", "commit", "java_version")
+			.help("evitaDB build information (version, abbreviated commit hash, JVM version)")
+			.register();
+		info.setLabelValues(
+			VersionUtils.readVersion(),
+			VersionUtils.readCommitHash(),
+			System.getProperty("java.version", VersionUtils.UNKNOWN_VALUE)
+		);
+	}
 
 	/**
 	 * Composes the name of the metric from the event class, export metric and field name.

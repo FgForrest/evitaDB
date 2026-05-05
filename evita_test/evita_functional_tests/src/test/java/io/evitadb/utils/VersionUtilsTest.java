@@ -30,6 +30,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 
@@ -51,5 +53,15 @@ public class VersionUtilsTest {
 		assertEquals(-1, SemVer.fromString("1.1.0").compareTo(SemVer.fromString("1.2.0")));
 		assertEquals(1, SemVer.fromString("2025.1.0").compareTo(SemVer.fromString("2024.12.0")));
 		assertEquals(-1, SemVer.fromString("2024.12.0").compareTo(SemVer.fromString("2025.1.0")));
+	}
+
+	@Test
+	void shouldReturnNonNullCommitHash() {
+		// Whether or not the evita_server / java_driver jar happens to be on the test classpath
+		// (depends on local maven cache state), the contract is the same: never null, never blank.
+		// When the manifest cannot be resolved the fallback is the literal "?".
+		final String commitHash = VersionUtils.readCommitHash();
+		assertNotNull(commitHash);
+		assertFalse(commitHash.isBlank(), "commit hash must not be blank");
 	}
 }

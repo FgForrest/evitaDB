@@ -501,3 +501,20 @@ duration of the probe.</dd>
   <dd>WAL rotations</dd>
 </dl>
 
+#### Static metrics
+
+<dl>
+  <dt><code>evitadb_build_info</code> (INFO)</dt>
+  <dd><strong>evitaDB build information</strong>: a constant <code>info</code> metric exposing the running server's version, abbreviated git commit hash and JVM version. Useful for tracking deployments without consulting logs.<br/><br/><strong>Labels:</strong> <code>version</code>, <code>commit</code>, <code>java_version</code><br/></dd>
+  <dt><code>io_evitadb_probe_health_problem</code> (GAUGE)</dt>
+  <dd><strong>Health problem indicator</strong>: set to <code>1</code> while the named health problem is active and reset to <code>0</code> once it clears.<br/><br/><strong>Labels:</strong> <code>problem_type</code><br/></dd>
+  <dt><code>io_evitadb_probe_api_readiness</code> (GAUGE)</dt>
+  <dd><strong>API readiness</strong>: <code>1</code> when the named external API is ready to serve traffic (verified via internal HTTP probe), <code>0</code> otherwise.<br/><br/><strong>Labels:</strong> <code>api_type</code><br/></dd>
+  <dt><code>jvm_errors_total</code> (COUNTER)</dt>
+  <dd><strong>JVM errors</strong>: total number of internal JVM errors, partitioned by error type.<br/><br/><strong>Labels:</strong> <code>error_type</code><br/></dd>
+  <dt><code>io_evitadb_errors_total</code> (COUNTER)</dt>
+  <dd><strong>evitaDB errors</strong>: total number of internal evitaDB errors, partitioned by error type.<br/><br/><strong>Labels:</strong> <code>error_type</code><br/></dd>
+  <dt><code>io_evitadb_client_errors_total</code> (COUNTER)</dt>
+  <dd><strong>Client errors</strong>: total number of <code>EvitaInvalidUsageException</code>s raised by client requests, partitioned by error type.<br/><br/><strong>Labels:</strong> <code>error_type</code><br/></dd>
+</dl>
+

@@ -516,6 +516,52 @@
 					<artifactId>maven-shade-plugin</artifactId>
 					<version>3.6.1</version>
 				</plugin>
+				<plugin>
+					<!--
+						Default jar manifest configuration shared by every jar module:
+						addDefaultImplementationEntries pulls Implementation-Title /
+						-Version / -Vendor from the project's <name>, <version> and
+						<organization>. Modules with extra needs (main class, premain,
+						build commit, ...) layer additional configuration on top.
+					-->
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-jar-plugin</artifactId>
+					<version>3.5.0</version>
+					<configuration>
+						<archive>
+							<manifest>
+								<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+							</manifest>
+						</archive>
+					</configuration>
+				</plugin>
+				<plugin>
+					<!--
+						Captures the short git SHA at build time and exposes it as the
+						${git.commit.id.abbrev} project property, which is then baked into
+						MANIFEST.MF and surfaced by VersionUtils#readCommitHash for the
+						evitadb_build_info metric. Submodules opt in by declaring just
+						<groupId>+<artifactId>; version, execution and configuration are
+						inherited from this management block.
+					-->
+					<groupId>io.github.git-commit-id</groupId>
+					<artifactId>git-commit-id-maven-plugin</artifactId>
+					<version>9.0.2</version>
+					<executions>
+						<execution>
+							<id>get-the-git-infos</id>
+							<phase>initialize</phase>
+							<goals>
+								<goal>revision</goal>
+							</goals>
+						</execution>
+					</executions>
+					<configuration>
+						<generateGitPropertiesFile>false</generateGitPropertiesFile>
+						<failOnNoGitDirectory>false</failOnNoGitDirectory>
+						<abbrevLength>7</abbrevLength>
+					</configuration>
+				</plugin>
 			</plugins>
 		</pluginManagement>
 		<plugins>

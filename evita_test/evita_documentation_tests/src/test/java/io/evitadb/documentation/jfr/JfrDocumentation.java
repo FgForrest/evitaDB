@@ -257,8 +257,84 @@ public class JfrDocumentation implements EvitaTestSupport {
 						}
 					}
 				);
+
+			// statically registered metrics — these are not driven by JFR events but by direct
+			// Prometheus-core registration in MetricHandler (build info, error counters, probes).
+			writeStaticMetricsSection(writer);
 		}
 	}
+
+	/**
+	 * Writes a "Static metrics" section listing metrics that {@link MetricHandler} registers
+	 * directly with the Prometheus registry — i.e. metrics whose values do not flow through
+	 * the JFR pipeline. This includes the build-info metric as well as the long-standing
+	 * error counters and health/readiness probes.
+	 *
+	 * @param writer destination writer for `metrics.md`
+	 * @throws IOException if writing fails
+	 */
+	private static void writeStaticMetricsSection(@Nonnull Writer writer) throws IOException {
+		writer.write("#### Static metrics\n\n");
+		writer.write("<dl>\n");
+		for (Metric metric : STATIC_METRICS) {
+			writer.write("  <dt><code>" + metric.name() + "</code> (" + metric.metricType() + ")</dt>\n");
+			writer.write("  <dd>");
+			writer.write(metric.description());
+			if (metric.labels().length > 0) {
+				writer.write("<br/><br/><strong>Labels:</strong> ");
+				writer.write(Arrays.stream(metric.labels())
+					.map(label -> "<code>" + label + "</code>").collect(Collectors.joining(", ")));
+				writer.write("<br/>");
+			}
+			writer.write("</dd>\n");
+		}
+		writer.write("</dl>\n\n");
+	}
+
+	/**
+	 * Hard-coded descriptors for the metrics statically registered in {@link MetricHandler}.
+	 * The list is small and changes rarely; keeping it here avoids reflective discovery and
+	 * the runtime coupling that would come with it. Update this when a new static metric is
+	 * added to {@link MetricHandler}.
+	 */
+	private static final List<Metric> STATIC_METRICS = List.of(
+		new Metric(
+			"evitadb_build_info",
+			"INFO",
+			"<strong>evitaDB build information</strong>: a constant <code>info</code> metric exposing the running server's version, abbreviated git commit hash and JVM version. Useful for tracking deployments without consulting logs.",
+			new String[]{"version", "commit", "java_version"}
+		),
+		new Metric(
+			"io_evitadb_probe_health_problem",
+			"GAUGE",
+			"<strong>Health problem indicator</strong>: set to <code>1</code> while the named health problem is active and reset to <code>0</code> once it clears.",
+			new String[]{"problem_type"}
+		),
+		new Metric(
+			"io_evitadb_probe_api_readiness",
+			"GAUGE",
+			"<strong>API readiness</strong>: <code>1</code> when the named external API is ready to serve traffic (verified via internal HTTP probe), <code>0</code> otherwise.",
+			new String[]{"api_type"}
+		),
+		new Metric(
+			"jvm_errors_total",
+			"COUNTER",
+			"<strong>JVM errors</strong>: total number of internal JVM errors, partitioned by error type.",
+			new String[]{"error_type"}
+		),
+		new Metric(
+			"io_evitadb_errors_total",
+			"COUNTER",
+			"<strong>evitaDB errors</strong>: total number of internal evitaDB errors, partitioned by error type.",
+			new String[]{"error_type"}
+		),
+		new Metric(
+			"io_evitadb_client_errors_total",
+			"COUNTER",
+			"<strong>Client errors</strong>: total number of <code>EvitaInvalidUsageException</code>s raised by client requests, partitioned by error type.",
+			new String[]{"error_type"}
+		)
+	);
 
 	/**
 	 * Transform {@link ExportInvocationMetric} to metric record.
