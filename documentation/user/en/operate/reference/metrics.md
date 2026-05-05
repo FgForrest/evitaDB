@@ -5,14 +5,20 @@
   <dl>
     <dt>api</dt>
     <dd><strong>API type</strong>: The identification of the API being called.</dd>
+    <dt>api_type</dt>
+    <dd><strong>API type</strong>: External API whose readiness is being reported (REST, GraphQL, gRPC, ...).</dd>
     <dt>area</dt>
     <dd><strong>Area</strong>: Area for which events are published.</dd>
     <dt>buildType</dt>
     <dd><strong>Build type</strong>: Type of the instance build: NEW or REFRESH</dd>
     <dt>catalogName</dt>
     <dd><strong>Catalog</strong>: The name of the catalog to which this event/metric is associated.</dd>
+    <dt>commit</dt>
+    <dd><strong>Commit hash</strong>: Abbreviated Git commit hash injected into the manifest at build time.</dd>
     <dt>entityType</dt>
     <dd><strong>Entity type</strong>: The name of the related entity type (collection).</dd>
+    <dt>error_type</dt>
+    <dd><strong>Error type</strong>: Class of the error being counted.</dd>
     <dt>fileType</dt>
     <dd><strong>File type</strong>: The type of the file that was flushed. One of: CATALOG, ENTITY_COLLECTION, WAL, or BOOTSTRAP</dd>
     <dt>graphQLInstanceType</dt>
@@ -29,6 +35,8 @@
     <dd><strong>Initiator of the call</strong>: Initiator of the gRPC call (either client or server).</dd>
     <dt>instanceId</dt>
     <dd><strong>Server instance id</strong>: Unique server name taken from the configuration file.</dd>
+    <dt>java_version</dt>
+    <dd><strong>JVM version</strong>: The <code>java.version</code> system property of the JVM running evitaDB.</dd>
     <dt>methodName</dt>
     <dd><strong>Method name</strong>: The endpoint or method name from RequestLog.</dd>
     <dt>name</dt>
@@ -41,6 +49,8 @@
     <dd><strong>Prefetched vs. non-prefetched query</strong>: Whether or not the query used a prefetch plan. Prefetch plan optimistically fetches queried entities in advance and executes directly on them (without accessing the indexes).</dd>
     <dt>probeResult</dt>
     <dd><strong>Probe result</strong>: The result of the readiness probe (ok, timeout, error).</dd>
+    <dt>problem_type</dt>
+    <dd><strong>Health problem type</strong>: Identifier of the active health problem.</dd>
     <dt>procedureName</dt>
     <dd><strong>Procedure name</strong>: Name of the gRPC procedure that was called (the method name).</dd>
     <dt>prospective</dt>
@@ -69,6 +79,8 @@ duration of the probe.</dd>
     <dd><strong>Transaction stage</strong>: The name of the stage the transaction is waiting for.</dd>
     <dt>taskName</dt>
     <dd><strong>Task name</strong>: Name of the background task.</dd>
+    <dt>version</dt>
+    <dd><strong>evitaDB version</strong>: The Maven version of the running evitaDB build.</dd>
   </dl>
 </UsedTerms>
 
@@ -499,5 +511,22 @@ duration of the probe.</dd>
   <dd>WAL rotation duration in milliseconds</dd>
   <dt><code>io_evitadb_transaction_wal_rotation_total</code> (COUNTER)</dt>
   <dd>WAL rotations</dd>
+</dl>
+
+#### Static metrics
+
+<dl>
+  <dt><code>evitadb_build_info</code> (INFO)</dt>
+  <dd><strong>evitaDB build information</strong>: a constant <code>info</code> metric exposing the running server's version, abbreviated git commit hash and JVM version. Useful for tracking deployments without consulting logs.<br/><br/><strong>Labels:</strong> <Term>version</Term>, <Term>commit</Term>, <Term>java_version</Term><br/></dd>
+  <dt><code>io_evitadb_probe_health_problem</code> (GAUGE)</dt>
+  <dd><strong>Health problem indicator</strong>: set to <code>1</code> while the named health problem is active and reset to <code>0</code> once it clears.<br/><br/><strong>Labels:</strong> <Term>problem_type</Term><br/></dd>
+  <dt><code>io_evitadb_probe_api_readiness</code> (GAUGE)</dt>
+  <dd><strong>API readiness</strong>: <code>1</code> when the named external API is ready to serve traffic (verified via internal HTTP probe), <code>0</code> otherwise.<br/><br/><strong>Labels:</strong> <Term>api_type</Term><br/></dd>
+  <dt><code>jvm_errors_total</code> (COUNTER)</dt>
+  <dd><strong>JVM errors</strong>: total number of internal JVM errors, partitioned by error type.<br/><br/><strong>Labels:</strong> <Term>error_type</Term><br/></dd>
+  <dt><code>io_evitadb_errors_total</code> (COUNTER)</dt>
+  <dd><strong>evitaDB errors</strong>: total number of internal evitaDB errors, partitioned by error type.<br/><br/><strong>Labels:</strong> <Term>error_type</Term><br/></dd>
+  <dt><code>io_evitadb_client_errors_total</code> (COUNTER)</dt>
+  <dd><strong>Client errors</strong>: total number of <code>EvitaInvalidUsageException</code>s raised by client requests, partitioned by error type.<br/><br/><strong>Labels:</strong> <Term>error_type</Term><br/></dd>
 </dl>
 

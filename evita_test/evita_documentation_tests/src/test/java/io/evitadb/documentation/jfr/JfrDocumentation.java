@@ -146,24 +146,28 @@ public class JfrDocumentation implements EvitaTestSupport {
 			// write header
 			writer.write("### Metrics\n\n");
 
-			// collect all labels used in metrics
-			final List<MetricLabel> labels = EvitaJfrEventRegistry.getEventClasses()
-				.stream()
-				.flatMap(it -> {
-					final Map<Field, List<ExportMetricLabel>> fields = lookup.getFields(it, ExportMetricLabel.class);
-					return fields.entrySet()
-						.stream()
-						.map(
-							field -> {
-								final ExportMetricLabel annotation = field.getValue().get(0);
-								final String label = ofNullable(field.getKey().getAnnotation(Label.class)).map(Label::value).orElse("N/A");
-								final String description = ofNullable(field.getKey().getAnnotation(Description.class)).map(Description::value).orElse("N/A");
-								return new MetricLabel(
-									ofNullable(annotation.value()).filter(value -> !value.isBlank()).orElse(field.getKey().getName()),
-									"<strong>" + label + "</strong>: " + description
-								);
-							});
-				})
+			// collect all labels used in metrics — JFR-driven labels harvested from event
+			// classes plus the labels of statically registered metrics in MetricHandler
+			final List<MetricLabel> labels = Stream.concat(
+				EvitaJfrEventRegistry.getEventClasses()
+					.stream()
+					.flatMap(it -> {
+						final Map<Field, List<ExportMetricLabel>> fields = lookup.getFields(it, ExportMetricLabel.class);
+						return fields.entrySet()
+							.stream()
+							.map(
+								field -> {
+									final ExportMetricLabel annotation = field.getValue().get(0);
+									final String label = ofNullable(field.getKey().getAnnotation(Label.class)).map(Label::value).orElse("N/A");
+									final String description = ofNullable(field.getKey().getAnnotation(Description.class)).map(Description::value).orElse("N/A");
+									return new MetricLabel(
+										ofNullable(annotation.value()).filter(value -> !value.isBlank()).orElse(field.getKey().getName()),
+										"<strong>" + label + "</strong>: " + description
+									);
+								});
+					}),
+				STATIC_METRIC_LABELS.stream()
+			)
 				// we care only about distinct labels
 				.distinct()
 				// sort labels by name
@@ -257,8 +261,100 @@ public class JfrDocumentation implements EvitaTestSupport {
 						}
 					}
 				);
+
+			// statically registered metrics — these are not driven by JFR events but by direct
+			// Prometheus-core registration in MetricHandler (build info, error counters, probes).
+			writeStaticMetricsSection(writer);
 		}
 	}
+
+	/**
+	 * Writes a "Static metrics" section listing metrics that {@link MetricHandler} registers
+	 * directly with the Prometheus registry — i.e. metrics whose values do not flow through
+	 * the JFR pipeline. This includes the build-info metric as well as the long-standing
+	 * error counters and health/readiness probes.
+	 *
+	 * @param writer destination writer for `metrics.md`
+	 * @throws IOException if writing fails
+	 */
+	private static void writeStaticMetricsSection(@Nonnull Writer writer) throws IOException {
+		writer.write("#### Static metrics\n\n");
+		writer.write("<dl>\n");
+		for (Metric metric : STATIC_METRICS) {
+			writer.write("  <dt><code>" + metric.name() + "</code> (" + metric.metricType() + ")</dt>\n");
+			writer.write("  <dd>");
+			writer.write(metric.description());
+			if (metric.labels().length > 0) {
+				writer.write("<br/><br/><strong>Labels:</strong> ");
+				writer.write(Arrays.stream(metric.labels())
+					.map(label -> "<Term>" + label + "</Term>").collect(Collectors.joining(", ")));
+				writer.write("<br/>");
+			}
+			writer.write("</dd>\n");
+		}
+		writer.write("</dl>\n\n");
+	}
+
+	/**
+	 * Glossary entries for the labels referenced by {@link #STATIC_METRICS}. They are
+	 * merged into the page-wide <code>UsedTerms</code> block so the static-metrics section
+	 * uses the same <code>&lt;Term&gt;</code> rendering as the JFR-driven sections.
+	 */
+	private static final List<MetricLabel> STATIC_METRIC_LABELS = List.of(
+		new MetricLabel("version", "<strong>evitaDB version</strong>: The Maven version of the running evitaDB build."),
+		new MetricLabel("commit", "<strong>Commit hash</strong>: Abbreviated Git commit hash injected into the manifest at build time."),
+		new MetricLabel("java_version", "<strong>JVM version</strong>: The <code>java.version</code> system property of the JVM running evitaDB."),
+		new MetricLabel("problem_type", "<strong>Health problem type</strong>: Identifier of the active health problem."),
+		new MetricLabel("api_type", "<strong>API type</strong>: External API whose readiness is being reported (REST, GraphQL, gRPC, ...)."),
+		new MetricLabel("error_type", "<strong>Error type</strong>: Class of the error being counted.")
+	);
+
+	/**
+	 * Hard-coded descriptors for the metrics statically registered in {@link MetricHandler}.
+	 * The list is small and changes rarely; keeping it here avoids reflective discovery and
+	 * the runtime coupling that would come with it. The companion
+	 * `JfrDocumentationStaticMetricsParityTest` scrapes the Prometheus default registry
+	 * after `MetricHandler` class-loads and asserts parity, so a forgotten update breaks
+	 * the build rather than producing stale docs.
+	 */
+	static final List<Metric> STATIC_METRICS = List.of(
+		new Metric(
+			"evitadb_build_info",
+			"INFO",
+			"<strong>evitaDB build information</strong>: a constant <code>info</code> metric exposing the running server's version, abbreviated git commit hash and JVM version. Useful for tracking deployments without consulting logs.",
+			new String[]{"version", "commit", "java_version"}
+		),
+		new Metric(
+			"io_evitadb_probe_health_problem",
+			"GAUGE",
+			"<strong>Health problem indicator</strong>: set to <code>1</code> while the named health problem is active and reset to <code>0</code> once it clears.",
+			new String[]{"problem_type"}
+		),
+		new Metric(
+			"io_evitadb_probe_api_readiness",
+			"GAUGE",
+			"<strong>API readiness</strong>: <code>1</code> when the named external API is ready to serve traffic (verified via internal HTTP probe), <code>0</code> otherwise.",
+			new String[]{"api_type"}
+		),
+		new Metric(
+			"jvm_errors_total",
+			"COUNTER",
+			"<strong>JVM errors</strong>: total number of internal JVM errors, partitioned by error type.",
+			new String[]{"error_type"}
+		),
+		new Metric(
+			"io_evitadb_errors_total",
+			"COUNTER",
+			"<strong>evitaDB errors</strong>: total number of internal evitaDB errors, partitioned by error type.",
+			new String[]{"error_type"}
+		),
+		new Metric(
+			"io_evitadb_client_errors_total",
+			"COUNTER",
+			"<strong>Client errors</strong>: total number of <code>EvitaInvalidUsageException</code>s raised by client requests, partitioned by error type.",
+			new String[]{"error_type"}
+		)
+	);
 
 	/**
 	 * Transform {@link ExportInvocationMetric} to metric record.
@@ -333,7 +429,7 @@ public class JfrDocumentation implements EvitaTestSupport {
 	 * @param description description
 	 * @param labels array of label names used in metrics
 	 */
-	private record Metric(
+	record Metric(
 		@Nonnull String name,
 		@Nonnull String metricType,
 		@Nonnull String description,

@@ -138,19 +138,24 @@
     <build>
         <plugins>
             <plugin>
+                <!-- Inherits version + execution + configuration from the parent pluginManagement. -->
+                <groupId>io.github.git-commit-id</groupId>
+                <artifactId>git-commit-id-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <!-- Version + addDefaultImplementationEntries inherited from parent pluginManagement. -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.5.0</version>
                 <configuration>
                     <archive>
                         <manifest>
                             <mainClass>io.evitadb.server.EvitaServer</mainClass>
-                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
                         <manifestEntries>
                             <Premain-Class>io.evitadb.externalApi.observability.agent.ErrorMonitoringAgent</Premain-Class>
                             <Can-Redefine-Classes>true</Can-Redefine-Classes>
                             <Can-Retransform-Classes>true</Can-Retransform-Classes>
+                            <Implementation-Build-Commit>${git.commit.id.abbrev}</Implementation-Build-Commit>
                         </manifestEntries>
                     </archive>
                 </configuration>
