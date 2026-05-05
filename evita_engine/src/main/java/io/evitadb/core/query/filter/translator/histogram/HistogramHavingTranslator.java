@@ -206,9 +206,12 @@ public class HistogramHavingTranslator
 			histogramHaving.getGroupHaving(), referenceSchema, scopes, filterByVisitor
 		);
 
-		// stash the resolved tuple so ReferenceHistogramStatisticsTranslator can consume it without
-		// re-walking the filter tree or re-running the group-selector bitmap computation
-		filterByVisitor.getQueryContext().registerResolvedHistogramHaving(
+		// stash the resolved tuple on the visitor so ReferenceHistogramStatisticsTranslator can
+		// consume it without re-walking the filter tree or re-running the group-selector bitmap
+		// computation. The registry is per-visitor so alternative-plan re-walks (a fresh
+		// FilterByVisitor per eligible TargetIndexes in QueryPlanner.createFilterFormula) don't
+		// accumulate duplicates against a shared QueryPlanningContext.
+		filterByVisitor.registerResolvedHistogramHaving(
 			new ResolvedHistogramHaving(
 				referenceName,
 				resolvedSlot.histogramName(),
