@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -81,8 +80,9 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 	/**
 	 * Schema variant where ENTITY_PRODUCT carries TWO references — the bucketed
 	 * {@link #REF_PARAM_VALUES} and an additional plain {@link #REF_CATEGORIES} that has no
-	 * histogram index defined. Used by the validation test asserting strict all-references
-	 * dispatch refuses to proceed when any reference in the schema lacks the requested histogram.
+	 * histogram index defined. Used by the validation test asserting that the all-references
+	 * fan-out applies the histogram only to references that actually declare it and silently
+	 * skips the others.
 	 */
 	private static void defineSchemaWithExtraPlainReference(@Nonnull EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_PARAMETER)
@@ -114,9 +114,43 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 			)
 			.withReferenceToEntity(
 				REF_CATEGORIES, ENTITY_PARAMETER, Cardinality.ZERO_OR_MORE,
-				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					.faceted()
 			)
 			.updateVia(session);
+	}
+
+	/**
+	 * Seeds a tiny dataset against the {@link #defineSchemaWithExtraPlainReference} schema:
+	 * one parameter group, two parameter values with distinct {@link #ATTR_BASIC_UNIT_VALUE}s,
+	 * one category, and one product that references both. Just enough rows for the all-references
+	 * fan-out to actually populate a histogram on `parameterValues` and surface the absence of
+	 * histogram entries on `categories`.
+	 */
+	private static void seedSchemaWithExtraPlainReference(@Nonnull EvitaSessionContract session) {
+		session.createNewEntity(ENTITY_PARAMETER, 1)
+			.setAttribute(ATTR_NAME, "Width")
+			.upsertVia(session);
+
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+			.setAttribute(ATTR_NAME, "10cm")
+			.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("10"))
+			.upsertVia(session);
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+			.setAttribute(ATTR_NAME, "20cm")
+			.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("20"))
+			.upsertVia(session);
+
+		session.createNewEntity(ENTITY_PARAMETER, 100)
+			.setAttribute(ATTR_NAME, "books")
+			.upsertVia(session);
+
+		session.createNewEntity(ENTITY_PRODUCT, 1)
+			.setReference(REF_PARAM_VALUES, 1, whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 1))
+			.setReference(REF_PARAM_VALUES, 2, whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 1))
+			.setReference(REF_CATEGORIES, 100)
+			.upsertVia(session);
 	}
 
 	// ==========================================================================================
@@ -332,6 +366,49 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 		}
 
 		@Test
+		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
+		@DisplayName("should not false-typo-guard when the same histogram name is requested twice")
+		void shouldNotFalseTypoGuardOnDuplicateHistogramName(@Nonnull Evita evita) {
+			// Regression for the typo-guard size check: when the requested name list contains
+			// duplicates (e.g. `histogramStatistics(10, "priceBucket", "priceBucket")`), the count
+			// of distinct names landed on at least one reference is strictly less than the
+			// requested-array length even though every requested name exists. The dispatcher must
+			// validate by *name presence*, not by array length, so a duplicate-but-valid request
+			// passes through and produces histograms normally.
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummaryWithHistograms(
+									null, null, null,
+									histogramStatistics(10, HISTOGRAM_PRICE, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary =
+						result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+					final ReferenceGroupStatistics group =
+						referenceSummary.getReferenceGroupStatistics(REF_PARAM_VALUES, 1);
+					assertNotNull(
+						group,
+						"Histogram-bearing group must be populated even when the name is duplicated"
+					);
+					assertNotNull(
+						group.getHistogramStatistics(HISTOGRAM_PRICE),
+						"Duplicate histogram name must still resolve to a populated histogram"
+					);
+					return null;
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("should throw when histogram is defined only in LIVE and query targets ARCHIVED scope")
 		void shouldThrowWhenHistogramNotDefinedInQueriedScope() {
 			// Bucketed definitions are per-scope. A schema that declares the histogram only in
@@ -376,21 +453,22 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 		}
 
 		@Test
-		@DisplayName("should throw when a reference in the schema does not define the requested histogram (all-references form)")
-		void shouldThrowWhenAnyReferenceInSchemaLacksRequestedHistogram() {
-			// Strict semantics for the all-references form: every reference in the entity schema
-			// must define every requested histogram in every active scope. Here REF_CATEGORIES
-			// exists without any histogram, so the dispatch must refuse rather than silently skip
-			// that reference and emit histograms for REF_PARAM_VALUES only.
+		@DisplayName("should apply histogram only to references that declare it (all-references form, partial coverage)")
+		void shouldApplyHistogramOnlyToReferencesThatDeclareIt() {
+			// Lenient semantics for the all-references form: the dispatch silently skips references
+			// that don't declare the requested histogram name and only emits histogram statistics
+			// for references that do. REF_PARAM_VALUES declares HISTOGRAM_PRICE; REF_CATEGORIES
+			// declares no histogram, so the broad query must succeed and only populate the histogram
+			// on REF_PARAM_VALUES groups — exactly the natural "go through references and pick the
+			// relevant ones" reading of `referenceSummary(...histogramStatistics(...))`.
 			runWithInlineSchema(
 				"referenceSummaryHistogramValidation_partialCoverage",
 				ReferenceSummaryHistogramValidationTest::defineSchemaWithExtraPlainReference,
-				null,
-				evita -> assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> evita.queryCatalog(
-						TEST_CATALOG,
-						(Consumer<EvitaSessionContract>) session -> session.query(
+				ReferenceSummaryHistogramValidationTest::seedSchemaWithExtraPlainReference,
+				evita -> evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final EvitaResponse<EntityReferenceContract> result = session.query(
 							query(
 								collection(ENTITY_PRODUCT),
 								require(
@@ -401,10 +479,88 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 								)
 							),
 							EntityReferenceContract.class
-						)
-					),
-					"All-references form must throw when any reference lacks the requested histogram"
+						);
+						final ReferenceSummary referenceSummary =
+							result.getExtraResult(ReferenceSummary.class);
+						assertNotNull(referenceSummary);
+
+						// REF_PARAM_VALUES declares HISTOGRAM_PRICE — group 1 must surface it.
+						final ReferenceGroupStatistics paramGroup =
+							referenceSummary.getReferenceGroupStatistics(REF_PARAM_VALUES, 1);
+						assertNotNull(
+							paramGroup,
+							"REF_PARAM_VALUES must surface its histogram-bearing group"
+						);
+						final HistogramContract paramHistogram =
+							paramGroup.getHistogramStatistics(HISTOGRAM_PRICE);
+						assertNotNull(
+							paramHistogram,
+							"Histogram must be populated on REF_PARAM_VALUES — it declares the index"
+						);
+						assertTrue(
+							paramHistogram.getOverallCount() > 0,
+							"Histogram on REF_PARAM_VALUES must contain at least one bucket entry"
+						);
+
+						// REF_CATEGORIES declares no histogram. The seeded reference is non-grouped
+						// (no `withGroupTypeRelatedToEntity`) so its statistics live under the
+						// non-grouped overload of `getReferenceGroupStatistics(referenceName)` —
+						// the (referenceName, groupId) overload is keyed by group PK and would
+						// always return null here, silently masking a regression that emits a
+						// histogram on REF_CATEGORIES.
+						final ReferenceGroupStatistics categoryStats =
+							referenceSummary.getReferenceGroupStatistics(REF_CATEGORIES);
+						assertNotNull(
+							categoryStats,
+							"REF_CATEGORIES must surface non-grouped statistics for the seeded reference"
+						);
+						assertTrue(
+							categoryStats.getHistogramStatistics().isEmpty(),
+							"REF_CATEGORIES must not surface a histogram — it declares none"
+						);
+						return null;
+					}
 				)
+			);
+		}
+
+		@Test
+		@DisplayName("should throw when no reference in schema declares the requested histogram (all-references form, typo guard)")
+		void shouldThrowWhenNoReferenceInSchemaDeclaresRequestedHistogram() {
+			// Lenient fan-out still surfaces user typos: when none of the schema's references
+			// declares the requested histogram name (in every active scope), planning aborts with
+			// EvitaInvalidUsageException rather than silently producing nothing — this is the only
+			// validation the broad form keeps from the original strict design.
+			runWithInlineSchema(
+				"referenceSummaryHistogramValidation_typoGuard",
+				ReferenceSummaryHistogramValidationTest::defineSchemaWithExtraPlainReference,
+				null,
+				evita -> {
+					final EvitaInvalidUsageException error = assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> evita.queryCatalog(
+							TEST_CATALOG,
+							(Consumer<EvitaSessionContract>) session -> session.query(
+								query(
+									collection(ENTITY_PRODUCT),
+									require(
+										referenceSummaryWithHistograms(
+											null, null, null,
+											histogramStatistics(10, "nonExistentOnAnyReference")
+										)
+									)
+								),
+								EntityReferenceContract.class
+							)
+						),
+						"Histogram name unknown to every reference must abort query planning"
+					);
+					assertTrue(
+						error.getMessage().contains("nonExistentOnAnyReference"),
+						"Error must surface the offending histogram name, was: "
+							+ error.getMessage()
+					);
+				}
 			);
 		}
 	}
@@ -675,13 +831,13 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should throw when all-references fan-out receives an unknown histogram name (strict per reference)")
+		@DisplayName("should throw when all-references fan-out receives an unknown histogram name (typo guard)")
 		void shouldThrowForUnknownHistogramNameInAllReferencesFanOut(@Nonnull Evita evita) {
-			// `ReferenceSummaryTranslator.dispatchHistogramToMatchingReferences` implements strict
-			// fan-out: each reference is dispatched to `ReferenceHistogramStatisticsTranslator`, which
-			// throws on the first reference that doesn't define the histogram in every active scope.
-			// This test pins the as-implemented behavior; if the engine is later relaxed to skip
-			// references silently, flip this assertion to assertDoesNotThrow.
+			// `ReferenceSummaryTranslator.dispatchHistogramToMatchingReferences` is lenient — it
+			// silently skips references that don't declare the requested histogram. The single
+			// validation it preserves is the typo guard: a name that no reference in the schema
+			// declares (in every active scope) aborts planning with EvitaInvalidUsageException so
+			// misspellings surface rather than silently producing no histograms.
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> evita.queryCatalog(
@@ -699,7 +855,7 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 						EntityReferenceContract.class
 					)
 				),
-				"All-references fan-out is strict — an unknown histogram name must raise immediately"
+				"Histogram name unknown to every reference must abort query planning"
 			);
 		}
 	}

@@ -170,10 +170,18 @@ constraint provides the first-class carrier for the reference-level slot of G1; 
    Non-localized histograms always pass `null`.
 4. **Index dispatch:** grouped references → `ReducedGroupEntityIndex`; ungrouped →
    `ReferencedTypeEntityIndex`.
-5. **Throw-on-unknown:** unknown histogram index names or any broken assumption throws — never
-   silent skip. Upheld by both the per-reference form (`referenceSummaryOfReference`) and the
-   all-references fan-out (`referenceSummary` dispatches the requirement to every reference in the
-   schema and throws on the first unmatched one).
+5. **Throw-on-unknown — form-asymmetric:** the per-reference form (`referenceSummaryOfReference`)
+   is strict and throws when the named reference does not declare the requested histogram in every
+   active scope; the user named the reference explicitly so a missing definition is unambiguously
+   a usage error. The broad form (`referenceSummary`) is **applies-where-defined**: it silently
+   skips references that don't declare the requested histogram name and only emits histogram
+   statistics for references that do, narrowing the per-reference dispatched constraint to the
+   names each reference actually declares. The broad form keeps a single typo guard — a histogram
+   name that **no reference** in the schema declares (in every active scope) raises
+   `EvitaInvalidUsageException` so misspellings still surface; legitimate partial-coverage schemas
+   (the realistic case where most references carry no histograms) are handled silently. This was
+   tightened from the original "strict on every reference" design after the broad form proved
+   unusable on real schemas — see §3.3 for the rationale.
 6. **Boundary entity count:** ≤ 2 per histogram (min + max). Ties resolved by the parent
    `referenceSummary`'s `orderBy`, fallback to lowest PK.
 7. **Boundary resolution strategy:** cross-reference `FilterIndex.getRecordsEqualTo(minValue|maxValue)`
@@ -265,6 +273,54 @@ constraint provides the first-class carrier for the reference-level slot of G1; 
    against the referenced-group's global index at planning time and asserting it resolves to a
    unique group PK.
 
+### 3.3 Broad-form lenience — supersedes "strict on every reference"
+
+The original §3.1 design decision 5 made the all-references form (`referenceSummary(...,
+histogramStatistics(...))`) strict: every reference in the entity schema had to declare every
+requested histogram name in every active scope, otherwise planning aborted on the first
+non-matching reference. This proved unusable on realistic schemas the moment a user wrote what
+looks like the natural query — "give me all reference summaries plus this histogram, wherever it
+applies". Real catalogs always carry some references with no histograms (categories, brands, tag
+sets, related-product references), so the strict gate fired before any histogram-bearing reference
+got a chance to contribute.
+
+The decision was refined to **applies-where-defined** semantics:
+
+- **Per-reference lenience.** `ReferenceSummaryTranslator.dispatchHistogramToMatchingReferences`
+  pre-filters references whose schema declares the requested histogram in every active scope.
+  References with zero applicable names are silently skipped; references with a non-empty subset
+  are dispatched a *narrowed* `ReferenceHistogramStatistics` carrying only the names they actually
+  declare. The inner `ReferenceHistogramStatisticsTranslator` strict per-scope check therefore
+  never trips on a missing definition for the broad form, because it only ever sees pairs that
+  pre-passed the filter.
+- **Typo guard.** A requested histogram name that no reference in the schema declares (in every
+  active scope) is the only validation the broad form keeps — it raises
+  `EvitaInvalidUsageException` with the offending name(s), so misspellings still surface rather
+  than silently producing nothing.
+- **Per-reference form unchanged.** `referenceSummaryOfReference("name", histogramStatistics(...))`
+  remains strict on the named reference — the user named it explicitly, so a missing definition is
+  unambiguously a usage error and warrants a fail-fast error message that names both the histogram
+  and the offending scope.
+- **Scope subsetting unchanged.** Users who want the histogram limited to a subset of scopes still
+  wrap the requirement in `RequireInScope`. Lenience is per-reference, not per-scope: a reference
+  declares the histogram in *all* active scopes or it's skipped — partial coverage *across scopes*
+  on a reference is treated identically to "not declared at all" so fan-out behaviour stays
+  scope-symmetric. Strict per-scope diagnostics remain the responsibility of the per-reference
+  form.
+
+Test impact (from `ReferenceSummaryHistogramValidationTest`):
+
+- The pre-existing `shouldThrowWhenAnyReferenceInSchemaLacksRequestedHistogram` test, which pinned
+  the strict design, was inverted into `shouldApplyHistogramOnlyToReferencesThatDeclareIt`: a
+  schema with one bucketed reference and one plain reference now produces a histogram on the
+  bucketed reference and no histogram on the plain reference. The plain reference's group is
+  allowed to exist (facets / counts can survive) but must carry no histogram entries.
+- A new `shouldThrowWhenNoReferenceInSchemaDeclaresRequestedHistogram` test pins the typo-guard:
+  the broad form against a schema where no reference declares `nonExistentOnAnyReference` aborts
+  planning with a message that names the unknown histogram.
+- The pre-existing `shouldThrowForUnknownHistogramNameInAllReferencesFanOut` test (LARGE fixture,
+  asks for `nonExistent`) keeps its assertion — typo-guard semantics are preserved.
+
 ---
 
 ## 4. Landed Implementation (historical record)
@@ -305,12 +361,14 @@ superseded by §5 Task 28; everything else stands.
 - Both parent translators were modified to walk their own children looking for
   `ReferenceHistogramStatistics`, push a `ProcessingScope` via
   `extraResultPlanner.executeInContext(...)`, and dispatch back through the visitor. See
-  `ReferenceSummaryOfReferenceTranslator#createProducer` (strict — throws on missing definition,
-  matches design decision 5) and `ReferenceSummaryTranslator#createProducer` /
-  `dispatchHistogramToMatchingReferences` (strict fan-out — dispatches the histogram requirement
-  to every reference in the entity schema and lets
-  `ReferenceHistogramStatisticsTranslator` throw on the first reference that doesn't define the
-  histogram in every active scope; design decision 5 is upheld).
+  `ReferenceSummaryOfReferenceTranslator#createProducer` (strict — throws on missing definition;
+  matches design decision 5, per-reference branch) and `ReferenceSummaryTranslator#createProducer` /
+  `dispatchHistogramToMatchingReferences` (applies-where-defined fan-out — pre-filters references
+  whose schema declares the requested histogram in every active scope, dispatches a per-reference
+  *narrowed* `ReferenceHistogramStatistics` carrying only that reference's applicable names, and
+  silently skips references with no applicable name; design decision 5, broad-form branch). The
+  broad form raises `EvitaInvalidUsageException` only when a requested name is declared on no
+  reference in the schema (typo guard) — every other partial-coverage shape resolves silently.
 - **B.4 extraction** — the translator walks `extraResultPlanner.getFilterBy()` for a
   `userFilter → referenceHaving(refName, …)` subtree whose inner `attributeBetween` targets the
   descriptor's source attribute. Multiple independent matches for the same
@@ -403,8 +461,9 @@ histograms).
   tests green.
 - **Functional tests (hand-crafted small fixture):** `ReferenceHistogramFunctionalTest` (12 tests,
   all green) covers happy-path histogram population per group, boundary-entity population,
-  strict all-references fan-out, `requested` flag end-to-end, validation of unknown histogram
-  names, `QueryConstraints.histogramStatistics` returning `null` for empty index names, and
+  applies-where-defined all-references fan-out (positive partial-coverage case + typo-guard
+  negative case), `requested` flag end-to-end, validation of unknown histogram names,
+  `QueryConstraints.histogramStatistics` returning `null` for empty index names, and
   histogram-only group survival.
 - **Functional E2E tests (60-product deterministic dataset across 3 parameter groups):**
   `ReferenceHistogramE2EFunctionalTest` (15 tests, all green). Nested groups: HappyPath,
