@@ -366,6 +366,49 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 		}
 
 		@Test
+		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
+		@DisplayName("should not false-typo-guard when the same histogram name is requested twice")
+		void shouldNotFalseTypoGuardOnDuplicateHistogramName(@Nonnull Evita evita) {
+			// Regression for the typo-guard size check: when the requested name list contains
+			// duplicates (e.g. `histogramStatistics(10, "priceBucket", "priceBucket")`), the count
+			// of distinct names landed on at least one reference is strictly less than the
+			// requested-array length even though every requested name exists. The dispatcher must
+			// validate by *name presence*, not by array length, so a duplicate-but-valid request
+			// passes through and produces histograms normally.
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummaryWithHistograms(
+									null, null, null,
+									histogramStatistics(10, HISTOGRAM_PRICE, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary =
+						result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+					final ReferenceGroupStatistics group =
+						referenceSummary.getReferenceGroupStatistics(REF_PARAM_VALUES, 1);
+					assertNotNull(
+						group,
+						"Histogram-bearing group must be populated even when the name is duplicated"
+					);
+					assertNotNull(
+						group.getHistogramStatistics(HISTOGRAM_PRICE),
+						"Duplicate histogram name must still resolve to a populated histogram"
+					);
+					return null;
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("should throw when histogram is defined only in LIVE and query targets ARCHIVED scope")
 		void shouldThrowWhenHistogramNotDefinedInQueriedScope() {
 			// Bucketed definitions are per-scope. A schema that declares the histogram only in
@@ -459,16 +502,22 @@ public class ReferenceSummaryHistogramValidationTest extends AbstractReferenceSu
 							"Histogram on REF_PARAM_VALUES must contain at least one bucket entry"
 						);
 
-						// REF_CATEGORIES declares no histogram — its group must exist (the
-						// referenced category was seeded) but must carry no histogram entries.
-						final ReferenceGroupStatistics categoryGroup =
-							referenceSummary.getReferenceGroupStatistics(REF_CATEGORIES, 100);
-						if (categoryGroup != null) {
-							assertTrue(
-								categoryGroup.getHistogramStatistics().isEmpty(),
-								"REF_CATEGORIES must not surface a histogram — it declares none"
-							);
-						}
+						// REF_CATEGORIES declares no histogram. The seeded reference is non-grouped
+						// (no `withGroupTypeRelatedToEntity`) so its statistics live under the
+						// non-grouped overload of `getReferenceGroupStatistics(referenceName)` —
+						// the (referenceName, groupId) overload is keyed by group PK and would
+						// always return null here, silently masking a regression that emits a
+						// histogram on REF_CATEGORIES.
+						final ReferenceGroupStatistics categoryStats =
+							referenceSummary.getReferenceGroupStatistics(REF_CATEGORIES);
+						assertNotNull(
+							categoryStats,
+							"REF_CATEGORIES must surface non-grouped statistics for the seeded reference"
+						);
+						assertTrue(
+							categoryStats.getHistogramStatistics().isEmpty(),
+							"REF_CATEGORIES must not surface a histogram — it declares none"
+						);
 						return null;
 					}
 				)

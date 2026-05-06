@@ -374,14 +374,17 @@ public class ReferenceSummaryTranslator
 		}
 
 		// Typo guard — the broad form silently skips references that don't declare the histogram, but
-		// a name that no reference declares is a user mistake and aborts query planning.
-		if (matchedNames.size() < requestedNames.length) {
-			final List<String> unknown = new ArrayList<>(requestedNames.length - matchedNames.size());
-			for (final String name : requestedNames) {
-				if (!matchedNames.contains(name)) {
-					unknown.add(name);
-				}
+		// a name that no reference declares is a user mistake and aborts query planning. The check
+		// must operate on name presence (not array length) because `requestedNames` may carry
+		// duplicates — comparing sizes would falsely throw when the same valid name is listed
+		// multiple times.
+		final Set<String> unknown = CollectionUtils.createLinkedHashSet(requestedNames.length);
+		for (final String name : requestedNames) {
+			if (!matchedNames.contains(name)) {
+				unknown.add(name);
 			}
+		}
+		if (!unknown.isEmpty()) {
 			throw new EvitaInvalidUsageException(
 				"Histogram " + (unknown.size() == 1 ? "name " : "names ") + unknown +
 					(unknown.size() == 1 ? " is" : " are") +
