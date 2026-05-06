@@ -359,6 +359,7 @@ public class ReferenceSummaryTranslator
 		final Set<String> matchedNames = CollectionUtils.createHashSet(requestedNames.length);
 		for (final ReferenceSchemaContract referenceSchema : references) {
 			List<String> applicableNames = null;
+			boolean fullyCovered = true;
 			for (final String name : requestedNames) {
 				if (isApplicableInAllScopes(referenceSchema, name, scopes)) {
 					if (applicableNames == null) {
@@ -366,10 +367,12 @@ public class ReferenceSummaryTranslator
 					}
 					applicableNames.add(name);
 					matchedNames.add(name);
+				} else {
+					fullyCovered = false;
 				}
 			}
 			if (applicableNames != null) {
-				dispatchPlan.add(new ReferenceDispatchEntry(referenceSchema, applicableNames));
+				dispatchPlan.add(new ReferenceDispatchEntry(referenceSchema, applicableNames, fullyCovered));
 			}
 		}
 
@@ -399,8 +402,10 @@ public class ReferenceSummaryTranslator
 		for (final ReferenceDispatchEntry entry : dispatchPlan) {
 			// reuse the original constraint when this reference declares every requested name —
 			// avoids an unnecessary clone for the common single-reference / fully-covered case.
+			// `fullyCovered` is tracked explicitly during dispatch-plan construction so this
+			// decision stays orthogonal to whether `applicableNames` carries duplicates.
 			final ReferenceHistogramStatistics narrowed =
-				entry.applicableNames().size() == requestedNames.length
+				entry.fullyCovered()
 					? constraint
 					: new ReferenceHistogramStatistics(
 						bucketCount, behavior, entityFetch,
@@ -442,12 +447,16 @@ public class ReferenceSummaryTranslator
 	}
 
 	/**
-	 * One dispatched per applicable reference: the schema and the subset of requested histogram names
-	 * the reference actually declares in every active scope.
+	 * One dispatched per applicable reference: the schema, the subset of requested histogram names
+	 * the reference actually declares in every active scope, and whether that subset covers every
+	 * requested name (i.e. no requested name was skipped for this reference). The `fullyCovered`
+	 * flag drives the constraint-reuse fast path independently of duplicate handling in
+	 * `applicableNames`.
 	 */
 	private record ReferenceDispatchEntry(
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull List<String> applicableNames
+		@Nonnull List<String> applicableNames,
+		boolean fullyCovered
 	) {
 	}
 
