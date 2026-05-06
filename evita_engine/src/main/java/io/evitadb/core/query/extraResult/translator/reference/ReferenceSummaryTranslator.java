@@ -44,12 +44,15 @@ import io.evitadb.core.query.extraResult.translator.reference.producer.Reference
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryResultAdapter;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -76,12 +79,15 @@ import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSu
  * 1. {@link #createProducer} resolves / creates the {@link ReferenceSummaryProducer} and immediately pre-registers
  *    it via {@link ExtraResultPlanningVisitor#registerProducer} so that child translators can look it up.
  * 2. Each {@link io.evitadb.api.query.require.ReferenceHistogramStatistics} child is dispatched via
- *    {@link #dispatchHistogramToMatchingReferences}: the all-references form is strict and requires every
- *    reference in the entity schema to define every requested histogram name in every active scope. Any gap
- *    aborts query planning with {@link io.evitadb.exception.EvitaInvalidUsageException} — users who want the
- *    computation limited to a subset of references must switch to
- *    {@link ReferenceSummaryOfReferenceTranslator} (per-reference form), and users who want it limited to a
- *    subset of scopes must wrap the histogram requirement in
+ *    {@link #dispatchHistogramToMatchingReferences}: the all-references form is **applies-where-defined**
+ *    — references that don't declare a requested histogram name in every active scope are silently skipped,
+ *    and the histogram constraint is narrowed per reference to the names that reference actually declares.
+ *    A typo guard fires when a requested histogram name is not declared on **any** reference in the schema
+ *    (in every active scope) — that case throws {@link io.evitadb.exception.EvitaInvalidUsageException} so
+ *    user typos surface rather than silently producing no histograms. Users who want strict per-reference
+ *    validation must switch to {@link ReferenceSummaryOfReferenceTranslator} (per-reference form, where
+ *    every requested name must exist on the named reference in every active scope), and users who want the
+ *    computation limited to a subset of scopes must wrap the histogram requirement in
  *    {@link io.evitadb.api.query.require.RequireInScope}.
  *
  * All planning operations are cheap; the heavy lifting is deferred to
@@ -89,7 +95,6 @@ import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSu
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@SuppressWarnings("deprecation")
 public class ReferenceSummaryTranslator
 	implements RequireConstraintTranslator<ReferenceSummary>, SelfTraversingTranslator {
 
@@ -308,13 +313,15 @@ public class ReferenceSummaryTranslator
 		extraResultPlanner.registerProducer(producer);
 		// dispatch nested histogramStatistics children to their translator. This container is a
 		// SelfTraversingTranslator, so children are not walked automatically. The all-references
-		// form is strict — every reference in the entity schema must define every requested
-		// histogram in every active scope; any gap throws EvitaInvalidUsageException.
+		// form is applies-where-defined — references that do not declare a requested histogram in
+		// every active scope are silently skipped; only requested names declared on **no**
+		// reference in the schema raise EvitaInvalidUsageException (typo guard).
 		final EntitySchemaContract schema = extraResultPlanner.getSchema();
+		final Set<Scope> scopes = extraResultPlanner.getProcessingScope().getScopes();
 		for (final RequireConstraint child : referenceSummary.getChildren()) {
 			if (child instanceof ReferenceHistogramStatistics histogramConstraint) {
 				dispatchHistogramToMatchingReferences(
-					histogramConstraint, schema, extraResultPlanner
+					histogramConstraint, schema, scopes, extraResultPlanner
 				);
 			}
 		}
@@ -322,33 +329,123 @@ public class ReferenceSummaryTranslator
 	}
 
 	/**
-	 * Dispatches the constraint to {@link ReferenceHistogramStatisticsTranslator} once per reference in
-	 * the entity schema. The translator's `resolveDescriptor` performs strict per-reference validation
-	 * — it throws {@link io.evitadb.exception.EvitaInvalidUsageException} when a requested histogram is
-	 * not defined on the current reference in any active scope. The loop therefore aborts at the first
-	 * offending reference, surfacing user typos and scope mismatches rather than silently skipping.
+	 * Dispatches the constraint to {@link ReferenceHistogramStatisticsTranslator} once per reference that
+	 * is **applicable** for at least one of the requested histogram names. A `(reference, name)` pair is
+	 * applicable when the reference declares the histogram in every currently active scope. References
+	 * with no applicable name are silently skipped; references with a strict subset of applicable names
+	 * are dispatched a *narrowed* {@link ReferenceHistogramStatistics} carrying only the names they
+	 * actually declare, so the inner translator's strict per-scope check never trips on a missing
+	 * definition for the all-references fan-out.
 	 *
-	 * Users who want the computation limited to a subset of references must switch to the per-reference
-	 * form {@link io.evitadb.api.query.require.ReferenceSummaryOfReference}; users who want it limited
-	 * to a subset of scopes must wrap the histogram requirement in
-	 * {@link io.evitadb.api.query.require.RequireInScope}.
+	 * Typo guard: every requested histogram name must be applicable to at least one reference in the
+	 * schema. A name applicable to no reference (e.g. a misspelling) raises
+	 * {@link EvitaInvalidUsageException} rather than silently producing nothing — that's the only error
+	 * the broad form surfaces. Strict per-reference validation is the responsibility of the per-reference
+	 * form ({@link io.evitadb.api.query.require.ReferenceSummaryOfReference}); scope subsetting belongs
+	 * to {@link io.evitadb.api.query.require.RequireInScope}.
 	 */
 	private static void dispatchHistogramToMatchingReferences(
 		@Nonnull ReferenceHistogramStatistics constraint,
 		@Nonnull EntitySchemaContract schema,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
-		for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+		final String[] requestedNames = constraint.getIndexNames();
+		final Collection<ReferenceSchemaContract> references = schema.getReferences().values();
+
+		// Build per-reference applicable-name lists in iteration order; track which requested names
+		// landed on at least one reference so the post-loop typo guard can flag misspellings.
+		final List<ReferenceDispatchEntry> dispatchPlan = new ArrayList<>(references.size());
+		final Set<String> matchedNames = CollectionUtils.createHashSet(requestedNames.length);
+		for (final ReferenceSchemaContract referenceSchema : references) {
+			List<String> applicableNames = null;
+			for (final String name : requestedNames) {
+				if (isApplicableInAllScopes(referenceSchema, name, scopes)) {
+					if (applicableNames == null) {
+						applicableNames = new ArrayList<>(requestedNames.length);
+					}
+					applicableNames.add(name);
+					matchedNames.add(name);
+				}
+			}
+			if (applicableNames != null) {
+				dispatchPlan.add(new ReferenceDispatchEntry(referenceSchema, applicableNames));
+			}
+		}
+
+		// Typo guard — the broad form silently skips references that don't declare the histogram, but
+		// a name that no reference declares is a user mistake and aborts query planning.
+		if (matchedNames.size() < requestedNames.length) {
+			final List<String> unknown = new ArrayList<>(requestedNames.length - matchedNames.size());
+			for (final String name : requestedNames) {
+				if (!matchedNames.contains(name)) {
+					unknown.add(name);
+				}
+			}
+			throw new EvitaInvalidUsageException(
+				"Histogram " + (unknown.size() == 1 ? "name " : "names ") + unknown +
+					(unknown.size() == 1 ? " is" : " are") +
+					" not defined on any reference of entity `" + schema.getName() +
+					"` in scope" + (scopes.size() == 1 ? " " : "s ") + scopes + "."
+			);
+		}
+
+		final int bucketCount = constraint.getRequestedBucketCount();
+		final HistogramBehavior behavior = constraint.getBehavior();
+		final EntityFetch entityFetch = constraint.getEntityFetch().orElse(null);
+		for (final ReferenceDispatchEntry entry : dispatchPlan) {
+			// reuse the original constraint when this reference declares every requested name —
+			// avoids an unnecessary clone for the common single-reference / fully-covered case.
+			final ReferenceHistogramStatistics narrowed =
+				entry.applicableNames().size() == requestedNames.length
+					? constraint
+					: new ReferenceHistogramStatistics(
+						bucketCount, behavior, entityFetch,
+						entry.applicableNames().toArray(new String[0])
+					);
 			extraResultPlanner.executeInContext(
-				constraint,
-				() -> referenceSchema,
+				narrowed,
+				entry::referenceSchema,
 				() -> null,
 				() -> {
-					constraint.accept(extraResultPlanner);
+					narrowed.accept(extraResultPlanner);
 					return null;
 				}
 			);
 		}
+	}
+
+	/**
+	 * Returns true when the reference declares the named histogram in every currently active scope.
+	 * The broad form skips references that don't fully cover the active scope set — partial coverage
+	 * (declared in some scopes but not others) is treated identically to "not declared at all" so
+	 * fan-out behaviour stays scope-symmetric. Strict per-scope diagnostics remain the responsibility
+	 * of the per-reference form.
+	 */
+	private static boolean isApplicableInAllScopes(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String histogramName,
+		@Nonnull Set<Scope> scopes
+	) {
+		if (scopes.isEmpty()) {
+			return false;
+		}
+		for (final Scope scope : scopes) {
+			if (referenceSchema.getHistogramIndexDefinition(scope, histogramName) == null) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * One dispatched per applicable reference: the schema and the subset of requested histogram names
+	 * the reference actually declares in every active scope.
+	 */
+	private record ReferenceDispatchEntry(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull List<String> applicableNames
+	) {
 	}
 
 }

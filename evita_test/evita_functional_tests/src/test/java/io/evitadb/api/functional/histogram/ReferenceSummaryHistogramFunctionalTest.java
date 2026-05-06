@@ -777,10 +777,10 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					final ReferenceGroupStatistics group1 = referenceSummary.getReferenceGroupStatistics(
 						REF_PARAM_VALUES, 1
 					);
-					assertNotNull(group1, "Strict fan-out must populate group 1");
+					assertNotNull(group1, "Fan-out must populate group 1");
 					assertNotNull(
 						group1.getHistogramStatistics(HISTOGRAM_PRICE),
-						"Histogram must be emitted for every reference when every reference defines it"
+						"Histogram must be emitted for every reference that declares it"
 					);
 					return null;
 				}
