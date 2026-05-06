@@ -380,14 +380,18 @@ public class ReferenceSummaryTranslator
 		// a name that no reference declares is a user mistake and aborts query planning. The check
 		// must operate on name presence (not array length) because `requestedNames` may carry
 		// duplicates — comparing sizes would falsely throw when the same valid name is listed
-		// multiple times.
-		final Set<String> unknown = CollectionUtils.createLinkedHashSet(requestedNames.length);
+		// multiple times. The `unknown` set is lazily allocated on the first miss so the happy
+		// path pays no allocation, matching the lazy-init pattern used for `applicableNames`.
+		Set<String> unknown = null;
 		for (final String name : requestedNames) {
 			if (!matchedNames.contains(name)) {
+				if (unknown == null) {
+					unknown = CollectionUtils.createLinkedHashSet(requestedNames.length);
+				}
 				unknown.add(name);
 			}
 		}
-		if (!unknown.isEmpty()) {
+		if (unknown != null) {
 			throw new EvitaInvalidUsageException(
 				"Histogram " + (unknown.size() == 1 ? "name " : "names ") + unknown +
 					(unknown.size() == 1 ? " is" : " are") +
