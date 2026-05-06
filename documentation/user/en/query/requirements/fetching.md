@@ -1251,9 +1251,26 @@ price for the master entity itself.
 </LS>
 <LS to="r">
 
-Both fields are emitted alongside `priceForSale` whenever a `priceContent` (e.g. `priceContentRespectingFilter`)
-requirement is present in the entity fetch; the bounds reflect the price constraints in the surrounding `filterBy`
-clause.
+Because REST has no GraphQL-style selection set, the four price-for-sale fields — `priceForSale`,
+`priceForSaleMin`, `priceForSaleMax`, and `multiplePricesForSaleAvailable` — are tied to the
+`priceContent` requirement of the entity fetch. The mapping is:
+
+| `priceContent` mode | `prices` array | `priceForSale` + `priceForSaleMin` + `priceForSaleMax` + `multiplePricesForSaleAvailable` |
+|---|---|---|
+| `priceContentNone` | — | — |
+| `priceContentRespectingFilter` | omitted | emitted |
+| `priceContentAll` | emitted | emitted |
+
+This is the entire point of the price-for-sale range on REST: a storefront listing or master-product
+card can request `priceContentRespectingFilter` and receive `priceForSale` together with the variant
+bounds and the multiplicity flag without paying for the underlying `prices` payload. Only callers
+that genuinely need the full price list (e.g. back-office tools) should request `priceContentAll`.
+
+The four price-for-sale fields form a stable shape regardless of the entity's
+[inner record handling](../filtering/price.md#price-for-sale-selection-in-a-nutshell) strategy: under
+`NONE` strategy `priceForSaleMin` and `priceForSaleMax` collapse to the same record as `priceForSale`
+and `multiplePricesForSaleAvailable` is `false`. Generated REST clients can therefore dereference all
+four fields unconditionally.
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -1270,7 +1287,7 @@ clause.
 </NoteTitle>
 
 The response carries the canonical selling price together with the lowest and highest variant prices as siblings of
-`priceForSale`:
+`priceForSale`, without the underlying `prices` array:
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with its price for sale range](/documentation/user/en/query/requirements/examples/fetching/priceForSaleRangeField.rest.json.md)</MDInclude>
 

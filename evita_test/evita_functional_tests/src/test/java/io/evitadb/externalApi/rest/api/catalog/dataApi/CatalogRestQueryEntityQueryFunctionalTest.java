@@ -2129,6 +2129,140 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			);
 	}
 
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return full prices array alongside price for sale range under priceContentAll")
+	void shouldReturnFullPricesArrayForPriceContentAll(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
+		final Integer[] pks = findEntityPks(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::indexed)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final Set<Integer> pksSet = Arrays.stream(pks).collect(Collectors.toSet());
+		final List<String> priceLists = originalProductEntities.stream()
+			.filter(it -> pksSet.contains(it.getPrimaryKey()))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+
+		final List<EntityClassifier> entities = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					entityPrimaryKeyInSet(pks),
+					priceInCurrency(CURRENCY_CZK),
+					priceInPriceLists(priceLists.toArray(String[]::new))
+				),
+				require(
+					entityFetch(
+						priceContentAll()
+					)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": %s
+						},
+						"require": {
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "ALL"
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(pks),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH, equalTo(createEntityDtos(entities)))
+			.body(DATA_PATH + "[0]." + EntityDescriptor.PRICES.name(), notNullValue())
+			.body(DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE.name(), notNullValue())
+			.body(DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MIN.name(), notNullValue())
+			.body(DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MAX.name(), notNullValue())
+			.body(DATA_PATH + "[0]." + EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), notNullValue());
+	}
+
+	@Test
+	@Tag(PRICE)
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should omit prices array under priceContentRespectingFilter")
+	void shouldOmitPricesArrayForPriceContentRespectingFilter(
+		Evita evita, RestTester tester, List<SealedEntity> originalProductEntities
+	) {
+		final Integer[] pks = findEntityPks(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.LOWEST_PRICE) &&
+				it.getPrices(CURRENCY_CZK)
+					.stream()
+					.filter(PriceContract::indexed)
+					.map(PriceContract::innerRecordId)
+					.distinct()
+					.count() > 1,
+			2
+		);
+
+		final Set<Integer> pksSet = Arrays.stream(pks).collect(Collectors.toSet());
+		final List<String> priceLists = originalProductEntities.stream()
+			.filter(it -> pksSet.contains(it.getPrimaryKey()))
+			.flatMap(it -> it.getPrices(CURRENCY_CZK).stream().map(PriceContract::priceList))
+			.distinct()
+			.toList();
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody(
+				"""
+					{
+						"filterBy": {
+						    "entityPrimaryKeyInSet": %s,
+						    "priceInCurrency": "CZK",
+						    "priceInPriceLists": %s
+						},
+						"require": {
+						    "entityFetch": {
+						        "priceContent": {
+						            "contentMode": "RESPECTING_FILTER"
+					            }
+						    }
+						}
+					}
+					""",
+				serializeIntArrayToQueryString(pks),
+				serializeStringArrayToQueryString(priceLists)
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(DATA_PATH + "[0]." + EntityDescriptor.PRICES.name(), nullValue())
+			.body(DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE.name(), notNullValue())
+			.body(DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MIN.name(), notNullValue())
+			.body(DATA_PATH + "[0]." + EntityDescriptor.PRICE_FOR_SALE_MAX.name(), notNullValue())
+			.body(DATA_PATH + "[0]." + EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), notNullValue());
+	}
+
 	/**
 	 * Asserts the two price contracts represent the same price by comparing their identity tuple
 	 * (priceId, priceList, currency, innerRecordId).

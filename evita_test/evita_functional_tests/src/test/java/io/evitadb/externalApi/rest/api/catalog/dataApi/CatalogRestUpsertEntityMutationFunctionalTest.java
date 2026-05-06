@@ -487,6 +487,19 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.findFirst()
 			.orElseThrow();
 
+		final Map<String, Object> newPriceDto = map()
+			.e(PriceDescriptor.PRICE_ID.name(), 1_000_000_000)
+			.e(PriceDescriptor.PRICE_LIST.name(), "other")
+			.e(PriceDescriptor.CURRENCY.name(), "CZK")
+			.e(PriceDescriptor.INNER_RECORD_ID.name(), null)
+			.e(PriceDescriptor.INDEXED.name(), true)
+			.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), "1.0")
+			.e(PriceDescriptor.PRICE_WITH_TAX.name(), "1.21")
+			.e(PriceDescriptor.TAX_RATE.name(), "21")
+			.e(PriceDescriptor.VALIDITY.name(), null)
+			.build();
+		// Under priceContentRespectingFilter the `prices` array is omitted; the new price surfaces as
+		// priceForSale (and as the bounds, which collapse to it under NONE inner record handling).
 		final Map<String, Object> expectedBodyWithNewPrice = map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
@@ -494,19 +507,10 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
-			.e(EntityDescriptor.PRICES.name(), List.of(
-				map()
-					.e(PriceDescriptor.PRICE_ID.name(), 1_000_000_000)
-					.e(PriceDescriptor.PRICE_LIST.name(), "other")
-					.e(PriceDescriptor.CURRENCY.name(), "CZK")
-					.e(PriceDescriptor.INNER_RECORD_ID.name(), null)
-					.e(PriceDescriptor.INDEXED.name(), true)
-					.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), "1.0")
-					.e(PriceDescriptor.PRICE_WITH_TAX.name(), "1.21")
-					.e(PriceDescriptor.TAX_RATE.name(), "21")
-					.e(PriceDescriptor.VALIDITY.name(), null)
-					.build()
-			))
+			.e(EntityDescriptor.PRICE_FOR_SALE.name(), newPriceDto)
+			.e(EntityDescriptor.PRICE_FOR_SALE_MIN.name(), newPriceDto)
+			.e(EntityDescriptor.PRICE_FOR_SALE_MAX.name(), newPriceDto)
+			.e(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), false)
 			.build();
 
 		tester.test(TEST_CATALOG)
@@ -541,6 +545,8 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.executeAndThen()
 			.statusCode(200);
 
+		// Under RESPECTING_FILTER the `prices` array is omitted; the new price is observable as
+		// `priceForSale` because the surrounding filter (`priceInPriceLists: ["other"]`) selects it.
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
@@ -548,6 +554,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 					{
 						"filterBy": {
 							"entityPrimaryKeyInSet": [%d],
+							"priceInCurrency": "CZK",
 							"priceInPriceLists":["other"]
 						},
 						"require": {
@@ -571,7 +578,6 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.e(EntityDescriptor.SCOPE.name(), entity.getScope().name())
 			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
 			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.NONE.name())
-			.e(EntityDescriptor.PRICES.name(), List.of())
 			.build();
 
 		tester.test(TEST_CATALOG)
@@ -662,13 +668,15 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 //			))
 //			.build();
 
+		// Both the lookup and the mutation request use priceContentAll so the expected DTO (with the
+		// `prices` array) matches the response shape — RESPECTING_FILTER would omit the array.
 		final SealedEntity entity = getEntity(
 			evita,
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(entityPrimaryKeyInSet(pk)),
 				require(
-					entityFetch(priceContentRespectingFilter())
+					entityFetch(priceContentAll())
 				)
 			),
 			SealedEntity.class

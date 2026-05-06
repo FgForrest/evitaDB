@@ -24,8 +24,10 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.*;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -357,39 +359,54 @@ public abstract class CatalogRestDataEndpointFunctionalTest extends RestEndpoint
 
 	public static void createPricesDto(@Nonnull MapBuilder entityDto,
 	                                   @Nonnull EntityContract entity) {
-		if (entity.pricesAvailable()) {
-			if (!entity.getPrices().isEmpty()) {
-				entityDto.e(
-					EntityDescriptor.PRICES.name(),
-					entity.getPrices()
-						.stream()
-						.map(price -> createEntityPriceDto(price).build())
-						.toList()
-				);
+		if (!entity.pricesAvailable()) {
+			return;
+		}
+
+		// Mirror EntityJsonSerializer: the `prices` array is emitted only when priceContent is in
+		// ALL mode; under RESPECTING_FILTER the four price-for-sale siblings carry all the
+		// information storefronts need. Tests run against EntityDecorator instances returned by the
+		// engine, so the predicate is reachable; for any non-decorator entity (legacy paths) we fall
+		// back to the historical "always emit prices" behaviour.
+		final boolean emitPricesArray;
+		if (entity instanceof EntityDecorator decorator) {
+			emitPricesArray = decorator.getPricePredicate().getPriceContentMode() == PriceContentMode.ALL;
+		} else {
+			emitPricesArray = true;
+		}
+
+		if (emitPricesArray && !entity.getPrices().isEmpty()) {
+			entityDto.e(
+				EntityDescriptor.PRICES.name(),
+				entity.getPrices()
+					.stream()
+					.map(price -> createEntityPriceDto(price).build())
+					.toList()
+			);
+		}
+
+		entity.getPriceForSaleWithAccompanyingPricesIfAvailable().ifPresent(price -> {
+			entityDto.e(EntityDescriptor.PRICE_FOR_SALE.name(), createEntityPriceDto(price.priceForSale()));
+
+			entity.getPriceRangeForSaleIfAvailable().ifPresent(range -> {
+				entityDto.e(EntityDescriptor.PRICE_FOR_SALE_MIN.name(), createEntityPriceDto(range.lowestPrice()));
+				entityDto.e(EntityDescriptor.PRICE_FOR_SALE_MAX.name(), createEntityPriceDto(range.highestPrice()));
+			});
+
+			final Map<String, Optional<PriceContract>> accompanyingPrices = price.accompanyingPrices();
+			if (!accompanyingPrices.isEmpty()) {
+				final MapBuilder accompanyingPricesObject = map();
+				accompanyingPrices.forEach((accompanyingPriceName, accompanyingPrice) -> {
+					accompanyingPricesObject.e(accompanyingPriceName, accompanyingPrice.map(CatalogRestDataEndpointFunctionalTest::createEntityPriceDto).orElse(null));
+				});
+				entityDto.e(RestEntityDescriptor.ACCOMPANYING_PRICES.name(), accompanyingPricesObject);
 			}
 
-			entity.getPriceForSaleWithAccompanyingPricesIfAvailable().ifPresent(price -> {
-				entityDto.e(EntityDescriptor.PRICE_FOR_SALE.name(), createEntityPriceDto(price.priceForSale()));
-
-				entity.getPriceRangeForSaleIfAvailable().ifPresent(range -> {
-					entityDto.e(EntityDescriptor.PRICE_FOR_SALE_MIN.name(), createEntityPriceDto(range.lowestPrice()));
-					entityDto.e(EntityDescriptor.PRICE_FOR_SALE_MAX.name(), createEntityPriceDto(range.highestPrice()));
-				});
-
-				final Map<String, Optional<PriceContract>> accompanyingPrices = price.accompanyingPrices();
-				if (!accompanyingPrices.isEmpty()) {
-					final MapBuilder accompanyingPricesObject = map();
-					accompanyingPrices.forEach((accompanyingPriceName, accompanyingPrice) -> {
-						accompanyingPricesObject.e(accompanyingPriceName, accompanyingPrice.map(CatalogRestDataEndpointFunctionalTest::createEntityPriceDto).orElse(null));
-					});
-					entityDto.e(RestEntityDescriptor.ACCOMPANYING_PRICES.name(), accompanyingPricesObject);
-				}
-
-				if (!entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE)) {
-					entityDto.e(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), entity.getAllPricesForSale().size() > 1);
-				}
-			});
-		}
+			final boolean multiplePricesForSale =
+				entity.getPriceInnerRecordHandling() != PriceInnerRecordHandling.NONE
+					&& entity.getAllPricesForSale().size() > 1;
+			entityDto.e(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), multiplePricesForSale);
+		});
 	}
 
 	@Nonnull

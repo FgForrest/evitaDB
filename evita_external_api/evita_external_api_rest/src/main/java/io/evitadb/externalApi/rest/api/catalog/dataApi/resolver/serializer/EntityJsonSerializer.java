@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
@@ -340,10 +341,31 @@ public class EntityJsonSerializer {
 	}
 
 	/**
-	 * Serialize prices
+	 * Serialize prices.
+	 *
+	 * The emitted shape is driven by the active {@link PriceContentMode}:
+	 *
+	 * - `NONE` — nothing is emitted.
+	 * - `RESPECTING_FILTER` — `priceForSale`, `priceForSaleMin`, `priceForSaleMax`,
+	 *   `multiplePricesForSaleAvailable` (and `accompanyingPrices` when applicable). The full `prices`
+	 *   array is intentionally omitted; the four price-for-sale siblings are sufficient to render
+	 *   storefront listings without paying for the underlying price list.
+	 * - `ALL` — same as above plus the entity's full `prices` array.
+	 *
+	 * The four price-for-sale fields form a stable shape independent of the entity's
+	 * {@link PriceInnerRecordHandling}: under `NONE` strategy `priceForSaleMin` and `priceForSaleMax`
+	 * collapse to the same record as `priceForSale` and `multiplePricesForSaleAvailable` is `false`.
+	 * The redundancy is deliberate so generated REST clients can dereference the bounds and the flag
+	 * unconditionally without strategy or null checks. (Contrast with GraphQL, where the bound fields
+	 * are opt-in via the selection set.)
 	 */
 	private void serializePrices(@Nonnull ObjectNode rootNode, @Nonnull EntityDecorator entity) {
-		if (entity.pricesAvailable()) {
+		if (!entity.pricesAvailable()) {
+			return;
+		}
+
+		final PriceContentMode contentMode = entity.getPricePredicate().getPriceContentMode();
+		if (contentMode == PriceContentMode.ALL) {
 			final Collection<PriceContract> prices = entity.getPrices();
 			final ArrayNode pricesNode = this.objectJsonSerializer.arrayNode();
 			rootNode.putIfAbsent(EntityDescriptor.PRICES.name(), pricesNode);
@@ -351,43 +373,35 @@ public class EntityJsonSerializer {
 			for (PriceContract price : prices) {
 				pricesNode.add(this.objectJsonSerializer.serializeObject(price));
 			}
-
-			entity.getPriceForSaleWithAccompanyingPricesIfAvailable().ifPresent(it -> {
-				rootNode.putIfAbsent(EntityDescriptor.PRICE_FOR_SALE.name(), this.objectJsonSerializer.serializeObject(it.priceForSale()));
-
-				// Range fields are emitted unconditionally — even under NONE inner-record handling, where
-				// `lowestPrice == highestPrice == priceForSale` and the three values are necessarily identical.
-				// The redundancy is intentional: REST clients receive a stable schema that does not depend on
-				// the entity's strategy, so generated client code can dereference the bounds without nullness or
-				// strategy checks. (Contrast with GraphQL, where the bound fields are opt-in via the selection
-				// set and clients explicitly request them.)
-				entity.getPriceRangeForSaleIfAvailable().ifPresent(range -> {
-					rootNode.putIfAbsent(
-						EntityDescriptor.PRICE_FOR_SALE_MIN.name(),
-						this.objectJsonSerializer.serializeObject(range.lowestPrice())
-					);
-					rootNode.putIfAbsent(
-						EntityDescriptor.PRICE_FOR_SALE_MAX.name(),
-						this.objectJsonSerializer.serializeObject(range.highestPrice())
-					);
-				});
-
-				final Map<String, Optional<PriceContract>> accompanyingPrices = it.accompanyingPrices();
-				if (!accompanyingPrices.isEmpty()) {
-					final ObjectNode accompanyingPricesNode = this.objectJsonSerializer.objectNode();
-					accompanyingPrices.forEach((accompanyingPriceName, accompanyingPrice) -> accompanyingPricesNode.putIfAbsent(
-						accompanyingPriceName,
-						accompanyingPrice.map(this.objectJsonSerializer::serializeObject).orElse(null)
-					));
-					rootNode.putIfAbsent(RestEntityDescriptor.ACCOMPANYING_PRICES.name(), accompanyingPricesNode);
-				}
-
-				if (!entity.getPriceInnerRecordHandling().equals(PriceInnerRecordHandling.NONE)) {
-					final boolean multiplePricesForSale = hasMultiplePricesForSaleAvailable(entity);
-					rootNode.putIfAbsent(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), this.objectJsonSerializer.serializeObject(multiplePricesForSale));
-				}
-			});
 		}
+
+		entity.getPriceForSaleWithAccompanyingPricesIfAvailable().ifPresent(it -> {
+			rootNode.putIfAbsent(EntityDescriptor.PRICE_FOR_SALE.name(), this.objectJsonSerializer.serializeObject(it.priceForSale()));
+
+			entity.getPriceRangeForSaleIfAvailable().ifPresent(range -> {
+				rootNode.putIfAbsent(
+					EntityDescriptor.PRICE_FOR_SALE_MIN.name(),
+					this.objectJsonSerializer.serializeObject(range.lowestPrice())
+				);
+				rootNode.putIfAbsent(
+					EntityDescriptor.PRICE_FOR_SALE_MAX.name(),
+					this.objectJsonSerializer.serializeObject(range.highestPrice())
+				);
+			});
+
+			final Map<String, Optional<PriceContract>> accompanyingPrices = it.accompanyingPrices();
+			if (!accompanyingPrices.isEmpty()) {
+				final ObjectNode accompanyingPricesNode = this.objectJsonSerializer.objectNode();
+				accompanyingPrices.forEach((accompanyingPriceName, accompanyingPrice) -> accompanyingPricesNode.putIfAbsent(
+					accompanyingPriceName,
+					accompanyingPrice.map(this.objectJsonSerializer::serializeObject).orElse(null)
+				));
+				rootNode.putIfAbsent(RestEntityDescriptor.ACCOMPANYING_PRICES.name(), accompanyingPricesNode);
+			}
+
+			final boolean multiplePricesForSale = hasMultiplePricesForSaleAvailable(entity);
+			rootNode.putIfAbsent(EntityDescriptor.MULTIPLE_PRICES_FOR_SALE_AVAILABLE.name(), this.objectJsonSerializer.serializeObject(multiplePricesForSale));
+		});
 	}
 
 	/**
