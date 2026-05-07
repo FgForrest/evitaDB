@@ -159,7 +159,12 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 	private void handleCatalogInstalled(@Nonnull HostSystemEvent.CatalogInstalledIntoLiveView installed) {
 		final String catalogName = installed.catalogName();
 		if (installed.observedState().isActive()) {
-			if (this.restManager.refreshCatalog(catalogName)) {
+			// boot-time first install → register; later catalog-reference replacements
+			// (e.g. post-upgrade) on an already-registered catalog → refresh
+			final boolean changed = this.restManager.isCatalogRegistered(catalogName)
+				? this.restManager.refreshCatalog(catalogName)
+				: this.restManager.registerCatalog(catalogName);
+			if (changed) {
 				this.restManager.emitObservabilityEvents(catalogName);
 			}
 		} else {

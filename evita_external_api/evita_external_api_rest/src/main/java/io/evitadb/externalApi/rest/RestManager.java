@@ -54,7 +54,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -136,29 +135,35 @@ public class RestManager {
 		// register initial endpoints
 		registerSystemApi();
 
-		// register initial catalogs when they are loaded
+		// Track initial catalog loading. Catalog registration is driven by the system CDC
+		// stream (HostSystemEvent.CatalogInstalledIntoLiveView) — see issue #1153.
 		this.fullyInitialized = CompletableFuture.allOf(
-			Arrays.stream(this.evita.getInitialLoadCatalogFutures())
-			      .map(theFuture -> theFuture.thenAccept(catalog -> registerCatalog(catalog.getName())))
-			      .toArray(CompletableFuture[]::new)
+			this.evita.getInitialLoadCatalogFutures()
 		).whenComplete(
 			(__, throwable) -> {
 				if (throwable != null) {
-					// CatalogRequiresUpgradeException is the engine's signal that boot-time auto-upgrade
-					// is in flight — the first-attempt load future fails by design and the retried load
-					// will register the catalog asynchronously. Treat as INFO; ERROR is reserved for
-					// genuine load failures (corruption, IO errors, etc.).
+					// boot-time auto-upgrade completes the first-attempt future exceptionally by
+					// design; the retried load will register the catalog asynchronously
 					final Throwable cause = ExceptionUtils.unwrapCompletionWrappers(throwable);
 					if (cause instanceof CatalogRequiresUpgradeException) {
-						log.info("REST API initialized; one or more catalogs are pending storage-protocol upgrade and will register after the retried load completes.");
+						log.info("REST API initial catalog loading complete; one or more catalogs are pending storage-protocol upgrade.");
 					} else {
-						log.error("Failed to register initial catalogs for REST API.", throwable);
+						log.error("REST API initial catalog loading failed.", throwable);
 					}
 				} else {
-					log.info("REST API initialized with {} registered catalogs.", this.registeredCatalogs.size());
+					log.info("REST API initial catalog loading complete.");
 				}
 			}
 		);
+	}
+
+	/**
+	 * Returns whether the given catalog already has REST endpoints registered with this manager.
+	 * Used by the system CDC observer to decide between a first-time `registerCatalog` and a
+	 * subsequent `refreshCatalog` when handling a `CatalogInstalledIntoLiveView` host event.
+	 */
+	public boolean isCatalogRegistered(@Nonnull String catalogName) {
+		return this.registeredCatalogs.contains(catalogName);
 	}
 
 	@Nonnull

@@ -172,6 +172,16 @@ Musíte tuto třídu vytvořit, nakonfigurovat a předat jí referenci na instan
 </SourceCodeTabs>
 
 <Note type="warning">
+Pokud propojujete `ExternalApiServer` s `Evitou` ručně, jako v ukázce výše, vytvářejte engine
+pomocí `new Evita(config, false)` místo jednoargumentového konstruktoru. Příznak `false` odloží
+načítání katalogů až do volání `ExternalApiServer.start()`, kdy už jsou všichni poskytovatelé API
+přihlášeni k odběru system CDC streamu. Bez tohoto opatření mohou rychle se načítající katalogy
+skončit dříve, než se odběratelé přihlásí, a jejich GraphQL/REST endpointy se neregistrují
+(události HOST CDC mají live-tail-only sémantiku). Uživatelé `EvitaServer` se o toto nemusí
+starat — ten má správné pořadí inicializace zařízeno interně.
+</Note>
+
+<Note type="warning">
 Nezapomeňte uzavřít API při ukončení vaší aplikace zavoláním metody `close` na
 instanci <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>.
 Jednou z možností je naslouchat ukončení procesu Java:

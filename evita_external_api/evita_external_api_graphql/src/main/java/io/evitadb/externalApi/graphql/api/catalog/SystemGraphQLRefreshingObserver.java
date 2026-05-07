@@ -151,9 +151,12 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 		final String catalogName = installed.catalogName();
 		final CatalogState observedState = installed.observedState();
 		if (observedState.isActive()) {
-			// `refreshCatalog` falls back to `registerCatalog` when the catalog is not yet registered,
-			// so a single call covers both the first-time-load and the post-upgrade-replace cases.
-			if (this.graphQLManager.refreshCatalog(catalogName)) {
+			// boot-time first install → register; later catalog-reference replacements
+			// (e.g. post-upgrade) on an already-registered catalog → refresh
+			final boolean changed = this.graphQLManager.isCatalogRegistered(catalogName)
+				? this.graphQLManager.refreshCatalog(catalogName)
+				: this.graphQLManager.registerCatalog(catalogName);
+			if (changed) {
 				this.graphQLManager.emitObservabilityEvents(catalogName);
 			}
 		} else {

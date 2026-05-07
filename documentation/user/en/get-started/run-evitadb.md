@@ -171,6 +171,16 @@ You must instantiate and configure this class and pass it a reference to the
 </SourceCodeTabs>
 
 <Note type="warning">
+When wiring `ExternalApiServer` against `Evita` manually like this, construct the engine with
+`new Evita(config, false)` instead of the single-argument constructor. The boolean flag defers
+catalog loading until `ExternalApiServer.start()` is called, after every API provider has
+subscribed to the system CDC stream. Without this, fast-loading catalogs may finish before the
+subscribers attach and their GraphQL/REST endpoints will not be registered (host CDC events are
+live-tail only). `EvitaServer` users do not need to worry about this — it is already wired
+correctly internally.
+</Note>
+
+<Note type="warning">
 Don't forget to close the APIs when your application ends by calling the `close` method on the
 the <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/http/ExternalApiServer.java</SourceClass>
 instance. One of the options is to listen to Java process termination:

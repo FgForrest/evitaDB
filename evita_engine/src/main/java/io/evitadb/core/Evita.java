@@ -240,6 +240,14 @@ public final class Evita implements EvitaContract {
 	 */
 	private final AtomicReference<ProgressingFuture<Catalog>[]> initialLoadCatalogFutures;
 	/**
+	 * Tracks whether {@link #scheduleInitialCatalogLoading()} has been invoked. This is the guard
+	 * for the two-phase boot contract: callers must construct `Evita`, attach observers (e.g.
+	 * register external API providers that subscribe to the system CDC stream), and only then
+	 * schedule catalog loading. Calling {@link #waitUntilFullyInitialized()} before scheduling is
+	 * a programming error (would deadlock) and is rejected with a fail-fast exception.
+	 */
+	private final AtomicBoolean catalogLoadingScheduled = new AtomicBoolean(false);
+	/**
 	 * Flag that is set to TRUE when Evita fully loads all catalogs, that should be active after startup.
 	 */
 	@Getter private final CompletableFuture<Void> fullyInitialized;
@@ -284,10 +292,28 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	/**
+	 * Constructs a new `Evita` instance with the given configuration. Initial catalog loading is
+	 * scheduled automatically.
+	 *
+	 * **Caveat for callers who construct `ExternalApiServer` (or any other host-CDC subscriber)
+	 * manually against this instance:** use {@link #Evita(EvitaConfiguration, boolean)} with
+	 * `scheduleCatalogLoading=false` instead. Otherwise host events for fast-loading catalogs may
+	 * fire before subscribers attach (HOST-area events are live-tail only) and those catalogs will
+	 * be invisible to the subscribers, leaving e.g. GraphQL/REST endpoints unregistered.
+	 * `EvitaServer` already handles this correctly — its users do not need the boolean overload.
+	 *
+	 * @param configuration evita configuration; never `null`
+	 */
 	public Evita(@Nonnull EvitaConfiguration configuration) {
 		this(configuration, true, null, null);
 	}
 
+	/**
+	 * Constructs a new `Evita` instance with session lifecycle callbacks. Initial catalog loading
+	 * is scheduled automatically. Same caveat as {@link #Evita(EvitaConfiguration)} for callers
+	 * wiring up host-CDC subscribers manually.
+	 */
 	public Evita(
 		@Nonnull EvitaConfiguration configuration,
 		@Nullable Consumer<EvitaSessionContract> onSessionCreationCallback,
@@ -301,6 +327,24 @@ public final class Evita implements EvitaContract {
 		);
 	}
 
+	/**
+	 * Constructs a new `Evita` instance with explicit control over the second phase of the boot
+	 * sequence.
+	 *
+	 * Pass `scheduleCatalogLoading=false` when you intend to attach host-CDC subscribers (e.g. by
+	 * constructing `ExternalApiServer` against this instance) before catalogs are allowed to begin
+	 * loading. Then call {@link #scheduleInitialCatalogLoading()} (or rely on
+	 * `ExternalApiServer.start()` to call it for you) after every subscriber is in place. This
+	 * avoids the live-tail-only race described on {@link #Evita(EvitaConfiguration)}.
+	 *
+	 * Pass `true` (or use {@link #Evita(EvitaConfiguration)}) for pure embedded use without
+	 * external-API surfaces. `EvitaServer` uses `false` internally — its users do not need this
+	 * overload.
+	 *
+	 * @param configuration            evita configuration; never `null`
+	 * @param scheduleCatalogLoading   `true` schedules loading immediately; `false` defers it to
+	 *                                 an explicit {@link #scheduleInitialCatalogLoading()} call
+	 */
 	public Evita(
 		@Nonnull EvitaConfiguration configuration,
 		boolean scheduleCatalogLoading
@@ -486,15 +530,24 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Schedules the initial loading of catalogs by executing all future tasks
-	 * in the `initialLoadCatalogFutures` collection using the provided service executor.
-	 * This method ensures that the catalog loading tasks are executed concurrently
-	 * or sequentially based on the configuration of the service executor.
+	 * Schedules the initial loading of catalogs by executing all future tasks in the
+	 * `initialLoadCatalogFutures` collection using the engine transaction executor.
 	 *
-	 * The tasks in `initialLoadCatalogFutures` are instances of `ProgressingFuture`
-	 * which encapsulate asynchronous operations for loading catalogs.
+	 * **Two-phase boot contract.** This method is the second phase of the boot sequence: it
+	 * must be called *after* any host-level observers (external API providers, change-capture
+	 * subscribers, etc.) have attached to the system CDC stream. Once invoked, host events
+	 * such as {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent.CatalogInstalledIntoLiveView}
+	 * begin firing as catalogs settle into the live view; subscribers attached before this call
+	 * are guaranteed to receive every event.
+	 *
+	 * Calling this method twice is a no-op for the second call (futures only execute once).
 	 */
 	public void scheduleInitialCatalogLoading() {
+		// idempotent: only the first call kicks off the executions; subsequent invocations
+		// (e.g. from `ExternalApiServer.start()` AND `EvitaServer.run()`) are silent no-ops
+		if (!this.catalogLoadingScheduled.compareAndSet(false, true)) {
+			return;
+		}
 		final ProgressingFuture<Catalog>[] progressingFutures = this.initialLoadCatalogFutures.get();
 		if (progressingFutures != null) {
 			final Executor unrejectableExecutor = ProgressingFuture.unrejectableExecutor(this.engineTransactionManager.getExecutor());
@@ -896,13 +949,47 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Blocks the current thread until the associated initialization process is fully completed.
-	 * This method waits for the internal process associated with the `fullyInitialized` object
-	 * to complete its execution. It ensures that the calling thread does not proceed
-	 * until the initialization process is finalized.
+	 * Blocks the current thread until the initial catalog loading is fully completed.
+	 *
+	 * **Pure-wait semantics.** This method does NOT trigger loading — that is the job of
+	 * {@link #scheduleInitialCatalogLoading()}. Calling this method before scheduling has
+	 * happened (and when there is at least one catalog still pending) is a programming error
+	 * and is rejected with {@link GenericEvitaInternalError} rather than silently deadlocking.
+	 *
+	 * Use {@link #loadCatalogsAndWaitUntilFullyInitialized()} when you want the combined
+	 * "schedule and wait" behavior in a single call.
+	 *
+	 * @throws GenericEvitaInternalError if catalog loading is pending and has not been scheduled
 	 */
 	public void waitUntilFullyInitialized() {
+		Assert.isPremiseValid(
+			this.fullyInitialized.isDone() || this.catalogLoadingScheduled.get(),
+			() -> new GenericEvitaInternalError(
+				"Catalog loading has not been scheduled — call scheduleInitialCatalogLoading() first " +
+					"or use loadCatalogsAndWaitUntilFullyInitialized() instead."
+			)
+		);
 		this.fullyInitialized.join();
+	}
+
+	/**
+	 * Convenience combinator that schedules catalog loading and then blocks until it
+	 * completes. Equivalent to:
+	 *
+	 * ```
+	 * scheduleInitialCatalogLoading();
+	 * waitUntilFullyInitialized();
+	 * ```
+	 *
+	 * Use this when no host-level observers need to be attached between scheduling and waiting
+	 * (typical in tests, or in embedded uses that do not subscribe to the system CDC stream).
+	 * In server contexts where external API providers must subscribe before loading begins,
+	 * call {@link #scheduleInitialCatalogLoading()} and {@link #waitUntilFullyInitialized()}
+	 * separately so the provider construction can run between them.
+	 */
+	public void loadCatalogsAndWaitUntilFullyInitialized() {
+		scheduleInitialCatalogLoading();
+		waitUntilFullyInitialized();
 	}
 
 	/**
