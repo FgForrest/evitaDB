@@ -80,7 +80,11 @@ import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogInstalledIntoLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogRemovedFromLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.HostSystemEventDescriptor;
 import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutationDescriptor;
 import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
@@ -155,9 +159,13 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(this.objectBuilderTransformer).build());
 
 		// these objects are not used by the endpoints directly, but are used within the WebSocket protocol for CDC streams,
-		// which we currently cannot specify in the OpenAPI specification. So we at least provide the object documention
+		// which we currently cannot specify in the OpenAPI specification. So we at least provide the object documentation
 		// for client developers.
+		this.buildingContext.registerType(ChangeSystemCaptureCriteriaDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(ChangeSystemCaptureRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CatalogInstalledIntoLiveViewDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CatalogRemovedFromLiveViewDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(HostSystemEventDescriptor.THIS.to(this.unionBuilderTransformer).build());
 		this.buildingContext.registerType(buildChangeSystemCaptureObject());
 		buildMutationInterface();
 		buildOutputMutations();
@@ -165,6 +173,10 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 
 	@Nonnull
 	private OpenApiObject buildChangeSystemCaptureObject() {
+		// the body is polymorphic at runtime: either an engine mutation (`ENGINE` area) or a
+		// host system event (`HOST` area). We document the engine-mutation shape here
+		// as the primary union — host event shapes are registered alongside via
+		// `HostSystemEventDescriptor` so client developers can discover them.
 		return ChangeSystemCaptureDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.property(ChangeSystemCaptureDescriptor.BODY.to(this.propertyBuilderTransformer)

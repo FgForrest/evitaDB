@@ -30,10 +30,10 @@ import lombok.Getter;
 import org.junit.jupiter.api.Assertions;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
@@ -59,7 +59,11 @@ class MockSystemChangeSubscriber implements Subscriber<ChangeSystemCapture>, Aut
 	private final int completeAtCount;
 
 	/**
-	 * List of items received from the publisher.
+	 * List of items received from the publisher. Backed by a {@link CopyOnWriteArrayList}
+	 * so consumer threads (test polling loops) can iterate without external synchronization
+	 * — `onNext` is invoked serially by the publisher per the Flow.Subscriber contract,
+	 * but the test thread that reads `items` runs concurrently with that producer thread.
+	 * Snapshot iteration is cheap given the small number of events test fixtures collect.
 	 */
 	@Getter private final List<ChangeSystemCapture> items;
 
@@ -103,7 +107,7 @@ class MockSystemChangeSubscriber implements Subscriber<ChangeSystemCapture>, Aut
 	 */
 	public MockSystemChangeSubscriber() {
 		this.completeAtCount = Integer.MAX_VALUE;
-		this.items = new ArrayList<>(256);
+		this.items = new CopyOnWriteArrayList<>();
 	}
 
 	/**
@@ -113,7 +117,7 @@ class MockSystemChangeSubscriber implements Subscriber<ChangeSystemCapture>, Aut
 	 */
 	public MockSystemChangeSubscriber(int completeAtCount) {
 		this.completeAtCount = completeAtCount;
-		this.items = new ArrayList<>(completeAtCount);
+		this.items = new CopyOnWriteArrayList<>();
 	}
 
 	/**

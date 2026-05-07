@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.cdc;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -36,6 +37,16 @@ import java.util.Objects;
  *                     it is assumed to begin at the most recent / greatest available version
  * @param sinceIndex   specifies the initial capture point for the CDC stream, it is optional and can be used
  *                     to specify continuation point within an enclosing block of events
+ * @param criteria     the criteria of the capture, OR-ed semantics — matching any of them is sufficient.
+ *                     **Default-criteria divergence vs {@link ChangeCatalogCaptureRequest}.** When `criteria`
+ *                     is `null`, the system stream defaults to {@link SystemCaptureArea#ENGINE} **only** —
+ *                     {@link SystemCaptureArea#HOST} is **not** included in the default flow. This
+ *                     differs from the catalog stream, where a `null` criteria captures all areas.
+ *                     The reason: `HOST` events here are host-local, non-replicable, live-tail-only
+ *                     {@link HostSystemEvent}s; subscribers that have not opted in must keep receiving exactly
+ *                     the engine-mutation flow they already see, so the stream shape does not change silently
+ *                     between versions. Subscribers that want host events must explicitly request
+ *                     {@link SystemCaptureArea#HOST} via {@link ChangeSystemCaptureCriteria}.
  * @param content      the requested content of the capture, by default, only the header information is sent
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
@@ -43,6 +54,7 @@ import java.util.Objects;
 public record ChangeSystemCaptureRequest(
 	@Nullable Long sinceVersion,
 	@Nullable Integer sinceIndex,
+	@Nullable ChangeSystemCaptureCriteria[] criteria,
 	@Nonnull ChangeCaptureContent content
 ) implements ChangeCaptureRequest {
 
@@ -59,9 +71,52 @@ public record ChangeSystemCaptureRequest(
 	 * Builder class for {@link ChangeSystemCaptureRequest}.
 	 */
 	public static class Builder {
-		private Long sinceVersion;
-		private Integer sinceIndex;
-		private ChangeCaptureContent content = ChangeCaptureContent.HEADER;
+		@Nullable private Long sinceVersion;
+		@Nullable private Integer sinceIndex;
+		@Nullable private ChangeSystemCaptureCriteria[] criteria;
+		@Nonnull private ChangeCaptureContent content = ChangeCaptureContent.HEADER;
+
+		/**
+		 * Sets the criteria of the capture.
+		 *
+		 * @param criteria the criteria of the capture
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder criteria(@Nonnull ChangeSystemCaptureCriteria... criteria) {
+			this.criteria = criteria;
+			return this;
+		}
+
+		/**
+		 * Convenience: configures the capture to include the {@link SystemCaptureArea#ENGINE}
+		 * area only. Equivalent to passing a single criteria with `area = ENGINE`.
+		 *
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder engineArea() {
+			this.criteria = new ChangeSystemCaptureCriteria[] {
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE)
+			};
+			return this;
+		}
+
+		/**
+		 * Convenience: configures the capture to include the {@link SystemCaptureArea#HOST}
+		 * area only. Equivalent to passing a single criteria with `area = HOST`.
+		 * Required to receive {@link HostSystemEvent}s — they are not delivered under the
+		 * default null-criteria flow.
+		 *
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder hostArea() {
+			this.criteria = new ChangeSystemCaptureCriteria[] {
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)
+			};
+			return this;
+		}
 
 		/**
 		 * Sets the content of the capture.
@@ -105,6 +160,7 @@ public record ChangeSystemCaptureRequest(
 			return new ChangeSystemCaptureRequest(
 				this.sinceVersion,
 				this.sinceIndex,
+				this.criteria,
 				this.content
 			);
 		}
@@ -114,16 +170,30 @@ public record ChangeSystemCaptureRequest(
 	public boolean equals(Object o) {
 		if (!(o instanceof final ChangeSystemCaptureRequest that)) return false;
 
-		return Objects.equals(this.sinceVersion, that.sinceVersion) && Objects.equals(
-			this.sinceIndex, that.sinceIndex) && this.content == that.content;
+		return Objects.equals(this.sinceVersion, that.sinceVersion)
+			&& Objects.equals(this.sinceIndex, that.sinceIndex)
+			&& this.content == that.content
+			&& Arrays.equals(this.criteria, that.criteria);
 	}
 
 	@Override
 	public int hashCode() {
 		int result = Objects.hashCode(this.sinceVersion);
 		result = 31 * result + Objects.hashCode(this.sinceIndex);
+		result = 31 * result + Arrays.hashCode(this.criteria);
 		result = 31 * result + this.content.hashCode();
 		return result;
+	}
+
+	@Nonnull
+	@Override
+	public String toString() {
+		return "ChangeSystemCaptureRequest{" +
+			"sinceVersion=" + this.sinceVersion +
+			", sinceIndex=" + this.sinceIndex +
+			", criteria=" + Arrays.toString(this.criteria) +
+			", content=" + this.content +
+			'}';
 	}
 
 }

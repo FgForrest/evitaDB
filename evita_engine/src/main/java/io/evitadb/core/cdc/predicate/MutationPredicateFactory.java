@@ -25,6 +25,10 @@ package io.evitadb.core.cdc.predicate;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureArea;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
@@ -36,6 +40,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 import static java.util.Optional.ofNullable;
 
@@ -167,6 +172,39 @@ public interface MutationPredicateFactory {
 		}
 
 		return mutationPredicate == null ? new TruePredicate(context) : mutationPredicate;
+	}
+
+	/**
+	 * Builds a per-request predicate that decides whether a given {@link HostSystemEvent} should be
+	 * delivered to a subscriber with the supplied request. Host events ride on the system stream
+	 * only when the subscriber explicitly opts into {@link SystemCaptureArea#HOST} via
+	 * a {@link ChangeSystemCaptureCriteria}; they are filtered out for every other request.
+	 *
+	 * **Default-criteria divergence.** When `request.criteria() == null`, the predicate rejects
+	 * every host event — mirroring the engine-only default semantics described on
+	 * {@link SystemCaptureArea}.
+	 *
+	 * @param request request to be used for creating the predicate
+	 * @return predicate accepting host events that match the request, rejecting all others
+	 */
+	@Nonnull
+	static Predicate<HostSystemEvent> createHostEventPredicate(@Nonnull ChangeSystemCaptureRequest request) {
+		final ChangeSystemCaptureCriteria[] criteria = request.criteria();
+		if (criteria == null) {
+			// Default divergence: NULL criteria => no host events.
+			return event -> false;
+		}
+		boolean wantsHost = false;
+		for (final ChangeSystemCaptureCriteria criterion : criteria) {
+			final SystemCaptureArea area = criterion.area();
+			// `null` area inside an explicit criterion matches any area, including HOST
+			if (area == null || area == SystemCaptureArea.HOST) {
+				wantsHost = true;
+				break;
+			}
+		}
+		final boolean accept = wantsHost;
+		return accept ? event -> true : event -> false;
 	}
 
 	/**

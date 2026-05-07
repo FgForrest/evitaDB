@@ -27,7 +27,11 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureArea;
+import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -37,7 +41,9 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
+import static io.evitadb.core.cdc.predicate.MutationPredicateFactory.*;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -111,25 +117,79 @@ public class ChangeSystemCapturePublisher implements ChangeCapturePublisher<Chan
 	@Override
 	public void subscribe(Subscriber<? super ChangeSystemCapture> subscriber) {
 		assertActive();
+		// Build the per-subscriber host-event filter from the request criteria. Default-divergence
+		// rule applies: a `null` criteria array yields a constant-`false` predicate so legacy clients
+		// continue receiving engine-mutation events only.
+		final Predicate<HostSystemEvent> hostEventFilter = createHostEventPredicate(this.request);
+		// Build the per-subscriber engine-mutation filter so a HOST-only subscriber
+		// has its mutation traffic filtered out at fanout time. We do NOT reuse the heavyweight
+		// `MutationPredicate` here — that machinery is built around context-stateful iteration
+		// during mutation→capture conversion, and would advance the predicate context on every
+		// fanout call which is wrong for the dispatch path. A small lambda is sufficient.
+		final Predicate<ChangeSystemCapture> mutationFilter = buildMutationCaptureFilter(this.request);
 		final DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription = this.sharedPublisher.subscribe(
 			subscriber,
 			new WalPointerWithContent(
 				ofNullable(this.request.sinceVersion()).orElse(this.sharedPublisher.getVersion() + 1),
 				ofNullable(this.request.sinceIndex()).orElse(0),
 				this.request.content()
-			)
+			),
+			hostEventFilter,
+			mutationFilter
 		);
 		this.subscribers.add(subscription.getSubscriptionId());
+	}
+
+	/**
+	 * Builds a stateless predicate that decides — at fanout time — whether a given engine-mutation
+	 * capture should be delivered to the subscriber that issued the supplied request.
+	 *
+	 * **Default-criteria divergence.** When `request.criteria() == null` the predicate accepts
+	 * every engine-mutation capture (engine-only default — the legacy flow). An empty array
+	 * accepts none. An explicit array that includes ENGINE (or a `null`-area entry, which matches
+	 * any area) accepts all engine mutations; otherwise rejects them.
+	 *
+	 * Host-event captures pulled through this filter (defensive — they should never reach the
+	 * ring buffer in the first place) are accepted unconditionally; host-event delivery is gated
+	 * by {@link MutationPredicateFactory#createHostEventPredicate}.
+	 *
+	 * @param request the capture request whose criteria determine the filter
+	 * @return predicate accepting captures that should be delivered to the subscriber
+	 */
+	@Nonnull
+	private static Predicate<ChangeSystemCapture> buildMutationCaptureFilter(
+		@Nonnull ChangeSystemCaptureRequest request
+	) {
+		final ChangeSystemCaptureCriteria[] criteria = request.criteria();
+		if (criteria == null) {
+			// Default divergence: NULL criteria => engine-only flow (admit every engine mutation).
+			return capture -> true;
+		}
+		boolean acceptsEngine = false;
+		for (final ChangeSystemCaptureCriteria criterion : criteria) {
+			final SystemCaptureArea area = criterion.area();
+			if (area == null || area == SystemCaptureArea.ENGINE) {
+				acceptsEngine = true;
+				break;
+			}
+		}
+		final boolean accept = acceptsEngine;
+		return capture -> {
+			// Host-event captures take a side-channel and never go through the ring-buffer fanout —
+			// admit them defensively if one ever shows up.
+			if (capture.body() instanceof HostSystemEvent) {
+				return true;
+			}
+			return accept;
+		};
 	}
 
 	@Override
 	public void close() {
 		if (this.closed.compareAndSet(false, true)) {
-			if (!this.subscribers.isEmpty()) {
-				if (!this.sharedPublisher.isClosed()) {
-					for (UUID subscriberId : this.subscribers) {
-						this.sharedPublisher.unsubscribe(subscriberId);
-					}
+			if (!this.subscribers.isEmpty() && !this.sharedPublisher.isClosed()) {
+				for (UUID subscriberId : this.subscribers) {
+					this.sharedPublisher.unsubscribe(subscriberId);
 				}
 			}
 		}

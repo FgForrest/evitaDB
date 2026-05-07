@@ -63,7 +63,7 @@ class ChangeSystemCaptureTest implements EvitaTestSupport {
 		@DisplayName("should create system capture without body")
 		void shouldCreateSystemCaptureWithoutBody() {
 			final MutationPredicateContext context = createContext(1L);
-			final ChangeSystemCapture capture = ChangeSystemCapture.systemCapture(
+			final ChangeSystemCapture capture = ChangeSystemCapture.engineMutationCapture(
 				context, Operation.UPSERT, null
 			);
 

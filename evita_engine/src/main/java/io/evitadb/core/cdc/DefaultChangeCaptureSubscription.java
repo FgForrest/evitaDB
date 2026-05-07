@@ -287,6 +287,50 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	}
 
 	/**
+	 * Delivers a single capture to the subscriber out-of-band — without affecting the WAL pointer
+	 * tracking (`lastVersion` / `lastIndex`) or interleaving with the ring-buffer-driven queue
+	 * fill cycle. Used by the system stream to dispatch host events that
+	 * are emitted independently of the engine WAL: they carry a snapshot engine version for
+	 * correlation only and must NOT advance the subscriber's replay pointer.
+	 *
+	 * **Backpressure.** Honors the reactive-streams demand counter — if `requested == 0` at the
+	 * moment of delivery the capture is silently dropped (host events are live-tail only and
+	 * have no replay path). Otherwise the demand is decremented exactly once.
+	 *
+	 * **Ordering.** Acquires the same lock as `consumeQueue` so the host-event `onNext` cannot
+	 * interleave with a queued mutation `onNext`, preserving the strict-ordering guarantee
+	 * documented on the host-event contract.
+	 *
+	 * @param capture the capture to deliver immediately; never `null`
+	 */
+	public void deliverImmediate(@Nonnull T capture) {
+		if (this.finished.get()) {
+			return;
+		}
+		this.lock.lock();
+		try {
+			if (this.finished.get()) {
+				return;
+			}
+			final long demand = this.requested.get();
+			if (demand <= 0L) {
+				// No subscriber demand — drop the event (live-tail only, no replay).
+				return;
+			}
+			this.requested.decrementAndGet();
+			try {
+				final T finalCapture = capture.as(this.content);
+				this.onNextConsumer.accept(finalCapture);
+				this.subscriber.onNext(finalCapture);
+			} catch (Throwable onNextException) {
+				onError(onNextException);
+			}
+		} finally {
+			this.lock.unlock();
+		}
+	}
+
+	/**
 	 * Retrieves the version used for the last pull of the data from the shared publisher.
 	 *
 	 * @return the version used for the last pull

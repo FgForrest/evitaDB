@@ -23,13 +23,17 @@
 
 package io.evitadb.externalApi.rest.api.system;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;
+import io.evitadb.externalApi.api.model.cdc.ChangeCaptureDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
-import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogInstalledIntoLiveViewDescriptor;
 import io.evitadb.externalApi.rest.RestProvider;
 import io.evitadb.externalApi.rest.api.system.model.SystemRootDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
@@ -39,15 +43,16 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.RestTester;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import org.junit.jupiter.api.Tag;
 
-import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
-import static io.evitadb.test.TestTags.REST;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REST;
+import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Tests for REST WebSocket streaming endpoints.
@@ -71,6 +76,114 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 	@DataSet(value = REST_EMPTY_SYSTEM_FOR_SYSTEM_API, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		return new DataCarrier();
+	}
+
+	/**
+	 * Verifies that a REST websocket subscription that opts into BOTH the `ENGINE` and
+	 * `HOST` system-capture areas via the `criteria` field on
+	 * {@link io.evitadb.externalApi.rest.api.system.dto.ChangeSystemCaptureRequestDto} receives
+	 * a polymorphic body envelope carrying a `CatalogInstalledIntoLiveView` host event when a
+	 * catalog is created and transitioned to the live state on the server.
+	 *
+	 * Companion coverage:
+	 * - gRPC: `EvitaClientReadWriteTest#shouldNotifyHostEventsOverGrpcWithInfrastructureCriteria`
+	 * - engine: `SystemChangeObserverTest#shouldDeliverHostEventsOnlyToInfrastructureSubscribers`
+	 */
+	@Test
+	@UseDataSet(REST_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should deliver host event when subscribed with infrastructure criteria")
+	void shouldDeliverHostEventWhenSubscribedWithInfrastructureCriteria(
+		@Nonnull Evita evita,
+		@Nonnull RestTester tester
+	) {
+		final String subscriptionId = createSubscriptionId();
+		final String hostEventCatalog = "hostEventCatalog" + subscriptionId;
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			SYSTEM_CHANGE_CAPTURE_URL_PATH,
+			writer -> {
+				final long startVersion = evita.getEngineState().version() + 1;
+
+				// open subscription that opts into both ENGINE and HOST areas
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"{ " +
+						"\"sinceVersion\": \"" + startVersion + "\", " +
+						"\"criteria\": [" +
+							"{ \"area\": \"ENGINE\" }, " +
+							"{ \"area\": \"HOST\" }" +
+						"], " +
+						"\"content\": \"BODY\" " +
+						"}"
+				));
+				wait(2000);
+
+				// trigger a catalog state transition that emits a host event when the catalog
+				// settles into the ALIVE state on this host
+				evita.defineCatalog(hostEventCatalog);
+				evita.updateCatalog(hostEventCatalog, EvitaSessionContract::goLiveAndClose);
+			},
+			6, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertHostEventPresent(receivedEvents, hostEventCatalog);
+			}
+		);
+	}
+
+	/**
+	 * Asserts that AT LEAST ONE of the received subscription events carries a polymorphic body
+	 * with the `CatalogInstalledIntoLiveView` discriminator and the expected catalog name.
+	 *
+	 * The first event is always the connection-acknowledgement frame and is skipped.
+	 */
+	private void assertHostEventPresent(
+		@Nonnull java.util.List<String> receivedEvents,
+		@Nonnull String expectedCatalogName
+	) {
+		final ObjectMapper mapper = new ObjectMapper();
+		for (int i = 1; i < receivedEvents.size(); i++) {
+			final String event = receivedEvents.get(i);
+			final JsonNode root;
+			try {
+				root = mapper.readTree(event);
+			} catch (Exception ex) {
+				fail("Received event is not a valid JSON document: " + event, ex);
+				return;
+			}
+			final JsonNode body = root
+				.path("payload")
+				.path("data")
+				.path(ChangeCaptureDescriptor.BODY.name());
+			if (body.isMissingNode() || body.isNull()) {
+				continue;
+			}
+			final JsonNode typeNode = body.path("type");
+			if (typeNode.isMissingNode() || typeNode.isNull()) {
+				continue;
+			}
+			if (!CatalogInstalledIntoLiveViewDescriptor.THIS.name().equals(typeNode.asText())) {
+				continue;
+			}
+			// once we found the discriminator, lock the catalog name with assertThatJson so the
+			// failure message matches the project's existing JSON-assertion style
+			assertThatJson(event)
+				.node(resultPath(
+					SYSTEM_CHANGE_CAPTURE_PATH,
+					ChangeCaptureDescriptor.BODY,
+					CatalogInstalledIntoLiveViewDescriptor.CATALOG_NAME
+				))
+				.isEqualTo(expectedCatalogName);
+			assertThatJson(event)
+				.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.OPERATION))
+				.isEqualTo(Operation.UPSERT);
+			return;
+		}
+		fail(
+			"Expected to receive at least one `" + CatalogInstalledIntoLiveViewDescriptor.THIS.name() +
+				"` host event for catalog `" + expectedCatalogName + "`, but received: " + receivedEvents
+		);
 	}
 
 	@Test
@@ -112,10 +225,10 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 			3, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
-					.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.OPERATION))
 						.isEqualTo(Operation.TRANSACTION);
 				assertNextEvent(receivedEvents.get(2), subscriptionId)
-					.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.OPERATION))
 						.isEqualTo(Operation.UPSERT);
 			}
 		);
@@ -146,10 +259,10 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 			3, receivedEvents -> {
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
-					.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.OPERATION))
 					.isEqualTo(Operation.TRANSACTION);
 				assertNextEvent(receivedEvents.get(2), subscriptionId)
-					.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+					.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.OPERATION))
 					.isEqualTo(Operation.UPSERT);
 			}
 		);
@@ -181,16 +294,16 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 				assertConnectionAckEvent(receivedEvents.get(0));
 				assertNextEvent(receivedEvents.get(1), subscriptionId)
 					.and(
-						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.TRANSACTION),
-						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.BODY))
+						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.BODY))
 							.isNotNull()
 					);
 				assertNextEvent(receivedEvents.get(2), subscriptionId)
 					.and(
-						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.OPERATION))
+						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.OPERATION))
 							.isEqualTo(Operation.UPSERT),
-						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
+						it -> it.node(resultPath(SYSTEM_CHANGE_CAPTURE_PATH, ChangeCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
 							.isEqualTo("CreateCatalogSchemaMutation")
 					);
 			}

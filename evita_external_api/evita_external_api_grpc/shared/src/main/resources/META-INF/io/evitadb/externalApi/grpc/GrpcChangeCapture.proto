@@ -11,6 +11,7 @@ import "GrpcLocalMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
 import "GrpcInfrastrutureMutation.proto";
 import "GrpcEvitaDataTypes.proto";
+import "GrpcEnums.proto";
 
 // Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
 // properties.
@@ -87,10 +88,46 @@ message GrpcChangeSystemCapture {
   int32 index = 2;
   // the operation that was performed
   GrpcChangeCaptureOperation operation = 3;
-  // optional body of the operation when it is requested by the GrpcContent
-  GrpcEngineMutation systemMutation = 4;
+  // Body of the capture - exactly one of the two branches when present. Old clients that
+  // do not opt in to HOST never receive `hostEvent`; clients that decode an
+  // unknown oneof tag drop the body silently, which is acceptable.
+  oneof body {
+    // Engine mutation body - durable, WAL-replicated event (ENGINE area).
+    GrpcEngineMutation systemMutation = 4;
+    // Host event body (HOST area, opt-in only).
+    GrpcHostSystemEvent hostEvent = 6;
+  }
   // Represents the timestamp of the commit.
   GrpcOffsetDateTime timestamp = 5;
+}
+
+// Host CDC event. Carried as the body of GrpcChangeSystemCapture
+// when the subscriber explicitly opted in to HOST.
+message GrpcHostSystemEvent {
+  oneof event {
+    // Fires when a catalog's local reference settles into a non-transient state on this host.
+    GrpcCatalogInstalledIntoLiveView catalogInstalled = 1;
+    // Fires when a catalog is fully removed from the live view on this host.
+    GrpcCatalogRemovedFromLiveView catalogRemoved = 2;
+  }
+}
+
+// Fires when a catalog's local reference settles into a non-transient state on this host.
+message GrpcCatalogInstalledIntoLiveView {
+  // the name of the catalog whose reference settled
+  string catalogName = 1;
+  // the non-transient state the catalog settled into
+  GrpcCatalogState observedState = 2;
+  // snapshot of the engine version at emit time (correlation only - does not advance)
+  int64 currentEngineVersion = 3;
+}
+
+// Fires when a catalog is fully removed from the live view on this host.
+message GrpcCatalogRemovedFromLiveView {
+  // the name of the catalog that was removed
+  string catalogName = 1;
+  // snapshot of the engine version at emit time (correlation only - does not advance)
+  int64 currentEngineVersion = 2;
 }
 
 // Heartbeat message sent to the subscriber to keep the connection alive.
@@ -161,4 +198,28 @@ enum GrpcCaptureResponseType {
   CHANGE = 1;
   // The response contains the heartbeat event.
   HEARTBEAT = 2;
+}
+
+// Area covered by the system CDC capture. Deliberately separate from GrpcChangeCaptureArea
+// because the system stream has no SCHEMA/DATA semantics.
+//
+// The zero value SYSTEM_AREA_UNSPECIFIED encodes "no area set" / null on the domain side so
+// proto3's default-value semantics do not collapse a null criterion into ENGINE. See issue
+// #1151 for the rationale.
+enum GrpcSystemCaptureArea {
+  // Sentinel for an absent area — domain `null` round-trips through this value rather than
+  // collapsing into ENGINE because of proto3 default-value semantics.
+  SYSTEM_AREA_UNSPECIFIED = 0;
+  // Engine mutations (durable, WAL-replicated).
+  SYSTEM_AREA_ENGINE = 1;
+  // Host events (HostSystemEvent - non-replicable, live-tail-only).
+  SYSTEM_AREA_HOST = 2;
+}
+
+// Criteria for filtering system CDC captures. OR-ed when multiple are provided.
+// Default-shape divergence vs catalog stream: when criteria is empty, only ENGINE events
+// are delivered - HOST requires explicit opt-in.
+message GrpcChangeSystemCaptureCriteria {
+  // The area of capture (system stream supports only ENGINE and HOST).
+  GrpcSystemCaptureArea area = 1;
 }

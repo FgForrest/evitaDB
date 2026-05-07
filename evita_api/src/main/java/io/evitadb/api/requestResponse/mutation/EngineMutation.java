@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureBody;
 import io.evitadb.api.requestResponse.progress.Progress;
 
 import javax.annotation.Nonnull;
@@ -39,7 +40,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-public non-sealed interface EngineMutation<T> extends Mutation {
+public non-sealed interface EngineMutation<T> extends Mutation, SystemCaptureBody {
 
 	/**
 	 * Returns the type of the result of the {@link Progress} future.
@@ -64,7 +65,7 @@ public non-sealed interface EngineMutation<T> extends Mutation {
 		prepareContext(context);
 		if (predicate.test(this)) {
 			return Stream.of(
-				ChangeSystemCapture.systemCapture(
+				ChangeSystemCapture.engineMutationCapture(
 					predicate.getContext(),
 					operation(),
 					content == ChangeCaptureContent.BODY ? this : null

@@ -284,150 +284,153 @@ public final class GrpcEvitaAPI {
       "rcent\030\001 \001(\005\0223\n\016catalogVersion\030\002 \001(\0132\033.go" +
       "ogle.protobuf.Int64Value\0229\n\024catalogSchem" +
       "aVersion\030\003 \001(\0132\033.google.protobuf.Int32Va" +
-      "lue\"\336\001\n&GrpcRegisterSystemChangeCaptureR" +
+      "lue\"\270\002\n&GrpcRegisterSystemChangeCaptureR" +
       "equest\0221\n\014sinceVersion\030\001 \001(\0132\033.google.pr" +
       "otobuf.Int64Value\022/\n\nsinceIndex\030\002 \001(\0132\033." +
       "google.protobuf.Int32Value\022P\n\007content\030\003 " +
       "\001(\0162?.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcChangeCaptureContent\"\330\002\n\'GrpcReg" +
-      "isterSystemChangeCaptureResponse\022=\n\004uuid" +
-      "\030\001 \001(\0132/.io.evitadb.externalApi.grpc.gen" +
-      "erated.GrpcUuid\022O\n\007capture\030\002 \001(\0132>.io.ev" +
-      "itadb.externalApi.grpc.generated.GrpcCha" +
-      "ngeSystemCapture\022T\n\014responseType\030\003 \001(\0162>" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcCaptureResponseType\022G\n\theartBeat\030\004 \001(" +
-      "\01324.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcHeartBeat\"-\n\026GrpcGetProgressReques" +
-      "t\022\023\n\013catalogName\030\001 \001(\t\"\345\001\n\027GrpcGetProgre" +
-      "ssResponse\022\r\n\005found\030\001 \001(\010\0226\n\021progressInP" +
-      "ercent\030\002 \001(\0132\033.google.protobuf.Int32Valu" +
-      "e\022\023\n\013catalogName\030\003 \001(\t\0223\n\016catalogVersion" +
-      "\030\004 \001(\0132\033.google.protobuf.Int64Value\0229\n\024c" +
-      "atalogSchemaVersion\030\005 \001(\0132\033.google.proto" +
-      "buf.Int32Value2\215&\n\014EvitaService\022[\n\007IsRea" +
-      "dy\022\026.google.protobuf.Empty\0328.io.evitadb." +
-      "externalApi.grpc.generated.GrpcReadyResp" +
-      "onse\022\230\001\n\025CreateReadOnlySession\022>.io.evit" +
-      "adb.externalApi.grpc.generated.GrpcEvita" +
-      "SessionRequest\032?.io.evitadb.externalApi." +
-      "grpc.generated.GrpcEvitaSessionResponse\022" +
-      "\231\001\n\026CreateReadWriteSession\022>.io.evitadb." +
-      "externalApi.grpc.generated.GrpcEvitaSess" +
-      "ionRequest\032?.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcEvitaSessionResponse\022\236\001\n\033" +
-      "CreateBinaryReadOnlySession\022>.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcEvitaSes" +
-      "sionRequest\032?.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcEvitaSessionResponse\022\237\001\n" +
-      "\034CreateBinaryReadWriteSession\022>.io.evita" +
+      "ted.GrpcChangeCaptureContent\022X\n\010criteria" +
+      "\030\004 \003(\0132F.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcChangeSystemCaptureCriteria\"\330" +
+      "\002\n\'GrpcRegisterSystemChangeCaptureRespon" +
+      "se\022=\n\004uuid\030\001 \001(\0132/.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcUuid\022O\n\007capture\030\002 \001" +
+      "(\0132>.io.evitadb.externalApi.grpc.generat" +
+      "ed.GrpcChangeSystemCapture\022T\n\014responseTy" +
+      "pe\030\003 \001(\0162>.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcCaptureResponseType\022G\n\thear" +
+      "tBeat\030\004 \001(\01324.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcHeartBeat\"-\n\026GrpcGetProg" +
+      "ressRequest\022\023\n\013catalogName\030\001 \001(\t\"\345\001\n\027Grp" +
+      "cGetProgressResponse\022\r\n\005found\030\001 \001(\010\0226\n\021p" +
+      "rogressInPercent\030\002 \001(\0132\033.google.protobuf" +
+      ".Int32Value\022\023\n\013catalogName\030\003 \001(\t\0223\n\016cata" +
+      "logVersion\030\004 \001(\0132\033.google.protobuf.Int64" +
+      "Value\0229\n\024catalogSchemaVersion\030\005 \001(\0132\033.go" +
+      "ogle.protobuf.Int32Value2\215&\n\014EvitaServic" +
+      "e\022[\n\007IsReady\022\026.google.protobuf.Empty\0328.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cReadyResponse\022\230\001\n\025CreateReadOnlySession" +
+      "\022>.io.evitadb.externalApi.grpc.generated" +
+      ".GrpcEvitaSessionRequest\032?.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcEvitaSessio" +
+      "nResponse\022\231\001\n\026CreateReadWriteSession\022>.i" +
+      "o.evitadb.externalApi.grpc.generated.Grp" +
+      "cEvitaSessionRequest\032?.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcEvitaSessionRes" +
+      "ponse\022\236\001\n\033CreateBinaryReadOnlySession\022>." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcEvitaSessionRequest\032?.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcEvitaSessionRe" +
+      "sponse\022\237\001\n\034CreateBinaryReadWriteSession\022" +
+      ">.io.evitadb.externalApi.grpc.generated." +
+      "GrpcEvitaSessionRequest\032?.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcEvitaSession" +
+      "Response\022\251\001\n\020TerminateSession\022I.io.evita" +
       "db.externalApi.grpc.generated.GrpcEvitaS" +
-      "essionRequest\032?.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcEvitaSessionResponse\022\251" +
-      "\001\n\020TerminateSession\022I.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcEvitaSessionTerm" +
-      "inationRequest\032J.io.evitadb.externalApi." +
-      "grpc.generated.GrpcEvitaSessionTerminati" +
-      "onResponse\022j\n\017GetCatalogNames\022\026.google.p" +
-      "rotobuf.Empty\032?.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcCatalogNamesResponse\022\230" +
-      "\001\n\017GetCatalogState\022A.io.evitadb.external" +
-      "Api.grpc.generated.GrpcGetCatalogStateRe" +
-      "quest\032B.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcGetCatalogStateResponse\022\222\001\n\rDe" +
-      "fineCatalog\022?.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcDefineCatalogRequest\032@.i" +
+      "essionTerminationRequest\032J.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcEvitaSessio" +
+      "nTerminationResponse\022j\n\017GetCatalogNames\022" +
+      "\026.google.protobuf.Empty\032?.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcCatalogNames" +
+      "Response\022\230\001\n\017GetCatalogState\022A.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcGetCata" +
+      "logStateRequest\032B.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcGetCatalogStateRespo" +
+      "nse\022\222\001\n\rDefineCatalog\022?.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcDefineCatalogR" +
+      "equest\032@.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcDefineCatalogResponse\022\252\001\n\025Del" +
+      "eteCatalogIfExists\022G.io.evitadb.external" +
+      "Api.grpc.generated.GrpcDeleteCatalogIfEx" +
+      "istsRequest\032H.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcDeleteCatalogIfExistsRes" +
+      "ponse\022\222\001\n\rApplyMutation\022?.io.evitadb.ext" +
+      "ernalApi.grpc.generated.GrpcApplyMutatio" +
+      "nRequest\032@.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcApplyMutationResponse\022\254\001\n\031A" +
+      "pplyMutationWithProgress\022?.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcApplyMutati" +
+      "onRequest\032L.io.evitadb.externalApi.grpc." +
+      "generated.GrpcApplyMutationWithProgressR" +
+      "esponse0\001\022\222\001\n\rRenameCatalog\022?.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcRenameCa" +
+      "talogRequest\032@.io.evitadb.externalApi.gr" +
+      "pc.generated.GrpcRenameCatalogResponse\022\254" +
+      "\001\n\031RenameCatalogWithProgress\022?.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcRenameC" +
+      "atalogRequest\032L.io.evitadb.externalApi.g" +
+      "rpc.generated.GrpcApplyMutationWithProgr" +
+      "essResponse0\001\022\225\001\n\016ReplaceCatalog\022@.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcRep" +
+      "laceCatalogRequest\032A.io.evitadb.external" +
+      "Api.grpc.generated.GrpcReplaceCatalogRes" +
+      "ponse\022\256\001\n\032ReplaceCatalogWithProgress\022@.i" +
       "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cDefineCatalogResponse\022\252\001\n\025DeleteCatalog" +
-      "IfExists\022G.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcDeleteCatalogIfExistsReques" +
-      "t\032H.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcDeleteCatalogIfExistsResponse\022\222\001\n\r" +
-      "ApplyMutation\022?.io.evitadb.externalApi.g" +
-      "rpc.generated.GrpcApplyMutationRequest\032@" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcApplyMutationResponse\022\254\001\n\031ApplyMutati" +
-      "onWithProgress\022?.io.evitadb.externalApi." +
-      "grpc.generated.GrpcApplyMutationRequest\032" +
-      "L.io.evitadb.externalApi.grpc.generated." +
-      "GrpcApplyMutationWithProgressResponse0\001\022" +
-      "\222\001\n\rRenameCatalog\022?.io.evitadb.externalA" +
-      "pi.grpc.generated.GrpcRenameCatalogReque" +
-      "st\032@.io.evitadb.externalApi.grpc.generat" +
-      "ed.GrpcRenameCatalogResponse\022\254\001\n\031RenameC" +
-      "atalogWithProgress\022?.io.evitadb.external" +
-      "Api.grpc.generated.GrpcRenameCatalogRequ" +
-      "est\032L.io.evitadb.externalApi.grpc.genera" +
-      "ted.GrpcApplyMutationWithProgressRespons" +
-      "e0\001\022\225\001\n\016ReplaceCatalog\022@.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcReplaceCatalo" +
-      "gRequest\032A.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcReplaceCatalogResponse\022\256\001\n\032" +
-      "ReplaceCatalogWithProgress\022@.io.evitadb." +
-      "externalApi.grpc.generated.GrpcReplaceCa" +
-      "talogRequest\032L.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcApplyMutationWithProgre" +
-      "ssResponse0\001\022\241\001\n\022MakeCatalogMutable\022D.io" +
+      "cReplaceCatalogRequest\032L.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcApplyMutation" +
+      "WithProgressResponse0\001\022\241\001\n\022MakeCatalogMu" +
+      "table\022D.io.evitadb.externalApi.grpc.gene" +
+      "rated.GrpcMakeCatalogMutableRequest\032E.io" +
       ".evitadb.externalApi.grpc.generated.Grpc" +
-      "MakeCatalogMutableRequest\032E.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcMakeCatalo" +
-      "gMutableResponse\022\266\001\n\036MakeCatalogMutableW" +
-      "ithProgress\022D.io.evitadb.externalApi.grp" +
-      "c.generated.GrpcMakeCatalogMutableReques" +
-      "t\032L.io.evitadb.externalApi.grpc.generate" +
-      "d.GrpcApplyMutationWithProgressResponse0" +
-      "\001\022\247\001\n\024MakeCatalogImmutable\022F.io.evitadb." +
-      "externalApi.grpc.generated.GrpcMakeCatal" +
-      "ogImmutableRequest\032G.io.evitadb.external" +
-      "Api.grpc.generated.GrpcMakeCatalogImmuta" +
-      "bleResponse\022\272\001\n MakeCatalogImmutableWith" +
-      "Progress\022F.io.evitadb.externalApi.grpc.g" +
-      "enerated.GrpcMakeCatalogImmutableRequest" +
-      "\032L.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcApplyMutationWithProgressResponse0\001" +
-      "\022\233\001\n\020MakeCatalogAlive\022B.io.evitadb.exter" +
-      "nalApi.grpc.generated.GrpcMakeCatalogAli" +
-      "veRequest\032C.io.evitadb.externalApi.grpc." +
-      "generated.GrpcMakeCatalogAliveResponse\022\262" +
-      "\001\n\034MakeCatalogAliveWithProgress\022B.io.evi" +
-      "tadb.externalApi.grpc.generated.GrpcMake" +
-      "CatalogAliveRequest\032L.io.evitadb.externa" +
-      "lApi.grpc.generated.GrpcApplyMutationWit" +
-      "hProgressResponse0\001\022\233\001\n\020DuplicateCatalog" +
-      "\022B.io.evitadb.externalApi.grpc.generated" +
-      ".GrpcDuplicateCatalogRequest\032C.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcDuplica" +
-      "teCatalogResponse\022\262\001\n\034DuplicateCatalogWi" +
-      "thProgress\022B.io.evitadb.externalApi.grpc" +
-      ".generated.GrpcDuplicateCatalogRequest\032L" +
-      ".io.evitadb.externalApi.grpc.generated.G" +
-      "rpcApplyMutationWithProgressResponse0\001\022\230" +
-      "\001\n\017ActivateCatalog\022A.io.evitadb.external" +
-      "Api.grpc.generated.GrpcActivateCatalogRe" +
-      "quest\032B.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcActivateCatalogResponse\022\260\001\n\033Ac" +
-      "tivateCatalogWithProgress\022A.io.evitadb.e" +
-      "xternalApi.grpc.generated.GrpcActivateCa" +
-      "talogRequest\032L.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcApplyMutationWithProgre" +
-      "ssResponse0\001\022\236\001\n\021DeactivateCatalog\022C.io." +
-      "evitadb.externalApi.grpc.generated.GrpcD" +
-      "eactivateCatalogRequest\032D.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcDeactivateCa" +
-      "talogResponse\022\264\001\n\035DeactivateCatalogWithP" +
-      "rogress\022C.io.evitadb.externalApi.grpc.ge" +
-      "nerated.GrpcDeactivateCatalogRequest\032L.i" +
+      "MakeCatalogMutableResponse\022\266\001\n\036MakeCatal" +
+      "ogMutableWithProgress\022D.io.evitadb.exter" +
+      "nalApi.grpc.generated.GrpcMakeCatalogMut" +
+      "ableRequest\032L.io.evitadb.externalApi.grp" +
+      "c.generated.GrpcApplyMutationWithProgres" +
+      "sResponse0\001\022\247\001\n\024MakeCatalogImmutable\022F.i" +
       "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cApplyMutationWithProgressResponse0\001\022\276\001\n" +
-      "\033RegisterSystemChangeCapture\022M.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcRegiste" +
-      "rSystemChangeCaptureRequest\032N.io.evitadb" +
-      ".externalApi.grpc.generated.GrpcRegister" +
-      "SystemChangeCaptureResponse0\001\022\216\001\n\013GetPro" +
-      "gress\022=.io.evitadb.externalApi.grpc.gene" +
-      "rated.GrpcGetProgressRequest\032>.io.evitad" +
-      "b.externalApi.grpc.generated.GrpcGetProg" +
-      "ressResponse0\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "cMakeCatalogImmutableRequest\032G.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcMakeCat" +
+      "alogImmutableResponse\022\272\001\n MakeCatalogImm" +
+      "utableWithProgress\022F.io.evitadb.external" +
+      "Api.grpc.generated.GrpcMakeCatalogImmuta" +
+      "bleRequest\032L.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcApplyMutationWithProgress" +
+      "Response0\001\022\233\001\n\020MakeCatalogAlive\022B.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcMake" +
+      "CatalogAliveRequest\032C.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcMakeCatalogAlive" +
+      "Response\022\262\001\n\034MakeCatalogAliveWithProgres" +
+      "s\022B.io.evitadb.externalApi.grpc.generate" +
+      "d.GrpcMakeCatalogAliveRequest\032L.io.evita" +
+      "db.externalApi.grpc.generated.GrpcApplyM" +
+      "utationWithProgressResponse0\001\022\233\001\n\020Duplic" +
+      "ateCatalog\022B.io.evitadb.externalApi.grpc" +
+      ".generated.GrpcDuplicateCatalogRequest\032C" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcDuplicateCatalogResponse\022\262\001\n\034Duplicat" +
+      "eCatalogWithProgress\022B.io.evitadb.extern" +
+      "alApi.grpc.generated.GrpcDuplicateCatalo" +
+      "gRequest\032L.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcApplyMutationWithProgressRe" +
+      "sponse0\001\022\230\001\n\017ActivateCatalog\022A.io.evitad" +
+      "b.externalApi.grpc.generated.GrpcActivat" +
+      "eCatalogRequest\032B.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcActivateCatalogRespo" +
+      "nse\022\260\001\n\033ActivateCatalogWithProgress\022A.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "ActivateCatalogRequest\032L.io.evitadb.exte" +
+      "rnalApi.grpc.generated.GrpcApplyMutation" +
+      "WithProgressResponse0\001\022\236\001\n\021DeactivateCat" +
+      "alog\022C.io.evitadb.externalApi.grpc.gener" +
+      "ated.GrpcDeactivateCatalogRequest\032D.io.e" +
+      "vitadb.externalApi.grpc.generated.GrpcDe" +
+      "activateCatalogResponse\022\264\001\n\035DeactivateCa" +
+      "talogWithProgress\022C.io.evitadb.externalA" +
+      "pi.grpc.generated.GrpcDeactivateCatalogR" +
+      "equest\032L.io.evitadb.externalApi.grpc.gen" +
+      "erated.GrpcApplyMutationWithProgressResp" +
+      "onse0\001\022\276\001\n\033RegisterSystemChangeCapture\022M" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcRegisterSystemChangeCaptureRequest\032N." +
+      "io.evitadb.externalApi.grpc.generated.Gr" +
+      "pcRegisterSystemChangeCaptureResponse0\001\022" +
+      "\216\001\n\013GetProgress\022=.io.evitadb.externalApi" +
+      ".grpc.generated.GrpcGetProgressRequest\032>" +
+      ".io.evitadb.externalApi.grpc.generated.G" +
+      "rpcGetProgressResponse0\001B\014P\001\252\002\007EvitaDBb\006" +
+      "proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -630,7 +633,7 @@ public final class GrpcEvitaAPI {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterSystemChangeCaptureRequest_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterSystemChangeCaptureRequest_descriptor,
-        new java.lang.String[] { "SinceVersion", "SinceIndex", "Content", });
+        new java.lang.String[] { "SinceVersion", "SinceIndex", "Content", "Criteria", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterSystemChangeCaptureResponse_descriptor =
       getDescriptor().getMessageTypes().get(32);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcRegisterSystemChangeCaptureResponse_fieldAccessorTable = new

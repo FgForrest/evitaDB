@@ -23,11 +23,16 @@
 
 package io.evitadb.core.cdc;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureArea;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureBody;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
@@ -49,7 +54,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -105,7 +112,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		@Nonnull Set<String> expectedOperations
 	) {
 		for (ChangeSystemCapture capture : subscriber.getItems()) {
-			EngineMutation<?> mutation = capture.body();
+			final SystemCaptureBody mutation = capture.body();
 			if (mutation instanceof CreateCatalogSchemaMutation ccsm) {
 				expectedOperations.remove("create_" + ccsm.getCatalogName());
 			} else if (mutation instanceof ModifyCatalogSchemaMutation mcsm) {
@@ -191,6 +198,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		final ChangeSystemCaptureRequest catchAllRequest = new ChangeSystemCaptureRequest(
 			0L,
 			0,
+			null,
 			ChangeCaptureContent.BODY
 		);
 
@@ -253,6 +261,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		final ChangeSystemCaptureRequest newMutationsRequest = new ChangeSystemCaptureRequest(
 			currentVersion + 1,
 			0,
+			null,
 			ChangeCaptureContent.BODY
 		);
 
@@ -318,6 +327,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		final ChangeSystemCaptureRequest request = new ChangeSystemCaptureRequest(
 			currentVersion + 1,
 			0,
+			null,
 			ChangeCaptureContent.BODY
 		);
 
@@ -403,15 +413,15 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 
 		// Register multiple observers with different requests
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(0L, 0, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(0L, 0, null, ChangeCaptureContent.BODY)
 		);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(1L, 0, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(1L, 0, null, ChangeCaptureContent.BODY)
 		);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher3 = evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(2L, 0, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(2L, 0, null, ChangeCaptureContent.BODY)
 		);
 
 		// Create subscribers for each publisher
@@ -489,6 +499,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		final ChangeSystemCaptureRequest entireWalRequest = new ChangeSystemCaptureRequest(
 			0L,
 			0,
+			null,
 			ChangeCaptureContent.BODY
 		);
 
@@ -496,6 +507,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		final ChangeSystemCaptureRequest newMutationsRequest = new ChangeSystemCaptureRequest(
 			currentVersion + 1,
 			0,
+			null,
 			ChangeCaptureContent.BODY
 		);
 
@@ -596,6 +608,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 			final ChangeSystemCaptureRequest latestMutationsRequest = new ChangeSystemCaptureRequest(
 				evita.getEngineState().version(),
 				0,
+				null,
 				ChangeCaptureContent.BODY
 			);
 
@@ -637,6 +650,479 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 					"latestMutationsSubscriber should receive 6 mutations"
 				);
 			}
+		}
+	}
+
+	/**
+	 * Counts the number of {@link HostSystemEvent}s received by a subscriber.
+	 *
+	 * @param subscriber the subscriber whose received items should be inspected
+	 * @return the number of host events in the subscriber's recorded item list
+	 */
+	private static int countHostEvents(@Nonnull MockSystemChangeSubscriber subscriber) {
+		int count = 0;
+		for (final ChangeSystemCapture capture : subscriber.getItems()) {
+			if (capture.body() instanceof HostSystemEvent) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * Counts the number of {@link EngineMutation}s received by a subscriber.
+	 *
+	 * @param subscriber the subscriber whose received items should be inspected
+	 * @return the number of engine mutations in the subscriber's recorded item list
+	 */
+	private static int countEngineMutations(@Nonnull MockSystemChangeSubscriber subscriber) {
+		int count = 0;
+		for (final ChangeSystemCapture capture : subscriber.getItems()) {
+			if (capture.body() instanceof EngineMutation<?>) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * Filters the captures received by the subscriber that match the given catalog name and event type.
+	 *
+	 * @param subscriber  the subscriber whose received items should be inspected
+	 * @param catalogName the catalog name to filter by
+	 * @param eventType   the host-event subtype class to filter by
+	 * @return list of host events matching the filter, in arrival order
+	 */
+	@Nonnull
+	private static <T extends HostSystemEvent> List<T> hostEventsFor(
+		@Nonnull MockSystemChangeSubscriber subscriber,
+		@Nonnull String catalogName,
+		@Nonnull Class<T> eventType
+	) {
+		final List<T> result = new ArrayList<>();
+		for (final ChangeSystemCapture capture : subscriber.getItems()) {
+			final SystemCaptureBody body = capture.body();
+			if (eventType.isInstance(body)) {
+				final T host = eventType.cast(body);
+				if (host.catalogName().equals(catalogName)) {
+					result.add(host);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Verifies that with default null-criteria the subscriber receives no host events even when the
+	 * observer's `processHostEvent` is invoked. This locks down the deliberate divergence documented
+	 * on `ChangeSystemCaptureRequest`: legacy / default-criteria clients keep the engine-only stream
+	 * shape they always saw.
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("deliver host events only to host-area subscribers")
+	void shouldDeliverHostEventsOnlyToHostSubscribers(@Nonnull Evita evita) {
+		final long currentVersion = evita.getEngineState().version();
+
+		// engine-only subscriber (default null criteria)
+		final ChangeSystemCaptureRequest engineOnlyRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.build();
+		// host-area subscriber
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> enginePublisher =
+				evita.registerSystemChangeCapture(engineOnlyRequest);
+			final ChangeCapturePublisher<ChangeSystemCapture> infraPublisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber engineSubscriber = new MockSystemChangeSubscriber();
+			final MockSystemChangeSubscriber infraSubscriber = new MockSystemChangeSubscriber();
+			enginePublisher.subscribe(engineSubscriber);
+			infraPublisher.subscribe(infraSubscriber);
+
+			// directly emit a host event through the observer; this is the hot path used by Evita
+			// after replaceCatalogReference / a catalog state settled
+			final HostSystemEvent.CatalogInstalledIntoLiveView event =
+				new HostSystemEvent.CatalogInstalledIntoLiveView(
+					"hostEvent_target", CatalogState.ALIVE, currentVersion
+				);
+			evita.getChangeObserver().processHostEvent(event);
+
+			// engine-only subscriber must NOT see the host event
+			assertEquals(
+				0, countHostEvents(engineSubscriber),
+				"Default-criteria (engine-only) subscriber must not receive host events"
+			);
+			// host subscriber must see exactly one host event
+			assertEquals(
+				1, countHostEvents(infraSubscriber),
+				"Host-criteria subscriber must receive the emitted host event"
+			);
+			final List<HostSystemEvent.CatalogInstalledIntoLiveView> received = hostEventsFor(
+				infraSubscriber, "hostEvent_target", HostSystemEvent.CatalogInstalledIntoLiveView.class
+			);
+			assertEquals(1, received.size(), "Should have exactly one matching host event");
+			assertEquals(CatalogState.ALIVE, received.get(0).observedState());
+		}
+	}
+
+	/**
+	 * Symmetric test: a subscriber whose criteria opt only into HOST must NOT receive
+	 * engine mutations even though they arrive on the same stream.
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("deliver engine mutations only to engine-area subscribers")
+	void shouldDeliverEngineMutationsOnlyToEngineSubscribers(@Nonnull Evita evita) {
+		final long currentVersion = evita.getEngineState().version();
+
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> infraPublisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber infraSubscriber = new MockSystemChangeSubscriber();
+			infraPublisher.subscribe(infraSubscriber);
+
+			// Trigger real engine mutations by creating a catalog
+			final String catalog = TEST_CATALOG + "_infra_only";
+			evita.defineCatalog(catalog);
+			evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+			// the infra subscriber must NOT receive any engine mutations from this activity
+			assertEquals(
+				0, countEngineMutations(infraSubscriber),
+				"Host-only subscriber must not receive engine mutations"
+			);
+		}
+	}
+
+	/**
+	 * Subscriber that opts into BOTH engine and host areas must receive both kinds.
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("deliver both engine mutations and host events to combined-criteria subscriber")
+	void shouldDeliverBothToCombinedCriteriaSubscriber(@Nonnull Evita evita) {
+		final long currentVersion = evita.getEngineState().version();
+
+		final ChangeSystemCaptureRequest combinedRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.criteria(
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE),
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)
+			)
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(combinedRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// Trigger an engine mutation
+			final String catalog = TEST_CATALOG + "_combined";
+			evita.defineCatalog(catalog);
+			evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+			// Now emit a synthetic host event manually
+			evita.getChangeObserver().processHostEvent(
+				new HostSystemEvent.CatalogInstalledIntoLiveView(
+					catalog, CatalogState.ALIVE, evita.getEngineState().version()
+				)
+			);
+
+			assertTrue(
+				countEngineMutations(subscriber) >= 1,
+				"Combined subscriber must receive engine mutations"
+			);
+			assertTrue(
+				countHostEvents(subscriber) >= 1,
+				"Combined subscriber must receive host events"
+			);
+		}
+	}
+
+	/**
+	 * A late subscriber attaching with an old `sinceVersion` reads historical engine mutations from
+	 * the WAL — but historical host events are not replayed (live-tail only).
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("not replay historical host events to a late subscriber")
+	void shouldNotReplayHistoricalHostEventsToLateSubscriber(@Nonnull Evita evita) {
+		final long startVersion = evita.getEngineState().version();
+
+		// Generate engine mutations + emit a host event before the subscriber attaches
+		final String catalog = TEST_CATALOG + "_late";
+		evita.defineCatalog(catalog);
+		evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+		evita.getChangeObserver().processHostEvent(
+			new HostSystemEvent.CatalogInstalledIntoLiveView(
+				catalog, CatalogState.ALIVE, evita.getEngineState().version()
+			)
+		);
+
+		// late attach — sinceVersion=startVersion+1 so we get the engine mutations issued above
+		final ChangeSystemCaptureRequest lateRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(startVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.criteria(
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE),
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)
+			)
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(lateRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// historical mutations must be replayed
+			assertTrue(
+				countEngineMutations(subscriber) >= 1,
+				"Late subscriber should receive historical engine mutations from WAL"
+			);
+			// historical host events must NOT be replayed
+			assertEquals(
+				0, countHostEvents(subscriber),
+				"Late subscriber must NOT see historical host events (live-tail only)"
+			);
+		}
+	}
+
+	/**
+	 * Verifies the ordering guarantee documented on `HostSystemEvent`: a host event emitted after a
+	 * mutation on the same engine state lock must land strictly after that mutation in the
+	 * subscriber's stream.
+	 *
+	 * Caveat: due to backpressure, a host event delivered out-of-band via `deliverImmediate` is
+	 * dropped if there is no demand at the moment. The MockSystemChangeSubscriber requests one item
+	 * at a time, so we wait until prior mutations are drained before emitting the event.
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("order host event strictly after preceding mutation")
+	void shouldOrderHostEventStrictlyAfterPrecedingMutation(@Nonnull Evita evita) throws Exception {
+		final long startVersion = evita.getEngineState().version();
+
+		final ChangeSystemCaptureRequest combinedRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(startVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.criteria(
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE),
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)
+			)
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(combinedRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// Trigger an engine mutation. `defineCatalog` and `updateCatalog(...goLiveAndClose)`
+			// both block on completion of the underlying mutation operators, so by the time these
+			// calls return the engine mutations have been processed by the observer chain. We do
+			// NOT busy-wait for delivery here — the deterministic ordering established by issue
+			// #1151 guarantees prior engine mutations land before the host event we emit next.
+			final String catalog = TEST_CATALOG + "_ordering";
+			evita.defineCatalog(catalog);
+			evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+			// Emit the host event immediately. There is no race between the engine-mutation
+			// drain and this host event because `processHostEvent` enqueues the delivery via the
+			// per-subscription executor — the same executor that drains queued mutations — so the
+			// host event lands strictly after every engine mutation submitted before it.
+			evita.getChangeObserver().processHostEvent(
+				new HostSystemEvent.CatalogInstalledIntoLiveView(
+					catalog, CatalogState.ALIVE, evita.getEngineState().version()
+				)
+			);
+
+			assertTrue(
+				countEngineMutations(subscriber) >= 1,
+				"Should have received at least one engine mutation before the host event"
+			);
+			assertTrue(
+				countHostEvents(subscriber) >= 1,
+				"Host event should have been delivered after the engine mutation"
+			);
+			// Find the index of the first host event in the subscriber's stream and verify that
+			// at least one engine mutation arrived earlier — i.e. the host event landed strictly
+			// after preceding mutation traffic.
+			int hostEventIndex = -1;
+			for (int i = 0; i < subscriber.getItems().size(); i++) {
+				if (subscriber.getItems().get(i).body() instanceof HostSystemEvent) {
+					hostEventIndex = i;
+					break;
+				}
+			}
+			assertTrue(
+				hostEventIndex > 0,
+				"Host event should not be the first item — at least one mutation must precede it"
+			);
+		}
+	}
+
+	/**
+	 * Verifies that a `null`-area sentinel inside an explicit criterion entry behaves like
+	 * "match any area" — host events are delivered to the subscriber even though the criterion
+	 * does not name `HOST` explicitly. This is the documented OR-of-criteria semantics
+	 * on `ChangeSystemCaptureCriteria`, distinct from the null-criteria-array default.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("deliver host events when criteria contains a null-area sentinel")
+	void shouldDeliverHostEventWithSinglyNullAreaCriterion(@Nonnull Evita evita) {
+		final long currentVersion = evita.getEngineState().version();
+
+		// Single-criterion request with `null` area means "match any area on the system stream"
+		// — the host event must be delivered, just like an explicit HOST opt-in.
+		final ChangeSystemCaptureRequest nullAreaRequest = new ChangeSystemCaptureRequest(
+			currentVersion + 1,
+			0,
+			new ChangeSystemCaptureCriteria[] { new ChangeSystemCaptureCriteria(null) },
+			ChangeCaptureContent.BODY
+		);
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(nullAreaRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			evita.getChangeObserver().processHostEvent(
+				new HostSystemEvent.CatalogInstalledIntoLiveView(
+					"nullAreaTarget", CatalogState.ALIVE, currentVersion
+				)
+			);
+
+			assertEquals(
+				1, countHostEvents(subscriber),
+				"Null-area criterion (match-any) must deliver host events"
+			);
+		}
+	}
+
+	/**
+	 * An explicitly empty criteria array selects no areas — neither engine mutations nor host
+	 * events should be delivered. This is the FalsePredicate semantic on the predicate factory.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("deliver no host events when criteria array is empty")
+	void shouldNotDeliverHostEventWhenCriteriaArrayIsEmpty(@Nonnull Evita evita) {
+		final long currentVersion = evita.getEngineState().version();
+
+		// Empty criteria array — explicitly select nothing. The predicate factory installs a
+		// FalsePredicate for the engine path and a constant-false predicate for the host event
+		// path; the subscriber must therefore see no host events.
+		final ChangeSystemCaptureRequest emptyRequest = new ChangeSystemCaptureRequest(
+			currentVersion + 1,
+			0,
+			new ChangeSystemCaptureCriteria[0],
+			ChangeCaptureContent.BODY
+		);
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(emptyRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			evita.getChangeObserver().processHostEvent(
+				new HostSystemEvent.CatalogInstalledIntoLiveView(
+					"emptyCriteriaTarget", CatalogState.ALIVE, currentVersion
+				)
+			);
+
+			assertEquals(
+				0, countHostEvents(subscriber),
+				"Empty criteria array must reject every host event"
+			);
+		}
+	}
+
+	/**
+	 * End-to-end verification that deleting a catalog through the engine drives the
+	 * `CatalogRemovedFromLiveView` host event to a HOST subscriber. This exercises
+	 * the actual `RemoveCatalogSchemaMutation` path and the operator's completion-phase emit,
+	 * not a synthetic `processHostEvent` call.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit CatalogRemovedFromLiveView when a catalog is deleted")
+	void shouldEmitCatalogRemovedFromLiveViewOnDeleteCatalog(@Nonnull Evita evita) throws InterruptedException {
+		// Pre-create a catalog that will be deleted. Subscribing AFTER the create avoids
+		// interleaving CatalogInstalledIntoLiveView events that would muddy the assertion.
+		final String victim = TEST_CATALOG + "_to_delete";
+		evita.defineCatalog(victim);
+		evita.updateCatalog(victim, EvitaSessionContract::goLiveAndClose);
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// Drive the actual RemoveCatalogSchemaMutation path through the public engine API.
+			// `deleteCatalogIfExists` blocks on completion via `Progress#onCompletion().toCompletableFuture().join()`,
+			// so when this call returns the catalog has been fully removed from the engine.
+			evita.deleteCatalogIfExists(victim);
+
+			// Poll for the asynchronous host event delivery; the dispatcher is async and there
+			// is no synchronous handle to wait on.
+			final long deadline = System.currentTimeMillis() + 5_000L;
+			while (
+				hostEventsFor(subscriber, victim, HostSystemEvent.CatalogRemovedFromLiveView.class).isEmpty()
+					&& System.currentTimeMillis() < deadline
+			) {
+				Thread.sleep(50L);
+			}
+
+			final List<HostSystemEvent.CatalogRemovedFromLiveView> received = hostEventsFor(
+				subscriber, victim, HostSystemEvent.CatalogRemovedFromLiveView.class
+			);
+			assertFalse(
+				received.isEmpty(),
+				"Deleting a catalog must emit CatalogRemovedFromLiveView for that catalog"
+			);
+			assertEquals(victim, received.get(0).catalogName());
 		}
 	}
 }

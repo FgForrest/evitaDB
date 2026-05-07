@@ -116,8 +116,19 @@ public class RemoveCatalogSchemaMutationOperator implements EngineMutationOperat
 					}
 				);
 
-				evita.removeCatalogSessionRegistryIfPresent(catalogName);
-				catalogToRemove.terminateAndDelete();
+				// Wrap the destructive side-effects in try-finally so the host event fires even
+				// if `terminateAndDelete` throws (e.g. transient I/O failure on disk wipe). The
+				// engine state has already advanced through the live view at this point — fire the
+				// host event regardless so HOST subscribers do not miss the removal.
+				try {
+					evita.removeCatalogSessionRegistryIfPresent(catalogName);
+					catalogToRemove.terminateAndDelete();
+				} finally {
+					// Emit the host event AFTER the catalog has been fully removed from the live
+					// view so HOST-area subscribers can deregister endpoints / clean up
+					// caches that referenced the now-gone catalog.
+					evita.notifyCatalogRemovedFromLiveView(catalogName);
+				}
 				return null;
 			}
 		);

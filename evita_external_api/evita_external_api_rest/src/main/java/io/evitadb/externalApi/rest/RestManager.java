@@ -28,6 +28,7 @@ import com.linecorp.armeria.server.HttpService;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
@@ -114,12 +115,22 @@ public class RestManager {
 		final ObjectMapper objectMapper = new ObjectMapper();
 		this.restRouter = new RestRouter(objectMapper, headerOptions, restOptions);
 
-		// listen to any evita catalog changes
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(
-			this.evita.getEngineState().startVersion() + 1, // we need all changes since the evitaDB start before the GQL API was initialized to accept changes
-			null,
-			ChangeCaptureContent.BODY
-		))
+		// listen to any evita catalog changes — explicitly opt into BOTH areas:
+		// `ENGINE` carries durable WAL-replicated engine mutations (catalog schema create /
+		// rename / etc.), `HOST` carries host-local `HostSystemEvent`s that
+		// announce when a catalog's local reference settles into a stable state on this
+		// host (required to recover from boot-time auto-upgrade and other transient
+		// state transitions where the engine mutation alone does not announce settlement).
+		evita.registerSystemChangeCapture(
+			ChangeSystemCaptureRequest.builder()
+				.sinceVersion(this.evita.getEngineState().startVersion() + 1)
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					ChangeSystemCaptureCriteria.builder().engineArea().build(),
+					ChangeSystemCaptureCriteria.builder().hostArea().build()
+				)
+				.build()
+		)
 			.subscribe(new SystemRestRefreshingObserver(this));
 
 		// register initial endpoints

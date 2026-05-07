@@ -32,6 +32,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
@@ -51,6 +52,7 @@ import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse.Builder;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
@@ -627,11 +629,24 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		serverCallObserver.setOnCancelHandler(subscriber::onTransportTerminated);
 		serverCallObserver.setOnCloseHandler(subscriber::onTransportTerminated);
 
+		final ChangeSystemCaptureCriteria[] criteria;
+		if (request.getCriteriaCount() == 0) {
+			criteria = null;
+		} else {
+			final int count = request.getCriteriaCount();
+			criteria = new ChangeSystemCaptureCriteria[count];
+			for (int i = 0; i < count; i++) {
+				criteria[i] = ChangeCaptureConverter.toChangeSystemCaptureCriteria(
+					request.getCriteria(i)
+				);
+			}
+		}
 		executeWithClientContext(
 			() -> this.evita.registerSystemChangeCapture(
 				new ChangeSystemCaptureRequest(
 					request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
 					request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
+					criteria,
 					toCaptureContent(request.getContent())
 				)
 			).subscribe(subscriber),

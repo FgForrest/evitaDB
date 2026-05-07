@@ -352,7 +352,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 		@DisplayName(
 			"should return system capture when predicate matches"
 		)
-		void shouldReturnSystemCaptureWhenPredicateMatches() {
+		void shouldReturnEngineMutationCaptureWhenPredicateMatches() {
 			final TransactionMutation mutation = createDefault();
 			final MutationPredicate predicate = constantPredicate(true);
 
@@ -380,7 +380,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 		@DisplayName(
 			"should return system capture without body for HEADER"
 		)
-		void shouldReturnSystemCaptureWithoutBodyForHeader() {
+		void shouldReturnEngineMutationCaptureWithoutBodyForHeader() {
 			final TransactionMutation mutation = createDefault();
 			final MutationPredicate predicate = constantPredicate(true);
 

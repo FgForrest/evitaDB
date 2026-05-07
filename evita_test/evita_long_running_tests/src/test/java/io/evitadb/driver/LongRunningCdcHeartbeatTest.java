@@ -234,7 +234,7 @@ class LongRunningCdcHeartbeatTest implements TestConstants, EvitaTestSupport {
 			// Register system change capture
 			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
 				this.evitaClient.registerSystemChangeCapture(
-					new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+					new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 				);
 			publisher.subscribe(subscriber);
 

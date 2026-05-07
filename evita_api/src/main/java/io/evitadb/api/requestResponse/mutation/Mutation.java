@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.mutation;
 
+import io.evitadb.api.requestResponse.cdc.ChangeCaptureBody;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
@@ -31,7 +32,6 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.io.Serializable;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -45,7 +45,7 @@ import java.util.stream.Stream;
 @Immutable
 @ThreadSafe
 public sealed interface Mutation
-	extends MutationContract, Serializable
+	extends MutationContract, ChangeCaptureBody
 	permits EngineMutation, CatalogBoundMutation {
 
 	/**

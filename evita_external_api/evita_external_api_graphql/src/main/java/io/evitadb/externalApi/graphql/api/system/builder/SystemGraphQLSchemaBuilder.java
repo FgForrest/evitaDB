@@ -32,10 +32,13 @@ import graphql.schema.GraphQLUnionType;
 import graphql.schema.PropertyDataFetcher;
 import graphql.schema.TypeResolver;
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityRemoveMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.EntityUpsertMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationUnionDescriptor;
@@ -95,12 +98,17 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationUnionDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SetSortableAttributeCompoundIndexedMutationDescriptor;
+import io.evitadb.externalApi.api.model.TypeDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogContractDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogInstalledIntoLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogRemovedFromLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.HostSystemEventDescriptor;
 import io.evitadb.externalApi.api.system.model.mutation.engine.*;
 import io.evitadb.externalApi.api.transaction.model.mutation.TransactionMutationDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
@@ -143,6 +151,13 @@ import static graphql.schema.GraphQLTypeReference.typeRef;
  */
 public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQLSchemaBuildingContext> {
 
+	/**
+	 * Name of the GraphQL union type that flat-lists every possible body of
+	 * {@link io.evitadb.api.requestResponse.cdc.ChangeSystemCapture}: all engine mutation
+	 * variants plus the two {@link HostSystemEvent} variants.
+	 */
+	private static final String CHANGE_SYSTEM_CAPTURE_BODY_UNION_NAME = "ChangeSystemCaptureBodyUnion";
+
 	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
 	private static final PropertyDataFetcher<Map<NamingConvention, String>> CATALOG_NAME_VARIANTS_DATA_FETCHER = PropertyDataFetcher.fetching(it -> ((Catalog) it).getSchema().getNameVariants());
@@ -162,7 +177,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	}
 
 	@Override
-    @Nonnull
+	@Nonnull
 	public GraphQLSchema build() {
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		this.buildingContext.registerType(scalarEnum);
@@ -184,7 +199,18 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(AttributeElementDescriptor.THIS.to(this.objectBuilderTransformer).build());
 
 		buildMutationInterface();
-		buildOutputMutations();
+		final Map<Class<? extends Mutation>, GraphQLObjectType> registeredOutputMutations = buildOutputMutations();
+
+		// host system event variant object types — must be registered before the
+		// `HostSystemEvent` union and the `ChangeSystemCaptureBody` union refer to them
+		final GraphQLObjectType catalogInstalledObject = buildCatalogInstalledIntoLiveViewObject();
+		final GraphQLObjectType catalogRemovedObject = buildCatalogRemovedFromLiveViewObject();
+		this.buildingContext.registerType(catalogInstalledObject);
+		this.buildingContext.registerType(catalogRemovedObject);
+		this.buildingContext.registerType(buildHostSystemEventUnion(catalogInstalledObject, catalogRemovedObject));
+		this.buildingContext.registerType(
+			buildChangeSystemCaptureBodyUnion(registeredOutputMutations, catalogInstalledObject, catalogRemovedObject)
+		);
 
 		this.buildingContext.registerType(buildChangeSystemCaptureObject());
 		this.buildingContext.registerType(buildGenericChangeSystemCaptureObject());
@@ -193,6 +219,8 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		this.buildingContext.registerType(SchemaSiteDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(DataSiteDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 		this.buildingContext.registerType(ChangeCatalogCaptureCriteriaDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
+		// system criteria input — registering this also auto-registers the `SystemCaptureArea` enum
+		this.buildingContext.registerType(ChangeSystemCaptureCriteriaDescriptor.THIS.to(this.inputObjectBuilderTransformer).build());
 
 		this.buildingContext.registerQueryField(buildLivenessField());
 		this.buildingContext.registerQueryField(buildCatalogField());
@@ -212,7 +240,8 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		return this.buildingContext.buildGraphQLSchema();
 	}
 
-	private void buildOutputMutations() {
+	@Nonnull
+	private Map<Class<? extends Mutation>, GraphQLObjectType> buildOutputMutations() {
 		final Map<Class<? extends Mutation>, GraphQLObjectType> registeredOutputMutations = registerOutputMutations(
 			// infrastructure mutations
 
@@ -342,6 +371,8 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		registerMutationUnion(AttributeMutationUnionDescriptor.THIS, registeredOutputMutations);
 		registerMutationUnion(LocalMutationUnionDescriptor.THIS, registeredOutputMutations);
+
+		return registeredOutputMutations;
 	}
 
 	@Nonnull
@@ -412,8 +443,111 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		return ChangeSystemCaptureDescriptor.THIS
 			.to(this.objectBuilderTransformer)
 			.field(ChangeSystemCaptureDescriptor.BODY.to(this.fieldBuilderTransformer)
-		       .type(typeRef(EngineMutationUnionDescriptor.THIS.name())))
+		       .type(typeRef(CHANGE_SYSTEM_CAPTURE_BODY_UNION_NAME)))
 			.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildCatalogInstalledIntoLiveViewObject() {
+		return CatalogInstalledIntoLiveViewDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildCatalogRemovedFromLiveViewObject() {
+		return CatalogRemovedFromLiveViewDescriptor.THIS
+			.to(this.objectBuilderTransformer)
+			.build();
+	}
+
+	/**
+	 * Builds the polymorphic union of host system event variants delivered on the
+	 * `HOST` system area. Mirrors the sealed `HostSystemEvent` interface in the
+	 * domain model.
+	 */
+	@Nonnull
+	private GraphQLUnionType buildHostSystemEventUnion(
+		@Nonnull GraphQLObjectType catalogInstalledObject,
+		@Nonnull GraphQLObjectType catalogRemovedObject
+	) {
+		final GraphQLUnionType hostSystemEventUnion = HostSystemEventDescriptor.THIS
+			.to(this.unionBuilderTransformer)
+			.possibleType(catalogInstalledObject)
+			.possibleType(catalogRemovedObject)
+			.build();
+
+		final TypeResolver resolver = env -> {
+			final Object source = env.getObject();
+			if (source instanceof HostSystemEvent.CatalogInstalledIntoLiveView) {
+				return catalogInstalledObject;
+			} else if (source instanceof HostSystemEvent.CatalogRemovedFromLiveView) {
+				return catalogRemovedObject;
+			}
+			throw new GenericEvitaInternalError(
+				"Unsupported HostSystemEvent variant: " +
+					(source == null ? "null" : source.getClass().getName())
+			);
+		};
+		this.buildingContext.registerTypeResolver(hostSystemEventUnion, resolver);
+
+		return hostSystemEventUnion;
+	}
+
+	/**
+	 * Builds the flat union covering every possible body type of `ChangeSystemCapture`:
+	 * all engine mutation object types from the existing engine-mutation registry plus
+	 * the two host system event variant object types. Flat-listing is required because
+	 * GraphQL forbids unions of unions.
+	 */
+	@Nonnull
+	private GraphQLUnionType buildChangeSystemCaptureBodyUnion(
+		@Nonnull Map<Class<? extends Mutation>, GraphQLObjectType> registeredOutputMutations,
+		@Nonnull GraphQLObjectType catalogInstalledObject,
+		@Nonnull GraphQLObjectType catalogRemovedObject
+	) {
+		final GraphQLUnionType.Builder unionBuilder = GraphQLUnionType.newUnionType()
+			.name(CHANGE_SYSTEM_CAPTURE_BODY_UNION_NAME)
+			.description(
+				"Union of every possible body of `ChangeSystemCapture`. Carries either an " +
+					"engine mutation (durable, WAL-replicated, `ENGINE` area) or a host system " +
+					"event (host-local, non-replicable, `HOST` area)."
+			);
+
+		// engine mutation variants — every type included in the existing `EngineMutationUnion`
+		for (final TypeDescriptor type : EngineMutationUnionDescriptor.THIS.types()) {
+			unionBuilder.possibleType(typeRef(type.name()));
+		}
+		// host system event variants
+		unionBuilder.possibleType(catalogInstalledObject);
+		unionBuilder.possibleType(catalogRemovedObject);
+
+		final GraphQLUnionType bodyUnion = unionBuilder.build();
+
+		final TypeResolver resolver = env -> {
+			final Object source = env.getObject();
+			if (source instanceof HostSystemEvent.CatalogInstalledIntoLiveView) {
+				return catalogInstalledObject;
+			} else if (source instanceof HostSystemEvent.CatalogRemovedFromLiveView) {
+				return catalogRemovedObject;
+			} else if (source instanceof EngineMutation<?> mutation) {
+				final GraphQLObjectType mutationType = registeredOutputMutations.get(mutation.getClass());
+				if (mutationType == null) {
+					throw new GenericEvitaInternalError(
+						"No GraphQL object type registered for engine mutation `" +
+							mutation.getClass().getName() + "`."
+					);
+				}
+				return mutationType;
+			}
+			throw new GenericEvitaInternalError(
+				"Unsupported `ChangeSystemCapture#body` value: " +
+					(source == null ? "null" : source.getClass().getName())
+			);
+		};
+		this.buildingContext.registerTypeResolver(bodyUnion, resolver);
+
+		return bodyUnion;
 	}
 
 	@Nonnull
@@ -595,6 +729,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			.to(this.staticEndpointBuilderTransformer)
 			.argument(OnSystemChangeCaptureSubscriptionHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnSystemChangeCaptureSubscriptionHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnSystemChangeCaptureSubscriptionHeaderDescriptor.CRITERIA.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(
@@ -609,6 +744,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			.to(this.staticEndpointBuilderTransformer)
 			.argument(OnSystemChangeCaptureSubscriptionHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnSystemChangeCaptureSubscriptionHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
+			.argument(OnSystemChangeCaptureSubscriptionHeaderDescriptor.CRITERIA.to(this.argumentBuilderTransformer))
 			.build();
 
 		return new BuiltFieldDescriptor(

@@ -30,6 +30,7 @@ import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.exception.CatalogRequiresUpgradeException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.UnusableCatalog;
@@ -123,13 +124,21 @@ public class GraphQLManager {
 
 		this.graphQLRouter = new GraphQLRouter(this.objectMapper, evita, headers);
 
-		// listen to any evita catalog changes
-		evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(
-			this.evita.getEngineState().startVersion() + 1, // we need all changes since the evitaDB start before the GQL API was initialized to accept changes
-			null,
-			ChangeCaptureContent.BODY
-		))
-			.subscribe(new SystemGraphQLRefreshingObserver(this));
+		// listen to any evita catalog changes — explicitly opt in to BOTH areas so the GraphQL
+		// router reacts both to engine mutations (durable, WAL-replicated) AND host
+		// events (e.g. boot-time auto-upgrade replacing an UnusableCatalog
+		// placeholder with a real Catalog). Note: `criteria == null` would default to ENGINE
+		// only; passing both criteria entries is required to receive `HostSystemEvent`s.
+		evita.registerSystemChangeCapture(
+			ChangeSystemCaptureRequest.builder()
+				.sinceVersion(this.evita.getEngineState().startVersion() + 1)
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					ChangeSystemCaptureCriteria.builder().engineArea().build(),
+					ChangeSystemCaptureCriteria.builder().hostArea().build()
+				)
+				.build()
+		).subscribe(new SystemGraphQLRefreshingObserver(this));
 
 		// register initial endpoints
 		registerSystemApi();

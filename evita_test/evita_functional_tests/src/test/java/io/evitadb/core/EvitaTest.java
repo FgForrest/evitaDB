@@ -175,7 +175,7 @@ class EvitaTest implements EvitaTestSupport {
 		this.evita.defineCatalog(TEST_CATALOG);
 
 		this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		).subscribe(this.engineSubscriber);
 	}
 
@@ -196,7 +196,7 @@ class EvitaTest implements EvitaTestSupport {
 	@DisplayName("Basic subscriber notification")
 	void shouldNotifyBasicSubscriber() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		);
 
 		// subscriber is registered and wants one event when it happens
@@ -248,7 +248,7 @@ class EvitaTest implements EvitaTestSupport {
 	@DisplayName("Late subscribers notification")
 	void shouldNotifyLateSubscribers() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		);
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
@@ -293,7 +293,7 @@ class EvitaTest implements EvitaTestSupport {
 	@DisplayName("Late subscribers with fixed initial version")
 	void shouldNotifyLateSubscribersWithFixedInitialVersion() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(this.evita.getEngineState().version(), null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(this.evita.getEngineState().version(), null, null, ChangeCaptureContent.BODY)
 		);
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
@@ -339,13 +339,13 @@ class EvitaTest implements EvitaTestSupport {
 	@DisplayName("Multiple publishers notification")
 	void shouldNotifyMultiplePublishers() {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.HEADER)
 		);
 		final MockEngineChangeCaptureSubscriber subscriber1 = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 		publisher1.subscribe(subscriber1);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = this.evita.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		);
 		final MockEngineChangeCaptureSubscriber subscriber2 = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 		publisher2.subscribe(subscriber2);

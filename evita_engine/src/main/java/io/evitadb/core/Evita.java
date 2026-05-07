@@ -48,6 +48,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.progress.Progress;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
@@ -466,7 +467,7 @@ public final class Evita implements EvitaContract {
 
 		// register the system observer that will capture changes in the system and emit observability events
 		this.changeObserver.registerObserver(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		).subscribe(
 			new EngineStatisticsPublisher(
 				this::emitEvitaStatistics,
@@ -1131,7 +1132,7 @@ public final class Evita implements EvitaContract {
 				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				catalog.processWriteAheadLog(
 					updatedCatalog -> {
-						this.engineState.updateAndGet(
+						final ExpandedEngineState afterReplay = this.engineState.updateAndGet(
 							existingState -> {
 								if (existingState == null) {
 									// may be null, when the engine is shutting down
@@ -1143,6 +1144,16 @@ public final class Evita implements EvitaContract {
 						);
 						if (updatedCatalog instanceof Catalog theUpdatedCatalog) {
 							theUpdatedCatalog.notifyCatalogPresentInLiveView();
+						}
+						// Emit the host event so HOST-area subscribers learn that the
+						// post-WAL-replay catalog reference has settled on this host. This path
+						// bypasses `replaceCatalogReference` (which is the canonical chokepoint
+						// elsewhere) so the emit must be wired explicitly here — see issue #1151.
+						// Skip the emit when the engine state collapsed to null mid-shutdown.
+						if (afterReplay != null) {
+							notifyCatalogStateSettled(
+								updatedCatalog.getName(), updatedCatalog.getCatalogState()
+							);
 						}
 					}
 				);
@@ -1334,7 +1345,7 @@ public final class Evita implements EvitaContract {
 	 * @param cause       the failure carried by the resulting {@link CatalogCorruptedException}
 	 */
 	private void markCatalogCorrupted(@Nonnull String catalogName, @Nonnull Throwable cause) {
-		this.engineState.updateAndGet(
+		final ExpandedEngineState updated = this.engineState.updateAndGet(
 			existingState -> {
 				if (existingState == null) {
 					return null;
@@ -1350,6 +1361,12 @@ public final class Evita implements EvitaContract {
 				}
 			}
 		);
+		// Emit the host event so HOST-area subscribers (GraphQL/REST/gRPC) learn about
+		// the CORRUPTED transition without a server restart — see issue #1151. Skip the emit when
+		// the engine state is null (shutdown race) so we do not call into a closed observer.
+		if (updated != null) {
+			notifyCatalogStateSettled(catalogName, CatalogState.CORRUPTED);
+		}
 		this.emitEvitaStatistics();
 	}
 
@@ -1448,6 +1465,13 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Replaces current catalog reference with updated one.
+	 *
+	 * After installing the new reference and waking the per-catalog observer, emits a
+	 * {@link HostSystemEvent.CatalogInstalledIntoLiveView} on the system CDC stream so any
+	 * HOST-area subscriber learns that the catalog is now usable on this host —
+	 * regardless of which path produced this call (boot load, post-upgrade retry,
+	 * post-activation load, etc.). This is the canonical chokepoint for the
+	 * "catalog X is now in state Y on this host" signal.
 	 */
 	private void replaceCatalogReference(@Nonnull Catalog catalog) {
 		notNull(catalog, "Sanity check.");
@@ -1460,6 +1484,70 @@ public final class Evita implements EvitaContract {
 
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();
+
+		// emit the host event so external observers (GraphQL/REST/gRPC) can register endpoints
+		// for the freshly-installed catalog without restart — see issue #1151
+		notifyCatalogStateSettled(catalog.getName(), catalog.getCatalogState());
+	}
+
+	/**
+	 * Emits a {@link HostSystemEvent.CatalogInstalledIntoLiveView} on the system CDC stream for
+	 * the given catalog. Used by `replaceCatalogReference` and by completion-phase callbacks of
+	 * mutation operators that install a settled catalog reference (real `Catalog` for ALIVE /
+	 * WARMING_UP, `UnusableCatalog` for INACTIVE / MISSING / OUT_OF_DATE / CORRUPTED) without
+	 * funneling through `replaceCatalogReference`.
+	 *
+	 * The event is host-local and live-tail only — it does NOT advance the engine version
+	 * counter; the snapshot version it carries is for correlation.
+	 *
+	 * @param catalogName  name of the catalog whose reference settled; never `null`
+	 * @param observedState the non-transient state the catalog settled into; the precondition is
+	 *                      enforced by the {@link HostSystemEvent.CatalogInstalledIntoLiveView}
+	 *                      record's compact constructor — passing a transitional state will fail
+	 *                      fast as a programming error
+	 */
+	public void notifyCatalogStateSettled(
+		@Nonnull String catalogName,
+		@Nonnull CatalogState observedState
+	) {
+		// Defensive no-op on shutdown — see issue #1151. Both the engine state and the change
+		// observer are torn down concurrently with in-flight operators during close; an operator's
+		// completion-phase emit reaching this method post-close must NOT wedge the operator's
+		// future with an `InstanceTerminatedException`. Host events are best-effort on shutdown.
+		final ExpandedEngineState snapshot = this.engineState.get();
+		if (snapshot == null || !this.changeObserver.isActive()) {
+			return;
+		}
+		final HostSystemEvent.CatalogInstalledIntoLiveView event =
+			new HostSystemEvent.CatalogInstalledIntoLiveView(
+				catalogName,
+				observedState,
+				snapshot.version()
+			);
+		this.changeObserver.processHostEvent(event);
+	}
+
+	/**
+	 * Emits a {@link HostSystemEvent.CatalogRemovedFromLiveView} on the system CDC stream for the
+	 * given catalog. Used by completion-phase callbacks of mutation operators that fully remove a
+	 * catalog from the live view (e.g. `RemoveCatalogSchemaMutationOperator`).
+	 *
+	 * The event is host-local and live-tail only — it does NOT advance the engine version.
+	 *
+	 * @param catalogName name of the catalog removed from the live view; never `null`
+	 */
+	public void notifyCatalogRemovedFromLiveView(@Nonnull String catalogName) {
+		// Defensive no-op on shutdown — see `notifyCatalogStateSettled`.
+		final ExpandedEngineState snapshot = this.engineState.get();
+		if (snapshot == null || !this.changeObserver.isActive()) {
+			return;
+		}
+		final HostSystemEvent.CatalogRemovedFromLiveView event =
+			new HostSystemEvent.CatalogRemovedFromLiveView(
+				catalogName,
+				snapshot.version()
+			);
+		this.changeObserver.processHostEvent(event);
 	}
 
 	/**

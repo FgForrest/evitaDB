@@ -150,11 +150,20 @@ Request allows you to specify the following parameters:
 <dl>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
+    The engine version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next engine version (i.e. the changes made to the engine in the future). The engine version is a monotonically advancing counter tied to the evitaDB instance and incremented with every engine mutation; it is distinct from per-catalogue versions delivered by the catalogue change capture stream.
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
     The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. The index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
+  </dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCaptureCriteria.java</SourceClass>[] `criteria` (optional)</dt>
+  <dd>
+    Array of criteria that specify which areas of the system stream you are interested in. If multiple criteria are specified, matching any of them is sufficient (OR logic). Each criterion currently selects a single <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SystemCaptureArea.java</SourceClass>:
+    <ul>
+        <li>`ENGINE` — durable, WAL-replicated engine mutations (carries <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> bodies).</li>
+        <li>`HOST` — host-local, non-replicable host events about the live view of catalogues on this host (carries <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass> bodies). See [Host system events](#host-system-events) below.</li>
+    </ul>
+    **Default-criteria divergence vs the catalogue stream.** When this property is omitted (or `null`), the subscription is treated as `ENGINE`-only — `HOST` events are **never** delivered without an explicit criterion opting into them. The catalogue stream defaults to all areas; the system stream defaults to engine-only because `HOST` carries semantics that legacy clients have not opted in to (host-local, live-tail-only, no historical replay).
   </dd>
   <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass> `content`</dt>
   <dd>
@@ -188,9 +197,9 @@ Engine capture events are represented by <SourceClass>evita_api/src/main/java/io
         <li>`TRANSACTION` - Delimiting operation signaling the beginning of a transaction.</li>
     </ul>
   </dd>
-  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass> `body` (optional)</dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SystemCaptureBody.java</SourceClass> `body` (optional)</dt>
   <dd>
-    Optional body of the operation when it is requested by the requested <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
+    Optional body of the event when it is requested by the requested <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>. The body is polymorphic — for the `ENGINE` area it carries an <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/mutation/EngineMutation.java</SourceClass>; for the `HOST` area it carries a <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass> (see [Host system events](#host-system-events) below).
   </dd>
 </dl>
 
@@ -215,9 +224,9 @@ Engine capture events are represented by <SourceClass>evita_api/src/main/java/io
         <li>`TRANSACTION` - Delimiting operation signaling the beginning of a transaction.</li>
     </ul>
   </dd>
-  <dt>`EngineMutationUnion` `body` (optional)</dt>
+  <dt>`SystemCaptureBodyUnion` `body` (optional)</dt>
   <dd>
-    Optional body of the operation when it is requested by the requested <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>.
+    Optional body of the event when it is requested by the requested <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCaptureContent.java</SourceClass>. The body is a union — for the `ENGINE` area it carries an `EngineMutationUnion` value; for the `HOST` area it carries a `HostSystemEventUnion` value (see [Host system events](#host-system-events) below).
   </dd>
 </dl>
 
@@ -281,11 +290,20 @@ Request allows you to specify the following parameters:
 <dl>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
+    The engine version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next engine version (i.e. the changes made to the engine in the future). The engine version is a monotonically advancing counter tied to the evitaDB instance and incremented with every engine mutation; it is distinct from per-catalogue versions delivered by the catalogue change capture stream.
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
     The index of the mutation within the same transaction from which you want to start receiving changes. If not specified, the change stream will start from the first mutation of the specified version. The index allows you to precisely specify the starting point in case you have already processed some mutations of the specified version.
+  </dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeSystemCaptureCriteria.java</SourceClass>[] `criteria` (optional)</dt>
+  <dd>
+    Array of criteria that specify which areas of the system stream you are interested in. If multiple criteria are specified, matching any of them is sufficient (OR logic). Each criterion currently selects a single <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/SystemCaptureArea.java</SourceClass>:
+    <ul>
+        <li>`ENGINE` — durable, WAL-replicated engine mutations.</li>
+        <li>`HOST` — host-local, non-replicable events about the live view of catalogues on this host (see [Host system events](#host-system-events) below).</li>
+    </ul>
+    **Default-criteria divergence vs the catalogue stream.** When this argument is omitted, the subscription is treated as `ENGINE`-only — `HOST` events are **never** delivered without an explicit criterion opting into them. The catalogue stream defaults to all areas; the system stream defaults to engine-only because `HOST` carries semantics that legacy clients have not opted in to (host-local, live-tail-only, no historical replay).
   </dd>
 </dl>
 
@@ -309,9 +327,9 @@ Engine capture events are represented by the `ChangeSystemCapture` (or `GenericC
         <li>`TRANSACTION` - Delimiting operation signaling the beginning of a transaction.</li>
     </ul>
   </dd>
-  <dt>`EngineMutationUnion` `body`</dt>
+  <dt>`SystemCaptureBodyUnion` `body`</dt>
   <dd>
-    Body of the operation.
+    Body of the event. The body is a union — for the `ENGINE` area it carries an `EngineMutationUnion` value; for the `HOST` area it carries a `HostSystemEventUnion` value (see [Host system events](#host-system-events) below).
   </dd>
 </dl>
 
@@ -342,6 +360,31 @@ Currently, multiple engine mutations cannot be wrapped into a single transaction
 
 </Note>
 
+### Host system events
+
+In addition to durable engine mutations, the system CDC stream can also deliver **host system events** — host-local, non-replicable notifications about the live view of catalogues on the host that produced them. They exist to surface transitions that an engine mutation alone cannot describe, most notably the moment a boot-time auto-upgraded catalogue actually becomes usable on this host (between the durable upgrade mutation in the WAL and the in-memory catalogue reference being installed in the live view).
+
+Host system events are represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass> and form a sealed family with two variants:
+
+<dl>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass>`.CatalogInstalledIntoLiveView`</dt>
+  <dd>
+    Emitted whenever a catalogue is (re)installed into the live view on the host. Carries the catalogue name and the observed <SourceClass>evita_api/src/main/java/io/evitadb/api/CatalogState.java</SourceClass> that the catalogue settled into. Active states (`ALIVE`, `WARMING_UP`) mean the catalogue is queryable; non-active settled states (`INACTIVE`, `OUT_OF_DATE`, `CORRUPTED`, `MISSING`) mean it is not addressable through the external APIs.
+  </dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/HostSystemEvent.java</SourceClass>`.CatalogRemovedFromLiveView`</dt>
+  <dd>
+    Emitted when a catalogue is removed from the live view on the host (deletion path, mark-missing, etc.). Carries the catalogue name. Subscribers should drop any cached endpoint or schema for the named catalogue.
+  </dd>
+</dl>
+
+#### Delivery semantics
+
+Host system events have intentionally narrower delivery guarantees than engine mutations:
+
+- **Live-tail only.** Host events are not persisted and are **not** replayed for late subscribers via `sinceVersion`. A subscription that opens with a past `sinceVersion` receives the historical engine mutations from that version forward, but only the host events that are emitted from the moment the subscription is attached.
+- **Host-local and non-replicable.** Each host produces its own host events for its own live view; they are not part of the WAL and do not propagate between replicas.
+- **Opt-in.** As described in the `criteria` parameter above, host events are only delivered when the subscription explicitly includes the `HOST` area in its criteria. The default (omitted criteria) is `ENGINE`-only.
+- **Correlation only — not a version cursor.** Each capture wrapping a host event reports the engine version observed at the moment of emission for correlation with the surrounding engine mutation flow, but emitting a host event does not advance the engine version counter.
 
 ## Catalogue change capture
 

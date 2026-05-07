@@ -124,6 +124,9 @@ public class MakeCatalogAliveMutationOperator implements EngineMutationOperator<
 
 					newCatalog.notifyCatalogPresentInLiveView();
 					evita.discardSuspension(newCatalog.getName());
+					// Emit the host event AFTER the live-view callback so the system CDC stream
+					// reflects the ALIVE settlement strictly after the underlying mutation.
+					evita.notifyCatalogStateSettled(catalogName, CatalogState.ALIVE);
 
 					return new CommitVersions(newCatalog.getVersion(), newCatalog.getSchema().version());
 				}
