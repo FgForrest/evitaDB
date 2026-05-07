@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchema
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.externalApi.rest.RestManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -109,17 +110,25 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 					this.restManager.emitObservabilityEvents(setCatalogMutability.getCatalogName());
 				}
 			} else if (body instanceof SetCatalogStateMutation setState) {
-				// if the catalog is set to active, we need to register it, otherwise we unregister it
-				if (setState.isActive()) {
-					if (this.restManager.registerCatalog(setState.getCatalogName())) {
-						this.restManager.emitObservabilityEvents(setState.getCatalogName());
-					}
-				} else {
+				// the engine mutation merely records intent; the authoritative "is the catalog
+				// usable now?" signal arrives as a `CatalogInstalledIntoLiveView` host event after
+				// the state transition completes. We deactivate eagerly here (active=false) but
+				// defer activation to the host event branch below.
+				if (!setState.isActive()) {
 					this.restManager.unregisterCatalog(setState.getCatalogName());
 				}
 			} else if (body instanceof RemoveCatalogSchemaMutation rccs) {
-				// if the catalog schema is removed, we need to unregister it
+				// the engine mutation marks intent to delete; actual removal from the live view is
+				// confirmed by the `CatalogRemovedFromLiveView` host event below.
 				this.restManager.unregisterCatalog(rccs.getCatalogName());
+			} else if (body instanceof UpgradeCatalogFormatMutation upgrade) {
+				// defensive — the host event (`CatalogInstalledIntoLiveView`) is the primary signal
+				// for the actual register/refresh, but if the engine emits the upgrade mutation
+				// first and we already have an endpoint for the catalog, refresh it so consumers
+				// don't see a stale schema until the host event arrives.
+				if (this.restManager.refreshCatalog(upgrade.getCatalogName())) {
+					this.restManager.emitObservabilityEvents(upgrade.getCatalogName());
+				}
 			} else if (body instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
 				handleCatalogInstalled(installed);
 			} else if (body instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {

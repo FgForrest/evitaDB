@@ -42,7 +42,7 @@ public interface ChangeSystemCaptureRequestDescriptor {
 	PropertyDescriptor SINCE_VERSION = PropertyDescriptor.builder()
 		.name("sinceVersion")
 		.description("""
-            Specifies the initial capture point (catalog version) for the CDC stream, if not specified
+            Specifies the initial capture point (engine version) for the system CDC stream, if not specified
             it is assumed to begin at the most recent available version.
             """)
 		.type(nullable(Long.class))
