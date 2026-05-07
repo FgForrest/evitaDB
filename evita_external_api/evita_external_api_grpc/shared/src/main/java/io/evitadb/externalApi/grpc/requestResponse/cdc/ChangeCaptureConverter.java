@@ -30,10 +30,12 @@ import io.evitadb.api.requestResponse.cdc.*;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
+import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
@@ -120,6 +122,12 @@ public class ChangeCaptureConverter {
 		}
 		if (request.sinceIndex() != null) {
 			builder.setSinceIndex(Int32Value.of(request.sinceIndex()));
+		}
+		final ChangeSystemCaptureCriteria[] criteria = request.criteria();
+		if (criteria != null) {
+			for (final ChangeSystemCaptureCriteria criterion : criteria) {
+				builder.addCriteria(toGrpcChangeSystemCaptureCriteria(criterion));
+			}
 		}
 
 		return builder.build();
@@ -287,22 +295,38 @@ public class ChangeCaptureConverter {
 	/**
 	 * Converts a {@link GrpcChangeSystemCapture} to a {@link ChangeSystemCapture}.
 	 *
+	 * Handles the `body` oneof discriminator:
+	 * - `SYSTEMMUTATION` → engine mutation body (ENGINE area).
+	 * - `HOSTEVENT` → host system event body (HOST area, opt-in only).
+	 * - `BODY_NOT_SET` → header-only capture; body is `null`.
+	 *
 	 * @param changeSystemCapture the capture to convert
 	 * @return the converted request
 	 */
 	@Nonnull
 	public static ChangeSystemCapture toChangeSystemCapture(@Nonnull GrpcChangeSystemCapture changeSystemCapture) {
+		final SystemCaptureBody body = switch (changeSystemCapture.getBodyCase()) {
+			case SYSTEMMUTATION ->
+				DelegatingEngineMutationConverter.INSTANCE.convert(changeSystemCapture.getSystemMutation());
+			case HOSTEVENT -> toHostSystemEvent(changeSystemCapture.getHostEvent());
+			case BODY_NOT_SET -> null;
+		};
 		return new ChangeSystemCapture(
 			changeSystemCapture.getVersion(),
 			changeSystemCapture.getIndex(),
 			EvitaDataTypesConverter.toOffsetDateTime(changeSystemCapture.getTimestamp()),
 			EvitaEnumConverter.toOperation(changeSystemCapture.getOperation()),
-			DelegatingEngineMutationConverter.INSTANCE.convert(changeSystemCapture.getSystemMutation())
+			body
 		);
 	}
 
 	/**
 	 * Converts a {@link ChangeSystemCapture} to a {@link GrpcChangeSystemCapture}.
+	 *
+	 * Picks the correct body oneof branch based on the runtime body type:
+	 * - {@link EngineMutation} → `systemMutation` (ENGINE area).
+	 * - {@link HostSystemEvent} → `hostEvent` (HOST area).
+	 * - `null` (HEADER content) → leaves the oneof unset.
 	 *
 	 * @param capture the capture to convert
 	 * @return the converted request
@@ -317,9 +341,16 @@ public class ChangeCaptureConverter {
 			.setOperation(
 				EvitaEnumConverter.toGrpcOperation(
 					capture.operation()));
-		if (capture.body() != null) {
+		final SystemCaptureBody body = capture.body();
+		if (body instanceof final EngineMutation<?> engineMutation) {
 			builder.setSystemMutation(
-				DelegatingEngineMutationConverter.INSTANCE.convert(capture.body())
+				DelegatingEngineMutationConverter.INSTANCE.convert(engineMutation)
+			);
+		} else if (body instanceof final HostSystemEvent hostEvent) {
+			builder.setHostEvent(toGrpcHostSystemEvent(hostEvent));
+		} else if (body != null) {
+			throw new GenericEvitaInternalError(
+				"Unsupported SystemCaptureBody type: " + body.getClass().getName()
 			);
 		}
 		return builder.build();
@@ -497,6 +528,151 @@ public class ChangeCaptureConverter {
 			builder.addAllContainerName(Arrays.asList(schemaSite.containerName()));
 		}
 		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link HostSystemEvent} to a {@link GrpcHostSystemEvent}.
+	 *
+	 * Pattern-switches over the sealed variant set; defensively rejects any unknown
+	 * subtype with a {@link GenericEvitaInternalError} (the sealed contract makes this
+	 * unreachable, but the defensive-design rule applies anyway).
+	 *
+	 * @param event the host event to convert
+	 * @return the converted gRPC representation
+	 */
+	@Nonnull
+	public static GrpcHostSystemEvent toGrpcHostSystemEvent(@Nonnull HostSystemEvent event) {
+		final GrpcHostSystemEvent.Builder builder = GrpcHostSystemEvent.newBuilder();
+		// pattern-matching switch on sealed types is a Java 21 feature; evitaDB targets Java 17
+		// so we use an `instanceof`-pattern chain that the compiler still supports here
+		if (event instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
+			builder.setCatalogInstalled(
+				GrpcCatalogInstalledIntoLiveView.newBuilder()
+					.setCatalogName(installed.catalogName())
+					.setObservedState(EvitaEnumConverter.toGrpcCatalogState(installed.observedState()))
+					.setCurrentEngineVersion(installed.currentEngineVersion())
+					.build()
+			);
+		} else if (event instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {
+			builder.setCatalogRemoved(
+				GrpcCatalogRemovedFromLiveView.newBuilder()
+					.setCatalogName(removed.catalogName())
+					.setCurrentEngineVersion(removed.currentEngineVersion())
+					.build()
+			);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unsupported HostSystemEvent type: " + event.getClass().getName()
+			);
+		}
+		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link GrpcHostSystemEvent} to a {@link HostSystemEvent}.
+	 *
+	 * Switches on the oneof event-case discriminator. {@code EVENT_NOT_SET} is treated
+	 * as a programming error — a wire-level host event must always carry one variant.
+	 *
+	 * @param grpc the gRPC host event to convert
+	 * @return the converted domain host event
+	 */
+	@Nonnull
+	public static HostSystemEvent toHostSystemEvent(@Nonnull GrpcHostSystemEvent grpc) {
+		return switch (grpc.getEventCase()) {
+			case CATALOGINSTALLED -> {
+				final GrpcCatalogInstalledIntoLiveView installed = grpc.getCatalogInstalled();
+				yield new HostSystemEvent.CatalogInstalledIntoLiveView(
+					installed.getCatalogName(),
+					EvitaEnumConverter.toCatalogState(installed.getObservedState()),
+					installed.getCurrentEngineVersion()
+				);
+			}
+			case CATALOGREMOVED -> {
+				final GrpcCatalogRemovedFromLiveView removed = grpc.getCatalogRemoved();
+				yield new HostSystemEvent.CatalogRemovedFromLiveView(
+					removed.getCatalogName(),
+					removed.getCurrentEngineVersion()
+				);
+			}
+			case EVENT_NOT_SET -> throw new GenericEvitaInternalError(
+				"HostSystemEvent oneof not set"
+			);
+		};
+	}
+
+	/**
+	 * Converts a {@link SystemCaptureArea} to a {@link GrpcSystemCaptureArea}.
+	 *
+	 * @param area the system capture area to convert
+	 * @return the converted gRPC representation
+	 */
+	@Nonnull
+	public static GrpcSystemCaptureArea toGrpcSystemCaptureArea(@Nonnull SystemCaptureArea area) {
+		return switch (area) {
+			case ENGINE -> GrpcSystemCaptureArea.SYSTEM_AREA_ENGINE;
+			case HOST -> GrpcSystemCaptureArea.SYSTEM_AREA_HOST;
+		};
+	}
+
+	/**
+	 * Converts a {@link GrpcSystemCaptureArea} to a {@link SystemCaptureArea}.
+	 *
+	 * The proto3 default-value sentinel {@link GrpcSystemCaptureArea#SYSTEM_AREA_UNSPECIFIED}
+	 * round-trips a domain `null` — see {@link #toChangeSystemCaptureCriteria}. This method
+	 * therefore returns `null` for `SYSTEM_AREA_UNSPECIFIED` instead of throwing, so the
+	 * criterion can carry the match-any semantic across the wire.
+	 *
+	 * @param grpc the gRPC system capture area to convert
+	 * @return the converted domain system capture area, or `null` for the unspecified sentinel
+	 */
+	@Nullable
+	public static SystemCaptureArea toSystemCaptureArea(@Nonnull GrpcSystemCaptureArea grpc) {
+		return switch (grpc) {
+			case SYSTEM_AREA_UNSPECIFIED -> null;
+			case SYSTEM_AREA_ENGINE -> SystemCaptureArea.ENGINE;
+			case SYSTEM_AREA_HOST -> SystemCaptureArea.HOST;
+			case UNRECOGNIZED -> throw new GenericEvitaInternalError(
+				"Unrecognized GrpcSystemCaptureArea: " + grpc
+			);
+		};
+	}
+
+	/**
+	 * Converts a {@link ChangeSystemCaptureCriteria} to a {@link GrpcChangeSystemCaptureCriteria}.
+	 *
+	 * A `null` `area` on the input is preserved across the wire by leaving the gRPC `area` field
+	 * at its proto3 default value ({@link GrpcSystemCaptureArea#SYSTEM_AREA_UNSPECIFIED}, value
+	 * 0) — the receiving converter then maps that sentinel back to a `null` area, preserving the
+	 * "match-any" semantics. See issue #1151 for the rationale behind the dedicated sentinel.
+	 *
+	 * @param criteria the criteria to convert
+	 * @return the converted gRPC representation
+	 */
+	@Nonnull
+	public static GrpcChangeSystemCaptureCriteria toGrpcChangeSystemCaptureCriteria(
+		@Nonnull ChangeSystemCaptureCriteria criteria
+	) {
+		final GrpcChangeSystemCaptureCriteria.Builder builder = GrpcChangeSystemCaptureCriteria.newBuilder();
+		if (criteria.area() != null) {
+			builder.setArea(toGrpcSystemCaptureArea(criteria.area()));
+		}
+		// When `criteria.area()` is null, leave the area field at its default zero value
+		// (`SYSTEM_AREA_UNSPECIFIED`) so the receiver can reconstruct `null` on deserialization.
+		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link GrpcChangeSystemCaptureCriteria} to a {@link ChangeSystemCaptureCriteria}.
+	 *
+	 * @param grpc the gRPC criteria to convert
+	 * @return the converted domain criteria
+	 */
+	@Nonnull
+	public static ChangeSystemCaptureCriteria toChangeSystemCaptureCriteria(
+		@Nonnull GrpcChangeSystemCaptureCriteria grpc
+	) {
+		return new ChangeSystemCaptureCriteria(toSystemCaptureArea(grpc.getArea()));
 	}
 
 }

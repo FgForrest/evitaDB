@@ -27,6 +27,8 @@ package io.evitadb.core.cdc;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
@@ -34,6 +36,7 @@ import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
+import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory.TruePredicate;
 import io.evitadb.core.cdc.predicate.VersionAndIndexPredicate;
 import io.evitadb.core.metric.event.cdc.ChangeSystemCaptureStatisticsEvent;
@@ -43,7 +46,11 @@ import io.evitadb.utils.UUIDUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
+import java.util.AbstractQueue;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -58,6 +65,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -134,8 +142,13 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	private final int subscriberBufferSize;
 
 	/**
-	 * A shared predicate created from the criteria, used to efficiently filter mutations.
-	 * This predicate is not thread-safe and should only be used from the publisher thread.
+	 * Predicate applied to engine mutations as they are admitted into the ring buffer. The shared
+	 * publisher is — as the name implies — shared across all subscribers, so this predicate must
+	 * remain "match anything any subscriber might want" (i.e. permit-all). Per-subscriber filtering
+	 * (engine vs host area gating, version/index gating) happens downstream when the
+	 * ring-buffer contents are fanned out to each subscriber.
+	 *
+	 * Not thread-safe — accessed only from the engine thread that owns `processMutation`.
 	 */
 	private final MutationPredicate sharedPredicate;
 
@@ -144,6 +157,32 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * efficient cleanup of data that is no longer needed by any subscriber - i.e. lowering memory usage.
 	 */
 	private final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount = new ConcurrentSkipListMap<>();
+
+	/**
+	 * Per-subscription host-event filter. Populated at subscribe time from
+	 * {@link MutationPredicateFactory#createHostEventPredicate(ChangeSystemCaptureRequest)} and
+	 * consulted by {@link #processHostEvent(HostSystemEvent)} to decide which subscribers should
+	 * receive a given {@link HostSystemEvent}. Subscribers that did not opt into the
+	 * `HOST` area receive a constant `false` predicate and never see host events.
+	 *
+	 * Kept as a separate map — instead of adding system-stream-specific fields to the generic
+	 * {@link DefaultChangeCaptureSubscription} — so the subscription class stays usable for the
+	 * catalog stream too.
+	 */
+	private final Map<UUID, Predicate<HostSystemEvent>> hostEventFilters =
+		CollectionUtils.createConcurrentHashMap(64);
+
+	/**
+	 * Per-subscription engine-mutation filter. Captures pulled from the ring buffer (which itself
+	 * permits all engine mutations, see {@link #sharedPredicate}) are dropped on the way to a
+	 * specific subscriber when this filter rejects them — for example, a HOST-only
+	 * subscriber should not see engine mutations.
+	 *
+	 * Implemented as a separate map for the same reason as {@link #hostEventFilters}: keep the
+	 * generic {@link DefaultChangeCaptureSubscription} agnostic to system-stream semantics.
+	 */
+	private final Map<UUID, Predicate<ChangeSystemCapture>> mutationFilters =
+		CollectionUtils.createConcurrentHashMap(64);
 
 	/**
 	 * Constructs a new shared publisher for change catalog captures.
@@ -236,6 +275,86 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	}
 
 	/**
+	 * Dispatches a host event directly to opted-in subscribers, bypassing the
+	 * recent-events ring buffer entirely. Host events are transient and live-tail-only — they are
+	 * emitted once, delivered to currently-attached subscribers that requested
+	 * {@link io.evitadb.api.requestResponse.cdc.SystemCaptureArea#HOST}, and are NOT
+	 * persisted for replay through `sinceVersion`.
+	 *
+	 * The event is wrapped into a {@link ChangeSystemCapture} via
+	 * {@link ChangeSystemCapture#hostEventCapture} using a fresh {@link MutationPredicateContext}
+	 * seeded with the current engine snapshot version. The capture's `version` therefore reflects
+	 * the most recent engine mutation observed by this host at emission time — for correlation
+	 * only; this method does NOT advance the engine version counter and does NOT push the capture
+	 * through the per-subscriber WAL pointer / version tracking machinery.
+	 *
+	 * Subscribers that did not opt into the HOST area are skipped via the
+	 * {@link #hostEventFilters} map populated at subscribe time.
+	 *
+	 * @param event the host event to dispatch; never `null`
+	 */
+	public void processHostEvent(@Nonnull HostSystemEvent event) {
+		// no active-check here — match the speed-first contract of processMutation
+		if (this.subscribers.isEmpty()) {
+			// fast path — no one to dispatch to
+			return;
+		}
+
+		// Snapshot the engine version with a fresh index 0 and now-timestamp; host events do not
+		// advance the version counter. The capture's version is therefore the most recent engine
+		// mutation observed by this host at emission time — for correlation only.
+		final MutationPredicateContext context = new MutationPredicateContext(StreamDirection.FORWARD);
+		final long engineVersion = this.version.get();
+		context.setVersion(engineVersion, 0, OffsetDateTime.now());
+		final ChangeSystemCapture capture = ChangeSystemCapture.hostEventCapture(context, event);
+
+		for (final Map.Entry<UUID, DefaultChangeCaptureSubscription<ChangeSystemCapture>> entry : this.subscribers.entrySet()) {
+			final UUID uuid = entry.getKey();
+			final DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription = entry.getValue();
+			if (subscription.isFinished()) {
+				continue;
+			}
+			final Predicate<HostSystemEvent> filter = this.hostEventFilters.get(uuid);
+			// Subscribers without an explicit filter (defensive — should not normally happen) are
+			// treated as engine-only per the divergence rule documented on SystemCaptureArea.
+			if (filter == null || !filter.test(event)) {
+				continue;
+			}
+			// Issue #1151 — submit the host-event delivery to the same `cdcExecutor` that drains
+			// engine mutations via `consumeQueue`. Engine mutations are processed via a queued
+			// `consumeQueue` task that the engine thread submitted earlier in this call sequence
+			// (see `notifyVersionPresentInLiveView`). Submitting `deliverImmediate` on the same
+			// executor preserves submission order, so a host event emitted after a mutation lands
+			// strictly after that mutation in the subscriber's stream — without exposing the
+			// engine thread to the per-subscription lock contention that synchronous
+			// `deliverImmediate` would cause.
+			try {
+				this.cdcExecutor.submit(() -> {
+					try {
+						subscription.deliverImmediate(capture);
+					} catch (Throwable t) {
+						log.error("Failed to deliver host event to subscriber {}", uuid, t);
+					}
+				});
+			} catch (Throwable submitFailure) {
+				// Submission failure (e.g. executor saturated / shutting down) — best-effort fall
+				// back to synchronous delivery on the engine thread so a saturated executor does
+				// not silently drop the host event.
+				log.warn(
+					"cdcExecutor rejected host-event delivery task for subscriber {} — falling " +
+						"back to synchronous deliverImmediate.",
+					uuid, submitFailure
+				);
+				try {
+					subscription.deliverImmediate(capture);
+				} catch (Throwable t) {
+					log.error("Failed to deliver host event to subscriber {}", uuid, t);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Forgets all mutations after the specified catalog version. This is used to clear
 	 * the ring buffer and subscription statistics when a rollback or reprocessing is needed.
 	 *
@@ -249,6 +368,9 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * Subscribes to receive change catalog captures starting from the next version after the current catalog version.
 	 * This is the implementation of the {@link Flow.Publisher} interface.
 	 *
+	 * Such anonymous subscriptions never opt into host events — they fall under the default
+	 * engine-only divergence (see {@link io.evitadb.api.requestResponse.cdc.SystemCaptureArea}).
+	 *
 	 * @param subscriber the subscriber that will receive the change catalog captures
 	 * @throws InstanceTerminatedException if the publisher is closed
 	 */
@@ -258,10 +380,14 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		try {
 			assertActive();
 			final long version = this.version.get();
-			// Subscribe starting from the next version after the current catalog version
+			// Subscribe starting from the next version after the current catalog version.
+			// Anonymous subscriptions follow the engine-only default — they never opt into host
+			// events and never reject engine mutations (mirrors the legacy default-criteria flow).
 			subscribe(
 				subscriber,
-				new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY)
+				new WalPointerWithContent(version + 1, 0, ChangeCaptureContent.BODY),
+				event -> false,
+				capture -> true
 			);
 		} finally {
 			this.lock.unlock();
@@ -283,6 +409,9 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		if (subscription != null) {
 			subscription.cancel();
 			this.subscribers.remove(subscriptionId);
+			// drop the per-subscriber filters — no further dispatch should happen
+			this.hostEventFilters.remove(subscriptionId);
+			this.mutationFilters.remove(subscriptionId);
 			// decrement the subscriber count for the version
 			this.versionSubscribersCount.compute(
 				subscription.getTrackedVersion(),
@@ -307,6 +436,8 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 			// Atomically set closed flag to true if it was false
 			if (this.closed.compareAndSet(false, true)) {
 				this.versionSubscribersCount.clear();
+				this.hostEventFilters.clear();
+				this.mutationFilters.clear();
 				this.lastCaptures.clearAll();
 				// cancel all subscriptions
 				for (DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription : this.subscribers.values()) {
@@ -378,12 +509,27 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * Subscribes to receive change catalog captures starting from the specified WAL pointer.
 	 * This method creates a new subscription with a unique ID and registers it in the subscribers map.
 	 *
-	 * @param subscriber    the subscriber that will receive the change catalog captures
-	 * @param specification the WAL pointer and content specification indicating where to start capturing changes
+	 * @param subscriber        the subscriber that will receive the change catalog captures
+	 * @param specification     the WAL pointer and content specification indicating where to start
+	 *                          capturing changes
+	 * @param hostEventFilter   the per-subscriber predicate deciding whether a given
+	 *                          {@link HostSystemEvent} should be delivered to this subscriber.
+	 *                          Built from the request's criteria — see
+	 *                          {@link MutationPredicateFactory#createHostEventPredicate}.
+	 * @param mutationFilter    the per-subscriber predicate applied to engine-mutation captures
+	 *                          pulled from the ring buffer; rejected captures are dropped before
+	 *                          being offered to the subscriber's queue. Used to honor an
+	 *                          HOST-only criteria selection (where no engine mutation
+	 *                          should land at the subscriber).
 	 * @throws InstanceTerminatedException if the publisher is closed
 	 */
 	@Nonnull
-	DefaultChangeCaptureSubscription<ChangeSystemCapture> subscribe(@Nonnull Subscriber<? super ChangeSystemCapture> subscriber, @Nonnull WalPointerWithContent specification) {
+	DefaultChangeCaptureSubscription<ChangeSystemCapture> subscribe(
+		@Nonnull Subscriber<? super ChangeSystemCapture> subscriber,
+		@Nonnull WalPointerWithContent specification,
+		@Nonnull Predicate<HostSystemEvent> hostEventFilter,
+		@Nonnull Predicate<ChangeSystemCapture> mutationFilter
+	) {
 		assertActive();
 		UUID subscriberId;
 		DefaultChangeCaptureSubscription<ChangeSystemCapture> subscription;
@@ -391,6 +537,7 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		// Keep trying until we successfully create a subscription with a unique ID
 		do {
 			subscriberId = UUIDUtil.randomUUID();
+			final UUID candidateId = subscriberId;
 			subscription = this.subscribers.computeIfAbsent(
 				subscriberId,
 				uuid -> {
@@ -401,6 +548,9 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 						specification.version(),
 						(version, count) -> count == null ? 1 : count + 1
 					);
+					// register the per-subscriber filters so dispatch / fanout can honor them
+					this.hostEventFilters.put(candidateId, hostEventFilter);
+					this.mutationFilters.put(candidateId, mutationFilter);
 					// this is a costly operation since it allocates a buffer
 					return new DefaultChangeCaptureSubscription<>(
 						uuid,
@@ -556,6 +706,12 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	 * It first tries to get data from the in-memory ring buffer for efficiency, and falls back to
 	 * reading from the WAL if the requested data is no longer in the buffer.
 	 *
+	 * The subscriber's per-request engine-mutation predicate (registered in
+	 * {@link #mutationFilters}) is applied as captures are transferred — captures rejected by the
+	 * predicate (e.g. a HOST-only subscriber receiving an engine mutation) are silently
+	 * dropped, but the underlying WAL pointer still advances past them so the subscriber's
+	 * `lastVersion` / `lastIndex` tracking does not stall on filtered traffic.
+	 *
 	 * @param walPointer            the WAL pointer indicating where to start filling from
 	 * @param changeCatalogCaptures the queue to fill with change catalog captures
 	 */
@@ -566,18 +722,29 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	) {
 		Optional<ChangeSystemCapture> lastCapture;
 
+		// Wrap the subscriber queue with the per-subscriber mutation predicate so rejected
+		// captures (e.g. engine mutations for a HOST-only subscriber) are silently
+		// dropped without breaking copyTo's "stop when offer returns false" semantics.
+		final Predicate<ChangeSystemCapture> mutationFilter = this.mutationFilters.getOrDefault(
+			subscription.getSubscriptionId(),
+			capture -> true
+		);
+		final Queue<ChangeSystemCapture> filteringQueue = new FilteringQueueAdapter(
+			changeCatalogCaptures, mutationFilter
+		);
+
 		// Check if the requested version is older than what we have in the ring buffer
 		if (walPointer.version() < this.lastCaptures.getEffectiveStartCatalogVersion()) {
 			// If so, we need to read the WAL from the disk and process manually
-			lastCapture = readWal(walPointer, changeCatalogCaptures);
+			lastCapture = readWal(walPointer, filteringQueue);
 		} else {
 			try {
 				// Try to copy data from the ring buffer in synchronized block for efficiency
-				lastCapture = this.lastCaptures.copyTo(walPointer, changeCatalogCaptures);
+				lastCapture = this.lastCaptures.copyTo(walPointer, filteringQueue);
 			} catch (OutsideScopeException e) {
 				// We detected that we're outside the ring buffer in the locked scope
 				// This can happen if the buffer was updated between our check and the actual copy
-				lastCapture = readWal(walPointer, changeCatalogCaptures);
+				lastCapture = readWal(walPointer, filteringQueue);
 			}
 		}
 
@@ -630,6 +797,65 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 			nextVersion,
 			(version, count) -> count == null ? 1 : count + 1
 		);
+	}
+
+	/**
+	 * Queue adapter that applies a {@link Predicate} on every {@link Queue#offer(Object)} call:
+	 * accepted items are forwarded to the wrapped queue verbatim; rejected items are silently
+	 * dropped while the adapter still reports `true` to the caller so the upstream copy loop
+	 * keeps advancing past filtered entries instead of stalling.
+	 *
+	 * Only `offer` is supported — the ring buffer's `copyTo` and the WAL reader use exclusively
+	 * `offer` to feed the subscriber's queue, and every other read/write/iteration delegates to
+	 * the wrapped queue so the subscription's `consumeQueue` sees a normal queue afterwards.
+	 */
+	private static final class FilteringQueueAdapter
+		extends AbstractQueue<ChangeSystemCapture> {
+
+		@Nonnull private final Queue<ChangeSystemCapture> delegate;
+		@Nonnull private final Predicate<ChangeSystemCapture> filter;
+
+		FilteringQueueAdapter(
+			@Nonnull Queue<ChangeSystemCapture> delegate,
+			@Nonnull Predicate<ChangeSystemCapture> filter
+		) {
+			this.delegate = delegate;
+			this.filter = filter;
+		}
+
+		@Override
+		public boolean offer(ChangeSystemCapture capture) {
+			if (!this.filter.test(capture)) {
+				// Drop rejected captures but tell the upstream loop the offer succeeded so the
+				// WAL pointer keeps advancing — otherwise a HOST-only subscriber would
+				// stall the moment any engine mutation appears in the buffer.
+				return true;
+			}
+			return this.delegate.offer(capture);
+		}
+
+		@Nullable
+		@Override
+		public ChangeSystemCapture poll() {
+			return this.delegate.poll();
+		}
+
+		@Nullable
+		@Override
+		public ChangeSystemCapture peek() {
+			return this.delegate.peek();
+		}
+
+		@Nonnull
+		@Override
+		public Iterator<ChangeSystemCapture> iterator() {
+			return this.delegate.iterator();
+		}
+
+		@Override
+		public int size() {
+			return this.delegate.size();
+		}
 	}
 
 }

@@ -75,7 +75,7 @@ public class TransactionMutationWithLocation extends TransactionMutation {
 		prepareContext(context);
 		if (predicate.test(this)) {
 			return Stream.of(
-				ChangeSystemCapture.systemCapture(
+				ChangeSystemCapture.engineMutationCapture(
 					predicate.getContext(),
 					operation(),
 					content == ChangeCaptureContent.BODY ?

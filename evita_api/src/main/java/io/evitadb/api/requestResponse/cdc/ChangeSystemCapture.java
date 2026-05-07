@@ -36,11 +36,18 @@ import java.time.OffsetDateTime;
 /**
  * Record represents a CDC event that is sent to the subscriber if it matches the subscriber's request.
  *
+ * The `body` field carries either an {@link EngineMutation} (durable, WAL-replicated,
+ * `ENGINE` area) or a {@link HostSystemEvent} (host-local, non-replicable,
+ * `HOST` area), unified by the {@link SystemCaptureBody} marker. See
+ * {@link SystemCaptureArea} for the area-level semantics.
+ *
  * @param version   the version of the evitaDB where the operation was performed
  * @param index     the index of the event within the enclosed block of operation, index 0 is the lead event of the process
  * @param timestamp the timestamp when the operation was performed
  * @param operation the operation that was performed
- * @param body      optional body of the operation when it is requested by the {@link ChangeSystemCaptureRequest#content()}
+ * @param body      optional body of the operation when it is requested by the {@link ChangeSystemCaptureRequest#content()}.
+ *                  Host event bodies are always populated regardless of `content()` because they carry no
+ *                  separable header/body distinction; the body is stripped only on `as(HEADER)` projection.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeSystemCapture(
@@ -48,7 +55,7 @@ public record ChangeSystemCapture(
 	int index,
 	@Nonnull OffsetDateTime timestamp,
 	@Nonnull Operation operation,
-	@Nullable EngineMutation<?> body
+	@Nullable SystemCaptureBody body
 ) implements ChangeCapture {
 
 	/**
@@ -60,7 +67,7 @@ public record ChangeSystemCapture(
 	 * @return the new instance of {@link ChangeSystemCapture}
 	 */
 	@Nonnull
-	public static ChangeSystemCapture systemCapture(
+	public static ChangeSystemCapture engineMutationCapture(
 		@Nonnull MutationPredicateContext context,
 		@Nonnull Operation operation,
 		@Nullable EngineMutation<?> mutation
@@ -71,6 +78,33 @@ public record ChangeSystemCapture(
 			context.getTimestamp(),
 			operation,
 			mutation
+		);
+	}
+
+	/**
+	 * Creates a new {@link ChangeSystemCapture} instance carrying a host-local
+	 * {@link HostSystemEvent}. Mirrors {@link #engineMutationCapture} for the engine path,
+	 * with two differences:
+	 * - The operation is fixed to {@link Operation#UPSERT} because host events are
+	 *   always emitted as new occurrences (never replayed from history).
+	 * - The body is always populated; subscribers requesting {@link ChangeCaptureContent#HEADER}
+	 *   will receive a body-less view via {@link #as(ChangeCaptureContent)}.
+	 *
+	 * @param context the context of the host event (provides version / index / timestamp)
+	 * @param event   the host event to wrap
+	 * @return the new instance of {@link ChangeSystemCapture}
+	 */
+	@Nonnull
+	public static ChangeSystemCapture hostEventCapture(
+		@Nonnull MutationPredicateContext context,
+		@Nonnull HostSystemEvent event
+	) {
+		return new ChangeSystemCapture(
+			context.getVersion(),
+			context.getIndex(),
+			context.getTimestamp(),
+			Operation.UPSERT,
+			event
 		);
 	}
 

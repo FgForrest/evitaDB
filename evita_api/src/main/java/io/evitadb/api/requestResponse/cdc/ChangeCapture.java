@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
-import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
@@ -78,12 +77,15 @@ public sealed interface ChangeCapture extends Serializable permits ChangeSystemC
 
 	/**
 	 * Optional body of the operation when requested by the initial capture request. Carries information about what
-	 * exactly happened.
+	 * exactly happened. Subtypes refine this to a more specific type — e.g.
+	 * {@link ChangeCatalogCapture#body()} returns a {@code CatalogBoundMutation},
+	 * {@link ChangeSystemCapture#body()} returns a {@link SystemCaptureBody} (which can
+	 * be either an engine mutation or a host system event).
 	 *
-	 * @return the mutation body, or null if not requested
+	 * @return the body, or null if not requested
 	 */
 	@Nullable
-	Mutation body();
+	ChangeCaptureBody body();
 
 	/**
 	 * If the content is {@link ChangeCaptureContent#HEADER} and this instance contains non-null body, then this method

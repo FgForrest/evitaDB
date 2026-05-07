@@ -25,7 +25,8 @@ package io.evitadb.externalApi.rest.api.catalog;
 
 import io.evitadb.api.exception.CatalogGoingLiveException;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.mutation.EngineMutation;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureBody;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
@@ -43,6 +44,16 @@ import java.util.concurrent.Flow.Subscription;
 
 /**
  * This observer allows to react on changes in Catalog's structure and reload OpenAPI and REST handlers if necessary.
+ *
+ * Reacts to two kinds of system CDC bodies on the stream:
+ * - {@link io.evitadb.api.requestResponse.mutation.EngineMutation} — durable, WAL-replicated
+ *   engine mutations (default `ENGINE` area). The pre-existing branches handle catalog
+ *   schema create / duplicate / rename / modify / mutability / state / removal.
+ * - {@link HostSystemEvent} — host-local, non-replicable host events delivered when
+ *   the subscription opted into the `HOST` area. These are the authoritative
+ *   "catalog X is now usable / now gone on this host" signals and are required to recover
+ *   from boot-time auto-upgrade and other transient-state transitions where the engine
+ *   mutation alone does not announce settlement.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -67,7 +78,7 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 	@Override
 	public void onNext(ChangeSystemCapture item) {
 		try {
-			final EngineMutation<?> body = item.body();
+			final SystemCaptureBody body = item.body();
 			if (body instanceof CreateCatalogSchemaMutation ccsm) {
 				// if the catalog schema is created, we need to register it
 				if (this.restManager.registerCatalog(ccsm.getCatalogName())) {
@@ -109,14 +120,42 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 			} else if (body instanceof RemoveCatalogSchemaMutation rccs) {
 				// if the catalog schema is removed, we need to unregister it
 				this.restManager.unregisterCatalog(rccs.getCatalogName());
+			} else if (body instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
+				handleCatalogInstalled(installed);
+			} else if (body instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {
+				// the catalog is gone from the live view on this host — drop its REST endpoints
+				this.restManager.unregisterCatalog(removed.catalogName());
 			}
 		} catch (CatalogGoingLiveException ignored) {
-			// catalog is going live, we cannot update its GraphQL schema now
+			// catalog is going live, we cannot update its REST schema now
 			// but we will get another notification after the catalog is live
 		} catch (Throwable throwable) {
-			log.error("Failed to update GraphQL schema in reaction to schema capture: {}", item, throwable);
+			log.error("Failed to update REST schema in reaction to schema capture: {}", item, throwable);
 		} finally {
 			this.subscription.request(1);
+		}
+	}
+
+	/**
+	 * Reacts to a {@link HostSystemEvent.CatalogInstalledIntoLiveView} event.
+	 *
+	 * If the observed state is active (`ALIVE` or `WARMING_UP`), the catalog is queryable
+	 * and we either register it (first time we see it) or refresh it (already registered,
+	 * pick up the new live reference). For non-active settled states (`INACTIVE`,
+	 * `OUT_OF_DATE`, `CORRUPTED`, `MISSING`) the catalog is no longer addressable via REST
+	 * and we unregister it.
+	 *
+	 * @param installed the host event reporting the settled state
+	 */
+	private void handleCatalogInstalled(@Nonnull HostSystemEvent.CatalogInstalledIntoLiveView installed) {
+		final String catalogName = installed.catalogName();
+		if (installed.observedState().isActive()) {
+			if (this.restManager.refreshCatalog(catalogName)) {
+				this.restManager.emitObservabilityEvents(catalogName);
+			}
+		} else {
+			// settled into a non-queryable state (INACTIVE / MISSING / CORRUPTED / OUT_OF_DATE)
+			this.restManager.unregisterCatalog(catalogName);
 		}
 	}
 

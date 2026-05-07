@@ -24,8 +24,10 @@
 package io.evitadb.externalApi.graphql.api.system.model;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureCriteriaDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
+import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
 /**
  * Descriptor for arguments of {@link SystemRootDescriptor#ON_SYSTEM_CHANGE_UNTYPED} subscription.
@@ -38,7 +40,7 @@ public interface OnSystemChangeCaptureSubscriptionHeaderDescriptor {
 		.name("sinceVersion")
 		.description("""
             Specifies the initial capture point (catalog version) for the CDC stream, if not specified
-            it is assumed to begin at the most recent / oldest available version.
+            it is assumed to begin at the most recent available version.
             """)
 		.type(nullable(Long.class))
 		.build();
@@ -49,5 +51,14 @@ public interface OnSystemChangeCaptureSubscriptionHeaderDescriptor {
              to specify continuation point within an enclosing block of events.
              """)
 		.type(nullable(Integer.class))
+		.build();
+	PropertyDescriptor CRITERIA = PropertyDescriptor.builder()
+		.name("criteria")
+		.description("""
+			The criteria of the system capture, OR-ed semantics — matching any of them is
+			sufficient. When omitted, defaults to the `ENGINE` area only;
+			`HOST` (host system events) requires explicit opt-in via this argument.
+			""")
+		.type(nullableListRef(ChangeSystemCaptureCriteriaDescriptor.THIS))
 		.build();
 }

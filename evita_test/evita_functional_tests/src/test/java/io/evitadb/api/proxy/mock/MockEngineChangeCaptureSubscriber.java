@@ -24,6 +24,7 @@
 package io.evitadb.api.proxy.mock;
 
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
@@ -49,6 +50,8 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 	private final Map<String, Integer> catalogCreated = new HashMap<>();
 	private final Map<String, Integer> catalogDeleted = new HashMap<>();
 	private final Map<String, Integer> catalogUpdated = new HashMap<>();
+	private final Map<String, Integer> catalogInstalled = new HashMap<>();
+	private final Map<String, Integer> catalogRemovedFromLiveView = new HashMap<>();
 	private Subscription subscription;
 	@Getter private int received = 0;
 	@Getter private int completed = 0;
@@ -69,6 +72,59 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 		this.catalogCreated.clear();
 		this.catalogDeleted.clear();
 		this.catalogUpdated.clear();
+		this.catalogInstalled.clear();
+		this.catalogRemovedFromLiveView.clear();
+	}
+
+	/**
+	 * Returns the number of {@link HostSystemEvent.CatalogInstalledIntoLiveView} events received
+	 * for the given catalog name.
+	 *
+	 * @param catalogName the catalog name to query
+	 * @return the count of installed events
+	 */
+	public int getCatalogInstalled(@Nonnull String catalogName) {
+		return this.catalogInstalled.getOrDefault(catalogName, 0);
+	}
+
+	/**
+	 * Returns the number of {@link HostSystemEvent.CatalogRemovedFromLiveView} events received
+	 * for the given catalog name.
+	 *
+	 * @param catalogName the catalog name to query
+	 * @return the count of removed-from-live-view events
+	 */
+	public int getCatalogRemovedFromLiveView(@Nonnull String catalogName) {
+		return this.catalogRemovedFromLiveView.getOrDefault(catalogName, 0);
+	}
+
+	/**
+	 * Returns the number of {@link HostSystemEvent.CatalogInstalledIntoLiveView} events received
+	 * for the given catalog name, waiting up to the specified timeout for the expected number of
+	 * occurrences to arrive.
+	 *
+	 * @param catalogName   the catalog name to query
+	 * @param timeout       the maximum time to wait
+	 * @param timeUnit      the unit of the timeout argument
+	 * @param expectedValue the minimum number of events expected
+	 * @return the count of installed events at the time the wait completes
+	 */
+	public int getCatalogInstalled(
+		@Nonnull String catalogName, int timeout, @Nonnull TimeUnit timeUnit, int expectedValue
+	) {
+		final int result = this.catalogInstalled.getOrDefault(catalogName, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.catalogInstalled.getOrDefault(catalogName, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.catalogInstalled.getOrDefault(catalogName, 0);
+			} catch (Exception e) {
+				return this.catalogInstalled.getOrDefault(catalogName, 0);
+			}
+		} else {
+			return result;
+		}
 	}
 
 	public int getCatalogCreated(@Nonnull String catalogName) {
@@ -167,6 +223,12 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 		} else if (item.body() instanceof ModifyCatalogSchemaMutation mcsm) {
 			this.catalogUpdated
 				.compute(mcsm.getCatalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		} else if (item.body() instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
+			this.catalogInstalled
+				.compute(installed.catalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		} else if (item.body() instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {
+			this.catalogRemovedFromLiveView
+				.compute(removed.catalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 		}
 		// check if we are waiting for some condition to be met
 		if (this.waitCondition != null && this.waitCondition.getAsBoolean()) {

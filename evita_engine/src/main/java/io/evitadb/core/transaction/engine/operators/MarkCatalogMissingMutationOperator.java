@@ -116,6 +116,9 @@ public class MarkCatalogMissingMutationOperator
 				}
 			}
 		);
+		// Emit the host event AFTER the engine state has been updated so the MISSING settlement
+		// is observable by HOST-area subscribers strictly after the underlying mutation.
+		evita.notifyCatalogStateSettled(catalogName, CatalogState.MISSING);
 		return new ProgressingFuture<>(0, progressingFuture -> null);
 	}
 

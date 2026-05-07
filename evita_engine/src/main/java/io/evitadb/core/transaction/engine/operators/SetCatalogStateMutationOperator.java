@@ -110,6 +110,7 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 				0,
 				Collections.singletonList(evita.loadCatalogInternal(catalogName, readOnly)),
 				(progressingFuture, loadedCatalog) -> {
+					final CatalogContract installed = loadedCatalog.iterator().next();
 					completionEngineStateUpdater.accept(
 						new AbstractEngineStateUpdater(transactionId, mutation) {
 							@Override
@@ -117,11 +118,14 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 								return ExpandedEngineState
 									.builder(expandedEngineState)
 									.withVersion(version)
-									.withCatalog(loadedCatalog.iterator().next())
+									.withCatalog(installed)
 									.build();
 							}
 						}
 					);
+					// Emit the host event AFTER the engine state has been updated so the host
+					// event lands strictly after the underlying mutation in the system CDC stream.
+					evita.notifyCatalogStateSettled(catalogName, installed.getCatalogState());
 					return null;
 				}
 			);
@@ -150,8 +154,19 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						}
 					);
 
-					evita.removeCatalogSessionRegistryIfPresent(catalogName);
-					theCatalog.terminate();
+					// Wrap the destructive side-effects in try-finally so the host event fires
+					// even if `theCatalog.terminate()` throws — the engine state has already
+					// transitioned to INACTIVE and HOST subscribers must observe that
+					// transition regardless of downstream cleanup failures.
+					try {
+						evita.removeCatalogSessionRegistryIfPresent(catalogName);
+						theCatalog.terminate();
+					} finally {
+						// Emit the host event AFTER the engine state and the live `Catalog`
+						// resources have been torn down so subscribers see the INACTIVE settlement
+						// strictly after the mutation in the system CDC stream.
+						evita.notifyCatalogStateSettled(catalogName, CatalogState.INACTIVE);
+					}
 					return null;
 				}
 			);

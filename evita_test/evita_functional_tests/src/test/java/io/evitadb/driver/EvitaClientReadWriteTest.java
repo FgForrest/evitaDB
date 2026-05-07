@@ -833,7 +833,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotifyBasicSubscriber(EvitaClient evitaClient) {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		);
 
 		// subscriber is registered and wants one event when it happens
@@ -874,11 +874,59 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		evitaClient.deleteCatalogIfExists("newCatalog6");
 	}
 
+	/**
+	 * End-to-end gRPC round-trip test for {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent}
+	 * delivery via {@link io.evitadb.api.requestResponse.cdc.SystemCaptureArea#HOST}.
+	 *
+	 * Subscribes a client subscriber with host-area criteria and triggers a catalog
+	 * create + activate sequence on the server. The host event must round-trip through the
+	 * gRPC stream and be deserialized by the client driver into a
+	 * {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent.CatalogInstalledIntoLiveView}.
+	 */
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldNotifyHostEventsOverGrpcWithHostCriteria(EvitaClient evitaClient) {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
+			io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest.builder()
+				.content(ChangeCaptureContent.BODY)
+				.criteria(
+					new io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria(
+						io.evitadb.api.requestResponse.cdc.SystemCaptureArea.ENGINE
+					),
+					new io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria(
+						io.evitadb.api.requestResponse.cdc.SystemCaptureArea.HOST
+					)
+				)
+				.build()
+		);
+		try {
+			final MockEngineChangeCaptureSubscriber subscriber =
+				new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
+			publisher.subscribe(subscriber);
+
+			// trigger a catalog state transition that emits an installed-into-live-view host event
+			final String hostEventCatalog = "hostEventCatalogGrpc";
+			evitaClient.defineCatalog(hostEventCatalog);
+			evitaClient.updateCatalog(hostEventCatalog, EvitaSessionContract::goLiveAndClose);
+
+			// host event should round-trip and arrive on the client subscriber within 10 seconds
+			assertTrue(
+				subscriber.getCatalogInstalled(hostEventCatalog, 10, TimeUnit.SECONDS, 1) >= 1,
+				"Client should receive at least one CatalogInstalledIntoLiveView host event"
+			);
+
+			subscriber.cancel();
+			evitaClient.deleteCatalogIfExists(hostEventCatalog);
+		} finally {
+			publisher.close();
+		}
+	}
+
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotifyLateSubscribers(EvitaClient evitaClient) {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		);
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
@@ -917,7 +965,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	void shouldNotifyLateSubscribersWithFixedInitialVersion(EvitaClient evitaClient) {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
 			new ChangeSystemCaptureRequest(
-				evitaClient.management().getSystemStatus().engineVersion(), null, ChangeCaptureContent.BODY)
+				evitaClient.management().getSystemStatus().engineVersion(), null, null, ChangeCaptureContent.BODY)
 		);
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
@@ -955,13 +1003,13 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotifyMultiplePublishers(EvitaClient evitaClient) {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.HEADER)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.HEADER)
 		);
 		final MockEngineChangeCaptureSubscriber subscriber1 = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 		publisher1.subscribe(subscriber1);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(
-			new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+			new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 		);
 		final MockEngineChangeCaptureSubscriber subscriber2 = new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 		publisher2.subscribe(subscriber2);
@@ -1266,7 +1314,7 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 		try (MockEngineChangeCaptureSubscriber engineSubscriber = new MockEngineChangeCaptureSubscriber(
 			Integer.MAX_VALUE)) {
 			evitaClient.registerSystemChangeCapture(
-				new ChangeSystemCaptureRequest(null, null, ChangeCaptureContent.BODY)
+				new ChangeSystemCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
 			).subscribe(engineSubscriber);
 
 			final String newCatalogName = "newCatalog";

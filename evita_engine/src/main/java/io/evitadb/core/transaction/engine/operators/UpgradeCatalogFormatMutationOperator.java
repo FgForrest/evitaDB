@@ -30,6 +30,7 @@ import io.evitadb.api.exception.CatalogBeingUpgradedException;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.transaction.engine.AbstractEngineStateUpdater;
@@ -112,6 +113,7 @@ public class UpgradeCatalogFormatMutationOperator
 	@Nonnull
 	@Override
 	public String getOperationName(@Nonnull UpgradeCatalogFormatMutation engineMutation) {
+		//noinspection StringConcatenationMissingWhitespace
 		return "Upgrading catalog `" + engineMutation.getCatalogName() + "` from protocol v" +
 			engineMutation.getFromProtocolVersion() + " to v" + engineMutation.getToProtocolVersion();
 	}
@@ -191,6 +193,18 @@ public class UpgradeCatalogFormatMutationOperator
 						}
 					}
 				);
+
+				// Emit the host event ONLY if the prior reference was a real `Catalog` — a runtime
+				// upgrade against an already-loaded catalog. The boot-time path stores an
+				// `UnusableCatalog(BEING_ACTIVATED)` placeholder here; the real `Catalog` lands
+				// later via the load retry → `Evita#replaceCatalogReference`, which already emits
+				// the event from there. Emitting here for the placeholder would be wrong: the
+				// catalog isn't really ready yet and the state isn't even non-transient.
+				if (priorCatalog instanceof Catalog priorRealCatalog) {
+					evita.notifyCatalogStateSettled(
+						catalogName, priorRealCatalog.getCatalogState()
+					);
+				}
 
 				return null;
 			}

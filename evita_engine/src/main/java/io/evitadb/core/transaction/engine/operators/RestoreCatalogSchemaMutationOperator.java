@@ -114,6 +114,10 @@ public class RestoreCatalogSchemaMutationOperator
 						}
 					}
 				);
+				// Emit the host event AFTER the engine state update so the restored catalog's
+				// INACTIVE settlement is observable on the system stream strictly after the
+				// underlying mutation. The catalog must still be activated to become usable.
+				evita.notifyCatalogStateSettled(catalogName, CatalogState.INACTIVE);
 				return null;
 			}
 		);
