@@ -205,7 +205,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Represents the starting version of the catalog schema.
 	 * This variable is used to keep track of the initial version of the catalog schema.
 	 */
-	private final long startCatalogSchemaVersion;
+	private final int startCatalogSchemaVersion;
 	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */

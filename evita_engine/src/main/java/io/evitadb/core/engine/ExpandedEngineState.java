@@ -226,11 +226,13 @@ public record ExpandedEngineState(
 	 * calling this method will fail; in such cases prefer {@link #withUpdatedCatalogInstance(CatalogContract)} to
 	 * obtain a new immutable snapshot.
 	 *
-	 * Concurrency: the operation reads the prior catalog reference inside the same atomic
-	 * accumulator that performs the swap, so the prior schema-version reading is consistent
-	 * with the actually-replaced reference even under concurrent updates. Only a strictly newer
-	 * reference replaces the existing one; if the reference is the same or older, the current
-	 * catalog remains unchanged.
+	 * Concurrency: the prior schema-version snapshot is read **before** the atomic swap inside
+	 * {@link CatalogWrapper#replaceCatalogReference(Catalog)}, so under concurrent calls for the
+	 * same catalog the read may be stale relative to whoever ultimately wins the swap. The commit
+	 * pipeline (`TransactionManager#propagateCatalogSnapshot`) serializes calls per catalog, so in
+	 * practice this race cannot occur — the read remains consistent with the replaced reference.
+	 * Only a strictly newer reference replaces the existing one; if the reference is the same or
+	 * older, the current catalog remains unchanged.
 	 *
 	 * @param catalog a newer {@link Catalog} instance to swap in by name
 	 * @return {@code true} when the swap actually happened AND the new catalog has a strictly
