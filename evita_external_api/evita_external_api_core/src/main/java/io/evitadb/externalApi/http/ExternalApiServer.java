@@ -123,7 +123,7 @@ public class ExternalApiServer implements AutoCloseable {
 	private final ProbesMaintainer probesMaintainer = new ProbesMaintainer();
 	/**
 	 * Engine reference retained so that {@link #start()} can drive the second phase of the boot
-	 * sequence — see issue #1153 — by calling {@link Evita#scheduleInitialCatalogLoading()} once
+	 * sequence by calling {@link Evita#scheduleInitialCatalogLoading()} once
 	 * every external API provider has subscribed to the system CDC stream. The call is idempotent,
 	 * so if the embedding application (e.g. `EvitaServer`) also schedules loading explicitly the
 	 * second invocation is a silent no-op.

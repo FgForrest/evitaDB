@@ -269,8 +269,17 @@ public class EvitaParameterResolver
 			STORAGE_PATH.resolve(randomFolderName + "_work"),
 			STORAGE_PATH.resolve(randomFolderName + "_export")
 		);
+		// register with the JVM-local allocation set so `CleaningTestExecutionListener` can wipe leftovers on plan
+		// finish even when the per-test cleanup is bypassed (test crashes, dataset destroy throws, etc.)
+		ALLOCATED_TEST_PATHS.add(paths.storage());
+		ALLOCATED_TEST_PATHS.add(paths.work());
+		ALLOCATED_TEST_PATHS.add(paths.export());
+		// reset any state left behind by a prior run; check each path independently because a previous abort
+		// could have removed one but not the other, in which case the mkdirs() below would fail asymmetrically
 		if (paths.storage().toFile().exists()) {
 			io.evitadb.utils.FileUtils.deleteDirectory(paths.storage());
+		}
+		if (paths.export().toFile().exists()) {
 			io.evitadb.utils.FileUtils.deleteDirectory(paths.export());
 		}
 		Assert.isTrue(paths.storage().toFile().mkdirs(), "Fail to create directory: " + paths.storage());

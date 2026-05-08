@@ -46,7 +46,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -63,6 +65,17 @@ public interface EvitaTestSupport extends TestConstants {
 	 * Default data folder for evita data in tests.
 	 */
 	Path BASE_PATH = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "evita" + File.separator);
+	/**
+	 * Set of all test directories allocated by *this JVM* via [#createTestPaths(String)] (or the equivalent inline
+	 * triplet in `EvitaParameterResolver.createEvita`). Used by `CleaningTestExecutionListener` to wipe leftovers
+	 * scoped to this JVM (i.e. PID) when the test plan finishes — a graceful exit path, complementary to per-test
+	 * [#cleanupTestPaths(TestPaths)] in `@AfterEach`.
+	 *
+	 * The set is JVM-local (a static field), so concurrent test JVMs cannot trample each other: each one only ever
+	 * deletes paths it allocated itself. Entries are removed from the set by [#cleanupTestPaths(TestPaths)] in the
+	 * happy path, so the set normally drains to empty over the lifetime of a run.
+	 */
+	Set<Path> ALLOCATED_TEST_PATHS = ConcurrentHashMap.newKeySet();
 	/**
 	 * Default name of the root certificate authority's certificate file.
 	 */
@@ -235,11 +248,17 @@ public interface EvitaTestSupport extends TestConstants {
 	@Nonnull
 	default TestPaths createTestPaths(@Nonnull String label) {
 		final String unique = label + "_" + UUID.randomUUID().toString().substring(0, 8);
-		return new TestPaths(
+		final TestPaths paths = new TestPaths(
 			BASE_PATH.resolve(unique),
 			BASE_PATH.resolve(unique + "_work"),
 			BASE_PATH.resolve(unique + "_export")
 		);
+		// register so `CleaningTestExecutionListener` can sweep this JVM's leftovers on plan finish even when a
+		// test bypasses `@AfterEach`-driven `cleanupTestPaths(...)` (e.g. crashes mid-method)
+		ALLOCATED_TEST_PATHS.add(paths.storage());
+		ALLOCATED_TEST_PATHS.add(paths.work());
+		ALLOCATED_TEST_PATHS.add(paths.export());
+		return paths;
 	}
 
 	/**
@@ -301,6 +320,10 @@ public interface EvitaTestSupport extends TestConstants {
 		deleteDirectoryWithRetry(paths.export());
 		deleteDirectoryWithRetry(paths.work());
 		deleteDirectoryWithRetry(paths.storage());
+		// the happy path: drain entries from the JVM-local registry so the set stays bounded over a long run
+		ALLOCATED_TEST_PATHS.remove(paths.storage());
+		ALLOCATED_TEST_PATHS.remove(paths.work());
+		ALLOCATED_TEST_PATHS.remove(paths.export());
 	}
 
 	/**

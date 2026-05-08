@@ -25,6 +25,9 @@ package io.evitadb.core.cdc;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.EvitaSessionTerminationCallback;
+import io.evitadb.api.SessionTraits;
+import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
@@ -54,16 +57,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.utils.ReflectionUtils.getNonnullFieldValue;
+import static io.evitadb.test.utils.ReflectionUtils.setFieldValue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.CDC;
 
@@ -1123,6 +1129,882 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				"Deleting a catalog must emit CatalogRemovedFromLiveView for that catalog"
 			);
 			assertEquals(victim, received.get(0).catalogName());
+		}
+	}
+
+	/**
+	 * Polls the subscriber's captured items until at least `expectedCount` host events of the given
+	 * type for the given catalog have been observed, or the deadline elapses. Returns the matching
+	 * events (which may include more than `expectedCount` if extra events were delivered while the
+	 * loop was blocked on `Thread.sleep`). Callers assert the exact count on the returned list so
+	 * spurious extras surface as failures rather than being silently masked.
+	 *
+	 * The 50 ms cadence mirrors the existing `shouldEmitCatalogRemovedFromLiveViewOnDeleteCatalog`
+	 * polling loop in this class — short enough to keep the test wall-clock close to dispatch
+	 * latency, long enough to avoid CPU spin.
+	 *
+	 * @param subscriber    subscriber whose captured items are scanned; never `null`
+	 * @param catalogName   catalog name to match on the host event; never `null`
+	 * @param eventType     host-event subtype class to match; never `null`
+	 * @param expectedCount minimum number of matching events required before returning early;
+	 *                      pass `0` to simply drain the dispatcher up to the timeout
+	 * @param timeoutMs     maximum wall-clock time to wait, in milliseconds
+	 * @return list of host events matching the filter, in arrival order
+	 */
+	@Nonnull
+	private static <T extends HostSystemEvent> List<T> waitForHostEventsFor(
+		@Nonnull MockSystemChangeSubscriber subscriber,
+		@Nonnull String catalogName,
+		@Nonnull Class<T> eventType,
+		final int expectedCount,
+		final long timeoutMs
+	) throws InterruptedException {
+		final long deadline = System.currentTimeMillis() + timeoutMs;
+		while (System.currentTimeMillis() < deadline) {
+			final List<T> matches = hostEventsFor(subscriber, catalogName, eventType);
+			if (expectedCount > 0 && matches.size() >= expectedCount) {
+				return matches;
+			}
+			Thread.sleep(50L);
+		}
+		return hostEventsFor(subscriber, catalogName, eventType);
+	}
+
+	/**
+	 * Verifies the coalescing contract for WARMING_UP sessions: a single read-write
+	 * session that defines an entity schema and adds five attributes must produce **exactly one**
+	 * `CatalogSchemaUpdated` host event when it closes, regardless of how many internal
+	 * `ModifyCatalogSchemaMutation` operators ran. The event's `catalogName` must match the target
+	 * catalog and its `newSchemaVersion` must be the catalog's settled schema version on this host
+	 * (`>= 1`).
+	 *
+	 * Why this matters: GraphQL/REST observers used to refresh per individual schema mutation,
+	 * causing a refresh storm during multi-attribute schema bootstrap. The coalesced event lets
+	 * those observers refresh exactly once per session.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit exactly one CatalogSchemaUpdated per WARMING_UP session that bumps the schema")
+	void shouldEmitOneCatalogSchemaUpdatedPerWarmingUpSession(@Nonnull Evita evita) throws InterruptedException {
+		// pre-create the target catalog so the WARMING_UP session below starts with a known
+		// `startCatalogSchemaVersion`; the create itself fires `CatalogInstalledIntoLiveView` (not a
+		// schema-updated event), so it does not pollute the count we assert on.
+		final String catalog = TEST_CATALOG + "_warmingUpSchema";
+		evita.defineCatalog(catalog);
+
+		// subscribe to HOST events AFTER the create so the activation host events do not interleave
+		// with the schema-updated event we are isolating.
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// drive a WARMING_UP read-write session: define an entity schema and add 5 attributes.
+			// The catalog stays in WARMING_UP because we never call `goLiveAndClose`, so the emit
+			// site is `EvitaSession#executeTerminationSteps` — which gates on
+			// `finalSchemaVersion > startCatalogSchemaVersion`. Multiple internal schema mutations
+			// must coalesce into a single CatalogSchemaUpdated.
+			evita.updateCatalog(
+				catalog, session -> {
+					session.defineEntitySchema("Product")
+						.withAttribute("code", String.class)
+						.withAttribute("name", String.class)
+						.withAttribute("priority", Long.class)
+						.withAttribute("ean", String.class)
+						.withAttribute("manufactured", java.time.LocalDate.class)
+						.updateVia(session);
+					return null;
+				}
+			);
+
+			// poll up to a generous deadline — async dispatcher latency on a loaded CI host can run
+			// into a few hundred milliseconds.
+			final List<HostSystemEvent.CatalogSchemaUpdated> received = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class, 1, 5_000L
+			);
+			assertEquals(
+				1, received.size(),
+				"Exactly one CatalogSchemaUpdated must fire per WARMING_UP session that bumped the schema; got " + received.size()
+			);
+			final HostSystemEvent.CatalogSchemaUpdated event = received.get(0);
+			assertEquals(catalog, event.catalogName());
+			assertTrue(
+				event.newSchemaVersion() >= 1,
+				"newSchemaVersion must be >= 1 after entity-schema creation; got " + event.newSchemaVersion()
+			);
+		} finally {
+			// Tear down the helper catalog so the destroyAfterTest path is not surprised by leftovers.
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * F5 regression guard: a WARMING_UP session whose termination callback throws
+	 * must STILL emit `CatalogSchemaUpdated` for the schema mutations it persisted. The schema is
+	 * already committed by the time the termination callback runs, so failing to emit would leave
+	 * downstream observers (GraphQL/REST) with a stale schema view.
+	 *
+	 * The fix moves the emit into the `finally` block of `EvitaSession#executeTerminationSteps`
+	 * with the gating decision captured BEFORE the try-catch — so the rethrown
+	 * `TransactionException` from the callback failure does not skip the emit.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit CatalogSchemaUpdated even when termination callback throws on WARMING_UP session")
+	void shouldEmitCatalogSchemaUpdatedWhenTerminationCallbackThrows(@Nonnull Evita evita)
+		throws InterruptedException {
+		final String catalog = TEST_CATALOG + "_warmingUpThrowingCallback";
+		evita.defineCatalog(catalog);
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			final AtomicBoolean callbackInvoked = new AtomicBoolean(false);
+
+			// Open a WARMING_UP session, then reflectively replace its `terminationCallback` with
+			// one that runs the original engine cleanup AND throws. The public
+			// `SessionTraits.onTermination` parameter is silently dropped by the engine path
+			// (`Evita.createInternalSession` builds its own cleanup callback), so the only way to
+			// inject a misbehaving termination callback is via direct field write on `EvitaSession`.
+			// Schema mutations are then persisted; `close()` runs the throwing callback inside
+			// `executeTerminationSteps`. The F5 fix puts the schema-updated emit in `finally`, so
+			// the HOST subscriber must still see the event despite the callback failure.
+			//
+			// FRAGILE: this test depends on three private surface points whose names are NOT
+			// part of any compile-time contract. If a future refactor renames any of them, this
+			// test will fail with a reflection error rather than a real regression — please
+			// update the field/handler names below rather than deleting the test:
+			//   1. `Proxy.getInvocationHandler(session)` must return the `EvitaSessionProxy`
+			//      handler (depends on `EvitaSession` being JDK-proxied at session-creation time).
+			//   2. The proxy handler's underlying `EvitaSession` instance is read from the
+			//      `evitaSession` field of `EvitaSessionProxy`.
+			//   3. The termination callback is held in `EvitaSession.terminationCallback`.
+			try (final EvitaSessionContract session = evita.createSession(new SessionTraits(catalog, SessionFlags.READ_WRITE))) {
+				final Object proxyHandler = Proxy.getInvocationHandler(session);
+				final Object underlyingSession = getNonnullFieldValue(proxyHandler, "evitaSession");
+				final EvitaSessionTerminationCallback originalCallback =
+					getNonnullFieldValue(underlyingSession, "terminationCallback");
+				final EvitaSessionTerminationCallback throwingCallback = sessionRef -> {
+					originalCallback.onTermination(sessionRef);
+					callbackInvoked.set(true);
+					throw new RuntimeException("synthetic termination failure for F5 regression test");
+				};
+				setFieldValue(underlyingSession, "terminationCallback", throwingCallback);
+
+				session.defineEntitySchema("Product")
+					.withAttribute("code", String.class)
+					.withAttribute("name", String.class)
+					.updateVia(session);
+			}
+			assertTrue(
+				callbackInvoked.get(),
+				"Throwing termination callback must have actually run"
+			);
+
+			// The load-bearing assertion: despite the throwing callback, the schema-updated emit
+			// must still have fired (now lives in `finally`, not after the try-catch).
+			final List<HostSystemEvent.CatalogSchemaUpdated> received = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class, 1, 5_000L
+			);
+			assertEquals(
+				1, received.size(),
+				"CatalogSchemaUpdated must fire even when the termination callback throws; got "
+					+ received.size() + " events"
+			);
+			final HostSystemEvent.CatalogSchemaUpdated event = received.get(0);
+			assertEquals(catalog, event.catalogName());
+			assertTrue(
+				event.newSchemaVersion() >= 1,
+				"newSchemaVersion must reflect the post-mutation schema version; got " + event.newSchemaVersion()
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * Verifies the gating contract for read-only WARMING_UP sessions: a session that
+	 * never advances the schema version (here, a session that only runs a query) must not emit any
+	 * `CatalogSchemaUpdated` event when it closes. The
+	 * `EvitaSession#executeTerminationSteps` guard `finalSchemaVersion > startCatalogSchemaVersion`
+	 * is the mechanism under test.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit no CatalogSchemaUpdated for read-only WARMING_UP session")
+	void shouldNotEmitCatalogSchemaUpdatedForReadOnlyWarmingUpSession(
+		@Nonnull Evita evita
+	) throws InterruptedException {
+		// pre-create the target catalog and subscribe AFTER the create, identically to the
+		// happy-path test above — only the session content differs.
+		final String catalog = TEST_CATALOG + "_warmingUpReadOnly";
+		evita.defineCatalog(catalog);
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// Pure read session — no schema mutations. The session opens, lists the (empty) entity
+			// types, and closes. `finalSchemaVersion == startCatalogSchemaVersion` so the gate
+			// rejects the emit.
+			try (final EvitaSessionContract session = evita.createReadOnlySession(catalog)) {
+				// trivial read; the result is intentionally ignored — what matters is that no
+				// schema-mutating operation runs.
+				session.getAllEntityTypes();
+			}
+
+			// Drain the dispatcher for a short window to give any spurious emit time to land —
+			// then assert zero.
+			final List<HostSystemEvent.CatalogSchemaUpdated> received = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class, 0, 500L
+			);
+			assertEquals(
+				0, received.size(),
+				"Read-only WARMING_UP session must not emit CatalogSchemaUpdated; got " + received.size()
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * Verifies the coalescing contract for ALIVE catalogs: a single transaction that
+	 * adds three attributes to an existing entity schema must produce **exactly one**
+	 * `CatalogSchemaUpdated` host event after commit, regardless of the number of internal schema
+	 * mutations. The emit site under test is `Evita#replaceCatalogReference`, gated on
+	 * `newSchemaVersion > priorSchemaVersion`.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit exactly one CatalogSchemaUpdated per schema transaction on ALIVE catalog")
+	void shouldEmitOneCatalogSchemaUpdatedPerSchemaTransactionOnAlive(
+		@Nonnull Evita evita
+	) throws InterruptedException {
+		// Bring a fresh catalog to ALIVE first. The activation path emits warming-up host events
+		// that we do not want to interleave with the assertion — so we subscribe AFTER ALIVE.
+		final String catalog = TEST_CATALOG + "_aliveSchema";
+		evita.defineCatalog(catalog);
+		// seed an entity schema in WARMING_UP so the ALIVE transaction below has something to
+		// modify (adding attributes to an existing collection rather than creating one).
+		evita.updateCatalog(
+			catalog, session -> {
+				session.defineEntitySchema("Product").updateVia(session);
+				return null;
+			}
+		);
+		evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+		assertEquals(
+			CatalogState.ALIVE, evita.getCatalogState(catalog).orElseThrow(),
+			"Pre-condition: catalog must be ALIVE before the schema transaction is issued"
+		);
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// Add three attributes within one transaction. The transaction-commit path funnels
+			// through `Evita#replaceCatalogReference`, which emits a single CatalogSchemaUpdated
+			// for the whole commit (all three attribute mutations coalesce).
+			evita.updateCatalog(
+				catalog, session -> {
+					session.getEntitySchemaOrThrowException("Product")
+						.openForWrite()
+						.withAttribute("code", String.class)
+						.withAttribute("name", String.class)
+						.withAttribute("priority", Long.class)
+						.updateVia(session);
+					return null;
+				}
+			);
+
+			final List<HostSystemEvent.CatalogSchemaUpdated> received = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class, 1, 5_000L
+			);
+			assertEquals(
+				1, received.size(),
+				"Exactly one CatalogSchemaUpdated must fire per ALIVE schema transaction; got " + received.size()
+			);
+			final HostSystemEvent.CatalogSchemaUpdated event = received.get(0);
+			assertEquals(catalog, event.catalogName());
+			assertTrue(
+				event.newSchemaVersion() >= 1,
+				"newSchemaVersion must reflect the post-commit schema version; got " + event.newSchemaVersion()
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * Verifies the gating contracts for data-only ALIVE transactions. When ~10 entities
+	 * are upserted in a single transaction without touching the schema, **no** new
+	 * `CatalogSchemaUpdated` events should fire (data-only commits do not advance schema version)
+	 * AND **no** new `CatalogInstalledIntoLiveView` events should fire (the per-commit pulse was
+	 * deliberately dropped; only real state transitions emit `CatalogInstalledIntoLiveView`).
+	 *
+	 * The latter is the critical regression guard for the gating change in
+	 * `Evita#replaceCatalogReference`: previously every commit emitted a `CatalogInstalledIntoLiveView`
+	 * heartbeat regardless of whether the catalog actually transitioned states.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit no host events for data-only transaction on ALIVE catalog")
+	void shouldNotEmitCatalogSchemaUpdatedForDataOnlyTransactionOnAlive(
+		@Nonnull Evita evita
+	) throws InterruptedException {
+		// Build an ALIVE catalog with a Product schema sufficient for raw upserts. We define a
+		// minimal entity collection (no required attributes) so the upsert path does not need to
+		// run any schema mutation.
+		final String catalog = TEST_CATALOG + "_aliveDataOnly";
+		evita.defineCatalog(catalog);
+		evita.updateCatalog(
+			catalog, session -> {
+				session.defineEntitySchema("Product").updateVia(session);
+				return null;
+			}
+		);
+		evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+		assertEquals(
+			CatalogState.ALIVE, evita.getCatalogState(catalog).orElseThrow(),
+			"Pre-condition: catalog must be ALIVE before the data-only transaction is issued"
+		);
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// Pure data-only transaction: upsert 10 Product entities. No schema mutation runs, so
+			// `replaceCatalogReference` sees `newSchemaVersion == priorSchemaVersion` AND
+			// `priorState == catalog.getCatalogState()` — both gates reject the emit.
+			evita.updateCatalog(
+				catalog, session -> {
+					for (int i = 1; i <= 10; i++) {
+						session.upsertEntity(session.createNewEntity("Product", i));
+					}
+					return null;
+				}
+			);
+
+			// Drain the dispatcher long enough for any spurious emit to land.
+			Thread.sleep(500L);
+
+			final List<HostSystemEvent.CatalogSchemaUpdated> schemaEvents = hostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class
+			);
+			assertEquals(
+				0, schemaEvents.size(),
+				"Data-only ALIVE transaction must not emit CatalogSchemaUpdated; got " + schemaEvents.size()
+			);
+
+			final List<HostSystemEvent.CatalogInstalledIntoLiveView> installedEvents = hostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogInstalledIntoLiveView.class
+			);
+			assertEquals(
+				0, installedEvents.size(),
+				"Data-only ALIVE transaction must not emit CatalogInstalledIntoLiveView (per-commit pulse "
+					+ "was deliberately dropped); got " + installedEvents.size()
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * Alternate framing of `shouldNotEmitCatalogSchemaUpdatedForDataOnlyTransactionOnAlive` that
+	 * focuses **only** on the `CatalogInstalledIntoLiveView` gating side. Kept separate so the two
+	 * regression guards can be split into different test classes later without losing either
+	 * intent: this test is the canonical "no per-commit heartbeat" guard.
+	 *
+	 * The `Evita#replaceCatalogReference` change gates the install event on
+	 * `priorState != catalog.getCatalogState()`; a pure data-only commit on an ALIVE catalog has
+	 * `priorState == ALIVE == newState`, so no install event must fire.
+	 *
+	 * @param evita the Evita database instance
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit no CatalogInstalledIntoLiveView per data-only commit on ALIVE catalog")
+	void shouldNotEmitCatalogInstalledIntoLiveViewPerCommit(
+		@Nonnull Evita evita
+	) throws InterruptedException {
+		// Same setup as the data-only test above. The duplication is intentional: this test asserts
+		// the gating side from the operator/state-transition perspective rather than the schema
+		// version perspective. Splitting these into two test methods makes either failure mode
+		// triage to a single, focused signal.
+		final String catalog = TEST_CATALOG + "_aliveNoPulse";
+		evita.defineCatalog(catalog);
+		evita.updateCatalog(
+			catalog, session -> {
+				session.defineEntitySchema("Product").updateVia(session);
+				return null;
+			}
+		);
+		evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// Five back-to-back data-only commits to maximise the chance that any reintroduced
+			// per-commit pulse would surface as a count > 0.
+			for (int i = 0; i < 5; i++) {
+				final int batchOffset = i * 10;
+				evita.updateCatalog(
+					catalog, session -> {
+						for (int j = 1; j <= 10; j++) {
+							session.upsertEntity(session.createNewEntity("Product", batchOffset + j));
+						}
+						return null;
+					}
+				);
+			}
+
+			Thread.sleep(500L);
+
+			final List<HostSystemEvent.CatalogInstalledIntoLiveView> installedEvents = hostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogInstalledIntoLiveView.class
+			);
+			assertEquals(
+				0, installedEvents.size(),
+				"No CatalogInstalledIntoLiveView heartbeat must fire for data-only commits on an "
+					+ "ALIVE catalog (state did not transition); got " + installedEvents.size()
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * G1: post-`evita.close()` invocation of `notifyCatalogSchemaUpdated` must be a
+	 * silent no-op (mirroring `notifyCatalogStateSettled`'s shutdown-defensive contract). This
+	 * locks down the late-emit shutdown path so an in-flight session-close termination step that
+	 * reaches the emit after the engine has begun tearing down does not wedge the operator's
+	 * future with `InstanceTerminatedException` — host events are best-effort on shutdown.
+	 *
+	 * Mirrors `BootTimeAutoUpgradeHostEventTest#shouldNotThrowWhenHostEventEmittedAfterClose` for
+	 * the new `CatalogSchemaUpdated` variant.
+	 */
+	@Test
+	@DisplayName("not throw when notifyCatalogSchemaUpdated fires after engine close")
+	void shouldNotThrowWhenSchemaUpdatedEmittedAfterClose() {
+		// build a one-shot Evita instance so we can close it without taking down the shared dataset
+		final TestPaths testPaths = createTestPaths(
+			SystemChangeObserverTest.class.getSimpleName() + "_g1ShutdownDefensive"
+		);
+		final Evita standalone = new Evita(newTestEvitaConfigurationBuilder(testPaths).build());
+		try {
+			standalone.defineCatalog(TEST_CATALOG + "_g1");
+			standalone.close();
+			// post-close emit must NOT throw — silent no-op contract from issue #1151
+			standalone.notifyCatalogSchemaUpdated(TEST_CATALOG + "_g1", 5);
+		} finally {
+			cleanupTestPaths(testPaths);
+		}
+	}
+
+	/**
+	 * G2: a fresh `defineCatalog` (first install) emits exactly
+	 * `CatalogInstalledIntoLiveView` so downstream observers (GraphQL/REST/gRPC) register
+	 * endpoints on first creation. The first-install path does NOT go through
+	 * `Evita#replaceCatalogReference` — `CreateCatalogMutationOperator` calls
+	 * `notifyCatalogStateSettled` directly — so the coalesced `CatalogSchemaUpdated` event
+	 * does not fire on a bare `defineCatalog`. Schema-update fan-out is driven by the
+	 * `CreateCatalogSchemaMutation` engine-mutation branch in the GraphQL/REST observers
+	 * (which calls `registerCatalog`), not by a host event.
+	 *
+	 * Design note: only `CatalogInstalledIntoLiveView` fires on first install — not
+	 * `CatalogSchemaUpdated`. This is intentional: `registerCatalog` already handles
+	 * first-install endpoint setup directly via the `CreateCatalogSchemaMutation` engine
+	 * mutation. Whether to also emit `CatalogSchemaUpdated` for symmetry with
+	 * `replaceCatalogReference` is a candidate follow-up but not in scope for the schema-coalescing change.
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit CatalogInstalledIntoLiveView on first install (defineCatalog)")
+	void shouldEmitInstalledIntoLiveViewOnFirstInstall(@Nonnull Evita evita) throws InterruptedException {
+		final long currentVersion = evita.getEngineState().version();
+
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		final String catalog = TEST_CATALOG + "_g2FirstInstall";
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// first install via `defineCatalog` goes through `CreateCatalogMutationOperator` which
+			// calls `notifyCatalogStateSettled` directly, bypassing `replaceCatalogReference`. As a
+			// result only `CatalogInstalledIntoLiveView` fires here — `CatalogSchemaUpdated` is NOT
+			// emitted on bare `defineCatalog`. Schema fan-out for first-install is driven by the
+			// `CreateCatalogSchemaMutation` engine-mutation branch in the GraphQL/REST observers
+			// (which calls `registerCatalog`). The asymmetry vs `replaceCatalogReference` is
+			// intentional and tracked as a follow-up candidate for the schema-coalescing work.
+			evita.defineCatalog(catalog);
+
+			final List<HostSystemEvent.CatalogInstalledIntoLiveView> installedEvents = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogInstalledIntoLiveView.class, 1, 5_000L
+			);
+			final List<HostSystemEvent.CatalogSchemaUpdated> schemaUpdatedEvents = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class, 0, 500L
+			);
+			assertFalse(
+				installedEvents.isEmpty(),
+				"First install must emit CatalogInstalledIntoLiveView; got "
+					+ installedEvents.size() + " events"
+			);
+			assertTrue(
+				schemaUpdatedEvents.isEmpty(),
+				"First install via defineCatalog must NOT emit CatalogSchemaUpdated " +
+					"(CreateCatalogMutationOperator bypasses replaceCatalogReference); got "
+					+ schemaUpdatedEvents.size() + " events"
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * G3: a state-only transition (WARMING_UP → ALIVE via `goLiveAndClose` without
+	 * any preceding schema work in the WARMING_UP session) must emit `CatalogInstalledIntoLiveView`
+	 * but NOT `CatalogSchemaUpdated`. The state gate opens (priorState != newState) while the
+	 * schema gate stays closed (newSchemaVersion == priorSchemaVersion).
+	 *
+	 * This is the regression guard for the "state changed but schema did not" symmetric case to
+	 * `shouldNotEmitCatalogSchemaUpdatedForDataOnlyTransactionOnAlive` (which tests the opposite
+	 * "neither changed" case).
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit only CatalogInstalledIntoLiveView for state-only transition with no schema work")
+	void shouldNotEmitCatalogSchemaUpdatedForStateOnlyTransition(
+		@Nonnull Evita evita
+	) throws InterruptedException {
+		// pre-create the catalog in WARMING_UP — its first-install events fire on this `defineCatalog`
+		// call; we subscribe AFTER so those don't pollute the assertion below.
+		final String catalog = TEST_CATALOG + "_g3StateOnly";
+		evita.defineCatalog(catalog);
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// pure state transition WARMING_UP → ALIVE; no schema-mutating operation runs in this
+			// session, so the schema version stays unchanged.
+			evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+			// CatalogInstalledIntoLiveView(ALIVE) must arrive — state actually changed
+			final List<HostSystemEvent.CatalogInstalledIntoLiveView> installedEvents = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogInstalledIntoLiveView.class, 1, 5_000L
+			);
+			assertEquals(
+				1, installedEvents.size(),
+				"Exactly one CatalogInstalledIntoLiveView must fire for the WARMING_UP→ALIVE transition; got "
+					+ installedEvents.size()
+			);
+			assertEquals(
+				CatalogState.ALIVE, installedEvents.get(0).observedState(),
+				"observedState must be ALIVE for the goLiveAndClose transition"
+			);
+
+			// drain dispatcher long enough for any spurious CatalogSchemaUpdated to appear, then assert zero
+			final List<HostSystemEvent.CatalogSchemaUpdated> schemaUpdatedEvents = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class, 0, 500L
+			);
+			assertEquals(
+				0, schemaUpdatedEvents.size(),
+				"State-only transition (no schema work) must not emit CatalogSchemaUpdated; got "
+					+ schemaUpdatedEvents.size()
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * G5: in a WARMING_UP session that BOTH bumps the schema version AND triggers a
+	 * state transition (via `goLiveAndClose` after schema work), exactly ONE `CatalogSchemaUpdated`
+	 * event must fire — not two. The double-emit guard lives in `EvitaSession#executeTerminationSteps`:
+	 * it only fires the schema-updated emit when `theCatalog.getCatalogState() != ALIVE` so the
+	 * transaction-commit path (`Evita#replaceCatalogReference`) owns the emit once the catalog goes
+	 * ALIVE.
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("emit exactly one CatalogSchemaUpdated when WARMING_UP session bumps schema and goes live")
+	void shouldEmitOneCatalogSchemaUpdatedWhenSchemaBumpAndStateTransitionInOneSession(
+		@Nonnull Evita evita
+	) throws InterruptedException {
+		// pre-create the catalog so its first-install events do not pollute the assertion
+		final String catalog = TEST_CATALOG + "_g5DoubleEmit";
+		evita.defineCatalog(catalog);
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest infraRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(currentVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.hostArea()
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(infraRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// First session: bump the schema in WARMING_UP. The session-close path emits exactly one
+			// CatalogSchemaUpdated because the catalog is still WARMING_UP (the gate
+			// `theCatalog.getCatalogState() != ALIVE` opens) AND finalSchemaVersion > startVersion.
+			evita.updateCatalog(
+				catalog, session -> {
+					session.defineEntitySchema("Product").updateVia(session);
+					return null;
+				}
+			);
+			// Second session: trigger the state transition WARMING_UP → ALIVE. By the time this
+			// session's `executeTerminationSteps` runs, the catalog state has already settled to
+			// ALIVE during the goLiveAndClose call so the double-emit gate suppresses any
+			// session-close emit. The transaction-commit path (replaceCatalogReference) does not
+			// fire a schema-updated event either because schema version did not change.
+			evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+			// Drain dispatcher long enough for any extra event to land; assert exactly one.
+			Thread.sleep(500L);
+			final List<HostSystemEvent.CatalogSchemaUpdated> schemaUpdatedEvents = hostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class
+			);
+			assertEquals(
+				1, schemaUpdatedEvents.size(),
+				"Exactly one CatalogSchemaUpdated must fire for a WARMING_UP-then-ALIVE session sequence "
+					+ "regardless of how many internal mutations ran (double-emit guard); got "
+					+ schemaUpdatedEvents.size()
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * G7: a late subscriber attaching AFTER a `CatalogSchemaUpdated` host event has
+	 * already fired must NOT receive a historical replay of that event. Host events are
+	 * live-tail only (documented on `HostSystemEvent`). Mirrors
+	 * `shouldNotReplayHistoricalHostEventsToLateSubscriber` for the new `CatalogSchemaUpdated`
+	 * variant.
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("not replay historical CatalogSchemaUpdated to a late subscriber")
+	void shouldNotReplayHistoricalCatalogSchemaUpdatedToLateSubscriber(
+		@Nonnull Evita evita
+	) throws InterruptedException {
+		final long startVersion = evita.getEngineState().version();
+
+		// drive a CatalogSchemaUpdated emit BEFORE any subscriber attaches
+		final String catalog = TEST_CATALOG + "_g7LateSubscriber";
+		evita.defineCatalog(catalog);
+		// directly emit a synthetic CatalogSchemaUpdated event so the test does not depend on the
+		// timing of an asynchronous session-close emit landing before we subscribe
+		evita.getChangeObserver().processHostEvent(
+			new HostSystemEvent.CatalogSchemaUpdated(catalog, 5, evita.getEngineState().version())
+		);
+		// give the dispatcher a chance to drain so the historical event is firmly in the past
+		Thread.sleep(100L);
+
+		// late subscriber attaches AFTER the event has fired
+		final ChangeSystemCaptureRequest lateRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(startVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.criteria(
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE),
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)
+			)
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(lateRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// drain the dispatcher long enough to be confident no replay happened
+			Thread.sleep(500L);
+
+			final List<HostSystemEvent.CatalogSchemaUpdated> schemaUpdatedEvents = hostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class
+			);
+			assertEquals(
+				0, schemaUpdatedEvents.size(),
+				"Late subscriber must NOT receive historical CatalogSchemaUpdated (live-tail only); got "
+					+ schemaUpdatedEvents.size()
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
+		}
+	}
+
+	/**
+	 * G8: a `CatalogSchemaUpdated` host event must arrive STRICTLY AFTER the
+	 * engine mutations that drove the schema-version bump. Mirrors
+	 * `shouldOrderHostEventStrictlyAfterPrecedingMutation` for the new variant. The strict
+	 * ordering is the contract that lets refresh observers correlate the host event with the
+	 * schema-mutating WAL records that preceded it.
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("order CatalogSchemaUpdated strictly after preceding schema mutations")
+	void shouldOrderCatalogSchemaUpdatedStrictlyAfterPrecedingMutations(
+		@Nonnull Evita evita
+	) throws Exception {
+		// pre-create the target catalog so the schema-bump session below has a known starting point;
+		// the create itself fires its own host events that we subscribe AFTER to keep the assertion focused.
+		final String catalog = TEST_CATALOG + "_g8Ordering";
+		evita.defineCatalog(catalog);
+
+		final long startVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest combinedRequest = ChangeSystemCaptureRequest.builder()
+			.sinceVersion(startVersion + 1)
+			.content(ChangeCaptureContent.BODY)
+			.criteria(
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE),
+				new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)
+			)
+			.build();
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher =
+				evita.registerSystemChangeCapture(combinedRequest)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// Drive a schema bump in WARMING_UP; the session-close path emits CatalogSchemaUpdated
+			// after the engine mutations have already been processed by the observer chain, so the
+			// host event is guaranteed to land STRICTLY AFTER those mutations in the subscriber's
+			// stream — same per-subscription executor that drains queued mutations also dispatches
+			// the host event.
+			evita.updateCatalog(
+				catalog, session -> {
+					session.defineEntitySchema("Product")
+						.withAttribute("code", String.class)
+						.updateVia(session);
+					return null;
+				}
+			);
+
+			// Wait until the CatalogSchemaUpdated lands so the ordering scan sees the full stream
+			final List<HostSystemEvent.CatalogSchemaUpdated> received = waitForHostEventsFor(
+				subscriber, catalog, HostSystemEvent.CatalogSchemaUpdated.class, 1, 5_000L
+			);
+			assertEquals(
+				1, received.size(),
+				"Exactly one CatalogSchemaUpdated expected; got " + received.size()
+			);
+
+			// Locate the CatalogSchemaUpdated in the captured stream and verify at least one
+			// engine mutation precedes it — the strict-ordering contract documented on
+			// HostSystemEvent.
+			int schemaUpdatedIndex = -1;
+			for (int i = 0; i < subscriber.getItems().size(); i++) {
+				if (subscriber.getItems().get(i).body() instanceof HostSystemEvent.CatalogSchemaUpdated) {
+					schemaUpdatedIndex = i;
+					break;
+				}
+			}
+			assertTrue(
+				schemaUpdatedIndex > 0,
+				"CatalogSchemaUpdated must not be the first item — at least one engine mutation "
+					+ "must precede it (strict-ordering contract); index was "
+					+ schemaUpdatedIndex
+			);
+		} finally {
+			evita.deleteCatalogIfExists(catalog);
 		}
 	}
 }

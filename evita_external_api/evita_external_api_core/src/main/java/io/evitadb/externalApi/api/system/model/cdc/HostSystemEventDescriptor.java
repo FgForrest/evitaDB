@@ -27,9 +27,10 @@ import io.evitadb.externalApi.api.model.UnionDescriptor;
 
 /**
  * Union descriptor for the polymorphic {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent}
- * sealed interface. Both record variants
+ * sealed interface. All record variants
  * ({@link io.evitadb.api.requestResponse.cdc.HostSystemEvent.CatalogInstalledIntoLiveView},
- * {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent.CatalogRemovedFromLiveView}) are
+ * {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent.CatalogRemovedFromLiveView},
+ * {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent.CatalogSchemaUpdated}) are
  * registered as union members.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
@@ -44,5 +45,6 @@ public interface HostSystemEventDescriptor {
 			""")
 		.type(CatalogInstalledIntoLiveViewDescriptor.THIS)
 		.type(CatalogRemovedFromLiveViewDescriptor.THIS)
+		.type(CatalogSchemaUpdatedDescriptor.THIS)
 		.build();
 }

@@ -39,6 +39,10 @@
 		<jmh.version>1.37</jmh.version>
 		<javac.target>1.17</javac.target>
 		<uberjar.name>benchmarks</uberjar.name>
+		<!-- Test module: not published to Maven Central. -->
+		<maven.install.skip>true</maven.install.skip>
+		<maven.deploy.skip>true</maven.deploy.skip>
+		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
 	</properties>
 
 	<dependencies>

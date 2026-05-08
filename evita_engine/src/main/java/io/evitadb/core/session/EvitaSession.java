@@ -205,7 +205,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Represents the starting version of the catalog schema.
 	 * This variable is used to keep track of the initial version of the catalog schema.
 	 */
-	private final long startCatalogSchemaVersion;
+	private final int startCatalogSchemaVersion;
 	/**
 	 * Contains reference to the proxy factory that is used to create proxies for the entities.
 	 */
@@ -1922,6 +1922,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				this.beingClosed.compareAndSet(true, false),
 				"Expectation failed!"
 			);
+			// emit inside `finally` so a throwing termination callback does not
+			// swallow the schema-update signal — the schema mutation is already persistent at
+			// this point, so downstream observers must be notified regardless of callback
+			// success. ALIVE sessions are owned by the transaction-commit path
+			// (`Evita#replaceCatalogReference`) so we skip them here to avoid double-emit;
+			// read-only and pure data sessions trivially fall through
+			// (newSchemaVersion == startCatalogSchemaVersion).
+			final int newSchemaVersion = theCatalog.getSchema().version();
+			if (theCatalog.getCatalogState() != CatalogState.ALIVE
+					&& newSchemaVersion > this.startCatalogSchemaVersion) {
+				this.evita.notifyCatalogSchemaUpdated(theCatalog.getName(), newSchemaVersion);
+			}
 		}
 	}
 

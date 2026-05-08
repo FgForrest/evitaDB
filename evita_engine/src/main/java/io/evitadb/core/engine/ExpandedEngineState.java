@@ -218,27 +218,44 @@ public record ExpandedEngineState(
 	/**
 	 * Replaces the in-memory reference for the specified catalog by name if the provided
 	 * {@link Catalog} instance has a higher {@link Catalog#getVersion() version} than the
-	 * current reference.
+	 * current reference, and reports whether the catalog schema version advanced as part of
+	 * the swap.
 	 *
 	 * This is a best-effort, in-place optimization intended for scenarios where the underlying
 	 * {@code catalogs} map is a concurrent and mutable implementation. If the map is unmodifiable,
 	 * calling this method will fail; in such cases prefer {@link #withUpdatedCatalogInstance(CatalogContract)} to
 	 * obtain a new immutable snapshot.
 	 *
-	 * Concurrency: the operation relies on {@link Map#computeIfPresent} which is safe with concurrent
-	 * maps. Only a strictly newer reference replaces the existing one; if the reference is the same or
+	 * Concurrency: the prior schema-version snapshot is read **before** the atomic swap inside
+	 * {@link CatalogWrapper#replaceCatalogReference(Catalog)}, so under concurrent calls for the
+	 * same catalog the read may be stale relative to whoever ultimately wins the swap. The commit
+	 * pipeline (`TransactionManager#propagateCatalogSnapshot`) serializes calls per catalog, so in
+	 * practice this race cannot occur — the read remains consistent with the replaced reference.
+	 * Only a strictly newer reference replaces the existing one; if the reference is the same or
 	 * older, the current catalog remains unchanged.
 	 *
 	 * @param catalog a newer {@link Catalog} instance to swap in by name
+	 * @return {@code true} when the swap actually happened AND the new catalog has a strictly
+	 * higher schema version than the prior reference; {@code false} when the swap was skipped
+	 * (older / identical reference) or when the schema version did not advance (data-only commit)
 	 */
-	public void replaceCatalogReference(@Nonnull Catalog catalog) {
+	public boolean replaceCatalogReference(@Nonnull Catalog catalog) {
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
 		final CatalogWrapper currentCatalogRef = this.catalogs.get(catalog.getName());
-		// replace catalog only when reference/pointer differs
+		// replace catalog only when reference/pointer differs and is strictly newer
 		final CatalogContract currentCatalog = currentCatalogRef.catalog();
-		if (currentCatalog != catalog && currentCatalog.getVersion() < catalog.getVersion()) {
-			currentCatalogRef.replaceCatalogReference(catalog);
+		if (currentCatalog == catalog || currentCatalog.getVersion() >= catalog.getVersion()) {
+			return false;
 		}
+		// UnusableCatalog placeholder cannot read its schema (would throw); treat as -1 so a
+		// real-Catalog replacement always counts as a schema advance. Defensive against a
+		// programming-error path — production swaps here are always Catalog→Catalog from the
+		// commit pipeline.
+		final int priorSchemaVersion = currentCatalog instanceof Catalog priorAlive
+			? priorAlive.getSchema().version()
+			: -1;
+		currentCatalogRef.replaceCatalogReference(catalog);
+		return catalog.getSchema().version() > priorSchemaVersion;
 	}
 
 	/**

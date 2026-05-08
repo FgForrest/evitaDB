@@ -27,9 +27,13 @@ import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SchemaSite;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureArea;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.MutationPredicate;
@@ -45,6 +49,7 @@ import org.junit.jupiter.api.Test;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.UUID;
+import java.util.function.Predicate;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -506,4 +511,58 @@ class MutationPredicateFactoryTest {
         // Verify the predicate is not null
         assertNotNull(predicate);
     }
+
+	/**
+	 * G6: the host-event predicate produced by
+	 * {@link MutationPredicateFactory#createHostEventPredicate(ChangeSystemCaptureRequest)} must
+	 * accept a {@link HostSystemEvent.CatalogSchemaUpdated} when the request opts into the HOST
+	 * area. The predicate is variant-agnostic — it returns the same boolean for every
+	 * `HostSystemEvent` subtype — but locking down the new variant explicitly guards against a
+	 * future regression where a variant-specific dispatch path could be introduced and the new
+	 * record forgotten.
+	 */
+	@Test
+	@DisplayName("match CatalogSchemaUpdated when criteria opts into HOST area")
+	void shouldMatchCatalogSchemaUpdatedWithHostAreaPredicate() {
+		final ChangeSystemCaptureRequest request = new ChangeSystemCaptureRequest(
+			null, null,
+			new ChangeSystemCaptureCriteria[] { new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST) },
+			ChangeCaptureContent.BODY
+		);
+
+		final Predicate<HostSystemEvent> predicate = MutationPredicateFactory.createHostEventPredicate(request);
+		final HostSystemEvent.CatalogSchemaUpdated event =
+			new HostSystemEvent.CatalogSchemaUpdated("g6Catalog", 7, 99L);
+
+		assertNotNull(predicate);
+		assertTrue(
+			predicate.test(event),
+			"HOST-area request must accept CatalogSchemaUpdated host events"
+		);
+	}
+
+	/**
+	 * G6: a request opting into the ENGINE area only must REJECT every host event
+	 * including the new {@link HostSystemEvent.CatalogSchemaUpdated} variant. This is the
+	 * symmetric guard for the host-event predicate's "opt-in required" contract — the legacy
+	 * engine-only flow must not silently start delivering host events.
+	 */
+	@Test
+	@DisplayName("not match CatalogSchemaUpdated when criteria opts into ENGINE area only")
+	void shouldNotMatchCatalogSchemaUpdatedWithEngineAreaPredicate() {
+		final ChangeSystemCaptureRequest request = new ChangeSystemCaptureRequest(
+			null, null,
+			new ChangeSystemCaptureCriteria[] { new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE) },
+			ChangeCaptureContent.BODY
+		);
+
+		final Predicate<HostSystemEvent> predicate = MutationPredicateFactory.createHostEventPredicate(request);
+		final HostSystemEvent.CatalogSchemaUpdated event =
+			new HostSystemEvent.CatalogSchemaUpdated("g6Catalog", 7, 99L);
+
+		assertFalse(
+			predicate.test(event),
+			"ENGINE-only request must reject CatalogSchemaUpdated host events"
+		);
+	}
 }

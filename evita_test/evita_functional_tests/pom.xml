@@ -36,6 +36,15 @@
 
 	<properties>
 		<sonar.skip>true</sonar.skip>
+		<!--
+			Test modules are not published to Maven Central. Skipping install/deploy
+			here also avoids the test-jar resolution failure during the deploy step,
+			which runs with `-Dmaven.test.skip=true` and therefore does not produce
+			the `-tests` classifier consumed by `evita_long_running_tests`.
+		-->
+		<maven.install.skip>true</maven.install.skip>
+		<maven.deploy.skip>true</maven.deploy.skip>
+		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
 	</properties>
 
 	<dependencies>

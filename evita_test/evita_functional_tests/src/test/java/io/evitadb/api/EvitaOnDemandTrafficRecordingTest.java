@@ -294,7 +294,12 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 		final String[] fileNames = listAndVerifyFilesInArchive(fileForFetch);
 
 		assertTrue(fileForFetch.totalSizeInBytes() > 8000);
-		assertEquals(4, Arrays.stream(fileNames).filter(name -> name.startsWith("traffic_recording_")).count());
+		// the chunk file size of 32 kB combined with the deterministic traffic produced by
+		// `generateSomeTraffic()` lands close to the 3↔4 chunk boundary; sub-millisecond timing
+		// jitter (encoded in `now` and `duration` of every record via Kryo varint) shifts the
+		// chunk-3 close point by one session, so accept either count
+		final long chunkCount = Arrays.stream(fileNames).filter(name -> name.startsWith("traffic_recording_")).count();
+		assertTrue(chunkCount == 3 || chunkCount == 4, "Expected 3 or 4 traffic recording chunks, got " + chunkCount);
 		assertEquals(1, Arrays.stream(fileNames).filter(name -> name.equals("metadata.txt")).count());
 	}
 
@@ -408,7 +413,10 @@ public class EvitaOnDemandTrafficRecordingTest implements EvitaTestSupport {
 	}
 
 	private void generateSomeTraffic() {
-		final Random random = new Random();
+		// seed random so the produced traffic volume is deterministic and the chunk count assertion
+		// is not dependent on the random PKs picked (which influences how many entities each query
+		// matches and fetches into the recording stream)
+		final Random random = new Random(SEED);
 		for (int j = 0; j < 40; j++) {
 			this.evita.queryCatalog(
 				TEST_CATALOG,
