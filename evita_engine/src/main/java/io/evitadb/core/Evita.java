@@ -1237,6 +1237,13 @@ public final class Evita implements EvitaContract {
 						// bypasses `replaceCatalogReference` (which is the canonical chokepoint
 						// elsewhere) so the emit must be wired explicitly here — see issue #1151.
 						// Skip the emit when the engine state collapsed to null mid-shutdown.
+						//
+						// We deliberately do NOT emit `CatalogSchemaUpdated` here even when WAL
+						// replay advances the schema: live observers had no view of the catalog
+						// before this callback (it wasn't in the live view yet), so the
+						// `CatalogInstalledIntoLiveView` event already carries the post-replay
+						// schema and drives a single register/refresh in GraphQL / REST observers.
+						// Adding a second host event would only force a redundant rebuild.
 						if (afterReplay != null) {
 							notifyCatalogStateSettled(
 								updatedCatalog.getName(), updatedCatalog.getCatalogState()
@@ -1553,18 +1560,29 @@ public final class Evita implements EvitaContract {
 	/**
 	 * Replaces current catalog reference with updated one.
 	 *
-	 * After installing the new reference and waking the per-catalog observer, emits a
-	 * {@link HostSystemEvent.CatalogInstalledIntoLiveView} on the system CDC stream so any
-	 * HOST-area subscriber learns that the catalog is now usable on this host —
-	 * regardless of which path produced this call (boot load, post-upgrade retry,
-	 * post-activation load, etc.). This is the canonical chokepoint for the
-	 * "catalog X is now in state Y on this host" signal.
+	 * Delegates the swap (and the prior-vs-new schema-version comparison) to
+	 * {@link ExpandedEngineState#replaceCatalogReference(Catalog)}, which performs both atomically
+	 * and reports back whether the catalog schema version advanced. Emits a
+	 * {@link HostSystemEvent.CatalogSchemaUpdated} on the system CDC stream when it did, so HOST-area
+	 * subscribers (GraphQL / REST schema-refresh observers) coalesce a single refresh per real
+	 * schema bump instead of per-commit. Pure data-only commits emit nothing.
+	 *
+	 * Note: state-transition emits ({@link HostSystemEvent.CatalogInstalledIntoLiveView}) are NOT
+	 * issued here. This method is reached only via the commit pipeline (`TransactionManager#propagateCatalogSnapshot`),
+	 * where prior+new are always real `Catalog` instances of the same state. State transitions
+	 * (WARMING_UP→ALIVE, INACTIVE/MISSING/CORRUPTED settlements) flow through the matching
+	 * mutation-operator completion-phase callbacks which call `notifyCatalogStateSettled` directly.
 	 */
 	private void replaceCatalogReference(@Nonnull Catalog catalog) {
 		notNull(catalog, "Sanity check.");
 
-		// replace catalog reference in the engine state
-		getEngineState().replaceCatalogReference(catalog);
+		final ExpandedEngineState snapshot = this.engineState.get();
+		if (snapshot == null) {
+			// engine is shutting down — host events are best-effort on shutdown
+			return;
+		}
+
+		final boolean schemaAdvanced = snapshot.replaceCatalogReference(catalog);
 
 		// discard suspension of the session registry for the catalog, if present
 		discardSuspension(catalog.getName());
@@ -1572,9 +1590,9 @@ public final class Evita implements EvitaContract {
 		// notify callback that it's now a live snapshot
 		catalog.notifyCatalogPresentInLiveView();
 
-		// emit the host event so external observers (GraphQL/REST/gRPC) can register endpoints
-		// for the freshly-installed catalog without restart — see issue #1151
-		notifyCatalogStateSettled(catalog.getName(), catalog.getCatalogState());
+		if (schemaAdvanced) {
+			notifyCatalogSchemaUpdated(catalog.getName(), catalog.getSchema().version());
+		}
 	}
 
 	/**
@@ -1609,6 +1627,36 @@ public final class Evita implements EvitaContract {
 			new HostSystemEvent.CatalogInstalledIntoLiveView(
 				catalogName,
 				observedState,
+				snapshot.version()
+			);
+		this.changeObserver.processHostEvent(event);
+	}
+
+	/**
+	 * Emits a {@link HostSystemEvent.CatalogSchemaUpdated} on the system CDC stream for the
+	 * given catalog. Used by `EvitaSession` at WARMING_UP termination and by `replaceCatalogReference`
+	 * at ALIVE catalog version installation. Coalesces what was previously a per-mutation
+	 * `refreshCatalog` storm in GraphQL / REST observers.
+	 *
+	 * The event is host-local and live-tail only — it does NOT advance the engine version
+	 * counter; the snapshot version it carries is for correlation only.
+	 *
+	 * @param catalogName       name of the catalog whose schema version increased; never `null`
+	 * @param newSchemaVersion  the new (current) catalog schema version on this host; non-negative
+	 */
+	public void notifyCatalogSchemaUpdated(
+		@Nonnull String catalogName,
+		int newSchemaVersion
+	) {
+		// Defensive no-op on shutdown — see `notifyCatalogStateSettled`.
+		final ExpandedEngineState snapshot = this.engineState.get();
+		if (snapshot == null || !this.changeObserver.isActive()) {
+			return;
+		}
+		final HostSystemEvent.CatalogSchemaUpdated event =
+			new HostSystemEvent.CatalogSchemaUpdated(
+				catalogName,
+				newSchemaVersion,
 				snapshot.version()
 			);
 		this.changeObserver.processHostEvent(event);

@@ -43,11 +43,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pure record-invariant tests for {@link HostSystemEvent} and its sealed subtypes
- * {@link HostSystemEvent.CatalogInstalledIntoLiveView} and
- * {@link HostSystemEvent.CatalogRemovedFromLiveView}. The tests focus on the compact
+ * {@link HostSystemEvent.CatalogInstalledIntoLiveView},
+ * {@link HostSystemEvent.CatalogRemovedFromLiveView} and
+ * {@link HostSystemEvent.CatalogSchemaUpdated}. The tests focus on the compact
  * constructors' validation rules — non-transient state precondition, mandatory catalog
- * name, observed-state non-nullness — and on the marker-interface assignability that lets
- * these events ride on the system CDC stream alongside engine mutations.
+ * name, observed-state non-nullness, non-negative schema version — and on the
+ * marker-interface assignability that lets these events ride on the system CDC stream
+ * alongside engine mutations.
  *
  * No Evita instance is required; the tests use only the record's compact constructors.
  *
@@ -188,6 +190,73 @@ class HostSystemEventTest implements EvitaTestSupport {
 	}
 
 	@Nested
+	@DisplayName("CatalogSchemaUpdated construction")
+	class CatalogSchemaUpdatedConstruction {
+
+		@Test
+		@DisplayName("should construct with valid catalog name, schema version and engine version")
+		void shouldConstructWithValidArguments() {
+			final HostSystemEvent.CatalogSchemaUpdated event =
+				new HostSystemEvent.CatalogSchemaUpdated(CATALOG_NAME, 5, 42L);
+
+			assertEquals(CATALOG_NAME, event.catalogName());
+			assertEquals(5, event.newSchemaVersion());
+			assertEquals(42L, event.currentEngineVersion());
+		}
+
+		@Test
+		@DisplayName("should accept zero schema version (boundary)")
+		void shouldAcceptZeroSchemaVersion() {
+			final HostSystemEvent.CatalogSchemaUpdated event =
+				new HostSystemEvent.CatalogSchemaUpdated(CATALOG_NAME, 0, 0L);
+
+			assertEquals(0, event.newSchemaVersion());
+		}
+
+		@Test
+		@DisplayName("should reject null catalog name")
+		void shouldRejectNullCatalogName() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new HostSystemEvent.CatalogSchemaUpdated(null, 1, 0L)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject empty catalog name")
+		void shouldRejectEmptyCatalogName() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new HostSystemEvent.CatalogSchemaUpdated("", 1, 0L)
+			);
+		}
+
+		@Test
+		@DisplayName("should reject negative schema version")
+		void shouldRejectNegativeSchemaVersion() {
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new HostSystemEvent.CatalogSchemaUpdated(CATALOG_NAME, -1, 0L)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("non-negative"),
+				"Error message must explain the non-negative precondition; got: " + error.getPrivateMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should expose all record components via accessors")
+		void shouldExposeAllAccessors() {
+			final HostSystemEvent.CatalogSchemaUpdated event =
+				new HostSystemEvent.CatalogSchemaUpdated(CATALOG_NAME, 17, 1234L);
+
+			assertEquals(CATALOG_NAME, event.catalogName());
+			assertEquals(17, event.newSchemaVersion());
+			assertEquals(1234L, event.currentEngineVersion());
+		}
+	}
+
+	@Nested
 	@DisplayName("Type hierarchy")
 	class TypeHierarchy {
 
@@ -207,6 +276,17 @@ class HostSystemEventTest implements EvitaTestSupport {
 		void shouldBeAssignableToSystemCaptureBodyRemoved() {
 			final HostSystemEvent.CatalogRemovedFromLiveView event =
 				new HostSystemEvent.CatalogRemovedFromLiveView(CATALOG_NAME, 0L);
+
+			assertInstanceOf(SystemCaptureBody.class, event);
+			assertInstanceOf(HostSystemEvent.class, event);
+			assertNotNull(event);
+		}
+
+		@Test
+		@DisplayName("CatalogSchemaUpdated should be assignable to SystemCaptureBody")
+		void shouldBeAssignableToSystemCaptureBodySchemaUpdated() {
+			final HostSystemEvent.CatalogSchemaUpdated event =
+				new HostSystemEvent.CatalogSchemaUpdated(CATALOG_NAME, 1, 0L);
 
 			assertInstanceOf(SystemCaptureBody.class, event);
 			assertInstanceOf(HostSystemEvent.class, event);

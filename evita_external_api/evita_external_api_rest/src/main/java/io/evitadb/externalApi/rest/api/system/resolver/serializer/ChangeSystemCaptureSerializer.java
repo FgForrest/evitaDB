@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.api.system.model.cdc.CatalogInstalledIntoLiveViewDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.CatalogRemovedFromLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogSchemaUpdatedDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.api.system.resolver.mutation.DelegatingEngineMutationConverter;
 import io.evitadb.externalApi.rest.api.catalog.resolver.mutation.RestMutationObjectMapper;
@@ -50,7 +51,7 @@ import javax.annotation.Nonnull;
  * Engine mutations are delegated to the existing
  * {@link DelegatingEngineMutationConverter}; host events are serialized inline with a
  * `type` discriminator naming the variant (`CatalogInstalledIntoLiveView`,
- * `CatalogRemovedFromLiveView`).
+ * `CatalogRemovedFromLiveView`, `CatalogSchemaUpdated`).
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
@@ -112,6 +113,11 @@ public class ChangeSystemCaptureSerializer {
 				ChangeSystemCaptureDescriptor.BODY.name(),
 				serializeCatalogRemoved(removed)
 			);
+		} else if (body instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
+			rootNode.putIfAbsent(
+				ChangeSystemCaptureDescriptor.BODY.name(),
+				serializeCatalogSchemaUpdated(schemaUpdated)
+			);
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unsupported `ChangeSystemCapture` body kind: " + body.getClass().getName()
@@ -155,6 +161,27 @@ public class ChangeSystemCaptureSerializer {
 		node.putIfAbsent(
 			CatalogRemovedFromLiveViewDescriptor.CURRENT_ENGINE_VERSION.name(),
 			this.objectJsonSerializer.serializeObject(removed.currentEngineVersion())
+		);
+		return node;
+	}
+
+	@Nonnull
+	private ObjectNode serializeCatalogSchemaUpdated(
+		@Nonnull HostSystemEvent.CatalogSchemaUpdated schemaUpdated
+	) {
+		final ObjectNode node = this.objectJsonSerializer.objectNode();
+		node.put(HOST_EVENT_TYPE_FIELD, CatalogSchemaUpdatedDescriptor.THIS.name());
+		node.putIfAbsent(
+			CatalogSchemaUpdatedDescriptor.CATALOG_NAME.name(),
+			this.objectJsonSerializer.serializeObject(schemaUpdated.catalogName())
+		);
+		node.putIfAbsent(
+			CatalogSchemaUpdatedDescriptor.NEW_SCHEMA_VERSION.name(),
+			this.objectJsonSerializer.serializeObject(schemaUpdated.newSchemaVersion())
+		);
+		node.putIfAbsent(
+			CatalogSchemaUpdatedDescriptor.CURRENT_ENGINE_VERSION.name(),
+			this.objectJsonSerializer.serializeObject(schemaUpdated.currentEngineVersion())
 		);
 		return node;
 	}

@@ -48,6 +48,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEnt
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingInfrastructureMutationConverter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VersionUtils.SemVer;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,6 +59,7 @@ import java.util.Arrays;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@Slf4j
 public class ChangeCaptureConverter {
 
 	/**
@@ -560,6 +562,14 @@ public class ChangeCaptureConverter {
 					.setCurrentEngineVersion(removed.currentEngineVersion())
 					.build()
 			);
+		} else if (event instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
+			builder.setCatalogSchemaUpdated(
+				GrpcCatalogSchemaUpdated.newBuilder()
+					.setCatalogName(schemaUpdated.catalogName())
+					.setNewSchemaVersion(schemaUpdated.newSchemaVersion())
+					.setCurrentEngineVersion(schemaUpdated.currentEngineVersion())
+					.build()
+			);
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unsupported HostSystemEvent type: " + event.getClass().getName()
@@ -571,13 +581,17 @@ public class ChangeCaptureConverter {
 	/**
 	 * Converts a {@link GrpcHostSystemEvent} to a {@link HostSystemEvent}.
 	 *
-	 * Switches on the oneof event-case discriminator. {@code EVENT_NOT_SET} is treated
-	 * as a programming error — a wire-level host event must always carry one variant.
+	 * Switches on the oneof event-case discriminator. {@code EVENT_NOT_SET} is treated as a
+	 * forward-compat sentinel — when an older client receives a tag from a newer server whose
+	 * variant the client does not yet know, the parser drops the field and the discriminator
+	 * collapses to {@code EVENT_NOT_SET}. Returning {@code null} (rather than throwing) lets the
+	 * subscription stream survive: the caller drops captures with a {@code null} body.
 	 *
 	 * @param grpc the gRPC host event to convert
-	 * @return the converted domain host event
+	 * @return the converted domain host event, or {@code null} when the oneof is not set
+	 *         (forward-compat with newer servers carrying unknown variants)
 	 */
-	@Nonnull
+	@Nullable
 	public static HostSystemEvent toHostSystemEvent(@Nonnull GrpcHostSystemEvent grpc) {
 		return switch (grpc.getEventCase()) {
 			case CATALOGINSTALLED -> {
@@ -595,9 +609,23 @@ public class ChangeCaptureConverter {
 					removed.getCurrentEngineVersion()
 				);
 			}
-			case EVENT_NOT_SET -> throw new GenericEvitaInternalError(
-				"HostSystemEvent oneof not set"
-			);
+			case CATALOGSCHEMAUPDATED -> {
+				final GrpcCatalogSchemaUpdated schemaUpdated = grpc.getCatalogSchemaUpdated();
+				yield new HostSystemEvent.CatalogSchemaUpdated(
+					schemaUpdated.getCatalogName(),
+					schemaUpdated.getNewSchemaVersion(),
+					schemaUpdated.getCurrentEngineVersion()
+				);
+			}
+			case EVENT_NOT_SET -> {
+				// forward-compat: server emitted a host-event variant unknown to this client.
+				// Soft-fail (return null) instead of tearing the subscription. Caller drops
+				// captures that have a null body.
+				log.debug(
+					"Received GrpcHostSystemEvent with no oneof variant set — likely a forward-compat tag from a newer server; dropping body."
+				);
+				yield null;
+			}
 		};
 	}
 

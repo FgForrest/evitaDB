@@ -49,8 +49,11 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
+import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.cdc.DataSite;
+import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
+import io.evitadb.api.requestResponse.cdc.SystemCaptureArea;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -875,31 +878,28 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 	}
 
 	/**
-	 * End-to-end gRPC round-trip test for {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent}
-	 * delivery via {@link io.evitadb.api.requestResponse.cdc.SystemCaptureArea#HOST}.
+	 * End-to-end gRPC round-trip test for {@link HostSystemEvent} delivery via
+	 * {@link SystemCaptureArea#HOST}.
 	 *
 	 * Subscribes a client subscriber with host-area criteria and triggers a catalog
 	 * create + activate sequence on the server. The host event must round-trip through the
 	 * gRPC stream and be deserialized by the client driver into a
-	 * {@link io.evitadb.api.requestResponse.cdc.HostSystemEvent.CatalogInstalledIntoLiveView}.
+	 * {@link HostSystemEvent.CatalogInstalledIntoLiveView}.
 	 */
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotifyHostEventsOverGrpcWithHostCriteria(EvitaClient evitaClient) {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
-			io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest.builder()
-				.content(ChangeCaptureContent.BODY)
-				.criteria(
-					new io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria(
-						io.evitadb.api.requestResponse.cdc.SystemCaptureArea.ENGINE
-					),
-					new io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureCriteria(
-						io.evitadb.api.requestResponse.cdc.SystemCaptureArea.HOST
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
+				ChangeSystemCaptureRequest.builder()
+					.content(ChangeCaptureContent.BODY)
+					.criteria(
+						new ChangeSystemCaptureCriteria(SystemCaptureArea.ENGINE),
+						new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST)
 					)
-				)
-				.build()
-		);
-		try {
+					.build()
+			)
+		) {
 			final MockEngineChangeCaptureSubscriber subscriber =
 				new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
 			publisher.subscribe(subscriber);
@@ -917,8 +917,62 @@ class EvitaClientReadWriteTest implements TestConstants, EvitaTestSupport {
 
 			subscriber.cancel();
 			evitaClient.deleteCatalogIfExists(hostEventCatalog);
+		}
+	}
+
+	/**
+	 * End-to-end gRPC delivery test for {@link HostSystemEvent.CatalogSchemaUpdated}.
+	 *
+	 * Subscribes a client subscriber with HOST-area criteria, opens a WARMING_UP session
+	 * that bumps the schema version (defines a collection + adds attributes), closes it,
+	 * and asserts the coalesced schema-updated host event arrives exactly once over the
+	 * gRPC stream — replacing the per-mutation refresh storm previously observed by
+	 * GraphQL / REST managers.
+	 */
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	@DisplayName("should deliver CatalogSchemaUpdated to HOST-area subscriber")
+	void shouldDeliverCatalogSchemaUpdatedToHostSubscriber(EvitaClient evitaClient) {
+		final String schemaUpdatedCatalog = "schemaUpdatedCatalogGrpc";
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(
+				ChangeSystemCaptureRequest.builder()
+					.content(ChangeCaptureContent.BODY)
+					.criteria(new ChangeSystemCaptureCriteria(SystemCaptureArea.HOST))
+					.build()
+			)
+		) {
+			final MockEngineChangeCaptureSubscriber subscriber =
+				new MockEngineChangeCaptureSubscriber(Integer.MAX_VALUE);
+			publisher.subscribe(subscriber);
+
+			// create a WARMING_UP catalog and apply 3 schema mutations in a single session —
+			// the coalescing contract requires exactly one CatalogSchemaUpdated host event to
+			// arrive on the client's HOST-area subscription regardless of the mutation count
+			evitaClient.defineCatalog(schemaUpdatedCatalog);
+			evitaClient.updateCatalog(
+				schemaUpdatedCatalog,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withAttribute("attr1", String.class)
+						.withAttribute("attr2", String.class)
+						.withAttribute("attr3", String.class)
+						.updateVia(session);
+				}
+			);
+
+			// the host event must round-trip and arrive on the client subscriber within 10 seconds
+			final int observed = subscriber.getCatalogSchemaUpdated(
+				schemaUpdatedCatalog, 10, TimeUnit.SECONDS, 1
+			);
+			assertTrue(
+				observed >= 1,
+				"Client should receive at least one CatalogSchemaUpdated host event, got: " + observed
+			);
+
+			subscriber.cancel();
 		} finally {
-			publisher.close();
+			evitaClient.deleteCatalogIfExists(schemaUpdatedCatalog);
 		}
 	}
 

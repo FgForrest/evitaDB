@@ -35,6 +35,7 @@ import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;
 import io.evitadb.externalApi.api.model.cdc.ChangeCaptureDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.CatalogInstalledIntoLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogSchemaUpdatedDescriptor;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -45,10 +46,13 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.math.BigInteger;
 
+import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRAPHQL;
 import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -167,6 +171,130 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				assertTrue(
 					hostEventSeen,
 					"Expected at least one `" + HostSystemEvent.CatalogInstalledIntoLiveView.class.getSimpleName() +
+						"` envelope for catalog `" + newCatalogName + "`, received: " + receivedEvents
+				);
+			}
+		);
+	}
+
+	/**
+	 * Verifies that a GraphQL `onSystemChange` subscriber that opts into the
+	 * `HOST` area receives the new coalesced
+	 * {@link HostSystemEvent.CatalogSchemaUpdated} event when a session bumps the catalog
+	 * schema version (here: defining a new entity schema with two attributes inside a
+	 * single ALIVE transaction). Per the issue spec the schema-update event is coalesced
+	 * exactly once per closing session / transaction commit — this test does not assert the
+	 * count of envelopes, only that at least one `CatalogSchemaUpdated` discriminator is
+	 * delivered with the expected catalog name, a non-negative `newSchemaVersion` and a
+	 * positive `currentEngineVersion` snapshot.
+	 *
+	 * Host events are live-tail only, so the catalog must be brought to ALIVE state and the
+	 * subscription must be wired up BEFORE the schema-bumping session runs.
+	 */
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@Tag(CDC)
+	@Tag(SCHEMA)
+	@DisplayName("Should receive CatalogSchemaUpdated host event when schema version increases")
+	void shouldReceiveCatalogSchemaUpdatedFromHostSubscription(
+		@Nonnull Evita evita,
+		@Nonnull GraphQLTester tester
+	) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "schemaUpdatedGqlCatalog" + subscriptionId;
+		final String newEntityType = "schemaUpdatedEntity";
+
+		tester.testWebSocket(
+			SYSTEM_URL,
+			writer -> {
+				// bring the catalog into ALIVE state BEFORE the subscription is opened —
+				// `CatalogSchemaUpdated` only fires on schema-version bumps from a live (or
+				// closing-warming-up) session, and host events are live-tail only so the
+				// subscription must be wired up after `goLiveAndClose` but before the bump
+				evita.defineCatalog(newCatalogName);
+				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
+
+				// open the subscription on the now-ALIVE catalog
+				writer.write(createConnectionInitMessage());
+				writer.write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onSystemChange(criteria: [{area: HOST}]) " +
+						"{ version index operation body { " +
+						"__typename " +
+						"... on CatalogInstalledIntoLiveView { catalogName } " +
+						"... on CatalogRemovedFromLiveView { catalogName } " +
+						"... on CatalogSchemaUpdated { catalogName newSchemaVersion currentEngineVersion } " +
+						"} }"
+				));
+				// give the server time to register the subscription before triggering events,
+				// otherwise the host event may fire before the publisher is wired up
+				wait(2000);
+
+				// bump the catalog schema version inside an ALIVE transaction — the issue spec
+				// guarantees one coalesced `CatalogSchemaUpdated` per such commit regardless of
+				// how many `ModifyCatalogSchemaMutation`s were applied (defining an entity schema
+				// + a couple of attributes still produces exactly one host event)
+				evita.updateCatalog(
+					newCatalogName,
+					session -> {
+						session.defineEntitySchema(newEntityType)
+							.withAttribute("code", String.class)
+							.withAttribute("priority", Integer.class)
+							.updateVia(session);
+					}
+				);
+			},
+			// 1 connection_ack + at least the host event itself; the websocket harness uses
+			// `>=` semantics so additional envelopes that arrive in between do not cause failures
+			2, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+
+				// scan all received envelopes (skipping the initial ack) for a host event
+				// envelope carrying the `CatalogSchemaUpdated` discriminator and the freshly-
+				// updated catalog name; the `__typename` field is the canonical fragment-dispatch
+				// field for GraphQL unions
+				boolean schemaUpdatedSeen = false;
+				for (int i = 1; i < receivedEvents.size(); i++) {
+					final String envelope = receivedEvents.get(i);
+					try {
+						assertThatJson(envelope).and(
+							it -> it.node(resultPath(
+								ON_SYSTEM_CHANGE_PATH,
+								ChangeCaptureDescriptor.BODY,
+								TYPENAME_FIELD
+							)).isEqualTo(CatalogSchemaUpdatedDescriptor.THIS.name()),
+							it -> it.node(resultPath(
+								ON_SYSTEM_CHANGE_PATH,
+								ChangeCaptureDescriptor.BODY,
+								CatalogSchemaUpdatedDescriptor.CATALOG_NAME
+							)).isEqualTo(newCatalogName),
+							// `newSchemaVersion` is a non-negative `Int` per the descriptor; a fresh
+							// catalog reaches schema version 1 after the first entity-schema
+							// definition, so we lock the lower bound at 1
+							it -> it.node(resultPath(
+								ON_SYSTEM_CHANGE_PATH,
+								ChangeCaptureDescriptor.BODY,
+								CatalogSchemaUpdatedDescriptor.NEW_SCHEMA_VERSION
+							)).isIntegralNumber().isGreaterThanOrEqualTo(BigInteger.ONE),
+							// `currentEngineVersion` is a `Long` — GraphQL's `LongCoercing`
+							// serialises it as a decimal string, but `asNumber()` happily parses
+							// a string-encoded number; the engine version must be strictly
+							// positive at the time the host event is emitted
+							it -> it.node(resultPath(
+								ON_SYSTEM_CHANGE_PATH,
+								ChangeCaptureDescriptor.BODY,
+								CatalogSchemaUpdatedDescriptor.CURRENT_ENGINE_VERSION
+							)).asNumber().isPositive()
+						);
+						schemaUpdatedSeen = true;
+						break;
+					} catch (AssertionError ignored) {
+						// not the schema-updated envelope — keep scanning
+					}
+				}
+				assertTrue(
+					schemaUpdatedSeen,
+					"Expected at least one `" + HostSystemEvent.CatalogSchemaUpdated.class.getSimpleName() +
 						"` envelope for catalog `" + newCatalogName + "`, received: " + receivedEvents
 				);
 			}

@@ -30,10 +30,8 @@ import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.cdc.SystemCaptureBody;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.externalApi.graphql.GraphQLManager;
@@ -49,12 +47,16 @@ import java.util.concurrent.Flow.Subscription;
  *
  * Subscribes to both `ENGINE` and `HOST` system areas. Engine mutations drive
  * registration / refresh / removal of catalogs whose lifecycle can be determined from the
- * mutation alone (create, modify, remove). Host system events
+ * mutation alone (create, duplicate, rename, remove). Host system events
  * ({@link HostSystemEvent.CatalogInstalledIntoLiveView},
- * {@link HostSystemEvent.CatalogRemovedFromLiveView}) are the authoritative signal for
+ * {@link HostSystemEvent.CatalogRemovedFromLiveView},
+ * {@link HostSystemEvent.CatalogSchemaUpdated}) are the authoritative signal for
  * any host-local transition that the engine mutation alone cannot describe (e.g. a
  * boot-time auto-upgrade replacing an `UnusableCatalog` placeholder with a real
- * `Catalog`).
+ * `Catalog`). In particular, `CatalogSchemaUpdated` is the coalesced schema-refresh
+ * trigger — it replaces the per-mutation `ModifyCatalogSchemaMutation` /
+ * `SetCatalogMutabilityMutation` reactions that previously rebuilt the GraphQL
+ * schema on every applied schema mutation.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -93,16 +95,6 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 				if (this.graphQLManager.registerCatalog(nameChange.getNewCatalogName())) {
 					this.graphQLManager.emitObservabilityEvents(nameChange.getNewCatalogName());
 				}
-			} else if (body instanceof ModifyCatalogSchemaMutation modify) {
-				// if the catalog schema is modified, we need to refresh the catalog
-				if (this.graphQLManager.refreshCatalog(modify.getCatalogName())) {
-					this.graphQLManager.emitObservabilityEvents(modify.getCatalogName());
-				}
-			} else if (body instanceof SetCatalogMutabilityMutation setCatalogMutability) {
-				// if the catalog mutability is set, we need to refresh the catalog
-				if (this.graphQLManager.refreshCatalog(setCatalogMutability.getCatalogName())) {
-					this.graphQLManager.emitObservabilityEvents(setCatalogMutability.getCatalogName());
-				}
 			} else if (body instanceof SetCatalogStateMutation setState) {
 				// the engine mutation merely records intent; the authoritative "is the catalog
 				// usable now?" signal arrives as a `CatalogInstalledIntoLiveView` host event after
@@ -122,6 +114,13 @@ public class SystemGraphQLRefreshingObserver implements Subscriber<ChangeSystemC
 				// don't see a stale schema until the host event arrives.
 				if (this.graphQLManager.refreshCatalog(upgrade.getCatalogName())) {
 					this.graphQLManager.emitObservabilityEvents(upgrade.getCatalogName());
+				}
+			} else if (body instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
+				// Coalesced schema-refresh signal. Replaces the per-mutation
+				// `ModifyCatalogSchemaMutation` / `SetCatalogMutabilityMutation` reactions that
+				// each triggered a full GraphQL schema rebuild.
+				if (this.graphQLManager.refreshCatalog(schemaUpdated.catalogName())) {
+					this.graphQLManager.emitObservabilityEvents(schemaUpdated.catalogName());
 				}
 			} else if (body instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
 				handleCatalogInstalled(installed);

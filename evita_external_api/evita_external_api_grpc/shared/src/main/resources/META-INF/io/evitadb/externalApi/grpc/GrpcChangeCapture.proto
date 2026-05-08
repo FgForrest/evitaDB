@@ -109,6 +109,8 @@ message GrpcHostSystemEvent {
     GrpcCatalogInstalledIntoLiveView catalogInstalled = 1;
     // Fires when a catalog is fully removed from the live view on this host.
     GrpcCatalogRemovedFromLiveView catalogRemoved = 2;
+    // Fires when a catalog's schema version increases on this host (coalesced).
+    GrpcCatalogSchemaUpdated catalogSchemaUpdated = 3;
   }
 }
 
@@ -128,6 +130,17 @@ message GrpcCatalogRemovedFromLiveView {
   string catalogName = 1;
   // snapshot of the engine version at emit time (correlation only - does not advance)
   int64 currentEngineVersion = 2;
+}
+
+// Fires when a catalog's schema version increases on this host (coalesced once per
+// session/transaction). See HostSystemEvent.CatalogSchemaUpdated.
+message GrpcCatalogSchemaUpdated {
+  // the name of the catalog whose schema version increased
+  string catalogName = 1;
+  // the new (current) catalog schema version on this host
+  int32 newSchemaVersion = 2;
+  // snapshot of the engine version at emit time (correlation only - does not advance)
+  int64 currentEngineVersion = 3;
 }
 
 // Heartbeat message sent to the subscriber to keep the connection alive.

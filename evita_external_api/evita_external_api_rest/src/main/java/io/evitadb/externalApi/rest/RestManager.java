@@ -136,7 +136,7 @@ public class RestManager {
 		registerSystemApi();
 
 		// Track initial catalog loading. Catalog registration is driven by the system CDC
-		// stream (HostSystemEvent.CatalogInstalledIntoLiveView) — see issue #1153.
+		// stream (HostSystemEvent.CatalogInstalledIntoLiveView).
 		this.fullyInitialized = CompletableFuture.allOf(
 			this.evita.getInitialLoadCatalogFutures()
 		).whenComplete(

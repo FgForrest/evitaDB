@@ -30,10 +30,10 @@ import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.cdc.SystemCaptureArea;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogInstalledIntoLiveView;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogRemovedFromLiveView;
+import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchemaUpdated;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureOperation;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeSystemCaptureCriteria;
@@ -58,7 +58,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Round-trip tests for the {@link ChangeCaptureConverter} surface that converts
@@ -128,6 +127,34 @@ class ChangeCaptureConverterHostEventTest {
 		}
 
 		@Test
+		@DisplayName("should round-trip CatalogSchemaUpdated preserving fields")
+		void shouldRoundTripCatalogSchemaUpdated() {
+			// Coalesced schema-refresh host event must traverse the gRPC
+			// converter without losing catalogName / newSchemaVersion / currentEngineVersion.
+			final HostSystemEvent.CatalogSchemaUpdated source =
+				new HostSystemEvent.CatalogSchemaUpdated("c", 7, 99L);
+
+			final GrpcHostSystemEvent grpc = ChangeCaptureConverter.toGrpcHostSystemEvent(source);
+
+			// assert wire-level oneof and payload before round-tripping back to domain
+			assertEquals(GrpcHostSystemEvent.EventCase.CATALOGSCHEMAUPDATED, grpc.getEventCase());
+			final GrpcCatalogSchemaUpdated payload = grpc.getCatalogSchemaUpdated();
+			assertEquals("c", payload.getCatalogName());
+			assertEquals(7, payload.getNewSchemaVersion());
+			assertEquals(99L, payload.getCurrentEngineVersion());
+
+			final HostSystemEvent roundTripped = ChangeCaptureConverter.toHostSystemEvent(grpc);
+
+			final HostSystemEvent.CatalogSchemaUpdated typed = assertInstanceOf(
+				HostSystemEvent.CatalogSchemaUpdated.class, roundTripped
+			);
+			assertEquals(source.catalogName(), typed.catalogName());
+			assertEquals(source.newSchemaVersion(), typed.newSchemaVersion());
+			assertEquals(source.currentEngineVersion(), typed.currentEngineVersion());
+			assertEquals(source, typed);
+		}
+
+		@Test
 		@DisplayName("should populate catalogInstalled oneof when converting installed event")
 		void shouldPopulateInstalledOneof() {
 			final HostSystemEvent.CatalogInstalledIntoLiveView source =
@@ -154,15 +181,21 @@ class ChangeCaptureConverterHostEventTest {
 		}
 
 		@Test
-		@DisplayName("should throw when gRPC host event has no event case set")
-		void shouldThrowWhenGrpcEventCaseNotSet() {
+		@DisplayName("should return null for forward-compat unknown gRPC host event variant")
+		void shouldReturnNullForUnknownGrpcHostEventCase() {
+			// Forward-compat: when an old client receives a tag from a newer server whose variant
+			// the client does not yet know about, the parser drops the unknown field and the
+			// oneof discriminator collapses to `EVENT_NOT_SET`. The converter must return `null`
+			// (not throw) so the subscription stream survives — caller drops captures with a null
+			// body. FU forward-compat.
 			final GrpcHostSystemEvent unset = GrpcHostSystemEvent.newBuilder().build();
 
-			final GenericEvitaInternalError error = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> ChangeCaptureConverter.toHostSystemEvent(unset)
+			final HostSystemEvent result = ChangeCaptureConverter.toHostSystemEvent(unset);
+
+			assertNull(
+				result,
+				"Forward-compat: EVENT_NOT_SET must yield null, not throw — got " + result
 			);
-			assertNotNull(error.getMessage());
 		}
 	}
 

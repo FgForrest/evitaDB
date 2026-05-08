@@ -50,7 +50,8 @@ import javax.annotation.Nonnull;
  */
 public sealed interface HostSystemEvent extends SystemCaptureBody
 	permits HostSystemEvent.CatalogInstalledIntoLiveView,
-	HostSystemEvent.CatalogRemovedFromLiveView {
+	HostSystemEvent.CatalogRemovedFromLiveView,
+	HostSystemEvent.CatalogSchemaUpdated {
 
 	/**
 	 * Returns the name of the catalog this event refers to.
@@ -143,6 +144,47 @@ public sealed interface HostSystemEvent extends SystemCaptureBody
 			Assert.isPremiseValid(
 				catalogName != null && !catalogName.isEmpty(),
 				"Catalog name must be provided!"
+			);
+		}
+
+	}
+
+	/**
+	 * Fires when a catalog's schema version increases on this host — coalesced exactly once
+	 * per session close (WARMING_UP) or per transaction commit (ALIVE) regardless of how
+	 * many `ModifyCatalogSchemaMutation`s were applied. Replaces the per-mutation refresh
+	 * storm previously observed by GraphQL / REST managers.
+	 *
+	 * **Properties** (in addition to the common {@link HostSystemEvent} contract):
+	 * - Host-local — different hosts may observe different schema versions at the same
+	 *   wall-clock moment; this event is about THIS host's view.
+	 * - Transient — not persisted; only delivered to live subscribers.
+	 * - Strictly ordered with mutations — lands after the last engine mutation that drove
+	 *   the schema-version bump.
+	 * - Live-tail only — late subscribers do not get historical occurrences.
+	 *
+	 * The compact constructor defensively rejects empty `catalogName` and negative
+	 * `newSchemaVersion`.
+	 *
+	 * @param catalogName          the name of the catalog whose schema version increased
+	 * @param newSchemaVersion     the new (current) catalog schema version on this host;
+	 *                             must be `>= 0`
+	 * @param currentEngineVersion snapshot of the engine version at emit time
+	 */
+	record CatalogSchemaUpdated(
+		@Nonnull String catalogName,
+		int newSchemaVersion,
+		long currentEngineVersion
+	) implements HostSystemEvent {
+
+		public CatalogSchemaUpdated {
+			Assert.isPremiseValid(
+				catalogName != null && !catalogName.isEmpty(),
+				"Catalog name must be provided!"
+			);
+			Assert.isPremiseValid(
+				newSchemaVersion >= 0,
+				() -> "New schema version must be non-negative, got: " + newSchemaVersion
 			);
 		}
 

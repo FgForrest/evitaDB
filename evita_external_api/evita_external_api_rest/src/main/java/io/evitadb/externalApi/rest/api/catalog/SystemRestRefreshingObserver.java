@@ -29,10 +29,8 @@ import io.evitadb.api.requestResponse.cdc.HostSystemEvent;
 import io.evitadb.api.requestResponse.cdc.SystemCaptureBody;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.RemoveCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogMutabilityMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation;
 import io.evitadb.externalApi.rest.RestManager;
@@ -54,7 +52,10 @@ import java.util.concurrent.Flow.Subscription;
  *   the subscription opted into the `HOST` area. These are the authoritative
  *   "catalog X is now usable / now gone on this host" signals and are required to recover
  *   from boot-time auto-upgrade and other transient-state transitions where the engine
- *   mutation alone does not announce settlement.
+ *   mutation alone does not announce settlement. The
+ *   {@link HostSystemEvent.CatalogSchemaUpdated} variant is the coalesced schema-refresh
+ *   signal, replacing the per-mutation reactions to `ModifyCatalogSchemaMutation` and
+ *   `SetCatalogMutabilityMutation`.
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -99,16 +100,6 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 				if (this.restManager.registerCatalog(mcsnm.getNewCatalogName())) {
 					this.restManager.emitObservabilityEvents(mcsnm.getNewCatalogName());
 				}
-			} else if (body instanceof ModifyCatalogSchemaMutation mcsm) {
-				// when schema changes - just refresh the catalog
-				if (this.restManager.refreshCatalog(mcsm.getCatalogName())) {
-					this.restManager.emitObservabilityEvents(mcsm.getCatalogName());
-				}
-			} else if (body instanceof SetCatalogMutabilityMutation setCatalogMutability) {
-				// when mutability changes - just refresh the catalog
-				if (this.restManager.refreshCatalog(setCatalogMutability.getCatalogName())) {
-					this.restManager.emitObservabilityEvents(setCatalogMutability.getCatalogName());
-				}
 			} else if (body instanceof SetCatalogStateMutation setState) {
 				// the engine mutation merely records intent; the authoritative "is the catalog
 				// usable now?" signal arrives as a `CatalogInstalledIntoLiveView` host event after
@@ -128,6 +119,13 @@ public class SystemRestRefreshingObserver implements Subscriber<ChangeSystemCapt
 				// don't see a stale schema until the host event arrives.
 				if (this.restManager.refreshCatalog(upgrade.getCatalogName())) {
 					this.restManager.emitObservabilityEvents(upgrade.getCatalogName());
+				}
+			} else if (body instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
+				// Coalesced schema-refresh signal. Replaces the per-mutation
+				// `ModifyCatalogSchemaMutation` / `SetCatalogMutabilityMutation` reactions that
+				// each triggered a full REST schema rebuild.
+				if (this.restManager.refreshCatalog(schemaUpdated.catalogName())) {
+					this.restManager.emitObservabilityEvents(schemaUpdated.catalogName());
 				}
 			} else if (body instanceof HostSystemEvent.CatalogInstalledIntoLiveView installed) {
 				handleCatalogInstalled(installed);

@@ -52,6 +52,7 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 	private final Map<String, Integer> catalogUpdated = new HashMap<>();
 	private final Map<String, Integer> catalogInstalled = new HashMap<>();
 	private final Map<String, Integer> catalogRemovedFromLiveView = new HashMap<>();
+	private final Map<String, Integer> catalogSchemaUpdated = new HashMap<>();
 	private Subscription subscription;
 	@Getter private int received = 0;
 	@Getter private int completed = 0;
@@ -74,6 +75,7 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 		this.catalogUpdated.clear();
 		this.catalogInstalled.clear();
 		this.catalogRemovedFromLiveView.clear();
+		this.catalogSchemaUpdated.clear();
 	}
 
 	/**
@@ -121,6 +123,46 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 				return this.catalogInstalled.getOrDefault(catalogName, 0);
 			} catch (Exception e) {
 				return this.catalogInstalled.getOrDefault(catalogName, 0);
+			}
+		} else {
+			return result;
+		}
+	}
+
+	/**
+	 * Returns the number of {@link HostSystemEvent.CatalogSchemaUpdated} events received
+	 * for the given catalog name.
+	 *
+	 * @param catalogName the catalog name to query
+	 * @return the count of schema-updated host events
+	 */
+	public int getCatalogSchemaUpdated(@Nonnull String catalogName) {
+		return this.catalogSchemaUpdated.getOrDefault(catalogName, 0);
+	}
+
+	/**
+	 * Returns the number of {@link HostSystemEvent.CatalogSchemaUpdated} events received
+	 * for the given catalog name, waiting up to the specified timeout for the expected
+	 * number of occurrences to arrive.
+	 *
+	 * @param catalogName   the catalog name to query
+	 * @param timeout       the maximum time to wait
+	 * @param timeUnit      the unit of the timeout argument
+	 * @param expectedValue the minimum number of events expected
+	 * @return the count of schema-updated events at the time the wait completes
+	 */
+	public int getCatalogSchemaUpdated(
+		@Nonnull String catalogName, int timeout, @Nonnull TimeUnit timeUnit, int expectedValue
+	) {
+		final int result = this.catalogSchemaUpdated.getOrDefault(catalogName, 0);
+		if (result < expectedValue) {
+			try {
+				this.future = new CompletableFuture<>();
+				this.waitCondition = () -> this.catalogSchemaUpdated.getOrDefault(catalogName, 0) >= expectedValue;
+				this.future.get(timeout, timeUnit);
+				return this.catalogSchemaUpdated.getOrDefault(catalogName, 0);
+			} catch (Exception e) {
+				return this.catalogSchemaUpdated.getOrDefault(catalogName, 0);
 			}
 		} else {
 			return result;
@@ -229,6 +271,9 @@ public class MockEngineChangeCaptureSubscriber implements Subscriber<ChangeSyste
 		} else if (item.body() instanceof HostSystemEvent.CatalogRemovedFromLiveView removed) {
 			this.catalogRemovedFromLiveView
 				.compute(removed.catalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		} else if (item.body() instanceof HostSystemEvent.CatalogSchemaUpdated schemaUpdated) {
+			this.catalogSchemaUpdated
+				.compute(schemaUpdated.catalogName(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 		}
 		// check if we are waiting for some condition to be met
 		if (this.waitCondition != null && this.waitCondition.getAsBoolean()) {

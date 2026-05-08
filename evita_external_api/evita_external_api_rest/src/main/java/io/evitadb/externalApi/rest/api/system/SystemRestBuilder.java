@@ -82,6 +82,7 @@ import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.UnusableCatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.CatalogInstalledIntoLiveViewDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.CatalogRemovedFromLiveViewDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.CatalogSchemaUpdatedDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.HostSystemEventDescriptor;
@@ -165,6 +166,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 		this.buildingContext.registerType(ChangeSystemCaptureRequestDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(CatalogInstalledIntoLiveViewDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(CatalogRemovedFromLiveViewDescriptor.THIS.to(this.objectBuilderTransformer).build());
+		this.buildingContext.registerType(CatalogSchemaUpdatedDescriptor.THIS.to(this.objectBuilderTransformer).build());
 		this.buildingContext.registerType(HostSystemEventDescriptor.THIS.to(this.unionBuilderTransformer).build());
 		this.buildingContext.registerType(buildChangeSystemCaptureObject());
 		buildMutationInterface();
