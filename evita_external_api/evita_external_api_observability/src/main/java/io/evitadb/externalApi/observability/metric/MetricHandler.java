@@ -140,7 +140,7 @@ public class MetricHandler {
 	private final ObservabilityOptions observabilityConfig;
 
 	/**
-	 * Registers the `evitadb_build_info` Prometheus `info` metric and stamps it with the
+	 * Registers the `io_evitadb_build_info` Prometheus `info` metric and stamps it with the
 	 * current build's version, commit hash and JVM version. The metric is a constant —
 	 * its labels are resolved once at class-loading time and never mutated again, so the
 	 * `Info` instance is intentionally not retained as a field; the default Prometheus
@@ -148,7 +148,7 @@ public class MetricHandler {
 	 */
 	private static void registerBuildInfo() {
 		final Info info = Info.builder()
-			.name("evitadb_build_info")
+			.name("io_evitadb_build_info")
 			.labelNames("version", "commit", "java_version")
 			.help("evitaDB build information (version, abbreviated commit hash, JVM version)")
 			.register();

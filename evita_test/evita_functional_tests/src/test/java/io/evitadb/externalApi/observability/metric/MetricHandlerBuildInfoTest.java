@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies that {@link MetricHandler} exposes the static `evitadb_build_info` Prometheus
+ * Verifies that {@link MetricHandler} exposes the static `io_evitadb_build_info` Prometheus
  * `info` metric with the expected labels — version, abbreviated commit hash and JVM
  * version. The labels are populated from {@link VersionUtils} and `java.version`, so the
  * concrete values depend on the build environment; the test asserts only that the metric
@@ -57,30 +57,30 @@ class MetricHandlerBuildInfoTest {
 	@Test
 	void shouldExposeBuildInfoMetricWithVersionCommitAndJavaVersionLabels() {
 		// Touch any static field on MetricHandler so the class' static initializer runs and
-		// registers `evitadb_build_info` with the default Prometheus registry. We pick
+		// registers `io_evitadb_build_info` with the default Prometheus registry. We pick
 		// HEALTH_PROBLEMS arbitrarily — the build-info metric is intentionally not exposed as
 		// a field (Prometheus owns the only live reference).
 		assertNotNull(MetricHandler.HEALTH_PROBLEMS);
 
 		final InfoDataPointSnapshot dataPoint = findBuildInfoDataPoint();
-		assertNotNull(dataPoint, "evitadb_build_info metric is not registered with the default Prometheus registry");
+		assertNotNull(dataPoint, "io_evitadb_build_info metric is not registered with the default Prometheus registry");
 
 		final Labels labels = dataPoint.getLabels();
-		assertEquals(3, labels.size(), "evitadb_build_info should expose exactly three labels");
-		assertTrue(labels.contains("version"), "evitadb_build_info is missing the `version` label");
-		assertTrue(labels.contains("commit"), "evitadb_build_info is missing the `commit` label");
-		assertTrue(labels.contains("java_version"), "evitadb_build_info is missing the `java_version` label");
+		assertEquals(3, labels.size(), "io_evitadb_build_info should expose exactly three labels");
+		assertTrue(labels.contains("version"), "io_evitadb_build_info is missing the `version` label");
+		assertTrue(labels.contains("commit"), "io_evitadb_build_info is missing the `commit` label");
+		assertTrue(labels.contains("java_version"), "io_evitadb_build_info is missing the `java_version` label");
 
 		// Values are environment-dependent (no shaded jar in tests), so we can only check
 		// that none of the labels was registered with an empty value — which would mask a
 		// regression in the manifest-reading or `java.version` system-property logic.
-		assertFalse(labels.get("version").isEmpty(), "evitadb_build_info `version` label is empty");
-		assertFalse(labels.get("commit").isEmpty(), "evitadb_build_info `commit` label is empty");
-		assertFalse(labels.get("java_version").isEmpty(), "evitadb_build_info `java_version` label is empty");
+		assertFalse(labels.get("version").isEmpty(), "io_evitadb_build_info `version` label is empty");
+		assertFalse(labels.get("commit").isEmpty(), "io_evitadb_build_info `commit` label is empty");
+		assertFalse(labels.get("java_version").isEmpty(), "io_evitadb_build_info `java_version` label is empty");
 	}
 
 	/**
-	 * Walks the default registry, locates the `evitadb_build_info` snapshot and returns
+	 * Walks the default registry, locates the `io_evitadb_build_info` snapshot and returns
 	 * its first (and only) data point.
 	 *
 	 * @return the data point or `null` when the metric has not been registered
@@ -88,7 +88,7 @@ class MetricHandlerBuildInfoTest {
 	private static InfoDataPointSnapshot findBuildInfoDataPoint() {
 		for (MetricSnapshot snapshot : PrometheusRegistry.defaultRegistry.scrape()) {
 			if (snapshot instanceof final InfoSnapshot infoSnapshot
-				&& "evitadb_build".equals(infoSnapshot.getMetadata().getName())) {
+				&& "io_evitadb_build".equals(infoSnapshot.getMetadata().getName())) {
 				return infoSnapshot.getDataPoints().isEmpty()
 					? null
 					: infoSnapshot.getDataPoints().get(0);
