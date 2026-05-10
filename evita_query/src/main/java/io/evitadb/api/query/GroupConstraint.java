@@ -58,9 +58,13 @@ package io.evitadb.api.query;
  *
  * Group constraints are used in the `GROUP_ENTITY` domain
  * ({@link io.evitadb.api.query.descriptor.ConstraintDomain#GROUP_ENTITY}), which scopes inner constraints to the
- * group entity attached to a faceted reference. The domain switch is performed by the constraint container itself
- * (e.g., `GroupHaving`), so any constraint nested inside is resolved against the group entity's schema rather than
- * the parent entity's or the referenced entity's schema.
+ * group entity attached to a faceted reference. In the external API pipeline the domain switch is performed by the
+ * data-locator resolver: when descending into a `GROUP`-typed constraint nested in a reference scope (e.g.
+ * `referenceHaving(REF, groupHaving(...))`), the resolver pivots the locator from the reference to an entity locator
+ * pointing at the reference's group type. When the enclosing constraint already declares an explicit
+ * `@Child(domain = GROUP_ENTITY)` on its creator parameter (as `HistogramHaving.groupHaving` does), the locator is
+ * pivoted at the parameter level and the GROUP arm becomes a passthrough. Either way, any constraint nested inside is
+ * resolved against the group entity's schema rather than the parent entity's or the referenced entity's schema.
  *
  * **Typical Implementations**
  *

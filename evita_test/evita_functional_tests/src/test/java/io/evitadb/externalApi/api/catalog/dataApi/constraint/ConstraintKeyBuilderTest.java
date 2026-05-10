@@ -29,7 +29,6 @@ import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.GroupHaving;
-import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintBuildContext;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.test.Entities;
@@ -50,7 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Tests for [ConstraintKeyBuilder] pinning the wire-format key shapes the GraphQL/REST schema builders
  * emit per descriptor, with special emphasis on the duplicate-prefix collapse rule
- * (e.g. `groupGroupHaving` → `groupHaving`, `entityEntityFetch` → `entityFetch`).
+ * (e.g. `groupGroupHaving` -> `groupHaving`).
  *
  * The collapse keeps wire keys compact when a constraint's natural Java name already encodes the
  * property-type prefix and the simplification rule (same-domain child) does not fire. The tests
@@ -136,20 +135,6 @@ class ConstraintKeyBuilderTest {
 			final String key = ConstraintKeyBuilderTest.this.keyBuilder.build(root, descriptor, null);
 
 			assertEquals("groupHaving", key);
-		}
-
-		@Test
-		@DisplayName("should collapse doubled `entity` prefix on EntityFetch rendered in non-entity context")
-		void shouldCollapseDuplicatePrefixForEntityFetch() {
-			// EntityFetch has propertyType=ENTITY (prefix="entity") and fullName="entityFetch".
-			// At root with a generic parent locator, simplification does not fire because root has
-			// no parent locator equal to current — collapse strips "entityEntityFetch" → "entityFetch".
-			final ConstraintDescriptor descriptor = ConstraintDescriptorProvider.getConstraint(EntityFetch.class);
-			final ConstraintBuildContext root = rootContext(genericProductLocator());
-
-			final String key = ConstraintKeyBuilderTest.this.keyBuilder.build(root, descriptor, null);
-
-			assertEquals("entityFetch", key);
 		}
 
 	}

@@ -550,4 +550,32 @@ public class DataLocatorResolverTest {
 			() -> this.dataLocatorResolver.resolveChildParameterDataLocator(parent, ConstraintDomain.GROUP_ENTITY)
 		);
 	}
+
+	@Test
+	void shouldPivotToGroupEntityWhenGroupConstraintEntersReferenceScope() {
+		// `referenceHaving(REF, groupHaving(...))` enters GroupHaving with a ReferenceDataLocator
+		// parent — the resolver must pivot to the reference's group entity so inner constraints
+		// resolve against `categoryGroup`'s schema, not Category's
+		final DataLocator parent = new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY);
+		final ConstraintDescriptor groupHaving = ConstraintDescriptorProvider.getConstraint(GroupHaving.class);
+
+		assertEquals(
+			new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup")),
+			this.dataLocatorResolver.resolveConstraintDataLocator(parent, groupHaving, null)
+		);
+	}
+
+	@Test
+	void shouldThrowWhenGroupConstraintEntersReferenceScopeWithoutGroupType() {
+		// PARAMETER reference has no group type configured — using GroupHaving against it is a
+		// malformed query (there is no group entity to pivot to), so the resolver throws rather
+		// than silently passing through and routing inner attributes to the wrong scope
+		final DataLocator parent = new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.PARAMETER);
+		final ConstraintDescriptor groupHaving = ConstraintDescriptorProvider.getConstraint(GroupHaving.class);
+
+		assertThrows(
+			ExternalApiInternalError.class,
+			() -> this.dataLocatorResolver.resolveConstraintDataLocator(parent, groupHaving, null)
+		);
+	}
 }

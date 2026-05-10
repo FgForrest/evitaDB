@@ -190,10 +190,36 @@ public class DataLocatorResolver {
 	) {
 		return switch (constraintDescriptor.propertyType()) {
 			// these property types currently don't have any container constraints, so they all keep
-			// the parent data locator. GROUP joins them because GroupHaving has no classifier — its
-			// inner constraints inherit the GROUP_ENTITY-domain locator established by the @Child
-			// switch above.
-			case GENERIC, ATTRIBUTE, ASSOCIATED_DATA, PRICE, GROUP -> parentDataLocator;
+			// the parent data locator
+			case GENERIC, ATTRIBUTE, ASSOCIATED_DATA, PRICE -> parentDataLocator;
+			case GROUP -> {
+				// a GROUP-typed constraint nested inside a reference scope (e.g.
+				// `referenceHaving(REF, groupHaving(...))`) must pivot the locator to the reference's
+				// group entity, so inner constraints resolve against the group entity's schema. when
+				// the parent is not a reference scope (e.g. an EntityDataLocator already established
+				// by an @Child(domain=GROUP_ENTITY) annotation on the enclosing constraint, as on
+				// HistogramHaving.groupHaving), the locator passes through and inner constraints
+				// inherit it.
+				if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference
+					&& dataLocatorWithReference.referenceName() != null) {
+					final ReferenceSchemaContract referenceSchema = this.catalogSchema.getEntitySchemaOrThrowException(parentDataLocator.entityType())
+						.getReferenceOrThrowException(Objects.requireNonNull(dataLocatorWithReference.referenceName()));
+					final String referencedGroupType = referenceSchema.getReferencedGroupType();
+					Assert.isPremiseValid(
+						referencedGroupType != null,
+						() -> new ExternalApiInternalError(
+							"Reference `" + referenceSchema.getName() + "` has no group type configured; cannot resolve `" +
+								constraintDescriptor.fullName() + "` against a group entity."
+						)
+					);
+					yield new EntityDataLocator(
+						referenceSchema.isReferencedGroupTypeManaged()
+							? new ManagedEntityTypePointer(referencedGroupType)
+							: new ExternalEntityTypePointer(referencedGroupType)
+					);
+				}
+				yield parentDataLocator;
+			}
 			case ENTITY -> {
 				if (parentDataLocator instanceof final DataLocatorWithReference dataLocatorWithReference) {
 					if (dataLocatorWithReference.referenceName() == null) {

@@ -122,9 +122,12 @@ public class ConstraintKeyBuilder {
 			keyBuilder.set(i, StringUtils.toSpecificCase(keyBuilder.get(i), PROPERTY_NAME_PART_NAMING_CONVENTION));
 		}
 
-		if (keyBuilder.size() >= 2) {
-			final int lastIndex = keyBuilder.size() - 1;
-			keyBuilder.set(lastIndex, collapseDuplicatePrefix(keyBuilder.get(0), keyBuilder.get(lastIndex)));
+		// only collapse when prefix and fullName are adjacent (no classifier between them) — a
+		// classifier-bearing key (size==3) would compare prefix against fullName across the
+		// classifier and could silently mangle the wire key for a future classifier'd constraint
+		// whose fullName happens to start with its property-type prefix
+		if (keyBuilder.size() == 2) {
+			keyBuilder.set(1, collapseDuplicatePrefix(keyBuilder.get(0), keyBuilder.get(1)));
 		}
 		return String.join("", keyBuilder);
 	}
