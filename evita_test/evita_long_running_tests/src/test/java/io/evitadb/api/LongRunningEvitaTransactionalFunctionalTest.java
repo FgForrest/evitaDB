@@ -61,7 +61,6 @@ import io.evitadb.function.Functions;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.function.TriFunction;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
@@ -402,70 +401,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 		);
 
 		return primaryKeysWithTxIds;
-	}
-
-	/**
-	 * Returns the number of Write-Ahead Log (WAL) files in the catalog directory.
-	 * WAL files have the suffix defined by {@link CatalogPersistenceService#WAL_FILE_SUFFIX}.
-	 *
-	 * @param catalogPath the path to the catalog directory to scan
-	 * @return the number of WAL files found
-	 * @throws IOException when the directory cannot be read
-	 */
-	private static int numberOfWalFiles(@Nonnull Path catalogPath) throws IOException {
-		try (final Stream<Path> list = Files.list(catalogPath)) {
-			return list
-				.filter(it -> it.getFileName().toString().endsWith(PersistenceService.WAL_FILE_SUFFIX))
-				.mapToInt(it -> 1)
-				.sum();
-		}
-	}
-
-	/**
-	 * Returns the lowest index of catalog data files in the catalog directory.
-	 * This is used to verify that old catalog files have been removed during compaction.
-	 * Catalog data files have the suffix defined by {@link CatalogPersistenceService#CATALOG_FILE_SUFFIX}.
-	 *
-	 * @param catalogPath the path to the catalog directory to scan
-	 * @return the minimum index found, or 0 if no files exist
-	 * @throws IOException when the directory cannot be read
-	 */
-	private static int firstIndexOfCatalogDataFile(@Nonnull Path catalogPath) throws IOException {
-		try (final Stream<Path> list = Files.list(catalogPath)) {
-			return list
-				.filter(it -> it.getFileName().toString().endsWith(CatalogPersistenceService.CATALOG_FILE_SUFFIX))
-				.mapToInt(it -> CatalogPersistenceService.getIndexFromCatalogFileName(it.getFileName().toString()))
-				.min()
-				.orElse(0);
-		}
-	}
-
-	/**
-	 * Returns the lowest index of entity collection data files for the specified entity type in the catalog directory.
-	 * This is used to verify that old entity collection files have been removed during compaction.
-	 * Entity collection files have the suffix defined by {@link CatalogPersistenceService#ENTITY_COLLECTION_FILE_SUFFIX}.
-	 *
-	 * @param catalogPath the path to the catalog directory to scan
-	 * @param entityType  the entity type to search for (e.g., "Product")
-	 * @return the minimum index found
-	 * @throws IOException                      when the directory cannot be read
-	 * @throws java.util.NoSuchElementException if no files are found for the given entity type
-	 */
-	private static int firstIndexOfCollectionDataFile(
-		@Nonnull Path catalogPath, @Nonnull String entityType) throws IOException {
-		try (final Stream<Path> list = Files.list(catalogPath)) {
-			return list
-				.filter(it -> it.getFileName()
-					.toString()
-					.endsWith(CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX) && it.getFileName()
-					.toString()
-					.toLowerCase()
-					.startsWith(entityType.toLowerCase() + "-"))
-				.mapToInt(it -> CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(
-					it.getFileName().toString()).fileIndex())
-				.min()
-				.orElseThrow();
-		}
 	}
 
 	@DataSet(value = TRANSACTIONAL_DATA_SET, readOnly = false)
