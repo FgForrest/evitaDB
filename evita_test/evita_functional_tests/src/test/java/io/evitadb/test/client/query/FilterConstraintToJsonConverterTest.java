@@ -229,12 +229,11 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 	@Test
 	void shouldResolveHistogramHavingFullArityWithGroupSelector() {
 		// full-arity histogramHaving with classifier, histogramName, bounds and a groupHaving
-		// child — the child is rendered under the parameter name `groupHaving` (single-variant
-		// `@Child GroupHaving` parameter, so the converter mirrors the schema flattening that
-		// uses the parameter name as the wrapper key). The inner constraint key is
-		// `entityGroupHaving` — the property-type-prefixed full name produced by the descriptor
-		// key builder (GroupHaving implements EntityConstraint, so the entity prefix is added to
-		// its `groupHaving` short name).
+		// child — the outer wrapper is the @Child parameter name `groupHaving` (schema flattens
+		// single-variant concrete @Child to the parameter name). The inner constraint key is
+		// `groupHaving` — the descriptor key builder applies the `group` prefix derived from
+		// `GroupConstraint` and then the duplicate-prefix collapse strips the doubled "group"
+		// from the fullName, leaving the compact form `groupHaving`.
 		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
 		wrapperObject.putIfAbsent("histogramName", jsonNodeFactory.textNode("basicUnitValue"));
 		wrapperObject.putIfAbsent("from", jsonNodeFactory.numberNode(50));
@@ -244,7 +243,7 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		groupHavingValue.putIfAbsent("attributeNameEquals", jsonNodeFactory.textNode("height"));
 
 		final ObjectNode groupHavingWrapper = jsonNodeFactory.objectNode();
-		groupHavingWrapper.putIfAbsent("entityGroupHaving", groupHavingValue);
+		groupHavingWrapper.putIfAbsent("groupHaving", groupHavingValue);
 		wrapperObject.putIfAbsent("groupHaving", groupHavingWrapper);
 
 		assertEquals(
@@ -360,4 +359,5 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 			).orElseThrow()
 		);
 	}
+
 }

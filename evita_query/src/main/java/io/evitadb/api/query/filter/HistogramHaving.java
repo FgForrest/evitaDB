@@ -122,7 +122,8 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	 * @param from            the inclusive lower bound of the range (nullable if {@code to} is non-null)
 	 * @param to              the inclusive upper bound of the range (nullable if {@code from} is non-null)
 	 * @param groupHaving     optional single {@link GroupHaving} constraint selecting the group entity for grouped
-	 *                        histograms; must be null for non-grouped slots
+	 *                        histograms; must be null for non-grouped slots; resolved against the group-entity
+	 *                        domain (`ConstraintDomain.GROUP_ENTITY`)
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when both bounds are null, when
 	 *                                                        {@code from.compareTo(to) > 0}, or when
 	 *                                                        {@code groupHaving} is not a single child
@@ -133,7 +134,7 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 		@Nullable String histogramName,
 		@Nullable @Value(requiresPlainType = true) Serializable from,
 		@Nullable @Value(requiresPlainType = true) Serializable to,
-		@Nullable @Child GroupHaving groupHaving
+		@Nullable @Child(domain = ConstraintDomain.GROUP_ENTITY) GroupHaving groupHaving
 	) {
 		super(
 			buildArguments(referenceName, histogramName, from, to),
@@ -271,15 +272,12 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 			"HistogramHaving requires at least one of `from` / `to` to be non-null!"
 		);
 		if (from != null && to != null) {
-			// plain-type match is mandatory — mismatched types cannot be compared and always point at a user
-			// mistake upstream; surface it here with a message naming both simple class names for traceability
 			Assert.isTrue(
 				from.getClass() == to.getClass(),
 				() -> "HistogramHaving bounds `from` and `to` must share the same plain type (got " +
 					from.getClass().getSimpleName() + " and " + to.getClass().getSimpleName() + ")!"
 			);
 			if (from instanceof Comparable fromCmp) {
-				// identical types and both Comparable — enforce ordering
 				//noinspection unchecked
 				Assert.isTrue(
 					fromCmp.compareTo(to) <= 0,

@@ -87,9 +87,9 @@ abstract class ConstraintToJsonConverterTest {
 			.withAttribute("AGE", Integer.class)
 			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs
 				.withAttribute("CODE", String.class)
-				.withGroupType("categoryGroup"))
+				.withGroupTypeRelatedToEntity("categoryGroup"))
 			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE, thatIs -> thatIs
-				.withGroupType("brandGroup"))
+				.withGroupTypeRelatedToEntity("brandGroup"))
 			.toInstance();
 
 		this.entitySchemaIndex.put(Entities.PRODUCT, new EntitySchemaDecorator(() -> this.catalogSchema, (EntitySchema) productSchema));
@@ -110,5 +110,22 @@ abstract class ConstraintToJsonConverterTest {
 		)
 			.toInstance();
 		this.entitySchemaIndex.put(Entities.BRAND, new EntitySchemaDecorator(() -> this.catalogSchema, (EntitySchema) brandSchema));
+
+		// managed group entity schemas — needed because GroupHaving's @Child(domain = GROUP_ENTITY)
+		// switches the constraint resolver into the group entity's schema lookup path
+		final EntitySchemaContract categoryGroupSchema = new InternalEntitySchemaBuilder(
+			this.catalogSchema,
+			EntitySchema._internalBuild("categoryGroup")
+		)
+			.withAttribute("NAME", String.class)
+			.toInstance();
+		this.entitySchemaIndex.put("categoryGroup", new EntitySchemaDecorator(() -> this.catalogSchema, (EntitySchema) categoryGroupSchema));
+
+		final EntitySchemaContract brandGroupSchema = new InternalEntitySchemaBuilder(
+			this.catalogSchema,
+			EntitySchema._internalBuild("brandGroup")
+		)
+			.toInstance();
+		this.entitySchemaIndex.put("brandGroup", new EntitySchemaDecorator(() -> this.catalogSchema, (EntitySchema) brandGroupSchema));
 	}
 }

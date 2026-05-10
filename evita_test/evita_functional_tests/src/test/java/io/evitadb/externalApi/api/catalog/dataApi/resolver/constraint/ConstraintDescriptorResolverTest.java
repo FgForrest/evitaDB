@@ -27,6 +27,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.EntityHaving;
+import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HierarchyExcluding;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -100,7 +101,9 @@ public class ConstraintDescriptorResolverTest {
 			.withPrice()
 			.withAttribute("code", String.class)
 			.withAttribute("age", Integer.class)
-			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("order", Integer.class))
+			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs
+				.withAttribute("order", Integer.class)
+				.withGroupTypeRelatedToEntity("categoryGroup"))
 			.withReferenceTo(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
 			.toInstance();
 		entitySchemaIndex.put(Entities.PRODUCT, productSchema);
@@ -113,6 +116,16 @@ public class ConstraintDescriptorResolverTest {
 			.withAttribute("code", String.class)
 			.toInstance();
 		entitySchemaIndex.put(Entities.CATEGORY, categorySchema);
+
+		// managed group entity schema — needed because GroupHaving's @Child(domain = GROUP_ENTITY)
+		// switches the constraint resolver into the group entity's schema lookup path
+		final EntitySchemaContract categoryGroupSchema = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			EntitySchema._internalBuild("categoryGroup")
+		)
+			.withAttribute("name", String.class)
+			.toInstance();
+		entitySchemaIndex.put("categoryGroup", categoryGroupSchema);
 
 		parser = new ConstraintDescriptorResolver(catalogSchema, ConstraintType.FILTER);
 	}
@@ -210,4 +223,61 @@ public class ConstraintDescriptorResolverTest {
 			).isEmpty()
 		);
 	}
+
+	@Test
+	void shouldResolveCollapsedGroupHavingKey() {
+		// `groupHaving` is the collapsed wire form of the GroupHaving descriptor — the duplicate-prefix
+		// collapse strips the doubled "group" word. The parent locator simulates the runtime context
+		// at the moment HistogramHaving's @Child(domain=GROUP_ENTITY) parameter has already flipped
+		// the locator to the group entity (`categoryGroup`). For a GROUP-typed constraint,
+		// DataLocatorResolver's `case GROUP -> parentDataLocator` means the inner locator equals the
+		// parent, so children of `groupHaving` keep resolving against `categoryGroup`.
+		final Optional<ParsedConstraintDescriptor> parsed = parser.resolve(
+			new ConstraintResolveContext(new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup"))),
+			"groupHaving"
+		);
+		assertEquals(
+			new ParsedConstraintDescriptor(
+				"groupHaving",
+				null,
+				ConstraintDescriptorProvider.getConstraint(GroupHaving.class),
+				new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup"))
+			),
+			parsed.orElseThrow()
+		);
+	}
+
+	@Test
+	void shouldResolveDoubledGroupHavingKey() {
+		// the verbose, non-collapsed wire form (`groupGroupHaving`) must still resolve to the same
+		// descriptor — the first prefix-strip lookup matches `(GROUP, "groupHaving", null)` directly
+		// because GroupHaving's fullName already starts with the prefix word
+		final Optional<ParsedConstraintDescriptor> parsed = parser.resolve(
+			new ConstraintResolveContext(new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup"))),
+			"groupGroupHaving"
+		);
+		assertEquals(
+			new ParsedConstraintDescriptor(
+				"groupGroupHaving",
+				null,
+				ConstraintDescriptorProvider.getConstraint(GroupHaving.class),
+				new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup"))
+			),
+			parsed.orElseThrow()
+		);
+	}
+
+	@Test
+	void shouldNotInfiniteLoopOnReprependLookupFailure() {
+		// `groupBogus` matches the "group" prefix but no constraint with fullName "bogus" or
+		// "groupBogus" exists — the re-prepend `.or(...)` fallback must terminate cleanly with
+		// Optional.empty rather than spinning forever on the word-shifting loop
+		assertTrue(
+			parser.resolve(
+				new ConstraintResolveContext(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)),
+				"groupBogus"
+			).isEmpty()
+		);
+	}
+
 }
