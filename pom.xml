@@ -540,7 +540,7 @@
 						Captures the short git SHA at build time and exposes it as the
 						${git.commit.id.abbrev} project property, which is then baked into
 						MANIFEST.MF and surfaced by VersionUtils#readCommitHash for the
-						evitadb_build_info metric. Submodules opt in by declaring just
+						io_evitadb_build_info metric. Submodules opt in by declaring just
 						<groupId>+<artifactId>; version, execution and configuration are
 						inherited from this management block.
 					-->

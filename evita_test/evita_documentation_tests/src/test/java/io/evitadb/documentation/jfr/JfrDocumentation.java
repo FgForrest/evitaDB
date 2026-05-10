@@ -319,7 +319,7 @@ public class JfrDocumentation implements EvitaTestSupport {
 	 */
 	static final List<Metric> STATIC_METRICS = List.of(
 		new Metric(
-			"evitadb_build_info",
+			"io_evitadb_build_info",
 			"INFO",
 			"<strong>evitaDB build information</strong>: a constant <code>info</code> metric exposing the running server's version, abbreviated git commit hash and JVM version. Useful for tracking deployments without consulting logs.",
 			new String[]{"version", "commit", "java_version"}

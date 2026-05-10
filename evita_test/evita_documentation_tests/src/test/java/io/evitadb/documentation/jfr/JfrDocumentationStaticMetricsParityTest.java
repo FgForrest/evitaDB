@@ -66,7 +66,7 @@ class JfrDocumentationStaticMetricsParityTest {
 	 * exposed as a field (Prometheus owns the only live reference). The reflection-based
 	 * scan below cannot see it, so it is added explicitly to the expected set.
 	 */
-	private static final String BUILD_INFO_METRIC_NAME = "evitadb_build_info";
+	private static final String BUILD_INFO_METRIC_NAME = "io_evitadb_build_info";
 
 	@Test
 	void shouldDeclareEveryStaticallyRegisteredMetricInStaticMetricsList() throws IllegalAccessException {

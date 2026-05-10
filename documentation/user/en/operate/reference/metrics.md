@@ -516,7 +516,7 @@ duration of the probe.</dd>
 #### Static metrics
 
 <dl>
-  <dt><code>evitadb_build_info</code> (INFO)</dt>
+  <dt><code>io_evitadb_build_info</code> (INFO)</dt>
   <dd><strong>evitaDB build information</strong>: a constant <code>info</code> metric exposing the running server's version, abbreviated git commit hash and JVM version. Useful for tracking deployments without consulting logs.<br/><br/><strong>Labels:</strong> <Term>version</Term>, <Term>commit</Term>, <Term>java_version</Term><br/></dd>
   <dt><code>io_evitadb_probe_health_problem</code> (GAUGE)</dt>
   <dd><strong>Health problem indicator</strong>: set to <code>1</code> while the named health problem is active and reset to <code>0</code> once it clears.<br/><br/><strong>Labels:</strong> <Term>problem_type</Term><br/></dd>
