@@ -40,6 +40,28 @@
         "priceWithTax" : "159.0",
         "taxRate" : "21.0",
         "validity" : null
+      },
+      "priceForSaleMin" : {
+        "priceId" : 777,
+        "priceList" : "basic",
+        "currency" : "EUR",
+        "innerRecordId" : null,
+        "indexed" : true,
+        "priceWithoutTax" : "131.41",
+        "priceWithTax" : "159.0",
+        "taxRate" : "21.0",
+        "validity" : null
+      },
+      "priceForSaleMax" : {
+        "priceId" : 777,
+        "priceList" : "basic",
+        "currency" : "EUR",
+        "innerRecordId" : null,
+        "indexed" : true,
+        "priceWithoutTax" : "131.41",
+        "priceWithTax" : "159.0",
+        "taxRate" : "21.0",
+        "validity" : null
       }
     }
   ],
