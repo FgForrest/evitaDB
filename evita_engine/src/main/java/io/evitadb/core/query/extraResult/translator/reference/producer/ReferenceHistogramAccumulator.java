@@ -405,6 +405,12 @@ final class ReferenceHistogramAccumulator {
 		final CacheableHistogramContract cacheable = computeCacheable(
 			resolved, filterIndex, attributeHistogramBaselineFormula, context
 		);
+		// match the JavaDoc contract: skip EMPTY-sentinel histograms entirely so they never enter
+		// the `histogramsByGroupKey` map. Avoids allocating a PendingHistogram, a boundary-prefetch
+		// slot, and a synthetic group DTO carrying nothing the client can use
+		if (cacheable == CacheableHistogramContract.EMPTY) {
+			return Optional.empty();
+		}
 		final Serializable rawMin = cacheable.getRawMin();
 		final Serializable rawMax = cacheable.getRawMax();
 		final BoundaryPks boundaryPks = (rawMin == null || rawMax == null)
