@@ -379,11 +379,31 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should not grow group 1 histogram overallCount when a userFilter facet selection is applied")
-		void shouldNotGrowGroup1HistogramOverallCountUnderUserFilterFacet(@Nonnull Evita evita) {
-			// Pick a handful of parameter values in group 1 and assert that the histogram for
-			// group 1 does not grow under the facet selection (it may shrink or stay equal).
-			final Integer[] selectedPvs = new Integer[]{1, 2};
+		@DisplayName("should not grow anchor-group histogram overallCount when a userFilter facet selection is applied")
+		void shouldNotGrowAnchorGroupHistogramOverallCountUnderUserFilterFacet(
+			@Nonnull Evita evita,
+			@Nonnull List<SealedEntity> originalProducts
+		) {
+			// Pick any product carrying parameter-value refs and reuse its PVs as the facet
+			// selection. Resolving the anchor product (and its group) from the real fixture
+			// keeps the test invariant under fixture reshuffles and avoids the AND-between-
+			// groups trap: every PV pulled from one product shares the same parent group, so
+			// the facet filter is satisfiable by construction.
+			final SealedEntity anchorProduct = originalProducts.stream()
+				.filter(p -> !p.getReferences(REF_PARAM_VALUES).isEmpty())
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"Fixture must contain at least one product with a non-empty " + REF_PARAM_VALUES
+						+ " reference set"));
+			final Integer[] selectedPvs = anchorProduct.getReferences(REF_PARAM_VALUES).stream()
+				.map(ReferenceContract::getReferencedPrimaryKey)
+				.distinct()
+				.toArray(Integer[]::new);
+			final int anchorGroupPk = anchorProduct.getReferences(REF_PARAM_VALUES).iterator().next()
+				.getGroup()
+				.map(io.evitadb.api.requestResponse.data.EntityReferenceContract::getPrimaryKey)
+				.orElseThrow(() -> new AssertionError("Anchor product's reference must carry a group"));
+
 			final Map<Integer, Integer> unfiltered = runAndCollectOverallCounts(evita, null);
 			final Map<Integer, Integer> withFacet = runAndCollectOverallCounts(
 				evita,
@@ -394,10 +414,17 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 				)
 			);
 
-			// group 1 must see a narrower-or-equal overallCount
+			// the anchor's group must see a narrower-or-equal overallCount; a zero on both
+			// sides would silently pass, so additionally require the unfiltered count to be
+			// strictly positive — confirms the assertion actually exercises a populated group
+			final Integer unfilteredCount = unfiltered.get(anchorGroupPk);
+			assertNotNull(unfilteredCount,
+				"Unfiltered histogram must populate the anchor group " + anchorGroupPk);
+			assertTrue(unfilteredCount > 0,
+				"Unfiltered anchor-group histogram must carry at least one reference");
 			assertTrue(
-				withFacet.getOrDefault(1, 0) <= unfiltered.get(1),
-				"Facet-narrowed histogram for group 1 must be <= unfiltered"
+				withFacet.getOrDefault(anchorGroupPk, 0) <= unfilteredCount,
+				"Facet-narrowed histogram for anchor group " + anchorGroupPk + " must be <= unfiltered"
 			);
 		}
 
@@ -595,7 +622,35 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
 		@DisplayName("should still populate at least one group histogram under attributeBetween + userFilter facet")
-		void shouldPopulateHistogramUnderCompoundAttributeAndUserFilter(@Nonnull Evita evita) {
+		void shouldPopulateHistogramUnderCompoundAttributeAndUserFilter(
+			@Nonnull Evita evita,
+			@Nonnull List<SealedEntity> originalProducts
+		) {
+			// Pick a real product matching the base filter and reuse ITS parameter-value
+			// references as the facet selection. This keeps the test invariant under fixture
+			// reshuffles and guarantees the compound filter is satisfiable — picking PVs
+			// across two groups would AND-between-groups to empty (facetHaving defaults to OR
+			// within a group, AND between groups), zeroing every histogram.
+			final BigDecimal quantityLow = new BigDecimal("1");
+			final BigDecimal quantityHigh = new BigDecimal("80");
+			final SealedEntity anchorProduct = originalProducts.stream()
+				.filter(p -> {
+					final BigDecimal q = p.getAttribute(ATTR_QUANTITY, BigDecimal.class);
+					return q != null
+						&& q.compareTo(quantityLow) >= 0
+						&& q.compareTo(quantityHigh) <= 0
+						&& !p.getReferences(REF_PARAM_VALUES).isEmpty();
+				})
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"Fixture must contain at least one product with quantity in ["
+						+ quantityLow + ", " + quantityHigh + "] and a non-empty " + REF_PARAM_VALUES
+						+ " reference set"));
+			final Integer[] selectedPvs = anchorProduct.getReferences(REF_PARAM_VALUES).stream()
+				.map(ReferenceContract::getReferencedPrimaryKey)
+				.distinct()
+				.toArray(Integer[]::new);
+
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -604,9 +659,9 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 							collection(ENTITY_PRODUCT),
 							filterBy(
 								and(
-									attributeBetween(ATTR_QUANTITY, new BigDecimal("1"), new BigDecimal("80")),
+									attributeBetween(ATTR_QUANTITY, quantityLow, quantityHigh),
 									userFilter(
-										facetHaving(REF_PARAM_VALUES, entityPrimaryKeyInSet(1, 2, 11, 12))
+										facetHaving(REF_PARAM_VALUES, entityPrimaryKeyInSet(selectedPvs))
 									)
 								)
 							),
@@ -622,8 +677,9 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					);
 					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 					assertNotNull(referenceSummary);
-					// At least one group must carry a populated histogram — the compound filter
-					// narrows products but cannot empty every group in the large fixture.
+					// At least one group must carry a populated histogram — the anchor product
+					// is in the result set by construction, so its own group's histogram cannot
+					// be empty.
 					boolean any = false;
 					for (int groupPk = 1; groupPk <= GROUP_COUNT; groupPk++) {
 						final ReferenceGroupStatistics group =
