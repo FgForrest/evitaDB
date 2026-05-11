@@ -1,6 +1,6 @@
 ---
 title: Kontejnery pro behaviorální požadavky
-date: '29.11.2024'
+date: '11.5.2026'
 perex: Speciální kontejnery pro behaviorální požadavky se používají k definování rozsahu požadavkové podmínky.
 author: Ing. Jan Novotný
 proofreading: done
@@ -112,7 +112,7 @@ a [řadicí podmínky](../ordering/behavioral.md#v-rozsahu) se stejným účelem
 
 <Note type="info">
 
-Některé require podmínky umožňují kombinovat výsledky z více facet. Například [souhrn facet](facet.md#fasetový-souhrn),
+Některé require podmínky umožňují kombinovat výsledky z více referencí. Například [souhrn referencí](reference.md#souhrn-referencí),
 [atributový histogram](histogram.md#histogram-atributu) a [cenový histogram](histogram.md#cenový-histogram) lze 
 vypočítat jak pro živé, tak pro archivované entity, pokud jsou k dispozici odpovídající indexy.
 

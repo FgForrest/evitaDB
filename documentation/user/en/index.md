@@ -1,6 +1,6 @@
 ---
 title: Introduction
-date: '17.1.2023'
+date: '11.5.2026'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
@@ -99,7 +99,7 @@ this will not be necessary, but we cannot guarantee it yet.
    7. [Segmentation](query/ordering/segment.md)
 4. **Requirements**
    1. [Behavioral](query/requirements/behavioral.md)
-   2. [Facet](query/requirements/facet.md)
+   2. [Reference](query/requirements/reference.md)
    3. [Fetching](query/requirements/fetching.md)
    4. [Hierarchy](query/requirements/hierarchy.md)
    5. [Histogram](query/requirements/histogram.md)

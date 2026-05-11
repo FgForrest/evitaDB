@@ -5,7 +5,7 @@ perex: |
   in catalog-based e-commerce systems. However, it is also one of the most demanding in terms of performance and
   usability. This article provides a set of best practices and examples for implementing this functionality in your 
   application.
-date: '10.2.2024'
+date: '11.5.2026'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
@@ -274,7 +274,7 @@ calculated numbers. To render the filter's UI correctly, you'll need to follow t
 These rules emerged from user testing as the most intuitive and user-friendly way to render the filter. But feel free to 
 experiment with your own settings. The rendered filter using the rules above would look like this:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[Result for brand facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[Result for brand facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql.string.md)</MDInclude>
 
 The brand relationship is simple, but parameter values are a different beast. A parameter value (e.g. *blue* or *red*) 
 belongs to a parameter used to group similar values (e.g. *color*). We also want to control the presence of 
@@ -295,7 +295,7 @@ The final facet query looks like this:
 
 We apply the same rendering logic to the response and the result is as follows:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[Result for brand facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[Result for brand facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
 
 Ultimately, you'll want to have both requirements in a single query, but we'll go through some additional requirements 
 for the category detail page [until we combine everything](#complete-product-listing-queries-including-filtering-and-sorting).

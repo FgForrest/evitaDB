@@ -21,7 +21,7 @@ final EvitaResponse<SealedEntity> response = evita.queryCatalog(
 						attributeContentAll(),
 						priceContentRespectingFilter()
 					),
-					facetSummary()
+					referenceSummary()
 				)
 			)
 		);
@@ -32,4 +32,4 @@ List<SealedEntity> entities = paginatedList.getData();
 int pageNumber = paginatedList.getPageNumber();
 int pageSize = paginatedList.getPageSize();
 int totalRecordCount = paginatedList.getTotalRecordCount();
-FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+ReferenceSummary referenceSummary = response.getExtraResult(ReferenceSummary.class);

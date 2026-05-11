@@ -17,6 +17,6 @@ query(
         entityFetch(
 			attributeContentAll(), priceContentAll()
 		),
-        facetSummary()
+        referenceSummary()
     )
 )

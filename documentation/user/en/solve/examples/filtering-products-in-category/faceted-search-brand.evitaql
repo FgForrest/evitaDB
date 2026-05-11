@@ -14,7 +14,7 @@ query(
     )
   ),
   require(
-    facetSummaryOfReference(
+    referenceSummaryOfReference(
       "brand",
       IMPACT,
       orderBy(attributeNatural("name", ASC)),

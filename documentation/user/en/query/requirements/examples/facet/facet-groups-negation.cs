@@ -4,7 +4,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         Query(
         	Collection("Product"),
         	Require(
-        		FacetSummaryOfReference(
+        		ReferenceSummaryOfReference(
         			"parameterValues",
         			Impact,
         			FilterBy(

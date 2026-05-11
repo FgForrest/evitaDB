@@ -1,0 +1,19 @@
+query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "e-readers")
+        ),
+        entityLocaleEquals("en")
+    ),
+    require(
+        page(1, 5),
+        entityFetch(attributeContent("code")),
+        referenceSummary(
+            COUNTS,
+            entityFetch(attributeContent("code")),
+            entityGroupFetch(attributeContent("code"))
+        )
+    )
+)

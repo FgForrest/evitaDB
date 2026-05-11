@@ -1,6 +1,6 @@
 ---
 title: Behavioral require containers
-date: '29.11.2024'
+date: '11.5.2026'
 perex: |
   Special behavioural require constraint containers are used to define a require constraint scope. 
 author: 'Ing. Jan Novotný'
@@ -114,7 +114,7 @@ and [ordering constraints](../ordering/behavioral.md#in-scope) with the same pur
 
 <Note type="info">
 
-Some require constraints allow results from multiple facets to be combined. For example, [facet summary](facet.md#facet-summary),
+Some require constraints allow results from multiple references to be combined. For example, [reference summary](reference.md#reference-summary),
 [attribute histogram](histogram.md#attribute-histogram) and [price histogram](histogram.md#price-histogram) can be 
 computed for both live and archived entities if the appropriate indices are available.
 

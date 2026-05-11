@@ -18,7 +18,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         		)
         	),
         	Require(
-        		FacetSummaryOfReference(
+        		ReferenceSummaryOfReference(
         			"brand",
         			Impact,
         			EntityFetch(

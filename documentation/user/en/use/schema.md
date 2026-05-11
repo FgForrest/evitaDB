@@ -4,7 +4,7 @@ perex: |
     A schema is the logical representation of a catalog that specifies the types of entities that can be stored and
     the relationships between them. It allows you to maintain the consistency of your data and is very useful
     for automatic generation of the web APIs on top of it.
-date: '17.1.2023'
+date: '11.5.2026'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'java'
@@ -622,9 +622,9 @@ Partitioning indexes are represented by <SourceClass>evita_engine/src/main/java/
 
 ##### Reference facets
 
-If the reference is marked as *faceted*, the special <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for the entity type. This index contains optimized data structures for [facet summary](../query/requirements/facet.md) computation — the counts and statistics that power checkbox-style filtering in e-commerce UIs (e.g., "Brand: Nike (42), Adidas (31), Puma (18)").
+If the reference is marked as *faceted*, the special <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass> is created for the entity type. This index contains optimized data structures for [reference summary](../query/requirements/reference.md#reference-summary) computation — the counts and statistics that power checkbox-style filtering in e-commerce UIs (e.g., "Brand: Nike (42), Adidas (31), Puma (18)").
 
-When a reference is marked as faceted, all its instances are inserted into the facet reference index. References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type. The facet index is built at **indexing time** — when entities are created or updated — so that the [facet summary](../query/requirements/facet.md) computation at query time reads the pre-built index directly and runs at full speed.
+When a reference is marked as faceted, all its instances are inserted into the facet reference index. References can (but don't have to) be organized into facet groups that refer to a *managed* or *non-managed* entity type. The facet index is built at **indexing time** — when entities are created or updated — so that the [reference summary](../query/requirements/reference.md#reference-summary) computation at query time reads the pre-built index directly and runs at full speed.
 
 By default, **every** instance of a faceted reference participates in the facet index. The [conditional indexing](#conditional-indexing-with-expressions) option described below lets you narrow this down using an expression.
 
@@ -632,7 +632,7 @@ By default, **every** instance of a faceted reference participates in the facet 
 
 evitaDB can compute [histograms](../query/requirements/histogram.md) for any numeric filterable attribute of an entity via the `attributeHistogram` requirement. However, this approach requires the client to explicitly name every attribute it wants histograms for. When the set of relevant attributes varies dynamically — for example, when different product parameter groups need different filter presentations (some as checkboxes, others as range sliders) — the client must maintain its own mapping logic to decide which attributes to request histograms for. This creates complex middleware and caching logic on the client side.
 
-**Bucketed histogram indexing** on references solves this by making histograms a first-class part of the reference schema. When a reference is marked as *bucketed*, evitaDB builds and maintains a histogram index alongside the facet index. These reference-level histograms are then **automatically included in the [facet summary](../query/requirements/facet.md)** — just like facets are. The client simply requests the summary and receives both checkbox-style facet counts and interval-style histograms in a single response, without naming individual attributes.
+**Bucketed histogram indexing** on references solves this by making histograms a first-class part of the reference schema. When a reference is marked as *bucketed*, evitaDB builds and maintains a histogram index alongside the facet index. These reference-level histograms are then **automatically included in the [reference summary](../query/requirements/reference.md#reference-summary)** — just like facets are. The client simply requests the summary and receives both checkbox-style facet counts and interval-style histograms in a single response, without naming individual attributes.
 
 A typical e-commerce example: a Product entity has a `parameterValues` reference to ParameterValue, grouped by Parameter. Each parameter group has an `inputWidgetType` attribute that determines how it should be presented to the user:
 

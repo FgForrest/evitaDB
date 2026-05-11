@@ -1,7 +1,7 @@
 query(
     collection("Product"),
     require(
-        facetSummaryOfReference(
+        referenceSummaryOfReference(
             "parameterValues",
             IMPACT,
             entityFetch(attributeContent("code"))

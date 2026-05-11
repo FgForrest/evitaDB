@@ -22,7 +22,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						attributeContentAll(),
 						priceContentAll()
 					),
-					facetSummary(COUNTS)
+					referenceSummary(COUNTS)
 				)
 			)
 		);

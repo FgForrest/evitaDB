@@ -15,7 +15,7 @@ POST /rest/evita/Product/query
     ]
   },
   "require" : {
-    "facetGroupsSummary" : {
+    "referenceGroupsSummary" : {
       "statisticsDepth" : "IMPACT",
       "requirements" : {
         "entityFetch" : {

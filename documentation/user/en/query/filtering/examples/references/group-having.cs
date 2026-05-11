@@ -4,18 +4,28 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         Query(
         	Collection("Product"),
         	FilterBy(
+        		HierarchyWithin(
+        			"categories",
+        			AttributeEquals("code", "macbooks")
+        		),
         		ReferenceHaving(
-        			"brand",
+        			"parameterValues",
         			GroupHaving(
-        				AttributeEquals("code", "TODO JNO")
+        				AttributeEquals("code", "ram-memory")
         			)
         		)
         	),
         	Require(
+        		Page(1, 5),
         		EntityFetch(
         			AttributeContent("code"),
-        			ReferenceContent(
-        				"brand",
+        			ReferenceContentWithAttributes(
+        				"parameterValues",
+        				FilterBy(
+        					EntityHaving(
+        						AttributeStartsWith("code", "ram-memory")
+        					)
+        				),
         				EntityFetch(
         					AttributeContent("code")
         				),

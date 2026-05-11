@@ -1,0 +1,56 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "e-readers"
+      }
+    },
+    "attributeStatusEquals" : "ACTIVE",
+    "entityLocaleEquals" : "en"
+  },
+  "require" : {
+    "referenceBrandSummary" : {
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "name"
+          ]
+        }
+      },
+      "orderBy" : [
+        {
+          "attributeNameNatural" : "ASC"
+        }
+      ]
+    },
+    "referenceParameterValuesSummary" : {
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "name"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "name"
+          ]
+        }
+      },
+      "filterGroupBy" : {
+        "attributeIsVisibleInFilterEquals" : true
+      },
+      "orderBy" : [
+        {
+          "attributeOrderNatural" : "ASC"
+        }
+      ],
+      "orderGroupBy" : [
+        {
+          "attributeOrderNatural" : "ASC"
+        }
+      ]
+    }
+  }
+}

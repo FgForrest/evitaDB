@@ -1,6 +1,6 @@
 ---
 title: Behavioral filtering containers
-date: '29.11.2024'
+date: '11.5.2026'
 perex: |
   Special behavioural filter constraint containers are used to define a filter constraint scope, which has a different 
   treatment in calculations, or to define a scope in which the entities are searched. 
@@ -119,7 +119,7 @@ userFilter(
 The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/UserFilter.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/UserFilter.cs</SourceClass></LS>
 works identically to the [`and`](logical.md#and) constraint, but it distinguishes the filter scope, which is controlled by the user
 through some kind of user interface, from the rest of the query, which contains the mandatory constraints on the result
-set. The user-defined scope can be modified during certain calculations (such as the [facet](../requirements/facet.md#facet-summary)
+set. The user-defined scope can be modified during certain calculations (such as the [reference summary](../requirements/reference.md#reference-summary)
 or [histogram](../requirements/histogram.md) calculation), while the mandatory part outside of `userFilter` cannot.
 
 Let's look at the example where the [`facetHaving`](references.md#facet-having) constraint is used inside
