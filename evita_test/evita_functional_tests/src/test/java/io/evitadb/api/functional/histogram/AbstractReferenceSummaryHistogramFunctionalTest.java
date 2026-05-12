@@ -550,16 +550,28 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	 * Installs the deterministic 60-product read-only schema and data into the provided
 	 * Evita. Three parameter groups each carry 10 parameter values with `price` in
 	 * disjoint ranges; products are scattered across the groups by a seeded PRNG.
+	 *
+	 * Exposes the seeded products (with reference content + attribute content) under the
+	 * `originalProducts` carrier name so tests can pick PKs dynamically by inspecting the
+	 * real fixture rather than hard-coding constants that drift when the seed changes.
 	 */
 	@DataSet(REFERENCE_HISTOGRAM_LARGE)
 	DataCarrier setUpLarge(@Nonnull Evita evita) {
-		evita.updateCatalog(
+		return evita.updateCatalog(
 			TEST_CATALOG, session -> {
 				defineLargeSchema(session);
 				seedLargeData(session);
+				final List<SealedEntity> originalProducts = new ArrayList<>(PRODUCT_COUNT);
+				for (int productPk = 1; productPk <= PRODUCT_COUNT; productPk++) {
+					session.getEntity(
+						ENTITY_PRODUCT, productPk,
+						QueryConstraints.attributeContentAll(),
+						QueryConstraints.referenceContentAllWithAttributes()
+					).ifPresent(originalProducts::add);
+				}
+				return new DataCarrier(DataCarrier.tuple("originalProducts", originalProducts));
 			}
 		);
-		return new DataCarrier();
 	}
 
 	/**
