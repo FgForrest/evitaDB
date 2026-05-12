@@ -38,7 +38,7 @@ import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
+import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecordHeader;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -252,6 +252,9 @@ public class OffsetIndexSerializationService {
 		);
 		final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
 		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
+		// Single scratch buffer reused across every storage-record fragment in this snapshot copy.
+		// Per-fragment recordLength is bounded by `outputBufferSize`, so a single buffer of that size is always enough.
+		final byte[] rawCopyScratchBuffer = new byte[outputBufferSize];
 		int counter = 0;
 		final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
 		while (it.hasNext()) {
@@ -281,16 +284,15 @@ public class OffsetIndexSerializationService {
 				long startPosition = -1;
 				int recordLength = 0;
 				byte control;
-				RawRecord sourceRecord;
+				RawRecordHeader sourceRecord;
 				do {
-					sourceRecord = StorageRecord.readRaw(inputStream);
+					sourceRecord = StorageRecord.readRawInto(inputStream, rawCopyScratchBuffer);
 					control = sourceRecord.control();
 
-					// write original value in raw form
-					byte[] rawData = sourceRecord.rawData();
-
 					final FileLocation recordLocation = StorageRecord.writeRaw(
-						output, control, catalogVersion, rawData);
+						output, control, catalogVersion,
+						rawCopyScratchBuffer, 0, sourceRecord.payloadLength()
+					);
 					if (startPosition == -1) {
 						startPosition = recordLocation.startingPosition();
 					}
