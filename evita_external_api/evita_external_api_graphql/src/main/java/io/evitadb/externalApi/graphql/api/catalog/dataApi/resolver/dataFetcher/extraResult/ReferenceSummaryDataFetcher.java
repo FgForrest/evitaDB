@@ -28,19 +28,33 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Extracts {@link ReferenceSummary} from {@link EvitaResponse}'s extra results requested by
  * {@link io.evitadb.api.query.require.ReferenceSummary}.
  *
+ * When a single query mixes the deprecated `facetSummaryOfReference(...)` form with the new
+ * `referenceSummaryOfReference(...)` form, the engine emits two carriers — {@link FacetSummary} for the
+ * deprecated form and {@link ReferenceSummary} for the new one — registered under different exact-class keys in
+ * {@link EvitaResponse#getExtraResult(Class)}. Each carrier holds a disjoint subset of reference names (every
+ * reference is registered on exactly one producer). The unified `referenceSummary` GraphQL field is therefore
+ * resolved against the union of both carriers — otherwise the deprecated-form references would silently disappear
+ * from the response whenever any sibling reference triggered the new form (for instance because it requested
+ * histogram statistics).
+ *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@SuppressWarnings("deprecation")
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReferenceSummaryDataFetcher implements DataFetcher<ReferenceSummary> {
 
@@ -59,10 +73,21 @@ public class ReferenceSummaryDataFetcher implements DataFetcher<ReferenceSummary
 	@Override
 	public ReferenceSummary get(DataFetchingEnvironment environment) throws Exception {
 		final EvitaResponse<?> response = Objects.requireNonNull(environment.getSource());
-		// EvitaResponse#getExtraResult performs exact-class lookup, so we must check both keys to cover both
-		// forms: the canonical ReferenceSummary for requests using the new require constraint, and the
-		// deprecated FacetSummary subclass for requests that still use facetSummary(...) / facetSummaryOfReference(...).
-		final ReferenceSummary referenceSummary = response.getExtraResult(ReferenceSummary.class);
-		return referenceSummary != null ? referenceSummary : response.getExtraResult(FacetSummary.class);
+		final ReferenceSummary newForm = response.getExtraResult(ReferenceSummary.class);
+		final FacetSummary deprecatedForm = response.getExtraResult(FacetSummary.class);
+		if (newForm == null) {
+			return deprecatedForm;
+		}
+		if (deprecatedForm == null) {
+			return newForm;
+		}
+		// both carriers are present — merge their (disjoint) reference statistics into a single ReferenceSummary so
+		// downstream resolvers find every selected reference regardless of which constraint family produced it
+		final Collection<? extends ReferenceGroupStatistics> fromNewForm = newForm.getReferenceStatistics();
+		final Collection<? extends ReferenceGroupStatistics> fromDeprecatedForm = deprecatedForm.getReferenceStatistics();
+		final List<ReferenceGroupStatistics> merged = new ArrayList<>(fromNewForm.size() + fromDeprecatedForm.size());
+		merged.addAll(fromNewForm);
+		merged.addAll(fromDeprecatedForm);
+		return new ReferenceSummary(merged);
 	}
 }
