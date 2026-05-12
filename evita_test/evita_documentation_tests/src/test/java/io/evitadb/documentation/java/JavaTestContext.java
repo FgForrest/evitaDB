@@ -176,43 +176,54 @@ public class JavaTestContext implements TestContext {
 	 */
 	@Nonnull
 	public InvocationResult executeJShellCommands(@Nonnull List<String> snippets, @Nonnull SideEffect sideEffect, @Nullable UnaryOperator<InvocationResult> lambda) {
-		int index = 0;
-		if (this.lastInvocationResult != null) {
-			final int leastSize = Math.min(this.lastInvocationResult.snippets.size(), snippets.size());
-			for (; index < leastSize; index++) {
-				if (!this.lastInvocationResult.snippets.get(index).source().equals(snippets.get(index))) {
-					break;
+		// hold the lock for the whole orchestration - `lastInvocationResult` is shared across
+		// concurrent language containers (REST/GraphQL/Java) that wrap the same JavaTestContext
+		// via JavaWrappingExecutable. Without the lock another thread can null the field
+		// between the read at line ~180 and the dereference at line ~195, surfacing as
+		// NullPointerException or as bogus JavaCompilationExceptions when snippets are
+		// dropped underneath an in-flight eval. Inner calls re-enter the same reentrant lock.
+		JSHELL_EVAL_LOCK.lock();
+		try {
+			int index = 0;
+			if (this.lastInvocationResult != null) {
+				final int leastSize = Math.min(this.lastInvocationResult.snippets.size(), snippets.size());
+				for (; index < leastSize; index++) {
+					if (!this.lastInvocationResult.snippets.get(index).source().equals(snippets.get(index))) {
+						break;
+					}
 				}
+				cleanJShell(this.lastInvocationResult.snippets().subList(index, this.lastInvocationResult.snippets.size()));
 			}
-			cleanJShell(this.lastInvocationResult.snippets().subList(index, this.lastInvocationResult.snippets.size()));
-		}
 
-		InvocationResult invocationResult;
-		if (index > 0) {
-			final InvocationResult intermediateResult = executeJShellCommandsInternal(snippets.subList(index, snippets.size()));
-			invocationResult = new InvocationResult(
-				Streams.concat(
-					this.lastInvocationResult.snippets().subList(0, index).stream(),
-					intermediateResult.snippets().stream()
-				).toList(),
-				intermediateResult.exception()
-			);
-		} else {
-			invocationResult = executeJShellCommandsInternal(snippets);
-		}
+			InvocationResult invocationResult;
+			if (index > 0) {
+				final InvocationResult intermediateResult = executeJShellCommandsInternal(snippets.subList(index, snippets.size()));
+				invocationResult = new InvocationResult(
+					Streams.concat(
+						this.lastInvocationResult.snippets().subList(0, index).stream(),
+						intermediateResult.snippets().stream()
+					).toList(),
+					intermediateResult.exception()
+				);
+			} else {
+				invocationResult = executeJShellCommandsInternal(snippets);
+			}
 
-		if (lambda != null) {
-			invocationResult = lambda.apply(invocationResult);
-		}
+			if (lambda != null) {
+				invocationResult = lambda.apply(invocationResult);
+			}
 
-		// if there was exception - clean context entirely and reset last invocation result
-		if (invocationResult.exception() != null || sideEffect == SideEffect.WITH_SIDE_EFFECT) {
-			cleanJShell(invocationResult.snippets());
-			this.lastInvocationResult = null;
-		} else {
-			this.lastInvocationResult = invocationResult;
+			// if there was exception - clean context entirely and reset last invocation result
+			if (invocationResult.exception() != null || sideEffect == SideEffect.WITH_SIDE_EFFECT) {
+				cleanJShell(invocationResult.snippets());
+				this.lastInvocationResult = null;
+			} else {
+				this.lastInvocationResult = invocationResult;
+			}
+			return invocationResult;
+		} finally {
+			JSHELL_EVAL_LOCK.unlock();
 		}
-		return invocationResult;
 	}
 
 	/**
