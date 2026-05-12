@@ -355,6 +355,56 @@ public record StorageRecord<T>(
 	}
 
 	/**
+	 * Allocation-free sibling of {@link #readRaw(ObservableInput)} for streaming raw copy paths
+	 * such as `OffsetIndexSerializationService.copySnapshotTo`. The payload is read into the
+	 * caller-supplied `scratchBuffer` rather than into a freshly allocated `byte[]`.
+	 *
+	 * The buffer must be at least `recordLength - CRC_NOT_COVERED_PART` bytes long. Since storage
+	 * records are written in fragments capped by the configured `outputBufferSize`, a buffer of
+	 * `outputBufferSize` bytes is always sufficient.
+	 *
+	 * @param input         input stream positioned at the start of a record
+	 * @param scratchBuffer reusable buffer that will receive the payload bytes
+	 * @return a {@link RawRecordHeader} describing location, control byte, generation id, and the
+	 *         number of payload bytes actually written into `scratchBuffer`
+	 */
+	@Nonnull
+	public static RawRecordHeader readRawInto(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull byte[] scratchBuffer
+	) {
+		long startingPosition = -1L;
+		int recordLength = -1;
+		try {
+			startingPosition = input.markStart();
+			recordLength = input.readInt();
+			final byte originalControl = input.readByte();
+			final long generationId = input.readLong();
+			// if the data is compressed we need to override the control byte and read it uncompressed
+			byte control = setBit(originalControl, COMPRESSION_BIT, false);
+			input.markPayloadStart(recordLength, control);
+			final int payloadLength = recordLength - CRC_NOT_COVERED_PART;
+			input.readBytes(scratchBuffer, 0, payloadLength);
+			input.markEnd(originalControl);
+
+			return new RawRecordHeader(
+				new FileLocation(startingPosition, recordLength),
+				originalControl,
+				generationId,
+				payloadLength
+			);
+		} catch (RuntimeException ex) {
+			// reset input stream to avoid partially initialized state
+			input.reset();
+			if (startingPosition != -1L && recordLength != -1) {
+				// if we know the location, we can verify it
+				checkUnderlyingInputStreamLength(input, new FileLocation(startingPosition, recordLength), ex);
+			}
+			throw ex;
+		}
+	}
+
+	/**
 	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
 	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
 	 *
@@ -545,6 +595,32 @@ public record StorageRecord<T>(
 		long generationId,
 		@Nonnull byte[] rawData
 	) {
+		return writeRaw(output, control, generationId, rawData, 0, rawData.length);
+	}
+
+	/**
+	 * Range-bounded sibling of {@link #writeRaw(ObservableOutput, byte, long, byte[])} that writes
+	 * `length` bytes from `rawData` starting at `offset`. Used by streaming raw-copy paths that
+	 * reuse a single scratch buffer across many records.
+	 *
+	 * @param output       observable output stream to write to
+	 * @param control      control byte (compression / CRC32 / continuation flags)
+	 * @param generationId generation id of the written record
+	 * @param rawData      buffer holding the raw (possibly compressed) payload data
+	 * @param offset       start offset within `rawData`
+	 * @param length       number of payload bytes to write
+	 * @return file location of the written record
+	 * @throws CorruptedRecordException if the written record length differs from expected
+	 */
+	@Nonnull
+	public static FileLocation writeRaw(
+		@Nonnull ObservableOutput<?> output,
+		byte control,
+		long generationId,
+		@Nonnull byte[] rawData,
+		int offset,
+		int length
+	) {
 		try {
 			output.markStart();
 			output.markRecordLengthPosition();
@@ -552,15 +628,15 @@ public record StorageRecord<T>(
 			output.writeByte(0);
 			output.writeLong(generationId);
 			output.markPayloadStart();
-			output.writeBytes(rawData);
+			output.writeBytes(rawData, offset, length);
 			final FileLocation resultLocation = output.markEndSuppressingCompression(control);
 			//noinspection StringConcatenationMissingWhitespace
 			Assert.isPremiseValid(
-				rawData.length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
+				length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
 				() -> new CorruptedRecordException(
 					"Record length differs (" + resultLocation.recordLength() + "B, " +
-						"expected " + (rawData.length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
-					resultLocation.recordLength(), rawData.length + CRC_NOT_COVERED_PART
+						"expected " + (length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
+					resultLocation.recordLength(), length + CRC_NOT_COVERED_PART
 				)
 			);
 			return resultLocation;
@@ -1104,6 +1180,24 @@ public record StorageRecord<T>(
 		byte control,
 		long generationId,
 		byte[] rawData
+	) {
+	}
+
+	/**
+	 * Allocation-free header descriptor returned by {@link #readRawInto(ObservableInput, byte[])}.
+	 * Unlike {@link RawRecord}, it does not carry the payload bytes — the caller already holds the
+	 * scratch buffer that received them and uses `payloadLength` to bound subsequent reads/writes.
+	 *
+	 * @param location      file location of the source record
+	 * @param control       control byte (compression / CRC32 / continuation flags)
+	 * @param generationId  generation id read from the record header
+	 * @param payloadLength number of payload bytes written into the caller's scratch buffer
+	 */
+	public record RawRecordHeader(
+		@Nonnull FileLocation location,
+		byte control,
+		long generationId,
+		int payloadLength
 	) {
 	}
 
