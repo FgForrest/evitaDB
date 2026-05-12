@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bitmap;
 
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -831,6 +832,27 @@ class TransactionalBitmapTest {
 					assertArrayEquals(
 						new int[]{1, 5, 10}, committed.getArray()
 					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("should invalidate memoized cardinality when removeAll(Bitmap) runs under suppressed transactional layer")
+		void shouldInvalidateMemoizedCardinalityWhenRemoveAllInSuppressedContext() {
+			final TransactionalBitmap bitmap = new TransactionalBitmap(10, 21);
+			final BaseBitmap toRemove = new BaseBitmap(10);
+
+			assertStateAfterCommit(
+				bitmap,
+				original -> Transaction.suppressTransactionalMemoryLayerFor(
+					original, it -> it.removeAll(toRemove)
+				),
+				(original, committed) -> {
+					assertEquals(
+						1, committed.size(),
+						"size() must reflect the direct mutation, not the stale memoized value"
+					);
+					assertArrayEquals(new int[]{21}, committed.getArray());
 				}
 			);
 		}

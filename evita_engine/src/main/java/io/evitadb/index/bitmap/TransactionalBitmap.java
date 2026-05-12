@@ -299,6 +299,7 @@ public class TransactionalBitmap
 							while (it.hasNext()) {
 								this.roaringBitmap.remove(it.nextInt());
 							}
+							this.memoizedCardinality = -1;
 						} else {
 							layer.removeRecordId(recordId);
 							while (it.hasNext()) {
