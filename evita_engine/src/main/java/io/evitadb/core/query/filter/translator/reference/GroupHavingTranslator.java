@@ -88,6 +88,7 @@ public class GroupHavingTranslator implements FilteringConstraintTranslator<Grou
 				referenceSchema,
 				referencedGroupType,
 				referenceSchema.isReferencedGroupTypeManaged(),
+				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
 				filterByVisitor::getReferencedGroupEntityIndexes,
 				nestedQueryDescription
 			);
