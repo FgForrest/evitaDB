@@ -80,6 +80,18 @@ import java.util.function.Function;
  * `OffsetIndexSerializationService.copySnapshotTo`) so the production code path — including
  * `FileOutputStream` open/close — is exercised end-to-end.
  *
+ * **Parameter selection.** `recordCount` × `payloadSizeProfile` is *not* meant to be run as the
+ * full cross-product — `HUGE` × `2000` would build a ~1-2 GB source file per trial, which is
+ * unusable in CI and on dev laptops. Pick a specific pair at the JMH command line, for example:
+ *
+ * ```
+ * java -jar benchmarks.jar OffsetIndexCompactionBenchmark \
+ *      -p payloadSizeProfile=HUGE -p recordCount=200 -p compression=false
+ * ```
+ *
+ * The `HUGE` × `200` configuration is the one that reproduces issue #1157's allocation pattern;
+ * the `SMALL` / `MEDIUM` / `LARGE` profiles with either `recordCount` are cheap.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @State(Scope.Benchmark)
@@ -124,8 +136,10 @@ public class OffsetIndexCompactionBenchmarkState {
 	public boolean compression;
 
 	/**
-	 * Toggles the `Crc32CChecksumFactory` path. Production uses CRC32C, but disabling it lets us
-	 * attribute time/allocations between checksum work and the per-record copy itself.
+	 * Toggles the `Crc32CChecksumFactory` path. Pinned to `true` because the per-record
+	 * `byte[]` allocation pattern from issue #1157 is independent of CRC mode, and CRC-on is what
+	 * production runs. Expand to `{"true", "false"}` if you want to attribute time between
+	 * checksum work and the per-record copy itself — neither path is the one being optimised.
 	 */
 	@Param({"true"})
 	public boolean crc32;
@@ -380,9 +394,18 @@ public class OffsetIndexCompactionBenchmarkState {
 		if (!Files.exists(root)) {
 			return;
 		}
-		Files.walk(root)
-			.sorted((a, b) -> b.getNameCount() - a.getNameCount())
-			.forEach(p -> p.toFile().delete());
+		// Files.walk holds an open DirectoryStream; close it via try-with-resources so the temp
+		// dir is actually deletable on platforms that lock open directory handles (Windows).
+		try (final java.util.stream.Stream<Path> walk = Files.walk(root)) {
+			walk.sorted((a, b) -> b.getNameCount() - a.getNameCount())
+				.forEach(p -> {
+					try {
+						Files.deleteIfExists(p);
+					} catch (IOException ignored) {
+						// best-effort cleanup; a leftover file in a temp dir is not fatal for the benchmark
+					}
+				});
+		}
 	}
 
 	/**
