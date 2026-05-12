@@ -9,12 +9,12 @@ query(
             histogramHaving(
                 "parameterValues", "intervalParameterValues",
                 200, 400,
-                entityHaving(attributeEquals("code", "weight"))
+                groupHaving(attributeEquals("code", "weight"))
             ),
             histogramHaving(
                 "parameterValues", "intervalParameterValues",
                 6, 10,
-                entityHaving(attributeEquals("code", "thickness"))
+                groupHaving(attributeEquals("code", "thickness"))
             )
         )
     ),
