@@ -1,26 +1,3 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2026
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 	"evita",
 	session -> {
@@ -34,26 +11,39 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					),
 					userFilter(
 						histogramHaving(
-							"parameterValues", "intervalParameterValues",
-							200, 400,
-							groupHaving(attributeEquals("code", "weight"))
+							"parameterValues",
+							"intervalParameterValues",
+							200,
+							400,
+							groupHaving(
+								attributeEquals("code", "weight")
+							)
 						),
 						histogramHaving(
-							"parameterValues", "intervalParameterValues",
-							6, 10,
-							groupHaving(attributeEquals("code", "thickness"))
+							"parameterValues",
+							"intervalParameterValues",
+							6,
+							10,
+							groupHaving(
+								attributeEquals("code", "thickness")
+							)
 						)
 					)
 				),
 				require(
 					page(1, 5),
-					entityFetch(attributeContent("code")),
+					entityFetch(
+						attributeContent("code")
+					),
 					referenceSummaryOfReferenceWithHistograms(
 						"parameterValues",
-						FacetStatisticsDepth.COUNTS,
-						entityFetch(attributeContent("code")),
-						entityGroupFetch(attributeContent("code")),
-						histogramStatistics(20, "intervalParameterValues")
+						entityFetch(
+							attributeContent("code")
+						),
+						entityGroupFetch(
+							attributeContent("code")
+						),
+						histogramStatistics(20, STANDARD, "intervalParameterValues")
 					)
 				)
 			)

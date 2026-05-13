@@ -14007,6 +14007,29 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * Convenience overload of {@link #referenceSummaryOfReferenceWithHistograms(String, FacetStatisticsDepth, EntityFetch, EntityGroupFetch, ReferenceHistogramStatistics...)}
+	 * that defaults the statistics depth to {@link FacetStatisticsDepth#COUNTS} so the EvitaQL string representation
+	 * — where {@code COUNTS} is implicit — round-trips back to compilable Java without an explicit depth argument.
+	 *
+	 * @see io.evitadb.api.query.require.ReferenceSummaryOfReference
+	 */
+	@Nullable
+	static ReferenceSummaryOfReference referenceSummaryOfReferenceWithHistograms(
+		@Nullable String referenceName,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nullable ReferenceHistogramStatistics... histogramStatistics
+	) {
+		return referenceSummaryOfReferenceWithHistograms(
+			referenceName,
+			FacetStatisticsDepth.COUNTS,
+			entityFetch,
+			entityGroupFetch,
+			histogramStatistics
+		);
+	}
+
+	/**
 	 * Calculates a reference summary for a single named reference combining filtering and ordering constraints, entity
 	 * fetch requirements, and one or more {@link ReferenceHistogramStatistics} children. The histogram children request
 	 * per-group histograms for named histogram indexes defined on the referenced schema.
