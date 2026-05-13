@@ -636,7 +636,7 @@ Inside the [`userFilter`](behavioral.md#user-filter) container, `histogramHaving
 1. it is applied to the filter formula like any other `userFilter` child — the result set is narrowed by the range;
 2. it is registered as a **range carrier** so the histogram's own `[min, max]` baseline cloner peels it out when
    computing the histogram — moving one slider does not contract the `[min, max]` span of sibling sliders (see the
-   [three-group invariant in behavioral filtering](behavioral.md#sliders-do-not-contract-under-their-own-handles)).
+   [peel-by-family rule in behavioral filtering](behavioral.md#how-userfilter-shapes-predictions)).
 
 Outside `userFilter`, `histogramHaving` behaves like an equivalent [`referenceHaving`](#reference-having) rewrite —
 it narrows the result set and does not participate in histogram baseline relaxation.

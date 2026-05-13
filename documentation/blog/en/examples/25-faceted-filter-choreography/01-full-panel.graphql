@@ -1,0 +1,112 @@
+{
+  queryProduct(
+    filterBy: {
+      entityLocaleEquals: en,
+      hierarchyCategoriesWithin: {
+        ofParent: { attributeCodeEquals: "e-readers" }
+      },
+      priceInPriceLists: ["basic"],
+      priceInCurrency: EUR,
+      priceValidInNow: true,
+      userFilter: [
+        {
+          facetBrandHaving: {
+            entityHaving: { attributeCodeEquals: "amazon" }
+          },
+          priceBetween: ["50", "200"],
+          referenceParameterValuesHistogramHaving: {
+            histogramName: "intervalParameterValues",
+            from: 200,
+            to: 400,
+            groupHaving: { attributeCodeEquals: "weight" }
+          }
+        }
+      ]
+    }
+  ) {
+    recordPage(number: 1, size: 16) {
+      data {
+        primaryKey
+        attributes {
+          code
+          name
+        }
+      }
+    }
+    extraResults {
+      referenceSummary {
+        brand {
+          count
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                code
+                name
+              }
+            }
+          }
+        }
+        parameterValues(
+          filterGroupBy: { attributeIsVisibleInFilterEquals: true }
+        ) {
+          count
+          groupEntity {
+            primaryKey
+            attributes {
+              code
+              name
+            }
+          }
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                code
+                name
+              }
+            }
+          }
+          histogramStatistics {
+            intervalParameterValues {
+              min
+              max
+              overallCount
+              buckets(requestedCount: 20) {
+                threshold
+                occurrences
+                requested
+                relativeFrequency
+              }
+            }
+          }
+        }
+      }
+      priceHistogram {
+        min
+        max
+        overallCount
+        buckets(requestedCount: 20) {
+          threshold
+          occurrences
+          requested
+          relativeFrequency
+        }
+      }
+    }
+  }
+}
