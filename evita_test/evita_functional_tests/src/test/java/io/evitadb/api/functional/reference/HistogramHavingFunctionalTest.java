@@ -1671,7 +1671,7 @@ public class HistogramHavingFunctionalTest implements EvitaTestSupport {
 										// reference hosts two histograms
 										new HistogramHaving(
 											REF_PARAM_VALUES, null,
-											0, 1000,
+											new BigDecimal("0"), new BigDecimal("1000"),
 											null
 										)
 									)

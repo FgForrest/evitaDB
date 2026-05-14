@@ -310,6 +310,7 @@ public class ReferenceSummaryOfReference
 	/**
 	 * Returns content requirements for reference entities.
 	 */
+	@AliasForParameter("entityFetch")
 	@Nonnull
 	public Optional<EntityFetch> getReferenceEntityRequirement() {
 		return Arrays.stream(getChildren())
@@ -321,6 +322,7 @@ public class ReferenceSummaryOfReference
 	/**
 	 * Returns content requirements for group entities.
 	 */
+	@AliasForParameter("entityGroupFetch")
 	@Nonnull
 	public Optional<EntityGroupFetch> getGroupEntityRequirement() {
 		return Arrays.stream(getChildren())

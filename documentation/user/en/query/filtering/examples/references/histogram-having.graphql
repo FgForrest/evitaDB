@@ -10,8 +10,8 @@
         {
           referenceParameterValuesHistogramHaving: {
             histogramName: "intervalParameterValues",
-            from: "200",
-            to: "400",
+            from: 200,
+            to: 400,
             groupHaving: {
               attributeCodeEquals: "weight"
             }
@@ -20,8 +20,8 @@
         {
           referenceParameterValuesHistogramHaving: {
             histogramName: "intervalParameterValues",
-            from: "6",
-            to: "10",
+            from: 6,
+            to: 10,
             groupHaving: {
               attributeCodeEquals: "thickness"
             }

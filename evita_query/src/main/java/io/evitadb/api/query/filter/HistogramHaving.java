@@ -31,8 +31,6 @@ import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -40,6 +38,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 /**
  * The `histogramHaving` constraint narrows a reference histogram to a specific `[from, to]` range (both ends
@@ -82,6 +81,13 @@ import java.io.Serializable;
  * `referenceHaving(...)` rewrite — it narrows the result set and does not participate in histogram baseline
  * relaxation.
  *
+ * ## Bound type
+ *
+ * Histogram bounds are carried as {@link BigDecimal} — the lossless canonical numeric type used throughout the
+ * histogram engine (the rewrite into `attributeBetween(...)` narrows back to the attribute's indexed plain type
+ * via {@code EvitaDataTypes.toTargetType}, so any Evita numeric attribute is supported transparently). Friendly
+ * factories in {@code QueryConstraints} accept any {@link Number} subtype and convert on the way in.
+ *
  * ## Validation
  *
  * - At least one of `from` / `to` must be non-null (both-null is a programmer error; no slider translates to that).
@@ -116,6 +122,8 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 
 	/**
 	 * Creates a new {@link HistogramHaving} instance narrowing a reference histogram to the given range.
+	 * Bounds are expressed as {@link BigDecimal} — the lossless canonical type used by the histogram engine;
+	 * use the friendly factories on {@code QueryConstraints} when you have a non-BigDecimal numeric value.
 	 *
 	 * @param referenceName   the reference name that hosts the target histogram (required)
 	 * @param histogramName   the histogram name within the reference (nullable; empty string is normalised to null)
@@ -123,16 +131,15 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	 * @param to              the inclusive upper bound of the range (nullable if {@code from} is non-null)
 	 * @param groupHaving     optional single {@link GroupHaving} constraint selecting the group entity for grouped
 	 *                        histograms; must be null for non-grouped slots
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when both bounds are null, when
-	 *                                                        {@code from.compareTo(to) > 0}, or when
-	 *                                                        {@code groupHaving} is not a single child
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when both bounds are null or when
+	 *                                                        {@code from.compareTo(to) > 0}
 	 */
 	@Creator
 	public HistogramHaving(
 		@Nonnull @Classifier String referenceName,
 		@Nullable String histogramName,
-		@Nullable @Value(requiresPlainType = true) Serializable from,
-		@Nullable @Value(requiresPlainType = true) Serializable to,
+		@Nullable BigDecimal from,
+		@Nullable BigDecimal to,
 		@Nullable @Child GroupHaving groupHaving
 	) {
 		super(
@@ -169,10 +176,9 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	 *
 	 * @return the lower bound, or null
 	 */
-	@SuppressWarnings("unchecked")
 	@Nullable
-	public <T extends Serializable> T getFrom() {
-		return (T) getArguments()[2];
+	public BigDecimal getFrom() {
+		return (BigDecimal) getArguments()[2];
 	}
 
 	/**
@@ -180,10 +186,9 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	 *
 	 * @return the upper bound, or null
 	 */
-	@SuppressWarnings("unchecked")
 	@Nullable
-	public <T extends Serializable> T getTo() {
-		return (T) getArguments()[3];
+	public BigDecimal getTo() {
+		return (BigDecimal) getArguments()[3];
 	}
 
 	/**
@@ -244,8 +249,8 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	private static Serializable[] buildArguments(
 		@Nonnull String referenceName,
 		@Nullable String histogramName,
-		@Nullable Serializable from,
-		@Nullable Serializable to
+		@Nullable BigDecimal from,
+		@Nullable BigDecimal to
 	) {
 		final String normalisedHistogramName =
 			histogramName == null || histogramName.isEmpty() ? null : histogramName;
@@ -253,47 +258,22 @@ public class HistogramHaving extends AbstractFilterConstraintContainer
 	}
 
 	/**
-	 * Validates that the bounds satisfy the constraint's invariants: at least one bound is non-null, when both
-	 * are non-null they share the same plain type, and they are ordered.
-	 *
-	 * Mismatched plain types are always a user mistake — a `from` of type `Long` paired with a `to` of type
-	 * `BigDecimal` (or `Integer` paired with `String`) cannot be meaningfully ordered and always produces a runtime
-	 * surprise downstream. Rejecting at construction with an actionable message naming both simple class names keeps
-	 * the mistake visible at the EvitaQL build site instead of deep inside the query translator.
+	 * Validates that the bounds satisfy the constraint's invariants: at least one bound is non-null, and when
+	 * both are non-null they are ordered. Both bounds are {@link BigDecimal} so {@code compareTo} is numeric.
 	 *
 	 * @param from the lower bound (may be null)
 	 * @param to   the upper bound (may be null)
 	 */
-	@SuppressWarnings("rawtypes")
-	private static void validateBounds(@Nullable Serializable from, @Nullable Serializable to) {
+	private static void validateBounds(@Nullable BigDecimal from, @Nullable BigDecimal to) {
 		Assert.isTrue(
 			from != null || to != null,
 			"HistogramHaving requires at least one of `from` / `to` to be non-null!"
 		);
 		if (from != null && to != null) {
-			// plain-type match is mandatory — mismatched types cannot be compared and always point at a user
-			// mistake upstream; surface it here with a message naming both simple class names for traceability
 			Assert.isTrue(
-				from.getClass() == to.getClass(),
-				() -> "HistogramHaving bounds `from` and `to` must share the same plain type (got " +
-					from.getClass().getSimpleName() + " and " + to.getClass().getSimpleName() + ")!"
+				from.compareTo(to) <= 0,
+				"HistogramHaving requires `from` to be less than or equal to `to`!"
 			);
-			if (from instanceof Comparable fromCmp) {
-				// identical types and both Comparable — enforce ordering
-				//noinspection unchecked
-				Assert.isTrue(
-					fromCmp.compareTo(to) <= 0,
-					"HistogramHaving requires `from` to be less than or equal to `to`!"
-				);
-			} else {
-				// @Value(requiresPlainType = true) guarantees all plain types are Comparable; this branch
-				// is unreachable under normal operation. Surface it as a programming error per the project's
-				// defensive-design rule rather than silently accepting unordered bounds.
-				throw new GenericEvitaInternalError(
-					"HistogramHaving bound type `" + from.getClass().getSimpleName() +
-						"` is not Comparable — plain types are always Comparable."
-				);
-			}
 		}
 	}
 }

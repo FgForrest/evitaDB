@@ -21,9 +21,9 @@ query(
     require(
         page(1, 5),
         entityFetch(attributeContent("code")),
-        referenceSummaryOfReference(
+        referenceSummaryOfReferenceWithHistograms(
             "parameterValues",
-            COUNTS,
+            NONE,
             entityFetch(attributeContent("code")),
             entityGroupFetch(attributeContent("code")),
             histogramStatistics(20, "intervalParameterValues")

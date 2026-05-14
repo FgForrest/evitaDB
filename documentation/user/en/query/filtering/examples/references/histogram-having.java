@@ -37,6 +37,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					),
 					referenceSummaryOfReferenceWithHistograms(
 						"parameterValues",
+						FacetStatisticsDepth.NONE,
 						entityFetch(
 							attributeContent("code")
 						),

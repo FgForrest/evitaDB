@@ -31,7 +31,7 @@ import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.HistogramHaving;
 import lombok.RequiredArgsConstructor;
 
-import java.io.Serializable;
+import java.math.BigDecimal;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link HistogramHaving} from/to binary format.
@@ -40,8 +40,8 @@ import java.io.Serializable;
  *
  * 1. reference name (non-null string)
  * 2. histogram name (nullable string — Kryo's `writeString` / `readString` encode null natively)
- * 3. `from` bound (nullable {@link Serializable} via `writeClassAndObject`)
- * 4. `to` bound (nullable {@link Serializable} via `writeClassAndObject`)
+ * 3. `from` bound (nullable {@link BigDecimal} via `writeClassAndObject`)
+ * 4. `to` bound (nullable {@link BigDecimal} via `writeClassAndObject`)
  * 5. group selector (nullable {@link GroupHaving} via `writeClassAndObject`)
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -81,8 +81,8 @@ public class HistogramHavingSerializer extends Serializer<HistogramHaving> {
 	public HistogramHaving read(Kryo kryo, Input input, Class<? extends HistogramHaving> type) {
 		final String referenceName = input.readString();
 		final String histogramName = input.readString();
-		final Serializable from = (Serializable) kryo.readClassAndObject(input);
-		final Serializable to = (Serializable) kryo.readClassAndObject(input);
+		final BigDecimal from = (BigDecimal) kryo.readClassAndObject(input);
+		final BigDecimal to = (BigDecimal) kryo.readClassAndObject(input);
 		final GroupHaving groupSelector = (GroupHaving) kryo.readClassAndObject(input);
 		return new HistogramHaving(referenceName, histogramName, from, to, groupSelector);
 	}
