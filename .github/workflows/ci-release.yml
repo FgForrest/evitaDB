@@ -27,9 +27,6 @@ jobs:
     permissions:
       # write permission is required to create a github release
       contents: write
-      # write permission is required for autolabeler
-      # otherwise, read permission is required at least
-      pull-requests: write
 
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
@@ -43,7 +40,7 @@ jobs:
     steps:
 
     - name: Download release branch info
-      uses: dawidd6/action-download-artifact@ac66b43f0e6a346234dd65d4d0c8fbb31cb316e5 # v11
+      uses: dawidd6/action-download-artifact@0bd50d53a6d7fb5cb921e607957e9cc12b4ce392 # v12
       if: ${{ github.event.workflow_run.conclusion == 'success' }}
       with:
         workflow: ${{ github.event.workflow_run.workflow_id }}
@@ -63,19 +60,36 @@ jobs:
           exit 1
         fi
 
+    - name: Read release version
+      id: read_version
+      if: ${{ github.event.workflow_run.conclusion == 'success' }}
+      run: |
+        if [ -f "released_version.txt" ]; then
+          RELEASE_VERSION=$(cat released_version.txt)
+          echo "version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "Using release version: $RELEASE_VERSION"
+        else
+          echo "released_version.txt not found"
+          exit 1
+        fi
+
     - name: Checkout code
-      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0 checkout sources
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.1 checkout sources
       with:
         ref: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Resolve new release version
       id: release_version
+      env:
+        ARTIFACT_VERSION: ${{ steps.read_version.outputs.version }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Check if released_version.txt exists (from workflow artifact)
-        if [ -f "released_version.txt" ]; then
-          VERSION=$(cat released_version.txt)
-          echo "Using version from released_version.txt: $VERSION"
+        # Check if version was already read from workflow artifact (before checkout wiped it)
+        if [ -n "$ARTIFACT_VERSION" ]; then
+          VERSION="$ARTIFACT_VERSION"
+          echo "Using version from master workflow artifact: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
         else
           # Extract version from branch name (e.g., release_2025-7 -> 2025.7)
@@ -86,15 +100,32 @@ jobs:
           MAJOR_MINOR=$(echo "$BRANCH_NAME" | sed 's/release_//' | sed 's/-/./')
           echo "Extracted major.minor: $MAJOR_MINOR"
 
-          # Get all tags matching this major.minor version
           git fetch --tags
-          TAGS=$(git tag -l "v${MAJOR_MINOR}.*" | sort -V)
-          echo "Found tags: $TAGS"
+
+          # Published versions — git tags on remote.
+          TAG_VERSIONS=$(git tag -l "v${MAJOR_MINOR}.*")
+
+          # Draft versions — releases that have not yet been published, so
+          # their git tag does not exist on remote. Without this, a failed
+          # partial run (draft created, but Maven deploy or asset upload
+          # failed later) would recompute the same version on the next push
+          # and collide with artefacts already deployed to Maven Central.
+          DRAFT_VERSIONS=$(gh api "/repos/${{ github.repository }}/releases?per_page=100" \
+            --jq '.[] | select(.draft == true) | .name, .tag_name' 2>/dev/null \
+            | grep -E "^v${MAJOR_MINOR}\.[0-9]+$" || true)
+
+          ALL_VERSIONS=$(printf "%s\n%s\n" "$TAG_VERSIONS" "$DRAFT_VERSIONS" \
+            | sort -V -u | grep -v '^$' || true)
+          echo "Known versions (tags + drafts):"
+          printf "%s\n" "$ALL_VERSIONS"
 
           # Extract patch numbers and find the max
           MAX_PATCH=-1
-          for tag in $TAGS; do
-            PATCH=$(echo "$tag" | sed 's/.*\.//')
+          for tag in $ALL_VERSIONS; do
+            PATCH="${tag##*.}"
+            case "$PATCH" in
+              ''|*[!0-9]*) continue ;;
+            esac
             if [ "$PATCH" -gt "$MAX_PATCH" ]; then
               MAX_PATCH=$PATCH
             fi
@@ -108,7 +139,7 @@ jobs:
         fi
 
     - name: Setup Java JDK
-      uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1  # setup JDK 17 for building
+      uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0  # setup JDK 17 for building
       with:
         distribution: 'temurin'
         java-version: '17'
@@ -120,7 +151,7 @@ jobs:
         gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Build with Maven
-      run: |      
+      run: |
         export SANITIZED_VERSION=$(echo "$EVITA_BUILD_VERSION" | tr -d '\r\n')
         export NEW_VERSION="$( echo "${SANITIZED_VERSION}" | sed 's/^v//; s/-.*//')"
         echo $NEW_VERSION > version.txt
@@ -155,14 +186,280 @@ jobs:
         filename: 'dist.tar.gz'
         path: './dist'
 
+    # Resolve previous release tag and milestone. Used both to build the
+    # skeleton body below and later by the release-notes enrichment skill.
+    - name: Resolve release notes inputs
+      id: notes_inputs
+      if: success()
+      env:
+        VERSION: ${{ steps.release_version.outputs.version }}
+        IS_MAJOR: ${{ github.event.workflow_run.conclusion == 'success' }}
+      run: |
+        # Highest v* tag strictly less than VERSION, by semantic version sort.
+        PREV=$( (git tag -l 'v*'; printf "%s\n" "$VERSION") \
+          | sort -V -u \
+          | awk -v v="$VERSION" 'BEGIN { prev = "" }
+                                  $0 == v { print prev; exit }
+                                  { prev = $0 }' )
+        echo "prev_tag=$PREV" >> $GITHUB_OUTPUT
+        echo "Resolved previous tag: ${PREV:-<none>}"
+
+        # Milestone is only set for MAJOR releases (triggered by workflow_run
+        # from CI Master); patch releases use commit-only mode.
+        if [ "$IS_MAJOR" = "true" ]; then
+          MILESTONE="${VERSION#v}"
+          MILESTONE="${MILESTONE%.0}"
+        else
+          MILESTONE=""
+        fi
+        echo "milestone=$MILESTONE" >> $GITHUB_OUTPUT
+        echo "Resolved milestone: ${MILESTONE:-<none>}"
+
+    # Produce the deterministic skeleton (categorised bullet list from
+    # commits and — for MAJORs — issues). This is the body we hand to
+    # GitHub when creating the draft. The Claude-enriched body PATCHes
+    # this later; if enrichment is skipped or fails, the skeleton
+    # remains as a sane fallback. `generate-release-notes.sh` expects
+    # `VERSION` to exist as a git tag, so we create a lightweight local
+    # tag on HEAD first (runner VM is ephemeral — the tag never leaves
+    # this job).
+    - name: Generate skeleton release notes
+      id: skeleton
+      if: success()
+      continue-on-error: true
+      env:
+        VERSION: ${{ steps.release_version.outputs.version }}
+        BASE_VERSION: ${{ steps.notes_inputs.outputs.prev_tag }}
+        MILESTONE: ${{ steps.notes_inputs.outputs.milestone }}
+      run: |
+        git tag -f "$VERSION" HEAD
+        ARGS=(--version "$VERSION")
+        [ -n "$BASE_VERSION" ] && ARGS+=(--base "$BASE_VERSION")
+        [ -n "$MILESTONE" ]    && ARGS+=(--milestone "$MILESTONE")
+        ./tools/generate-release-notes.sh "${ARGS[@]}" > release-notes-skeleton.md
+        echo "--- skeleton ---"
+        cat release-notes-skeleton.md
+        echo "--- end ---"
+
+    # Create (or update) the draft release directly via the GitHub API.
+    # Body is the skeleton from the previous step when available, otherwise
+    # a minimal placeholder. Outputs `id`, `upload_url`, `html_url` feed the
+    # downstream asset-upload and body-PATCH steps. Idempotent: if a draft
+    # for this version already exists (left behind by a previous partial
+    # run), it is updated in place instead of creating a duplicate.
     - name: Create release
       id: create_release
-      uses: release-drafter/release-drafter@b1476f6e6eb133afa41ed8589daba6dc69b4d3f5 # v6.1.0
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ steps.release_version.outputs.version }}
+        COMMITISH: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
+        MAKE_LATEST: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
+        SKELETON_OK: ${{ steps.skeleton.outcome == 'success' }}
+      run: |
+        # GitHub API wants a plain branch name, not a full `refs/heads/*` ref.
+        TARGET="${COMMITISH#refs/heads/}"
+
+        if [ "$SKELETON_OK" = "true" ] && [ -s release-notes-skeleton.md ]; then
+          BODY_FILE=release-notes-skeleton.md
+        else
+          echo "::warning::skeleton step did not produce a body — using minimal placeholder"
+          BODY_FILE=$(mktemp)
+          printf "Release %s — release notes are being generated.\n" "$VERSION" > "$BODY_FILE"
+        fi
+
+        # Detect existing release for this version. Match on either
+        # `tag_name` (happy path) or `name` (covers drafts still holding
+        # the `untagged-<sha>` placeholder as tag_name).
+        ALL_RELEASES=$(gh api "/repos/${{ github.repository }}/releases?per_page=100")
+        EXISTING=$(jq --arg v "$VERSION" \
+          'map(select(.tag_name == $v or .name == $v)) | first // {}' <<<"$ALL_RELEASES")
+        EXISTING_ID=$(jq -r '.id // empty' <<<"$EXISTING")
+        EXISTING_DRAFT=$(jq -r '.draft // empty' <<<"$EXISTING")
+
+        if [ -n "$EXISTING_ID" ] && [ "$EXISTING_DRAFT" != "true" ]; then
+          echo "::error::release $VERSION already exists and is published (id=$EXISTING_ID) — refusing to overwrite"
+          exit 1
+        fi
+
+        # Build the JSON payload with jq so booleans stay booleans. Mixing
+        # `-F` (raw) and `-f` flags on `gh api` forces form-encoding and
+        # makes `draft: true` arrive as the string `"true"`, which the
+        # GitHub API rejects with HTTP 422.
+        COMMON=$(jq -n \
+          --arg tag "$VERSION" \
+          --arg target "$TARGET" \
+          --arg name "$VERSION" \
+          --rawfile body "$BODY_FILE" \
+          --arg latest "$MAKE_LATEST" \
+          '{tag_name:$tag, target_commitish:$target, name:$name, body:$body, make_latest:$latest}')
+
+        RESPONSE=$(mktemp)
+        if [ -n "$EXISTING_ID" ]; then
+          echo "Updating existing draft release id=$EXISTING_ID in place"
+          gh api --method PATCH "/repos/${{ github.repository }}/releases/$EXISTING_ID" \
+            --input - <<<"$COMMON" > "$RESPONSE"
+        else
+          echo "Creating new draft release for $VERSION"
+          jq '. + {draft: true, prerelease: true}' <<<"$COMMON" \
+            | gh api --method POST "/repos/${{ github.repository }}/releases" --input - \
+            > "$RESPONSE"
+        fi
+
+        RELEASE_ID=$(jq -r .id "$RESPONSE")
+        HTML_URL=$(jq -r .html_url "$RESPONSE")
+        UPLOAD_URL=$(jq -r .upload_url "$RESPONSE")
+        STORED_TAG=$(jq -r .tag_name "$RESPONSE")
+
+        {
+          echo "id=$RELEASE_ID"
+          echo "html_url=$HTML_URL"
+          echo "upload_url=$UPLOAD_URL"
+          echo "tag_name=$STORED_TAG"
+        } >> "$GITHUB_OUTPUT"
+
+        echo "Release id=$RELEASE_ID tag_name=$STORED_TAG"
+        echo "  html_url=$HTML_URL"
+
+        # Self-heal: GitHub occasionally persists `tag_name=untagged-<sha>`
+        # on brand-new draft releases whose git tag does not yet exist. If
+        # such a draft is later published, GitHub creates a literal
+        # `untagged-<sha>` git tag and loses the intended v$VERSION.
+        # Re-PATCHing sticks reliably; no-op when already correct.
+        if [ "$STORED_TAG" != "$VERSION" ]; then
+          echo "::warning::stored tag_name='$STORED_TAG' differs from '$VERSION' — normalizing via PATCH"
+          jq -n --arg v "$VERSION" '{tag_name: $v}' \
+            | gh api --method PATCH "/repos/${{ github.repository }}/releases/$RELEASE_ID" --input - \
+            > /dev/null
+          ACTUAL=$(gh api "/repos/${{ github.repository }}/releases/$RELEASE_ID" --jq '.tag_name')
+          if [ "$ACTUAL" != "$VERSION" ]; then
+            echo "::error::PATCH did not stick: tag_name='$ACTUAL'"
+            exit 1
+          fi
+          echo "Release tag_name normalized to $VERSION"
+        fi
+
+    # Cache the Claude Code CLI binary so we don't re-download it on every
+    # release run. The cache key is pinned to CLAUDE_CODE_VERSION below; bump
+    # that version to roll forward and auto-invalidate the cache.
+    - name: Cache Claude Code CLI
+      id: cache_claude_cli
+      if: success()
+      uses: actions/cache@v4
       with:
-        version: ${{ steps.release_version.outputs.version }}
-        publish: false
-        latest: ${{ github.ref_name == 'master' && 'true' || 'legacy' }}
-        commitish: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
+        path: |
+          ~/.local/bin/claude
+          ~/.local/share/claude
+        key: claude-code-cli-${{ runner.os }}-2.1.89
+
+    # Install Claude Code CLI for headless invocation. We can't use
+    # anthropics/claude-code-action here because that action only accepts
+    # issue/PR/workflow_dispatch events and errors on `push` (which is what
+    # triggers this workflow). DISABLE_AUTOUPDATER keeps the cached binary
+    # pinned so the cache key stays valid across runs.
+    - name: Install Claude Code CLI
+      if: success() && steps.cache_claude_cli.outputs.cache-hit != 'true'
+      run: curl -fsSL https://claude.ai/install.sh | bash -s 2.1.89
+
+    - name: Add Claude Code CLI to PATH
+      if: success()
+      run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+    # Generate enriched release notes via the .claude/skills/release-notes
+    # skill. The skeleton draft from the Create release step is the
+    # safety net — this step is allowed to fail without affecting the
+    # release build. Uses Sonnet (cheaper than Opus) because release-notes
+    # enrichment is a straightforward summarise/rewrite task.
+    - name: Generate enriched release notes with Claude
+      id: claude_notes
+      if: success()
+      continue-on-error: true
+      env:
+        CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.ANTHROPIC_API_KEY }}
+        DISABLE_AUTOUPDATER: "1"
+        RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        BASE_VERSION: ${{ steps.notes_inputs.outputs.prev_tag }}
+        MILESTONE: ${{ steps.notes_inputs.outputs.milestone }}
+      run: |
+        PROMPT=$(cat <<EOF
+        You are generating release notes for evitaDB ${RELEASE_VERSION}.
+
+        RELEASE_VERSION=${RELEASE_VERSION}
+        BASE_VERSION=${BASE_VERSION}
+        MILESTONE=${MILESTONE}
+
+        Read .claude/skills/release-notes/SKILL.md and follow its workflow
+        exactly. Pass the values above as inputs (Step 1 of the skill).
+        Write the final notes to release-notes.md in the working directory.
+        Do not modify any other file. Do not commit, push, or create branches.
+        EOF
+        )
+        claude -p "$PROMPT" \
+          --model claude-sonnet-4-6 \
+          --max-turns 30 \
+          --allowedTools "Read,Write,Bash(./tools/generate-release-notes.sh:*),Bash(./tools/list-issues.sh:*),Bash(./tools/list-commits.sh:*),Bash(git tag:*),Bash(git log:*),Bash(git describe:*),Bash(git rev-parse:*),Bash(git show:*),Bash(gh issue view:*),Bash(gh api:*)"
+
+    # Always-print diagnostic — surfaces the generated body and Claude outcome
+    # in the build log even when the PATCH step is skipped, so failures are
+    # easy to inspect without re-running the workflow.
+    - name: Show generated release notes
+      if: always() && steps.claude_notes.outcome != 'skipped'
+      run: |
+        echo "claude_notes outcome: ${{ steps.claude_notes.outcome }}"
+        if [ -s release-notes.md ]; then
+          echo "--- release-notes.md ---"
+          cat release-notes.md
+          echo "--- end ---"
+        else
+          echo "(release-notes.md missing or empty)"
+        fi
+
+    # Upload the generated body as a workflow artifact so it can be downloaded
+    # offline for inspection — even if the PATCH step skipped or failed.
+    - name: Upload release-notes.md artifact
+      if: always() && hashFiles('release-notes.md') != ''
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: release-notes-${{ steps.release_version.outputs.version }}
+        path: release-notes.md
+
+    # Patch the drafted release body with the enriched notes if Claude
+    # produced them. Soft failure: missing file or API error is logged
+    # and ignored — the skeleton body stays in place as a fallback.
+    #
+    # IMPORTANT: every PATCH on a draft release whose underlying git tag
+    # does not yet exist MUST include `tag_name` (and `name`) explicitly.
+    # If you omit them, GitHub silently rewrites `tag_name` to a fresh
+    # `untagged-<sha>` placeholder — and on publish the release ends up
+    # at `releases/tag/untagged-<sha>` instead of `releases/tag/vX.Y.Z`.
+    # The Create release step already pins both fields; we mirror the
+    # same jq-built payload here.
+    - name: Update draft release body with enriched notes
+      if: steps.claude_notes.outcome == 'success'
+      continue-on-error: true
+      env:
+        RELEASE_ID: ${{ steps.create_release.outputs.id }}
+        VERSION: ${{ steps.release_version.outputs.version }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        if [ ! -s release-notes.md ]; then
+          echo "release-notes.md missing or empty — keeping skeleton body."
+          exit 0
+        fi
+        echo "Patching release $RELEASE_ID with enriched notes from release-notes.md"
+        jq -n \
+          --arg tag "$VERSION" \
+          --arg name "$VERSION" \
+          --rawfile body release-notes.md \
+          '{tag_name:$tag, name:$name, body:$body}' \
+          | gh api --method PATCH "/repos/${{ github.repository }}/releases/$RELEASE_ID" \
+              --input - > /dev/null
+
+        ACTUAL=$(gh api "/repos/${{ github.repository }}/releases/$RELEASE_ID" --jq '.tag_name')
+        if [ "$ACTUAL" != "$VERSION" ]; then
+          echo "::error::body PATCH dropped tag_name to '$ACTUAL' — release would publish as untagged"
+          exit 1
+        fi
+        echo "Release body updated; tag_name pinned to $VERSION."
 
     - name: Upload dist.zip to release
       uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
@@ -183,14 +480,14 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact
-      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt
-      uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       if: success()
       with:
         name: version.txt

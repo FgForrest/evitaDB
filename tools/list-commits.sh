@@ -58,6 +58,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Associative arrays to store deduplicated commits by type
+declare -A breaking_commits
 declare -A feat_commits
 declare -A fix_commits
 declare -A doc_commits
@@ -66,13 +67,23 @@ declare -A test_commits
 # Process each commit
 while IFS='|||' read -r subject body; do
   # Check if commit follows conventional commit format
-  if [[ "$subject" =~ ^(feat|fix|doc|test|docs|refactor|perf|style|chore|build|ci|revert)(\(.+\))?:\ (.+)$ ]]; then
+  # Group 1: type, Group 2: optional scope, Group 3: optional ! breaking marker, Group 4: description
+  if [[ "$subject" =~ ^(feat|fix|doc|test|docs|refactor|perf|style|chore|build|ci|revert)(\(.+\))?(!)?:\ (.+)$ ]]; then
     commit_type="${BASH_REMATCH[1]}"
-    commit_desc="${BASH_REMATCH[3]}"
+    breaking_marker="${BASH_REMATCH[3]}"
+    commit_desc="${BASH_REMATCH[4]}"
 
     # Normalize commit type (docs -> doc)
     if [ "$commit_type" = "docs" ]; then
       commit_type="doc"
+    fi
+
+    # Detect breaking change: ! marker on subject, or BREAKING CHANGE: / BREAKING-CHANGE: in body
+    is_breaking=false
+    if [ "$breaking_marker" = "!" ]; then
+      is_breaking=true
+    elif [[ "$body" =~ BREAKING[\ -]CHANGE: ]]; then
+      is_breaking=true
     fi
 
     # Extract issue number from subject or body
@@ -88,6 +99,12 @@ while IFS='|||' read -r subject body; do
       entry="$commit_desc (#$issue_number)"
     else
       entry="$commit_desc"
+    fi
+
+    # Breaking changes take precedence over the original type bucket
+    if [ "$is_breaking" = true ]; then
+      breaking_commits["$commit_desc"]="$entry"
+      continue
     fi
 
     # Store in appropriate array (using description as key for deduplication)
@@ -110,6 +127,17 @@ done <<< "$git_log"
 
 # Print sections
 printed_header=false
+
+if [ "${#breaking_commits[@]}" -gt 0 ]; then
+  if [ "$printed_header" = false ]; then
+    echo "## What's Changed"
+    printed_header=true
+  fi
+  echo -e "\n### ☢️ Breaking changes\n"
+  for key in "${!breaking_commits[@]}"; do
+    echo "* ${breaking_commits[$key]}"
+  done | sort -f
+fi
 
 if [ "${#feat_commits[@]}" -gt 0 ]; then
   if [ "$printed_header" = false ]; then
