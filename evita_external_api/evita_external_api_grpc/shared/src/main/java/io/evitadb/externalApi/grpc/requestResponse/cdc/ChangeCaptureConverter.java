@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.mutation.Mutation.StreamDirection;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.dataType.ContainerType;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcChangeCatalogCapture.Builder;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -177,6 +178,24 @@ public class ChangeCaptureConverter {
 		}
 
 		return builder.build();
+	}
+
+	/**
+	 * Converts a {@link GrpcUuid} and a {@link GrpcHeartBeat} into a {@link HeartBeat}.
+	 *
+	 * @param grpcUuid the unique identifier of the subscription in gRPC format
+	 * @param grpcHeartBeat the gRPC representation of the heartbeat event containing metadata about the event
+	 * @return the converted {@link HeartBeat} instance
+	 */
+	@Nonnull
+	public static HeartBeat toHeartBeat(@Nonnull GrpcUuid grpcUuid, @Nonnull GrpcHeartBeat grpcHeartBeat) {
+		return new HeartBeat(
+			EvitaDataTypesConverter.toUuid(grpcUuid),
+			grpcHeartBeat.getIndex(),
+			EvitaDataTypesConverter.toOffsetDateTime(grpcHeartBeat.getTimestamp()),
+			grpcHeartBeat.getLastObservedVersion(),
+			grpcHeartBeat.getMillisToNextHeartbeat()
+		);
 	}
 
 	/**

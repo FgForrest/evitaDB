@@ -457,8 +457,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 							progressObserver.accept(grpcResponse.getProgressInPercent());
 						}
 
-						// postpone timeout with each message received
-						ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
+						// restart the response deadline from now so a silent stream unblocks us
+						// within `streamingTimeout` of the last event, regardless of how many have arrived
+						ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, timeout);
 					}
 
 					@Override
@@ -511,8 +512,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 							EvitaClientSession.this.schemaCache.updateLastKnownCatalogVersion(
 								grpcResponse.getCatalogVersion(), grpcResponse.getCatalogSchemaVersion()
 							);
-							// postpone timeout with each message received
-							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
+							// restart the response deadline from now so a silent stream unblocks us
+							// within `streamingTimeout` of the last event, regardless of how many have arrived
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, timeout);
 						}
 
 						@Override
@@ -542,10 +544,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(@Nonnull ChangeCatalogCaptureRequest request) {
+		final EvitaClient.CatalogBoundCaptureKey key = new EvitaClient.CatalogBoundCaptureKey(
+			this.catalogName, request
+		);
 		//noinspection unchecked
 		return (ChangeCapturePublisher<ChangeCatalogCapture>) this.evita.activePublishers.compute(
-			request,
-			(theRequest, existingInstance) ->
+			key,
+			(theKey, existingInstance) ->
 				existingInstance == null || existingInstance.isClosed() ?
 					new ClientChangeCatalogCaptureProcessor(
 						this.evita.getConfiguration().changeCaptureQueueSize(),
@@ -554,8 +559,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						subscriber -> {
 							final AsyncCallFunction<EvitaSessionServiceStub, Void> callFunction = evitaService -> {
 								evitaService.registerChangeCatalogCapture(
-									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(
-										(ChangeCatalogCaptureRequest) theRequest),
+									ChangeCaptureConverter.toGrpcChangeCatalogCaptureRequest(request),
 									subscriber
 								);
 								return null;
@@ -571,7 +575,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 								session.executeWithStreamingEvitaSessionService(callFunction);
 							}
 						},
-						publisher -> this.evita.activePublishers.remove(theRequest, publisher)
+						publisher -> this.evita.activePublishers.remove(key, publisher)
 					) : existingInstance
 		);
 	}
@@ -605,8 +609,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 									EvitaClientSession.this.commitProgress.complete(CommitBehavior.WAIT_FOR_CHANGES_VISIBLE, commitVersions);
 								}
 							}
-							// postpone timeout with each message received
-							ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, timeout);
+							// restart the response deadline from now so a silent stream unblocks us
+							// within `streamingTimeout` of the last event, regardless of how many have arrived
+							ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, timeout);
 						}
 
 						@Override
@@ -2618,8 +2623,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.map(ChangeCaptureConverter::toChangeCatalogCapture)
 				.forEach(it -> this.queue.add(new StreamValueWrapper<>(it)));
 
-			// postpone timeout with each message received
-			ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.streamingTimeout);
+			// restart the response deadline from now so a silent stream unblocks us
+			// within `streamingTimeout` of the last event, regardless of how many have arrived
+			ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.streamingTimeout);
 		}
 
 		@Override

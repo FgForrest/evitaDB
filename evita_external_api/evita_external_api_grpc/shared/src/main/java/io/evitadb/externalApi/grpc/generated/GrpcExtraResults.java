@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ private static final long serialVersionUID = 0L;
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHistogram>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_AttributeHistogramEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_AttributeHistogramEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -316,7 +316,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
       getFacetGroupStatisticsOrBuilderList() {
     return facetGroupStatistics_;
   }
@@ -405,7 +405,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
         java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy> defaultEntry =
             com.google.protobuf.MapEntry
             .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcHierarchy>newDefaultInstance(
-                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_HierarchyEntry_descriptor,
+                io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_HierarchyEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
@@ -1030,7 +1030,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
             facetGroupStatisticsBuilder_ = null;
             facetGroupStatistics_ = other.facetGroupStatistics_;
             bitField0_ = (bitField0_ & ~0x00000004);
-            facetGroupStatisticsBuilder_ =
+            facetGroupStatisticsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getFacetGroupStatisticsFieldBuilder() : null;
           } else {
@@ -1660,7 +1660,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogram priceHistogram = 2;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcHistogram, io.evitadb.externalApi.grpc.generated.GrpcHistogram.Builder, io.evitadb.externalApi.grpc.generated.GrpcHistogramOrBuilder> 
         getPriceHistogramFieldBuilder() {
       if (priceHistogramBuilder_ == null) {
         priceHistogramBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1943,7 +1943,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
          getFacetGroupStatisticsOrBuilderList() {
       if (facetGroupStatisticsBuilder_ != null) {
         return facetGroupStatisticsBuilder_.getMessageOrBuilderList();
@@ -1984,12 +1984,12 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics facetGroupStatistics = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder> 
          getFacetGroupStatisticsBuilderList() {
       return getFacetGroupStatisticsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcFacetGroupStatisticsOrBuilder> 
         getFacetGroupStatisticsFieldBuilder() {
       if (facetGroupStatisticsBuilder_ == null) {
         facetGroupStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
@@ -2156,7 +2156,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcHierarchy selfHierarchy = 4;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcHierarchy, io.evitadb.externalApi.grpc.generated.GrpcHierarchy.Builder, io.evitadb.externalApi.grpc.generated.GrpcHierarchyOrBuilder> 
         getSelfHierarchyFieldBuilder() {
       if (selfHierarchyBuilder_ == null) {
         selfHierarchyBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -2516,7 +2516,7 @@ io.evitadb.externalApi.grpc.generated.GrpcHierarchy defaultValue) {
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry queryTelemetry = 6;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetry.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryTelemetryOrBuilder> 
         getQueryTelemetryFieldBuilder() {
       if (queryTelemetryBuilder_ == null) {
         queryTelemetryBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<

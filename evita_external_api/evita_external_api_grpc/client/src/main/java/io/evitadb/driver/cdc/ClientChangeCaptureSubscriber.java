@@ -29,6 +29,7 @@ import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher.ClientSubscription;
 import io.evitadb.driver.exception.PublisherClosedByClientException;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.IOUtils;
@@ -77,10 +78,19 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	private final Flow.Subscriber<? super C> delegate;
 
 	/**
-	 * Function that converts the raw gRPC response into an assigned UUID for acknowledging the subscription setup
-	 * on the server side.
+	 * Function that returns the server-assigned subscription id for ack/heartbeat frames; returns empty for
+	 * change frames. The presence of a value also doubles as the discriminator that tells {@link #onNext}
+	 * to skip the capture-decoding path.
 	 */
-	private final Function<RES, Optional<UUID>> deserializeAcknowledgeResponse;
+	private final Function<RES, Optional<UUID>> extractSubscriptionId;
+
+	/**
+	 * Function that returns a {@link HeartBeat} only when the server actually populated the heartbeat payload.
+	 * Returns empty for change frames AND for legacy ack frames (which lack the heartbeat field) — see
+	 * {@link ClientChangeCapturePublisher#extractHeartBeat(Object)} for why we deliberately do NOT synthesize
+	 * a sentinel HeartBeat in the legacy case.
+	 */
+	private final Function<RES, Optional<HeartBeat>> extractHeartBeat;
 
 	/**
 	 * Function that converts the raw gRPC response into a typed change capture object.
@@ -99,6 +109,12 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * Used to prevent multiple close operations and ensure proper cleanup.
 	 */
 	private final AtomicBoolean closed = new AtomicBoolean(false);
+	/**
+	 * Flag indicating whether the server side has closed the stream.
+	 * This is used to differentiate between client-initiated and server-initiated closures so
+	 * we don't re-cancel a stream the server has already terminated.
+	 */
+	private final AtomicBoolean serverSideClosed = new AtomicBoolean(false);
 
 	/**
 	 * The gRPC observer that sends requests to and receives responses from the server.
@@ -111,6 +127,12 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * This is set in the onSubscribe method when the publisher creates a subscription for this subscriber.
 	 */
 	private ClientSubscription<C, REQ, RES> subscription;
+
+	/**
+	 * The last heartbeat received from the server, used to monitor the connection health and to
+	 * detect missed heartbeats. Updated on every ack/heartbeat frame.
+	 */
+	private HeartBeat lastHeartBeat;
 
 	/**
 	 * Called by gRPC before starting the stream to provide the observer for sending requests to the server.
@@ -159,18 +181,42 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onNext(RES itemResponse) {
-		// extend the response timeout for the next message
-		ClientRequestContext.current().setResponseTimeout(TimeoutMode.EXTEND, this.streamingTimeout);
-		// first item is always subscription acknowledge response
-		this.deserializeAcknowledgeResponse.apply(itemResponse)
-			.ifPresent(sid -> {
-				if (this.subscription.getSubscriptionId() == null) {
-					this.subscription.setSubscriptionId(sid);
+		// restart the response deadline from now so a silent stream unblocks us within
+		// `streamingTimeout` of the last event, regardless of how many have arrived
+		ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.streamingTimeout);
+
+		// route subscription-id and heartbeat independently — a legacy server emits the first
+		// without the second and we must not conflate the two
+		final Optional<UUID> subscriptionIdOpt = this.extractSubscriptionId.apply(itemResponse);
+		subscriptionIdOpt.ifPresent(uuid -> {
+			if (this.subscription.getSubscriptionId() == null) {
+				this.subscription.setSubscriptionId(uuid);
+			}
+		});
+
+		this.extractHeartBeat.apply(itemResponse).ifPresent(heartBeat -> {
+			if (this.lastHeartBeat != null && this.lastHeartBeat.index() + 1 != heartBeat.index()) {
+				log.warn(
+					"Missed heartbeat(s)! Last heartbeat index: {}, new heartbeat index: {}",
+					this.lastHeartBeat.index(),
+					heartBeat.index()
+				);
+			}
+			this.lastHeartBeat = heartBeat;
+			if (this.delegate instanceof HeartBeatSensor heartBeatSensor) {
+				try {
+					heartBeatSensor.onHeartBeat(heartBeat);
+				} catch (Exception e) {
+					log.error("Error occurred in HeartBeatSensor while processing heartbeat: {}", heartBeat, e);
 				}
-				log.info("Change capture subscription acknowledged by the server: {}", sid);
-			});
-		this.deserializeCaptureResponse.apply(itemResponse)
-			.ifPresent(it -> this.subscription.produce(it));
+			}
+		});
+
+		if (subscriptionIdOpt.isEmpty()) {
+			// not an ack/heartbeat frame — try to decode as a capture
+			this.deserializeCaptureResponse.apply(itemResponse)
+				.ifPresent(it -> this.subscription.produce(it));
+		}
 	}
 
 	/**
@@ -187,6 +233,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onError(Throwable throwable) {
+		this.serverSideClosed.set(true);
 		final Throwable rootCause = ExceptionUtils.getRootCause(throwable);
 		if (rootCause instanceof PublisherClosedByClientException) {
 			// this is expected, we closed the publisher manually
@@ -219,6 +266,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onComplete() {
+		this.serverSideClosed.set(true);
 		if (!this.closed.get()) {
 			try {
 				this.subscription.getExecutorService().execute(this.delegate::onComplete);
@@ -264,11 +312,17 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 		if (this.subscription != null && !this.subscription.isCanceled()) {
 			this.subscription.cancel();
 		} else if (this.closed.compareAndSet(false, true)) {
-			// this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
-			this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
-			// if the delegate is closeable, close it quietly
+			// only cancel the gRPC stream if the server hasn't already terminated it; otherwise
+			// the duplicate cancel can mask the server-initiated termination of the publisher
+			if (!this.serverSideClosed.get()) {
+				this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
+			}
+			// if the delegate is closeable, close it asynchronously on the subscription executor —
+			// closing inline can deadlock when this close() runs on the gRPC event loop and the
+			// delegate's close path waits on something that the same loop has to dispatch (e.g.
+			// during catalog replacement)
 			if (this.delegate instanceof AutoCloseable closeable) {
-				IOUtils.closeQuietly(closeable::close);
+				this.subscription.getExecutorService().execute(() -> IOUtils.closeQuietly(closeable::close));
 			}
 		}
 	}

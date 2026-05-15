@@ -25,6 +25,7 @@ package io.evitadb.driver.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import io.grpc.stub.ClientResponseObserver;
@@ -147,7 +148,8 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 
 		final ClientChangeCaptureSubscriber<C, REQ, RES> internalSubscriber = new ClientChangeCaptureSubscriber<>(
 			subscriber,
-			this::deserializeAcknowledgementResponse,
+			this::extractSubscriptionId,
+			this::extractHeartBeat,
 			this::deserializeCaptureResponse,
 			this.streamingTimeout
 		);
@@ -203,14 +205,29 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	}
 
 	/**
-	 * Takes the response from the server representing a single capture and deserializes it into a UUID identification
-	 * of the subscriber. The response must be of type acknowledgement, otherwise an exception is thrown.
+	 * Extracts the server-assigned subscription id from an acknowledgement or heartbeat frame. Returns empty for
+	 * non-ack/non-heartbeat frames so the caller can route to the capture-decoding path. This is intentionally
+	 * decoupled from {@link #extractHeartBeat(Object)}: a legacy server (predates the heartbeat protocol) sends
+	 * an ack frame that carries the subscription id but no heartbeat payload, and we still need the id to flow
+	 * through without manufacturing a fake heartbeat that would corrupt downstream version tracking.
 	 *
 	 * @param itemResponse the response received from the server
-	 * @return the deserialized UUID of the subscriber
+	 * @return the subscription id when the frame is an ack or heartbeat, otherwise empty
 	 */
 	@Nonnull
-	protected abstract Optional<UUID> deserializeAcknowledgementResponse(RES itemResponse);
+	protected abstract Optional<UUID> extractSubscriptionId(RES itemResponse);
+
+	/**
+	 * Extracts a {@link HeartBeat} from a heartbeat or acknowledgement frame when the server actually populated
+	 * the heartbeat payload. Returns empty for non-ack/non-heartbeat frames AND for legacy ack frames that lack
+	 * a heartbeat field — in the legacy case the application must not be told a sentinel `lastObservedVersion=0`
+	 * because that would clobber any persisted catalog-version checkpoint maintained via {@link HeartBeatSensor}.
+	 *
+	 * @param itemResponse the response received from the server
+	 * @return the deserialized {@link HeartBeat} when present, otherwise empty
+	 */
+	@Nonnull
+	protected abstract Optional<HeartBeat> extractHeartBeat(RES itemResponse);
 
 	/**
 	 * Takes the response from the server representing a single capture and deserializes it into a specific {@link ChangeCapture}.

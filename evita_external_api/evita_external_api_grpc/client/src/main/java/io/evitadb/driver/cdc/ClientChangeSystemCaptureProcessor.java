@@ -28,6 +28,7 @@ import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterSystemChangeCaptureResponse;
+import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.grpc.stub.ClientResponseObserver;
 
 import javax.annotation.Nonnull;
@@ -38,6 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toChangeSystemCapture;
+import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toHeartBeat;
 
 /**
  * Implementation of {@link ClientChangeCapturePublisher} for the {@link ChangeSystemCapture}.
@@ -59,12 +61,27 @@ public class ClientChangeSystemCaptureProcessor extends
 
 	@Nonnull
 	@Override
-	protected Optional<UUID> deserializeAcknowledgementResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
-		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT) {
+	protected Optional<UUID> extractSubscriptionId(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
+		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT
+			|| itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT) {
 			return Optional.of(EvitaDataTypesConverter.toUuid(itemResponse.getUuid()));
-		} else {
-			return Optional.empty();
 		}
+		return Optional.empty();
+	}
+
+	@Nonnull
+	@Override
+	protected Optional<HeartBeat> extractHeartBeat(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
+		// only emit a HeartBeat when the server actually populated the heartBeat field; a legacy
+		// server omits it on the ack frame and we must NOT synthesize a sentinel here — doing so
+		// would surface a fake `lastObservedVersion=0` to a HeartBeatSensor and clobber any
+		// persisted version checkpoint
+		if ((itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT
+			|| itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT)
+			&& itemResponse.hasHeartBeat()) {
+			return Optional.of(toHeartBeat(itemResponse.getUuid(), itemResponse.getHeartBeat()));
+		}
+		return Optional.empty();
 	}
 
 	@Nonnull

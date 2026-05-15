@@ -44,7 +44,6 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
-import io.evitadb.api.requestResponse.cdc.ChangeCaptureSubscription;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -94,6 +93,7 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingLoc
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
+import io.evitadb.externalApi.grpc.services.subscriber.ChangeCatalogCaptureSubscriber;
 import io.evitadb.externalApi.http.CancellationSupport;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.externalApi.grpc.utils.QueryWithParameters;
@@ -125,8 +125,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Flow.Subscriber;
-import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -780,8 +778,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 									responseObserver.onNext(response);
 									this.lastUpdate = System.currentTimeMillis();
 								}
+								// restart the request deadline from now so a silent stream unblocks the caller
+								// within `requestTimeoutMillis` of the last event, regardless of how many have arrived
 								serviceContext.setRequestTimeout(
-									TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+									TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
 								);
 							}
 						}
@@ -2114,8 +2114,10 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 						// we send mutations one by one, but we may want to send them in batches in the future
 						builder.addChangeCapture(event);
 						responseObserver.onNext(builder.build());
+						// restart the request deadline from now so a silent stream unblocks the caller
+						// within `requestTimeoutMillis` of the last event, regardless of how many have arrived
 						serviceContext.setRequestTimeout(
-							TimeoutMode.EXTEND, Duration.ofMillis(serviceContext.requestTimeoutMillis())
+							TimeoutMode.SET_FROM_NOW, Duration.ofMillis(serviceContext.requestTimeoutMillis())
 						);
 					}
 				);
@@ -2138,32 +2140,33 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 		GrpcRegisterChangeCatalogCaptureRequest request,
 		StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver
 	) {
-		final CompletableFuture<Subscription> subscriptionFuture = new CompletableFuture<>();
-		((ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver).setOnCancelHandler(
-			() -> {
-				try {
-					subscriptionFuture.get().cancel();
-				} catch (Exception e) {
-					log.debug("Failed to remove progress listener on cancel", e);
-				}
-			}
-		);
-
+		final ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> serverCallObserver =
+			(ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse>) responseObserver;
 		final ServiceRequestContext serviceRequestContext = ServiceRequestContext.current();
-		final SemVer clientVersion = ServerSessionInterceptor.getClientVersion().orElse(null);
+
+		// Construct the subscriber synchronously on the service-method thread so the transport
+		// lifecycle handlers can bind directly to it — gRPC's ServerCallStreamObserverImpl
+		// rejects setOnCancelHandler/setOnCloseHandler if called after the service method
+		// returns (which is what happens on the worker thread that executeWithClientContext
+		// dispatches to). The session is available synchronously here via the gRPC
+		// Context.Key set by ServerSessionInterceptor, so we can obtain the catalog name
+		// without entering the async block.
+		final EvitaInternalSessionContract session = ServerSessionInterceptor.SESSION.get();
+		final String catalogName = session.getCatalogName();
+		final ChangeCatalogCaptureSubscriber subscriber = new ChangeCatalogCaptureSubscriber(
+			this.evita.getServiceExecutor(),
+			catalogName,
+			serverCallObserver,
+			() -> this.evita.getCatalogInstanceOrThrowException(catalogName).getVersion(),
+			serviceRequestContext
+		);
+		serverCallObserver.setOnCancelHandler(subscriber::onTransportTerminated);
+		serverCallObserver.setOnCloseHandler(subscriber::onTransportTerminated);
+
 		executeWithClientContext(
-			session -> {
-				final String catalogName = session.getCatalogName();
-				session.registerChangeCatalogCapture(
-					ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
-				).subscribe(
-					new ChangeCatalogCaptureSubscriber(
-						responseObserver,
-						subscriptionFuture,
-						serviceRequestContext
-					)
-				);
-			},
+			s -> s.registerChangeCatalogCapture(
+				ChangeCaptureConverter.toChangeCatalogCaptureRequest(request)
+			).subscribe(subscriber),
 			this.evita.getRequestExecutor(),
 			responseObserver,
 			this.tracingContext
@@ -2200,84 +2203,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			} else {
 				throw new UnsupportedOperationException("Cannot append labels to a non-head constraint.");
 			}
-		}
-
-	}
-
-	/**
-	 * A private static class implementing the {@link Subscriber} interface to handle
-	 * subscription and communication logic for {@link ChangeCatalogCapture} events.
-	 *
-	 * This class acts as a bridge between a publisher of {@link ChangeCatalogCapture}
-	 * events and a gRPC client through the {@link StreamObserver}. It manages the
-	 * lifecycle of the subscription to the publisher and relays received events or
-	 * errors to the client.
-	 *
-	 * Key responsibilities:
-	 * - Requests one item at a time from the publisher, ensuring backpressure support.
-	 * - Relays each {@link ChangeCatalogCapture} event to the gRPC client in the form
-	 *   of a {@link GrpcRegisterChangeCatalogCaptureResponse}.
-	 * - Handles the completion and error states of the subscription.
-	 */
-	private static class ChangeCatalogCaptureSubscriber implements Subscriber<ChangeCatalogCapture> {
-		private final StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver;
-		private final CompletableFuture<Subscription> subscriptionFuture;
-		private final ServiceRequestContext serviceContext;
-		private final long responseTimeoutMillis;
-		private Subscription subscription;
-
-		public ChangeCatalogCaptureSubscriber(
-			@Nonnull StreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver,
-			@Nonnull CompletableFuture<Subscription> subscriptionFuture,
-			@Nonnull ServiceRequestContext serviceContext
-		) {
-			this.responseObserver = responseObserver;
-			this.subscriptionFuture = subscriptionFuture;
-			// calculate heartbeat delay to be 5 seconds less than response timeout,
-			// but at least 1 second and at most 5 minutes
-			this.serviceContext = serviceContext;
-			this.responseTimeoutMillis = this.serviceContext.requestTimeoutMillis();
-		}
-
-		@Override
-		public void onSubscribe(Subscription subscription) {
-			this.subscription = subscription;
-			this.subscriptionFuture.complete(subscription);
-			final GrpcRegisterChangeCatalogCaptureResponse.Builder response = GrpcRegisterChangeCatalogCaptureResponse
-				.newBuilder();
-			if (subscription instanceof ChangeCaptureSubscription ccs) {
-				response.setUuid(toGrpcUuid(ccs.getSubscriptionId()));
-			}
-			this.responseObserver.onNext(
-				response
-					.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
-					.build()
-			);
-			subscription.request(1);
-		}
-
-		@Override
-		public void onNext(ChangeCatalogCapture item) {
-			this.responseObserver.onNext(
-				GrpcRegisterChangeCatalogCaptureResponse
-					.newBuilder()
-					.setCapture(ChangeCaptureConverter.toGrpcChangeCatalogCapture(item))
-					.setResponseType(GrpcCaptureResponseType.CHANGE)
-					.build()
-			);
-			this.serviceContext.setRequestTimeout(TimeoutMode.EXTEND, Duration.ofMillis(this.responseTimeoutMillis));
-			this.subscription.request(1);
-		}
-
-		@Override
-		public void onError(Throwable throwable) {
-			this.subscriptionFuture.completeExceptionally(throwable);
-			this.responseObserver.onError(throwable);
-		}
-
-		@Override
-		public void onComplete() {
-			this.responseObserver.onCompleted();
 		}
 
 	}

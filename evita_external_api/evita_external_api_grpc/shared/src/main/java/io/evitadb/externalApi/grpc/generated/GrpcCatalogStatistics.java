@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ private static final long serialVersionUID = 0L;
     if (ref instanceof java.lang.String) {
       return (java.lang.String) ref;
     } else {
-      com.google.protobuf.ByteString bs =
+      com.google.protobuf.ByteString bs = 
           (com.google.protobuf.ByteString) ref;
       java.lang.String s = bs.toStringUtf8();
       catalogName_ = s;
@@ -145,7 +145,7 @@ private static final long serialVersionUID = 0L;
       getCatalogNameBytes() {
     java.lang.Object ref = catalogName_;
     if (ref instanceof java.lang.String) {
-      com.google.protobuf.ByteString b =
+      com.google.protobuf.ByteString b = 
           com.google.protobuf.ByteString.copyFromUtf8(
               (java.lang.String) ref);
       catalogName_ = b;
@@ -280,7 +280,7 @@ private static final long serialVersionUID = 0L;
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder> 
       getEntityCollectionStatisticsOrBuilderList() {
     return entityCollectionStatistics_;
   }
@@ -865,7 +865,7 @@ private static final long serialVersionUID = 0L;
             entityCollectionStatisticsBuilder_ = null;
             entityCollectionStatistics_ = other.entityCollectionStatistics_;
             bitField0_ = (bitField0_ & ~0x00000100);
-            entityCollectionStatisticsBuilder_ =
+            entityCollectionStatisticsBuilder_ = 
               com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
                  getEntityCollectionStatisticsFieldBuilder() : null;
           } else {
@@ -1131,7 +1131,7 @@ private static final long serialVersionUID = 0L;
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 1;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
         getCatalogIdFieldBuilder() {
       if (catalogIdBuilder_ == null) {
         catalogIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -1177,7 +1177,7 @@ private static final long serialVersionUID = 0L;
         getCatalogNameBytes() {
       java.lang.Object ref = catalogName_;
       if (ref instanceof String) {
-        com.google.protobuf.ByteString b =
+        com.google.protobuf.ByteString b = 
             com.google.protobuf.ByteString.copyFromUtf8(
                 (java.lang.String) ref);
         catalogName_ = b;
@@ -1790,7 +1790,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder> 
          getEntityCollectionStatisticsOrBuilderList() {
       if (entityCollectionStatisticsBuilder_ != null) {
         return entityCollectionStatisticsBuilder_.getMessageOrBuilderList();
@@ -1828,12 +1828,12 @@ private static final long serialVersionUID = 0L;
      *
      * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics entityCollectionStatistics = 9;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder>
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder> 
          getEntityCollectionStatisticsBuilderList() {
       return getEntityCollectionStatisticsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder>
+        io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatistics.Builder, io.evitadb.externalApi.grpc.generated.GrpcEntityCollectionStatisticsOrBuilder> 
         getEntityCollectionStatisticsFieldBuilder() {
       if (entityCollectionStatisticsBuilder_ == null) {
         entityCollectionStatisticsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<

@@ -10,6 +10,7 @@ import "GrpcEntityMutation.proto";
 import "GrpcLocalMutation.proto";
 import "GrpcEntitySchemaMutation.proto";
 import "GrpcInfrastrutureMutation.proto";
+import "GrpcEvitaDataTypes.proto";
 
 // Record for the criteria of the capture request allowing to limit mutations to specific area of interest an its
 // properties.
@@ -132,10 +133,26 @@ enum GrpcChangeCaptureContent {
   CHANGE_BODY = 1;
 }
 
+// Heartbeat message sent to the subscriber to keep the connection alive.
+message GrpcHeartBeat {
+  // the index of the heartbeat event
+  int64 index = 1;
+  // the timestamp of the heartbeat event on the server
+  GrpcOffsetDateTime timestamp = 2;
+  // the last observed version by the subscriber
+  // in case of system subscription it is engine version
+  // in case of catalog subscription it is catalog version
+  int64 lastObservedVersion = 3;
+  // milliseconds to the next heartbeat (derived from the server configuration)
+  int64 millisToNextHeartbeat = 4;
+}
+
 // Enum specifying the type of response that is sent to the subscriber.
 enum GrpcCaptureResponseType {
   // The response contains only the acknowledgement of the subscription.
   ACKNOWLEDGEMENT = 0;
   // The response contains the change event that was captured.
   CHANGE = 1;
+  // The response contains the heartbeat event.
+  HEARTBEAT = 2;
 }
