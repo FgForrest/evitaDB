@@ -1873,14 +1873,18 @@ public class OffsetIndex {
 				} finally {
 					this.lock.unlock();
 				}
-				if (hv != null) {
-					int index = Arrays.binarySearch(hv, catalogVersion);
-					if (index != -1 && hvValues != null) {
-						final int startIndex = index >= 0 ? index : -index - 1;
-						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
-							final PastMemory differenceSet = hvValues.get(hv[ix]);
-							diff -= differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
-						}
+				if (hv != null && hvValues != null) {
+					final int index = Arrays.binarySearch(hv, catalogVersion);
+					// on exact match, skip the matched version (its diff is already reflected in keyToLocations);
+					// on miss, -index-1 is the insertion point — the first version greater than catalogVersion,
+					// which must be included in the subtraction. When catalogVersion precedes all historical
+					// versions (binarySearch returns -1, insertion point 0), every entry must be subtracted
+					final int startIndex = index >= 0 ? index + 1 : -index - 1;
+					for (int ix = hv.length - 1; ix >= startIndex; ix--) {
+						// hvValues is the shared ConcurrentHashMap referenced by recordHistoricalVersions;
+						// a concurrent purge can remove an entry after we snapshotted hv under the lock
+						final PastMemory differenceSet = hvValues.get(hv[ix]);
+						diff -= differenceSet == null ? 0 : differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
 					}
 				}
 			}
@@ -1924,13 +1928,15 @@ public class OffsetIndex {
 					this.lock.unlock();
 				}
 				if (hv != null && hvValues != null) {
-					int index = Arrays.binarySearch(hv, catalogVersion);
-					if (index != -1) {
-						final int startIndex = index >= 0 ? index : -index - 1;
-						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
-							final PastMemory differenceSet = hvValues.get(hv[ix]);
-							diff -= differenceSet == null ? 0 : differenceSet.getCountFor(recordTypeId);
-						}
+					final int index = Arrays.binarySearch(hv, catalogVersion);
+					// on exact match, skip the matched version (its diff is already reflected in the histogram);
+					// on miss, -index-1 is the insertion point — the first version greater than catalogVersion,
+					// which must be included in the subtraction. When catalogVersion precedes all historical
+					// versions (binarySearch returns -1, insertion point 0), every entry must be subtracted (issue #1162).
+					final int startIndex = index >= 0 ? index + 1 : -index - 1;
+					for (int ix = hv.length - 1; ix >= startIndex; ix--) {
+						final PastMemory differenceSet = hvValues.get(hv[ix]);
+						diff -= differenceSet == null ? 0 : differenceSet.getCountFor(recordTypeId);
 					}
 				}
 			}
