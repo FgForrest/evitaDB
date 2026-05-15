@@ -705,6 +705,82 @@ class OffsetIndexTest implements EvitaTestSupport {
 		}
 	}
 
+	@DisplayName("count() should return the correct value at a catalog version that was never flushed (issue #1162)")
+	@Test
+	void shouldReturnCorrectCountAtUnflushedCatalogVersionBetweenHistoricalVersions() {
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.temporary(),
+			DEFAULT_TRANSACTION_OPTIONS
+		);
+		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+			final OffsetIndex offsetIndex = createNewOffsetIndex(
+				0L,
+				storageSettings,
+				createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry
+			);
+			try {
+				// version 1: insert R1, flush
+				offsetIndex.put(1L, new EntityBodyStoragePart(1));
+				offsetIndex.flush(1L);
+				// version 2: insert R2, flush
+				offsetIndex.put(2L, new EntityBodyStoragePart(2));
+				offsetIndex.flush(2L);
+				// no activity at version 3 — create a gap in historicalVersions
+				// version 4: insert R4, flush
+				offsetIndex.put(4L, new EntityBodyStoragePart(4));
+				offsetIndex.flush(4L);
+
+				// sanity: count at each recorded version
+				assertEquals(1, offsetIndex.count(1L), "count at v1 should see only R1");
+				assertEquals(2, offsetIndex.count(2L), "count at v2 should see R1, R2");
+				assertEquals(3, offsetIndex.count(4L), "count at v4 should see R1, R2, R4");
+
+				// the bug: querying the gap version 3 incorrectly returned 3 (the current keyToLocations size)
+				// because the binary search insertion point was excluded from the diff-subtraction loop
+				assertEquals(
+					2,
+					offsetIndex.count(3L),
+					"count at gap version 3 should match count at v2 (no records were added at v3)"
+				);
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+		}
+	}
+
+	@DisplayName("count() should return the correct value at a catalog version older than every historical entry (issue #1162)")
+	@Test
+	void shouldReturnCorrectCountAtCatalogVersionPrecedingAllHistoricalVersions() {
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.temporary(),
+			DEFAULT_TRANSACTION_OPTIONS
+		);
+		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+			final OffsetIndex offsetIndex = createNewOffsetIndex(
+				0L,
+				storageSettings,
+				createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry
+			);
+			try {
+				// only one flushed version — simulates the state right after compaction discards older
+				// historicalVersions while keyToLocations still holds records
+				offsetIndex.put(5L, new EntityBodyStoragePart(1));
+				offsetIndex.put(5L, new EntityBodyStoragePart(2));
+				offsetIndex.flush(5L);
+
+				// querying any catalog version preceding hv[0]=5 should subtract every diff and return
+				// the state that existed before flush(5) — empty
+				assertEquals(0, offsetIndex.count(3L), "count at v3 should be 0 (nothing was added before v5)");
+				assertEquals(0, offsetIndex.count(4L), "count at v4 should be 0 (nothing was added before v5)");
+				assertEquals(2, offsetIndex.count(5L), "count at v5 should see both records");
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+		}
+	}
+
 	@DisplayName("No operation should be allowed after close")
 	@Test
 	void shouldRefuseOperationAfterClose() {
