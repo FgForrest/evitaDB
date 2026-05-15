@@ -25,6 +25,7 @@ package io.evitadb.test.duration;
 
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.utils.StringUtils;
+import org.opentest4j.AssertionFailedError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -93,8 +94,55 @@ public interface TimeBoundedTestSupport {
 			T finalState = state;
 			Optional.ofNullable(onException)
 				.ifPresent(it -> it.accept(finalState, ex));
-			throw ex;
+			throw enrichWithSeed(ex, input.randomSeed());
 		}
+	}
+
+	/**
+	 * Wraps the thrown exception so its top-level message starts with the random seed used by the failing run.
+	 * The seed is also embedded as a ready-to-paste `-Dtest.seed=...` hint, so the failure can be reproduced
+	 * deterministically without having to dig through the captured stdout of the test process.
+	 *
+	 * The original exception is kept as the cause (so its full stack trace and details remain available), and
+	 * `AssertionFailedError` is reconstructed via its 4-arg constructor so the expected/actual values stay
+	 * intact for IDE diff views.
+	 */
+	@Nonnull
+	private static RuntimeException enrichWithSeed(@Nonnull Throwable original, int seed) {
+		final String prefix = "Generational test failed with seed " + seed
+			+ " (reproduce with -Dtest.seed=" + seed + ")\n";
+		final String originalMessage = original.getMessage() == null ? "" : original.getMessage();
+		final Throwable enriched;
+		if (original instanceof AssertionFailedError afe) {
+			final AssertionFailedError wrapped = new AssertionFailedError(
+				prefix + originalMessage,
+				afe.isExpectedDefined() ? afe.getExpected().getValue() : null,
+				afe.isActualDefined() ? afe.getActual().getValue() : null,
+				afe
+			);
+			wrapped.setStackTrace(afe.getStackTrace());
+			enriched = wrapped;
+		} else if (original instanceof AssertionError ae) {
+			final AssertionError wrapped = new AssertionError(prefix + originalMessage, ae);
+			wrapped.setStackTrace(ae.getStackTrace());
+			enriched = wrapped;
+		} else {
+			final RuntimeException wrapped = new RuntimeException(prefix + originalMessage, original);
+			wrapped.setStackTrace(original.getStackTrace());
+			enriched = wrapped;
+		}
+		return sneakyThrow(enriched);
+	}
+
+	/**
+	 * Throws the given Throwable bypassing the compile-time checked-exception check. Returning
+	 * `RuntimeException` makes the call site usable with `throw sneakyThrow(...)` to satisfy
+	 * Java's reachability analysis, even though this method never actually returns.
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	private static <E extends Throwable> RuntimeException sneakyThrow(@Nonnull Throwable t) throws E {
+		throw (E) t;
 	}
 
 }
