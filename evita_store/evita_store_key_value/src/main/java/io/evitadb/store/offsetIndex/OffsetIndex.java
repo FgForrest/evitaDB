@@ -1880,9 +1880,11 @@ public class OffsetIndex {
 					// which must be included in the subtraction. When catalogVersion precedes all historical
 					// versions (binarySearch returns -1, insertion point 0), every entry must be subtracted
 					final int startIndex = index >= 0 ? index + 1 : -index - 1;
-					for (int ix = hv.length - 1; ix >= startIndex && ix >= 0; ix--) {
+					for (int ix = hv.length - 1; ix >= startIndex; ix--) {
+						// hvValues is the shared ConcurrentHashMap referenced by recordHistoricalVersions;
+						// a concurrent purge can remove an entry after we snapshotted hv under the lock
 						final PastMemory differenceSet = hvValues.get(hv[ix]);
-						diff -= differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
+						diff -= differenceSet == null ? 0 : differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
 					}
 				}
 			}
@@ -1932,7 +1934,7 @@ public class OffsetIndex {
 					// which must be included in the subtraction. When catalogVersion precedes all historical
 					// versions (binarySearch returns -1, insertion point 0), every entry must be subtracted (issue #1162).
 					final int startIndex = index >= 0 ? index + 1 : -index - 1;
-					for (int ix = hv.length - 1; ix >= startIndex && ix >= 0; ix--) {
+					for (int ix = hv.length - 1; ix >= startIndex; ix--) {
 						final PastMemory differenceSet = hvValues.get(hv[ix]);
 						diff -= differenceSet == null ? 0 : differenceSet.getCountFor(recordTypeId);
 					}
