@@ -70,7 +70,7 @@ class ConstraintDescriptorProviderTest {
 		@Test
 		@DisplayName("should have processed all registered constraints")
 		void shouldHaveProcessedConstraints() {
-			assertEquals(125, ConstraintDescriptorProvider.getAllConstraints().size());
+			assertEquals(126, ConstraintDescriptorProvider.getAllConstraints().size());
 		}
 	}
 

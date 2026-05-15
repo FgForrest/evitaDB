@@ -2,7 +2,9 @@
   queryProduct(
     filterBy: {
       hierarchyCategoriesWithin: {
-        ofParent: { attributeCodeEquals: "e-readers" }
+        ofParent: {
+          attributeCodeEquals: "e-readers"
+        }
       },
       userFilter: [
         {
@@ -10,7 +12,9 @@
             histogramName: "intervalParameterValues",
             from: 200,
             to: 400,
-            groupHaving: { attributeCodeEquals: "weight" }
+            groupHaving: {
+              attributeCodeEquals: "weight"
+            }
           }
         },
         {
@@ -18,13 +22,15 @@
             histogramName: "intervalParameterValues",
             from: 6,
             to: 10,
-            groupHaving: { attributeCodeEquals: "thickness" }
+            groupHaving: {
+              attributeCodeEquals: "thickness"
+            }
           }
         }
       ]
     }
   ) {
-    recordPage(number: 1, size: 5) {
+    recordPage(size: 5) {
       data {
         primaryKey
         attributes {

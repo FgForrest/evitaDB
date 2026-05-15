@@ -584,7 +584,7 @@ histogramHaving(
     argument:string?,
     argument:any?,
     argument:any?,
-    filterConstraint:entityHaving?
+    filterConstraint:groupHaving?
 )
 ```
 
@@ -607,9 +607,9 @@ histogramHaving(
         optional inclusive upper bound (`to`) of the range; `null` leaves the range open-ended on the upper side;
         at least one of `from` / `to` must be non-null
     </dd>
-    <dt>filterConstraint:entityHaving?</dt>
+    <dt>filterConstraint:groupHaving?</dt>
     <dd>
-        optional single [`entityHaving`](#entity-having) constraint selecting the **group** entity for a grouped
+        optional single [`groupHaving`](#group-having) constraint selecting the **group** entity for a grouped
         histogram slot (for example "the `height` parameter" within the `parameterValues` reference); omitted for
         non-grouped slots
     </dd>
@@ -636,7 +636,7 @@ Inside the [`userFilter`](behavioral.md#user-filter) container, `histogramHaving
 1. it is applied to the filter formula like any other `userFilter` child — the result set is narrowed by the range;
 2. it is registered as a **range carrier** so the histogram's own `[min, max]` baseline cloner peels it out when
    computing the histogram — moving one slider does not contract the `[min, max]` span of sibling sliders (see the
-   [three-group invariant in behavioral filtering](behavioral.md#sliders-do-not-contract-under-their-own-handles)).
+   [peel-by-family rule in behavioral filtering](behavioral.md#how-userfilter-shapes-predictions)).
 
 Outside `userFilter`, `histogramHaving` behaves like an equivalent [`referenceHaving`](#reference-having) rewrite —
 it narrows the result set and does not participate in histogram baseline relaxation.
@@ -647,7 +647,7 @@ Two `histogramHaving` siblings inside one `userFilter` express independent per-h
 a logical AND — each slider has its own `(histogramName, groupSelector, from, to)` tuple. The example below narrows
 the *e-readers* category to the products that simultaneously fall into the *200–400 g* weight slice **and** the
 *6–10 mm* thickness slice. Both sliders point at the same `parameterValues` reference and the same physical
-histogram index (`intervalParameterValues`); the **group selector** — an `entityHaving` against the parameter group
+histogram index (`intervalParameterValues`); the **group selector** — an `groupHaving` against the parameter group
 entity — is what tells evitaDB which slot (`weight` vs `thickness`) each `histogramHaving` is talking about. The
 sibling `referenceSummaryOfReferenceWithHistograms` in `require()` then asks the server to compute one full
 histogram per parameter group, and because `histogramHaving` is registered as a *range carrier* inside `userFilter`,

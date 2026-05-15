@@ -221,13 +221,73 @@ public class ReferenceSummaryOfReference
 				Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)
 			},
 			requirements,
-			new Constraint<?>[]{
-				filterBy,
-				filterGroupBy,
-				orderBy,
-				orderGroupBy
-			}
+			filterBy,
+			filterGroupBy,
+			orderBy,
+			orderGroupBy
 		);
+	}
+
+	@Creator(suffix = SUFFIX_WITH_HISTOGRAMS)
+	public ReferenceSummaryOfReference(
+		@Nonnull @Classifier String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterGroupBy filterGroupBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) OrderGroupBy orderGroupBy,
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nonnull ReferenceHistogramStatistics... histogramStatistics
+	) {
+		super(
+			new Serializable[]{
+				referenceName,
+				Optional.ofNullable(statisticsDepth).orElse(FacetStatisticsDepth.COUNTS)
+			},
+			buildChildrenWithHistograms(entityFetch, entityGroupFetch, histogramStatistics),
+			filterBy,
+			filterGroupBy,
+			orderBy,
+			orderGroupBy
+		);
+	}
+
+	/**
+	 * Constructs an array of {@link RequireConstraint} elements by combining the provided entity-related
+	 * fetch requirements and histogram statistics.
+	 *
+	 * @param entityFetch an optional {@link EntityFetch} constraint that defines content requirements for reference entities;
+	 *                    can be null if no such constraint is needed.
+	 * @param entityGroupFetch an optional {@link EntityGroupFetch} constraint that defines content requirements for group entities;
+	 *                         can be null if no such constraint is needed.
+	 * @param histogramStatistics an array of {@link ReferenceHistogramStatistics} constraints that define histogram statistics
+	 *                            for the reference summary; must not be null and can be empty.
+	 * @return an array of {@link RequireConstraint} combining the non-null inputs from entityFetch, entityGroupFetch,
+	 *         and histogramStatistics in the specified order.
+	 */
+	@Nonnull
+	private static RequireConstraint[] buildChildrenWithHistograms(
+		@Nullable EntityFetch entityFetch,
+		@Nullable EntityGroupFetch entityGroupFetch,
+		@Nonnull ReferenceHistogramStatistics[] histogramStatistics
+	) {
+		final RequireConstraint[] children = new RequireConstraint[
+			(entityFetch == null ? 0 : 1)
+				+ (entityGroupFetch == null ? 0 : 1)
+				+ histogramStatistics.length
+		];
+		int index = 0;
+		if (entityFetch != null) {
+			children[index++] = entityFetch;
+		}
+		if (entityGroupFetch != null) {
+			children[index++] = entityGroupFetch;
+		}
+		for (final ReferenceHistogramStatistics stats : histogramStatistics) {
+			children[index++] = stats;
+		}
+		return children;
 	}
 
 	/**
@@ -250,6 +310,7 @@ public class ReferenceSummaryOfReference
 	/**
 	 * Returns content requirements for reference entities.
 	 */
+	@AliasForParameter("entityFetch")
 	@Nonnull
 	public Optional<EntityFetch> getReferenceEntityRequirement() {
 		return Arrays.stream(getChildren())
@@ -261,6 +322,7 @@ public class ReferenceSummaryOfReference
 	/**
 	 * Returns content requirements for group entities.
 	 */
+	@AliasForParameter("entityGroupFetch")
 	@Nonnull
 	public Optional<EntityGroupFetch> getGroupEntityRequirement() {
 		return Arrays.stream(getChildren())
