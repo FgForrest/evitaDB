@@ -91,6 +91,8 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getWalFileName;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
+
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getFirstAndLastVersionsFromWalFile;
 import static io.evitadb.store.wal.CatalogWriteAheadLog.getIndexFromWalFileName;
 import static org.junit.jupiter.api.Assertions.*;
@@ -450,11 +452,11 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 			);
 
 			assertEquals(3, walFiles.length);
-			final FirstAndLastVersionsInWalFile versionFirstFile = getFirstAndLastVersionsFromWalFile(walFiles[0]);
+			final FirstAndLastVersionsInWalFile versionFirstFile = getFirstAndLastVersionsFromWalFile(walFiles[0], WriteAheadLogCorruptedException.WalKind.CATALOG);
 			assertEquals(1, versionFirstFile.firstVersion());
 			assertEquals(2, versionFirstFile.lastVersion());
 
-			final FirstAndLastVersionsInWalFile versionsSecondFile = getFirstAndLastVersionsFromWalFile(walFiles[1]);
+			final FirstAndLastVersionsInWalFile versionsSecondFile = getFirstAndLastVersionsFromWalFile(walFiles[1], WriteAheadLogCorruptedException.WalKind.CATALOG);
 			assertEquals(3, versionsSecondFile.firstVersion());
 			assertEquals(3, versionsSecondFile.lastVersion());
 		}

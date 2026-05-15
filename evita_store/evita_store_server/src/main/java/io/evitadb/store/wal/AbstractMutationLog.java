@@ -347,13 +347,32 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * Returns the first and last catalog versions found in the given WAL file.
 	 * The third long in the tail is the cumulative CRC32C checksum of all transaction data in the file.
 	 *
+	 * Throws `WriteAheadLogCorruptedException` when the file is shorter than `WAL_TAIL_LENGTH` —
+	 * such a file cannot contain a valid `(firstVersion, lastVersion, cumulativeChecksum)` tail
+	 * and would otherwise produce a confusing `Negative seek offset` IOException during cleanup.
+	 * This happens in practice when rotation creates a new WAL file (writing only its 8-byte
+	 * cumulative-checksum header) and the previous run crashed before a transaction was
+	 * appended, leaving the file as a stub.
+	 *
 	 * @param walFile the WAL file to read from
+	 * @param walKind which WAL flavor the file belongs to — used when constructing the
+	 *                corruption exception so log/diagnostic labels stay flavor-correct
 	 * @return the first and last catalog versions found in the WAL file
 	 */
 	@Nonnull
 	static FirstAndLastVersionsInWalFile getFirstAndLastVersionsFromWalFile(
-		@Nonnull File walFile
+		@Nonnull File walFile,
+		@Nonnull WalKind walKind
 	) throws FileNotFoundException {
+		if (walFile.length() < AbstractMutationLog.WAL_TAIL_LENGTH) {
+			throw new WriteAheadLogCorruptedException(
+				walKind,
+				"WAL file `" + walFile.getAbsolutePath() + "` is " + walFile.length()
+					+ " bytes — shorter than the " + AbstractMutationLog.WAL_TAIL_LENGTH
+					+ "-byte tail; cannot contain valid version markers!",
+				"WAL file is shorter than its tail!"
+			);
+		}
 		try (
 			final RandomAccessFile randomAccessOldWalFile = new RandomAccessFile(walFile, "r");
 			final RandomAccessFileInputStream inputStream = new RandomAccessFileInputStream(
@@ -1446,7 +1465,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		// first read and verify only a tail of the file
 		try {
 			final File walFile = walFilePath.toFile();
-			return AbstractMutationLog.getFirstAndLastVersionsFromWalFile(walFile);
+			return AbstractMutationLog.getFirstAndLastVersionsFromWalFile(walFile, this.walKind);
 		} catch (WriteAheadLogCorruptedException e) {
 			// WAL file is corrupted, we need to truncate it and calculate new tail
 			return truncateWalFileAndCalculateTail(walFilePath, catalogKryoPool);
@@ -1888,7 +1907,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					final File walFile = walFiles[i];
 					try {
 						final FirstAndLastVersionsInWalFile versionsFromWalFile = AbstractMutationLog.getFirstAndLastVersionsFromWalFile(
-							walFile);
+							walFile, this.walKind);
 						final PendingRemoval pendingRemoval = new PendingRemoval(
 							versionsFromWalFile.lastVersion() + 1,
 							() -> {
@@ -1912,6 +1931,20 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 						this.removeWalFileTask.schedule();
 					} catch (FileNotFoundException ex) {
 						// the file was deleted in the meantime
+					} catch (WriteAheadLogCorruptedException ex) {
+						// the file is too short to contain a valid tail (e.g. only a cumulative-
+						// checksum header from a crashed prior rotation) — no transaction has ever
+						// been observed inside it, so no reader can be waiting on it and we can
+						// drop it immediately rather than queuing a version-gated removal
+						if (walFile.delete()) {
+							AbstractMutationLog.log.debug(
+								"Deleted orphan tail-less WAL file `{}`: {}", walFile, ex.getMessage()
+							);
+						} else {
+							AbstractMutationLog.log.warn(
+								"Failed to delete orphan tail-less WAL file `{}`!", walFile
+							);
+						}
 					}
 				}
 			}

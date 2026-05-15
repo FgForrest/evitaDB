@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutatio
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
+import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -299,6 +300,43 @@ class CatalogWriteAheadLogTest implements EvitaTestSupport {
 			assertNotNull(
 				CatalogWriteAheadLogTest.this.tested.checkAndTruncate(CatalogWriteAheadLogTest.this.walFilePath, CatalogWriteAheadLogTest.this.catalogKryoPool, CatalogWriteAheadLogTest.this.walFileReference).logFileRecordReference(),
 				"Corrupted WAL file should be detected and return new reference"
+			);
+		}
+
+		/**
+		 * Regression test for the `Negative seek offset` crash observed in
+		 * `LongRunningEvitaTransactionalFunctionalTest.shouldCorrectlyRotateAllFiles` on
+		 * GitHub Actions run 25644343839: rotation cleanup invoked
+		 * `getFirstAndLastVersionsFromWalFile` on a WAL file shorter than `WAL_TAIL_LENGTH`
+		 * (e.g. a freshly created file that only received the 8-byte cumulative-checksum
+		 * header but no transaction record yet), causing `walFile.length() - WAL_TAIL_LENGTH`
+		 * to go negative and aborting the entire `append` call. The fix treats such files
+		 * as corrupt by surfacing `WriteAheadLogCorruptedException` instead of letting the
+		 * negative seek through.
+		 */
+		@Test
+		@DisplayName("should reject too-short WAL file with corruption exception instead of negative seek")
+		void shouldRejectTooShortWalFileWithCorruptionException() throws IOException {
+			final Path orphanWalPath = CatalogWriteAheadLogTest.this.walDirectory.resolve(
+				getWalFileName(TEST_CATALOG, 999)
+			);
+			// only the 8-byte cumulative-checksum header — no transactions, no tail
+			Files.write(orphanWalPath, new byte[]{0, 0, 0, 0, 0, 0, 0, 0});
+			assertTrue(
+				orphanWalPath.toFile().length() < AbstractMutationLog.WAL_TAIL_LENGTH,
+				"Precondition: file must be shorter than the tail length to exercise the bug"
+			);
+
+			final WriteAheadLogCorruptedException exception = assertThrows(
+				WriteAheadLogCorruptedException.class,
+				() -> AbstractMutationLog.getFirstAndLastVersionsFromWalFile(
+					orphanWalPath.toFile(), WriteAheadLogCorruptedException.WalKind.CATALOG
+				),
+				"Too-short WAL file should surface as corruption, not a negative-seek IOException"
+			);
+			assertTrue(
+				exception.getMessage().contains(orphanWalPath.toFile().getName()),
+				"Exception message should identify the offending file: " + exception.getMessage()
 			);
 		}
 	}
