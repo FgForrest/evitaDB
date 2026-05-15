@@ -233,6 +233,11 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 
 	/**
 	 * Picks a random (value, ownerPK) pair with cardinality > 0, returns `{value, ownerPK}` or null.
+	 *
+	 * The entries are sorted by (value, ownerPK) before random selection so the resulting operation
+	 * sequence is fully reproducible from the seed alone — `HashMap.entrySet()` iteration order
+	 * varies between JVM versions / hash seeds, which would otherwise turn the same seed into a
+	 * different replay on different machines and prevent local reproduction of CI failures.
 	 */
 	@Nullable
 	private int[] pickRandomEntry(
@@ -247,7 +252,11 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 				}
 			}
 		}
-		return entries.isEmpty() ? null : entries.get(random.nextInt(entries.size()));
+		if (entries.isEmpty()) {
+			return null;
+		}
+		entries.sort((a, b) -> a[0] != b[0] ? Integer.compare(a[0], b[0]) : Integer.compare(a[1], b[1]));
+		return entries.get(random.nextInt(entries.size()));
 	}
 
 	/**
