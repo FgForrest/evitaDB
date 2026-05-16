@@ -117,6 +117,35 @@ class FilterIndexTest {
 	}
 
 	@Test
+	void getAllRecordsReturnsStableBitmapAcrossCalls() {
+		this.stringAttribute.addRecord(1, "A");
+		this.stringAttribute.addRecord(2, "B");
+		this.stringAttribute.addRecord(3, "C");
+
+		final var firstBitmap = this.stringAttribute.getAllRecords();
+		final var secondBitmap = this.stringAttribute.getAllRecords();
+
+		assertArrayEquals(new int[]{1, 2, 3}, firstBitmap.getArray());
+		// AttributeIsTranslator wraps this bitmap directly in ConstantFormula so the planner
+		// cannot redistribute the inverted-index OR via DeMorgan; the contract is reference stability.
+		assertSame(firstBitmap, secondBitmap);
+	}
+
+	@Test
+	void getAllRecordsInvalidatesOnNonTxMutation() {
+		this.stringAttribute.addRecord(1, "A");
+		this.stringAttribute.addRecord(2, "B");
+		final var firstBitmap = this.stringAttribute.getAllRecords();
+		assertArrayEquals(new int[]{1, 2}, firstBitmap.getArray());
+
+		this.stringAttribute.addRecord(3, "C");
+		final var afterMutationBitmap = this.stringAttribute.getAllRecords();
+
+		assertArrayEquals(new int[]{1, 2, 3}, afterMutationBitmap.getArray());
+		assertNotSame(firstBitmap, afterMutationBitmap);
+	}
+
+	@Test
 	void shouldInsertNewStringRecordId() {
 		this.stringAttribute.addRecord(1, "A");
 		this.stringAttribute.addRecord(2, new String[] {"A", "B"});
