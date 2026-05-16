@@ -23,6 +23,7 @@
 
 package io.evitadb.index.range;
 
+import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -31,6 +32,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.JoinFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -40,9 +42,12 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -81,7 +86,8 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-@Data
+@EqualsAndHashCode
+@ToString
 public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Serializable {
 	@Serial private static final long serialVersionUID = -6580254774575839798L;
 
@@ -120,6 +126,16 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * At least two points are always present for MIN and MAX point of the range.
 	 */
 	final TransactionalComplexObjArray<TransactionalRangePoint> ranges;
+
+	/**
+	 * Memoized result for the "valid at now" query produced by {@link #getRecordsValidNowFormula(long)}.
+	 * Read only outside transactions; nulled on non-transactional mutation. Across commits, a fresh
+	 * {@link RangeIndex} is produced by {@link #createCopyWithMergedTransactionalMemory} so this field
+	 * starts {@code null} automatically.
+	 */
+	@EqualsAndHashCode.Exclude
+	@ToString.Exclude
+	@Nullable transient volatile EnvelopingNowCache envelopingNowCache;
 
 	/**
 	 * Method collects all starts and ends from ranges between fromIndex and toIndex (inclusive) and returns them collected
@@ -208,6 +224,9 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		final Bitmap recArray = new BaseBitmap(recordId);
 		this.ranges.add(new TransactionalRangePoint(from, recArray, EmptyBitmap.INSTANCE));
 		this.ranges.add(new TransactionalRangePoint(to, EmptyBitmap.INSTANCE, recArray));
+		if (!Transaction.isTransactionAvailable()) {
+			this.envelopingNowCache = null;
+		}
 	}
 
 	/**
@@ -217,6 +236,9 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		final Bitmap recArray = new BaseBitmap(recordId);
 		this.ranges.remove(new TransactionalRangePoint(start, recArray, EmptyBitmap.INSTANCE));
 		this.ranges.remove(new TransactionalRangePoint(end, EmptyBitmap.INSTANCE, recArray));
+		if (!Transaction.isTransactionAvailable()) {
+			this.envelopingNowCache = null;
+		}
 	}
 
 	/**
@@ -325,6 +347,45 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		} else {
 			return envelopeFormula;
 		}
+	}
+
+	/**
+	 * Cache-aware variant of {@link #getRecordsEnvelopingInclusive(long)} intended for the
+	 * {@code attributeInRangeNow} (suffix-{@code now}) variant of
+	 * {@link AttributeInRange}. The materialized {@link Bitmap} is memoized for
+	 * the interval of {@code now} values that yield the same result — either the open interval between two
+	 * adjacent thresholds (miss case) or the exact threshold itself (hit case).
+	 *
+	 * Bypasses the cache entirely when called inside a transaction, since the transactional view of the
+	 * underlying {@code ranges} array may differ from the committed view that backs the cache.
+	 *
+	 * @param now epoch-second value of the moment to evaluate (typically
+	 *            {@code request.getAlignedNow().toEpochSecond()})
+	 * @return formula computing the records whose validity range envelopes {@code now}
+	 */
+	@Nonnull
+	public Formula getRecordsValidNowFormula(long now) {
+		if (Transaction.isTransactionAvailable()) {
+			return getRecordsEnvelopingInclusive(now);
+		}
+		final EnvelopingNowCache snapshot = this.envelopingNowCache;
+		if (snapshot != null && snapshot.validFromInclusive() <= now && now <= snapshot.validToInclusive()) {
+			return snapshot.result().isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(snapshot.result());
+		}
+		final int idx = this.ranges.indexOf(new TransactionalRangePoint(now));
+		final long validFrom;
+		final long validTo;
+		if (idx >= 0) {
+			validFrom = now;
+			validTo = now;
+		} else {
+			final int insertionPoint = -idx - 1;
+			validFrom = this.ranges.get(insertionPoint - 1).getThreshold() + 1;
+			validTo = this.ranges.get(insertionPoint).getThreshold() - 1;
+		}
+		final Bitmap materialized = getRecordsEnvelopingInclusive(now).compute();
+		this.envelopingNowCache = new EnvelopingNowCache(validFrom, validTo, materialized);
+		return materialized.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(materialized);
 	}
 
 	/**
@@ -611,6 +672,18 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 				this.rangeEnds.add(new ConstantFormula(ends));
 			}
 		}
+	}
+
+	/**
+	 * Memoizes the {@link Bitmap} returned by {@link #getRecordsValidNowFormula(long)} together with the open
+	 * (or single-point) interval of {@code now} values that yield the same result. Single-slot: queries naturally
+	 * hand progressively larger {@code now} values, and serving the latest one is sufficient.
+	 *
+	 * @param validFromInclusive smallest {@code now} value that yields this result
+	 * @param validToInclusive   largest {@code now} value that yields this result
+	 * @param result             materialized bitmap of record ids valid at any {@code now} in the interval
+	 */
+	record EnvelopingNowCache(long validFromInclusive, long validToInclusive, @Nonnull Bitmap result) {
 	}
 
 	/**
