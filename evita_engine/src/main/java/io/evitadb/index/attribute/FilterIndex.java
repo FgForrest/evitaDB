@@ -593,14 +593,23 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 	/**
 	 * Returns all records present in filter index as {@link AbstractFormula}.
+	 *
+	 * The returned formula is an opaque {@link ConstantFormula} wrapping the materialized bitmap (or
+	 * {@link EmptyFormula#INSTANCE} when the index has no records). Returning a flat constant rather than the
+	 * raw OR-of-buckets tree from {@link InvertedIndexSubSet#getFormula()} prevents query-planner rewrites that
+	 * would otherwise distribute surrounding {@code NOT(OR(b₁..b_N), U)} via De Morgan into a wide
+	 * {@code AND(NOT b₁ ... NOT b_N)} — a transformation that explodes cost for high-cardinality indexes.
 	 */
 	public Formula getAllRecordsFormula() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return getHistogramOfAllRecords().getFormula();
+			final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
+			return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 		} else {
 			if (this.memoizedAllRecordsFormula == null) {
-				this.memoizedAllRecordsFormula = getHistogramOfAllRecords().getFormula();
+				final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
+				this.memoizedAllRecordsFormula = allRecords.isEmpty() ?
+					EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 			}
 			return this.memoizedAllRecordsFormula;
 		}
