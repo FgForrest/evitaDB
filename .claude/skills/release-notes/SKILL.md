@@ -54,7 +54,8 @@ The skeleton always begins with `## What's Changed` and ends with a `**Full Chan
 1. `### ☢️ Breaking changes`
 2. `### 🚀 Features`
 3. `### 🐛 Bug Fixes`
-4. `### ⛓ Dependencies upgrades`
+4. `### ⚡ Performance`
+5. `### ⛓ Dependencies upgrades`
 
 ### Step 3: Identify enrichment candidates
 
@@ -68,13 +69,19 @@ Parse the skeleton and collect the list of bullets that need a prose continuatio
   - ✅ introduces a new storage feature (export, backup, replication, transaction handling)
   - ✅ introduces a new observability surface (metric, trace, log field, dashboard)
   - ✅ changes a default that users can perceive (limits, timeouts, sort order, response shape)
-  - ✅ changes performance class significantly (e.g. order-of-magnitude improvement on a documented benchmark)
   - ❌ pure internal refactor with no user-visible effect
   - ❌ developer-experience-only improvements (build, test infra, code quality)
   - ❌ small ergonomic tweaks to internal helpers
   - ❌ minor wording or formatting changes
 
   When unsure, **include** the bullet — over-enrichment is cheaper than under-enrichment for the maintainer to clean up.
+
+- **Every "noticeable" bullet** in `### ⚡ Performance`. Pure micro-optimisations should stay as plain bullets; enrich a perf bullet only when the change has a user-perceivable effect:
+  - ✅ order-of-magnitude or otherwise substantial improvement on a documented benchmark or canonical query
+  - ✅ removes a known cost spike or hot-path bottleneck users have reported or that the issue body quantifies
+  - ✅ changes the asymptotic complexity of a common request pattern (e.g. introduces caching that turns repeated work into O(1) hits)
+  - ❌ small constant-factor speedups with no quantified impact in the source issue
+  - ❌ memory-allocation reductions without measured latency/throughput effect
 
 - **Never** enrich bullets in `### 🐛 Bug Fixes` or `### ⛓ Dependencies upgrades`.
 

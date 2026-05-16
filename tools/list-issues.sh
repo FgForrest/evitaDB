@@ -56,10 +56,12 @@ declare -A groups
 groups["breaking"]="☢️ Breaking changes"
 groups["feature"]="🚀 Features"
 groups["bugfix"]="🐛 Bug Fixes"
+groups["performance"]="⚡ Performance"
 
 declare -a breaking=()
 declare -a feature=()
 declare -a bugfix=()
+declare -a performance=()
 
 # Process each issue
 while read -r issue; do
@@ -76,7 +78,9 @@ while read -r issue; do
     if [ "$label" = "breaking change" ]; then
       category="breaking"
       break
-    elif [ "$label" = "enhancement" ] || [ "$label" = "performance" ]; then
+    elif [ "$label" = "performance" ]; then
+      [ -z "$category" ] && category="performance"
+    elif [ "$label" = "enhancement" ]; then
       [ -z "$category" ] && category="feature"
     elif [ "$label" = "bug" ] || [ "$label" = "maintenance" ]; then
       [ -z "$category" ] && category="bugfix"
@@ -91,6 +95,8 @@ while read -r issue; do
     feature+=("$entry")
   elif [ "$category" = "bugfix" ]; then
     bugfix+=("$entry")
+  elif [ "$category" = "performance" ]; then
+    performance+=("$entry")
   fi
 done < <(echo "$issues" | jq -c '.')
 
@@ -109,6 +115,11 @@ fi
 if [ "${#bugfix[@]}" -gt 0 ]; then
   echo -e "\n### ${groups["bugfix"]}\n"
   printf "%s\n" "${bugfix[@]}"
+fi
+
+if [ "${#performance[@]}" -gt 0 ]; then
+  echo -e "\n### ${groups["performance"]}\n"
+  printf "%s\n" "${performance[@]}"
 fi
 
 # ========================
