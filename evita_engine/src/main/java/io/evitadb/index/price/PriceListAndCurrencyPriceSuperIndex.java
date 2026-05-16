@@ -286,6 +286,16 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		);
 	}
 
+	@Nonnull
+	@Override
+	public PriceIdContainerFormula getIndexedRecordIdsValidNowFormula(@Nonnull OffsetDateTime theMoment) {
+		assertNotTerminated();
+		final long thePoint = DateTimeRange.toComparableLong(theMoment);
+		return new PriceIdContainerFormula(
+			this, this.validityIndex.getRecordsValidNowFormula(thePoint)
+		);
+	}
+
 	@Nullable
 	@Override
 	public int[] getInternalPriceIdsForEntity(int entityId) {
