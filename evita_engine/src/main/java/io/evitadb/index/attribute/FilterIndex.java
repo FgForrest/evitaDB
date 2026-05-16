@@ -745,6 +745,16 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
+	 * Cache-aware variant of {@link #getRecordsValidInFormula(long)} intended for the
+	 * {@code attributeInRangeNow} flow. Delegates to {@link RangeIndex#getRecordsValidNowFormula(long)}
+	 * which memoizes the materialized bitmap for the interval of {@code now} values that yield the same result.
+	 */
+	public Formula getRecordsValidNowFormula(long thePoint) {
+		Assert.notNull(this.rangeIndex, ERROR_RANGE_TYPE_NOT_SUPPORTED);
+		return this.rangeIndex.getRecordsValidNowFormula(thePoint);
+	}
+
+	/**
 	 * Returns all records which range overlaps the passed range in the form of {@link Bitmap}.
 	 * This method can be used only when the attribute type is of the {@link Range} type.
 	 *
