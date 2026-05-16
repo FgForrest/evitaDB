@@ -132,6 +132,12 @@ public class MockPriceListAndCurrencyPriceIndex implements PriceListAndCurrencyP
 		throw new UnsupportedOperationException();
 	}
 
+	@Nonnull
+	@Override
+	public PriceIdContainerFormula getIndexedRecordIdsValidNowFormula(@Nonnull OffsetDateTime theMoment) {
+		throw new UnsupportedOperationException();
+	}
+
 	@Nullable
 	@Override
 	public int[] getInternalPriceIdsForEntity(int entityId) {

@@ -198,6 +198,16 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	PriceIdContainerFormula getIndexedRecordIdsValidInFormula(@Nonnull OffsetDateTime theMoment) throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
+	 * Cache-aware variant of {@link #getIndexedRecordIdsValidInFormula(OffsetDateTime)} intended for the
+	 * {@code priceValidInNow} (suffix-{@code now}) variant of
+	 * {@link io.evitadb.api.query.filter.PriceValidIn}. Routes the underlying validity-range lookup through
+	 * the memoizing path on the internal {@code RangeIndex}, so consecutive same-bucket queries reuse the
+	 * previously materialized bitmap.
+	 */
+	@Nonnull
+	PriceIdContainerFormula getIndexedRecordIdsValidNowFormula(@Nonnull OffsetDateTime theMoment) throws PriceListAndCurrencyPriceIndexTerminated;
+
+	/**
 	 * Returns array of all {@link PriceRecord#internalPriceId()} of the entity.
 	 */
 	@Nullable
