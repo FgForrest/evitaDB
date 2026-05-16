@@ -1937,11 +1937,12 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 						// been observed inside it, so no reader can be waiting on it and we can
 						// drop it immediately rather than queuing a version-gated removal
 						if (walFile.delete()) {
-							AbstractMutationLog.log.debug(
-								"Deleted orphan tail-less WAL file `{}`: {}", walFile, ex.getMessage()
+							AbstractMutationLog.log.warn(
+								"Deleted orphan tail-less WAL file `{}` left behind by a prior crash: {}",
+								walFile, ex.getMessage()
 							);
 						} else {
-							AbstractMutationLog.log.warn(
+							AbstractMutationLog.log.error(
 								"Failed to delete orphan tail-less WAL file `{}`!", walFile
 							);
 						}
