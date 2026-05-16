@@ -117,7 +117,7 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 	/**
 	 * Contains cached result of {@link TransactionalBitmap#getArray()} call.
 	 */
-	private int[] memoizedIndexedPriceIds;
+	@Nullable private int[] memoizedIndexedPriceIds;
 
 	public PriceListAndCurrencyPriceSuperIndex(@Nonnull PriceIndexKey priceIndexKey) {
 		this.dirty = new TransactionalBoolean();
@@ -283,6 +283,16 @@ public class PriceListAndCurrencyPriceSuperIndex implements VoidTransactionMemor
 		final long thePoint = DateTimeRange.toComparableLong(theMoment);
 		return new PriceIdContainerFormula(
 			this, this.validityIndex.getRecordsEnvelopingInclusive(thePoint)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public PriceIdContainerFormula getIndexedRecordIdsValidNowFormula(@Nonnull OffsetDateTime theMoment) {
+		assertNotTerminated();
+		final long thePoint = DateTimeRange.toComparableLong(theMoment);
+		return new PriceIdContainerFormula(
+			this, this.validityIndex.getRecordsValidNowFormula(thePoint)
 		);
 	}
 
