@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -37,20 +36,17 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
+import io.evitadb.index.component.AttributeCardinalityIndexMapComponent;
+import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.index.component.PriceIndexComponent;
+import io.evitadb.index.component.ReferenceTypeCardinalityComponent;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
@@ -70,7 +66,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -237,9 +232,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		this.histogramIndexes = new TransactionalMap<>(
 			CollectionUtils.createHashMap(4), HistogramIndex.class, Function.identity()
 		);
-		// RTEI never has live prices, but the void price component is registered for shape
-		// consistency with peer subclasses — it is a no-op on every loop step
-		addComponent(new PriceIndexComponent(VoidPriceIndex.INSTANCE));
+		registerSubclassComponents();
+		// fresh empty index — every component contributes an empty manifest, so the baseline
+		// captured here is the immutable empty set, preventing spurious manifest emits
+		captureOriginalsFromComponents();
 	}
 
 	public ReferencedTypeEntityIndex(
@@ -267,10 +263,11 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		this.histogramIndexes = new TransactionalMap<>(
 			histogramIndexes, HistogramIndex.class, Function.identity()
 		);
-		collectAttributeIndexStorageKeys();
-		// RTEI never has live prices, but the void price component is registered for shape
-		// consistency with peer subclasses — it is a no-op on every loop step
-		addComponent(new PriceIndexComponent(VoidPriceIndex.INSTANCE));
+		registerSubclassComponents();
+		// re-capture the change-detection baseline from the components now that every subclass
+		// sub-index map is populated — this replaces the former collectAttributeIndexStorageKeys()
+		// helper which only patched in CARDINALITY keys and ignored histograms
+		captureOriginalsFromComponents();
 	}
 
 	/**
@@ -288,13 +285,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public <S extends PriceIndexContract> S getPriceIndex() {
 		//noinspection unchecked
 		return (S) this.priceIndex;
-	}
-
-	@Override
-	public void resetDirty() {
-		super.resetDirty();
-
-		this.indexPrimaryKeyCardinality.resetDirty();
 	}
 
 	@Override
@@ -359,85 +349,25 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * Populates {@link #originalAttributeIndexes} with cardinality storage keys reconstructed
-	 * from persisted data. Called at the end of the deserialization constructor.
+	 * Registers the four subclass-owned {@link io.evitadb.index.component.IndexComponent}
+	 * adapters into the parent {@link EntityIndex#addComponent} loop so cardinality / histogram /
+	 * reference-type-cardinality flush, reset and remove-layer all flow through the uniform
+	 * component path. The void price component preserves the parity with peer subclasses — its
+	 * `getPriceListAndCurrencyIndexes()` returns the empty collection so the manifest contribution
+	 * is trivially empty.
+	 *
+	 * Called from every constructor right after the subclass fields are populated and before
+	 * {@link #captureOriginalsFromComponents()}.
 	 */
-	private void collectAttributeIndexStorageKeys() {
-		for (AttributeIndexKey attributeKey : this.cardinalityIndexes.keySet()) {
-			this.originalAttributeIndexes.add(new AttributeIndexStorageKey(
-				this.indexKey, AttributeIndexType.CARDINALITY, attributeKey
-			));
-		}
-	}
-
-	/**
-	 * Returns the current set of histogram index storage keys for storage part creation.
-	 */
-	@Nonnull
-	private Set<HistogramIndexStorageKey> getHistogramIndexStorageKeys() {
-		final Set<HistogramIndexStorageKey> result = CollectionUtils.createHashSet(
-			this.histogramIndexes.size()
+	private void registerSubclassComponents() {
+		// RTEI never has live prices, but the void price component is registered for shape
+		// consistency with peer subclasses — it is a no-op on every loop step
+		addComponent(new PriceIndexComponent(VoidPriceIndex.INSTANCE));
+		addComponent(new AttributeCardinalityIndexMapComponent(this.cardinalityIndexes, this.indexKey));
+		addComponent(new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey));
+		addComponent(
+			new ReferenceTypeCardinalityComponent(this.indexPrimaryKeyCardinality, getReferenceName())
 		);
-		for (HistogramIndex histogramIndex : this.histogramIndexes.values()) {
-			histogramIndex.collectStorageKeys(this.indexKey, result);
-		}
-		return result;
-	}
-
-	@Override
-	protected StoragePart createStoragePart(
-		boolean hierarchyIndexEmpty,
-		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
-		@Nonnull Set<PriceIndexKey> priceIndexKeys,
-		@Nonnull Set<String> facetIndexReferencedEntities
-	) {
-		// the base class collects UNIQUE, FILTER, SORT, CHAIN keys from AttributeIndex — we must
-		// also include CARDINALITY keys so they appear in the EntityIndexStoragePart manifest and
-		// are loaded back during catalog restart
-		final Set<AttributeIndexStorageKey> allAttributeKeys;
-		if (this.cardinalityIndexes.isEmpty()) {
-			allAttributeKeys = attributeIndexStorageKeys;
-		} else {
-			allAttributeKeys = CollectionUtils.createHashSet(
-				attributeIndexStorageKeys.size() + this.cardinalityIndexes.size()
-			);
-			allAttributeKeys.addAll(attributeIndexStorageKeys);
-			for (AttributeIndexKey key : this.cardinalityIndexes.keySet()) {
-				allAttributeKeys.add(
-					new AttributeIndexStorageKey(
-						this.indexKey, AttributeIndexType.CARDINALITY, key
-					)
-				);
-			}
-		}
-		return new EntityIndexStoragePart(
-			this.primaryKey, this.version, this.indexKey,
-			this.entityIds, this.entityIdsByLanguage,
-			allAttributeKeys,
-			priceIndexKeys,
-			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities,
-			getHistogramIndexStorageKeys()
-		);
-	}
-
-	@Override
-	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
-		super.getModifiedStorageParts(trappedChanges);
-
-		ofNullable(this.indexPrimaryKeyCardinality.createStoragePart(this.primaryKey, this.getReferenceName()))
-				.ifPresent(trappedChanges::addChangeToStore);
-
-		// add all modified cardinality indexes
-		for (Entry<AttributeIndexKey, AttributeCardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(this.primaryKey, entry.getKey()))
-				.ifPresent(trappedChanges::addChangeToStore);
-		}
-
-		// add all modified histogram storage parts
-		for (HistogramIndex histogramIndex : this.histogramIndexes.values()) {
-			histogramIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
-		}
 	}
 
 	/**
@@ -719,12 +649,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			", histograms=" + this.histogramIndexes.size() + ")";
 	}
 
-	@Override
-	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		removeOwnTransactionalLayers(transactionalLayer);
-	}
-
 	@Nonnull
 	@Override
 	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(
@@ -748,17 +672,11 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		// drop our own diff layer (no-op for VoidTransactionMemoryProducer) and propagate the
+		// recursive remove into every registered component via the base method — the base loop
+		// covers the AttributeCardinality, Histogram and ReferenceTypeCardinality components too
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		removeOwnTransactionalLayers(transactionalLayer);
-	}
-
-	/**
-	 * Removes transactional layers for all fields owned by this class.
-	 */
-	private void removeOwnTransactionalLayers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		this.indexPrimaryKeyCardinality.removeLayer(transactionalLayer);
-		this.cardinalityIndexes.removeLayer(transactionalLayer);
-		this.histogramIndexes.removeLayer(transactionalLayer);
 	}
 
 	/**

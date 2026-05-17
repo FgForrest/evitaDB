@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
@@ -43,17 +42,16 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
+import io.evitadb.index.component.AttributeCardinalityIndexMapComponent;
+import io.evitadb.index.component.GroupCardinalityComponent;
+import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.GroupCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -69,7 +67,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -151,6 +148,10 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		this.histogramIndexes = new TransactionalMap<>(
 			CollectionUtils.createHashMap(4), HistogramIndex.class, Function.identity()
 		);
+		registerSubclassComponents();
+		// fresh empty index — every component contributes an empty manifest, so the baseline
+		// captured here is the immutable empty set, preventing spurious manifest emits
+		captureOriginalsFromComponents();
 	}
 
 	/**
@@ -201,7 +202,11 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		this.histogramIndexes = new TransactionalMap<>(
 			histogramIndexes, HistogramIndex.class, Function.identity()
 		);
-		collectAttributeIndexStorageKeys();
+		registerSubclassComponents();
+		// re-capture the change-detection baseline from the components now that every subclass
+		// sub-index map is populated — this replaces the former collectAttributeIndexStorageKeys()
+		// helper which only patched in CARDINALITY keys and ignored histograms
+		captureOriginalsFromComponents();
 	}
 
 	/**
@@ -217,9 +222,10 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * @param hierarchyIndex              the hierarchy index
 	 * @param facetIndex                  the facet index
 	 * @param originalHierarchyIndexEmpty whether the hierarchy index was originally empty
-	 * @param originalAttributeIndexes    original attribute index storage keys
+	 * @param originalAttributeIndexes    original attribute index storage keys (incl. CARDINALITY)
 	 * @param originalPriceIndexes        original price index keys
 	 * @param originalFacetIndexes        original facet index referenced entities
+	 * @param originalHistogramKeys       original histogram index storage keys
 	 * @param priceIndex                  the price reference index
 	 * @param pkCardinalities             cardinality tracking for entity primary keys
 	 * @param referencedPrimaryKeysIndex  maps referenced entity PKs to bitmaps of entity PKs
@@ -239,6 +245,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Set<AttributeIndexStorageKey> originalAttributeIndexes,
 		@Nonnull Set<PriceIndexKey> originalPriceIndexes,
 		@Nonnull Set<String> originalFacetIndexes,
+		@Nonnull Set<HistogramIndexStorageKey> originalHistogramKeys,
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull TransactionalMap<Integer, Integer> pkCardinalities,
 		@Nonnull TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
@@ -257,12 +264,14 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		this.referencedPrimaryKeysIndex = referencedPrimaryKeysIndex;
 		this.cardinalityIndexes = cardinalityIndexes;
 		this.histogramIndexes = histogramIndexes;
-	}
-
-	@Override
-	public void resetDirty() {
-		super.resetDirty();
-		this.cardinalityDirty.reset();
+		// preserve the histogram baseline from the source instance — the base constructor only
+		// handles UNIQUE/FILTER/SORT/CHAIN + facet + price + hierarchy baselines, so subclass-only
+		// histogram keys must be propagated explicitly
+		this.originalHistogramKeys = originalHistogramKeys;
+		registerSubclassComponents();
+		// do NOT call captureOriginalsFromComponents here — this constructor is the "preserve
+		// originals" path used by catalog re-attachment, and recapturing would overwrite the
+		// caller-provided baselines with the current live state, losing dirty/change tracking
 	}
 
 	@Override
@@ -284,6 +293,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			this.originalAttributeIndexes,
 			this.originalPriceIndexes,
 			this.originalFacetIndexes,
+			this.originalHistogramKeys,
 			getPriceIndex().createCopyForNewCatalogAttachment(catalogState),
 			this.pkCardinalities,
 			this.referencedPrimaryKeysIndex,
@@ -376,96 +386,26 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	}
 
 	/**
-	 * Populates {@link #originalAttributeIndexes} with cardinality and histogram storage keys
-	 * reconstructed from persisted data. Called at the end of the deserialization constructor.
+	 * Registers the three subclass-owned {@link io.evitadb.index.component.IndexComponent}
+	 * adapters into the parent {@link EntityIndex#addComponent} loop so cardinality / histogram /
+	 * group-cardinality flush, reset and remove-layer all flow through the uniform component path.
+	 *
+	 * Called from every constructor right after the subclass fields are populated and before
+	 * {@link #captureOriginalsFromComponents()} (when applicable). The registration order is
+	 * locked to today's flush order: attribute-cardinality first, then histograms, then the
+	 * group-cardinality dirty-flag-driven block.
 	 */
-	private void collectAttributeIndexStorageKeys() {
-		for (AttributeIndexKey attributeKey : this.cardinalityIndexes.keySet()) {
-			this.originalAttributeIndexes.add(
-				new AttributeIndexStorageKey(
-					this.indexKey, AttributeIndexType.CARDINALITY, attributeKey
-				)
-			);
-		}
-	}
-
-	/**
-	 * Returns the current set of histogram index storage keys for dirty-state comparison
-	 * and storage part creation.
-	 */
-	@Nonnull
-	private Set<HistogramIndexStorageKey> getHistogramIndexStorageKeys() {
-		final Set<HistogramIndexStorageKey> result = CollectionUtils.createHashSet(
-			this.histogramIndexes.size()
+	private void registerSubclassComponents() {
+		addComponent(new AttributeCardinalityIndexMapComponent(this.cardinalityIndexes, this.indexKey));
+		addComponent(new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey));
+		addComponent(
+			new GroupCardinalityComponent(
+				this.cardinalityDirty,
+				this.pkCardinalities,
+				this.referencedPrimaryKeysIndex,
+				getRepresentativeReferenceKey().referenceName()
+			)
 		);
-		for (HistogramIndex histogramIndex : this.histogramIndexes.values()) {
-			histogramIndex.collectStorageKeys(this.indexKey, result);
-		}
-		return result;
-	}
-
-	@Override
-	protected StoragePart createStoragePart(
-		boolean hierarchyIndexEmpty,
-		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
-		@Nonnull Set<PriceIndexKey> priceIndexKeys,
-		@Nonnull Set<String> facetIndexReferencedEntities
-	) {
-		// the base class collects UNIQUE, FILTER, SORT, CHAIN keys from AttributeIndex — we must
-		// also include CARDINALITY keys so they appear in the EntityIndexStoragePart manifest and
-		// are loaded back during catalog restart
-		final Set<AttributeIndexStorageKey> allAttributeKeys;
-		if (this.cardinalityIndexes.isEmpty()) {
-			allAttributeKeys = attributeIndexStorageKeys;
-		} else {
-			allAttributeKeys = CollectionUtils.createHashSet(
-				attributeIndexStorageKeys.size() + this.cardinalityIndexes.size()
-			);
-			allAttributeKeys.addAll(attributeIndexStorageKeys);
-			for (AttributeIndexKey key : this.cardinalityIndexes.keySet()) {
-				allAttributeKeys.add(
-					new AttributeIndexStorageKey(
-						this.indexKey, AttributeIndexType.CARDINALITY, key
-					)
-				);
-			}
-		}
-		return new EntityIndexStoragePart(
-			this.primaryKey, this.version, this.indexKey,
-			this.entityIds, this.entityIdsByLanguage,
-			allAttributeKeys,
-			priceIndexKeys,
-			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities,
-			getHistogramIndexStorageKeys()
-		);
-	}
-
-	@Override
-	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
-		super.getModifiedStorageParts(trappedChanges);
-
-		if (this.cardinalityDirty.isTrue()) {
-			trappedChanges.addChangeToStore(
-				new GroupCardinalityIndexStoragePart(
-					this.primaryKey,
-					getRepresentativeReferenceKey().referenceName(),
-					this.pkCardinalities,
-					this.referencedPrimaryKeysIndex
-				)
-			);
-		}
-
-		// add all modified cardinality indexes
-		for (Entry<AttributeIndexKey, AttributeCardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(this.primaryKey, entry.getKey()))
-				.ifPresent(trappedChanges::addChangeToStore);
-		}
-
-		// add all modified histogram storage parts
-		for (HistogramIndex histogramIndex : this.histogramIndexes.values()) {
-			histogramIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
-		}
 	}
 
 	/**
@@ -860,14 +800,6 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		}
 	}
 
-	@Override
-	public void removeTransactionalMemoryOfReferencedProducers(
-		@Nonnull TransactionalLayerMaintainer transactionalLayer
-	) {
-		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		removeOwnTransactionalLayers(transactionalLayer);
-	}
-
 	@Nonnull
 	@Override
 	public ReducedGroupEntityIndex createCopyWithMergedTransactionalMemory(
@@ -892,23 +824,6 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.histogramIndexes)
 		);
-	}
-
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		super.removeLayer(transactionalLayer);
-		removeOwnTransactionalLayers(transactionalLayer);
-	}
-
-	/**
-	 * Removes transactional layers for all fields owned by this class.
-	 */
-	private void removeOwnTransactionalLayers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		this.cardinalityDirty.removeLayer(transactionalLayer);
-		this.pkCardinalities.removeLayer(transactionalLayer);
-		this.referencedPrimaryKeysIndex.removeLayer(transactionalLayer);
-		this.cardinalityIndexes.removeLayer(transactionalLayer);
-		this.histogramIndexes.removeLayer(transactionalLayer);
 	}
 
 	@Override

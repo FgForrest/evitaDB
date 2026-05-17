@@ -59,6 +59,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
@@ -150,27 +151,38 @@ public abstract class EntityIndex implements
 	/**
 	 * This field captures the original state of the hierarchy index when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
-	 * should be persisted.
+	 * should be persisted. Mutable so subclasses can refresh the baseline from the registered
+	 * {@link IndexComponent} list once all components have been registered — see
+	 * {@link #captureOriginalsFromComponents()}.
 	 */
-	protected final boolean originalHierarchyIndexEmpty;
+	protected boolean originalHierarchyIndexEmpty;
 	/**
 	 * This field captures the original state of the attribute index when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
-	 * should be persisted.
+	 * should be persisted. Mutable so subclasses with additional attribute sub-index types (e.g. CARDINALITY)
+	 * can refresh the baseline from their registered {@link IndexComponent} list — see
+	 * {@link #captureOriginalsFromComponents()}.
 	 */
-	protected final Set<AttributeIndexStorageKey> originalAttributeIndexes;
+	protected Set<AttributeIndexStorageKey> originalAttributeIndexes;
 	/**
 	 * This field captures the original state of the price indexes when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
 	 */
-	protected final Set<PriceIndexKey> originalPriceIndexes;
+	protected Set<PriceIndexKey> originalPriceIndexes;
 	/**
 	 * This field captures the original state of the facet indexes when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
 	 * should be persisted.
 	 */
-	protected final Set<String> originalFacetIndexes;
+	protected Set<String> originalFacetIndexes;
+	/**
+	 * This field captures the original state of the histogram indexes when this index was created.
+	 * Subclasses that maintain histograms (e.g. {@link io.evitadb.index.HistogramCapableEntityIndex}
+	 * implementors) refresh this baseline via {@link #captureOriginalsFromComponents()} after they
+	 * register a {@link io.evitadb.index.component.HistogramIndexMapComponent}.
+	 */
+	protected Set<HistogramIndexStorageKey> originalHistogramKeys;
 	/**
 	 * Ordered list of self-registering sub-systems that participate in commit-time flush and
 	 * transactional-layer lifecycle. Populated by the base constructors with the three intrinsic
@@ -198,6 +210,7 @@ public abstract class EntityIndex implements
 		this.originalAttributeIndexes = Collections.emptySet();
 		this.originalPriceIndexes = Collections.emptySet();
 		this.originalFacetIndexes = Collections.emptySet();
+		this.originalHistogramKeys = Collections.emptySet();
 		registerBaseComponents();
 	}
 
@@ -230,6 +243,7 @@ public abstract class EntityIndex implements
 		this.originalAttributeIndexes = getAttributeIndexStorageKeys();
 		this.originalPriceIndexes = getPriceIndexKeys(priceIndex);
 		this.originalFacetIndexes = getFacetIndexReferencedEntities();
+		this.originalHistogramKeys = Collections.emptySet();
 		registerBaseComponents();
 	}
 
@@ -260,6 +274,7 @@ public abstract class EntityIndex implements
 		this.originalAttributeIndexes = originalAttributeIndexes;
 		this.originalPriceIndexes = originalPriceIndexes;
 		this.originalFacetIndexes = originalFacetIndexes;
+		this.originalHistogramKeys = Collections.emptySet();
 		registerBaseComponents();
 	}
 
@@ -436,19 +451,21 @@ public abstract class EntityIndex implements
 		final Set<AttributeIndexStorageKey> attributeIndexStorageKeys = manifest.getAttributeKeys();
 		final Set<PriceIndexKey> priceIndexKeys = manifest.getPriceKeys();
 		final Set<String> facetIndexReferencedEntities = manifest.getFacetReferencedEntities();
+		final Set<HistogramIndexStorageKey> histogramIndexStorageKeys = manifest.getHistogramKeys();
 		if (this.dirty.isTrue() ||
 			this.originalHierarchyIndexEmpty != hierarchyIndexEmpty ||
 			!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
 			!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
-			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities)
+			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities) ||
+			!Objects.equals(this.originalHistogramKeys, histogramIndexStorageKeys)
 		) {
-			// subclass hook still owns the final shape — RGEI/RTEI extend it with CARDINALITY +
-			// HISTOGRAM keys today; this PR keeps the hook intact and Phase 1.3 will retire it
-			// once those subclasses gain their own components
+			// after Phase 1.3 every sub-index — including CARDINALITY and HISTOGRAM types — flows
+			// through the component-populated manifest, so the base implementation now writes the
+			// fully-shaped EntityIndexStoragePart without any subclass hook
 			trappedChanges.addChangeToStore(
 				createStoragePart(
 					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys,
-					facetIndexReferencedEntities
+					facetIndexReferencedEntities, histogramIndexStorageKeys
 				)
 			);
 		}
@@ -489,6 +506,38 @@ public abstract class EntityIndex implements
 	}
 
 	/**
+	 * Rebuilds the change-detection baseline (`originalAttributeIndexes`, `originalPriceIndexes`,
+	 * `originalFacetIndexes`, `originalHistogramKeys`, `originalHierarchyIndexEmpty`) by running every
+	 * registered {@link IndexComponent} once against a discardable {@link EntityIndexManifest}. The
+	 * resulting manifest snapshot becomes the "what was on disk" reference against which
+	 * {@link #getModifiedStorageParts(TrappedChanges)} diffs the current state to decide whether a
+	 * fresh {@link EntityIndexStoragePart} must be persisted.
+	 *
+	 * Subclasses that own sub-indexes contributing to the manifest (e.g. CARDINALITY attribute
+	 * indexes, histograms) must call this method **at the end of every constructor** — after both
+	 * the super constructor and every {@link #addComponent(IndexComponent)} call — so that the
+	 * baseline reflects the keys their components will advertise on the first flush.
+	 *
+	 * Component implementations must keep `collectModifiedStorageParts` read-only on their own
+	 * state (it may emit storage parts when dirty but must not mutate dirty flags or contents) so
+	 * that running them here is side-effect-free aside from the discarded {@link TrappedChanges}.
+	 */
+	protected final void captureOriginalsFromComponents() {
+		final EntityIndexManifest baseline = new EntityIndexManifest();
+		// the trapped-changes sink is intentionally discarded — only the manifest is captured;
+		// any storage parts a clean (just-loaded) component would emit are dropped on the floor
+		final TrappedChanges sink = new TrappedChanges();
+		for (int i = 0; i < this.components.size(); i++) {
+			this.components.get(i).collectModifiedStorageParts(this.primaryKey, baseline, sink);
+		}
+		this.originalHierarchyIndexEmpty = !baseline.isHierarchyPresent();
+		this.originalAttributeIndexes = Set.copyOf(baseline.getAttributeKeys());
+		this.originalPriceIndexes = Set.copyOf(baseline.getPriceKeys());
+		this.originalFacetIndexes = Set.copyOf(baseline.getFacetReferencedEntities());
+		this.originalHistogramKeys = Set.copyOf(baseline.getHistogramKeys());
+	}
+
+	/**
 	 * Registers the three intrinsic components shared by every `EntityIndex` subclass: attribute,
 	 * hierarchy, and facet. Called from every base constructor so the component list is always
 	 * non-empty by the time control returns to the subclass constructor body.
@@ -519,14 +568,26 @@ public abstract class EntityIndex implements
 
 	/**
 	 * Method creates container that is possible to serialize and store into persistent storage.
-	 * Subclasses with additional index data (e.g. histogram indexes) should override this method
-	 * to include their storage keys.
+	 * After Phase 1.3 of the index-component refactor this is **no longer a subclass override hook**
+	 * — every sub-index type, including CARDINALITY (attribute keys) and HISTOGRAM, contributes its
+	 * keys through the registered {@link IndexComponent} list, so the base implementation has full
+	 * knowledge to construct the fully-shaped {@link EntityIndexStoragePart}.
+	 *
+	 * @param hierarchyIndexEmpty           `true` when the hierarchy index has no live data
+	 * @param attributeIndexStorageKeys     all attribute-index storage keys gathered from components
+	 * @param priceIndexKeys                all price-list-and-currency storage keys gathered from
+	 *                                      components
+	 * @param facetIndexReferencedEntities  all facet referenced entity types gathered from components
+	 * @param histogramIndexStorageKeys     all histogram storage keys gathered from components
+	 * @return the fully-shaped storage part listing every sub-index that must reload on restart
 	 */
-	protected StoragePart createStoragePart(
+	@Nonnull
+	private StoragePart createStoragePart(
 		boolean hierarchyIndexEmpty,
 		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
 		@Nonnull Set<PriceIndexKey> priceIndexKeys,
-		@Nonnull Set<String> facetIndexReferencedEntities
+		@Nonnull Set<String> facetIndexReferencedEntities,
+		@Nonnull Set<HistogramIndexStorageKey> histogramIndexStorageKeys
 	) {
 		return new EntityIndexStoragePart(
 			this.primaryKey, this.version, this.indexKey,
@@ -535,7 +596,7 @@ public abstract class EntityIndex implements
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
-			Collections.emptySet()
+			histogramIndexStorageKeys
 		);
 	}
 
