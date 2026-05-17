@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.EntitySortableAttributeCompoundSche
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
 import io.evitadb.core.query.algebra.Formula;
@@ -45,6 +44,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.component.PriceIndexComponent;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
@@ -113,6 +113,7 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	) {
 		super(primaryKey, entityType, entityIndexKey);
 		this.priceIndex = new PriceRefIndex(this.getIndexKey().scope());
+		addComponent(new PriceIndexComponent(this.priceIndex));
 	}
 
 	/**
@@ -145,6 +146,7 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 			attributeIndex, hierarchyIndex, facetIndex, priceIndex
 		);
 		this.priceIndex = priceIndex;
+		addComponent(new PriceIndexComponent(this.priceIndex));
 	}
 
 	/**
@@ -187,6 +189,7 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 			originalAttributeIndexes, originalPriceIndexes, originalFacetIndexes
 		);
 		this.priceIndex = priceIndex;
+		addComponent(new PriceIndexComponent(this.priceIndex));
 	}
 
 	/**
@@ -222,30 +225,10 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	}
 
 	@Override
-	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
-		super.getModifiedStorageParts(trappedChanges);
-		this.priceIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
-	}
-
-	@Override
-	public void removeTransactionalMemoryOfReferencedProducers(
-		@Nonnull TransactionalLayerMaintainer transactionalLayer
-	) {
-		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.priceIndex.removeLayer(transactionalLayer);
-	}
-
-	@Override
-	public void resetDirty() {
-		super.resetDirty();
-		this.priceIndex.resetDirty();
-	}
-
-	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		// the price index is removed by the component-loop inside the super call — no extra hop
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.priceIndex.removeLayer(transactionalLayer);
 	}
 
 	@Override

@@ -37,6 +37,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
+import io.evitadb.index.component.PriceIndexComponent;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
@@ -236,6 +237,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		this.histogramIndexes = new TransactionalMap<>(
 			CollectionUtils.createHashMap(4), HistogramIndex.class, Function.identity()
 		);
+		// RTEI never has live prices, but the void price component is registered for shape
+		// consistency with peer subclasses — it is a no-op on every loop step
+		addComponent(new PriceIndexComponent(VoidPriceIndex.INSTANCE));
 	}
 
 	public ReferencedTypeEntityIndex(
@@ -264,6 +268,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			histogramIndexes, HistogramIndex.class, Function.identity()
 		);
 		collectAttributeIndexStorageKeys();
+		// RTEI never has live prices, but the void price component is registered for shape
+		// consistency with peer subclasses — it is a no-op on every loop step
+		addComponent(new PriceIndexComponent(VoidPriceIndex.INSTANCE));
 	}
 
 	/**

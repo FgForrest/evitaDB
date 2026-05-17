@@ -24,7 +24,6 @@
 package io.evitadb.index;
 
 import io.evitadb.api.exception.EntityNotManagedException;
-import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
@@ -37,6 +36,7 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.component.PriceIndexComponent;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
@@ -202,6 +202,7 @@ public class GlobalEntityIndex extends EntityIndex
 	) {
 		super(primaryKey, entityType, entityIndexKey);
 		this.priceIndex = new PriceSuperIndex();
+		addComponent(new PriceIndexComponent(this.priceIndex));
 	}
 
 	public GlobalEntityIndex(
@@ -221,24 +222,7 @@ public class GlobalEntityIndex extends EntityIndex
 			attributeIndex, hierarchyIndex, facetIndex, priceIndex
 		);
 		this.priceIndex = priceIndex;
-	}
-
-	@Override
-	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.priceIndex.removeLayer(transactionalLayer);
-	}
-
-	@Override
-	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
-		super.getModifiedStorageParts(trappedChanges);
-		this.priceIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
-	}
-
-	@Override
-	public void resetDirty() {
-		super.resetDirty();
-		this.priceIndex.resetDirty();
+		addComponent(new PriceIndexComponent(this.priceIndex));
 	}
 
 	/*
@@ -266,8 +250,8 @@ public class GlobalEntityIndex extends EntityIndex
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		// the price index is removed by the component-loop inside the super call — no extra hop
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.priceIndex.removeLayer(transactionalLayer);
 	}
 
 	@Override

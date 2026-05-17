@@ -713,6 +713,40 @@ public class AttributeIndex implements AttributeIndexContract,
 		}
 	}
 
+	/**
+	 * Synthesizes the full set of {@link AttributeIndexStorageKey} entries currently held by this
+	 * index — one key per UNIQUE / FILTER / SORT / CHAIN sub-index — and adds them into `target`.
+	 * The keys are composed from the supplied `indexKey` (which carries the discriminator and scope
+	 * of the owning {@link io.evitadb.index.EntityIndex}) and the per-attribute key already held
+	 * by each sub-index map.
+	 *
+	 * This method exists as a public accessor so the
+	 * {@link io.evitadb.index.component.AttributeIndexComponent} adapter can announce the keys
+	 * into the parent index manifest without duplicating the loop. Subclass-specific attribute
+	 * types (e.g. CARDINALITY) are owned by the subclass and added separately.
+	 *
+	 * @param indexKey the parent {@link io.evitadb.index.EntityIndexKey} used as the storage-key
+	 *                 prefix
+	 * @param target the set into which the synthesized storage keys are added
+	 */
+	public void collectKeys(
+		@Nonnull io.evitadb.index.EntityIndexKey indexKey,
+		@Nonnull Set<AttributeIndexStorageKey> target
+	) {
+		for (final AttributeIndexKey key : this.uniqueIndex.keySet()) {
+			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, key));
+		}
+		for (final AttributeIndexKey key : this.filterIndex.keySet()) {
+			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, key));
+		}
+		for (final AttributeIndexKey key : this.sortIndex.keySet()) {
+			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, key));
+		}
+		for (final AttributeIndexKey key : this.chainIndex.keySet()) {
+			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, key));
+		}
+	}
+
 	@Override
 	public void resetDirty() {
 		for (UniqueIndex theUniqueIndex : this.uniqueIndex.values()) {

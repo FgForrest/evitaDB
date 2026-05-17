@@ -43,6 +43,9 @@ import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
+import io.evitadb.index.component.AttributeIndexComponent;
+import io.evitadb.index.component.EntityIndexManifest;
+import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.facet.FacetIndexContract;
 import io.evitadb.index.hierarchy.HierarchyIndex;
@@ -64,9 +67,11 @@ import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -166,6 +171,14 @@ public abstract class EntityIndex implements
 	 * should be persisted.
 	 */
 	protected final Set<String> originalFacetIndexes;
+	/**
+	 * Ordered list of self-registering sub-systems that participate in commit-time flush and
+	 * transactional-layer lifecycle. Populated by the base constructors with the three intrinsic
+	 * components (attribute, hierarchy, facet) and extended by subclass constructors via
+	 * {@link #addComponent(IndexComponent)} — order matters for deterministic flush sequencing
+	 * across releases and is locked to today's order to minimize behavioural drift.
+	 */
+	private final List<IndexComponent> components = new ArrayList<>(8);
 
 	protected EntityIndex(
 		int primaryKey,
@@ -185,6 +198,7 @@ public abstract class EntityIndex implements
 		this.originalAttributeIndexes = Collections.emptySet();
 		this.originalPriceIndexes = Collections.emptySet();
 		this.originalFacetIndexes = Collections.emptySet();
+		registerBaseComponents();
 	}
 
 	protected EntityIndex(
@@ -216,6 +230,7 @@ public abstract class EntityIndex implements
 		this.originalAttributeIndexes = getAttributeIndexStorageKeys();
 		this.originalPriceIndexes = getPriceIndexKeys(priceIndex);
 		this.originalFacetIndexes = getFacetIndexReferencedEntities();
+		registerBaseComponents();
 	}
 
 	protected EntityIndex(
@@ -245,6 +260,7 @@ public abstract class EntityIndex implements
 		this.originalAttributeIndexes = originalAttributeIndexes;
 		this.originalPriceIndexes = originalPriceIndexes;
 		this.originalFacetIndexes = originalFacetIndexes;
+		registerBaseComponents();
 	}
 
 	/**
@@ -398,19 +414,37 @@ public abstract class EntityIndex implements
 
 	/**
 	 * Method returns collection of all modified parts of this index that were modified and needs to be stored.
+	 *
+	 * The flush walks the registered {@link IndexComponent} list in order: each component emits its own
+	 * modified storage parts and announces its live keys into a shared {@link EntityIndexManifest}. The
+	 * collected manifest is then compared against the captured originals; on any divergence (or when the
+	 * dirty flag is set) a fresh {@link EntityIndexStoragePart} is built via the {@link #createStoragePart}
+	 * hook so subclasses can still augment the manifest with their own attribute index types
+	 * (e.g. CARDINALITY) and histogram keys.
+	 *
+	 * @param trappedChanges the accumulator collecting modified storage parts for the current commit
 	 */
 	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
-		final PriceIndexContract priceIndex = getPriceIndex();
-		final boolean hierarchyIndexEmpty = this.hierarchyIndex.isHierarchyIndexEmpty();
-		final Set<AttributeIndexStorageKey> attributeIndexStorageKeys = getAttributeIndexStorageKeys();
-		final Set<PriceIndexKey> priceIndexKeys = getPriceIndexKeys(priceIndex);
-		final Set<String> facetIndexReferencedEntities = getFacetIndexReferencedEntities();
+		final EntityIndexManifest manifest = new EntityIndexManifest();
+		// walk every registered component in deterministic order — each emits its own dirty storage
+		// parts and populates the manifest with the live key set it currently owns
+		for (int i = 0; i < this.components.size(); i++) {
+			this.components.get(i).collectModifiedStorageParts(this.primaryKey, manifest, trappedChanges);
+		}
+
+		final boolean hierarchyIndexEmpty = !manifest.isHierarchyPresent();
+		final Set<AttributeIndexStorageKey> attributeIndexStorageKeys = manifest.getAttributeKeys();
+		final Set<PriceIndexKey> priceIndexKeys = manifest.getPriceKeys();
+		final Set<String> facetIndexReferencedEntities = manifest.getFacetReferencedEntities();
 		if (this.dirty.isTrue() ||
 			this.originalHierarchyIndexEmpty != hierarchyIndexEmpty ||
 			!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
 			!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
 			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities)
 		) {
+			// subclass hook still owns the final shape — RGEI/RTEI extend it with CARDINALITY +
+			// HISTOGRAM keys today; this PR keeps the hook intact and Phase 1.3 will retire it
+			// once those subclasses gain their own components
 			trappedChanges.addChangeToStore(
 				createStoragePart(
 					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys,
@@ -418,18 +452,14 @@ public abstract class EntityIndex implements
 				)
 			);
 		}
-		ofNullable(this.hierarchyIndex.createStoragePart(this.primaryKey))
-			.ifPresent(trappedChanges::addChangeToStore);
-		this.attributeIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
-		this.facetIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
 	}
 
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
-		this.hierarchyIndex.resetDirty();
-		this.attributeIndex.resetDirty();
-		this.facetIndex.resetDirty();
+		for (int i = 0; i < this.components.size(); i++) {
+			this.components.get(i).resetDirty();
+		}
 	}
 
 	/**
@@ -442,9 +472,31 @@ public abstract class EntityIndex implements
 		this.dirty.removeLayer(transactionalLayer);
 		this.entityIds.removeLayer(transactionalLayer);
 		this.entityIdsByLanguage.removeLayer(transactionalLayer);
-		this.attributeIndex.removeLayer(transactionalLayer);
-		this.hierarchyIndex.removeLayer(transactionalLayer);
-		this.facetIndex.removeLayer(transactionalLayer);
+		for (int i = 0; i < this.components.size(); i++) {
+			this.components.get(i).removeLayer(transactionalLayer);
+		}
+	}
+
+	/**
+	 * Registers an additional {@link IndexComponent} into the flush/reset/remove loop. Subclasses
+	 * call this from their constructors to add subclass-owned sub-systems (e.g. price index) after
+	 * the base components have been registered.
+	 *
+	 * @param component the component to register
+	 */
+	protected final void addComponent(@Nonnull IndexComponent component) {
+		this.components.add(component);
+	}
+
+	/**
+	 * Registers the three intrinsic components shared by every `EntityIndex` subclass: attribute,
+	 * hierarchy, and facet. Called from every base constructor so the component list is always
+	 * non-empty by the time control returns to the subclass constructor body.
+	 */
+	private void registerBaseComponents() {
+		this.components.add(new AttributeIndexComponent(this.attributeIndex, this.indexKey));
+		this.components.add(this.hierarchyIndex);
+		this.components.add(this.facetIndex);
 	}
 
 	/**
