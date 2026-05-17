@@ -439,7 +439,7 @@ public abstract class EntityIndex implements
 	 *
 	 * @param trappedChanges the accumulator collecting modified storage parts for the current commit
 	 */
-	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
+	public final void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
 		final EntityIndexManifest manifest = new EntityIndexManifest();
 		// walk every registered component in deterministic order — each emits its own dirty storage
 		// parts and populates the manifest with the live key set it currently owns
@@ -472,7 +472,7 @@ public abstract class EntityIndex implements
 	}
 
 	@Override
-	public void resetDirty() {
+	public final void resetDirty() {
 		this.dirty.reset();
 		for (int i = 0; i < this.components.size(); i++) {
 			this.components.get(i).resetDirty();
@@ -485,7 +485,7 @@ public abstract class EntityIndex implements
 	 *
 	 * @param transactionalLayer the instance of TransactionalLayerMaintainer whose layers are to be removed from the referenced producers
 	 */
-	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public final void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.dirty.removeLayer(transactionalLayer);
 		this.entityIds.removeLayer(transactionalLayer);
 		this.entityIdsByLanguage.removeLayer(transactionalLayer);
