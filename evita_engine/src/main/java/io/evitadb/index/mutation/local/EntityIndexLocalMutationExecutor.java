@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReferenc
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
-import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
@@ -71,7 +70,6 @@ import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.function.QuadriConsumer;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
@@ -79,6 +77,8 @@ import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
+import io.evitadb.index.mutation.local.handler.LocalMutationHandler;
+import io.evitadb.index.mutation.local.handler.LocalMutationHandlerRegistry;
 import io.evitadb.index.mutation.local.dataAccess.EntityExistingDataFactory;
 import io.evitadb.index.mutation.local.dataAccess.EntityIndexedReferenceSupplier;
 import io.evitadb.index.mutation.local.dataAccess.EntityPriceSupplier;
@@ -366,6 +366,117 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Re-points the memoized scope of the active entity. Called exclusively by
+	 * `SetEntityScopeMutationHandler` after relocating the entity from the old scope's indexes to
+	 * the new scope's indexes. All other callers must rely on `getScope()` lazily resolving the
+	 * scope from storage.
+	 *
+	 * @param scope the new scope of the active entity
+	 */
+	public void setMemoizedScope(@Nonnull Scope scope) {
+		this.memoizedScope = scope;
+	}
+
+	/**
+	 * Returns the full entity body, resolved via the supplier installed at construction. Used
+	 * exclusively by `SetEntityScopeMutationHandler` — the scope-change path needs the full
+	 * entity state to capture pre-mutation attribute values and to drive the
+	 * `removeEntityFromIndexes` / `addEntityToIndexes` calls.
+	 *
+	 * @return the full entity body for the active mutation batch
+	 */
+	@Nonnull
+	public Entity getFullEntity() {
+		return this.fullEntitySupplier.get();
+	}
+
+	/**
+	 * Returns the entity type name (`EntitySchemaContract#getName`). Stable across the lifetime
+	 * of this executor — captured at construction from the schema accessor.
+	 *
+	 * @return the entity type name
+	 */
+	@Nonnull
+	public String getEntityType() {
+		return this.entityType;
+	}
+
+	/**
+	 * Returns the set of reference keys whose histogram add was already deferred during this
+	 * batch's reference insertion path. `ReferenceAttributeMutationHandler` consults this set to
+	 * skip its own histogram re-evaluation, avoiding a double-insert that would corrupt the
+	 * cardinality counter.
+	 *
+	 * @return the set of reference keys with deferred histogram adds (never null, may be empty)
+	 */
+	@Nonnull
+	public Set<ReferenceKey> getReferencesWithDeferredHistogramAdd() {
+		return this.referencesWithDeferredHistogramAdd;
+	}
+
+	/**
+	 * Returns the undo-action appender installed at construction (or `null` when the executor was
+	 * configured without undo tracking). Handlers pass this through to lower-level mutators so
+	 * they can register rollback closures consistently.
+	 *
+	 * @return the undo-action appender, or `null` if undo tracking is disabled
+	 */
+	@Nullable
+	public Consumer<Runnable> getUndoActionsAppender() {
+		return this.undoActionsAppender;
+	}
+
+	/**
+	 * Fan-out helper used by handlers whose work is intrinsically per-reference (facets, sortable
+	 * compounds — keyed by individual reference key). Thin wrapper around
+	 * `ReferenceIndexMutator.forEachReferenceIndex` so the handler call site spells out the
+	 * `IterationPath` exactly once and never reaches into the static method directly.
+	 *
+	 * @param indexType                 minimum reference-index level required for a reference to qualify
+	 * @param consumer                  callback invoked for each qualifying reference
+	 * @param referencePredicate        additional predicate applied after the schema-level filter
+	 * @param referencePresenceExpected whether the referenced/group primary key is expected to be
+	 *                                  present in the index when resolving the representative key
+	 * @param path                      which path(s) to traverse
+	 */
+	public void fanOutPerReference(
+		@Nonnull ReferenceIndexType indexType,
+		@Nonnull ReferenceIndexConsumer consumer,
+		@Nonnull Predicate<ReferenceContract> referencePredicate,
+		boolean referencePresenceExpected,
+		@Nonnull ReferenceIndexMutator.IterationPath path
+	) {
+		ReferenceIndexMutator.forEachReferenceIndex(
+			indexType, this, consumer, referencePredicate, referencePresenceExpected, path
+		);
+	}
+
+	/**
+	 * Fan-out helper used by handlers whose work is entity-scoped relative to the (possibly
+	 * shared) reduced index: entity-level attribute cardinality, set-semantic price leaves,
+	 * locale tracking. Thin wrapper around `ReferenceIndexMutator.forEachUniqueReferenceIndex`
+	 * with explicit `IterationPath` at the call site.
+	 *
+	 * @param indexType                 minimum reference-index level required for a reference to qualify
+	 * @param consumer                  callback invoked at most once per unique target index
+	 * @param referencePredicate        additional predicate applied after the schema-level filter
+	 * @param referencePresenceExpected whether the referenced/group primary key is expected to be
+	 *                                  present in the index when resolving the representative key
+	 * @param path                      which path(s) to traverse
+	 */
+	public void fanOutUniquePerIndex(
+		@Nonnull ReferenceIndexType indexType,
+		@Nonnull ReferenceIndexConsumer consumer,
+		@Nonnull Predicate<ReferenceContract> referencePredicate,
+		boolean referencePresenceExpected,
+		@Nonnull ReferenceIndexMutator.IterationPath path
+	) {
+		ReferenceIndexMutator.forEachUniqueReferenceIndex(
+			indexType, this, consumer, referencePredicate, referencePresenceExpected, path
+		);
+	}
+
+	/**
 	 * Returns `true` if facet expression triggers are installed, meaning that mutations should
 	 * re-evaluate facet indexing expressions. The supplier is set at construction time and its
 	 * presence signals that the catalog uses conditional facet indexing. When this method returns
@@ -559,24 +670,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) getOrCreateIndex(
 			new EntityIndexKey(EntityIndexType.GLOBAL, getScope())
 		);
-		if (localMutation instanceof SetPriceInnerRecordHandlingMutation priceHandlingMutation) {
-			updatePriceHandlingForEntity(priceHandlingMutation, globalIndex);
-		} else if (localMutation instanceof PriceMutation pm) {
-			applyPriceMutation(pm, globalIndex);
-		} else if (localMutation instanceof ParentMutation pm) {
-			applyParentMutation(pm, globalIndex);
-		} else if (localMutation instanceof ReferenceMutation<?> rm) {
-			applyReferenceMutation(rm, globalIndex);
-		} else if (localMutation instanceof AttributeMutation am) {
-			applyAttributeMutation(am, globalIndex);
-		} else if (localMutation instanceof AssociatedDataMutation adm) {
-			applyAssociatedDataMutation(adm, globalIndex);
-		} else if (localMutation instanceof SetEntityScopeMutation sesm) {
-			applyEntityScopeMutation(sesm);
-		} else {
-			// SHOULD NOT EVER HAPPEN
-			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
-		}
+		dispatchViaRegistry(localMutation, globalIndex);
+	}
+
+	/**
+	 * Looks up the `LocalMutationHandler` for the concrete mutation class and delegates the apply
+	 * call to it. Centralises the generic capture so individual handlers stay strongly typed —
+	 * the registry's `resolve(...)` returns a handler typed to `M`, and the executor passes the
+	 * mutation through without an unchecked cast at the call site.
+	 *
+	 * @param localMutation the mutation to dispatch
+	 * @param globalIndex   pre-resolved global index for the current scope
+	 */
+	private <M extends LocalMutation<?, ?>> void dispatchViaRegistry(
+		@Nonnull M localMutation,
+		@Nonnull GlobalEntityIndex globalIndex
+	) {
+		final LocalMutationHandler<M> handler = LocalMutationHandlerRegistry.resolve(localMutation);
+		handler.apply(localMutation, this, globalIndex);
 	}
 
 	@Override
@@ -798,7 +909,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @return a non-null ReferencesStoragePart instance containing reference storage data
 	 */
 	@Nonnull
-	ReferencesStoragePart getReferencesStoragePart() {
+	public ReferencesStoragePart getReferencesStoragePart() {
 		return this.containerAccessor.getReferencesStoragePart(
 			this.entityType, getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING)
 		);
@@ -824,7 +935,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * if the reference supports duplicates
 	 */
 	@Nonnull
-	RepresentativeReferenceKey getRepresentativeReferenceKey(
+	public RepresentativeReferenceKey getRepresentativeReferenceKey(
 		int entityPrimaryKey,
 		@Nonnull GlobalEntityIndex globalEntityIndex,
 		@Nonnull ReferenceKey referenceKey,
@@ -851,7 +962,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * if the reference supports duplicates
 	 */
 	@Nonnull
-	RepresentativeReferenceKeys getRepresentativeReferenceKeys(
+	public RepresentativeReferenceKeys getRepresentativeReferenceKeys(
 		@Nonnull ReferenceKey referenceKey,
 		boolean referencePresenceExpected
 	) {
@@ -930,7 +1041,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Returns current entity schema.
 	 */
 	@Nonnull
-	EntitySchema getEntitySchema() {
+	public EntitySchema getEntitySchema() {
 		return this.schemaAccessor.get();
 	}
 
@@ -944,7 +1055,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param target    whether we want to index primary key of existing or new entity
 	 * @return primary key that should be indexed
 	 */
-	int getPrimaryKeyToIndex(@Nonnull IndexType indexType, @Nonnull Target target) {
+	public int getPrimaryKeyToIndex(@Nonnull IndexType indexType, @Nonnull Target target) {
 		isPremiseValid(!this.entityPrimaryKey.isEmpty(), "Should not ever happen.");
 		//noinspection ConstantConditions
 		return this.entityPrimaryKey.peek().applyAsInt(indexType, target);
@@ -969,7 +1080,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Method returns existing index or creates new and adds it to the changed set of indexes that needs persisting.
 	 */
 	@Nonnull
-	EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
+	public EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
 		this.accessedIndexes.add(entityIndexKey);
 		return this.entityIndexCreatingAccessor.getOrCreateIndex(entityIndexKey);
 	}
@@ -986,7 +1097,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @return the existing index, or `null` if no index exists for the given key
 	 */
 	@Nullable
-	EntityIndex getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
+	public EntityIndex getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
 		return this.entityIndexCreatingAccessor.getIndexIfExists(entityIndexKey);
 	}
 
@@ -1029,7 +1140,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method processes all mutations that targets entity attributes - e.g. {@link AttributeMutation}.
 	 */
-	void updateAttribute(
+	public void updateAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeMutation attributeMutation,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
@@ -1073,7 +1184,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @return An instance of ExistingDataSupplierFactory associated with the current storage part.
 	 */
 	@Nonnull
-	EntityStoragePartExistingDataFactory getStoragePartExistingDataFactory() {
+	public EntityStoragePartExistingDataFactory getStoragePartExistingDataFactory() {
 		if (this.storagePartExistingDataFactory == null) {
 			this.storagePartExistingDataFactory = new EntityStoragePartExistingDataFactory(
 				this.containerAccessor,
@@ -1313,123 +1424,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Applies a price mutation to the global index and all reference indexes.
-	 *
-	 * **Ordering invariant:** For removals (and upserts of non-indexed prices), reduced indexes must be updated
-	 * first because they consult the super index. For upserts, the global/super index must be updated first
-	 * because reduced indexes rely on information in the super index.
-	 */
-	private void applyPriceMutation(
-		@Nonnull PriceMutation priceMutation,
-		@Nonnull GlobalEntityIndex globalIndex
-	) {
-		// Price leaves on `PriceListAndCurrencyPriceRefIndex` are set-semantic: a duplicate add is a no-op
-		// and the first remove drains the bucket. When multiple references on the same entity resolve to
-		// the same shared `ReducedGroupEntityIndex` (e.g. two CATEGORY refs sharing a group + representative
-		// attribute values), a per-reference fanout would call `priceRemove` twice on the same bucket and
-		// throw `Price index for price list ... not found` on the second call. `forEachUniqueReferenceIndex`
-		// folds the N sibling-reference invocations into one per unique target index, matching the
-		// set-semantics of the leaves.
-		if (priceMutation instanceof RemovePriceMutation ||
-			// when new upserted price is not indexed, it is removed from indexes, so we need to behave like removal
-			(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isIndexed())) {
-			// removal must first occur on the reduced indexes, because they consult the super index
-			final ReferenceIndexConsumer priceRemovalConsumer =
-				(referenceSchema, indexForRemoval, indexForUpsert) -> updatePriceIndex(
-					referenceSchema, priceMutation, indexForRemoval, indexForUpsert
-				);
-			ReferenceIndexMutator.forEachUniqueReferenceIndex(
-				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceRemovalConsumer,
-				Functions.alwaysTrue(), true, ReferenceIndexMutator.IterationPath.BOTH
-			);
-			updatePriceIndex(null, priceMutation, globalIndex, globalIndex);
-		} else {
-			// upsert must first occur on super index, because reduced indexed rely on information in super index
-			updatePriceIndex(null, priceMutation, globalIndex, globalIndex);
-			final ReferenceIndexConsumer priceUpsertConsumer =
-				(referenceSchema, indexForRemoval, indexForUpsert) -> updatePriceIndex(
-					referenceSchema, priceMutation, indexForRemoval, indexForUpsert
-				);
-			ReferenceIndexMutator.forEachUniqueReferenceIndex(
-				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceUpsertConsumer,
-				Functions.alwaysTrue(), true, ReferenceIndexMutator.IterationPath.BOTH
-			);
-		}
-	}
-
-	/**
-	 * Applies a parent mutation to the global index and defers facet expression re-evaluation if needed.
-	 */
-	private void applyParentMutation(
-		@Nonnull ParentMutation parentMutation,
-		@Nonnull GlobalEntityIndex globalIndex
-	) {
-		updateHierarchyPlacement(parentMutation, globalIndex);
-		// defer re-evaluation to after storage write so expression reads updated parent
-		if (hasFacetExpressionTriggers()) {
-			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-			deferExpressionReEvaluation(
-				() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
-					globalIndex, this, entityPK,
-					FacetExpressionTrigger::usesParent
-				)
-			);
-		}
-	}
-
-	/**
-	 * Applies a reference mutation — updates the reference indexes, fans out to cross-reference indexes,
-	 * and defers facet/histogram expression re-evaluation for reference attribute changes.
-	 */
-	private void applyReferenceMutation(
-		@Nonnull ReferenceMutation<?> referenceMutation,
-		@Nonnull GlobalEntityIndex globalIndex
-	) {
-		final ReferenceKey referenceKey = referenceMutation.getReferenceKey();
-		final ReferenceSchemaContract referenceSchema =
-			getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
-		if (referenceSchema.isIndexedInScope(getScope())) {
-			updateReferences(referenceMutation, globalIndex);
-			final ReferenceIndexConsumer crossRefConsumer =
-				(theReferenceSchema, indexForRemoval, indexForUpsert) -> updateReferencesInReferenceIndex(
-					referenceMutation, theReferenceSchema, indexForRemoval, indexForUpsert
-				);
-			final Predicate<ReferenceContract> crossRefPredicate =
-				// avoid indexing the referenced index that got updated by updateReferences method
-				referenceContract -> !referenceKey.equalsInGeneral(referenceContract.getReferenceKey());
-			final boolean presenceExpected = !(referenceMutation instanceof InsertReferenceMutation);
-			// per-reference: facet add/remove is keyed by the individual reference key, so when N
-			// references share a single shared RGEI, each reference must still process its own facet
-			// bookkeeping for its own reference key (the consumer is a no-op for ReferenceAttributeMutation,
-			// and the other branches use the iterating reference's data, not entity-level state).
-			ReferenceIndexMutator.forEachReferenceIndex(
-				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
-				crossRefConsumer, crossRefPredicate, presenceExpected,
-				ReferenceIndexMutator.IterationPath.BOTH
-			);
-			// defer re-evaluation to after storage write so expression reads updated reference attributes
-			if (hasFacetExpressionTriggers() && referenceMutation instanceof ReferenceAttributeMutation ram) {
-				final String mutatedAttrName = ram.getAttributeKey().attributeName();
-				final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-				final String mutatedRefName = referenceKey.referenceName();
-				deferExpressionReEvaluation(
-					() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
-						globalIndex, this, entityPK,
-						trigger -> mutatedRefName.equals(trigger.getReferenceName())
-							&& trigger.getLocalReferenceAttributes().contains(mutatedAttrName)
-					)
-				);
-			}
-			// defer histogram re-evaluation for reference attribute changes
-			if (referenceMutation instanceof ReferenceAttributeMutation ram2) {
-				deferHistogramReEvaluationForReferenceAttribute(
-					referenceKey, ram2.getAttributeKey().attributeName(), getScope()
-				);
-			}
-		}
-	}
-
-	/**
 	 * Defers histogram re-evaluation when a reference attribute changes. For each histogram trigger that
 	 * references the changed attribute — either as the value source or in its condition expression — the
 	 * histogram bucket is removed and re-added with the updated attribute value.
@@ -1438,7 +1432,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * BEFORE deferral (while the storage still has pre-mutation data) and passed to the deferred lambda
 	 * for precise surgical removal. This avoids the O(references x buckets) full-reindex fallback.
 	 */
-	private void deferHistogramReEvaluationForReferenceAttribute(
+	public void deferHistogramReEvaluationForReferenceAttribute(
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull String changedAttribute,
 		@Nonnull Scope scope
@@ -1504,77 +1498,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		}
 	}
 
-	/**
-	 * Applies an attribute mutation to the global index, fans out to all reference indexes, and defers
-	 * facet expression re-evaluation if needed.
-	 */
-	private void applyAttributeMutation(
-		@Nonnull AttributeMutation attributeMutation,
-		@Nonnull GlobalEntityIndex globalIndex
-	) {
-		final ExistingAttributeValueSupplier entityAttributeValueSupplier =
-			getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier();
-		final QuadriConsumer<Boolean, EntityIndex, EntityIndex, ReferenceSchemaContract> attributeUpdateApplicator =
-			(updateGlobalIndex, indexForRemoval, indexForUpsert, theReferenceSchema) -> updateAttribute(
-				theReferenceSchema,
-				attributeMutation,
-				new EntitySchemaAttributeAndCompoundSchemaProvider(getEntitySchema()),
-				entityAttributeValueSupplier,
-				indexForRemoval,
-				indexForUpsert,
-				updateGlobalIndex,
-				true
-			);
-		final CatalogExpressionTriggerRegistry triggerRegistry = getCatalogExpressionTriggerRegistry();
-		// capture pre-mutation value and defer histogram re-evaluation for entity attribute changes
-		// — capture must happen before mutation; re-evaluation is deferred so placement is irrelevant
-		if (triggerRegistry != null) {
-			final String mutatedAttrName = attributeMutation.getAttributeKey().attributeName();
-			// capture pre-mutation value only when a cross-entity trigger depends on this specific attribute
-			// — avoids map allocation and supplier call for attributes that no trigger references
-			if (triggerRegistry.hasEntityAttributeTrigger(this.entityType, mutatedAttrName)) {
-				captureOldEntityAttributeValue(attributeMutation.getAttributeKey(), entityAttributeValueSupplier);
-			}
-			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-			deferExpressionReEvaluation(
-				() -> ReferenceIndexMutator.reEvaluateHistogramExpressionsInAllIndexes(
-					globalIndex, this, entityPK,
-					getStoragePartExistingDataFactory(),
-					trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
-				)
-			);
-		}
-		//noinspection DataFlowIssue
-		attributeUpdateApplicator.accept(true, globalIndex, globalIndex, null);
-		// Entity-level attribute mutations fan out to every reference reduced index. When multiple
-		// references on the same entity resolve to the same shared `ReducedGroupEntityIndex` (shared
-		// group + representative attribute values), the entity-level bookkeeping — indexed once per
-		// (entity, RGEI) pair by `ReferenceIndexMutator#indexAllEntityLevelAttributes` — would
-		// otherwise be decremented N times by N sibling references and underflow the
-		// `AttributeCardinalityIndex` counter. `forEachUniqueReferenceIndex` folds the N sibling-
-		// reference invocations into one per unique reduced index, matching the one-shot insert/remove
-		// gating performed by `ReducedGroupEntityIndex#insertPrimaryKeyIfMissing(int, int)`.
-		final ReferenceIndexConsumer attrConsumer =
-			(theReferenceSchema, indexForRemoval, indexForUpsert) -> attributeUpdateApplicator.accept(
-				false, indexForRemoval, indexForUpsert, theReferenceSchema
-			);
-		ReferenceIndexMutator.forEachUniqueReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
-			attrConsumer, Droppable::exists, true, ReferenceIndexMutator.IterationPath.BOTH
-		);
-		// defer re-evaluation to after storage write so expression reads updated attribute values
-		if (hasFacetExpressionTriggers()) {
-			final String mutatedAttrName = attributeMutation.getAttributeKey().attributeName();
-			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-			deferExpressionReEvaluation(
-				() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
-					globalIndex, this, entityPK,
-					trigger -> trigger.getLocalEntityAttributes().contains(mutatedAttrName)
-				)
-			);
-		}
-	}
-
 	/*
 		PRIVATE METHODS
 	 */
@@ -1587,7 +1510,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param attributeKey the attribute key identifying the mutated attribute
 	 * @param supplier     pre-mutation attribute value supplier (reads from storage parts before write)
 	 */
-	private void captureOldEntityAttributeValue(
+	public void captureOldEntityAttributeValue(
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull ExistingAttributeValueSupplier supplier
 	) {
@@ -1612,7 +1535,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param entity         the full entity whose attribute values should be captured
 	 * @param attributeNames the set of attribute names referenced by triggers (from registry)
 	 */
-	private void captureEntityAttributeValues(@Nonnull Entity entity, @Nonnull Set<String> attributeNames) {
+	public void captureEntityAttributeValues(@Nonnull Entity entity, @Nonnull Set<String> attributeNames) {
 		for (final AttributeValue attributeValue : entity.getAttributeValues()) {
 			if (!attributeNames.contains(attributeValue.key().attributeName())) {
 				continue;
@@ -1631,54 +1554,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					)
 					.putIfAbsent(attributeValue.key().locale(), value);
 			}
-		}
-	}
-
-	/**
-	 * Defers facet expression re-evaluation when associated data changes.
-	 */
-	private void applyAssociatedDataMutation(
-		@Nonnull AssociatedDataMutation associatedDataMutation,
-		@Nonnull GlobalEntityIndex globalIndex
-	) {
-		// defer re-evaluation to after storage write so expression reads updated associated data
-		if (hasFacetExpressionTriggers()) {
-			final String mutatedDataName = associatedDataMutation.getAssociatedDataKey().associatedDataName();
-			final int entityPK = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
-			deferExpressionReEvaluation(
-				() -> ReferenceIndexMutator.reEvaluateFacetExpressionsInAllIndexes(
-					globalIndex, this, entityPK,
-					trigger -> trigger.getLocalAssociatedData().contains(mutatedDataName)
-				)
-			);
-		}
-	}
-
-	/**
-	 * Applies an entity scope mutation — removes the entity from old scope indexes and adds it to the new scope.
-	 * Captures all entity attribute values BEFORE removing from old scope indexes so that cross-entity
-	 * histogram triggers can perform deterministic removal.
-	 */
-	private void applyEntityScopeMutation(@Nonnull SetEntityScopeMutation entityScopeMutation) {
-		final Entity entity = this.fullEntitySupplier.get();
-		if (entity.getScope() != entityScopeMutation.getScope()) {
-			// capture only the attribute values that cross-entity triggers actually reference
-			final CatalogExpressionTriggerRegistry registry = getCatalogExpressionTriggerRegistry();
-			if (registry != null) {
-				final Set<String> triggerAttributes = registry.getEntityAttributeNames(this.entityType);
-				if (!triggerAttributes.isEmpty()) {
-					captureEntityAttributeValues(entity, triggerAttributes);
-				}
-			}
-			// remove the entity from the indexes
-			Assert.isPremiseValid(
-				Objects.equals(entity.getScope(), getScope()),
-				"Scope between entity and latest entity body container must be the same!"
-			);
-			removeEntityFromIndexes(entity, entity.getScope());
-			addEntityToIndexes(entity, entityScopeMutation.getScope());
-			// reset memoized scope, it has just changed
-			this.memoizedScope = entityScopeMutation.getScope();
 		}
 	}
 
@@ -2105,7 +1980,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param entity entity to be removed
 	 * @param scope  scope of the entity
 	 */
-	private void removeEntityFromIndexes(@Nonnull Entity entity, @Nonnull Scope scope) {
+	public void removeEntityFromIndexes(@Nonnull Entity entity, @Nonnull Scope scope) {
 		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) getOrCreateIndex(
 			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 		);
@@ -2374,7 +2249,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param entity entity to be added
 	 * @param scope  scope of the entity
 	 */
-	private void addEntityToIndexes(@Nonnull Entity entity, @Nonnull Scope scope) {
+	public void addEntityToIndexes(@Nonnull Entity entity, @Nonnull Scope scope) {
 		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) getOrCreateIndex(
 			new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 		);
@@ -2726,7 +2601,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * - {@link InsertReferenceMutation} → {@link #updateReferenceOnInsert}
 	 * - {@link RemoveReferenceMutation} → {@link #updateReferenceOnRemoval}
 	 */
-	private void updateReferences(
+	public void updateReferences(
 		@Nonnull ReferenceMutation<?> referenceMutation,
 		@Nonnull GlobalEntityIndex entityIndex
 	) {
@@ -3301,7 +3176,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * except the referenced entity index that directly connects to {@link ReferenceMutation#getReferenceKey()} because
 	 * this is altered in {@link #updateReferences(ReferenceMutation, GlobalEntityIndex)} method.
 	 */
-	private void updateReferencesInReferenceIndex(
+	public void updateReferencesInReferenceIndex(
 		@Nonnull ReferenceMutation<?> referenceMutation,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex indexForRemoval,
@@ -3354,7 +3229,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method switches inner handling strategy for the entity - e.g. {@link SetPriceInnerRecordHandlingMutation}
 	 */
-	private void updatePriceHandlingForEntity(
+	public void updatePriceHandlingForEntity(
 		@Nonnull SetPriceInnerRecordHandlingMutation priceHandlingMutation,
 		@Nonnull GlobalEntityIndex index
 	) {
@@ -3428,7 +3303,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Method processes all mutations that targets entity prices - e.g. {@link PriceMutation}.
 	 */
-	private void updatePriceIndex(
+	public void updatePriceIndex(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull PriceMutation priceMutation,
 		@Nonnull EntityIndex indexForRemoval,
@@ -3481,7 +3356,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Method processes all mutations that targets hierarchy placement - e.g. {@link SetParentMutation}
 	 * and {@link RemoveParentMutation}.
 	 */
-	private void updateHierarchyPlacement(@Nonnull ParentMutation parentMutation, @Nonnull EntityIndex index) {
+	public void updateHierarchyPlacement(@Nonnull ParentMutation parentMutation, @Nonnull EntityIndex index) {
 		if (parentMutation instanceof final SetParentMutation setMutation) {
 			setParent(
 				this, index,
