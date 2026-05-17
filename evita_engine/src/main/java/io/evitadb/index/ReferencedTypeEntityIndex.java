@@ -55,6 +55,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -454,7 +455,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * both of the indexed primary key and the referenced primary key.
 	 */
 	public boolean insertPrimaryKeyIfMissing(int indexPrimaryKey, int referencedEntityPrimaryKey) {
-		if (this.indexPrimaryKeyCardinality.addRecord(indexPrimaryKey, referencedEntityPrimaryKey)) {
+		if (this.indexPrimaryKeyCardinality.addRecord(indexPrimaryKey, referencedEntityPrimaryKey) == CardinalityChange.BOUNDARY_CROSSED) {
 			super.insertPrimaryKeyIfMissing(indexPrimaryKey);
 		}
 		return true;
@@ -477,7 +478,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * both of the indexed primary key and the referenced primary key.
 	 */
 	public boolean removePrimaryKey(int indexPrimaryKey, int referencedEntityPrimaryKey) {
-		if (this.indexPrimaryKeyCardinality.removeRecord(indexPrimaryKey, referencedEntityPrimaryKey)) {
+		if (this.indexPrimaryKeyCardinality.removeRecord(indexPrimaryKey, referencedEntityPrimaryKey) == CardinalityChange.BOUNDARY_CROSSED) {
 			super.removePrimaryKey(indexPrimaryKey);
 		}
 		return true;
@@ -522,7 +523,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			final Serializable[] onlyNewItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyNewItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.addRecord(valueItem, recordId)) {
+				if (theCardinalityIndex.addRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyNewItemsValueArray[onlyNewItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -535,7 +536,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
-			if (theCardinalityIndex.addRecord(value, recordId)) {
+			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.insertFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
 					value, recordId
@@ -566,7 +567,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			final Serializable[] onlyRemovedItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyRemovedItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.removeRecord(valueItem, recordId)) {
+				if (theCardinalityIndex.removeRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyRemovedItemsValueArray[onlyRemovedItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -579,7 +580,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
-			if (theCardinalityIndex.removeRecord(value, recordId)) {
+			if (theCardinalityIndex.removeRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.removeFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
 					value, recordId

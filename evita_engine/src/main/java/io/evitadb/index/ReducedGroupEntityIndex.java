@@ -55,6 +55,7 @@ import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
@@ -492,14 +493,15 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * @param entityPrimaryKey           the primary key of the owning entity
 	 * @param referencedEntityPrimaryKey the primary key of the referenced entity whose reference leads to
 	 *                                   this group
-	 * @return `true` only when this insert causes the entity to enter the index for the first time
-	 * (cardinality 0 -> 1); `false` for subsequent inserts from other references that already had the
-	 * entity registered. Callers use the return value to gate entity-level one-shot bookkeeping (prices,
-	 * entity attributes, entity locales) so that data shared across all references resolving to this
-	 * group index is indexed exactly once per (entity, RGEI) pair. Per-reference data (facet entries,
-	 * reference attributes) is unaffected and must continue to be indexed on every call.
+	 * @return `BOUNDARY_CROSSED` only when this insert causes the entity to enter the index for the first
+	 * time (cardinality 0 -> 1); `NO_BOUNDARY_CROSSING` for subsequent inserts from other references that
+	 * already had the entity registered. Callers use the return value to gate entity-level one-shot
+	 * bookkeeping (prices, entity attributes, entity locales) so that data shared across all references
+	 * resolving to this group index is indexed exactly once per (entity, RGEI) pair. Per-reference data
+	 * (facet entries, reference attributes) is unaffected and must continue to be indexed on every call.
 	 */
-	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey, int referencedEntityPrimaryKey) {
+	@Nonnull
+	public CardinalityChange insertPrimaryKeyIfMissing(int entityPrimaryKey, int referencedEntityPrimaryKey) {
 		// track the referenced entity -> entity PK mapping
 		TransactionalBitmap bitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
 		if (bitmap == null) {
@@ -515,9 +517,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		// only add to the bitmap on the first occurrence
 		if (newCount == 1) {
 			super.insertPrimaryKeyIfMissing(entityPrimaryKey);
-			return true;
+			return CardinalityChange.BOUNDARY_CROSSED;
 		}
-		return false;
+		return CardinalityChange.NO_BOUNDARY_CROSSING;
 	}
 
 	/**
@@ -539,14 +541,15 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * @param entityPrimaryKey           the primary key of the owning entity
 	 * @param referencedEntityPrimaryKey the primary key of the referenced entity whose reference leads to
 	 *                                   this group
-	 * @return `true` only when this removal causes the entity to leave the index entirely (cardinality
-	 * 1 -> 0); `false` for earlier removals that still leave other references contributing. Callers use
-	 * the return value to gate entity-level one-shot cleanup (prices, entity attributes, entity locales)
-	 * so that data shared across all references resolving to this group index is de-indexed exactly once
-	 * per (entity, RGEI) pair. Per-reference data (facet entries, reference attributes) is unaffected
-	 * and must continue to be de-indexed on every call.
+	 * @return `BOUNDARY_CROSSED` only when this removal causes the entity to leave the index entirely
+	 * (cardinality 1 -> 0); `NO_BOUNDARY_CROSSING` for earlier removals that still leave other references
+	 * contributing. Callers use the return value to gate entity-level one-shot cleanup (prices, entity
+	 * attributes, entity locales) so that data shared across all references resolving to this group index
+	 * is de-indexed exactly once per (entity, RGEI) pair. Per-reference data (facet entries, reference
+	 * attributes) is unaffected and must continue to be de-indexed on every call.
 	 */
-	public boolean removePrimaryKey(int entityPrimaryKey, int referencedEntityPrimaryKey) {
+	@Nonnull
+	public CardinalityChange removePrimaryKey(int entityPrimaryKey, int referencedEntityPrimaryKey) {
 		// remove the referenced entity -> entity PK mapping
 		final TransactionalBitmap bitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
 		Assert.isPremiseValid(
@@ -575,9 +578,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		if (newCount == 0) {
 			this.pkCardinalities.remove(entityPrimaryKey);
 			super.removePrimaryKey(entityPrimaryKey);
-			return true;
+			return CardinalityChange.BOUNDARY_CROSSED;
 		}
-		return false;
+		return CardinalityChange.NO_BOUNDARY_CROSSING;
 	}
 
 	@Override
@@ -604,7 +607,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			);
 			int onlyNewItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.addRecord(valueItem, recordId)) {
+				if (theCardinalityIndex.addRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyNewItemsValueArray[onlyNewItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -618,7 +621,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
-			if (theCardinalityIndex.addRecord(value, recordId)) {
+			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				delegateInsertFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale, value, recordId
 				);
@@ -653,7 +656,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			);
 			int onlyRemovedItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.removeRecord(valueItem, recordId)) {
+				if (theCardinalityIndex.removeRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyRemovedItemsValueArray[onlyRemovedItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -667,7 +670,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
-			if (theCardinalityIndex.removeRecord(value, recordId)) {
+			if (theCardinalityIndex.removeRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				delegateRemoveFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale, value, recordId
 				);

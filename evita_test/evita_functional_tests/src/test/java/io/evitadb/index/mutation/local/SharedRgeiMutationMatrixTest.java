@@ -41,6 +41,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -157,11 +158,11 @@ class SharedRgeiMutationMatrixTest {
 			assertTrue(SharedRgeiMutationMatrixTest.this.sharedRgei.isEmpty());
 
 			// when R1 is added
-			final boolean firstAdd = SharedRgeiMutationMatrixTest.this.sharedRgei
+			final CardinalityChange firstAdd = SharedRgeiMutationMatrixTest.this.sharedRgei
 				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
 
-			// then the 0->1 boundary fires true and entity becomes visible
-			assertTrue(firstAdd, "First add must signal 0->1 transition");
+			// then the 0->1 boundary fires and entity becomes visible
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, firstAdd, "First add must signal 0->1 transition");
 			final Bitmap visible = SharedRgeiMutationMatrixTest.this.sharedRgei.getAllPrimaryKeys();
 			assertEquals(1, visible.size());
 			assertTrue(visible.contains(ENTITY_PK));
@@ -175,14 +176,16 @@ class SharedRgeiMutationMatrixTest {
 				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
 
 			// when sibling references R2 and R3 are added
-			final boolean secondAdd = SharedRgeiMutationMatrixTest.this.sharedRgei
+			final CardinalityChange secondAdd = SharedRgeiMutationMatrixTest.this.sharedRgei
 				.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
-			final boolean thirdAdd = SharedRgeiMutationMatrixTest.this.sharedRgei
+			final CardinalityChange thirdAdd = SharedRgeiMutationMatrixTest.this.sharedRgei
 				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
 
-			// then sibling adds must return false so callers skip duplicate entity-level work
-			assertFalse(secondAdd, "Sibling add must signal NO transition (entity already present)");
-			assertFalse(thirdAdd, "Sibling add must signal NO transition (entity already present)");
+			// then sibling adds must signal NO_BOUNDARY_CROSSING so callers skip duplicate entity-level work
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, secondAdd,
+				"Sibling add must signal NO transition (entity already present)");
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, thirdAdd,
+				"Sibling add must signal NO transition (entity already present)");
 
 			// and the entity appears exactly once in the visible bitmap
 			final Bitmap visible = SharedRgeiMutationMatrixTest.this.sharedRgei.getAllPrimaryKeys();
@@ -221,11 +224,12 @@ class SharedRgeiMutationMatrixTest {
 				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
 
 			// when R1 is removed
-			final boolean firstRemove = SharedRgeiMutationMatrixTest.this.sharedRgei
+			final CardinalityChange firstRemove = SharedRgeiMutationMatrixTest.this.sharedRgei
 				.removePrimaryKey(ENTITY_PK, R1_REFERENCED_PK);
 
 			// then NO transition fires (R2, R3 keep it alive); entity stays visible
-			assertFalse(firstRemove, "Partial remove must signal NO transition (siblings still hold it)");
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, firstRemove,
+				"Partial remove must signal NO transition (siblings still hold it)");
 			final Bitmap visible = SharedRgeiMutationMatrixTest.this.sharedRgei.getAllPrimaryKeys();
 			assertEquals(1, visible.size());
 			assertTrue(visible.contains(ENTITY_PK));
@@ -264,17 +268,20 @@ class SharedRgeiMutationMatrixTest {
 				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
 
 			// when references are removed one by one
-			final boolean removeR1 = SharedRgeiMutationMatrixTest.this.sharedRgei
+			final CardinalityChange removeR1 = SharedRgeiMutationMatrixTest.this.sharedRgei
 				.removePrimaryKey(ENTITY_PK, R1_REFERENCED_PK);
-			final boolean removeR2 = SharedRgeiMutationMatrixTest.this.sharedRgei
+			final CardinalityChange removeR2 = SharedRgeiMutationMatrixTest.this.sharedRgei
 				.removePrimaryKey(ENTITY_PK, R2_REFERENCED_PK);
-			final boolean removeR3 = SharedRgeiMutationMatrixTest.this.sharedRgei
+			final CardinalityChange removeR3 = SharedRgeiMutationMatrixTest.this.sharedRgei
 				.removePrimaryKey(ENTITY_PK, R3_REFERENCED_PK);
 
 			// then only the LAST removal fires the 1->0 transition
-			assertFalse(removeR1, "Intermediate remove must not signal transition");
-			assertFalse(removeR2, "Intermediate remove must not signal transition");
-			assertTrue(removeR3, "Last remove must signal 1->0 transition");
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, removeR1,
+				"Intermediate remove must not signal transition");
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, removeR2,
+				"Intermediate remove must not signal transition");
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, removeR3,
+				"Last remove must signal 1->0 transition");
 
 			// and the entity is gone from the visible bitmap
 			assertTrue(SharedRgeiMutationMatrixTest.this.sharedRgei.getAllPrimaryKeys().isEmpty());
@@ -587,7 +594,8 @@ class SharedRgeiMutationMatrixTest {
 			final Set<Locale> noLocales = Collections.emptySet();
 
 			// 1) add R1 — entity enters RGEI
-			assertTrue(
+			assertEquals(
+				CardinalityChange.BOUNDARY_CROSSED,
 				SharedRgeiMutationMatrixTest.this.sharedRgei
 					.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK),
 				"R1 add must be the 0->1 transition"
@@ -597,7 +605,8 @@ class SharedRgeiMutationMatrixTest {
 			);
 
 			// 2) add R2 — entity already present (no transition)
-			assertFalse(
+			assertEquals(
+				CardinalityChange.NO_BOUNDARY_CROSSING,
 				SharedRgeiMutationMatrixTest.this.sharedRgei
 					.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK),
 				"R2 add must NOT signal a transition"
@@ -615,14 +624,16 @@ class SharedRgeiMutationMatrixTest {
 			final int internalPriceId = addEntityPriceToSuperAndShared(7);
 
 			// 5) add R3 — still no transition
-			assertFalse(
+			assertEquals(
+				CardinalityChange.NO_BOUNDARY_CROSSING,
 				SharedRgeiMutationMatrixTest.this.sharedRgei
 					.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK),
 				"R3 add must NOT signal a transition"
 			);
 
 			// 6) remove R1 — still no transition (R2, R3 hold it)
-			assertFalse(
+			assertEquals(
+				CardinalityChange.NO_BOUNDARY_CROSSING,
 				SharedRgeiMutationMatrixTest.this.sharedRgei
 					.removePrimaryKey(ENTITY_PK, R1_REFERENCED_PK),
 				"R1 remove must NOT signal a transition"
@@ -632,7 +643,8 @@ class SharedRgeiMutationMatrixTest {
 			removeEntityPriceFromShared(internalPriceId, 7);
 
 			// 8) remove R2 — still no transition (R3 still holds it)
-			assertFalse(
+			assertEquals(
+				CardinalityChange.NO_BOUNDARY_CROSSING,
 				SharedRgeiMutationMatrixTest.this.sharedRgei
 					.removePrimaryKey(ENTITY_PK, R2_REFERENCED_PK),
 				"R2 remove must NOT signal a transition"
@@ -644,7 +656,8 @@ class SharedRgeiMutationMatrixTest {
 			);
 
 			// 10) remove R3 — finally the 1->0 transition fires
-			assertTrue(
+			assertEquals(
+				CardinalityChange.BOUNDARY_CROSSED,
 				SharedRgeiMutationMatrixTest.this.sharedRgei
 					.removePrimaryKey(ENTITY_PK, R3_REFERENCED_PK),
 				"R3 remove (last sibling) must signal 1->0 transition"

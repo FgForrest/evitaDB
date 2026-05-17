@@ -82,6 +82,7 @@ module evita.engine {
 	exports io.evitadb.index.price.model;
 	exports io.evitadb.index.price.model.priceRecord;
 	exports io.evitadb.index.range;
+	exports io.evitadb.index.result;
 	exports io.evitadb.index.relation;
 	exports io.evitadb.index.reference;
 	exports io.evitadb.index.facet;

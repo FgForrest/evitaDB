@@ -27,6 +27,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -121,31 +122,31 @@ class ReferenceTypeCardinalityIndexTest {
 	class AddRecordTest {
 
 		@Test
-		@DisplayName("returns true on first add for given indexPk")
+		@DisplayName("returns BOUNDARY_CROSSED on first add for given indexPk")
 		void shouldReturnTrueOnFirstAdd() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
-			assertTrue(index.addRecord(1, 100));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord(1, 100));
 		}
 
 		@Test
 		@DisplayName(
-			"returns false on second add for same indexPk"
+			"returns NO_BOUNDARY_CROSSING on second add for same indexPk"
 		)
 		void shouldReturnFalseOnSecondAdd() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
-			assertFalse(index.addRecord(1, 200));
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.addRecord(1, 200));
 		}
 
 		@Test
-		@DisplayName("returns true when new indexPk is added")
+		@DisplayName("returns BOUNDARY_CROSSED when new indexPk is added")
 		void shouldReturnTrueForNewIndexPk() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
-			assertTrue(index.addRecord(2, 100));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord(2, 100));
 		}
 
 		@Test
@@ -155,9 +156,9 @@ class ReferenceTypeCardinalityIndexTest {
 		void shouldTrackMultipleReferencedPks() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
-			assertTrue(index.addRecord(1, 100));
-			assertFalse(index.addRecord(1, 200));
-			assertFalse(index.addRecord(1, 300));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord(1, 100));
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.addRecord(1, 200));
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.addRecord(1, 300));
 			// all three referenced PKs should be tracked
 			assertArrayEquals(
 				new int[]{1},
@@ -195,25 +196,25 @@ class ReferenceTypeCardinalityIndexTest {
 	class RemoveRecordTest {
 
 		@Test
-		@DisplayName("returns true when indexPk fully evicted")
+		@DisplayName("returns BOUNDARY_CROSSED when indexPk fully evicted")
 		void shouldReturnTrueWhenFullyEvicted() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
-			assertTrue(index.removeRecord(1, 100));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.removeRecord(1, 100));
 			assertTrue(index.isEmpty());
 		}
 
 		@Test
 		@DisplayName(
-			"returns false when indexPk still has other referencedPks"
+			"returns NO_BOUNDARY_CROSSING when indexPk still has other referencedPks"
 		)
 		void shouldReturnFalseWhenStillPresent() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
 			index.addRecord(1, 200);
-			assertFalse(index.removeRecord(1, 100));
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.removeRecord(1, 100));
 			assertFalse(index.isEmpty());
 		}
 	}

@@ -66,6 +66,7 @@ import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier
 import io.evitadb.index.mutation.local.dataAccess.ExistingDataSupplierFactory;
 import io.evitadb.index.mutation.local.dataAccess.ExistingPriceSupplier;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
@@ -793,7 +794,8 @@ public interface ReferenceIndexMutator {
 			// references contributing to the same group still need per-reference indexing (facets,
 			// reference attributes) but must skip entity-level data that was already populated
 			final boolean entityFirstIndexedInTargetIndex =
-				rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey());
+				rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
+					== CardinalityChange.BOUNDARY_CROSSED;
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
@@ -978,7 +980,8 @@ public interface ReferenceIndexMutator {
 			// the same (entity, RGEI) pair still need per-reference cleanup (facets, reference
 			// attributes) but must skip entity-level data that other references still rely on
 			final boolean entityFullyRemovedFromTargetIndex =
-				rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey());
+				rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
+					== CardinalityChange.BOUNDARY_CROSSED;
 			if (undoActionConsumer != null) {
 				undoActionConsumer.accept(
 					() -> rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
