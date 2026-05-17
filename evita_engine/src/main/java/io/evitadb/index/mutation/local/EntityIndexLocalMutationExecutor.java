@@ -1322,13 +1322,25 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull PriceMutation priceMutation,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
+		// Multiple references on the same entity may resolve to the same reduced (or reduced-group) entity index
+		// (e.g. when two CATEGORY refs share the same group + representative attribute values). The leaf
+		// add/remove primitives on `PriceListAndCurrencyPriceRefIndex` are set-semantic: a duplicate add is a no-op,
+		// and the first remove drains the bucket. Without per-index deduplication the second iteration would call
+		// `priceRemove` on a bucket that the first call already destroyed via `removeExistingIndex`, throwing
+		// `Price index for price list ... not found`. Deduplicating by index identity makes the price fanout fire
+		// exactly once per unique reduced index, matching the set-semantics of the leaves.
+		/* TODO JNO - this is architecturally bad, needs rearchitecting */
+		final java.util.IdentityHashMap<AbstractReducedEntityIndex, Boolean> visitedIndexes = new IdentityHashMap<>();
 		if (priceMutation instanceof RemovePriceMutation ||
 			// when new upserted price is not indexed, it is removed from indexes, so we need to behave like removal
 			(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isIndexed())) {
 			// removal must first occur on the reduced indexes, because they consult the super index
 			final ReferenceIndexConsumer priceRemovalConsumer =
-				(referenceSchema, indexForRemoval, indexForUpsert) ->
-					updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert);
+				(referenceSchema, indexForRemoval, indexForUpsert) -> {
+					if (visitedIndexes.put(indexForRemoval, Boolean.TRUE) == null) {
+						updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert);
+					}
+				};
 			ReferenceIndexMutator.executeWithAllReferenceIndexes(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceRemovalConsumer, true
 			);
@@ -1337,8 +1349,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			// upsert must first occur on super index, because reduced indexed rely on information in super index
 			updatePriceIndex(null, priceMutation, globalIndex, globalIndex);
 			final ReferenceIndexConsumer priceUpsertConsumer =
-				(referenceSchema, indexForRemoval, indexForUpsert) ->
-					updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert);
+				(referenceSchema, indexForRemoval, indexForUpsert) -> {
+					if (visitedIndexes.put(indexForUpsert, Boolean.TRUE) == null) {
+						updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert);
+					}
+				};
 			ReferenceIndexMutator.executeWithAllReferenceIndexes(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceUpsertConsumer, true
 			);
@@ -1529,9 +1544,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		}
 		//noinspection DataFlowIssue
 		attributeUpdateApplicator.accept(true, globalIndex, globalIndex, null);
+		// Entity-level attribute mutations fan out to every reference reduced index. When multiple
+		// references on the same entity resolve to the same group reduced index (shared group +
+		// representative attribute values) the bookkeeping for entity-level data — indexed once per
+		// (entity, RGEI) pair by {@link ReferenceIndexMutator#indexAllEntityLevelAttributes} — would
+		// otherwise be decremented N times by N sibling references and underflow the
+		// {@link AttributeCardinalityIndex} counter. Deduplicating the fanout by index identity makes
+		// the entity-attribute update fire exactly once per unique reduced index, matching the
+		// one-shot insert/remove gating performed by
+		// {@link ReducedGroupEntityIndex#insertPrimaryKeyIfMissing(int, int)}.
+		/* TODO JNO - this is architecturally bad - needs reachitecting */
+		final java.util.IdentityHashMap<EntityIndex, Boolean> visitedIndexes = new IdentityHashMap<>();
 		final ReferenceIndexConsumer attrConsumer =
-			(theReferenceSchema, indexForRemoval, indexForUpsert) ->
-				attributeUpdateApplicator.accept(false, indexForRemoval, indexForUpsert, theReferenceSchema);
+			(theReferenceSchema, indexForRemoval, indexForUpsert) -> {
+				if (visitedIndexes.put(indexForRemoval, Boolean.TRUE) == null) {
+					attributeUpdateApplicator.accept(false, indexForRemoval, indexForUpsert, theReferenceSchema);
+				}
+			};
 		ReferenceIndexMutator.executeWithAllReferenceIndexes(
 			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
 			attrConsumer, Droppable::exists, true

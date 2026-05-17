@@ -411,10 +411,29 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Set<PriceIndexKey> priceIndexKeys,
 		@Nonnull Set<String> facetIndexReferencedEntities
 	) {
+		// the base class collects UNIQUE, FILTER, SORT, CHAIN keys from AttributeIndex — we must
+		// also include CARDINALITY keys so they appear in the EntityIndexStoragePart manifest and
+		// are loaded back during catalog restart
+		final Set<AttributeIndexStorageKey> allAttributeKeys;
+		if (this.cardinalityIndexes.isEmpty()) {
+			allAttributeKeys = attributeIndexStorageKeys;
+		} else {
+			allAttributeKeys = CollectionUtils.createHashSet(
+				attributeIndexStorageKeys.size() + this.cardinalityIndexes.size()
+			);
+			allAttributeKeys.addAll(attributeIndexStorageKeys);
+			for (AttributeIndexKey key : this.cardinalityIndexes.keySet()) {
+				allAttributeKeys.add(
+					new AttributeIndexStorageKey(
+						this.indexKey, AttributeIndexType.CARDINALITY, key
+					)
+				);
+			}
+		}
 		return new EntityIndexStoragePart(
 			this.primaryKey, this.version, this.indexKey,
 			this.entityIds, this.entityIdsByLanguage,
-			attributeIndexStorageKeys,
+			allAttributeKeys,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
@@ -468,7 +487,12 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * @param entityPrimaryKey           the primary key of the owning entity
 	 * @param referencedEntityPrimaryKey the primary key of the referenced entity whose reference leads to
 	 *                                   this group
-	 * @return always true (for API compatibility with {@link ReferencedTypeEntityIndex})
+	 * @return `true` only when this insert causes the entity to enter the index for the first time
+	 * (cardinality 0 -> 1); `false` for subsequent inserts from other references that already had the
+	 * entity registered. Callers use the return value to gate entity-level one-shot bookkeeping (prices,
+	 * entity attributes, entity locales) so that data shared across all references resolving to this
+	 * group index is indexed exactly once per (entity, RGEI) pair. Per-reference data (facet entries,
+	 * reference attributes) is unaffected and must continue to be indexed on every call.
 	 */
 	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey, int referencedEntityPrimaryKey) {
 		// track the referenced entity -> entity PK mapping
@@ -486,8 +510,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		// only add to the bitmap on the first occurrence
 		if (newCount == 1) {
 			super.insertPrimaryKeyIfMissing(entityPrimaryKey);
+			return true;
 		}
-		return true;
+		return false;
 	}
 
 	/**
@@ -509,7 +534,12 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * @param entityPrimaryKey           the primary key of the owning entity
 	 * @param referencedEntityPrimaryKey the primary key of the referenced entity whose reference leads to
 	 *                                   this group
-	 * @return always true (for API compatibility with {@link ReferencedTypeEntityIndex})
+	 * @return `true` only when this removal causes the entity to leave the index entirely (cardinality
+	 * 1 -> 0); `false` for earlier removals that still leave other references contributing. Callers use
+	 * the return value to gate entity-level one-shot cleanup (prices, entity attributes, entity locales)
+	 * so that data shared across all references resolving to this group index is de-indexed exactly once
+	 * per (entity, RGEI) pair. Per-reference data (facet entries, reference attributes) is unaffected
+	 * and must continue to be de-indexed on every call.
 	 */
 	public boolean removePrimaryKey(int entityPrimaryKey, int referencedEntityPrimaryKey) {
 		// remove the referenced entity -> entity PK mapping
@@ -540,8 +570,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		if (newCount == 0) {
 			this.pkCardinalities.remove(entityPrimaryKey);
 			super.removePrimaryKey(entityPrimaryKey);
+			return true;
 		}
-		return true;
+		return false;
 	}
 
 	@Override
