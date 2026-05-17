@@ -70,13 +70,13 @@ import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccess
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.Functions;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -119,9 +119,14 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  *
  * ## Method groups
  *
- * **Index traversal helpers** — `executeWithReferenceIndexes`, `executeWithGroupReferenceIndexes`,
- * `executeWithAllReferenceIndexes`: iterate all existing references of the current entity and invoke a
- * {@link ReferenceIndexConsumer} callback with the appropriate {@link AbstractReducedEntityIndex}.
+ * **Index traversal helpers** — `forEachReferenceIndex`, `forEachUniqueReferenceIndex`: iterate all
+ * existing references of the current entity and invoke a {@link ReferenceIndexConsumer} callback
+ * with the appropriate {@link AbstractReducedEntityIndex}. Both modes accept an
+ * {@link IterationPath} that selects whether the entity-level path (`REFERENCED_ENTITY`), the
+ * group-level path (`REFERENCED_GROUP_ENTITY`), or both are traversed. The "unique" mode dedups
+ * consumer invocations by {@link AbstractReducedEntityIndex} identity, so callers performing
+ * per-target-index work fire exactly once per unique target index even when N references share a
+ * single underlying {@link ReducedGroupEntityIndex}.
  *
  * **Index accessor helpers** — `getOrCreate*Index`, `get*IndexKey`: return (creating if absent) the
  * specific {@link EntityIndex} for a given reference name, scope, and primary key.
@@ -155,60 +160,126 @@ import static io.evitadb.utils.Assert.isPremiseValid;
 public interface ReferenceIndexMutator {
 
 	/**
-	 * Iterates all currently stored references and invokes `referenceIndexConsumer` for each reference that exists
-	 * and whose schema is configured for at least the given `indexType` level in the current scope.
+	 * Selects which reduced-index family the traversal helpers visit.
 	 *
-	 * Convenience overload that accepts all references (no predicate filtering). Delegates to
-	 * {@link #executeWithReferenceIndexes(ReferenceIndexType, EntityIndexLocalMutationExecutor, ReferenceIndexConsumer,
-	 * Predicate, boolean)}.
-	 *
-	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                  the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer    callback invoked with the reference schema and the matching
-	 *                                  {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
-	 *                                  and `indexForUpsert`)
-	 * @param referencePresenceExpected whether the referenced entity's primary key is expected to already be present
-	 *                                  in the index (used to resolve the correct {@link RepresentativeReferenceKey})
+	 * - `REDUCED_ENTITY` visits only the per-reference {@link EntityIndexType#REFERENCED_ENTITY} indexes.
+	 * - `GROUP` visits only the per-group {@link EntityIndexType#REFERENCED_GROUP_ENTITY} indexes.
+	 * - `BOTH` visits the entity path first, then the group path — several callers implicitly
+	 *   rely on this ordering.
 	 */
-	static void executeWithReferenceIndexes(
+	enum IterationPath {
+		/** Per-reference {@link EntityIndexType#REFERENCED_ENTITY} indexes only. */
+		REDUCED_ENTITY,
+		/** Per-group {@link EntityIndexType#REFERENCED_GROUP_ENTITY} indexes only. */
+		GROUP,
+		/** Entity path then group path, in that order. */
+		BOTH
+	}
+
+	/**
+	 * Iterates all currently stored references on the active entity and fires the consumer **once per
+	 * qualifying reference**, even when N references resolve to the same shared
+	 * {@link ReducedGroupEntityIndex} (RGEI). Use this mode when the work performed by the consumer is
+	 * intrinsically per-reference — facet add/remove keyed by individual reference key, sortable
+	 * attribute compounds, and similar bookkeeping that is parameterised by the iterating reference.
+	 *
+	 * Callers whose work targets entity-level state on a shared RGEI (entity-level attribute
+	 * cardinality, price set-semantic leaves, locale tracking) must use
+	 * {@link #forEachUniqueReferenceIndex} instead — otherwise N sibling references would underflow
+	 * counters or destroy buckets on second iteration.
+	 *
+	 * The consumer is invoked with the resolved {@link AbstractReducedEntityIndex} passed as both
+	 * `indexForRemoval` and `indexForUpsert` (the iterators never perform a representative-key
+	 * migration; only `attributeUpdate` does that, outside this iterator API).
+	 *
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to qualify
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked for each qualifying reference
+	 * @param referencePredicate        additional filter applied after the schema-level check; use
+	 *                                  `Functions.alwaysTrue()` to accept all matching references
+	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already
+	 *                                  be present in the index (used to resolve the correct
+	 *                                  {@link RepresentativeReferenceKey})
+	 * @param path                      which path(s) to traverse — see {@link IterationPath}
+	 */
+	static void forEachReferenceIndex(
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
-		boolean referencePresenceExpected
+		@Nonnull Predicate<ReferenceContract> referencePredicate,
+		boolean referencePresenceExpected,
+		@Nonnull IterationPath path
 	) {
-		executeWithReferenceIndexes(
-			indexType,
-			executor,
-			referenceIndexConsumer,
-			Functions.alwaysTrue(),
-			referencePresenceExpected
+		if (path == IterationPath.REDUCED_ENTITY || path == IterationPath.BOTH) {
+			iterateReducedEntityPath(
+				indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
+			);
+		}
+		if (path == IterationPath.GROUP || path == IterationPath.BOTH) {
+			iterateGroupPath(
+				indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
+			);
+		}
+	}
+
+	/**
+	 * Iterates all currently stored references and fires the consumer **at most once per unique
+	 * {@link AbstractReducedEntityIndex} Java instance**. When N references on the same entity resolve
+	 * to the same shared {@link ReducedGroupEntityIndex} (typical for ZERO_OR_MORE references sharing
+	 * a group + representative attribute values), the consumer fires exactly once for that target
+	 * index — not N times. The iterator owns the identity dedup; callers no longer need a defensive
+	 * `IdentityHashMap` wrapper.
+	 *
+	 * Use this mode when the work performed by the consumer is entity-scoped relative to the shared
+	 * RGEI: entity-level attribute cardinality bookkeeping (set-semantic leaves), entity-level price
+	 * index entries (single bucket per price list), locale tracking, and similar one-shot operations.
+	 * Per-reference work (facets, reference-level attributes, sortable compounds) must use
+	 * {@link #forEachReferenceIndex} instead so each reference gets its own invocation.
+	 *
+	 * Identity is established by {@link System#identityHashCode} via an internal
+	 * {@link IdentityHashMap}; the dedup spans both paths when `path == BOTH`, so an REI visited first
+	 * and a shared RGEI visited later both contribute one invocation per unique instance.
+	 *
+	 * Apart from the dedup wrapper, the semantics — including the predicate filter, group-presence
+	 * filter, and entity-path-before-group-path ordering — match {@link #forEachReferenceIndex}
+	 * exactly.
+	 *
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to qualify
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked for each unique target index
+	 * @param referencePredicate        additional filter applied after the schema-level check
+	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already
+	 *                                  be present in the index
+	 * @param path                      which path(s) to traverse — see {@link IterationPath}
+	 */
+	static void forEachUniqueReferenceIndex(
+		@Nonnull ReferenceIndexType indexType,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
+		@Nonnull Predicate<ReferenceContract> referencePredicate,
+		boolean referencePresenceExpected,
+		@Nonnull IterationPath path
+	) {
+		// dedup by AbstractReducedEntityIndex identity — single map spans both paths
+		final IdentityHashMap<AbstractReducedEntityIndex, Boolean> visited = new IdentityHashMap<>();
+		final ReferenceIndexConsumer dedupConsumer =
+			(referenceSchema, indexForRemoval, indexForUpsert) -> {
+				// indexForRemoval and indexForUpsert are always the same instance from these iterators
+				// (no representative-key migration in iterator path), so a single identity check suffices
+				if (visited.put(indexForUpsert, Boolean.TRUE) == null) {
+					referenceIndexConsumer.accept(referenceSchema, indexForRemoval, indexForUpsert);
+				}
+			};
+		forEachReferenceIndex(
+			indexType, executor, dedupConsumer, referencePredicate, referencePresenceExpected, path
 		);
 	}
 
 	/**
-	 * Iterates all currently stored references and invokes `referenceIndexConsumer` for each reference that:
-	 *
-	 * 1. has not been dropped (i.e. {@link Droppable#exists()} returns `true`),
-	 * 2. has a reference schema configured for at least the given `indexType` level in the current scope,
-	 * 3. has the {@link ReferenceIndexedComponents#REFERENCED_ENTITY} component enabled for the scope, and
-	 * 4. passes the optional `referencePredicate` test.
-	 *
-	 * The appropriate {@link AbstractReducedEntityIndex} of type {@link EntityIndexType#REFERENCED_ENTITY} is obtained
-	 * (or created) for each matching reference and passed to the consumer. References that use an internal
-	 * (already-known) primary key resolve the stored {@link RepresentativeReferenceKey}; newly assigned external
-	 * primary keys resolve the current one.
-	 *
-	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                  the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer    callback invoked with the reference schema and the matching
-	 *                                  {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
-	 *                                  and `indexForUpsert`)
-	 * @param referencePredicate        additional filter applied after the schema-level check; use
-	 *                                  `referenceContract -> true` to process all matching references
-	 * @param referencePresenceExpected whether the referenced entity's primary key is expected to already be present
-	 *                                  in the index (used to resolve the correct {@link RepresentativeReferenceKey})
+	 * Internal helper that drives the per-reference entity-level path. Extracted so both
+	 * `forEachReferenceIndex` and `forEachUniqueReferenceIndex` share a single iteration loop.
 	 */
-	static void executeWithReferenceIndexes(
+	private static void iterateReducedEntityPath(
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
@@ -242,59 +313,10 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Iterates all currently stored references and invokes `referenceIndexConsumer` for each reference that exists,
-	 * has a reference schema configured for at least the given `indexType` level AND for group indexing
-	 * ({@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY}), and has a non-dropped group assigned.
-	 *
-	 * Convenience overload that accepts all references (no predicate filtering). Delegates to
-	 * {@link #executeWithGroupReferenceIndexes(ReferenceIndexType, EntityIndexLocalMutationExecutor,
-	 * ReferenceIndexConsumer, Predicate, boolean)}.
-	 *
-	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                  the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer    callback invoked with the reference schema and the matching group-level
-	 *                                  {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
-	 *                                  and `indexForUpsert`)
-	 * @param referencePresenceExpected whether the group primary key is expected to already be present in the index
+	 * Internal helper that drives the per-reference group-level path. Extracted so both
+	 * `forEachReferenceIndex` and `forEachUniqueReferenceIndex` share a single iteration loop.
 	 */
-	static void executeWithGroupReferenceIndexes(
-		@Nonnull ReferenceIndexType indexType,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
-		boolean referencePresenceExpected
-	) {
-		executeWithGroupReferenceIndexes(
-			indexType,
-			executor,
-			referenceIndexConsumer,
-			Functions.alwaysTrue(),
-			referencePresenceExpected
-		);
-	}
-
-	/**
-	 * Iterates all currently stored references and invokes `referenceIndexConsumer` for each reference that:
-	 *
-	 * 1. has not been dropped (i.e. {@link Droppable#exists()} returns `true`),
-	 * 2. has a reference schema configured for at least the given `indexType` level in the current scope,
-	 * 3. has a reference schema that enables group indexing ({@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY}),
-	 * 4. has a non-dropped {@link GroupEntityReference} assigned, and
-	 * 5. passes the optional `referencePredicate` test.
-	 *
-	 * The group-level {@link AbstractReducedEntityIndex} of type {@link EntityIndexType#REFERENCED_GROUP_ENTITY}
-	 * is obtained (or created) using a {@link RepresentativeReferenceKey} derived from the entity-level key by
-	 * substituting the entity primary key with the group primary key.
-	 *
-	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                  the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer    callback invoked with the reference schema and the matching group-level
-	 *                                  {@link AbstractReducedEntityIndex} (passed as both `indexForRemoval`
-	 *                                  and `indexForUpsert`)
-	 * @param referencePredicate        additional filter applied after the schema-level check; use
-	 *                                  `referenceContract -> true` to process all matching references
-	 * @param referencePresenceExpected whether the group primary key is expected to already be present in the index
-	 */
-	static void executeWithGroupReferenceIndexes(
+	private static void iterateGroupPath(
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
@@ -335,62 +357,6 @@ public interface ReferenceIndexMutator {
 				}
 			}
 		}
-	}
-
-	/**
-	 * Convenience method that applies `referenceIndexConsumer` to both entity-level
-	 * ({@link EntityIndexType#REFERENCED_ENTITY}) and group-level ({@link EntityIndexType#REFERENCED_GROUP_ENTITY})
-	 * reduced indexes in a single call, accepting all references without additional predicate filtering.
-	 *
-	 * Equivalent to calling {@link #executeWithReferenceIndexes} followed by
-	 * {@link #executeWithGroupReferenceIndexes} with the same arguments.
-	 *
-	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                  the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer    callback invoked for each matching reference and its reduced index
-	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already be present
-	 *                                  in the index
-	 */
-	static void executeWithAllReferenceIndexes(
-		@Nonnull ReferenceIndexType indexType,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
-		boolean referencePresenceExpected
-	) {
-		executeWithReferenceIndexes(indexType, executor, referenceIndexConsumer, referencePresenceExpected);
-		executeWithGroupReferenceIndexes(indexType, executor, referenceIndexConsumer, referencePresenceExpected);
-	}
-
-	/**
-	 * Convenience method that applies `referenceIndexConsumer` to both entity-level
-	 * ({@link EntityIndexType#REFERENCED_ENTITY}) and group-level ({@link EntityIndexType#REFERENCED_GROUP_ENTITY})
-	 * reduced indexes in a single call, filtering references through `referencePredicate`.
-	 *
-	 * Equivalent to calling {@link #executeWithReferenceIndexes} followed by
-	 * {@link #executeWithGroupReferenceIndexes} with the same arguments.
-	 *
-	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to be processed
-	 * @param executor                  the mutation executor providing entity state and index access
-	 * @param referenceIndexConsumer    callback invoked for each matching reference and its reduced index
-	 * @param referencePredicate        additional filter applied after the schema-level check
-	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already be present
-	 *                                  in the index
-	 */
-	static void executeWithAllReferenceIndexes(
-		@Nonnull ReferenceIndexType indexType,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
-		@Nonnull Predicate<ReferenceContract> referencePredicate,
-		boolean referencePresenceExpected
-	) {
-		executeWithReferenceIndexes(
-			indexType, executor, referenceIndexConsumer,
-			referencePredicate, referencePresenceExpected
-		);
-		executeWithGroupReferenceIndexes(
-			indexType, executor, referenceIndexConsumer,
-			referencePredicate, referencePresenceExpected
-		);
 	}
 
 	/**

@@ -378,9 +378,9 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	}
 
 	/**
-	 * Deterministic regression test pinned to seed `1623796816` — captures the open bug where
-	 * `executeWithGroupReferenceIndexes` resolves a mutation against a freshly-created
-	 * `ReducedGroupEntityIndex` whose discriminator (built from
+	 * Deterministic regression test pinned to seed `1623796816` — captures the open bug where the
+	 * group-path iteration in `ReferenceIndexMutator#forEachReferenceIndex` resolves a mutation
+	 * against a freshly-created `ReducedGroupEntityIndex` whose discriminator (built from
 	 * `bothKeys.stored().representativeAttributeValues()`) does not match any RGEI where the
 	 * entity's data physically lives.
 	 *
@@ -392,7 +392,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	 *     `ReducedGroupEntityIndex.removeFilterAttribute`.
 	 *
 	 * Both manifestations stem from the same drift: the iteration in
-	 * {@link io.evitadb.index.mutation.local.ReferenceIndexMutator#executeWithGroupReferenceIndexes}
+	 * {@link io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachReferenceIndex} (group path)
 	 * uses the plural `getRepresentativeReferenceKeys` which does NOT trigger migration; only the
 	 * singular `getRepresentativeReferenceKey` runs
 	 * {@code getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary}.
@@ -404,7 +404,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	 * Disabled until the iteration-layer fix lands. Re-enable by removing the `@Disabled`
 	 * annotation after fix — this test then serves as the canonical regression marker.
 	 *
-	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#executeWithGroupReferenceIndexes
+	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachReferenceIndex
 	 * @see io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary
 	 */
 	@Test

@@ -35,10 +35,13 @@ import javax.annotation.Nonnull;
  * ## Purpose and role
  *
  * Instances of this interface are passed to the traversal helpers on {@link ReferenceIndexMutator}
- * (`executeWithReferenceIndexes`, `executeWithGroupReferenceIndexes`, `executeWithAllReferenceIndexes`). Those
- * helpers iterate every currently-active reference stored on an entity and call `accept` once for each
- * relevant {@link AbstractReducedEntityIndex} — either a `REFERENCED_ENTITY` index or a `REFERENCED_GROUP_ENTITY`
- * index, depending on which traversal helper is used.
+ * (`forEachReferenceIndex`, `forEachUniqueReferenceIndex`). Those helpers iterate every
+ * currently-active reference stored on an entity and call `accept` for the relevant
+ * {@link AbstractReducedEntityIndex} — either a `REFERENCED_ENTITY` index or a `REFERENCED_GROUP_ENTITY`
+ * index (selected via an {@link ReferenceIndexMutator.IterationPath}). The unique variant additionally
+ * deduplicates invocations by {@code AbstractReducedEntityIndex} identity, so callers performing
+ * per-target-index work (e.g. price set-semantic leaves, entity-level cardinality bookkeeping)
+ * fire exactly once per unique target index even when N references share the same RGEI.
  *
  * ## The two-index contract
  *
@@ -73,9 +76,8 @@ import javax.annotation.Nonnull;
  * Implementations must not reverse this ordering.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
- * @see ReferenceIndexMutator#executeWithReferenceIndexes
- * @see ReferenceIndexMutator#executeWithGroupReferenceIndexes
- * @see ReferenceIndexMutator#executeWithAllReferenceIndexes
+ * @see ReferenceIndexMutator#forEachReferenceIndex
+ * @see ReferenceIndexMutator#forEachUniqueReferenceIndex
  */
 @FunctionalInterface
 public interface ReferenceIndexConsumer {

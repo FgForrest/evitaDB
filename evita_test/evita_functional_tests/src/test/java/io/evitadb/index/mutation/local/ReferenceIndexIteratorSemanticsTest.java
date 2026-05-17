@@ -42,6 +42,7 @@ import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -63,34 +64,37 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins down the per-reference iteration semantics of the six iterator entry points in
+ * Pins down the per-reference iteration semantics of the two iterator entry points in
  * [ReferenceIndexMutator](ReferenceIndexMutator.java):
  *
- * - `executeWithReferenceIndexes` (2 overloads — with and without predicate)
- * - `executeWithGroupReferenceIndexes` (2 overloads — with and without predicate)
- * - `executeWithAllReferenceIndexes` (2 overloads — with and without predicate)
+ * - `forEachReferenceIndex` — fires the consumer once per qualifying reference, even when N
+ *   references share a single target {@link AbstractReducedEntityIndex} instance. Selected via an
+ *   {@link ReferenceIndexMutator.IterationPath} (`REDUCED_ENTITY`, `GROUP`, or `BOTH`).
+ * - `forEachUniqueReferenceIndex` — fires the consumer at most once per unique target index
+ *   instance. Used for entity-scoped work on a shared RGEI (cardinality bookkeeping, price
+ *   set-semantic leaves). Implemented as `forEachReferenceIndex` plus an internal identity dedup.
  *
  * ## Bug class guarded against
  *
- * The recent fix in commit `d331d1db4` (`prevent shared ReducedGroupEntityIndex drift for cardinality
- * and price leaves`) exposed a subtle property of these iterators: **they fire the consumer once per
- * reference, not once per unique target index**. When N references on the same entity point at the
- * same group, the iterator hands the consumer the SAME `ReducedGroupEntityIndex` Java instance N
- * times. Callers that mutate per-reference state inside the consumer (e.g. cardinality counters,
- * price bitmaps) must either do per-reference accounting on top of the shared index or dedup by
- * identity at the caller level.
+ * The fix in commit `d331d1db4` (`prevent shared ReducedGroupEntityIndex drift for cardinality
+ * and price leaves`) exposed a subtle property of the per-reference iterator: **it fires the
+ * consumer once per reference, not once per unique target index**. When N references on the same
+ * entity point at the same group, the iterator hands the consumer the SAME
+ * `ReducedGroupEntityIndex` Java instance N times. Callers performing entity-scoped work (e.g.
+ * cardinality counters, price bitmaps) must use `forEachUniqueReferenceIndex` so the iterator
+ * dedups by identity for them.
  *
- * Phase 2 of an upcoming refactor will replace these six entry points with two explicit modes
- * (`forEachReference` vs `forEachUniqueTargetIndex`). These tests fix the current contract in place so
- * the refactor cannot silently change cardinality, identity, or coverage semantics.
+ * These tests pin both modes' contracts in place so future refactors cannot silently change
+ * cardinality, identity, or coverage semantics.
  *
  * ## Invariants under test
  *
  * For each entry point and a known scenario, every test asserts:
  *
- * 1. **Cardinality** — consumer fires exactly once per qualifying reference (in storage order).
- * 2. **Identity** — when N references share an underlying RGEI/REI, the consumer receives the *same*
- *    Java instance for all N invocations (verified via `assertSame`).
+ * 1. **Cardinality** — `forEachReferenceIndex` fires exactly once per qualifying reference (in
+ *    storage order); `forEachUniqueReferenceIndex` fires exactly once per unique target index.
+ * 2. **Identity** — when N references share an underlying RGEI/REI, `forEachReferenceIndex` passes
+ *    the *same* Java instance for all N invocations (verified via `assertSame`).
  * 3. **Reference coverage** — the per-ordinal index discriminator matches the expected
  *    (referenceName, referencedPK or groupPK) derived from the seeded references.
  * 4. **Target-index coverage** — the number of unique target indexes visited matches the number of
@@ -193,7 +197,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("executeWithReferenceIndexes (no predicate) — once per ref; distinct refs get distinct REIs")
+	@DisplayName("forEachReferenceIndex (REDUCED_ENTITY, no predicate) — once per ref; distinct refs get distinct REIs")
 	void shouldFireOncePerReferenceAndProduceDistinctReducedEntityIndexesWhenReferencesDiffer() {
 		// Scenario B for entity-level path: 3 references to distinct referenced entities, each yields
 		// its own ReducedEntityIndex because EntityIndexKey discriminator is the referenced PK.
@@ -205,8 +209,9 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder recorder = new Recorder();
 
-		ReferenceIndexMutator.executeWithReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
 		);
 
 		assertEquals(3, recorder.invocationCount(), "3 references → 3 invocations");
@@ -217,7 +222,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("executeWithReferenceIndexes (with predicate) — filters refs; REI identity preserved")
+	@DisplayName("forEachReferenceIndex (REDUCED_ENTITY, with predicate) — filters refs; REI identity preserved")
 	void shouldFilterByPredicateAndPreserveIndexIdentityWhenSomeReferencesShareNothing() {
 		// 4 references; predicate keeps only refs with primaryKey >= 20 → expect 3 invocations.
 		seedReferences(
@@ -229,12 +234,13 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder recorder = new Recorder();
 
-		ReferenceIndexMutator.executeWithReferenceIndexes(
+		ReferenceIndexMutator.forEachReferenceIndex(
 			ReferenceIndexType.FOR_FILTERING,
 			this.testExecutor,
 			recorder,
 			reference -> reference.getReferenceKey().primaryKey() >= 20,
-			false
+			false,
+			ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
 		);
 
 		assertEquals(3, recorder.invocationCount());
@@ -247,7 +253,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("executeWithGroupReferenceIndexes — N refs sharing one group share ONE RGEI instance")
+	@DisplayName("forEachReferenceIndex (GROUP) — N refs sharing one group share ONE RGEI instance")
 	void shouldShareSingleRGEIInstanceWhenAllReferencesPointAtSameGroup() {
 		// Scenario A — the canonical bug-class case. 3 references with distinct referenced PKs but all
 		// pointing at the same group (group PK 100). For ZERO_OR_MORE cardinality, the RGEI key is
@@ -261,8 +267,9 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder recorder = new Recorder();
 
-		ReferenceIndexMutator.executeWithGroupReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
 		);
 
 		// (1) cardinality: 3 references → 3 invocations
@@ -285,7 +292,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("executeWithGroupReferenceIndexes — distinct groups yield distinct RGEI instances")
+	@DisplayName("forEachReferenceIndex (GROUP) — distinct groups yield distinct RGEI instances")
 	void shouldYieldDistinctRGEIsWhenReferencesPointAtDifferentGroups() {
 		// Scenario B — 3 refs, 3 different groups → 3 different RGEIs, 3 invocations.
 		final List<Reference> seeded = seedReferences(
@@ -296,8 +303,9 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder recorder = new Recorder();
 
-		ReferenceIndexMutator.executeWithGroupReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
 		);
 
 		assertEquals(3, recorder.invocationCount());
@@ -308,7 +316,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("executeWithGroupReferenceIndexes (predicate) — 4 refs, 2 unique RGEI instances")
+	@DisplayName("forEachReferenceIndex (GROUP, predicate) — 4 refs, 2 unique RGEI instances")
 	void shouldHandleMixedSharingWhenSomeReferencesShareGroupAndOthersDoNot() {
 		// Scenario C — 4 refs: two share group 100, two share group 200.
 		// Expected: consumer fires 4 times, but sees only 2 unique RGEI instances.
@@ -321,12 +329,13 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder recorder = new Recorder();
 
-		ReferenceIndexMutator.executeWithGroupReferenceIndexes(
+		ReferenceIndexMutator.forEachReferenceIndex(
 			ReferenceIndexType.FOR_FILTERING,
 			this.testExecutor,
 			recorder,
 			reference -> true,
-			false
+			false,
+			ReferenceIndexMutator.IterationPath.GROUP
 		);
 
 		assertEquals(4, recorder.invocationCount());
@@ -359,7 +368,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("executeWithGroupReferenceIndexes — references with no group are skipped")
+	@DisplayName("forEachReferenceIndex (GROUP) — references with no group are skipped")
 	void shouldSkipReferencesWithoutGroupOnGroupPath() {
 		// Mixed: two refs with groups (shared group 100), one ref without a group at all.
 		// Group iterator must skip the group-less ref.
@@ -371,8 +380,9 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder recorder = new Recorder();
 
-		ReferenceIndexMutator.executeWithGroupReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
 		);
 
 		assertEquals(2, recorder.invocationCount(), "the group-less ref must be skipped");
@@ -382,7 +392,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("executeWithAllReferenceIndexes — fires for both REI and RGEI; correct multiplicity")
+	@DisplayName("forEachReferenceIndex (BOTH) — fires for both REI and RGEI; correct multiplicity")
 	void shouldFireForBothEntityAndGroupPathsInOrder() {
 		// 3 refs sharing group 100. Combined iterator runs REI path (3 invocations, 3 distinct REIs)
 		// then RGEI path (3 invocations, 1 shared RGEI). Total: 6 invocations, 4 unique instances.
@@ -394,8 +404,9 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder recorder = new Recorder();
 
-		ReferenceIndexMutator.executeWithAllReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH
 		);
 
 		assertEquals(6, recorder.invocationCount(), "REI path fires 3× then RGEI path fires 3× = 6 total");
@@ -420,7 +431,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("executeWithAllReferenceIndexes (predicate) — applies to both REI and RGEI paths")
+	@DisplayName("forEachReferenceIndex (BOTH, predicate) — applies to both REI and RGEI paths")
 	void shouldApplyPredicateToBothPathsWhenUsingExecuteWithAllReferenceIndexes() {
 		// 4 refs; predicate keeps only refs with primaryKey >= 20. Refs 20, 30 share group 100; ref 40
 		// has group 200. The combined iterator should fire:
@@ -436,12 +447,13 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder recorder = new Recorder();
 
-		ReferenceIndexMutator.executeWithAllReferenceIndexes(
+		ReferenceIndexMutator.forEachReferenceIndex(
 			ReferenceIndexType.FOR_FILTERING,
 			this.testExecutor,
 			recorder,
 			reference -> reference.getReferenceKey().primaryKey() >= 20,
-			false
+			false,
+			ReferenceIndexMutator.IterationPath.BOTH
 		);
 
 		assertEquals(6, recorder.invocationCount());
@@ -481,24 +493,27 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		// REI path
 		final Recorder reiRecorder = new Recorder();
-		ReferenceIndexMutator.executeWithReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, reiRecorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, reiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
 		);
 		assertEquals(2, reiRecorder.invocationCount());
 		reiRecorder.assertEntityPathReferencedPrimaryKeysInOrder(10, 30);
 
 		// RGEI path — fresh recorder ensures invocations from the REI path don't leak in.
 		final Recorder rgeiRecorder = new Recorder();
-		ReferenceIndexMutator.executeWithGroupReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, rgeiRecorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, rgeiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
 		);
 		assertEquals(2, rgeiRecorder.invocationCount());
 		rgeiRecorder.assertGroupPathGroupPrimaryKeysInOrder(100, 100);
 
 		// Combined path
 		final Recorder allRecorder = new Recorder();
-		ReferenceIndexMutator.executeWithAllReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, allRecorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, allRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH
 		);
 		assertEquals(4, allRecorder.invocationCount(), "2 (REI) + 2 (RGEI) = 4");
 	}
@@ -509,22 +524,99 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		seedReferences();
 
 		final Recorder reiRecorder = new Recorder();
-		ReferenceIndexMutator.executeWithReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, reiRecorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, reiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
 		);
 		assertEquals(0, reiRecorder.invocationCount());
 
 		final Recorder rgeiRecorder = new Recorder();
-		ReferenceIndexMutator.executeWithGroupReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, rgeiRecorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, rgeiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
 		);
 		assertEquals(0, rgeiRecorder.invocationCount());
 
 		final Recorder allRecorder = new Recorder();
-		ReferenceIndexMutator.executeWithAllReferenceIndexes(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, allRecorder, false
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, allRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH
 		);
 		assertEquals(0, allRecorder.invocationCount());
+	}
+
+	@Test
+	@DisplayName("forEachUniqueReferenceIndex (GROUP) — N refs sharing one RGEI yield ONE invocation")
+	void shouldDedupByTargetIndexIdentityWhenReferencesShareSharedRgei() {
+		// Canonical dedup scenario: 3 refs sharing group 100 resolve to the same RGEI instance.
+		// `forEachReferenceIndex` would fire 3 times; `forEachUniqueReferenceIndex` folds to 1.
+		seedReferences(
+			buildReference(REFERENCE_NAME, 10, 1, 100),
+			buildReference(REFERENCE_NAME, 20, 2, 100),
+			buildReference(REFERENCE_NAME, 30, 3, 100)
+		);
+
+		final Recorder recorder = new Recorder();
+
+		ReferenceIndexMutator.forEachUniqueReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
+		);
+
+		assertEquals(1, recorder.invocationCount(), "3 shared-RGEI refs must collapse to 1 invocation");
+		assertEquals(1, recorder.uniqueIndexInstances());
+		recorder.assertAllIndexesAreType(ReducedGroupEntityIndex.class);
+		recorder.assertEveryInvocationPassesSameInstanceForBothSlots();
+	}
+
+	@Test
+	@DisplayName("forEachUniqueReferenceIndex (BOTH) — dedup spans REI and RGEI paths")
+	void shouldDedupAcrossBothPathsWhenUsingForEachUniqueReferenceIndex() {
+		// 3 refs, all sharing group 100. REI path yields 3 distinct REIs; RGEI path yields 1 shared RGEI.
+		// `forEachUniqueReferenceIndex` should fire once per unique target index = 3 (REIs) + 1 (RGEI) = 4.
+		seedReferences(
+			buildReference(REFERENCE_NAME, 10, 1, 100),
+			buildReference(REFERENCE_NAME, 20, 2, 100),
+			buildReference(REFERENCE_NAME, 30, 3, 100)
+		);
+
+		final Recorder recorder = new Recorder();
+
+		ReferenceIndexMutator.forEachUniqueReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH
+		);
+
+		assertEquals(4, recorder.invocationCount(), "3 distinct REIs + 1 shared RGEI = 4 invocations");
+		assertEquals(4, recorder.uniqueIndexInstances());
+		recorder.assertSliceTypes(0, 3, ReducedEntityIndex.class);
+		recorder.assertSliceTypes(3, 4, ReducedGroupEntityIndex.class);
+		recorder.assertEveryInvocationPassesSameInstanceForBothSlots();
+	}
+
+	@Test
+	@DisplayName("forEachUniqueReferenceIndex (REDUCED_ENTITY) — distinct refs already unique, no dedup change")
+	void shouldBehaveLikeForEachReferenceIndexWhenNoTargetIndexIsShared() {
+		// When every reference has its own unique target index (REI keyed by distinct referenced PK),
+		// `forEachUniqueReferenceIndex` and `forEachReferenceIndex` must produce the same invocation
+		// count, ordering, and target-index identity coverage.
+		seedReferences(
+			buildReference(REFERENCE_NAME, 10, 1, 100),
+			buildReference(REFERENCE_NAME, 20, 2, 100),
+			buildReference(REFERENCE_NAME, 30, 3, 100)
+		);
+
+		final Recorder recorder = new Recorder();
+
+		ReferenceIndexMutator.forEachUniqueReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
+		);
+
+		assertEquals(3, recorder.invocationCount(), "3 unique REIs → 3 invocations (no dedup needed)");
+		assertEquals(3, recorder.uniqueIndexInstances());
+		recorder.assertAllIndexesAreType(ReducedEntityIndex.class);
+		recorder.assertEntityPathReferencedPrimaryKeysInOrder(10, 20, 30);
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -551,8 +643,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	/**
 	 * Builds a reference with a group attached. The internal primary key (`internalPK`) is set to a
 	 * positive value so the reference is treated as `isKnownInternalPrimaryKey() == true`, which routes
-	 * `executeWithReferenceIndexes` through the `bothKeys.stored()` branch — matching the production
-	 * path for previously-persisted references.
+	 * `forEachReferenceIndex` through the `bothKeys.stored()` branch — matching the production path
+	 * for previously-persisted references.
 	 *
 	 * @param referenceName the reference name
 	 * @param primaryKey    the referenced entity primary key
@@ -577,8 +669,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	/**
-	 * Builds a reference with NO group assigned. Used to verify that
-	 * `executeWithGroupReferenceIndexes` skips group-less references.
+	 * Builds a reference with NO group assigned. Used to verify that the group path of
+	 * `forEachReferenceIndex` skips group-less references.
 	 *
 	 * @param referenceName the reference name
 	 * @param primaryKey    the referenced entity primary key

@@ -95,7 +95,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * the regression is exercised in the regular CI cycle.
  *
  * The bug class this test is built around (commit `d331d1db4`) only surfaces when the iteration in
- * `ReferenceIndexMutator#executeWithGroupReferenceIndexes` resolves an entity's mutation against a
+ * `ReferenceIndexMutator#forEachReferenceIndex` (group path) resolves an entity's mutation against a
  * freshly-rehydrated `ReducedGroupEntityIndex` whose discriminator no longer matches the index where
  * the entity's data physically lives. The cliff edges are:
  *

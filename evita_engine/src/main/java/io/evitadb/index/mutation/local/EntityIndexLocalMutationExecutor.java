@@ -95,6 +95,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesSt
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 
@@ -1322,40 +1323,36 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull PriceMutation priceMutation,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
-		// Multiple references on the same entity may resolve to the same reduced (or reduced-group) entity index
-		// (e.g. when two CATEGORY refs share the same group + representative attribute values). The leaf
-		// add/remove primitives on `PriceListAndCurrencyPriceRefIndex` are set-semantic: a duplicate add is a no-op,
-		// and the first remove drains the bucket. Without per-index deduplication the second iteration would call
-		// `priceRemove` on a bucket that the first call already destroyed via `removeExistingIndex`, throwing
-		// `Price index for price list ... not found`. Deduplicating by index identity makes the price fanout fire
-		// exactly once per unique reduced index, matching the set-semantics of the leaves.
-		/* TODO JNO - this is architecturally bad, needs rearchitecting */
-		final java.util.IdentityHashMap<AbstractReducedEntityIndex, Boolean> visitedIndexes = new IdentityHashMap<>();
+		// Price leaves on `PriceListAndCurrencyPriceRefIndex` are set-semantic: a duplicate add is a no-op
+		// and the first remove drains the bucket. When multiple references on the same entity resolve to
+		// the same shared `ReducedGroupEntityIndex` (e.g. two CATEGORY refs sharing a group + representative
+		// attribute values), a per-reference fanout would call `priceRemove` twice on the same bucket and
+		// throw `Price index for price list ... not found` on the second call. `forEachUniqueReferenceIndex`
+		// folds the N sibling-reference invocations into one per unique target index, matching the
+		// set-semantics of the leaves.
 		if (priceMutation instanceof RemovePriceMutation ||
 			// when new upserted price is not indexed, it is removed from indexes, so we need to behave like removal
 			(priceMutation instanceof UpsertPriceMutation upsertPriceMutation && !upsertPriceMutation.isIndexed())) {
 			// removal must first occur on the reduced indexes, because they consult the super index
 			final ReferenceIndexConsumer priceRemovalConsumer =
-				(referenceSchema, indexForRemoval, indexForUpsert) -> {
-					if (visitedIndexes.put(indexForRemoval, Boolean.TRUE) == null) {
-						updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert);
-					}
-				};
-			ReferenceIndexMutator.executeWithAllReferenceIndexes(
-				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceRemovalConsumer, true
+				(referenceSchema, indexForRemoval, indexForUpsert) -> updatePriceIndex(
+					referenceSchema, priceMutation, indexForRemoval, indexForUpsert
+				);
+			ReferenceIndexMutator.forEachUniqueReferenceIndex(
+				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceRemovalConsumer,
+				Functions.alwaysTrue(), true, ReferenceIndexMutator.IterationPath.BOTH
 			);
 			updatePriceIndex(null, priceMutation, globalIndex, globalIndex);
 		} else {
 			// upsert must first occur on super index, because reduced indexed rely on information in super index
 			updatePriceIndex(null, priceMutation, globalIndex, globalIndex);
 			final ReferenceIndexConsumer priceUpsertConsumer =
-				(referenceSchema, indexForRemoval, indexForUpsert) -> {
-					if (visitedIndexes.put(indexForUpsert, Boolean.TRUE) == null) {
-						updatePriceIndex(referenceSchema, priceMutation, indexForRemoval, indexForUpsert);
-					}
-				};
-			ReferenceIndexMutator.executeWithAllReferenceIndexes(
-				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceUpsertConsumer, true
+				(referenceSchema, indexForRemoval, indexForUpsert) -> updatePriceIndex(
+					referenceSchema, priceMutation, indexForRemoval, indexForUpsert
+				);
+			ReferenceIndexMutator.forEachUniqueReferenceIndex(
+				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this, priceUpsertConsumer,
+				Functions.alwaysTrue(), true, ReferenceIndexMutator.IterationPath.BOTH
 			);
 		}
 	}
@@ -1401,9 +1398,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				// avoid indexing the referenced index that got updated by updateReferences method
 				referenceContract -> !referenceKey.equalsInGeneral(referenceContract.getReferenceKey());
 			final boolean presenceExpected = !(referenceMutation instanceof InsertReferenceMutation);
-			ReferenceIndexMutator.executeWithAllReferenceIndexes(
+			// per-reference: facet add/remove is keyed by the individual reference key, so when N
+			// references share a single shared RGEI, each reference must still process its own facet
+			// bookkeeping for its own reference key (the consumer is a no-op for ReferenceAttributeMutation,
+			// and the other branches use the iterating reference's data, not entity-level state).
+			ReferenceIndexMutator.forEachReferenceIndex(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
-				crossRefConsumer, crossRefPredicate, presenceExpected
+				crossRefConsumer, crossRefPredicate, presenceExpected,
+				ReferenceIndexMutator.IterationPath.BOTH
 			);
 			// defer re-evaluation to after storage write so expression reads updated reference attributes
 			if (hasFacetExpressionTriggers() && referenceMutation instanceof ReferenceAttributeMutation ram) {
@@ -1545,25 +1547,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		//noinspection DataFlowIssue
 		attributeUpdateApplicator.accept(true, globalIndex, globalIndex, null);
 		// Entity-level attribute mutations fan out to every reference reduced index. When multiple
-		// references on the same entity resolve to the same group reduced index (shared group +
-		// representative attribute values) the bookkeeping for entity-level data — indexed once per
-		// (entity, RGEI) pair by {@link ReferenceIndexMutator#indexAllEntityLevelAttributes} — would
+		// references on the same entity resolve to the same shared `ReducedGroupEntityIndex` (shared
+		// group + representative attribute values), the entity-level bookkeeping — indexed once per
+		// (entity, RGEI) pair by `ReferenceIndexMutator#indexAllEntityLevelAttributes` — would
 		// otherwise be decremented N times by N sibling references and underflow the
-		// {@link AttributeCardinalityIndex} counter. Deduplicating the fanout by index identity makes
-		// the entity-attribute update fire exactly once per unique reduced index, matching the
-		// one-shot insert/remove gating performed by
-		// {@link ReducedGroupEntityIndex#insertPrimaryKeyIfMissing(int, int)}.
-		/* TODO JNO - this is architecturally bad - needs reachitecting */
-		final java.util.IdentityHashMap<EntityIndex, Boolean> visitedIndexes = new IdentityHashMap<>();
+		// `AttributeCardinalityIndex` counter. `forEachUniqueReferenceIndex` folds the N sibling-
+		// reference invocations into one per unique reduced index, matching the one-shot insert/remove
+		// gating performed by `ReducedGroupEntityIndex#insertPrimaryKeyIfMissing(int, int)`.
 		final ReferenceIndexConsumer attrConsumer =
-			(theReferenceSchema, indexForRemoval, indexForUpsert) -> {
-				if (visitedIndexes.put(indexForRemoval, Boolean.TRUE) == null) {
-					attributeUpdateApplicator.accept(false, indexForRemoval, indexForUpsert, theReferenceSchema);
-				}
-			};
-		ReferenceIndexMutator.executeWithAllReferenceIndexes(
+			(theReferenceSchema, indexForRemoval, indexForUpsert) -> attributeUpdateApplicator.accept(
+				false, indexForRemoval, indexForUpsert, theReferenceSchema
+			);
+		ReferenceIndexMutator.forEachUniqueReferenceIndex(
 			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
-			attrConsumer, Droppable::exists, true
+			attrConsumer, Droppable::exists, true, ReferenceIndexMutator.IterationPath.BOTH
 		);
 		// defer re-evaluation to after storage write so expression reads updated attribute values
 		if (hasFacetExpressionTriggers()) {
@@ -3400,9 +3397,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				};
 
 			// first remove data from reduced indexes (entity + group)
-			ReferenceIndexMutator.executeWithAllReferenceIndexes(
+			// per-unique: price leaves are set-semantic — when N references share an RGEI, the per-bucket
+			// `priceRemove` must fire once per unique target index, not once per reference (otherwise the
+			// second reference removes from an already-destroyed bucket and throws).
+			ReferenceIndexMutator.forEachUniqueReferenceIndex(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
-				pricesRemoval::accept, true
+				pricesRemoval::accept, Functions.alwaysTrue(), true,
+				ReferenceIndexMutator.IterationPath.BOTH
 			);
 
 			// now we can safely remove the data from a super index
@@ -3414,9 +3415,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			pricesInsertion.accept(null, index, index);
 
 			// and then we can add data to reduced indexes (entity + group)
-			ReferenceIndexMutator.executeWithAllReferenceIndexes(
+			// per-unique: symmetric to the removal path above — `priceUpsert` must fire once per unique
+			// target bucket so a shared RGEI does not receive duplicate inserts for the same price.
+			ReferenceIndexMutator.forEachUniqueReferenceIndex(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
-				pricesInsertion::accept, true
+				pricesInsertion::accept, Functions.alwaysTrue(), true,
+				ReferenceIndexMutator.IterationPath.BOTH
 			);
 		}
 	}
