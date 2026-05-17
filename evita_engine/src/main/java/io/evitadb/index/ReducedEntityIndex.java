@@ -31,7 +31,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.facet.FacetIndex;
@@ -105,7 +105,7 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		int version,
 		@Nonnull Bitmap entityIds,
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex
@@ -145,7 +145,7 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		int version,
 		@Nonnull TransactionalBitmap entityIds,
 		@Nonnull TransactionalMap<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		boolean originalHierarchyIndexEmpty,
@@ -169,7 +169,11 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		return new ReducedEntityIndex(
 			this.primaryKey, this.indexKey, this.version,
 			this.entityIds, this.entityIdsByLanguage,
-			this.attributeIndex,
+			// the parent EntityIndex field is typed as the abstract AttributeIndex; for reduced
+			// indexes the runtime type is guaranteed to be ReferenceAttributeIndex by the
+			// EntityIndex constructor's isReferenceScoped dispatch and the persistence-reload
+			// wiring in DefaultEntityCollectionPersistenceService.
+			(ReferenceAttributeIndex) this.attributeIndex,
 			this.hierarchyIndex,
 			this.facetIndex,
 			this.originalHierarchyIndexEmpty,
@@ -188,11 +192,13 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 	) {
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		// AttributeIndex#createCopy preserves the subclass identity — the merged copy of a
+		// ReferenceAttributeIndex stays a ReferenceAttributeIndex.
 		return new ReducedEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
+			(ReferenceAttributeIndex) transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(getPriceIndex()),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex)

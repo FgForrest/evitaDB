@@ -72,7 +72,9 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
+import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
@@ -1337,7 +1339,7 @@ public class DefaultEntityCollectionPersistenceService
 				entityIndexCnt.getVersion(),
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
+				new EntityAttributeIndex(
 					entitySchema.getName(), null,
 					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 				),
@@ -1359,7 +1361,7 @@ public class DefaultEntityCollectionPersistenceService
 				entityIndexCnt.getVersion(),
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
+				new ReferenceAttributeIndex(
 					entitySchema.getName(),
 					null,
 					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
@@ -1387,7 +1389,7 @@ public class DefaultEntityCollectionPersistenceService
 				entityIndexCnt.getVersion(),
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
+				new ReferenceAttributeIndex(
 					entitySchema.getName(),
 					referenceKey,
 					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
@@ -1411,7 +1413,7 @@ public class DefaultEntityCollectionPersistenceService
 				entityIndexCnt.getVersion(),
 				entityIndexCnt.getEntityIds(),
 				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
+				new ReferenceAttributeIndex(
 					entitySchema.getName(),
 					referenceKey,
 					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes

@@ -166,7 +166,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("empty constructor produces empty index with all maps empty")
 		void shouldCreateEmptyAttributeIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 
 			assertTrue(index.isAttributeIndexEmpty());
 			assertTrue(index.getUniqueIndexes().isEmpty());
@@ -195,7 +195,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final ChainIndex chainIdx = new ChainIndex(chainKey);
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
-			final AttributeIndex index = new AttributeIndex(
+			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE, null,
 				Map.of(uniqueKey, uniqueIdx),
 				Map.of(filterKey, filterIdx),
@@ -218,8 +218,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getId() returns stable unique value per instance")
 		void shouldReturnStableUniqueId() {
-			final AttributeIndex first = new AttributeIndex(ENTITY_TYPE, null);
-			final AttributeIndex second = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex first = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex second = new EntityAttributeIndex(ENTITY_TYPE);
 
 			assertNotEquals(first.getId(), second.getId());
 			// id is stable across calls
@@ -229,7 +229,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("removeLayer cleans all four nested TransactionalMaps")
 		void shouldCleanAllMapsOnRemoveLayer() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract codeSchema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 			final EntityAttributeSchemaContract nameSchema =
@@ -267,7 +267,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("committed copy is new instance (assertNotSame)")
 		void shouldReturnNewInstanceAfterCommit() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract codeSchema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -286,7 +286,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("commit merges state from all four maps (INV-6)")
 		void shouldMergeAllFourMapsOnCommit() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract codeSchema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 			final EntityAttributeSchemaContract nameSchema =
@@ -324,7 +324,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("commit with null layer returns valid copy")
 		void shouldHandleNullLayerOnCommit() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -352,7 +352,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("unique index insertion and removal visible after commit")
 		void shouldCommitUniqueIndexInsertionAndRemoval() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -372,7 +372,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("filter index insertion and removal visible after commit")
 		void shouldCommitFilterIndexInsertionAndRemoval() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
@@ -391,7 +391,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("sort index insertion visible after commit")
 		void shouldCommitSortIndexInsertionAndRemoval() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
@@ -410,7 +410,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("chain index upsert via Predecessor visible after commit")
 		void shouldCommitChainIndexViaPredecessor() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
@@ -431,7 +431,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("chain index upsert via ReferencedEntityPredecessor")
 		void shouldCommitChainIndexViaReferencedEntityPredecessor() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, ReferencedEntityPredecessor.class);
 
@@ -450,7 +450,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("original unchanged after commit (T2)")
 		void shouldLeaveOriginalUnchangedAfterCommit() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -479,7 +479,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("unique index insertion rolled back")
 		void shouldRollbackUniqueIndexInsertion() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -498,7 +498,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("filter index insertion rolled back")
 		void shouldRollbackFilterIndexInsertion() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
@@ -517,7 +517,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("sort index insertion rolled back")
 		void shouldRollbackSortIndexInsertion() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
@@ -536,7 +536,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("chain index insertion rolled back")
 		void shouldRollbackChainIndexInsertion() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
@@ -560,7 +560,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("all four insert operations populate indexes directly")
 		void shouldInsertOutsideTransaction() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract codeSchema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 			final EntityAttributeSchemaContract nameSchema =
@@ -585,7 +585,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("all four remove operations leave index empty")
 		void shouldRemoveOutsideTransaction() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract codeSchema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 			final EntityAttributeSchemaContract nameSchema =
@@ -705,7 +705,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("all four maps empty returns true")
 		void shouldReturnTrueWhenAllEmpty() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 
 			assertTrue(index.isAttributeIndexEmpty());
 		}
@@ -713,7 +713,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("only unique index has data returns false")
 		void shouldReturnFalseWhenOnlyUniqueHasData() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -725,7 +725,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("only filter index has data returns false")
 		void shouldReturnFalseWhenOnlyFilterHasData() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
@@ -737,7 +737,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("only sort index has data returns false")
 		void shouldReturnFalseWhenOnlySortHasData() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
@@ -749,7 +749,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("only chain index has data returns false")
 		void shouldReturnFalseWhenOnlyChainHasData() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
@@ -766,7 +766,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Predecessor value routes to chain index")
 		void shouldRoutePredecessorToChainIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
@@ -779,7 +779,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("ReferencedEntityPredecessor routes to chain index")
 		void shouldRouteReferencedEntityPredecessorToChainIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, ReferencedEntityPredecessor.class);
 
@@ -792,7 +792,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Integer value routes to sort index")
 		void shouldRouteIntegerToSortIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
@@ -814,7 +814,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final UniqueIndex uniqueIdx = new UniqueIndex(ENTITY_TYPE, key, String.class);
 			uniqueIdx.registerUniqueKey("ABC", 1);
 
-			final AttributeIndex index = new AttributeIndex(
+			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE, null,
 				Map.of(key, uniqueIdx),
 				Collections.emptyMap(),
@@ -836,7 +836,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final FilterIndex filterIdx = new FilterIndex(key, String.class);
 			filterIdx.addRecord(1, "Test");
 
-			final AttributeIndex index = new AttributeIndex(
+			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE, null,
 				Collections.emptyMap(),
 				Map.of(key, filterIdx),
@@ -858,7 +858,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final SortIndex sortIdx = new SortIndex(Integer.class, key);
 			sortIdx.addRecord(10, 1);
 
-			final AttributeIndex index = new AttributeIndex(
+			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -880,7 +880,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final ChainIndex chainIdx = new ChainIndex(key);
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
-			final AttributeIndex index = new AttributeIndex(
+			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE, null,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -898,7 +898,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("createStoragePart with unknown type throws error")
 		void shouldThrowOnUnknownStoragePartType() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
 			final AttributeIndexStorageKey storageKey =
@@ -926,7 +926,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final ChainIndex chainIdx = new ChainIndex(chainKey);
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
-			final AttributeIndex index = new AttributeIndex(
+			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE, null,
 				Map.of(uniqueKey, uniqueIdx),
 				Map.of(filterKey, filterIdx),
@@ -949,7 +949,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final UniqueIndex uniqueIdx = new UniqueIndex(ENTITY_TYPE, uniqueKey, String.class);
 			uniqueIdx.registerUniqueKey("ABC", 1);
 
-			final AttributeIndex index = new AttributeIndex(
+			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE, null,
 				Map.of(uniqueKey, uniqueIdx),
 				Collections.emptyMap(),
@@ -978,7 +978,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getUniqueIndex with unique-within-locale schema and null locale throws EntityLocaleMissingException")
 		void shouldThrowWhenUniqueWithinLocaleWithoutLocale() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createUniqueWithinLocaleSchema(ATTRIBUTE_NAME, String.class);
 
@@ -991,7 +991,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("remove non-existent unique attribute throws")
 		void shouldThrowWhenRemovingNonExistentUnique() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -1004,7 +1004,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("remove non-existent filter attribute throws")
 		void shouldThrowWhenRemovingNonExistentFilter() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
@@ -1017,7 +1017,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("remove non-existent sort attribute throws")
 		void shouldThrowWhenRemovingNonExistentSort() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
@@ -1030,7 +1030,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("remove non-existent chain attribute throws")
 		void shouldThrowWhenRemovingNonExistentChain() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
@@ -1048,7 +1048,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("created-then-removed UniqueIndex cleaned via rollback")
 		void shouldCleanCreatedThenRemovedUniqueIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -1072,7 +1072,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("created-then-removed FilterIndex cleaned via rollback")
 		void shouldCleanCreatedThenRemovedFilterIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
@@ -1092,7 +1092,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("created-then-removed SortIndex cleaned via rollback")
 		void shouldCleanCreatedThenRemovedSortIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
@@ -1112,7 +1112,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("created-then-removed ChainIndex cleaned via rollback")
 		void shouldCleanCreatedThenRemovedChainIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
@@ -1137,7 +1137,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getUniqueIndex returns existing index")
 		void shouldReturnExistingUniqueIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -1151,7 +1151,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getUniqueIndex returns null for missing index")
 		void shouldReturnNullForMissingUniqueIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
@@ -1163,7 +1163,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getFilterIndex by key returns existing index")
 		void shouldReturnExistingFilterIndexByKey() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
@@ -1178,7 +1178,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getFilterIndex by schema returns existing index")
 		void shouldReturnExistingFilterIndexBySchema() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
@@ -1192,7 +1192,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getSortIndex returns existing index")
 		void shouldReturnExistingSortIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
@@ -1206,7 +1206,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getChainIndex returns existing index")
 		void shouldReturnExistingChainIndex() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
@@ -1220,7 +1220,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getChainIndex by key returns existing index")
 		void shouldReturnExistingChainIndexByKey() {
-			final AttributeIndex index = new AttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
 				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 

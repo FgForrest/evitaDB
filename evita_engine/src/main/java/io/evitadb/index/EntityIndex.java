@@ -39,6 +39,8 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeIndexContract;
 import io.evitadb.index.attribute.AttributeIndexScopeSpecificContract;
+import io.evitadb.index.attribute.EntityAttributeIndex;
+import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -203,7 +205,15 @@ public abstract class EntityIndex implements
 		this.indexKey = indexKey;
 		this.entityIds = new TransactionalBitmap();
 		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(16), TransactionalBitmap.class, TransactionalBitmap::new);
-		this.attributeIndex = new AttributeIndex(entityType, indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null);
+		// Pick the structurally-correct subclass: reference-discriminated keys (RepresentativeReferenceKey)
+		// land in ReferenceAttributeIndex; non-reference entity-level indexes land in EntityAttributeIndex.
+		// ReferencedTypeEntityIndex passes a String discriminator (reference name) but is still scope-REFERENCE,
+		// so it is routed by the EntityIndexType check below.
+		final RepresentativeReferenceKey discriminatorRefKey =
+			indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null;
+		this.attributeIndex = isReferenceScoped(indexKey)
+			? new ReferenceAttributeIndex(entityType, discriminatorRefKey)
+			: new EntityAttributeIndex(entityType);
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
 		this.originalHierarchyIndexEmpty = true;
@@ -546,6 +556,20 @@ public abstract class EntityIndex implements
 		this.components.add(new AttributeIndexComponent(this.attributeIndex, this.indexKey));
 		this.components.add(this.hierarchyIndex);
 		this.components.add(this.facetIndex);
+	}
+
+	/**
+	 * Returns `true` when the supplied [EntityIndexKey] designates a reference-scoped index — i.e.
+	 * any [EntityIndexType] other than [EntityIndexType.GLOBAL]. The structural decision is taken
+	 * from the index-key type alone so call sites do not need to inspect the discriminator
+	 * shape (some reference-scoped indexes carry a [io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey],
+	 * others a raw reference-name string).
+	 *
+	 * @param indexKey the index key to classify
+	 * @return `true` if the key belongs to a reference-scoped index
+	 */
+	private static boolean isReferenceScoped(@Nonnull EntityIndexKey indexKey) {
+		return indexKey.type() != EntityIndexType.GLOBAL;
 	}
 
 	/**

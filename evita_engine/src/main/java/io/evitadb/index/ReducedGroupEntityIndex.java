@@ -33,7 +33,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -177,7 +177,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		int version,
 		@Nonnull Bitmap entityIds,
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull PriceRefIndex priceIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
@@ -238,7 +238,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		int version,
 		@Nonnull TransactionalBitmap entityIds,
 		@Nonnull TransactionalMap<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		boolean originalHierarchyIndexEmpty,
@@ -286,7 +286,9 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		return new ReducedGroupEntityIndex(
 			this.primaryKey, this.indexKey, this.version,
 			this.entityIds, this.entityIdsByLanguage,
-			this.attributeIndex,
+			// parent field is the abstract base; runtime type is guaranteed by the constructor
+			// dispatch in EntityIndex#isReferenceScoped + persistence-reload wiring
+			(ReferenceAttributeIndex) this.attributeIndex,
 			this.hierarchyIndex,
 			this.facetIndex,
 			this.originalHierarchyIndexEmpty,
@@ -811,11 +813,13 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		// we can safely throw away the cardinality dirty flag too
 		transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityDirty);
 
+		// AttributeIndex#createCopy preserves the subclass identity — the merged copy of a
+		// ReferenceAttributeIndex stays a ReferenceAttributeIndex.
 		return new ReducedGroupEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
+			(ReferenceAttributeIndex) transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(getPriceIndex()),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),

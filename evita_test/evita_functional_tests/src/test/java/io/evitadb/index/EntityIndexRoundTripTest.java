@@ -37,8 +37,11 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.AttributeScope;
 import io.evitadb.index.attribute.ChainIndex;
+import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -366,22 +369,30 @@ class EntityIndexRoundTripTest {
 	}
 
 	/**
-	 * Reconstructs an {@link AttributeIndex} from the captured storage parts using the same
+	 * Reconstructs an [AttributeIndex] from the captured storage parts using the same
 	 * constructor wiring as the production `fetchUniqueIndex` / `fetchFilterIndex` /
 	 * `fetchSortIndex` / `fetchChainIndex` helpers in `DefaultEntityCollectionPersistenceService`.
-	 * The CARDINALITY parts are intentionally ignored here because they live outside `AttributeIndex`
+	 * The CARDINALITY parts are intentionally ignored here because they live outside [AttributeIndex]
 	 * — reduced/referenced indexes consume them via a separate map.
 	 *
-	 * @param storage      the captured storage parts
-	 * @param entityType   the owning entity type (used by `UniqueIndex`)
-	 * @param referenceKey the representative reference key, or `null` for global indexes
-	 * @return a populated `AttributeIndex` mirroring the original index
+	 * The `referenceScoped` flag pins the structural subclass explicitly. It is required because
+	 * [io.evitadb.index.ReferencedTypeEntityIndex] passes a `null` representative key yet is
+	 * reference-scoped — the scope cannot be inferred from the key alone.
+	 *
+	 * @param storage         the captured storage parts
+	 * @param entityType      the owning entity type (used by [UniqueIndex])
+	 * @param referenceKey    the representative reference key, or `null`
+	 * @param referenceScoped `true` when the parent index is reference-scoped (any subclass of
+	 *                        [io.evitadb.index.AbstractReducedEntityIndex] or
+	 *                        [io.evitadb.index.ReferencedTypeEntityIndex])
+	 * @return a populated [AttributeIndex] of the appropriate subclass
 	 */
 	@Nonnull
 	private static AttributeIndex reloadAttributeIndex(
 		@Nonnull CapturedStorage storage,
 		@Nonnull String entityType,
-		@Nullable RepresentativeReferenceKey referenceKey
+		@Nullable RepresentativeReferenceKey referenceKey,
+		boolean referenceScoped
 	) {
 		final Map<AttributeIndexKey, UniqueIndex> uniqueIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, FilterIndex> filterIndexes = new HashMap<>(8);
@@ -432,9 +443,13 @@ class EntityIndexRoundTripTest {
 				);
 			}
 		}
-		return new AttributeIndex(
-			entityType, referenceKey, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
-		);
+		return referenceScoped
+			? new ReferenceAttributeIndex(
+				entityType, referenceKey, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+			)
+			: new EntityAttributeIndex(
+				entityType, referenceKey, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+			);
 	}
 
 	/**
@@ -629,7 +644,8 @@ class EntityIndexRoundTripTest {
 		@Nonnull
 		private GlobalEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
-			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null);
+			// GlobalEntityIndex is entity-scoped — uses EntityAttributeIndex
+			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null, false);
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = new HashMap<>(4);
 			for (StoragePart pricePart : storage.priceParts) {
 				final PriceListAndCurrencySuperIndexStoragePart superPart =
@@ -649,7 +665,7 @@ class EntityIndexRoundTripTest {
 				manifest.getVersion(),
 				manifest.getEntityIds(),
 				reloadEntityIdsByLanguage(manifest),
-				attributeIndex,
+				(EntityAttributeIndex) attributeIndex,
 				new PriceSuperIndex(priceIndexes),
 				reloadHierarchyIndex(storage),
 				reloadFacetIndex(storage)
@@ -704,6 +720,18 @@ class EntityIndexRoundTripTest {
 			assertFalse(reloaded.isHierarchyIndexEmpty(), "Reloaded hierarchy must be non-empty");
 			// facet sentinel
 			assertTrue(reloaded.getFacetingEntities().containsKey(REFERENCE_NAME));
+
+			// Phase 3 invariant: the AttributeIndex subclass identity survives reload.
+			// GlobalEntityIndex must hold an EntityAttributeIndex with ENTITY scope.
+			assertTrue(
+				original.attributeIndex instanceof EntityAttributeIndex,
+				"GlobalEntityIndex must construct an EntityAttributeIndex"
+			);
+			assertTrue(
+				reloaded.attributeIndex instanceof EntityAttributeIndex,
+				"Reloaded GlobalEntityIndex must reconstruct an EntityAttributeIndex"
+			);
+			assertEquals(AttributeScope.ENTITY, reloaded.attributeIndex.getScope());
 
 			// invariant 3: re-flushing the reloaded copy produces zero parts
 			assertManifestStableAfterReload(reloaded, storage.requireManifest());
@@ -782,7 +810,8 @@ class EntityIndexRoundTripTest {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			final RepresentativeReferenceKey rrk =
 				(RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator();
-			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, rrk);
+			// ReducedEntityIndex is reference-scoped — uses ReferenceAttributeIndex
+			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, rrk, true);
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = new HashMap<>(4);
 			for (StoragePart pricePart : storage.priceParts) {
 				final PriceListAndCurrencyRefIndexStoragePart refPart =
@@ -803,7 +832,7 @@ class EntityIndexRoundTripTest {
 				manifest.getVersion(),
 				manifest.getEntityIds(),
 				reloadEntityIdsByLanguage(manifest),
-				attributeIndex,
+				(ReferenceAttributeIndex) attributeIndex,
 				new PriceRefIndex(manifest.getEntityIndexKey().scope(), priceIndexes),
 				reloadHierarchyIndex(storage),
 				reloadFacetIndex(storage)
@@ -847,6 +876,17 @@ class EntityIndexRoundTripTest {
 			assertTrue(reloaded.isPriceIndexEmpty(), "Price was not populated in this fixture");
 			assertTrue(reloaded.isHierarchyIndexEmpty(), "Hierarchy was not populated in this fixture");
 			assertTrue(reloaded.getFacetingEntities().containsKey(REFERENCE_NAME));
+
+			// Phase 3 invariant: ReducedEntityIndex holds a ReferenceAttributeIndex (REFERENCE scope)
+			assertTrue(
+				original.attributeIndex instanceof ReferenceAttributeIndex,
+				"ReducedEntityIndex must construct a ReferenceAttributeIndex"
+			);
+			assertTrue(
+				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+				"Reloaded ReducedEntityIndex must reconstruct a ReferenceAttributeIndex"
+			);
+			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());
 
 			assertManifestStableAfterReload(reloaded, storage.requireManifest());
 		}
@@ -925,7 +965,8 @@ class EntityIndexRoundTripTest {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			final RepresentativeReferenceKey rrk =
 				(RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator();
-			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, rrk);
+			// ReducedGroupEntityIndex is reference-scoped — uses ReferenceAttributeIndex
+			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, rrk, true);
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = new HashMap<>(4);
 			for (StoragePart pricePart : storage.priceParts) {
 				final PriceListAndCurrencyRefIndexStoragePart refPart =
@@ -953,7 +994,7 @@ class EntityIndexRoundTripTest {
 				manifest.getVersion(),
 				manifest.getEntityIds(),
 				reloadEntityIdsByLanguage(manifest),
-				attributeIndex,
+				(ReferenceAttributeIndex) attributeIndex,
 				new PriceRefIndex(manifest.getEntityIndexKey().scope(), priceIndexes),
 				reloadHierarchyIndex(storage),
 				reloadFacetIndex(storage),
@@ -999,6 +1040,17 @@ class EntityIndexRoundTripTest {
 			assertTrue(reloaded.isPriceIndexEmpty(), "Price was not populated in this fixture");
 			assertTrue(reloaded.isHierarchyIndexEmpty(), "Hierarchy was not populated in this fixture");
 			assertTrue(reloaded.getFacetingEntities().containsKey(REFERENCE_NAME));
+
+			// Phase 3 invariant: ReducedGroupEntityIndex holds a ReferenceAttributeIndex (REFERENCE scope)
+			assertTrue(
+				original.attributeIndex instanceof ReferenceAttributeIndex,
+				"ReducedGroupEntityIndex must construct a ReferenceAttributeIndex"
+			);
+			assertTrue(
+				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+				"Reloaded ReducedGroupEntityIndex must reconstruct a ReferenceAttributeIndex"
+			);
+			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());
 
 			assertManifestStableAfterReload(reloaded, storage.requireManifest());
 		}
@@ -1055,7 +1107,9 @@ class EntityIndexRoundTripTest {
 		@Nonnull
 		private ReferencedTypeEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
-			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null);
+			// ReferencedTypeEntityIndex is reference-scoped even though the AttributeIndex receives a
+			// null representative key — its discriminator is a String reference name
+			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null, true);
 			final ReferenceTypeCardinalityIndexStoragePart refTypePart = storage.referenceTypeCardinalityPart;
 			assertNotNull(refTypePart, "ReferencedTypeEntityIndex must emit a reference-type cardinality part");
 			final Map<String, HistogramIndex> histogramIndexes =
@@ -1072,7 +1126,7 @@ class EntityIndexRoundTripTest {
 				manifest.getVersion(),
 				manifest.getEntityIds(),
 				reloadEntityIdsByLanguage(manifest),
-				attributeIndex,
+				(ReferenceAttributeIndex) attributeIndex,
 				reloadHierarchyIndex(storage),
 				reloadFacetIndex(storage),
 				freshRefType,
@@ -1112,6 +1166,18 @@ class EntityIndexRoundTripTest {
 			assertTrue(trackedReferencedPks.contains(50));
 			assertTrue(trackedReferencedPks.contains(51));
 			assertTrue(reloaded.getFacetingEntities().containsKey(REFERENCE_NAME));
+
+			// Phase 3 invariant: ReferencedTypeEntityIndex holds a ReferenceAttributeIndex (REFERENCE scope)
+			// even though it carries no RepresentativeReferenceKey
+			assertTrue(
+				original.attributeIndex instanceof ReferenceAttributeIndex,
+				"ReferencedTypeEntityIndex must construct a ReferenceAttributeIndex"
+			);
+			assertTrue(
+				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+				"Reloaded ReferencedTypeEntityIndex must reconstruct a ReferenceAttributeIndex"
+			);
+			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());
 
 			assertManifestStableAfterReload(reloaded, storage.requireManifest());
 		}
