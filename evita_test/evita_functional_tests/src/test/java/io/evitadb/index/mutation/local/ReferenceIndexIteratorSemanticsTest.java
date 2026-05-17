@@ -49,6 +49,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -74,15 +75,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   instance. Used for entity-scoped work on a shared RGEI (cardinality bookkeeping, price
  *   set-semantic leaves). Implemented as `forEachReferenceIndex` plus an internal identity dedup.
  *
- * ## Bug class guarded against
+ * ## Identity-vs-cardinality contract
  *
- * The fix in commit `d331d1db4` (`prevent shared ReducedGroupEntityIndex drift for cardinality
- * and price leaves`) exposed a subtle property of the per-reference iterator: **it fires the
- * consumer once per reference, not once per unique target index**. When N references on the same
- * entity point at the same group, the iterator hands the consumer the SAME
- * `ReducedGroupEntityIndex` Java instance N times. Callers performing entity-scoped work (e.g.
- * cardinality counters, price bitmaps) must use `forEachUniqueReferenceIndex` so the iterator
- * dedups by identity for them.
+ * The per-reference iterator fires the consumer once per reference, not once per unique target
+ * index. When N references on the same entity point at the same group, the iterator hands the
+ * consumer the SAME `ReducedGroupEntityIndex` Java instance N times. Callers performing
+ * entity-scoped work (e.g. cardinality counters, price bitmaps) must use
+ * `forEachUniqueReferenceIndex` so the iterator dedups by identity for them.
  *
  * These tests pin both modes' contracts in place so future refactors cannot silently change
  * cardinality, identity, or coverage semantics.
@@ -197,7 +196,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("forEachReferenceIndex (REDUCED_ENTITY, no predicate) — once per ref; distinct refs get distinct REIs")
+	@DisplayName("forEachReferenceIndex (REDUCED_ENTITY) — once per ref; distinct refs → distinct REIs")
 	void shouldFireOncePerReferenceAndProduceDistinctReducedEntityIndexesWhenReferencesDiffer() {
 		// Scenario B for entity-level path: 3 references to distinct referenced entities, each yields
 		// its own ReducedEntityIndex because EntityIndexKey discriminator is the referenced PK.
@@ -222,7 +221,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("forEachReferenceIndex (REDUCED_ENTITY, with predicate) — filters refs; REI identity preserved")
+	@DisplayName("forEachReferenceIndex (REDUCED_ENTITY, predicate) — filters refs; REI identity preserved")
 	void shouldFilterByPredicateAndPreserveIndexIdentityWhenSomeReferencesShareNothing() {
 		// 4 references; predicate keeps only refs with primaryKey >= 20 → expect 3 invocations.
 		seedReferences(
@@ -432,7 +431,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 	@Test
 	@DisplayName("forEachReferenceIndex (BOTH, predicate) — applies to both REI and RGEI paths")
-	void shouldApplyPredicateToBothPathsWhenUsingExecuteWithAllReferenceIndexes() {
+	void shouldApplyPredicateToBothPathsWhenUsingForEachReferenceIndex() {
 		// 4 refs; predicate keeps only refs with primaryKey >= 20. Refs 20, 30 share group 100; ref 40
 		// has group 200. The combined iterator should fire:
 		//   - REI path: 3 invocations (refs 20, 30, 40), 3 distinct REIs
@@ -595,7 +594,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	}
 
 	@Test
-	@DisplayName("forEachUniqueReferenceIndex (REDUCED_ENTITY) — distinct refs already unique, no dedup change")
+	@DisplayName("forEachUniqueReferenceIndex (REDUCED_ENTITY) — distinct refs unique, no dedup change")
 	void shouldBehaveLikeForEachReferenceIndexWhenNoTargetIndexIsShared() {
 		// When every reference has its own unique target index (REI keyed by distinct referenced PK),
 		// `forEachUniqueReferenceIndex` and `forEachReferenceIndex` must produce the same invocation
@@ -633,11 +632,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	@Nonnull
 	private List<Reference> seedReferences(@Nonnull Reference... references) {
 		this.testContainerAccessor.setReferences(references);
-		final List<Reference> list = new ArrayList<>(references.length);
-		for (Reference reference : references) {
-			list.add(reference);
-		}
-		return list;
+		return new ArrayList<>(Arrays.asList(references));
 	}
 
 	/**
@@ -659,7 +654,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		int internalPK,
 		int groupPK
 	) {
-		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(referenceName);
+		final ReferenceSchema referenceSchema =
+			this.productSchema.getReferenceOrThrowException(referenceName);
 		return new Reference(
 			this.productSchema,
 			referenceSchema,
@@ -683,7 +679,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		int primaryKey,
 		int internalPK
 	) {
-		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(referenceName);
+		final ReferenceSchema referenceSchema =
+			this.productSchema.getReferenceOrThrowException(referenceName);
 		return new Reference(
 			this.productSchema,
 			referenceSchema,
@@ -710,7 +707,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		int internalPK,
 		int groupPK
 	) {
-		final ReferenceSchema referenceSchema = this.productSchema.getReferenceOrThrowException(referenceName);
+		final ReferenceSchema referenceSchema =
+			this.productSchema.getReferenceOrThrowException(referenceName);
 		return new Reference(
 			this.productSchema,
 			referenceSchema,
@@ -846,7 +844,9 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		 * @param to           end index (exclusive)
 		 * @param expectedType the concrete subclass of `AbstractReducedEntityIndex`
 		 */
-		void assertSliceTypes(int from, int to, @Nonnull Class<? extends AbstractReducedEntityIndex> expectedType) {
+		void assertSliceTypes(
+			int from, int to, @Nonnull Class<? extends AbstractReducedEntityIndex> expectedType
+		) {
 			for (int i = from; i < to; i++) {
 				final AbstractReducedEntityIndex index = this.invocations.get(i).indexForUpsert();
 				assertTrue(
@@ -984,7 +984,9 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		 * @param to                    end invocation index (exclusive)
 		 * @param expectedReferencedPks the expected referenced entity PKs in slice order
 		 */
-		void assertEntityPathReferencedPrimaryKeysInSlice(int from, int to, @Nonnull int... expectedReferencedPks) {
+		void assertEntityPathReferencedPrimaryKeysInSlice(
+			int from, int to, @Nonnull int... expectedReferencedPks
+		) {
 			assertEquals(
 				expectedReferencedPks.length, to - from,
 				"slice length must equal expected sequence length"
@@ -1053,7 +1055,9 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		@Nonnull
 		@Override
-		public ReferencesStoragePart getReferencesStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+		public ReferencesStoragePart getReferencesStoragePart(
+			@Nonnull String entityType, int entityPrimaryKey
+		) {
 			return this.referencesStoragePart;
 		}
 	}

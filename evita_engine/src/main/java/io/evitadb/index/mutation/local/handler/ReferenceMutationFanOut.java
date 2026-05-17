@@ -41,18 +41,15 @@ import javax.annotation.Nonnull;
 import java.util.function.Predicate;
 
 /**
- * Shared orchestration for the five concrete reference-mutation handlers. The legacy
- * `applyReferenceMutation` was a per-reference fan-out — the consumer is keyed by the individual
- * reference key, so even when N sibling references resolve to the same shared
- * `ReducedGroupEntityIndex` the consumer must fire once per reference. `forEachReferenceIndex`
- * provides those semantics; the unique variant would be wrong here because facet add/remove must
- * happen per reference key.
+ * Shared orchestration for the five concrete reference-mutation handlers. Uses per-reference
+ * fan-out (`fanOutPerReference` with `IterationPath.BOTH`) because the consumer is keyed by the
+ * individual reference key — facet add/remove must fire once per reference, even when N sibling
+ * references resolve to the same shared `ReducedGroupEntityIndex`. The unique-per-index variant
+ * would lose facet entries for the siblings folded into the dedup.
  *
- * The handler-typed entry point is invoked exactly the same way for all five reference mutations
- * — the type-specific work lives inside `executor.updateReferences` (cross-reference paths) and
- * `executor.updateReferencesInReferenceIndex` (this-reference paths) which both still dispatch on
- * the concrete mutation type. M5 of this refactor leaves those internals alone; they are shared
- * helpers, not per-mutation dispatchers.
+ * The type-specific work lives inside `executor.updateReferences` (cross-reference paths) and
+ * `executor.updateReferencesInReferenceIndex` (this-reference paths); both still dispatch on the
+ * concrete mutation type because they are shared helpers, not per-mutation entry points.
  */
 final class ReferenceMutationFanOut {
 

@@ -379,7 +379,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 
 	/**
 	 * Deterministic regression test pinned to seed `1623796816` — captures the open bug where the
-	 * group-path iteration in `ReferenceIndexMutator#forEachReferenceIndex` resolves a mutation
+	 * group-path iteration in `ReferenceIndexMutator#forEachUniqueReferenceIndex` resolves a mutation
 	 * against a freshly-created `ReducedGroupEntityIndex` whose discriminator (built from
 	 * `bothKeys.stored().representativeAttributeValues()`) does not match any RGEI where the
 	 * entity's data physically lives.
@@ -392,9 +392,9 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	 *     `ReducedGroupEntityIndex.removeFilterAttribute`.
 	 *
 	 * Both manifestations stem from the same drift: the iteration in
-	 * {@link io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachReferenceIndex} (group path)
-	 * uses the plural `getRepresentativeReferenceKeys` which does NOT trigger migration; only the
-	 * singular `getRepresentativeReferenceKey` runs
+	 * {@link io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachUniqueReferenceIndex}
+	 * (group path) uses the plural `getRepresentativeReferenceKeys` which does NOT trigger migration;
+	 * only the singular `getRepresentativeReferenceKey` runs
 	 * {@code getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary}.
 	 *
 	 * Empirical evidence captured during investigation: for entity 613, price `sellout/CZK/NONE`
@@ -404,15 +404,15 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	 * Disabled until the iteration-layer fix lands. Re-enable by removing the `@Disabled`
 	 * annotation after fix — this test then serves as the canonical regression marker.
 	 *
+	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachUniqueReferenceIndex
 	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachReferenceIndex
 	 * @see io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary
 	 */
 	@Test
 	@Tag(SLOW)
 	@DisplayName("Generative seed 1623796816 must not surface reduced-reference-index drift")
-	@Disabled("Partial fix landed for the price-bucket drift; sibling attribute-cardinality drift still trips the test at gen-4 mod-213. See project_reference_price_index_drift memory note.")
+	@Disabled("See #1075 — generational seed 1623796816 fails at mod 613")
 	void shouldNotSurfaceReducedReferenceIndexDriftForSeed1623796816() {
-		/* TODO JNO - remove after rearchitecting */
 		// Re-invokes the generative driver with the deterministic seed pinned to the original
 		// CI failure. Calls `generationalTransactionalModificationProofTest` directly with a
 		// hand-built `GenerationalTestInput` so a single CI green/red lights up exactly this

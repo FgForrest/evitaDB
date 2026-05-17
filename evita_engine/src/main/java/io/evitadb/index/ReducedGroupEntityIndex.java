@@ -210,8 +210,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		);
 		registerSubclassComponents();
 		// re-capture the change-detection baseline from the components now that every subclass
-		// sub-index map is populated — this replaces the former collectAttributeIndexStorageKeys()
-		// helper which only patched in CARDINALITY keys and ignored histograms
+		// sub-index map is populated, so the baseline includes CARDINALITY and histogram keys
 		captureOriginalsFromComponents();
 	}
 
@@ -350,8 +349,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		return new ReducedGroupEntityIndex(
 			this.primaryKey, this.indexKey, this.version,
 			this.entityIds, this.entityIdsByLanguage,
-			// parent field is the abstract base; runtime type is guaranteed by the constructor
-			// dispatch in EntityIndex#isReferenceScoped + persistence-reload wiring
+			// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
 			(ReferenceAttributeIndex) this.attributeIndex,
 			this.hierarchyIndex,
 			this.facetIndex,
@@ -457,8 +455,8 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * group-cardinality flush, reset and remove-layer all flow through the uniform component path.
 	 *
 	 * Called from every constructor right after the subclass fields are populated and before
-	 * {@link #captureOriginalsFromComponents()} (when applicable). The registration order is
-	 * locked to today's flush order: attribute-cardinality first, then histograms, then the
+	 * {@link #captureOriginalsFromComponents()} (when applicable). Registration order matters for
+	 * deterministic flush sequencing: attribute-cardinality first, then histograms, then the
 	 * group-cardinality dirty-flag-driven block.
 	 */
 	private void registerSubclassComponents() {
@@ -879,8 +877,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		// we can safely throw away the cardinality dirty flag too
 		transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityDirty);
 
-		// AttributeIndex#createCopy preserves the subclass identity — the merged copy of a
-		// ReferenceAttributeIndex stays a ReferenceAttributeIndex.
+		// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
 		return new ReducedGroupEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),

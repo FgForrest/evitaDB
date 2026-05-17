@@ -34,12 +34,10 @@ import java.util.Objects;
 import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
- * Reloads the group-cardinality bookkeeping carried by `ReducedGroupEntityIndex`. Ports
- * `fetchGroupCardinalityIndex` from `DefaultEntityCollectionPersistenceService`.
+ * Reloads the group-cardinality bookkeeping carried by `ReducedGroupEntityIndex`.
  *
- * The reference name is extracted from the discriminator, which for
- * `REFERENCED_GROUP_ENTITY` keys is always a `RepresentativeReferenceKey`. A
- * `null` here is a programming error.
+ * The reference name is extracted from the discriminator, which for `REFERENCED_GROUP_ENTITY`
+ * keys is always a `RepresentativeReferenceKey`. A `null` here is a programming error.
  */
 public final class GroupCardinalityLoader implements ComponentLoader {
 

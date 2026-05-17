@@ -196,7 +196,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
 			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE, null,
+				ENTITY_TYPE,
 				Map.of(uniqueKey, uniqueIdx),
 				Map.of(filterKey, filterIdx),
 				Map.of(sortKey, sortIdx),
@@ -815,7 +815,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			uniqueIdx.registerUniqueKey("ABC", 1);
 
 			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE, null,
+				ENTITY_TYPE,
 				Map.of(key, uniqueIdx),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -837,7 +837,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			filterIdx.addRecord(1, "Test");
 
 			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE, null,
+				ENTITY_TYPE,
 				Collections.emptyMap(),
 				Map.of(key, filterIdx),
 				Collections.emptyMap(),
@@ -859,7 +859,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			sortIdx.addRecord(10, 1);
 
 			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE, null,
+				ENTITY_TYPE,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Map.of(key, sortIdx),
@@ -881,7 +881,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
 			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE, null,
+				ENTITY_TYPE,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
@@ -927,7 +927,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
 			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE, null,
+				ENTITY_TYPE,
 				Map.of(uniqueKey, uniqueIdx),
 				Map.of(filterKey, filterIdx),
 				Map.of(sortKey, sortIdx),
@@ -950,7 +950,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			uniqueIdx.registerUniqueKey("ABC", 1);
 
 			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE, null,
+				ENTITY_TYPE,
 				Map.of(uniqueKey, uniqueIdx),
 				Collections.emptyMap(),
 				Collections.emptyMap(),

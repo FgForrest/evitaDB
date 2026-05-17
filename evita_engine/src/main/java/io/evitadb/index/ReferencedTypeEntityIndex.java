@@ -275,8 +275,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		);
 		registerSubclassComponents();
 		// re-capture the change-detection baseline from the components now that every subclass
-		// sub-index map is populated — this replaces the former collectAttributeIndexStorageKeys()
-		// helper which only patched in CARDINALITY keys and ignored histograms
+		// sub-index map is populated, so the baseline includes CARDINALITY and histogram keys
 		captureOriginalsFromComponents();
 	}
 
@@ -425,7 +424,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * is trivially empty.
 	 *
 	 * Called from every constructor right after the subclass fields are populated and before
-	 * {@link #captureOriginalsFromComponents()}.
+	 * {@link #captureOriginalsFromComponents()}. Registration order matters for deterministic
+	 * flush sequencing.
 	 */
 	private void registerSubclassComponents() {
 		// RTEI never has live prices, but the void price component is registered for shape
@@ -725,8 +725,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	) {
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		// AttributeIndex#createCopy preserves the subclass identity — the merged copy of a
-		// ReferenceAttributeIndex stays a ReferenceAttributeIndex.
+		// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
 		return new ReferencedTypeEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),

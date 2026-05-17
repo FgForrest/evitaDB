@@ -34,11 +34,9 @@ import javax.annotation.Nonnull;
  *
  * Each leaf mutation type (`UpsertAttributeMutation`, `RemovePriceMutation`,
  * `InsertReferenceMutation`, ...) is paired with exactly one handler singleton registered in
- * `LocalMutationHandlerRegistry`. Replaces the hand-rolled `instanceof` dispatcher previously
- * embedded in `EntityIndexLocalMutationExecutor#applyMutation`. The handler states its fan-out
- * needs (per-reference vs unique-per-index, which `IterationPath`) at the call site, eliminating
- * the d331d1db4-class hazard where adding a new mutation forced edits scattered across the
- * executor.
+ * `LocalMutationHandlerRegistry`. The handler states its fan-out needs (per-reference vs
+ * unique-per-index, which `IterationPath`) at the call site, so adding a new mutation type touches
+ * exactly one new file rather than scattered edits across the executor.
  *
  * Handlers are stateless class-init singletons (`public static final INSTANCE = ...`). Zero
  * per-call allocation; the registry lookup is a single hashmap get keyed by `mutation.getClass()`.
@@ -58,10 +56,9 @@ public interface LocalMutationHandler<M extends LocalMutation<?, ?>> {
 	Class<M> handledType();
 
 	/**
-	 * Applies the mutation to all relevant indexes via the supplied executor. The handler is
-	 * responsible for orchestrating global-index updates and any fan-out to reduced indexes (via
-	 * `executor.fanOutPerReference` / `executor.fanOutUniquePerIndex`) — the executor itself no
-	 * longer owns this orchestration.
+	 * Applies the mutation to all relevant indexes via the supplied executor. The handler owns the
+	 * orchestration of global-index updates and any fan-out to reduced indexes (via
+	 * `executor.fanOutPerReference` / `executor.fanOutUniquePerIndex`).
 	 *
 	 * @param mutation    the concrete mutation to apply
 	 * @param executor    the active executor providing entity state, index access, deferral hooks,

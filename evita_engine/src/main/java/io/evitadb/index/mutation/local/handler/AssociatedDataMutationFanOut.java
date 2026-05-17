@@ -32,10 +32,9 @@ import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import javax.annotation.Nonnull;
 
 /**
- * Shared deferred-facet-only fan-out for the two concrete associated-data mutations. The legacy
- * `applyAssociatedDataMutation` performs no synchronous index writes — associated data is opaque
- * to all reduced indexes — so the handler's only job is to register a post-write facet
- * re-evaluation when any trigger references the mutated key.
+ * Shared deferred-facet-only fan-out for the two concrete associated-data mutations. Associated
+ * data is opaque to all reduced indexes, so the only side-effect is to register a post-write
+ * facet re-evaluation when a trigger references the mutated key.
  */
 final class AssociatedDataMutationFanOut {
 

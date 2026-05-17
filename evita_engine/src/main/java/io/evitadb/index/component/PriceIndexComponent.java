@@ -26,6 +26,7 @@ package io.evitadb.index.component;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
@@ -74,6 +75,12 @@ public final class PriceIndexComponent implements IndexComponent {
 			superIndex.getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges);
 		} else if (this.priceIndex instanceof PriceRefIndex refIndex) {
 			refIndex.getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges);
+		} else if (this.priceIndex instanceof VoidPriceIndex) {
+			// intentional no-op: VoidPriceIndex carries no state and has no modified parts to emit
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unexpected PriceIndexContract impl: " + this.priceIndex.getClass()
+			);
 		}
 		// announce every live price-list-and-currency key into the manifest; for the void
 		// flavour `getPriceListAndCurrencyIndexes()` returns the empty collection so this

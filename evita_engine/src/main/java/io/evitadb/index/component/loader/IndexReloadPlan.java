@@ -42,19 +42,13 @@ import java.util.function.BiFunction;
  * The plan is a value object — immutable after `Builder.build()`, safe to cache statically per
  * subclass, and contains no per-call state. Per-call state (catalog version, storage service,
  * etc.) flows through {@link LoadContext}.
- *
- * Plans pin the **load order** to today's order in `DefaultEntityCollectionPersistenceService`
- * so the refactor is byte-identical to the legacy code path: the parallel reload guarded by
- * `evita.indexing.loaderRegistry` in Phase 4 M2 must produce indexes indistinguishable from the
- * legacy path under the equivalence harness (round-trip + soak suite).
  */
 public final class IndexReloadPlan {
 
 	/**
-	 * Ordered list of loaders to run for this `EntityIndex` subclass. The order matters because
-	 * legacy `readEntityIndex` had a fixed fetch order locked in for years and a different order
-	 * could surface subtle ordering-dependent bugs in `KeyCompressor` initialization or
-	 * `OffsetIndex` read locality.
+	 * Ordered list of loaders to run for this `EntityIndex` subclass. The order is significant:
+	 * reshuffling can surface subtle ordering-dependent bugs in `KeyCompressor` initialization
+	 * or `OffsetIndex` read locality.
 	 */
 	@Nonnull private final List<ComponentLoader> loaders;
 	/**
@@ -97,16 +91,22 @@ public final class IndexReloadPlan {
 		// HashMap is fine here; reload is not on the hot path
 		final Map<Class<? extends LoadedComponentBundle>, LoadedComponentBundle> bundles =
 			new HashMap<>(this.loaders.size() * 2);
+		// no plan should register two loaders that return the same bundle class — any collision
+		// is a programming error
+		final Map<Class<? extends LoadedComponentBundle>, ComponentLoader> producers =
+			new HashMap<>(this.loaders.size() * 2);
 		for (int i = 0; i < this.loaders.size(); i++) {
 			final ComponentLoader loader = this.loaders.get(i);
 			final LoadedComponentBundle bundle = loader.load(context);
-			// last-writer-wins for the same shape; today no plan registers two loaders that
-			// return the same bundle class, so any collision is a programming error
+			final ComponentLoader previousProducer = producers.put(bundle.getClass(), loader);
 			final LoadedComponentBundle previous = bundles.put(bundle.getClass(), bundle);
 			if (previous != null) {
 				throw new GenericEvitaInternalError(
 					"Duplicate LoadedComponentBundle of class " + bundle.getClass().getName() +
-						" from loader " + loader.getClass().getName()
+						" produced by loader " + loader.getClass().getName() +
+						" (previously produced by " +
+						(previousProducer == null ? "<unknown>" : previousProducer.getClass().getName()) +
+						")"
 				);
 			}
 		}
@@ -114,9 +114,9 @@ public final class IndexReloadPlan {
 	}
 
 	/**
-	 * Returns the ordered list of registered loaders. Exposed for the M4 symmetry test which
-	 * needs to verify that every `IndexComponent` registered on the write side has a matching
-	 * `ComponentLoader` on the read side.
+	 * Returns the ordered list of registered loaders. Exposed so the symmetry tests can verify
+	 * that every `IndexComponent` registered on the write side has a matching `ComponentLoader`
+	 * on the read side.
 	 *
 	 * @return immutable view of the registered loaders
 	 */

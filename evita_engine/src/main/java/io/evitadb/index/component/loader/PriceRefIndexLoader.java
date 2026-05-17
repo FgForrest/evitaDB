@@ -40,15 +40,14 @@ import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
  * Reloads the reference-price index map carried by `ReducedEntityIndex` and
- * `ReducedGroupEntityIndex`. Ports `fetchPriceRefIndexes` from
- * `DefaultEntityCollectionPersistenceService`. The scope is read from
- * `LoadContext.entityIndexKey()` because reference-price indexes are scope-aware (LIVE /
- * ARCHIVE) and propagate the scope down to every individual `PriceListAndCurrencyPriceRefIndex`.
+ * `ReducedGroupEntityIndex`. The scope is read from `LoadContext.entityIndexKey()` because
+ * reference-price indexes are scope-aware (LIVE / ARCHIVE) and propagate the scope down to every
+ * individual `PriceListAndCurrencyPriceRefIndex`.
  *
  * The unique part-id is computed with
- * `PriceListAndCurrencySuperIndexStoragePart.computeUniquePartId` — the legacy code shares the
- * same key compressor entry for both super and ref price storage parts to keep the on-disk
- * layout stable when an index toggles between flavours during schema migration.
+ * `PriceListAndCurrencySuperIndexStoragePart.computeUniquePartId` — both super and ref price
+ * storage parts share the same key compressor entry so the on-disk layout remains stable when
+ * an index toggles between flavours during schema migration.
  */
 public final class PriceRefIndexLoader implements ComponentLoader {
 

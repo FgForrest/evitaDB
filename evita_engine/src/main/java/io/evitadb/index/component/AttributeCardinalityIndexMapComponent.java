@@ -37,18 +37,19 @@ import javax.annotation.Nonnull;
 import java.util.Map.Entry;
 
 /**
- * {@link IndexComponent} adapter for the per-attribute {@link AttributeCardinalityIndex} map carried by
- * {@link io.evitadb.index.ReducedGroupEntityIndex} and {@link io.evitadb.index.ReferencedTypeEntityIndex}.
- * These cardinality indexes track how many times a given attribute value has been registered for a
- * given record so that the underlying filter / sort indexes are only mutated on 0→1 and 1→0 transitions.
+ * {@link IndexComponent} adapter for the per-attribute {@link AttributeCardinalityIndex} map carried
+ * by {@link io.evitadb.index.ReducedGroupEntityIndex} and
+ * {@link io.evitadb.index.ReferencedTypeEntityIndex}. These cardinality indexes track how many times
+ * a given attribute value has been registered for a given record so that the underlying filter / sort
+ * indexes are only mutated on 0→1 and 1→0 transitions.
  *
  * The component:
  *
- * 1. emits per-entry {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart}
- *    instances for every dirty cardinality index,
+ * 1. emits per-entry `AttributeCardinalityIndexStoragePart` instances for every dirty cardinality
+ *    index,
  * 2. announces a `CARDINALITY` {@link AttributeIndexStorageKey} per entry into the shared
- *    {@link EntityIndexManifest} so the parent index advertises them in the
- *    {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart},
+ *    {@link EntityIndexManifest} so the parent index advertises them in the parent
+ *    `EntityIndexStoragePart`,
  * 3. forwards reset/remove-layer calls into every wrapped {@link AttributeCardinalityIndex} via the
  *    {@link TransactionalMap} machinery.
  */

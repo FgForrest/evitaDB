@@ -91,30 +91,16 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Fast, bounded soak test that re-uses the schema and mutation generator from
- * `LongRunningEvitaReferencesGenerationalTest` but compresses the work into a few seconds per seed so
- * the regression is exercised in the regular CI cycle.
+ * `LongRunningEvitaReferencesGenerationalTest` but compresses the work into a few seconds per
+ * seed so the regression class is exercised in the regular CI cycle.
  *
- * The bug class this test is built around (commit `d331d1db4`) only surfaces when the iteration in
- * `ReferenceIndexMutator#forEachReferenceIndex` (group path) resolves an entity's mutation against a
- * freshly-rehydrated `ReducedGroupEntityIndex` whose discriminator no longer matches the index where
- * the entity's data physically lives. The cliff edges are:
+ * The invariants this test pins are:
  *
- *   1. dense mutation traffic on references that group and share representative attribute values
- *   2. a commit + reload boundary that forces the manifest to materialise the index state on disk
- *      and rehydrate it on the other side
- *
- * The test runs a fixed seed list — the historically failing seeds plus a small deterministic set
- * of additional seeds for variety — and asserts:
- *
- *   - no exception escapes during the mutation phase, and the operation context is preserved in
- *     the failure message
+ *   - no exception escapes during dense mutation pressure across a commit + reload boundary
  *   - cross-reference integrity between products and their reflected category references holds
- *     after the reload boundary
+ *     before and after the reload boundary
  *
- * Re-firing of either `Cardinality of value ... is null` or `Price index for price list ... not
- * found` would surface as a thrown exception caught by the per-iteration guard.
- *
- * Total budget: 12 seeds * ~1s each = ~12s wall clock; not tagged `@Tag(SLOW)` so it ships in the
+ * Total budget: 13 seeds * ~1s each = ~13s wall clock; not tagged `@Tag(SLOW)` so it ships in the
  * default fast loop.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -202,9 +188,8 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Drives the canonical pre-reload / reload / post-reload cycle for the supplied seed. Failures
-	 * surface as `fail(...)` with the operation context preserved — that is the regression signal
-	 * for either of the just-fixed assertion paths.
+	 * Drives the canonical pre-reload / reload / post-reload cycle for the supplied seed.
+	 * Failures surface as `fail(...)` with the operation context preserved.
 	 *
 	 * @param seed deterministic seed for the random walk and data generator
 	 */
@@ -215,15 +200,14 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 		this.paths = createTestPaths("SharedRgeiSoakTest_" + seed);
 		final DataGenerator dataGenerator = new DataGenerator();
 		final Map<Serializable, Integer> generatedEntities = new HashMap<>();
-		final BiFunction<String, Faker, Integer> randomEntityPicker = createRandomEntityPicker(generatedEntities);
+		final BiFunction<String, Faker, Integer> randomEntityPicker =
+			createRandomEntityPicker(generatedEntities);
 
 		this.evita = new Evita(getEvitaConfiguration());
 		this.evita.defineCatalog(CATALOG_NAME);
 
 		// phase 1: build a slim catalog and seed it with the initial product set
-		final SealedEntitySchema productSchema = setUpCatalog(
-			dataGenerator, randomEntityPicker, generatedEntities, seed
-		);
+		setUpCatalog(dataGenerator, randomEntityPicker, generatedEntities, seed);
 
 		// phase 2: run the first half of the mutation budget under transaction
 		final Map<Integer, SealedEntity> removedEntities = new HashMap<>(MAX_REMOVED_ENTITIES);
@@ -231,21 +215,16 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 		final Function<SealedEntity, EntityBuilder> modificationFunction =
 			dataGenerator.createModificationFunction(randomEntityPicker, random);
 
-		runMutationPhase(
-			"pre-reload", productSchema, modificationFunction, removedEntities, random
-		);
+		runMutationPhase("pre-reload", modificationFunction, removedEntities, random);
 
-		// phase 3: force a commit+reload boundary — this is the cliff edge for the manifest /
-		// contents-divergence bug class
+		// phase 3: force a commit+reload boundary — the cliff edge for manifest / contents divergence
 		assertReferencesAreConsistent("pre-reload");
 		closeAndReopenEvita();
 		assertReferencesAreConsistent("post-reload");
 
 		// phase 4: re-apply the rest of the mutation budget so any drift introduced by the reload
 		// has a chance to fire on the rehydrated indexes
-		runMutationPhase(
-			"post-reload", productSchema, modificationFunction, removedEntities, random
-		);
+		runMutationPhase("post-reload", modificationFunction, removedEntities, random);
 
 		assertReferencesAreConsistent("final");
 	}
@@ -277,16 +256,13 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 	 * @param randomEntityPicker  picker that wires references during product generation
 	 * @param generatedEntities   map populated with the highest seen primary key per entity type
 	 * @param seed                deterministic seed for data generation
-	 * @return the product entity schema for downstream lookups
 	 */
-	@Nonnull
-	private SealedEntitySchema setUpCatalog(
+	private void setUpCatalog(
 		@Nonnull final DataGenerator dataGenerator,
 		@Nonnull final BiFunction<String, Faker, Integer> randomEntityPicker,
 		@Nonnull final Map<Serializable, Integer> generatedEntities,
 		final long seed
 	) {
-		final SealedEntitySchema[] holder = new SealedEntitySchema[1];
 		this.evita.updateCatalog(
 			CATALOG_NAME,
 			session -> {
@@ -415,11 +391,9 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 					.limit(INITIAL_PRODUCT_COUNT)
 					.forEach(session::upsertEntity);
 
-				holder[0] = productSchema;
 				session.goLiveAndClose();
 			}
 		);
-		return holder[0];
 	}
 
 	/**
@@ -428,17 +402,15 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 	 * previously removed entity, or modify an existing entity.
 	 *
 	 * Any thrown exception is captured with the operation context so the assertion message points
-	 * directly at the failing operation — the regression signal for the shared-RGEI drift bug.
+	 * directly at the failing operation.
 	 *
-	 * @param label                phase label used in the failure message ("pre-reload" / "post-reload")
-	 * @param productSchema        schema of the product entity (unused but kept for future hooks)
+	 * @param label                phase label used in the failure message (pre/post-reload)
 	 * @param modificationFunction function that mutates an existing entity into a builder
 	 * @param removedEntities      shared map of removed entities, mutable across phases
 	 * @param random               deterministic random source seeded once per test invocation
 	 */
 	private void runMutationPhase(
 		@Nonnull final String label,
-		@Nonnull final SealedEntitySchema productSchema,
 		@Nonnull final Function<SealedEntity, EntityBuilder> modificationFunction,
 		@Nonnull final Map<Integer, SealedEntity> removedEntities,
 		@Nonnull final Random random
@@ -466,7 +438,7 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 						)
 					);
 					session.deleteEntity(Entities.PRODUCT, primaryKey);
-				} else if (random.nextInt(5) == 0 && removedEntities.size() > 0) {
+				} else if (random.nextInt(5) == 0 && !removedEntities.isEmpty()) {
 					final SealedEntity entityToRestore = pickRandom(random, removedEntities);
 					removedEntities.remove(entityToRestore.getPrimaryKey());
 					operation = label + ":restore of " + entityToRestore.getPrimaryKey();
@@ -486,9 +458,8 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 				}
 			}
 		} catch (final Exception ex) {
-			// This is the canonical regression signal: any thrown exception during the mutation
-			// loop indicates either re-occurrence of the just-fixed drift bug, or a related
-			// shared-index inconsistency. The operation context narrows down which entity tripped.
+			// any thrown exception during the mutation loop is a regression signal; the operation
+			// context narrows down which entity tripped
 			fail(
 				"Failed during " + operation + " (seed-driven random walk; phase=" + label + "): "
 					+ ex.getMessage(),
@@ -498,10 +469,9 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Closes the running `Evita` instance and reopens it against the same on-disk storage. This is
-	 * the manifest/contents-divergence cliff edge: any index whose persisted state diverges from its
-	 * in-memory state will surface as either a missing-cardinality assertion or a missing-price-index
-	 * assertion on the next mutation that touches it.
+	 * Closes the running `Evita` instance and reopens it against the same on-disk storage. Any
+	 * index whose persisted state diverges from its in-memory state surfaces as a runtime failure
+	 * on the next mutation that touches it.
 	 */
 	private void closeAndReopenEvita() {
 		this.evita.close();
@@ -511,8 +481,8 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 
 	/**
 	 * Cross-validates product references against the reflected `products` references on category
-	 * entities. Failures here mean either a missing reflection or an attribute-value drift between
-	 * the owning and reflected side — both consistent with the shared-RGEI bug class.
+	 * entities. Failures indicate either a missing reflection or an attribute-value drift between
+	 * the owning and reflected side.
 	 *
 	 * Adapted from `LongRunningEvitaReferencesGenerationalTest#assertReferencesAreConsistent` but
 	 * trimmed to the small dataset and parameterised with a phase label so failures are localised.
@@ -632,6 +602,7 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 		@Nonnull final Random random,
 		@Nonnull final Map<Integer, SealedEntity> map
 	) {
+		// deterministic without re-allocation: walk the existing iterator
 		final int index = map.size() == 1 ? 0 : random.nextInt(map.size());
 		final Iterator<SealedEntity> it = map.values().iterator();
 		for (int i = 0; i < index; i++) {

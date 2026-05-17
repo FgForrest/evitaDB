@@ -25,7 +25,6 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -65,14 +64,7 @@ public final class EntityAttributeIndex extends AttributeIndex {
 	 * Builds an entity-scoped attribute index pre-populated from deserialized maps. Used by the
 	 * persistence reload path in [io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService].
 	 *
-	 * The `referenceKey` parameter mirrors the legacy [AttributeIndex] constructor signature but is
-	 * required to be `null` — passing a non-null value indicates the caller mistakenly routed
-	 * reference-scoped data into the entity-scoped index. The runtime check prevents that class of
-	 * bug at the construction boundary.
-	 *
 	 * @param entityType   the owning entity type
-	 * @param referenceKey must be `null` — the parameter is kept for signature symmetry with
-	 *                     [ReferenceAttributeIndex]
 	 * @param uniqueIndex  pre-loaded unique sub-index map
 	 * @param filterIndex  pre-loaded filter sub-index map
 	 * @param sortIndex    pre-loaded sort sub-index map
@@ -80,17 +72,12 @@ public final class EntityAttributeIndex extends AttributeIndex {
 	 */
 	public EntityAttributeIndex(
 		@Nonnull String entityType,
-		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndex,
 		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndex,
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex
 	) {
-		super(entityType, referenceKey, uniqueIndex, filterIndex, sortIndex, chainIndex);
-		Assert.isPremiseValid(
-			referenceKey == null,
-			"EntityAttributeIndex must not be associated with a representative reference key — got " + referenceKey
-		);
+		super(entityType, null, uniqueIndex, filterIndex, sortIndex, chainIndex);
 	}
 
 	@Nonnull
@@ -110,7 +97,7 @@ public final class EntityAttributeIndex extends AttributeIndex {
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex
 	) {
 		return new EntityAttributeIndex(
-			entityType, referenceKey, uniqueIndex, filterIndex, sortIndex, chainIndex
+			entityType, uniqueIndex, filterIndex, sortIndex, chainIndex
 		);
 	}
 

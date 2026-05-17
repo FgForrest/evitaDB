@@ -153,17 +153,13 @@ public abstract class EntityIndex implements
 	/**
 	 * This field captures the original state of the hierarchy index when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
-	 * should be persisted. Mutable so subclasses can refresh the baseline from the registered
-	 * {@link IndexComponent} list once all components have been registered — see
-	 * {@link #captureOriginalsFromComponents()}.
+	 * should be persisted.
 	 */
 	protected boolean originalHierarchyIndexEmpty;
 	/**
 	 * This field captures the original state of the attribute index when this index was created.
 	 * This information is used along with {@link #dirty} flag to determine whether {@link EntityIndexStoragePart}
-	 * should be persisted. Mutable so subclasses with additional attribute sub-index types (e.g. CARDINALITY)
-	 * can refresh the baseline from their registered {@link IndexComponent} list — see
-	 * {@link #captureOriginalsFromComponents()}.
+	 * should be persisted.
 	 */
 	protected Set<AttributeIndexStorageKey> originalAttributeIndexes;
 	/**
@@ -180,27 +176,21 @@ public abstract class EntityIndex implements
 	protected Set<String> originalFacetIndexes;
 	/**
 	 * This field captures the original state of the histogram indexes when this index was created.
-	 * Subclasses that maintain histograms (e.g. {@link io.evitadb.index.HistogramCapableEntityIndex}
-	 * implementors) refresh this baseline via {@link #captureOriginalsFromComponents()} after they
-	 * register a {@link io.evitadb.index.component.HistogramIndexMapComponent}.
 	 */
 	protected Set<HistogramIndexStorageKey> originalHistogramKeys;
 	/**
 	 * Ordered list of self-registering sub-systems that participate in commit-time flush and
 	 * transactional-layer lifecycle. Populated by the base constructors with the three intrinsic
 	 * components (attribute, hierarchy, facet) and extended by subclass constructors via
-	 * {@link #addComponent(IndexComponent)} — order matters for deterministic flush sequencing
-	 * across releases and is locked to today's order to minimize behavioural drift.
+	 * {@link #addComponent(IndexComponent)} — order matters for deterministic flush sequencing.
 	 */
 	private final List<IndexComponent> components = new ArrayList<>(8);
 
 	/**
-	 * Returns an unmodifiable view of the registered {@link IndexComponent}s. Test-only
-	 * accessor used by the M4 symmetry guardrail (`EntityIndexReloadPlanSymmetryTest`) to
-	 * verify that every write-side component has a matching read-side
-	 * {@link io.evitadb.index.component.loader.ComponentLoader} in the subclass's
-	 * `reloadPlan()`. Production code drives the components through the private list directly
-	 * for allocation-free flush.
+	 * Read-only accessor exposed for `EntityIndexReloadPlanSymmetryTest`. Returns an unmodifiable
+	 * view of the registered {@link IndexComponent}s so the test can verify that every write-side
+	 * component has a matching read-side
+	 * {@link io.evitadb.index.component.loader.ComponentLoader} in the subclass's `reloadPlan()`.
 	 *
 	 * @return an unmodifiable list of registered components in registration order
 	 */
@@ -220,10 +210,6 @@ public abstract class EntityIndex implements
 		this.indexKey = indexKey;
 		this.entityIds = new TransactionalBitmap();
 		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(16), TransactionalBitmap.class, TransactionalBitmap::new);
-		// Pick the structurally-correct subclass: reference-discriminated keys (RepresentativeReferenceKey)
-		// land in ReferenceAttributeIndex; non-reference entity-level indexes land in EntityAttributeIndex.
-		// ReferencedTypeEntityIndex passes a String discriminator (reference name) but is still scope-REFERENCE,
-		// so it is routed by the EntityIndexType check below.
 		final RepresentativeReferenceKey discriminatorRefKey =
 			indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null;
 		this.attributeIndex = isReferenceScoped(indexKey)
@@ -458,9 +444,8 @@ public abstract class EntityIndex implements
 	 * The flush walks the registered {@link IndexComponent} list in order: each component emits its own
 	 * modified storage parts and announces its live keys into a shared {@link EntityIndexManifest}. The
 	 * collected manifest is then compared against the captured originals; on any divergence (or when the
-	 * dirty flag is set) a fresh {@link EntityIndexStoragePart} is built via the {@link #createStoragePart}
-	 * hook so subclasses can still augment the manifest with their own attribute index types
-	 * (e.g. CARDINALITY) and histogram keys.
+	 * dirty flag is set) a fresh {@link EntityIndexStoragePart} is built listing every sub-index that
+	 * must reload on restart.
 	 *
 	 * @param trappedChanges the accumulator collecting modified storage parts for the current commit
 	 */
@@ -484,9 +469,6 @@ public abstract class EntityIndex implements
 			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities) ||
 			!Objects.equals(this.originalHistogramKeys, histogramIndexStorageKeys)
 		) {
-			// after Phase 1.3 every sub-index — including CARDINALITY and HISTOGRAM types — flows
-			// through the component-populated manifest, so the base implementation now writes the
-			// fully-shaped EntityIndexStoragePart without any subclass hook
 			trappedChanges.addChangeToStore(
 				createStoragePart(
 					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys,
@@ -534,18 +516,11 @@ public abstract class EntityIndex implements
 	 * Rebuilds the change-detection baseline (`originalAttributeIndexes`, `originalPriceIndexes`,
 	 * `originalFacetIndexes`, `originalHistogramKeys`, `originalHierarchyIndexEmpty`) by running every
 	 * registered {@link IndexComponent} once against a discardable {@link EntityIndexManifest}. The
-	 * resulting manifest snapshot becomes the "what was on disk" reference against which
-	 * {@link #getModifiedStorageParts(TrappedChanges)} diffs the current state to decide whether a
-	 * fresh {@link EntityIndexStoragePart} must be persisted.
+	 * resulting snapshot is the "what was on disk" reference against which
+	 * {@link #getModifiedStorageParts(TrappedChanges)} diffs current state.
 	 *
-	 * Subclasses that own sub-indexes contributing to the manifest (e.g. CARDINALITY attribute
-	 * indexes, histograms) must call this method **at the end of every constructor** — after both
-	 * the super constructor and every {@link #addComponent(IndexComponent)} call — so that the
-	 * baseline reflects the keys their components will advertise on the first flush.
-	 *
-	 * Component implementations must keep `collectModifiedStorageParts` read-only on their own
-	 * state (it may emit storage parts when dirty but must not mutate dirty flags or contents) so
-	 * that running them here is side-effect-free aside from the discarded {@link TrappedChanges}.
+	 * Subclasses with sub-indexes contributing to the manifest must call this method at the end of
+	 * every constructor — after both the super constructor and every {@link #addComponent} call.
 	 */
 	protected final void captureOriginalsFromComponents() {
 		final EntityIndexManifest baseline = new EntityIndexManifest();
@@ -574,11 +549,8 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Returns `true` when the supplied [EntityIndexKey] designates a reference-scoped index — i.e.
-	 * any [EntityIndexType] other than [EntityIndexType.GLOBAL]. The structural decision is taken
-	 * from the index-key type alone so call sites do not need to inspect the discriminator
-	 * shape (some reference-scoped indexes carry a [io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey],
-	 * others a raw reference-name string).
+	 * Returns `true` when the supplied {@link EntityIndexKey} designates a reference-scoped index —
+	 * any {@link EntityIndexType} other than {@link EntityIndexType#GLOBAL}.
 	 *
 	 * @param indexKey the index key to classify
 	 * @return `true` if the key belongs to a reference-scoped index
@@ -606,11 +578,7 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Method creates container that is possible to serialize and store into persistent storage.
-	 * After Phase 1.3 of the index-component refactor this is **no longer a subclass override hook**
-	 * — every sub-index type, including CARDINALITY (attribute keys) and HISTOGRAM, contributes its
-	 * keys through the registered {@link IndexComponent} list, so the base implementation has full
-	 * knowledge to construct the fully-shaped {@link EntityIndexStoragePart}.
+	 * Builds the {@link EntityIndexStoragePart} listing every sub-index that must reload on restart.
 	 *
 	 * @param hierarchyIndexEmpty           `true` when the hierarchy index has no live data
 	 * @param attributeIndexStorageKeys     all attribute-index storage keys gathered from components
@@ -678,9 +646,9 @@ public abstract class EntityIndex implements
 	}
 
 	/**
-	 * Collects attribute index storage keys into the given set. Includes keys for UNIQUE, FILTER,
-	 * SORT, and CHAIN attribute indexes. Subclasses can override to add additional keys
-	 * (e.g., cardinality and histogram keys).
+	 * Collects UNIQUE / FILTER / SORT / CHAIN attribute index storage keys held by this index's
+	 * {@link #attributeIndex}. Used only by the load-from-disk base constructor to seed
+	 * {@link #originalAttributeIndexes} before any subclass component is registered.
 	 *
 	 * @return the set of attribute index storage keys
 	 */

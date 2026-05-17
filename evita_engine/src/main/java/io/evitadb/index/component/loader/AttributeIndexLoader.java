@@ -44,19 +44,16 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
-import static java.util.Optional.ofNullable;
 
 /**
  * Reloads the four flat per-attribute maps owned by `AttributeIndex` (UNIQUE / FILTER / SORT /
- * CHAIN) from persistent storage. Mirrors the legacy `fetchUniqueIndex` / `fetchFilterIndex` /
- * `fetchSortIndex` / `fetchChainIndex` helpers in
- * `DefaultEntityCollectionPersistenceService`, fused into one loader because all four maps are
- * driven by the same `EntityIndexStoragePart.getAttributeIndexes()` set.
+ * CHAIN) from persistent storage in a single pass — all four maps are driven by the same
+ * `EntityIndexStoragePart.getAttributeIndexes()` set.
  *
- * The legacy CARDINALITY type — also stored under the same `AttributeIndexStorageKey` namespace
- * — is intentionally **not** handled here; it lives in
- * {@link AttributeCardinalityIndexMapLoader} so that subclasses without cardinality
- * (`GlobalEntityIndex`, `ReducedEntityIndex`) need not declare an empty cardinality bundle.
+ * The CARDINALITY type — also stored under the same `AttributeIndexStorageKey` namespace — is
+ * intentionally **not** handled here; it lives in {@link AttributeCardinalityIndexMapLoader} so
+ * that subclasses without cardinality (`GlobalEntityIndex`, `ReducedEntityIndex`) need not
+ * declare an empty cardinality bundle.
  */
 public final class AttributeIndexLoader implements ComponentLoader {
 
@@ -64,7 +61,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	@Nonnull
 	public LoadedComponentBundle load(@Nonnull LoadContext context) {
 		final EntityIndexStoragePart manifest = context.entityIndexStoragePart();
-		// pre-size each map by counting per-type entries — mirrors the legacy two-pass approach
+		// pre-size each map by counting per-type entries — two-pass to avoid resize overhead
 		int uniqueCount = 0;
 		int filterCount = 0;
 		int sortCount = 0;
@@ -164,10 +161,11 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				" was not found in persistent storage!"
 		);
 		final AttributeIndexKey attributeIndexKey = part.getAttributeIndexKey();
-		// TOBEDONE #538 - remove when legacy null-attributeType storage parts are gone
-		//noinspection unchecked
-		final Class<?> attributeType = ofNullable(part.getAttributeType())
-			.orElseGet(() -> context.attributeTypeFetcher().apply(attributeIndexKey));
+		// TOBEDONE #538 - remove when null-attributeType storage parts are gone
+		final Class<?> storedType = part.getAttributeType();
+		final Class<?> attributeType = storedType != null
+			? storedType
+			: context.attributeTypeFetcher().apply(attributeIndexKey);
 		filterIndexes.put(
 			attributeIndexKey,
 			new FilterIndex(

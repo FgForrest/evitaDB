@@ -37,17 +37,17 @@ import javax.annotation.Nonnull;
 
 /**
  * Shared orchestration for the two indexed price-mutation handlers (`Upsert`, `Remove`). Carries
- * the ordering invariants from the legacy `applyPriceMutation`:
+ * two ordering invariants:
  *
  * - For removals (and upserts of non-indexed prices), reduced indexes update first because they
  *   consult the super (global) index.
  * - For upserts of indexed prices, the global/super index updates first because reduced indexes
  *   rely on information in the super index.
  *
- * The fan-out uses `fanOutUniquePerIndex` because price leaves on
- * `PriceListAndCurrencyPriceRefIndex` are set-semantic — a duplicate add is a no-op, the first
- * remove drains the bucket, and a per-reference fanout across N siblings sharing a single shared
- * `ReducedGroupEntityIndex` would either no-op or throw on the second invocation.
+ * Uses `fanOutUniquePerIndex` because price leaves on `PriceListAndCurrencyPriceRefIndex` are
+ * set-semantic — a duplicate add is a no-op, the first remove drains the bucket, and a
+ * per-reference fan-out across N siblings sharing a single `ReducedGroupEntityIndex` would either
+ * no-op or throw on the second invocation.
  */
 final class PriceMutationFanOut {
 

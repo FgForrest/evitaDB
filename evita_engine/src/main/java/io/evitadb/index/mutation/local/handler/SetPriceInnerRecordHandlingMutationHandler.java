@@ -30,12 +30,11 @@ import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import javax.annotation.Nonnull;
 
 /**
- * Handler for `SetPriceInnerRecordHandlingMutation`. Distinct from `PriceMutation` — it does not
- * extend `PriceMutation`, so the legacy dispatcher had a dedicated `else if` branch before the
- * `PriceMutation` test. Updating the handling strategy reindexes every stored price (remove with
- * the old strategy on reduced indexes, then on the super index; then re-insert with the new
- * strategy in the same order). All fan-outs are unique-per-index because the price leaves are
- * set-semantic.
+ * Handler for `SetPriceInnerRecordHandlingMutation`. Does not extend `PriceMutation`, so it gets
+ * its own handler instead of routing through `PriceMutationFanOut`. Updating the handling strategy
+ * reindexes every stored price (remove with the old strategy on reduced indexes, then on the super
+ * index; then re-insert with the new strategy in the same order). All fan-outs are unique-per-index
+ * because the price leaves are set-semantic.
  */
 public final class SetPriceInnerRecordHandlingMutationHandler
 	implements LocalMutationHandler<SetPriceInnerRecordHandlingMutation> {

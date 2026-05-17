@@ -30,11 +30,10 @@ import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import javax.annotation.Nonnull;
 
 /**
- * Handler for `RemoveReferenceMutation`. The legacy `updateReferenceOnRemoval` performs a
- * synchronous histogram cleanup before facet removal, then calls `referenceRemovalGlobal` and
- * the per-component cleanup — those steps live inside `executor.updateReferences` which the
- * shared fan-out invokes once per call. Unlike other mutations, `RemoveReferenceMutation` does
- * not defer facet expression re-evaluation (the facet entry is removed synchronously).
+ * Handler for `RemoveReferenceMutation`. Routes through `ReferenceMutationFanOut`; the synchronous
+ * histogram cleanup, `referenceRemovalGlobal` call, and per-component cleanup all live inside
+ * `executor.updateReferences`. Unlike other mutations, this one does not defer facet expression
+ * re-evaluation — the facet entry is removed synchronously.
  */
 public final class RemoveReferenceMutationHandler implements LocalMutationHandler<RemoveReferenceMutation> {
 

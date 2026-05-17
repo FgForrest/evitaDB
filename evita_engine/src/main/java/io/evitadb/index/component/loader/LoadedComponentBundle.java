@@ -24,6 +24,7 @@
 package io.evitadb.index.component.loader;
 
 import io.evitadb.index.HistogramIndex;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -157,17 +158,14 @@ public sealed interface LoadedComponentBundle
 
 	/**
 	 * The reloaded group-cardinality bookkeeping for `ReducedGroupEntityIndex`, decomposed into
-	 * the two transactional maps the constructor expects. The dispatcher mirrors the legacy code
-	 * shape — see `fetchGroupCardinalityIndex` in
-	 * `DefaultEntityCollectionPersistenceService` — by passing the raw `GroupCardinalityIndexStoragePart`
-	 * accessors through unchanged.
+	 * the two transactional maps the constructor expects.
 	 *
 	 * @param pkCardinalities            cardinality tracking for entity primary keys
 	 * @param referencedPrimaryKeysIndex maps referenced entity PKs to bitmaps of entity PKs
 	 */
 	record GroupCardinality(
 		@Nonnull Map<Integer, Integer> pkCardinalities,
-		@Nonnull Map<Integer, io.evitadb.index.bitmap.TransactionalBitmap> referencedPrimaryKeysIndex
+		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex
 	) implements LoadedComponentBundle {
 	}
 

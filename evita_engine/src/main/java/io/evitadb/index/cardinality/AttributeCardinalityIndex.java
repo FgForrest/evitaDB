@@ -98,10 +98,10 @@ public class AttributeCardinalityIndex
 	}
 
 	/**
-	 * Increases cardinality of the given value by one. If the value was not present in the index before this call, it
-	 * is added with cardinality 1 and `BOUNDARY_CROSSED` is returned so callers can propagate the new entry to
-	 * downstream membership-only indexes. Otherwise the existing cardinality is incremented and
-	 * `NO_BOUNDARY_CROSSING` is returned.
+	 * Increases cardinality of the given value by one. If the value was not present in the index before
+	 * this call, it is added with cardinality 1 and `BOUNDARY_CROSSED` is returned so callers can
+	 * propagate the new entry to downstream membership-only indexes. Otherwise the existing cardinality
+	 * is incremented and `NO_BOUNDARY_CROSSING` is returned.
 	 *
 	 * @param value    value whose cardinality should be incremented
 	 * @param recordId identifier of the owning record (cardinality is tracked per record)
@@ -122,9 +122,10 @@ public class AttributeCardinalityIndex
 	}
 
 	/**
-	 * Decreases cardinality of the given value by one. If the cardinality reaches zero the value is removed from the
-	 * index and `BOUNDARY_CROSSED` is returned so callers can propagate the removal to downstream
-	 * membership-only indexes. Otherwise the cardinality is decremented and `NO_BOUNDARY_CROSSING` is returned.
+	 * Decreases cardinality of the given value by one. If the cardinality reaches zero the value is
+	 * removed from the index and `BOUNDARY_CROSSED` is returned so callers can propagate the removal
+	 * to downstream membership-only indexes. Otherwise the cardinality is decremented and
+	 * `NO_BOUNDARY_CROSSING` is returned.
 	 *
 	 * @param value    value whose cardinality should be decremented
 	 * @param recordId identifier of the owning record (cardinality is tracked per record)

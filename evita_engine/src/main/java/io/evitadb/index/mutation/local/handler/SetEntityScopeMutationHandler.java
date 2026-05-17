@@ -41,10 +41,9 @@ import java.util.Set;
  * triggers depend on **before** the removal, because the source `FilterIndex` is the only place
  * those values are reachable after `removeEntityFromIndexes` runs.
  *
- * Implements the same `LocalMutationHandler<M>` interface as every other handler — the cross-scope
- * orchestration is implemented in terms of `executor.removeEntityFromIndexes` /
- * `executor.addEntityToIndexes`, which the handler invokes against the legacy private helpers
- * that remain on the executor (they are shared with the entity-removal path).
+ * Does not fit the single-scope fan-out helpers (`AttributeMutationFanOut`, `PriceMutationFanOut`,
+ * ...) — those run inside one resolved scope, whereas this mutation drives full
+ * `removeEntityFromIndexes` / `addEntityToIndexes` cycles across both source and target scopes.
  */
 public final class SetEntityScopeMutationHandler implements LocalMutationHandler<SetEntityScopeMutation> {
 
@@ -85,7 +84,6 @@ public final class SetEntityScopeMutationHandler implements LocalMutationHandler
 		);
 		executor.removeEntityFromIndexes(entity, entity.getScope());
 		executor.addEntityToIndexes(entity, mutation.getScope());
-		// reset memoized scope, it has just changed
 		executor.setMemoizedScope(mutation.getScope());
 	}
 

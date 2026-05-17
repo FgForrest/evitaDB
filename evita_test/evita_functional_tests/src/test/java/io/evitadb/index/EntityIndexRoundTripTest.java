@@ -105,11 +105,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 0 safety-net test pinning the storage-part round-trip contract of every concrete
- * `EntityIndex` subclass — `GlobalEntityIndex`, `ReducedEntityIndex`, `ReducedGroupEntityIndex`
- * and `ReferencedTypeEntityIndex`. The goal is to catch the regression class exemplified by
- * commit `d331d1db4` where data was persisted to disk but the manifest (`EntityIndexStoragePart`)
- * never referenced it, causing reload to reconstruct an empty in-memory index.
+ * Pins the storage-part round-trip contract of every concrete `EntityIndex` subclass —
+ * `GlobalEntityIndex`, `ReducedEntityIndex`, `ReducedGroupEntityIndex` and
+ * `ReferencedTypeEntityIndex`. Catches the regression class where data is persisted to disk
+ * but the manifest (`EntityIndexStoragePart`) never references it, causing reload to
+ * reconstruct an empty in-memory index.
  *
  * The test guarantees two complementary invariants in a single flow per subclass:
  *
@@ -124,10 +124,11 @@ import static org.mockito.Mockito.when;
  *    `DefaultEntityCollectionPersistenceService`) preserves PK count, language tracking and
  *    every sub-index's contents observable via public accessors. A subsequent
  *    `getModifiedStorageParts` call on the freshly-loaded copy (after `resetDirty`) must not
- *    re-emit any sub-storage-parts, and if the manifest is re-emitted (which happens for
- *    `ReducedGroupEntityIndex` / `ReferencedTypeEntityIndex` because their `originalAttributeIndexes`
- *    includes CARDINALITY keys that the base-class dirty check ignores) its contents must equal
- *    the original manifest — proving that the reload didn't silently drop or invent a sub-index.
+ *    re-emit any sub-storage-parts. If the manifest is re-emitted (which happens for
+ *    `ReducedGroupEntityIndex` / `ReferencedTypeEntityIndex` because their
+ *    `originalAttributeIndexes` includes CARDINALITY keys that the base-class dirty check
+ *    ignores) its contents must equal the original manifest — proving that the reload didn't
+ *    silently drop or invent a sub-index.
  *
  * Persistence fixture: this test does **not** instantiate a real
  * `DefaultEntityCollectionPersistenceService` (which would require an on-disk catalog directory
@@ -217,8 +218,7 @@ class EntityIndexRoundTripTest {
 	 * Asserts the manifest-vs-emitted-parts cross-reference invariant. For each kind of sub-index
 	 * advertised by `EntityIndexStoragePart` the helper verifies bidirectional containment: every
 	 * emitted sub-part is referenced by the manifest, and every manifest key has a matching emitted
-	 * sub-part. Either gap would have caught the d331d1db4 regression where a CARDINALITY part was
-	 * persisted but absent from the manifest.
+	 * sub-part. A persisted sub-part that the manifest does not advertise is orphaned on reload.
 	 *
 	 * @param storage the captured storage parts plus the manifest
 	 */
@@ -228,7 +228,7 @@ class EntityIndexRoundTripTest {
 		// reconstruct the set of attribute storage keys that the emitted attribute sub-parts
 		// represent; these MUST equal the manifest's attributeIndexes set
 		final Set<AttributeIndexStorageKey> emittedAttributeKeys = new HashSet<>(16);
-		for (AttributeIndexStoragePart attrPart : storage.attributeParts) {
+		for (final AttributeIndexStoragePart attrPart : storage.attributeParts) {
 			emittedAttributeKeys.add(
 				new AttributeIndexStorageKey(
 					manifest.getEntityIndexKey(),
@@ -239,7 +239,7 @@ class EntityIndexRoundTripTest {
 		}
 		// attribute cardinality parts also live in the manifest's attributeIndexes set with
 		// AttributeIndexType.CARDINALITY — fold them in before comparing
-		for (AttributeCardinalityIndexStoragePart cardPart : storage.attributeCardinalityParts) {
+		for (final AttributeCardinalityIndexStoragePart cardPart : storage.attributeCardinalityParts) {
 			emittedAttributeKeys.add(
 				new AttributeIndexStorageKey(
 					manifest.getEntityIndexKey(),
@@ -255,7 +255,7 @@ class EntityIndexRoundTripTest {
 
 		// reconstruct expected histogram storage keys from emitted histogram parts and compare
 		final Set<HistogramIndexStorageKey> emittedHistogramKeys = new HashSet<>(8);
-		for (HistogramIndexStoragePart histPart : storage.histogramParts) {
+		for (final HistogramIndexStoragePart histPart : storage.histogramParts) {
 			emittedHistogramKeys.add(
 				new HistogramIndexStorageKey(
 					manifest.getEntityIndexKey(), histPart.getHistogramName(), histPart.getLocale()
@@ -269,7 +269,7 @@ class EntityIndexRoundTripTest {
 
 		// price index keys: manifest set must equal the set of priceIndexKey on emitted price parts
 		final Set<PriceIndexKey> emittedPriceKeys = new HashSet<>(8);
-		for (StoragePart pricePart : storage.priceParts) {
+		for (final StoragePart pricePart : storage.priceParts) {
 			if (pricePart instanceof PriceListAndCurrencySuperIndexStoragePart superPart) {
 				emittedPriceKeys.add(superPart.getPriceIndexKey());
 			} else if (pricePart instanceof PriceListAndCurrencyRefIndexStoragePart refPart) {
@@ -283,7 +283,7 @@ class EntityIndexRoundTripTest {
 
 		// facet reference names: manifest set must equal the set of referenceName on emitted facet parts
 		final Set<String> emittedFacetNames = new HashSet<>(4);
-		for (FacetIndexStoragePart facetPart : storage.facetParts) {
+		for (final FacetIndexStoragePart facetPart : storage.facetParts) {
 			emittedFacetNames.add(facetPart.getReferenceName());
 		}
 		assertEquals(
@@ -294,7 +294,7 @@ class EntityIndexRoundTripTest {
 		// hierarchy: manifest flag must be true iff a hierarchy sub-part was emitted
 		assertEquals(
 			storage.hierarchyPart != null, manifest.isHierarchyIndex(),
-			"Manifest hierarchyIndex flag must agree with the presence of an emitted HierarchyIndexStoragePart"
+			"Manifest hierarchyIndex flag must agree with presence of a HierarchyIndexStoragePart"
 		);
 	}
 
@@ -308,9 +308,8 @@ class EntityIndexRoundTripTest {
 	 * The assertion is intentionally relaxed from "zero parts" because some subclasses
 	 * (`ReducedGroupEntityIndex`, `ReferencedTypeEntityIndex`) maintain `originalAttributeIndexes`
 	 * with cardinality keys that the base-class dirty check doesn't account for, so a second flush
-	 * legitimately re-emits the manifest with identical content. What matters for the d331d1db4
-	 * regression class is that re-emission produces the same set of keys — a silent sub-index drop
-	 * during reload would show up here as a missing key in the second manifest.
+	 * legitimately re-emits the manifest with identical content. Re-emission must produce the same
+	 * set of keys — a silent sub-index drop during reload would show up as a missing key here.
 	 *
 	 * @param reloaded         the index just loaded from storage parts
 	 * @param originalManifest the manifest emitted by the original flush
@@ -338,9 +337,8 @@ class EntityIndexRoundTripTest {
 			"Reloaded index with cleared dirty flags must not re-emit any sub-storage-parts"
 		);
 		if (secondManifest != null) {
-			// content stability: every set in the manifest must match the original — this is the
-			// real safety net for the d331d1db4 regression class (a silent sub-index drop during
-			// reload would manifest as a missing key here)
+			// content stability: every set in the manifest must match the original — a silent
+			// sub-index drop during reload would surface as a missing key here
 			assertEquals(
 				originalManifest.getAttributeIndexes(), secondManifest.getAttributeIndexes(),
 				"Re-emitted manifest attributeIndexes must match the original"
@@ -398,7 +396,7 @@ class EntityIndexRoundTripTest {
 		final Map<AttributeIndexKey, FilterIndex> filterIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, SortIndex> sortIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, ChainIndex> chainIndexes = new HashMap<>(8);
-		for (AttributeIndexStoragePart part : storage.attributeParts) {
+		for (final AttributeIndexStoragePart part : storage.attributeParts) {
 			final AttributeIndexKey attrKey = part.getAttributeIndexKey();
 			if (part instanceof UniqueIndexStoragePart uniquePart) {
 				uniqueIndexes.put(
@@ -448,7 +446,7 @@ class EntityIndexRoundTripTest {
 				entityType, referenceKey, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 			)
 			: new EntityAttributeIndex(
-				entityType, referenceKey, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				entityType, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 			);
 	}
 
@@ -466,7 +464,8 @@ class EntityIndexRoundTripTest {
 	) {
 		// LinkedHashMap preserves deterministic iteration order for downstream comparisons
 		final Map<Locale, TransactionalBitmap> reloaded = new LinkedHashMap<>(4);
-		for (Map.Entry<Locale, TransactionalBitmap> entry : manifest.getEntityIdsByLanguage().entrySet()) {
+		for (final Map.Entry<Locale, TransactionalBitmap> entry
+			: manifest.getEntityIdsByLanguage().entrySet()) {
 			reloaded.put(entry.getKey(), new TransactionalBitmap(entry.getValue()));
 		}
 		return reloaded;
@@ -487,7 +486,7 @@ class EntityIndexRoundTripTest {
 		@Nonnull CapturedStorage storage
 	) {
 		final Map<AttributeIndexKey, AttributeCardinalityIndex> result = new HashMap<>(4);
-		for (AttributeCardinalityIndexStoragePart part : storage.attributeCardinalityParts) {
+		for (final AttributeCardinalityIndexStoragePart part : storage.attributeCardinalityParts) {
 			final AttributeCardinalityIndex original = part.getCardinalityIndex();
 			// reconstruct via the (Class, Map) constructor so the dirty flag starts clean —
 			// mirrors what kryo deserialization produces on a real reload
@@ -549,7 +548,7 @@ class EntityIndexRoundTripTest {
 			return new HashMap<>(0);
 		}
 		final Map<String, HistogramIndex> result = new HashMap<>(storage.histogramParts.size());
-		for (HistogramIndexStoragePart part : storage.histogramParts) {
+		for (final HistogramIndexStoragePart part : storage.histogramParts) {
 			// the test only emits non-localized histograms; reconstruct a SimpleHistogramIndex using
 			// the same constructor signature as production fetchHistogramIndexes. The embedded
 			// cardinality index is re-built (rather than reused) so its dirty flag starts clean —
@@ -647,7 +646,7 @@ class EntityIndexRoundTripTest {
 			// GlobalEntityIndex is entity-scoped — uses EntityAttributeIndex
 			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null, false);
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = new HashMap<>(4);
-			for (StoragePart pricePart : storage.priceParts) {
+			for (final StoragePart pricePart : storage.priceParts) {
 				final PriceListAndCurrencySuperIndexStoragePart superPart =
 					(PriceListAndCurrencySuperIndexStoragePart) pricePart;
 				priceIndexes.put(
@@ -721,8 +720,8 @@ class EntityIndexRoundTripTest {
 			// facet sentinel
 			assertTrue(reloaded.getFacetingEntities().containsKey(REFERENCE_NAME));
 
-			// Phase 3 invariant: the AttributeIndex subclass identity survives reload.
-			// GlobalEntityIndex must hold an EntityAttributeIndex with ENTITY scope.
+			// AttributeIndex subclass identity must survive reload: GlobalEntityIndex carries
+			// an EntityAttributeIndex with ENTITY scope
 			assertTrue(
 				original.attributeIndex instanceof EntityAttributeIndex,
 				"GlobalEntityIndex must construct an EntityAttributeIndex"
@@ -788,11 +787,12 @@ class EntityIndexRoundTripTest {
 
 			// price ref-index intentionally NOT populated here: PriceListAndCurrencyPriceRefIndex
 			// requires a `superIndex` attachment via `attachToCatalog`, which in turn needs a real
-			// `Catalog` instance with a sibling `GlobalEntityIndex` and a `PriceListAndCurrencyPriceSuperIndex`
-			// — too much fixture for this test. Price round-trip is covered by the
-			// `GlobalEntityIndexRoundTripTest`. The manifest assertions here still verify that the
-			// price-index set in the manifest equals the (empty) set of emitted price parts, so a
-			// regression that spuriously added price keys to the manifest would still be caught.
+			// `Catalog` instance with a sibling `GlobalEntityIndex` and a sibling
+			// `PriceListAndCurrencyPriceSuperIndex` — too much fixture for this test. Price
+			// round-trip is covered by `GlobalEntityIndexRoundTripTest`. The manifest assertions
+			// here still verify that the price-index set in the manifest equals the (empty) set
+			// of emitted price parts, so a regression that spuriously added price keys to the
+			// manifest would still be caught.
 
 			index.addFacet(refSchema, new ReferenceKey(REFERENCE_NAME, 9), GROUP_PK, 11);
 			return index;
@@ -813,7 +813,7 @@ class EntityIndexRoundTripTest {
 			// ReducedEntityIndex is reference-scoped — uses ReferenceAttributeIndex
 			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, rrk, true);
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = new HashMap<>(4);
-			for (StoragePart pricePart : storage.priceParts) {
+			for (final StoragePart pricePart : storage.priceParts) {
 				final PriceListAndCurrencyRefIndexStoragePart refPart =
 					(PriceListAndCurrencyRefIndexStoragePart) pricePart;
 				priceIndexes.put(
@@ -877,7 +877,8 @@ class EntityIndexRoundTripTest {
 			assertTrue(reloaded.isHierarchyIndexEmpty(), "Hierarchy was not populated in this fixture");
 			assertTrue(reloaded.getFacetingEntities().containsKey(REFERENCE_NAME));
 
-			// Phase 3 invariant: ReducedEntityIndex holds a ReferenceAttributeIndex (REFERENCE scope)
+			// AttributeIndex subclass identity must survive reload: ReducedEntityIndex carries
+			// a ReferenceAttributeIndex with REFERENCE scope
 			assertTrue(
 				original.attributeIndex instanceof ReferenceAttributeIndex,
 				"ReducedEntityIndex must construct a ReferenceAttributeIndex"
@@ -902,10 +903,8 @@ class EntityIndexRoundTripTest {
 		 * facet entry, and the group cardinality storage part. Hierarchy population is
 		 * intentionally skipped — `AbstractReducedEntityIndex.addNode` throws because reduced
 		 * indexes never carry hierarchical state; hierarchy round-trip is covered by
-		 * `GlobalEntityIndexRoundTripTest`.
-		 *
-		 * This is the subclass at the centre of the d331d1db4 regression — every kind of
-		 * sub-index it can hold must round-trip via the manifest.
+		 * `GlobalEntityIndexRoundTripTest`. Every kind of sub-index this subclass can hold must
+		 * round-trip via the manifest.
 		 *
 		 * @return a populated `ReducedGroupEntityIndex`
 		 */
@@ -939,7 +938,7 @@ class EntityIndexRoundTripTest {
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13);
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13);
 
-			// histogram — exactly the sub-index whose silent drop the d331d1db4 fix targets
+			// histogram — must round-trip via the manifest
 			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class);
 			index.insertHistogramValue(HISTOGRAM_NAME, null, 200, 14, Integer.class);
 
@@ -968,7 +967,7 @@ class EntityIndexRoundTripTest {
 			// ReducedGroupEntityIndex is reference-scoped — uses ReferenceAttributeIndex
 			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, rrk, true);
 			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = new HashMap<>(4);
-			for (StoragePart pricePart : storage.priceParts) {
+			for (final StoragePart pricePart : storage.priceParts) {
 				final PriceListAndCurrencyRefIndexStoragePart refPart =
 					(PriceListAndCurrencyRefIndexStoragePart) pricePart;
 				priceIndexes.put(
@@ -1006,7 +1005,7 @@ class EntityIndexRoundTripTest {
 		}
 
 		@Test
-		@DisplayName("should preserve manifest cross-references and reload histogram and cardinality sub-indexes losslessly")
+		@DisplayName("should preserve manifest cross-refs and reload histogram + cardinality sub-indexes")
 		void shouldRoundTripReducedGroupEntityIndex() {
 			final ReducedGroupEntityIndex original = buildPopulatedIndex();
 
@@ -1014,8 +1013,8 @@ class EntityIndexRoundTripTest {
 
 			assertManifestReferencesAllSubParts(storage);
 
-			// the histogram + cardinality parts are the exact regression class from d331d1db4 — make
-			// sure they really were emitted, otherwise we are silently asserting nothing
+			// pin the histogram + cardinality parts — without these checks the test would silently
+			// pass when emission regressed to nothing
 			assertFalse(storage.histogramParts.isEmpty(), "Expected histogram parts");
 			assertFalse(storage.attributeCardinalityParts.isEmpty(), "Expected attribute cardinality parts");
 			assertNotNull(storage.groupCardinalityPart, "Expected group cardinality part");
@@ -1030,7 +1029,7 @@ class EntityIndexRoundTripTest {
 			assertTrue(reloaded.getAllPrimaryKeys().contains(13));
 			assertTrue(reloaded.getAllPrimaryKeys().contains(14));
 			assertTrue(reloaded.getLanguages().contains(Locale.ENGLISH));
-			// histogram sentinel — exactly the sub-index whose silent drop the d331d1db4 fix targets
+			// histogram sentinel — the sub-index that the manifest must round-trip
 			final FilterIndex reloadedHistogram = reloaded.getHistogramFilterIndex(HISTOGRAM_NAME, null);
 			assertNotNull(reloadedHistogram, "Histogram filter index must survive the reload");
 			assertTrue(reloadedHistogram.getRecordsEqualTo(100).contains(13));
@@ -1041,7 +1040,8 @@ class EntityIndexRoundTripTest {
 			assertTrue(reloaded.isHierarchyIndexEmpty(), "Hierarchy was not populated in this fixture");
 			assertTrue(reloaded.getFacetingEntities().containsKey(REFERENCE_NAME));
 
-			// Phase 3 invariant: ReducedGroupEntityIndex holds a ReferenceAttributeIndex (REFERENCE scope)
+			// AttributeIndex subclass identity must survive reload: ReducedGroupEntityIndex
+			// carries a ReferenceAttributeIndex with REFERENCE scope
 			assertTrue(
 				original.attributeIndex instanceof ReferenceAttributeIndex,
 				"ReducedGroupEntityIndex must construct a ReferenceAttributeIndex"
@@ -1110,8 +1110,9 @@ class EntityIndexRoundTripTest {
 			// ReferencedTypeEntityIndex is reference-scoped even though the AttributeIndex receives a
 			// null representative key — its discriminator is a String reference name
 			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null, true);
-			final ReferenceTypeCardinalityIndexStoragePart refTypePart = storage.referenceTypeCardinalityPart;
-			assertNotNull(refTypePart, "ReferencedTypeEntityIndex must emit a reference-type cardinality part");
+			final ReferenceTypeCardinalityIndexStoragePart refTypePart =
+				storage.referenceTypeCardinalityPart;
+			assertNotNull(refTypePart, "ReferencedTypeEntityIndex must emit a ref-type cardinality part");
 			final Map<String, HistogramIndex> histogramIndexes =
 				reloadHistogramIndexes(storage, REFERENCE_NAME);
 			// reconstruct ReferenceTypeCardinalityIndex via the (Map, Map) constructor so its dirty
@@ -1136,7 +1137,7 @@ class EntityIndexRoundTripTest {
 		}
 
 		@Test
-		@DisplayName("should preserve manifest cross-references and reload histogram and cardinality sub-indexes losslessly")
+		@DisplayName("should preserve manifest cross-refs and reload histogram + cardinality sub-indexes")
 		void shouldRoundTripReferencedTypeEntityIndex() {
 			final ReferencedTypeEntityIndex original = buildPopulatedIndex();
 
@@ -1167,8 +1168,9 @@ class EntityIndexRoundTripTest {
 			assertTrue(trackedReferencedPks.contains(51));
 			assertTrue(reloaded.getFacetingEntities().containsKey(REFERENCE_NAME));
 
-			// Phase 3 invariant: ReferencedTypeEntityIndex holds a ReferenceAttributeIndex (REFERENCE scope)
-			// even though it carries no RepresentativeReferenceKey
+			// AttributeIndex subclass identity must survive reload: ReferencedTypeEntityIndex
+			// carries a ReferenceAttributeIndex with REFERENCE scope even though it has no
+			// RepresentativeReferenceKey
 			assertTrue(
 				original.attributeIndex instanceof ReferenceAttributeIndex,
 				"ReferencedTypeEntityIndex must construct a ReferenceAttributeIndex"
@@ -1184,18 +1186,15 @@ class EntityIndexRoundTripTest {
 	}
 
 	/**
-	 * In-memory bag of storage parts emitted by a single `getModifiedStorageParts` call. Categorizes
-	 * parts by their structural role (manifest, attribute, price, histogram, facet, hierarchy,
-	 * cardinality) so individual round-trip tests can pluck what they need without re-walking the
-	 * captured list. The class deliberately uses plain mutable fields — it's internal test scaffolding
-	 * and copy-on-write semantics would only obscure the intent.
+	 * In-memory bag of storage parts emitted by a single `getModifiedStorageParts` call,
+	 * categorized by structural role for test access.
 	 */
 	private static final class CapturedStorage {
 		/** The manifest emitted by the entity index. */
 		@Nullable private EntityIndexStoragePart manifest;
 		/** UNIQUE / FILTER / SORT / CHAIN parts (CARDINALITY parts are stored separately). */
 		@Nonnull private final List<AttributeIndexStoragePart> attributeParts = new ArrayList<>(8);
-		/** Attribute cardinality parts kept apart because reduced/referenced indexes consume them via a separate map. */
+		/** Attribute cardinality parts — reduced/referenced indexes consume them via a separate map. */
 		@Nonnull private final List<AttributeCardinalityIndexStoragePart> attributeCardinalityParts =
 			new ArrayList<>(4);
 		/** PriceListAndCurrency* parts — either super or ref variants. */
@@ -1237,7 +1236,10 @@ class EntityIndexRoundTripTest {
 				assertNull(this.groupCardinalityPart, "Multiple group cardinality parts in one flush");
 				this.groupCardinalityPart = groupPart;
 			} else if (part instanceof ReferenceTypeCardinalityIndexStoragePart refTypePart) {
-				assertNull(this.referenceTypeCardinalityPart, "Multiple reference-type cardinality parts in one flush");
+				assertNull(
+					this.referenceTypeCardinalityPart,
+					"Multiple reference-type cardinality parts in one flush"
+				);
 				this.referenceTypeCardinalityPart = refTypePart;
 			} else if (part instanceof PriceListAndCurrencySuperIndexStoragePart
 				|| part instanceof PriceListAndCurrencyRefIndexStoragePart) {

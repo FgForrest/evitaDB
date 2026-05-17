@@ -163,10 +163,13 @@ public interface ReferenceIndexMutator {
 	/**
 	 * Selects which reduced-index family the traversal helpers visit.
 	 *
-	 * - `REDUCED_ENTITY` visits only the per-reference {@link EntityIndexType#REFERENCED_ENTITY} indexes.
-	 * - `GROUP` visits only the per-group {@link EntityIndexType#REFERENCED_GROUP_ENTITY} indexes.
-	 * - `BOTH` visits the entity path first, then the group path — several callers implicitly
-	 *   rely on this ordering.
+	 * The enum constant names describe the iteration **scope** (which family of reduced indexes is
+	 * walked); the `{@link EntityIndexType}` links in the per-constant docs identify the underlying
+	 * index type the iteration produces. The two vocabularies intentionally differ — scope-level
+	 * names are easier to reason about at call sites, while the storage type links are kept for
+	 * cross-reference.
+	 *
+	 * `BOTH` traverses the entity path before the group path; the order is part of the contract.
 	 */
 	enum IterationPath {
 		/** Per-reference {@link EntityIndexType#REFERENCED_ENTITY} indexes only. */
@@ -193,7 +196,8 @@ public interface ReferenceIndexMutator {
 	 * `indexForRemoval` and `indexForUpsert` (the iterators never perform a representative-key
 	 * migration; only `attributeUpdate` does that, outside this iterator API).
 	 *
-	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to qualify
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a
+	 *                                  reference to qualify
 	 * @param executor                  the mutation executor providing entity state and index access
 	 * @param referenceIndexConsumer    callback invoked for each qualifying reference
 	 * @param referencePredicate        additional filter applied after the schema-level check; use
@@ -211,15 +215,21 @@ public interface ReferenceIndexMutator {
 		boolean referencePresenceExpected,
 		@Nonnull IterationPath path
 	) {
-		if (path == IterationPath.REDUCED_ENTITY || path == IterationPath.BOTH) {
-			iterateReducedEntityPath(
+		switch (path) {
+			case REDUCED_ENTITY -> iterateReducedEntityPath(
 				indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
 			);
-		}
-		if (path == IterationPath.GROUP || path == IterationPath.BOTH) {
-			iterateGroupPath(
+			case GROUP -> iterateGroupPath(
 				indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
 			);
+			case BOTH -> {
+				iterateReducedEntityPath(
+					indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
+				);
+				iterateGroupPath(
+					indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
+				);
+			}
 		}
 	}
 
@@ -245,7 +255,8 @@ public interface ReferenceIndexMutator {
 	 * filter, and entity-path-before-group-path ordering — match {@link #forEachReferenceIndex}
 	 * exactly.
 	 *
-	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to qualify
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a
+	 *                                  reference to qualify
 	 * @param executor                  the mutation executor providing entity state and index access
 	 * @param referenceIndexConsumer    callback invoked for each unique target index
 	 * @param referencePredicate        additional filter applied after the schema-level check
@@ -262,11 +273,16 @@ public interface ReferenceIndexMutator {
 		@Nonnull IterationPath path
 	) {
 		// dedup by AbstractReducedEntityIndex identity — single map spans both paths
-		final IdentityHashMap<AbstractReducedEntityIndex, Boolean> visited = new IdentityHashMap<>();
+		final int referenceCount = executor.getReferencesStoragePart().getReferences().length;
+		final int upperBound = path == IterationPath.BOTH ? referenceCount * 2 : referenceCount;
+		final IdentityHashMap<AbstractReducedEntityIndex, Boolean> visited =
+			new IdentityHashMap<>(Math.max(2, upperBound));
 		final ReferenceIndexConsumer dedupConsumer =
 			(referenceSchema, indexForRemoval, indexForUpsert) -> {
-				// indexForRemoval and indexForUpsert are always the same instance from these iterators
-				// (no representative-key migration in iterator path), so a single identity check suffices
+				Assert.isPremiseValid(
+					indexForRemoval == indexForUpsert,
+					"iterator path must not migrate"
+				);
 				if (visited.put(indexForUpsert, Boolean.TRUE) == null) {
 					referenceIndexConsumer.accept(referenceSchema, indexForRemoval, indexForUpsert);
 				}

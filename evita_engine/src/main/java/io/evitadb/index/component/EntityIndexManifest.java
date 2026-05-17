@@ -26,9 +26,9 @@ package io.evitadb.index.component;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -50,20 +50,20 @@ public final class EntityIndexManifest {
 	 * Storage keys for `AttributeIndex` sub-indexes (UNIQUE / FILTER / SORT / CHAIN)
 	 * plus any subclass-specific attribute index types such as CARDINALITY.
 	 */
-	private final Set<AttributeIndexStorageKey> attributeKeys = new HashSet<>();
+	private final Set<AttributeIndexStorageKey> attributeKeys = CollectionUtils.createHashSet(16);
 	/**
 	 * Storage keys for price-list-and-currency sub-indexes carried by `PriceIndex`.
 	 */
-	private final Set<PriceIndexKey> priceKeys = new HashSet<>();
+	private final Set<PriceIndexKey> priceKeys = CollectionUtils.createHashSet(8);
 	/**
 	 * Referenced entity types tracked by `FacetIndex`.
 	 */
-	private final Set<String> facetReferencedEntities = new HashSet<>();
+	private final Set<String> facetReferencedEntities = CollectionUtils.createHashSet(8);
 	/**
 	 * Storage keys for histogram sub-indexes carried by subclasses implementing
 	 * `HistogramCapableEntityIndex`.
 	 */
-	private final Set<HistogramIndexStorageKey> histogramKeys = new HashSet<>();
+	private final Set<HistogramIndexStorageKey> histogramKeys = CollectionUtils.createHashSet(8);
 	/**
 	 * Whether any hierarchy data is present in the index. Mirrors the
 	 * `!hierarchyIndex.isHierarchyIndexEmpty()` predicate used by
@@ -116,8 +116,8 @@ public final class EntityIndexManifest {
 	}
 
 	/**
-	 * @return the announced `AttributeIndex` storage keys; package-private read-only
-	 * accessor for the parent `EntityIndex`.
+	 * @return the announced `AttributeIndex` storage keys, read by the parent `EntityIndex` and by
+	 * components that mutate the set directly during their flush step
 	 */
 	@Nonnull
 	public Set<AttributeIndexStorageKey> getAttributeKeys() {
@@ -125,8 +125,7 @@ public final class EntityIndexManifest {
 	}
 
 	/**
-	 * @return the announced price-list-and-currency storage keys; package-private
-	 * read-only accessor for the parent `EntityIndex`.
+	 * @return the announced price-list-and-currency storage keys, read by the parent `EntityIndex`
 	 */
 	@Nonnull
 	public Set<PriceIndexKey> getPriceKeys() {
@@ -134,8 +133,7 @@ public final class EntityIndexManifest {
 	}
 
 	/**
-	 * @return the announced facet referenced entity types; package-private read-only
-	 * accessor for the parent `EntityIndex`.
+	 * @return the announced facet referenced entity types, read by the parent `EntityIndex`
 	 */
 	@Nonnull
 	public Set<String> getFacetReferencedEntities() {
@@ -143,8 +141,8 @@ public final class EntityIndexManifest {
 	}
 
 	/**
-	 * @return the announced histogram storage keys; package-private read-only accessor
-	 * for the parent `EntityIndex`.
+	 * @return the announced histogram storage keys, read by the parent `EntityIndex` and by
+	 * components that mutate the set directly during their flush step
 	 */
 	@Nonnull
 	public Set<HistogramIndexStorageKey> getHistogramKeys() {

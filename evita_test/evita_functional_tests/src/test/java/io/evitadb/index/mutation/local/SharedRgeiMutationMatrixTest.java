@@ -28,11 +28,14 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
@@ -72,27 +75,24 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Phase 0 safety-net for the shared `ReducedGroupEntityIndex` (RGEI) refactor.
+ * Pins the observable post-state of a shared `ReducedGroupEntityIndex` (RGEI) when multiple
+ * references on a single entity resolve to the same group with identical representative
+ * attribute values, so all references share one RGEI instance. The invariants this matrix
+ * pins are:
  *
- * **The invariant under test**: when multiple references on a single entity resolve to the same group with
- * identical representative attribute values, they all share *one* RGEI instance. Every mutation that fans
- * out across those sibling references must leave the shared RGEI in a state that is consistent regardless
- * of how many siblings contributed.
+ * 1. `createStoragePart` includes CARDINALITY entries in the manifest, so cardinality data
+ *    is not orphaned on reload.
+ * 2. `insertPrimaryKeyIfMissing(int, int)` / `removePrimaryKey(int, int)` return
+ *    `BOUNDARY_CROSSED` only on the 0↔1 transition for the entity PK — that flag is the only
+ *    reliable "entity entered/left this RGEI" signal.
+ * 3. Entity-level work fans out exactly once per shared RGEI (gated by the 0↔1 flag),
+ *    reference-level work always fires per-ref.
+ * 4. `EntityIndexLocalMutationExecutor.applyAttributeMutation` and `applyPriceMutation` dedup
+ *    by index identity so N sibling fanouts collapse to one effective mutation.
  *
- * The regression that motivated commit `d331d1db4` had four coordinated parts:
- *
- * 1. `createStoragePart` must include CARDINALITY entries in the manifest (else cardinality data orphaned on reload).
- * 2. `insertPrimaryKeyIfMissing(int, int)` / `removePrimaryKey(int, int)` must return `true` only on the 0↔1
- *    transition for the entity PK — that boolean is the only reliable "entity entered/left this RGEI" signal.
- * 3. `ReferenceIndexMutator.indexAllExistingData` / `removeAllExistingData` split into entity-level (one-shot,
- *    gated by the 0↔1 flag) and reference-level (always per-ref) halves.
- * 4. `EntityIndexLocalMutationExecutor.applyAttributeMutation` dedups by index identity (mirroring
- *    `applyPriceMutation`).
- *
- * These tests pin the **observable** post-state of the RGEI for the nine mutation scenarios the refactor must
- * preserve. They drive the RGEI's public API directly: each "sibling reference contributing X" is encoded as a
- * call with a distinct `referencedEntityPrimaryKey` argument, faithfully simulating what
- * `ReferenceIndexMutator` does when fanning out to a shared RGEI.
+ * Each "sibling reference contributing X" is encoded as a call with a distinct
+ * `referencedEntityPrimaryKey` argument, faithfully simulating what `ReferenceIndexMutator`
+ * does when fanning out to a shared RGEI.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -162,7 +162,10 @@ class SharedRgeiMutationMatrixTest {
 				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
 
 			// then the 0->1 boundary fires and entity becomes visible
-			assertEquals(CardinalityChange.BOUNDARY_CROSSED, firstAdd, "First add must signal 0->1 transition");
+			assertEquals(
+				CardinalityChange.BOUNDARY_CROSSED, firstAdd,
+				"First add must signal 0->1 transition"
+			);
 			final Bitmap visible = SharedRgeiMutationMatrixTest.this.sharedRgei.getAllPrimaryKeys();
 			assertEquals(1, visible.size());
 			assertTrue(visible.contains(ENTITY_PK));
@@ -216,12 +219,7 @@ class SharedRgeiMutationMatrixTest {
 		@DisplayName("Should keep entity in shared RGEI when only one of three siblings is removed")
 		void shouldKeepEntityWhenOneOfThreeSiblingsRemoved() {
 			// given all three siblings registered
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
+			SharedRgeiMutationMatrixTest.this.seedAllSiblings();
 
 			// when R1 is removed
 			final CardinalityChange firstRemove = SharedRgeiMutationMatrixTest.this.sharedRgei
@@ -260,12 +258,7 @@ class SharedRgeiMutationMatrixTest {
 		@DisplayName("Should remove entity from shared RGEI only after last sibling is removed")
 		void shouldRemoveEntityOnlyAfterLastSiblingRemoved() {
 			// given all three siblings registered
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
+			SharedRgeiMutationMatrixTest.this.seedAllSiblings();
 
 			// when references are removed one by one
 			final CardinalityChange removeR1 = SharedRgeiMutationMatrixTest.this.sharedRgei
@@ -284,10 +277,14 @@ class SharedRgeiMutationMatrixTest {
 				"Last remove must signal 1->0 transition");
 
 			// and the entity is gone from the visible bitmap
-			assertTrue(SharedRgeiMutationMatrixTest.this.sharedRgei.getAllPrimaryKeys().isEmpty());
+			assertTrue(
+				SharedRgeiMutationMatrixTest.this.sharedRgei.getAllPrimaryKeys().isEmpty(),
+				"Primary key bitmap must be empty after the last sibling is removed"
+			);
 			// and the per-reference tracking is fully drained
 			assertTrue(
-				SharedRgeiMutationMatrixTest.this.sharedRgei.getReferencedEntityPrimaryKeys().isEmpty()
+				SharedRgeiMutationMatrixTest.this.sharedRgei.getReferencedEntityPrimaryKeys().isEmpty(),
+				"referencingPksIndex must be empty after the last sibling is removed"
 			);
 		}
 	}
@@ -301,12 +298,7 @@ class SharedRgeiMutationMatrixTest {
 		@DisplayName("Should apply exactly one decrement and one increment when entity attribute changes")
 		void shouldApplyExactlyOneDecrementAndOneIncrementWhenEntityAttributeChanges() {
 			// given three siblings registered + entity-level attribute indexed ONCE
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
+			SharedRgeiMutationMatrixTest.this.seedAllSiblings();
 
 			final ReferenceSchemaContract referenceSchema = mock(ReferenceSchemaContract.class);
 			final AttributeSchemaContract entityAttrSchema = createFilterableAttribute(
@@ -364,9 +356,10 @@ class SharedRgeiMutationMatrixTest {
 			SharedRgeiMutationMatrixTest.this.sharedRgei.removeFilterAttribute(
 				referenceSchema, entityAttrSchema, noLocales, null, "ACTIVE", ENTITY_PK
 			);
-			// second remove (simulating un-deduped sibling fanout) must explode
+			// second remove (simulating un-deduped sibling fanout) must explode — the cardinality
+			// index is already empty so its underflow check fires
 			assertThrows(
-				Exception.class,
+				GenericEvitaInternalError.class,
 				() -> SharedRgeiMutationMatrixTest.this.sharedRgei.removeFilterAttribute(
 					referenceSchema, entityAttrSchema, noLocales, null, "ACTIVE", ENTITY_PK
 				),
@@ -385,12 +378,7 @@ class SharedRgeiMutationMatrixTest {
 		@DisplayName("Should not affect sibling tracking when only R1 reference attribute changes")
 		void shouldNotAffectSiblingTrackingWhenOnlyR1ReferenceAttributeChanges() {
 			// given three siblings registered
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
+			SharedRgeiMutationMatrixTest.this.seedAllSiblings();
 
 			// when R1's reference-attribute "rank" mutates from 1 to 2 (per-reference fanout, no dedup)
 			// — only R1 contributes; R2 and R3 keep their unrelated reference-level state intact
@@ -441,12 +429,7 @@ class SharedRgeiMutationMatrixTest {
 		@DisplayName("Should expose price exactly once in shared RGEI after one add (set semantics)")
 		void shouldExposePriceExactlyOnceAfterOneAdd() {
 			// given three siblings registered + one entity-level price added (dedup means: one call)
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
+			SharedRgeiMutationMatrixTest.this.seedAllSiblings();
 
 			final int internalPriceId = addEntityPriceToSuperAndShared(7);
 
@@ -475,12 +458,7 @@ class SharedRgeiMutationMatrixTest {
 		@DisplayName("Should remove price bucket exactly once on remove (no double-destruction)")
 		void shouldRemovePriceBucketExactlyOnce() {
 			// given three siblings registered + one price added
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
+			SharedRgeiMutationMatrixTest.this.seedAllSiblings();
 			final int internalPriceId = addEntityPriceToSuperAndShared(7);
 
 			// when the price is removed (single deduped call, like the executor does)
@@ -504,10 +482,10 @@ class SharedRgeiMutationMatrixTest {
 			final int internalPriceId = addEntityPriceToSuperAndShared(7);
 			removeEntityPriceFromShared(internalPriceId, 7);
 
-			// second remove against an already-emptied bucket throws — the very symptom from the
-			// commit message: "Price index for price list X and currency Y not found"
+			// second remove against an already-emptied bucket throws: the price-leaf lookup hits
+			// the `Price index for price list X and currency Y not found!` precondition
 			assertThrows(
-				Exception.class,
+				EvitaInvalidUsageException.class,
 				() -> removeEntityPriceFromShared(internalPriceId, 7),
 				"Second remove against an emptied bucket must fail — this is the failure mode " +
 					"applyPriceMutation's index-identity dedup prevents."
@@ -523,12 +501,7 @@ class SharedRgeiMutationMatrixTest {
 		@DisplayName("Should track entity in a locale exactly once even after duplicate upserts")
 		void shouldTrackEntityInLocaleExactlyOnce() {
 			// given three siblings registered
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
-			SharedRgeiMutationMatrixTest.this.sharedRgei
-				.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
+			SharedRgeiMutationMatrixTest.this.seedAllSiblings();
 
 			// when the entity-level locale ENGLISH is added once (dedup) and the call is repeated
 			// idempotently — upsertLanguage is set-semantic
@@ -585,10 +558,9 @@ class SharedRgeiMutationMatrixTest {
 		@Test
 		@DisplayName("Should leave shared RGEI in a clean state after representative mixed sequence")
 		void shouldLeaveSharedRgeiInCleanStateAfterMixedSequence() {
-			// This is the cheap, deterministic surrogate for the long-running generational test.
-			// It replays an interleaved sequence that exercises every commit boundary the bug fix
-			// cares about: add ref -> change attr -> add price -> remove ref -> remove price ->
-			// remove ref -> remove ref. The end state must be exactly empty.
+			// Cheap deterministic surrogate for the long-running generational test. Interleaves
+			// add ref -> change attr -> add price -> remove ref -> remove price -> remove ref ->
+			// remove ref. The end state must be exactly empty.
 			final ReferenceSchemaContract referenceSchema = mock(ReferenceSchemaContract.class);
 			final AttributeSchemaContract codeSchema = createFilterableAttribute("code", String.class);
 			final Set<Locale> noLocales = Collections.emptySet();
@@ -707,6 +679,16 @@ class SharedRgeiMutationMatrixTest {
 	}
 
 	/**
+	 * Registers all three sibling references (R1, R2, R3) of the same entity on the shared RGEI.
+	 * Used by scenarios that need a fully-populated index before exercising a mutation.
+	 */
+	private void seedAllSiblings() {
+		this.sharedRgei.insertPrimaryKeyIfMissing(ENTITY_PK, R1_REFERENCED_PK);
+		this.sharedRgei.insertPrimaryKeyIfMissing(ENTITY_PK, R2_REFERENCED_PK);
+		this.sharedRgei.insertPrimaryKeyIfMissing(ENTITY_PK, R3_REFERENCED_PK);
+	}
+
+	/**
 	 * Attaches the RGEI to a mock catalog so the price ref index can resolve shared price records
 	 * via the super index. Mirrors the wiring used by {@link io.evitadb.core.catalog.Catalog} in
 	 * production.
@@ -759,9 +741,8 @@ class SharedRgeiMutationMatrixTest {
 	 * @return mock schema that accepts ENGLISH
 	 */
 	@Nonnull
-	private static io.evitadb.api.requestResponse.schema.EntitySchemaContract buildLocaleAwareEntitySchema() {
-		final io.evitadb.api.requestResponse.schema.EntitySchemaContract schema =
-			mock(io.evitadb.api.requestResponse.schema.EntitySchemaContract.class);
+	private static EntitySchemaContract buildLocaleAwareEntitySchema() {
+		final EntitySchemaContract schema = mock(EntitySchemaContract.class);
 		when(schema.getLocales()).thenReturn(Set.of(Locale.ENGLISH));
 		when(schema.getEvolutionMode()).thenReturn(Collections.emptySet());
 		return schema;

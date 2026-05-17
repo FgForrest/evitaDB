@@ -27,22 +27,6 @@ package io.evitadb.index.result;
  * Describes whether an `add` or `remove` operation on a cardinality-tracking index
  * crossed the existence boundary (i.e. the cardinality moved between zero and one).
  *
- * Replaces the historical `boolean` return on `addRecord` / `removeRecord` which was
- * highly ambiguous - the name said "add a record" while the boolean reported a
- * different concept: whether the operation transitioned a key into or out of the index.
- * Confusing the two semantics caused at least one real defect (see commit `d331d1db4`),
- * where a caller treated the result as "did we touch the index" instead of "did the key
- * just appear or just disappear".
- *
- * - `BOUNDARY_CROSSED` - the operation transitioned the cardinality of the key
- *   between zero and the non-zero range (i.e. on `addRecord` the cardinality became
- *   one, on `removeRecord` the cardinality became zero). Callers should propagate
- *   the event to downstream indexes that only track membership rather than
- *   cardinality.
- * - `NO_BOUNDARY_CROSSING` - the cardinality was incremented or decremented but the
- *   key was already / is still present. The downstream membership indexes do not
- *   need to be notified.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public enum CardinalityChange {

@@ -32,6 +32,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexSt
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.function.Function;
 
 /**
@@ -51,10 +52,10 @@ import java.util.function.Function;
  * @param entityIndexStoragePart the previously-persisted manifest; loaders consult it for the
  *                               set of sub-index keys they should fetch
  * @param storagePartService     the storage-part persistence service used to fetch raw parts
- * @param attributeTypeFetcher   resolver for legacy filter-index storage parts whose
- *                               `attributeType` field is null — see `TOBEDONE #538`. Resolves
- *                               the runtime `Class` for an attribute by walking the entity /
- *                               reference schema and is captured by the dispatcher once per call
+ * @param attributeTypeFetcher   resolver for filter-index storage parts whose `attributeType`
+ *                               field is null — see TOBEDONE #538. Resolves the runtime
+ *                               `Class` for an attribute by walking the entity / reference
+ *                               schema and is captured by the dispatcher once per call
  * @param referenceKey           the discriminator for `REFERENCED_ENTITY` /
  *                               `REFERENCED_GROUP_ENTITY` indexes; `null` for `GLOBAL` and
  *                               `REFERENCED_*_TYPE` indexes
@@ -66,7 +67,7 @@ public record LoadContext(
 	@Nonnull EntityIndexKey entityIndexKey,
 	@Nonnull EntityIndexStoragePart entityIndexStoragePart,
 	@Nonnull StoragePartPersistenceService<?> storagePartService,
-	@Nonnull @SuppressWarnings("rawtypes") Function<AttributeIndexKey, Class> attributeTypeFetcher,
+	@Nonnull Function<AttributeIndexKey, Class<? extends Serializable>> attributeTypeFetcher,
 	@Nullable RepresentativeReferenceKey referenceKey
 ) {
 }

@@ -64,31 +64,11 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.HistogramIndex;
-import io.evitadb.index.LocalizedHistogramIndex;
-import io.evitadb.index.SimpleHistogramIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.attribute.AttributeIndex;
-import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadContext;
-import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.attribute.ReferenceAttributeIndex;
-import io.evitadb.index.attribute.SortIndex;
-import io.evitadb.index.attribute.UniqueIndex;
-import io.evitadb.index.cardinality.AttributeCardinalityIndex;
-import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
-import io.evitadb.index.facet.FacetIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
-import io.evitadb.index.hierarchy.HierarchyIndex;
-import io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex;
-import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
-import io.evitadb.index.price.PriceRefIndex;
-import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
@@ -103,7 +83,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStorag
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -154,7 +133,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getEntityCollectionDataStoreFileNamePattern;
-import static io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart.computeUniquePartId;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.notNull;
 import static java.util.Optional.empty;
@@ -839,9 +817,8 @@ public class DefaultEntityCollectionPersistenceService
 		final EntityIndexKey entityIndexKey = manifest.getEntityIndexKey();
 		final RepresentativeReferenceKey referenceKey;
 		// build the attribute-type fallback resolver — used by AttributeIndexLoader to recover
-		// the runtime Class for legacy null-attributeType FilterIndex storage parts; see #538
-		//noinspection rawtypes
-		final Function<AttributeIndexKey, Class> attributeTypeFetcher;
+		// the runtime Class for null-attributeType filter-index storage parts; see #538
+		final Function<AttributeIndexKey, Class<? extends Serializable>> attributeTypeFetcher;
 		if (entityIndexKey.type() == EntityIndexType.GLOBAL) {
 			referenceKey = null;
 			attributeTypeFetcher = attributeKey -> entitySchema
@@ -881,9 +858,8 @@ public class DefaultEntityCollectionPersistenceService
 	}
 
 	/**
-	 * Picks the read-side reload plan for the given {@link EntityIndexType}. The mapping mirrors
-	 * the pre-Phase-4 if/else chain in `readEntityIndex` — `GLOBAL` resolves to
-	 * `GlobalEntityIndex`, `REFERENCED_*_TYPE` to `ReferencedTypeEntityIndex`,
+	 * Picks the read-side reload plan for the given {@link EntityIndexType}: `GLOBAL` resolves
+	 * to `GlobalEntityIndex`, `REFERENCED_*_TYPE` to `ReferencedTypeEntityIndex`,
 	 * `REFERENCED_GROUP_ENTITY` to `ReducedGroupEntityIndex`, and `REFERENCED_ENTITY` (plus
 	 * `REFERENCED_HIERARCHY_NODE`, which lacks a dedicated subclass) to `ReducedEntityIndex`.
 	 *

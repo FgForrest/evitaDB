@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
  * Handler for `UpsertAssociatedDataMutation`. Associated data is not directly indexed; the only
  * indexing side-effect is to re-evaluate facet expressions that reference the mutated associated
  * data key — and even that is deferred so the expression evaluation observes post-write storage
- * state. Mirrors the legacy `applyAssociatedDataMutation`.
+ * state.
  */
 public final class UpsertAssociatedDataMutationHandler implements LocalMutationHandler<UpsertAssociatedDataMutation> {
 

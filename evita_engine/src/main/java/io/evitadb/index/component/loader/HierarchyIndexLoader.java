@@ -33,8 +33,7 @@ import javax.annotation.Nonnull;
 import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
- * Reloads the {@link HierarchyIndex} component shared by every `EntityIndex` subclass. Ports
- * `fetchHierarchyIndex` from `DefaultEntityCollectionPersistenceService`.
+ * Reloads the {@link HierarchyIndex} component shared by every `EntityIndex` subclass.
  *
  * The hierarchy index is special-cased: the manifest carries only a `hierarchyIndex` boolean
  * flag, not a key set. When `false`, the loader returns a fresh empty `HierarchyIndex` rather

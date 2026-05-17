@@ -60,37 +60,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 /**
- * Phase 0 safety net guarding the **manifest invariant** that protects
- * `EntityIndex` subclasses from silently orphaning sub-index data on
- * commit / reload.
+ * Pins the manifest invariant: for every concrete `EntityIndex` subclass, the set of
+ * `AttributeIndexStorageKey` entries written into the `EntityIndexStoragePart` manifest by
+ * `getModifiedStorageParts(...)` must exactly mirror the live sub-index state — including
+ * subclass-only collections such as `cardinalityIndexes`. Any divergence orphans sub-index
+ * data on reload (the manifest gates which storage parts are rehydrated).
  *
- * The invariant: for every concrete `EntityIndex` subclass, the set of
- * `AttributeIndexStorageKey` entries written into the
- * `EntityIndexStoragePart` manifest by `getModifiedStorageParts(...)` must
- * be **exactly** equal to the set of storage keys derivable by walking the
- * live sub-index collections held by the instance — including subclass-only
- * collections such as `cardinalityIndexes`.
+ * The test populates each subclass with a representative non-empty payload spanning every
+ * sub-index type it can carry, extracts the actual manifest by intercepting the
+ * `TrappedChanges` passed to `getModifiedStorageParts`, derives the expected manifest from
+ * the same public getters used by the subclass override, and asserts set equality. It also
+ * verifies the degenerate case: a freshly created (empty) index emits no
+ * `EntityIndexStoragePart` at all, ensuring an empty instance does not slip stale or
+ * spurious keys into the manifest.
  *
- * This guards against the bug class fixed in commit `d331d1db4`, where
- * `ReducedGroupEntityIndex` / `ReferencedTypeEntityIndex` held cardinality
- * indexes in their own maps but the base-class `createStoragePart` produced
- * a manifest missing the `CARDINALITY` storage keys. On a subsequent
- * catalog restart those cardinality storage parts were never reloaded
- * because the manifest did not advertise them, silently corrupting query
- * results that relied on cardinality tracking.
- *
- * The test populates each subclass with a representative non-empty payload
- * spanning every sub-index type it can carry, extracts the actual manifest
- * by intercepting the `TrappedChanges` passed to `getModifiedStorageParts`,
- * derives the expected manifest from the same public getters used by the
- * subclass override, and asserts set equality. It also verifies the
- * degenerate case: a freshly created (empty) index emits no
- * `EntityIndexStoragePart` at all, ensuring an empty instance does not slip
- * stale or spurious keys into the manifest.
- *
- * Future sub-index types added to any subclass must also be added to the
- * expected-manifest derivation here; otherwise this test will fail and
- * surface the omission before it becomes another orphan-on-disk regression.
+ * Future sub-index types added to any subclass must also be added to the expected-manifest
+ * derivation here; otherwise this test will fail and surface the omission before it becomes
+ * another orphan-on-disk regression.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -147,7 +133,7 @@ class EntityIndexManifestInvariantTest {
 		while (iterator.hasNext()) {
 			final StoragePart part = iterator.next();
 			if (part instanceof EntityIndexStoragePart manifest) {
-				// duplicate manifests would itself be a bug — pin that down explicitly
+				// a duplicate manifest would itself be a bug — pin that down explicitly
 				assertTrue(
 					found == null,
 					"More than one EntityIndexStoragePart emitted by getModifiedStorageParts"
@@ -225,8 +211,8 @@ class EntityIndexManifestInvariantTest {
 			manifest.getAttributeIndexes(),
 			"Manifest attribute-index set diverges from live sub-index walk for "
 				+ index.getClass().getSimpleName()
-				+ ". Missing keys would orphan sub-index data on commit/reload (the d331d1db4 bug class);"
-				+ " stale keys would advertise sub-indexes that no longer exist."
+				+ ". Missing keys orphan sub-index data on reload; stale keys advertise"
+				+ " sub-indexes that no longer exist."
 		);
 	}
 
@@ -234,8 +220,7 @@ class EntityIndexManifestInvariantTest {
 	 * Reads the private `cardinalityIndexes` field from a `ReducedGroupEntityIndex` or
 	 * `ReferencedTypeEntityIndex` via reflection. Both subclasses store cardinality
 	 * data in a private `TransactionalMap<AttributeIndexKey, AttributeCardinalityIndex>`
-	 * named `cardinalityIndexes`, and there is no public accessor for the key set —
-	 * mirroring the very encapsulation that masked bug `d331d1db4` from outside view.
+	 * named `cardinalityIndexes`, and there is no public accessor for the key set.
 	 * Reflection is intentional: this test must walk the **actual** private state so a
 	 * future change that adds a new sub-index collection without exposing it cannot
 	 * sneak past by passing a hand-curated expected set.
@@ -471,14 +456,11 @@ class EntityIndexManifestInvariantTest {
 	/**
 	 * Manifest invariant checks for `ReducedGroupEntityIndex`. RGEI overrides
 	 * `createStoragePart` to add `CARDINALITY` storage keys synthesized from its
-	 * subclass-only `cardinalityIndexes` map. This is the exact path that bug
-	 * `d331d1db4` regressed: prior to the fix, the manifest emitted by the base
-	 * class never carried CARDINALITY keys, silently orphaning cardinality storage
-	 * parts on commit. RGEI also exposes FILTER sub-indexes — its `insertFilterAttribute`
-	 * routes through the cardinality index but, on a 0→1 transition, also delegates to
-	 * `super.insertFilterAttribute`, populating the parent FILTER index. Both keys
-	 * (CARDINALITY + FILTER) must therefore appear in the manifest after a single insert.
-	 * RGEI does **not** maintain UNIQUE / SORT / CHAIN sub-indexes (they are no-ops),
+	 * subclass-only `cardinalityIndexes` map. RGEI also exposes FILTER sub-indexes — its
+	 * `insertFilterAttribute` routes through the cardinality index but, on a 0→1 transition,
+	 * also delegates to `super.insertFilterAttribute`, populating the parent FILTER index.
+	 * Both keys (CARDINALITY + FILTER) must therefore appear in the manifest after a single
+	 * insert. RGEI does **not** maintain UNIQUE / SORT / CHAIN sub-indexes (they are no-ops),
 	 * so the manifest shape is strictly {CARDINALITY, FILTER}.
 	 */
 	@Nested
@@ -573,10 +555,9 @@ class EntityIndexManifestInvariantTest {
 	 * Manifest invariant checks for `ReferencedTypeEntityIndex`. RTEI overrides
 	 * `createStoragePart` identically to `ReducedGroupEntityIndex` — folding
 	 * `CARDINALITY` keys from its subclass-only `cardinalityIndexes` map into the
-	 * base manifest. It is the second subclass affected by bug `d331d1db4` and must
-	 * be guarded the same way. Like RGEI, RTEI does not maintain UNIQUE / SORT / CHAIN
-	 * sub-indexes (they are no-ops), and `insertFilterAttribute` populates both
-	 * `cardinalityIndexes` and the parent FILTER index on a 0→1 cardinality transition.
+	 * base manifest. Like RGEI, RTEI does not maintain UNIQUE / SORT / CHAIN sub-indexes
+	 * (they are no-ops), and `insertFilterAttribute` populates both `cardinalityIndexes`
+	 * and the parent FILTER index on a 0→1 cardinality transition.
 	 */
 	@Nested
 	@DisplayName("ReferencedTypeEntityIndex")

@@ -62,13 +62,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Phase 4 M4 structural guardrail. The split between the write side
- * ({@link IndexComponent}, driven by `EntityIndex.getModifiedStorageParts`) and the read side
- * ({@link ComponentLoader} composed into {@link IndexReloadPlan}, driven by
- * `DefaultEntityCollectionPersistenceService.readEntityIndex`) means that adding a new sub-index
- * family requires changing two files. This test pins the invariant so that a future Phase 5+
- * commit which only updates one side fails immediately with a clear diagnostic — rather than
- * silently producing entity indexes whose persisted data is reloaded incompletely.
+ * Structural guardrail for the write/read symmetry between {@link IndexComponent} (driven by
+ * `EntityIndex.getModifiedStorageParts`) and {@link ComponentLoader} composed into
+ * {@link IndexReloadPlan} (driven by
+ * `DefaultEntityCollectionPersistenceService.readEntityIndex`). Adding a new sub-index family
+ * requires touching both sides; this test pins the invariant so that a commit updating only one
+ * side fails immediately with a clear diagnostic — rather than silently producing entity indexes
+ * whose persisted data is reloaded incompletely.
  *
  * For every concrete `EntityIndex` subclass we:
  *

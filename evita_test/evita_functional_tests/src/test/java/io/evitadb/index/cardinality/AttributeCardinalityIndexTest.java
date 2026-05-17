@@ -87,14 +87,14 @@ class AttributeCardinalityIndexTest {
 
 		@Test
 		@DisplayName("should report BOUNDARY_CROSSED on first add of record (new entry)")
-		void shouldReturnTrueOnFirstAdd() {
+		void shouldReportBoundaryCrossedOnFirstAdd() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
 			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord("value", 1));
 		}
 
 		@Test
 		@DisplayName("should report NO_BOUNDARY_CROSSING on subsequent add of same record (increment)")
-		void shouldReturnFalseOnSubsequentAdd() {
+		void shouldReportNoBoundaryCrossingOnSubsequentAdd() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
 			index.addRecord("value", 1);
 			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.addRecord("value", 1));
@@ -113,7 +113,7 @@ class AttributeCardinalityIndexTest {
 
 		@Test
 		@DisplayName("should report BOUNDARY_CROSSED when remove reduces cardinality to zero")
-		void shouldReturnTrueWhenRemovedCompletely() {
+		void shouldReportBoundaryCrossedWhenRemovedCompletely() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
 			index.addRecord("value", 1);
 			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.removeRecord("value", 1));
@@ -122,7 +122,7 @@ class AttributeCardinalityIndexTest {
 
 		@Test
 		@DisplayName("should report NO_BOUNDARY_CROSSING when remove reduces cardinality above zero")
-		void shouldReturnFalseWhenStillPresent() {
+		void shouldReportNoBoundaryCrossingWhenStillPresent() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
 			index.addRecord("value", 1);
 			index.addRecord("value", 1);

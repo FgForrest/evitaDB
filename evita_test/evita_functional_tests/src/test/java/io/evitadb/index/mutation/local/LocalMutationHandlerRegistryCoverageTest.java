@@ -28,6 +28,8 @@ import io.evitadb.index.mutation.local.handler.LocalMutationHandlerRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -35,6 +37,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystemNotFoundException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,13 +56,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Phase 5 M4 structural guardrail. The handler-dispatch refactor moves every mutation-type-specific
- * orchestration into a `LocalMutationHandler` keyed by the concrete `LocalMutation` subclass.
- * Forgetting to register a new mutation type silently falls through to `resolve(...)`'s defensive
- * throw at runtime — which only fires when an entity carrying the new mutation reaches the
- * executor. This test enumerates every concrete `LocalMutation` subclass on the classpath under
- * the `evita_api` mutation tree and asserts the registry has a handler for it, so the omission is
- * caught at build time instead.
+ * Pins the invariant that every concrete `LocalMutation` subclass on the classpath under
+ * `evita_api`'s mutation tree has a matching `LocalMutationHandler` registered. Without this
+ * guardrail a missing registration would only surface at runtime — when an entity carrying the
+ * new mutation reaches the executor and trips `LocalMutationHandlerRegistry.resolve(...)`'s
+ * defensive throw.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -67,6 +68,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(INDEXING)
 @Tag(SCHEMA)
 class LocalMutationHandlerRegistryCoverageTest {
+
+	private static final Logger log = LoggerFactory.getLogger(LocalMutationHandlerRegistryCoverageTest.class);
 
 	/**
 	 * Root package under which evita_api defines all `LocalMutation` subtypes. The scan walks
@@ -144,21 +147,27 @@ class LocalMutationHandlerRegistryCoverageTest {
 				}
 			}
 		} else if ("jar".equals(uri.getScheme())) {
-			try (final FileSystem fs = FileSystems.newFileSystem(uri, Map.of())) {
-				final Path packageRoot = fs.getPath("/" + packagePath);
-				try (final Stream<Path> stream = Files.walk(packageRoot)) {
-					stream
-						.filter(Files::isRegularFile)
-						.filter(path -> path.toString().endsWith(".class"))
-						.forEach(path -> {
-							final String full = path.toString();
-							final int prefixLen = ("/" + packagePath + "/").length();
-							final String className = MUTATION_ROOT_PACKAGE + "." + full
-								.substring(prefixLen, full.length() - ".class".length())
-								.replace('/', '.');
-							considerClass(className, classLoader, sink);
-						});
-				}
+			// reuse an already-open file system for the same JAR if present; opening a second one
+			// for the same URI throws FileSystemAlreadyExistsException
+			FileSystem fs;
+			try {
+				fs = FileSystems.getFileSystem(uri);
+			} catch (final FileSystemNotFoundException e) {
+				fs = FileSystems.newFileSystem(uri, Map.of());
+			}
+			final Path packageRoot = fs.getPath("/" + packagePath);
+			try (final Stream<Path> stream = Files.walk(packageRoot)) {
+				stream
+					.filter(Files::isRegularFile)
+					.filter(path -> path.toString().endsWith(".class"))
+					.forEach(path -> {
+						final String full = path.toString();
+						final int prefixLen = ("/" + packagePath + "/").length();
+						final String className = MUTATION_ROOT_PACKAGE + "." + full
+							.substring(prefixLen, full.length() - ".class".length())
+							.replace('/', '.');
+						considerClass(className, classLoader, sink);
+					});
 			}
 		}
 	}
@@ -182,7 +191,11 @@ class LocalMutationHandlerRegistryCoverageTest {
 		final Class<?> candidate;
 		try {
 			candidate = Class.forName(className, false, classLoader);
-		} catch (final Throwable t) {
+		} catch (final ClassNotFoundException | LinkageError e) {
+			// missing classes / linkage failures during a best-effort scan are expected when shaded
+			// or split-package artefacts appear under the same package prefix — log so a genuine
+			// loading bug remains visible
+			log.warn("LocalMutationHandlerRegistry coverage scan skipped {}: {}", className, e.toString());
 			return;
 		}
 		final int mods = candidate.getModifiers();

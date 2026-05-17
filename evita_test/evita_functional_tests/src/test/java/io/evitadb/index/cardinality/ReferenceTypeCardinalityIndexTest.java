@@ -123,7 +123,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 		@Test
 		@DisplayName("returns BOUNDARY_CROSSED on first add for given indexPk")
-		void shouldReturnTrueOnFirstAdd() {
+		void shouldReportBoundaryCrossedOnFirstAdd() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord(1, 100));
@@ -133,7 +133,7 @@ class ReferenceTypeCardinalityIndexTest {
 		@DisplayName(
 			"returns NO_BOUNDARY_CROSSING on second add for same indexPk"
 		)
-		void shouldReturnFalseOnSecondAdd() {
+		void shouldReportNoBoundaryCrossingOnSecondAdd() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
@@ -142,7 +142,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 		@Test
 		@DisplayName("returns BOUNDARY_CROSSED when new indexPk is added")
-		void shouldReturnTrueForNewIndexPk() {
+		void shouldReportBoundaryCrossedForNewIndexPk() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
@@ -197,7 +197,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 		@Test
 		@DisplayName("returns BOUNDARY_CROSSED when indexPk fully evicted")
-		void shouldReturnTrueWhenFullyEvicted() {
+		void shouldReportBoundaryCrossedWhenFullyEvicted() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
@@ -209,7 +209,7 @@ class ReferenceTypeCardinalityIndexTest {
 		@DisplayName(
 			"returns NO_BOUNDARY_CROSSING when indexPk still has other referencedPks"
 		)
-		void shouldReturnFalseWhenStillPresent() {
+		void shouldReportNoBoundaryCrossingWhenStillPresent() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);

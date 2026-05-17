@@ -33,13 +33,11 @@ import java.util.Map;
 /**
  * Class-init registry mapping concrete `LocalMutation` subclasses to their `LocalMutationHandler`
  * singletons. Populated exactly once in the static initializer; lookup is a single immutable map
- * get keyed by `mutation.getClass()`. Replaces the hand-coded `instanceof` chain in
- * `EntityIndexLocalMutationExecutor#applyMutation`.
+ * get keyed by `mutation.getClass()`.
  *
- * Unknown mutation classes surface as `GenericEvitaInternalError` rather than silently falling
- * through. A new concrete mutation type added to `evita_api` must be paired with a new entry here
- * — `LocalMutationHandlerRegistryCoverageTest` (added in M4) enforces this contract via classpath
- * scan.
+ * Unknown mutation classes surface as `GenericEvitaInternalError`. A new concrete mutation type
+ * added to `evita_api` must be paired with a new entry here — `LocalMutationHandlerRegistryCoverageTest`
+ * enforces this contract via classpath scan.
  */
 public final class LocalMutationHandlerRegistry {
 
@@ -81,14 +79,12 @@ public final class LocalMutationHandlerRegistry {
 	}
 
 	private LocalMutationHandlerRegistry() {
-		// no instances — static-only registry
+		// no instances
 	}
 
 	/**
-	 * Resolves the handler for the given mutation's concrete class. Throws
-	 * `GenericEvitaInternalError` for unregistered classes — the registry does not silently fall
-	 * back to legacy dispatch. Defensive design: a missing registration is a programming error
-	 * that must surface immediately at runtime.
+	 * Resolves the handler for the given mutation's concrete class. A missing registration is a
+	 * programming error and surfaces immediately as `GenericEvitaInternalError`.
 	 *
 	 * @param mutation the mutation to dispatch (only its concrete class is consulted)
 	 * @return the handler singleton matching `mutation.getClass()`, never null
@@ -100,7 +96,7 @@ public final class LocalMutationHandlerRegistry {
 		final LocalMutationHandler<?> handler = HANDLERS.get(mutation.getClass());
 		if (handler == null) {
 			throw new GenericEvitaInternalError(
-				"No LocalMutationHandler registered for mutation class: " + mutation.getClass()
+				"No LocalMutationHandler registered for mutation class: " + mutation.getClass().getName()
 			);
 		}
 		return (LocalMutationHandler<M>) handler;

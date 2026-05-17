@@ -555,9 +555,9 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	 * append their subclass-owned loaders (cardinality, histogram, group-cardinality) before
 	 * binding the finalizer.
 	 *
-	 * Order matches the legacy `readEntityIndex` fetch order: attribute first (it sizes the maps
-	 * via per-type counts), then prices (super or ref depending on caller), then hierarchy, then
-	 * facet. Today's order is locked to keep the equivalence harness byte-identical.
+	 * Order matters for deterministic reload sequencing: attribute first (it sizes the maps via
+	 * per-type counts), then prices (super or ref depending on caller), then hierarchy, then
+	 * facet.
 	 *
 	 * @param builder the in-progress plan builder to append to
 	 * @return the same `builder` for chaining

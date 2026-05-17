@@ -214,10 +214,7 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 		return new ReducedEntityIndex(
 			this.primaryKey, this.indexKey, this.version,
 			this.entityIds, this.entityIdsByLanguage,
-			// the parent EntityIndex field is typed as the abstract AttributeIndex; for reduced
-			// indexes the runtime type is guaranteed to be ReferenceAttributeIndex by the
-			// EntityIndex constructor's isReferenceScoped dispatch and the persistence-reload
-			// wiring in DefaultEntityCollectionPersistenceService.
+			// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
 			(ReferenceAttributeIndex) this.attributeIndex,
 			this.hierarchyIndex,
 			this.facetIndex,
@@ -237,8 +234,7 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 	) {
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		// AttributeIndex#createCopy preserves the subclass identity — the merged copy of a
-		// ReferenceAttributeIndex stays a ReferenceAttributeIndex.
+		// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
 		return new ReducedEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),

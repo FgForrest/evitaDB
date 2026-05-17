@@ -233,11 +233,10 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Returns the read-side reload plan for `GlobalEntityIndex`. The plan is cached per JVM and
-	 * exposes the ordered list of loaders to the M4 symmetry test. The finalizer reads the
-	 * previously-persisted `EntityIndexStoragePart` and the entity-schema name out of the
-	 * supplied {@link io.evitadb.index.component.loader.LoadContext} and builds the index via
-	 * the standard data-loading constructor.
+	 * Returns the read-side reload plan for `GlobalEntityIndex`. The plan is cached per JVM. The
+	 * finalizer reads the previously-persisted `EntityIndexStoragePart` and the entity-schema name
+	 * out of the supplied {@link io.evitadb.index.component.loader.LoadContext} and builds the
+	 * index via the standard data-loading constructor.
 	 *
 	 * @return the immutable reload plan for this subclass
 	 */
@@ -269,7 +268,7 @@ public class GlobalEntityIndex extends EntityIndex
 				manifest.getEntityIds(),
 				manifest.getEntityIdsByLanguage(),
 				new EntityAttributeIndex(
-					context.entitySchema().getName(), null,
+					context.entitySchema().getName(),
 					attributes.uniqueIndexes(), attributes.filterIndexes(),
 					attributes.sortIndexes(), attributes.chainIndexes()
 				),
@@ -290,9 +289,7 @@ public class GlobalEntityIndex extends EntityIndex
 	) {
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		// the field is typed as AttributeIndex on EntityIndex; the AttributeIndex#createCopy factory
-		// preserves the subclass identity (EntityAttributeIndex stays EntityAttributeIndex), so the
-		// downcast here is safe and asserted at runtime by the EntityAttributeIndex constructor invariants
+		// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
 		return new GlobalEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),

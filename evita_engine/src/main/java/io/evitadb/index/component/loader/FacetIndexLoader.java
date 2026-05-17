@@ -36,9 +36,8 @@ import java.util.Set;
 import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
- * Reloads the {@link FacetIndex} component shared by every `EntityIndex` subclass. Ports
- * `fetchFacetIndex` from `DefaultEntityCollectionPersistenceService`. When the manifest carries
- * no facet entries, the loader returns a fresh empty `FacetIndex`.
+ * Reloads the {@link FacetIndex} component shared by every `EntityIndex` subclass. When the
+ * manifest carries no facet entries, the loader returns a fresh empty `FacetIndex`.
  */
 public final class FacetIndexLoader implements ComponentLoader {
 

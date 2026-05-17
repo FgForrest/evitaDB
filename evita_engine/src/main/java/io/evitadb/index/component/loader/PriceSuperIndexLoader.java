@@ -37,9 +37,8 @@ import java.util.Set;
 import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
- * Reloads the super-price index map carried by `GlobalEntityIndex`. Ports
- * `fetchPriceSuperIndexes` from `DefaultEntityCollectionPersistenceService`. The result map is
- * passed to the `GlobalEntityIndex` constructor wrapped in a `PriceSuperIndex`.
+ * Reloads the super-price index map carried by `GlobalEntityIndex`. The result map is passed to
+ * the `GlobalEntityIndex` constructor wrapped in a `PriceSuperIndex`.
  */
 public final class PriceSuperIndexLoader implements ComponentLoader {
 

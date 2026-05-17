@@ -57,13 +57,10 @@ public sealed interface ComponentLoader
 	 *
 	 * Implementations must:
 	 *
-	 * - Use exactly the same fetch invariants as the legacy `fetch*` helpers in
-	 *   `DefaultEntityCollectionPersistenceService` (e.g. `isPremiseValid` on missing parts).
-	 * - Never alter the on-disk wire format — they read the same bytes from the same storage
-	 *   parts as the legacy path.
-	 * - Return a `LoadedComponentBundle` whose concrete type is locked to the
-	 *   sealed shape declared by this loader; the finalizer relies on the runtime class for
-	 *   typed lookup.
+	 * - Throw via `Assert.isPremiseValid` when a required storage part is missing — silent
+	 *   skipping would surface later as data loss.
+	 * - Return a `LoadedComponentBundle` whose concrete type is locked to the sealed shape
+	 *   declared by this loader; the finalizer relies on the runtime class for typed lookup.
 	 *
 	 * @param context immutable per-call bundle of fetch dependencies
 	 * @return the populated bundle for this loader's sub-index family

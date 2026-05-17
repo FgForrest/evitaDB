@@ -43,12 +43,11 @@ import javax.annotation.Nonnull;
 
 /**
  * Shared entity-side fan-out used by all three concrete attribute-mutation handlers
- * (`Upsert`, `Remove`, `ApplyDelta`). The three handlers differ only in the inner branch of
- * `updateAttribute` — every step before and after the inner call (pre-mutation capture, global
- * update, unique fan-out across reduced indexes, deferred facet re-evaluation) is identical, so
- * it lives here exactly once. Keeping this orchestration in a single place preserves byte-for-byte
- * equivalence with the legacy `applyAttributeMutation` and lets the handlers be thin shells whose
- * only responsibility is naming the concrete mutation class.
+ * (`Upsert`, `Remove`, `ApplyDelta`). The three differ only in the inner branch of
+ * `updateAttribute` — every step before and after (pre-mutation capture, global update, unique
+ * fan-out across reduced indexes, deferred facet re-evaluation) is identical, so it lives here
+ * exactly once. The handlers are thin shells whose only responsibility is naming the concrete
+ * mutation class.
  */
 final class AttributeMutationFanOut {
 
@@ -57,9 +56,11 @@ final class AttributeMutationFanOut {
 	}
 
 	/**
-	 * Applies the supplied attribute mutation to the global index and fans out to all reduced
-	 * indexes via `forEachUniqueReferenceIndex` — see `EntityIndexLocalMutationExecutor`'s
-	 * legacy `applyAttributeMutation` for the invariants this method preserves.
+	 * Applies the attribute mutation to the global index, then fans out to every unique reduced
+	 * index via `IterationPath.BOTH`. The unique fan-out is required because entity-level
+	 * attribute bookkeeping is indexed once per (entity, reduced-index) pair — a per-reference
+	 * variant would double-decrement the `AttributeCardinalityIndex` whenever N sibling references
+	 * resolve to a single shared `ReducedGroupEntityIndex`.
 	 */
 	static void apply(
 		@Nonnull AttributeMutation mutation,

@@ -366,10 +366,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Re-points the memoized scope of the active entity. Called exclusively by
-	 * `SetEntityScopeMutationHandler` after relocating the entity from the old scope's indexes to
-	 * the new scope's indexes. All other callers must rely on `getScope()` lazily resolving the
-	 * scope from storage.
+	 * Re-points the memoized scope of the active entity. Precondition: the caller has just
+	 * relocated the entity from the old scope's indexes to the new scope's indexes — calling this
+	 * without performing the relocation first leaves the executor pointing at the wrong indexes
+	 * for the remainder of the batch.
 	 *
 	 * @param scope the new scope of the active entity
 	 */
@@ -378,10 +378,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the full entity body, resolved via the supplier installed at construction. Used
-	 * exclusively by `SetEntityScopeMutationHandler` — the scope-change path needs the full
-	 * entity state to capture pre-mutation attribute values and to drive the
-	 * `removeEntityFromIndexes` / `addEntityToIndexes` calls.
+	 * Returns the full entity body for the active mutation batch, resolved via the supplier
+	 * installed at construction. Required by scope-change processing, which needs the full entity
+	 * state to capture pre-mutation attribute values and to drive the `removeEntityFromIndexes` /
+	 * `addEntityToIndexes` calls.
 	 *
 	 * @return the full entity body for the active mutation batch
 	 */
@@ -399,31 +399,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nonnull
 	public String getEntityType() {
 		return this.entityType;
-	}
-
-	/**
-	 * Returns the set of reference keys whose histogram add was already deferred during this
-	 * batch's reference insertion path. `ReferenceAttributeMutationHandler` consults this set to
-	 * skip its own histogram re-evaluation, avoiding a double-insert that would corrupt the
-	 * cardinality counter.
-	 *
-	 * @return the set of reference keys with deferred histogram adds (never null, may be empty)
-	 */
-	@Nonnull
-	public Set<ReferenceKey> getReferencesWithDeferredHistogramAdd() {
-		return this.referencesWithDeferredHistogramAdd;
-	}
-
-	/**
-	 * Returns the undo-action appender installed at construction (or `null` when the executor was
-	 * configured without undo tracking). Handlers pass this through to lower-level mutators so
-	 * they can register rollback closures consistently.
-	 *
-	 * @return the undo-action appender, or `null` if undo tracking is disabled
-	 */
-	@Nullable
-	public Consumer<Runnable> getUndoActionsAppender() {
-		return this.undoActionsAppender;
 	}
 
 	/**
@@ -674,13 +649,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Looks up the `LocalMutationHandler` for the concrete mutation class and delegates the apply
-	 * call to it. Centralises the generic capture so individual handlers stay strongly typed —
-	 * the registry's `resolve(...)` returns a handler typed to `M`, and the executor passes the
-	 * mutation through without an unchecked cast at the call site.
-	 *
-	 * @param localMutation the mutation to dispatch
-	 * @param globalIndex   pre-resolved global index for the current scope
+	 * Captures the wildcard mutation type as a concrete `M` so the registry-returned handler can
+	 * be invoked without an unchecked cast at the call site.
 	 */
 	private <M extends LocalMutation<?, ?>> void dispatchViaRegistry(
 		@Nonnull M localMutation,

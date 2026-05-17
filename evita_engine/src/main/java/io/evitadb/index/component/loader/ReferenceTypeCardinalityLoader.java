@@ -34,7 +34,6 @@ import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
  * Reloads the cross-reference cardinality bookkeeping carried by `ReferencedTypeEntityIndex`.
- * Ports `fetchReferenceTypeCardinalityIndex` from `DefaultEntityCollectionPersistenceService`.
  *
  * The reference name is extracted from the `EntityIndexKey.discriminator()` which is always a
  * `String` for `REFERENCED_ENTITY_TYPE` and `REFERENCED_GROUP_ENTITY_TYPE` keys — the dispatcher

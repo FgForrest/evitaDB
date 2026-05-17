@@ -24,6 +24,7 @@
 package io.evitadb.index.component.loader;
 
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.LocalizedHistogramIndex;
@@ -45,10 +46,9 @@ import java.util.Set;
 
 /**
  * Reloads the histogram index map carried by `ReferencedTypeEntityIndex` and
- * `ReducedGroupEntityIndex`. Ports `fetchHistogramIndexes` from
- * `DefaultEntityCollectionPersistenceService` — including the per-name grouping that decides
- * whether to materialize a `SimpleHistogramIndex` (single locale=null part) or a
- * `LocalizedHistogramIndex` (any non-null locale part).
+ * `ReducedGroupEntityIndex`, including the per-name grouping that decides whether to materialize
+ * a `SimpleHistogramIndex` (single locale=null part) or a `LocalizedHistogramIndex` (any
+ * non-null locale part).
  */
 public final class HistogramIndexMapLoader implements ComponentLoader {
 
@@ -69,14 +69,17 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 		} else if (discriminator instanceof RepresentativeReferenceKey rrk) {
 			referenceName = rrk.referenceName();
 		} else {
-			referenceName = "";
+			throw new GenericEvitaInternalError(
+				"Unexpected discriminator type for histogram-bearing entity index: " +
+					(discriminator == null ? "null" : discriminator.getClass().getName())
+			);
 		}
 
 		final StoragePartPersistenceService<?> service = context.storagePartService();
 		final int entityIndexId = context.entityIndexId();
 		final long catalogVersion = context.catalogVersion();
 
-		// group fetched parts by histogram name first — see fetchHistogramIndexes legacy code
+		// group fetched parts by histogram name first
 		final Map<String, Map<Locale, HistogramIndexStoragePart>> partsByName =
 			CollectionUtils.createHashMap(histogramKeys.size());
 		for (final HistogramIndexStorageKey histogramKey : histogramKeys) {

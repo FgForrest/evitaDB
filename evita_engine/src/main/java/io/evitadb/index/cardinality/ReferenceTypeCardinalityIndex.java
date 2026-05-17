@@ -128,16 +128,18 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
-	 * Increases cardinality of the given (indexPrimaryKey, referencedEntityPrimaryKey) tuple by one. If the
-	 * indexPrimaryKey was not yet tracked at all (cardinality 0 -> 1 for the whole index primary key), the method
-	 * returns `BOUNDARY_CROSSED` so callers can propagate the new entry to membership-only downstream indexes.
-	 * Otherwise the cardinality is incremented and `NO_BOUNDARY_CROSSING` is returned. The fine-grained bookkeeping
-	 * of the referenced primary key bitmap is performed unconditionally.
+	 * Increases cardinality of the given (indexPrimaryKey, referencedEntityPrimaryKey) tuple by one.
+	 * If the indexPrimaryKey was not yet tracked at all (cardinality 0 -> 1 for the whole index
+	 * primary key), the method returns `BOUNDARY_CROSSED` so callers can propagate the new entry to
+	 * membership-only downstream indexes. Otherwise the cardinality is incremented and
+	 * `NO_BOUNDARY_CROSSING` is returned. The fine-grained bookkeeping of the referenced primary key
+	 * bitmap is performed unconditionally.
 	 *
-	 * @param indexPrimaryKey            primary key of the entity index that tracks relation between the record and the referenced entity
+	 * @param indexPrimaryKey            primary key of the entity index that tracks relation between
+	 *                                   the record and the referenced entity
 	 * @param referencedEntityPrimaryKey primary key of the referenced entity
-	 * @return `BOUNDARY_CROSSED` if this call caused the index primary key to enter the index for the first time,
-	 * `NO_BOUNDARY_CROSSING` otherwise
+	 * @return `BOUNDARY_CROSSED` if this call caused the index primary key to enter the index for
+	 *         the first time, `NO_BOUNDARY_CROSSING` otherwise
 	 */
 	@Nonnull
 	public CardinalityChange addRecord(int indexPrimaryKey, int referencedEntityPrimaryKey) {
@@ -164,14 +166,17 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
-	 * Decreases cardinality of the given (indexPrimaryKey, referencedEntityPrimaryKey) tuple by one. If the
-	 * cardinality of the indexPrimaryKey reaches zero overall, the tuple is removed from the index and
-	 * `BOUNDARY_CROSSED` is returned so callers can propagate the removal to membership-only downstream indexes.
-	 * Otherwise the cardinality is decremented and `NO_BOUNDARY_CROSSING` is returned.
+	 * Decreases cardinality of the given (indexPrimaryKey, referencedEntityPrimaryKey) tuple by one.
+	 * If the cardinality of the indexPrimaryKey reaches zero overall, the tuple is removed from the
+	 * index and `BOUNDARY_CROSSED` is returned so callers can propagate the removal to
+	 * membership-only downstream indexes. Otherwise the cardinality is decremented and
+	 * `NO_BOUNDARY_CROSSING` is returned.
 	 *
-	 * @param indexPrimaryKey            primary key of the entity index that tracks relation between the record and the referenced entity
+	 * @param indexPrimaryKey            primary key of the entity index that tracks relation between
+	 *                                   the record and the referenced entity
 	 * @param referencedEntityPrimaryKey primary key of the referenced entity
-	 * @return `BOUNDARY_CROSSED` if the index primary key fell out of the index entirely, `NO_BOUNDARY_CROSSING` otherwise
+	 * @return `BOUNDARY_CROSSED` if the index primary key fell out of the index entirely,
+	 *         `NO_BOUNDARY_CROSSING` otherwise
 	 */
 	@Nonnull
 	public CardinalityChange removeRecord(int indexPrimaryKey, int referencedEntityPrimaryKey) {

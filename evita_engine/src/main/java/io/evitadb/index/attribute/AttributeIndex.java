@@ -93,10 +93,11 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public abstract class AttributeIndex implements AttributeIndexContract,
+public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	TransactionalLayerProducer<AttributeIndexChanges, AttributeIndex>,
 	IndexDataStructure,
 	Serializable
+	permits EntityAttributeIndex, ReferenceAttributeIndex
 {
 	@Serial private static final long serialVersionUID = 479979988960202298L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -109,19 +110,6 @@ public abstract class AttributeIndex implements AttributeIndexContract,
 	 * this index is part of the global {@link GlobalEntityIndex}.
 	 */
 	@Nullable private final RepresentativeReferenceKey referenceKey;
-
-	/**
-	 * Returns the structural scope of this index — `ENTITY` for indexes that store attributes
-	 * defined directly on the entity, `REFERENCE` for indexes attached to a relation. The value is
-	 * fixed for each subclass: [EntityAttributeIndex] returns [AttributeScope.ENTITY] and
-	 * [ReferenceAttributeIndex] returns [AttributeScope.REFERENCE]. Call sites that fan out
-	 * mutations across entity / reference indexes use this getter instead of re-inspecting the
-	 * surrounding schema.
-	 *
-	 * @return the immutable scope tag for this index
-	 */
-	@Nonnull
-	public abstract AttributeScope getScope();
 	/**
 	 * This transactional map (index) contains for each attribute single instance of {@link UniqueIndex}
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
@@ -205,6 +193,9 @@ public abstract class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nullable Locale locale
 	) {
+		// entity-level attributes can also appear inside reference-scoped indexes via reference
+		// fan-out — EntityAttributeSchemaContract always nulls out the reference name regardless
+		// of the surrounding index, keeping the storage key shape uniform across both fan-outs
 		return new AttributeIndexKey(
 			attributeSchema instanceof EntityAttributeSchemaContract || referenceSchema == null ?
 				null : referenceSchema.getName(),
@@ -813,6 +804,17 @@ public abstract class AttributeIndex implements AttributeIndexContract,
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return attributeIndex;
 	}
+
+	/**
+	 * Returns the structural scope of this index — `ENTITY` for indexes that store attributes
+	 * defined directly on the entity, `REFERENCE` for indexes attached to a relation. Call sites
+	 * that fan out mutations across entity / reference indexes use this getter instead of
+	 * re-inspecting the surrounding schema.
+	 *
+	 * @return the immutable scope tag for this index
+	 */
+	@Nonnull
+	public abstract AttributeScope getScope();
 
 	/**
 	 * Factory hook implemented by each [AttributeIndex] subclass so the merged-transactional-memory

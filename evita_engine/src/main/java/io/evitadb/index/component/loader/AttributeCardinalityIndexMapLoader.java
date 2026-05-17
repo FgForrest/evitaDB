@@ -40,8 +40,7 @@ import static io.evitadb.utils.Assert.isPremiseValid;
 
 /**
  * Reloads the per-attribute CARDINALITY index map carried by `ReferencedTypeEntityIndex` and
- * `ReducedGroupEntityIndex`. Ports `fetchAttributeCardinalityIndex` from
- * `DefaultEntityCollectionPersistenceService`.
+ * `ReducedGroupEntityIndex`.
  *
  * The cardinality entries share the `AttributeIndexStorageKey` namespace with UNIQUE / FILTER /
  * SORT / CHAIN but are routed to a separate map on the in-memory side because they are owned by
