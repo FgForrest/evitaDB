@@ -45,6 +45,11 @@ import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.component.AttributeCardinalityIndexMapComponent;
 import io.evitadb.index.component.GroupCardinalityComponent;
 import io.evitadb.index.component.HistogramIndexMapComponent;
+import io.evitadb.index.component.loader.AttributeCardinalityIndexMapLoader;
+import io.evitadb.index.component.loader.GroupCardinalityLoader;
+import io.evitadb.index.component.loader.HistogramIndexMapLoader;
+import io.evitadb.index.component.loader.IndexReloadPlan;
+import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
@@ -208,6 +213,64 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		// helper which only patched in CARDINALITY keys and ignored histograms
 		captureOriginalsFromComponents();
 	}
+
+	/**
+	 * Returns the read-side reload plan for `ReducedGroupEntityIndex`. Extends the shared
+	 * reduced-index plan (attribute / price-ref / hierarchy / facet) with three subclass-owned
+	 * loaders: per-attribute cardinality, histogram map, and group-cardinality bookkeeping. The
+	 * plan is cached per JVM.
+	 *
+	 * @return the immutable reload plan for this subclass
+	 */
+	@Nonnull
+	public static IndexReloadPlan reloadPlan() {
+		return REDUCED_GROUP_RELOAD_PLAN;
+	}
+
+	private static final IndexReloadPlan REDUCED_GROUP_RELOAD_PLAN = appendCommon(IndexReloadPlan.builder())
+		.add(new AttributeCardinalityIndexMapLoader())
+		.add(new HistogramIndexMapLoader())
+		.add(new GroupCardinalityLoader())
+		.build((bundles, context) -> {
+			final LoadedComponentBundle.AttributeIndexes attributes =
+				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
+			final LoadedComponentBundle.PriceRef prices =
+				(LoadedComponentBundle.PriceRef) bundles.get(LoadedComponentBundle.PriceRef.class);
+			final LoadedComponentBundle.Hierarchy hierarchy =
+				(LoadedComponentBundle.Hierarchy) bundles.get(LoadedComponentBundle.Hierarchy.class);
+			final LoadedComponentBundle.Facet facet =
+				(LoadedComponentBundle.Facet) bundles.get(LoadedComponentBundle.Facet.class);
+			final LoadedComponentBundle.AttributeCardinalityIndexes cardinalities =
+				(LoadedComponentBundle.AttributeCardinalityIndexes)
+					bundles.get(LoadedComponentBundle.AttributeCardinalityIndexes.class);
+			final LoadedComponentBundle.Histograms histograms =
+				(LoadedComponentBundle.Histograms) bundles.get(LoadedComponentBundle.Histograms.class);
+			final LoadedComponentBundle.GroupCardinality groupCardinality =
+				(LoadedComponentBundle.GroupCardinality) bundles.get(LoadedComponentBundle.GroupCardinality.class);
+			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
+				context.entityIndexStoragePart();
+			final Scope scope = manifest.getEntityIndexKey().scope();
+			return new ReducedGroupEntityIndex(
+				manifest.getPrimaryKey(),
+				manifest.getEntityIndexKey(),
+				manifest.getVersion(),
+				manifest.getEntityIds(),
+				manifest.getEntityIdsByLanguage(),
+				new ReferenceAttributeIndex(
+					context.entitySchema().getName(),
+					context.referenceKey(),
+					attributes.uniqueIndexes(), attributes.filterIndexes(),
+					attributes.sortIndexes(), attributes.chainIndexes()
+				),
+				new PriceRefIndex(scope, prices.priceIndexes()),
+				hierarchy.hierarchyIndex(),
+				facet.facetIndex(),
+				groupCardinality.pkCardinalities(),
+				groupCardinality.referencedPrimaryKeysIndex(),
+				cardinalities.cardinalityIndexes(),
+				histograms.histogramIndexes()
+			);
+		});
 
 	/**
 	 * Creates a reduced group entity index as a transactional copy. This constructor is used internally by

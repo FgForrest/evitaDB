@@ -69,6 +69,8 @@ module evita.engine {
 	exports io.evitadb.index.bool;
 	exports io.evitadb.index.bPlusTree;
 	exports io.evitadb.index.cardinality;
+	exports io.evitadb.index.component;
+	exports io.evitadb.index.component.loader;
 	exports io.evitadb.index.attribute;
 	exports io.evitadb.index.bitmap;
 	exports io.evitadb.index.invertedIndex;

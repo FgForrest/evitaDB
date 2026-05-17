@@ -45,6 +45,11 @@ import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.PriceIndexComponent;
+import io.evitadb.index.component.loader.AttributeIndexLoader;
+import io.evitadb.index.component.loader.FacetIndexLoader;
+import io.evitadb.index.component.loader.HierarchyIndexLoader;
+import io.evitadb.index.component.loader.IndexReloadPlan;
+import io.evitadb.index.component.loader.PriceRefIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
@@ -541,6 +546,29 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 				" Current index type is: " +
 				Objects.requireNonNull(referenceSchema).getReferenceIndexType(this.indexKey.scope())
 		);
+	}
+
+	/**
+	 * Registers the four reload-side loaders shared by every reduced-index subclass: attribute,
+	 * reference-price, hierarchy, and facet. Mirrors `EntityIndex.registerBaseComponents()` on
+	 * the read side. Subclasses call this from their `reloadPlan()` static initializer and then
+	 * append their subclass-owned loaders (cardinality, histogram, group-cardinality) before
+	 * binding the finalizer.
+	 *
+	 * Order matches the legacy `readEntityIndex` fetch order: attribute first (it sizes the maps
+	 * via per-type counts), then prices (super or ref depending on caller), then hierarchy, then
+	 * facet. Today's order is locked to keep the equivalence harness byte-identical.
+	 *
+	 * @param builder the in-progress plan builder to append to
+	 * @return the same `builder` for chaining
+	 */
+	@Nonnull
+	protected static IndexReloadPlan.Builder appendCommon(@Nonnull IndexReloadPlan.Builder builder) {
+		return builder
+			.add(new AttributeIndexLoader())
+			.add(new PriceRefIndexLoader())
+			.add(new HierarchyIndexLoader())
+			.add(new FacetIndexLoader());
 	}
 
 }

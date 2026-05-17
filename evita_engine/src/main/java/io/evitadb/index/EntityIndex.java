@@ -194,6 +194,21 @@ public abstract class EntityIndex implements
 	 */
 	private final List<IndexComponent> components = new ArrayList<>(8);
 
+	/**
+	 * Returns an unmodifiable view of the registered {@link IndexComponent}s. Test-only
+	 * accessor used by the M4 symmetry guardrail (`EntityIndexReloadPlanSymmetryTest`) to
+	 * verify that every write-side component has a matching read-side
+	 * {@link io.evitadb.index.component.loader.ComponentLoader} in the subclass's
+	 * `reloadPlan()`. Production code drives the components through the private list directly
+	 * for allocation-free flush.
+	 *
+	 * @return an unmodifiable list of registered components in registration order
+	 */
+	@Nonnull
+	public List<IndexComponent> getRegisteredComponents() {
+		return Collections.unmodifiableList(this.components);
+	}
+
 	protected EntityIndex(
 		int primaryKey,
 		@Nonnull String entityType,

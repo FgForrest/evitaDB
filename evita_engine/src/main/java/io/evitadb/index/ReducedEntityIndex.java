@@ -34,6 +34,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.component.loader.IndexReloadPlan;
+import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
@@ -120,6 +122,49 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 			() -> "ReducedEntityIndex only supports REFERENCED_ENTITY type, got: " + entityIndexKey.type()
 		);
 	}
+
+	/**
+	 * Returns the read-side reload plan for `ReducedEntityIndex`. Identical to the base
+	 * reduced-index plan — attribute / price-ref / hierarchy / facet — because this subclass
+	 * owns no additional sub-indexes beyond the shared four. The plan is cached per JVM.
+	 *
+	 * @return the immutable reload plan for this subclass
+	 */
+	@Nonnull
+	public static IndexReloadPlan reloadPlan() {
+		return REDUCED_RELOAD_PLAN;
+	}
+
+	private static final IndexReloadPlan REDUCED_RELOAD_PLAN = appendCommon(IndexReloadPlan.builder())
+		.build((bundles, context) -> {
+			final LoadedComponentBundle.AttributeIndexes attributes =
+				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
+			final LoadedComponentBundle.PriceRef prices =
+				(LoadedComponentBundle.PriceRef) bundles.get(LoadedComponentBundle.PriceRef.class);
+			final LoadedComponentBundle.Hierarchy hierarchy =
+				(LoadedComponentBundle.Hierarchy) bundles.get(LoadedComponentBundle.Hierarchy.class);
+			final LoadedComponentBundle.Facet facet =
+				(LoadedComponentBundle.Facet) bundles.get(LoadedComponentBundle.Facet.class);
+			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
+				context.entityIndexStoragePart();
+			final Scope scope = manifest.getEntityIndexKey().scope();
+			return new ReducedEntityIndex(
+				manifest.getPrimaryKey(),
+				manifest.getEntityIndexKey(),
+				manifest.getVersion(),
+				manifest.getEntityIds(),
+				manifest.getEntityIdsByLanguage(),
+				new ReferenceAttributeIndex(
+					context.entitySchema().getName(),
+					context.referenceKey(),
+					attributes.uniqueIndexes(), attributes.filterIndexes(),
+					attributes.sortIndexes(), attributes.chainIndexes()
+				),
+				new PriceRefIndex(scope, prices.priceIndexes()),
+				hierarchy.hierarchyIndex(),
+				facet.facetIndex()
+			);
+		});
 
 	/**
 	 * Creates a reduced entity index as a transactional copy. This constructor is used internally by

@@ -38,6 +38,12 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.PriceIndexComponent;
+import io.evitadb.index.component.loader.AttributeIndexLoader;
+import io.evitadb.index.component.loader.FacetIndexLoader;
+import io.evitadb.index.component.loader.HierarchyIndexLoader;
+import io.evitadb.index.component.loader.IndexReloadPlan;
+import io.evitadb.index.component.loader.LoadedComponentBundle;
+import io.evitadb.index.component.loader.PriceSuperIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
@@ -225,6 +231,53 @@ public class GlobalEntityIndex extends EntityIndex
 		this.priceIndex = priceIndex;
 		addComponent(new PriceIndexComponent(this.priceIndex));
 	}
+
+	/**
+	 * Returns the read-side reload plan for `GlobalEntityIndex`. The plan is cached per JVM and
+	 * exposes the ordered list of loaders to the M4 symmetry test. The finalizer reads the
+	 * previously-persisted `EntityIndexStoragePart` and the entity-schema name out of the
+	 * supplied {@link io.evitadb.index.component.loader.LoadContext} and builds the index via
+	 * the standard data-loading constructor.
+	 *
+	 * @return the immutable reload plan for this subclass
+	 */
+	@Nonnull
+	public static IndexReloadPlan reloadPlan() {
+		return GLOBAL_RELOAD_PLAN;
+	}
+
+	private static final IndexReloadPlan GLOBAL_RELOAD_PLAN = IndexReloadPlan.builder()
+		.add(new AttributeIndexLoader())
+		.add(new PriceSuperIndexLoader())
+		.add(new HierarchyIndexLoader())
+		.add(new FacetIndexLoader())
+		.build((bundles, context) -> {
+			final LoadedComponentBundle.AttributeIndexes attributes =
+				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
+			final LoadedComponentBundle.PriceSuper prices =
+				(LoadedComponentBundle.PriceSuper) bundles.get(LoadedComponentBundle.PriceSuper.class);
+			final LoadedComponentBundle.Hierarchy hierarchy =
+				(LoadedComponentBundle.Hierarchy) bundles.get(LoadedComponentBundle.Hierarchy.class);
+			final LoadedComponentBundle.Facet facet =
+				(LoadedComponentBundle.Facet) bundles.get(LoadedComponentBundle.Facet.class);
+			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
+				context.entityIndexStoragePart();
+			return new GlobalEntityIndex(
+				manifest.getPrimaryKey(),
+				manifest.getEntityIndexKey(),
+				manifest.getVersion(),
+				manifest.getEntityIds(),
+				manifest.getEntityIdsByLanguage(),
+				new EntityAttributeIndex(
+					context.entitySchema().getName(), null,
+					attributes.uniqueIndexes(), attributes.filterIndexes(),
+					attributes.sortIndexes(), attributes.chainIndexes()
+				),
+				new PriceSuperIndex(prices.priceIndexes()),
+				hierarchy.hierarchyIndex(),
+				facet.facetIndex()
+			);
+		});
 
 	/*
 		TRANSACTIONAL MEMORY IMPLEMENTATION

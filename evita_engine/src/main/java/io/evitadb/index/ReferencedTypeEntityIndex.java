@@ -41,6 +41,14 @@ import io.evitadb.index.component.AttributeCardinalityIndexMapComponent;
 import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.index.component.PriceIndexComponent;
 import io.evitadb.index.component.ReferenceTypeCardinalityComponent;
+import io.evitadb.index.component.loader.AttributeCardinalityIndexMapLoader;
+import io.evitadb.index.component.loader.AttributeIndexLoader;
+import io.evitadb.index.component.loader.FacetIndexLoader;
+import io.evitadb.index.component.loader.HierarchyIndexLoader;
+import io.evitadb.index.component.loader.HistogramIndexMapLoader;
+import io.evitadb.index.component.loader.IndexReloadPlan;
+import io.evitadb.index.component.loader.LoadedComponentBundle;
+import io.evitadb.index.component.loader.ReferenceTypeCardinalityLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
@@ -270,6 +278,64 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// helper which only patched in CARDINALITY keys and ignored histograms
 		captureOriginalsFromComponents();
 	}
+
+	/**
+	 * Returns the read-side reload plan for `ReferencedTypeEntityIndex`. Unlike the reduced
+	 * variants, RTEI does not carry a price sub-index (its `priceIndex` field is
+	 * `VoidPriceIndex.INSTANCE`), so the plan omits any price loader. The plan adds three
+	 * subclass-owned loaders: per-attribute cardinality, histogram map, and the cross-reference
+	 * type-cardinality bookkeeping.
+	 *
+	 * @return the immutable reload plan for this subclass
+	 */
+	@Nonnull
+	public static IndexReloadPlan reloadPlan() {
+		return REFERENCED_TYPE_RELOAD_PLAN;
+	}
+
+	private static final IndexReloadPlan REFERENCED_TYPE_RELOAD_PLAN = IndexReloadPlan.builder()
+		.add(new AttributeIndexLoader())
+		.add(new HierarchyIndexLoader())
+		.add(new FacetIndexLoader())
+		.add(new AttributeCardinalityIndexMapLoader())
+		.add(new HistogramIndexMapLoader())
+		.add(new ReferenceTypeCardinalityLoader())
+		.build((bundles, context) -> {
+			final LoadedComponentBundle.AttributeIndexes attributes =
+				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
+			final LoadedComponentBundle.Hierarchy hierarchy =
+				(LoadedComponentBundle.Hierarchy) bundles.get(LoadedComponentBundle.Hierarchy.class);
+			final LoadedComponentBundle.Facet facet =
+				(LoadedComponentBundle.Facet) bundles.get(LoadedComponentBundle.Facet.class);
+			final LoadedComponentBundle.AttributeCardinalityIndexes cardinalities =
+				(LoadedComponentBundle.AttributeCardinalityIndexes)
+					bundles.get(LoadedComponentBundle.AttributeCardinalityIndexes.class);
+			final LoadedComponentBundle.Histograms histograms =
+				(LoadedComponentBundle.Histograms) bundles.get(LoadedComponentBundle.Histograms.class);
+			final LoadedComponentBundle.ReferenceTypeCardinality refTypeCardinality =
+				(LoadedComponentBundle.ReferenceTypeCardinality)
+					bundles.get(LoadedComponentBundle.ReferenceTypeCardinality.class);
+			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
+				context.entityIndexStoragePart();
+			return new ReferencedTypeEntityIndex(
+				manifest.getPrimaryKey(),
+				manifest.getEntityIndexKey(),
+				manifest.getVersion(),
+				manifest.getEntityIds(),
+				manifest.getEntityIdsByLanguage(),
+				new ReferenceAttributeIndex(
+					context.entitySchema().getName(),
+					null,
+					attributes.uniqueIndexes(), attributes.filterIndexes(),
+					attributes.sortIndexes(), attributes.chainIndexes()
+				),
+				hierarchy.hierarchyIndex(),
+				facet.facetIndex(),
+				refTypeCardinality.referenceTypeCardinalityIndex(),
+				cardinalities.cardinalityIndexes(),
+				histograms.histogramIndexes()
+			);
+		});
 
 	/**
 	 * Retrieves the reference name derived from the discriminator of the entity index key.
