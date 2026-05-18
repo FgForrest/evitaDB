@@ -138,11 +138,38 @@
 			<version>${project.parent.version}</version>
 			<scope>test</scope>
 		</dependency>
+		<!--
+			ExportS3ServiceTest exercises real S3 wire behavior against a
+			containerized adobe/s3mock instance (see the test itself). We
+			use Testcontainers' GenericContainer + AWS SDK v2 directly,
+			which keeps Spring Boot / Tomcat / spring-webmvc out of our
+			compile-time test classpath entirely.
+		-->
 		<dependency>
-			<groupId>com.adobe.testing</groupId>
-			<artifactId>s3mock-junit5</artifactId>
-			<version>4.11.0</version>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>1.21.4</version>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>s3</artifactId>
+			<version>2.44.7</version>
+			<scope>test</scope>
+			<!--
+				The test uses only the synchronous S3Client, served by the
+				transitive apache-client. Exclude the async netty-nio-client
+				so AWS SDK does not drag Netty 4.1 onto the classpath where
+				it would shadow Armeria's required Netty 4.2 transport
+				classes (TransportType references the 4.2-only
+				IoEventLoopGroup at class-init time).
+			-->
+			<exclusions>
+				<exclusion>
+					<groupId>software.amazon.awssdk</groupId>
+					<artifactId>netty-nio-client</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
