@@ -82,7 +82,8 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 			if (filterByVisitor.isEntityTypeKnown()) {
 				final Formula filteringFormula = PriceListCompositionTerminationVisitor.translate(
 					createFormula(filterByVisitor, theMoment, priceLists, currency),
-					priceLists, currency, theMoment, filterByVisitor.getQueryPriceMode(), null
+					priceLists, currency, theMoment, filterByVisitor.getQueryPriceMode(), null,
+					filterByVisitor.isHistogramSideOutputApplicable()
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(

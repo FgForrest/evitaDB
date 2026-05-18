@@ -40,7 +40,6 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
 import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
-import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.utils.Functions;
 import lombok.RequiredArgsConstructor;
 
@@ -81,11 +80,6 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	 */
 	@Nonnull private final Formula filteringFormula;
 	/**
-	 * Contains list of all {@link FilteredPriceRecordAccessor} formulas that allow access to the {@link PriceRecord}
-	 * used in filtering formula processing.
-	 */
-	@Nonnull private final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors;
-	/**
 	 * Contains existing {@link FilteredPriceRecordsLookupResult} if it was already produced by filtering or sorter logic.
 	 * We can reuse already computed data in this producer and save precious ticks.
 	 */
@@ -94,6 +88,16 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	@Nullable
 	@Override
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull QueryExecutionContext context) {
+		// The filtering formula is shared with the main filter planner that has already initialised it
+		// for index execution, but extra-result fabrication may also be invoked when an alternative
+		// planning path (e.g. prefetch) did not flow the executionContext through every wrapper node
+		// (notably `SelectionFormula`). Helper methods such as `getRequestedPredicate()` invoked by
+		// `extractRequestedPricePredicate()` below assert a non-null executionContext, so we re-run
+		// initialise() here to guarantee every node in the tree has seen the runtime context.
+		// `Formula.initialize()` is idempotent so re-initialising already-initialised sub-trees is a
+		// no-op.
+		this.filteringFormula.initialize(context);
+
 		// harvested now because UserFilterRelaxer is about to peel the price-between carrier that owns this predicate;
 		// it drives the per-bucket `requested` flag on the output DTO
 		final Predicate<BigDecimal> requestedPricePredicate = extractRequestedPricePredicate();
@@ -124,6 +128,11 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 	 * slider. The supplementation is set to `null` when `relaxedBaseline` is the same reference
 	 * (no price-between carriers to peel) or {@link EmptyFormula#INSTANCE} (whole tree collapsed);
 	 * otherwise the relaxed tree is passed through.
+	 *
+	 * The {@link FilteredPriceRecordAccessor} list driving the histogram side-output is harvested
+	 * from `relaxedBaseline` at SHALLOW depth — the relaxation has already peeled the inner LP that
+	 * lives under {@code userFilter(priceBetween(...))}, so the harvest reaches only the outer
+	 * histogram-flagged LPs and never double-counts the inner one.
 	 */
 	@Nonnull
 	private PriceHistogramComputer getPriceHistogramComputer(@Nonnull Formula relaxedBaseline) {
@@ -134,6 +143,10 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 			filteringFormulaWithFilteredOutRecords = relaxedBaseline;
 		}
 
+		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
+			relaxedBaseline, FilteredPriceRecordAccessor.class, LookUp.SHALLOW
+		);
+
 		return new PriceHistogramComputer(
 			this.bucketCount,
 			this.behavior,
@@ -141,7 +154,7 @@ public class PriceHistogramProducer implements ExtraResultProducer {
 			this.queryContext.getQueryPriceMode(),
 			this.filteringFormula,
 			filteringFormulaWithFilteredOutRecords,
-			this.filteredPriceRecordAccessors, this.priceRecordsLookupResult
+			filteredPriceRecordAccessors, this.priceRecordsLookupResult
 		);
 	}
 

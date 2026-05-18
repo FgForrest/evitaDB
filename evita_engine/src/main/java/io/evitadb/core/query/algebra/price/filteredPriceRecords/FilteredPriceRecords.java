@@ -77,6 +77,85 @@ public interface FilteredPriceRecords extends Serializable {
 	FilteredPriceRecords EMPTY = new ResolvedFilteredPriceRecords();
 
 	/**
+	 * Returns `true` when every accessor in the supplied collection exposes the per-inner-record
+	 * histogram side-output (see {@link FilteredPriceRecordAccessor#exposesPerInnerRecordHistogramRecords()}).
+	 * An empty collection returns `false` because there is no histogram-aware contributor — the
+	 * caller must fall back to its non-histogram path.
+	 *
+	 * Centralises the capability probe so the histogram producer and wrapper formulas like
+	 * `SelectionFormula` cannot drift on the "all-or-nothing" rule.
+	 *
+	 * @param accessors accessors to probe
+	 * @return `true` iff the collection is non-empty and every accessor exposes the side-output
+	 */
+	static boolean allAccessorsExposePerInnerRecordHistogram(@Nonnull Collection<FilteredPriceRecordAccessor> accessors) {
+		if (accessors.isEmpty()) {
+			return false;
+		}
+		for (final FilteredPriceRecordAccessor accessor : accessors) {
+			if (!accessor.exposesPerInnerRecordHistogramRecords()) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Concatenates the per-inner-record histogram price records from every accessor into a single
+	 * flat array. Calls {@link FilteredPriceRecordAccessor#getFilteredPriceRecordsForHistogram} on
+	 * each accessor; every accessor MUST return a {@link ResolvedFilteredPriceRecords} — see the
+	 * contract on {@link FilteredPriceRecordAccessor#getFilteredPriceRecordsForHistogram}.
+	 *
+	 * The total length is pre-computed via a first scan, so exactly one {@link PriceRecordContract}
+	 * array is allocated; no streams, no boxing.
+	 *
+	 * Used by `PriceHistogramComputer` to assemble the histogram baseline and by
+	 * `SelectionFormula` to merge the side-output of wrapped accessors — keeps the two call sites
+	 * from drifting apart.
+	 *
+	 * @param accessors histogram-aware accessors whose per-inner-record records should be merged
+	 * @param context   current query execution context
+	 * @return flat array of every per-inner-record {@link PriceRecordContract}; empty array when
+	 *         every accessor contributes zero records
+	 * @throws GenericEvitaInternalError when any accessor returns a non-{@link ResolvedFilteredPriceRecords}
+	 *         flavour — the histogram contract requires every contribution to be resolvable upfront
+	 */
+	@Nonnull
+	static PriceRecordContract[] mergePerInnerRecordHistogramRecords(
+		@Nonnull Collection<FilteredPriceRecordAccessor> accessors,
+		@Nonnull QueryExecutionContext context
+	) {
+		final FilteredPriceRecords[] perAccessor = new FilteredPriceRecords[accessors.size()];
+		int totalCount = 0;
+		int idx = 0;
+		for (final FilteredPriceRecordAccessor accessor : accessors) {
+			final FilteredPriceRecords records = accessor.getFilteredPriceRecordsForHistogram(context);
+			perAccessor[idx++] = records;
+			if (records instanceof ResolvedFilteredPriceRecords resolved) {
+				totalCount += resolved.getPriceRecords().length;
+			} else {
+				throw new GenericEvitaInternalError(
+					"Histogram contract violated: accessor " + accessor.getClass().getName()
+						+ " returned a non-resolved " + records.getClass().getName()
+						+ " from getFilteredPriceRecordsForHistogram(); only ResolvedFilteredPriceRecords are supported here."
+				);
+			}
+		}
+		if (totalCount == 0) {
+			return new PriceRecordContract[0];
+		}
+		final PriceRecordContract[] merged = new PriceRecordContract[totalCount];
+		int offset = 0;
+		for (final FilteredPriceRecords records : perAccessor) {
+			final ResolvedFilteredPriceRecords resolved = (ResolvedFilteredPriceRecords) records;
+			final PriceRecordContract[] arr = resolved.getPriceRecords();
+			System.arraycopy(arr, 0, merged, offset, arr.length);
+			offset += arr.length;
+		}
+		return merged;
+	}
+
+	/**
 	 * Collects all {@link FilteredPriceRecords} from {@link FilteredPriceRecordAccessor} nodes
 	 * found in the `parentFormula` tree and reduces them into a single {@link FilteredPriceRecords}
 	 * instance. When `narrowToEntityIds` is provided, only prices linked to those entities are

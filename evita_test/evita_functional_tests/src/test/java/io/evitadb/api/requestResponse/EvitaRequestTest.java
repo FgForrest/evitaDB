@@ -48,6 +48,7 @@ import static io.evitadb.api.query.require.QueryPriceMode.WITHOUT_TAX;
 import static io.evitadb.api.query.require.QueryPriceMode.WITH_TAX;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.QUERY;
 
 /**
@@ -1120,6 +1121,82 @@ class EvitaRequestTest {
 				0,
 				request.getAccompanyingPrices().length
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Price histogram requirement detection")
+	@Tag(HISTOGRAM)
+	class PriceHistogramRequestedTest {
+
+		/**
+		 * Verifies the lazy probe returns `true` when the
+		 * query carries a `priceHistogram(...)` require.
+		 * This is the flag read by the filter planner to opt
+		 * the outer {@code LowestPriceTerminationFormula}
+		 * into per-inner-record histogram collection.
+		 */
+		@Test
+		@DisplayName(
+			"returns true when priceHistogram require is present"
+		)
+		void shouldReturnTrueWhenPriceHistogramRequireIsPresent() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(priceHistogram(20))
+				)
+			);
+
+			assertTrue(request.isPriceHistogramRequested());
+		}
+
+		/**
+		 * Verifies the probe returns `false` for a filter-only
+		 * query without any `priceHistogram` require — the
+		 * planner must NOT flip the LP histogram flag in this
+		 * case.
+		 */
+		@Test
+		@DisplayName(
+			"returns false when priceHistogram require is absent"
+		)
+		void shouldReturnFalseWhenPriceHistogramRequireIsAbsent() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					filterBy(
+						entityPrimaryKeyInSet(1, 2, 3)
+					)
+				)
+			);
+
+			assertFalse(request.isPriceHistogramRequested());
+		}
+
+		/**
+		 * Verifies that the probe is memoised — two
+		 * consecutive calls return the same value and do not
+		 * re-parse the query. The cached boolean field is
+		 * what makes the LP-construction-time read O(1).
+		 */
+		@Test
+		@DisplayName(
+			"memoises result across successive calls"
+		)
+		void shouldMemoiseResultAcrossCalls() {
+			final EvitaRequest request = createRequest(
+				query(
+					collection("product"),
+					require(priceHistogram(20))
+				)
+			);
+
+			final boolean first = request.isPriceHistogramRequested();
+			final boolean second = request.isPriceHistogramRequested();
+
+			assertTrue(first);
+			assertEquals(first, second);
 		}
 	}
 
