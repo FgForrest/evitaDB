@@ -108,11 +108,11 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				// open the subscription FIRST — host events are live-tail only and cannot be
 				// replayed, so the subscriber must be wired before the catalog state transition
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onSystemChange(criteria: [{area: ENGINE}, {area: HOST}]) " +
 						"{ version index operation body { " +
@@ -124,9 +124,9 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 						"... on CatalogRemovedFromLiveView { catalogName } " +
 						"} }"
 				));
-				// give the server time to register the subscription before triggering events,
-				// otherwise the host event may fire before the publisher is wired up
-				wait(2000);
+				// wait for connection_ack so the server has time to register the CDC subscription
+				// before triggering events — closes the race against the live-tail publisher hookup
+				ctx.awaitEvents(1);
 
 				// trigger an engine-area mutation flow + a host-area host event via
 				// the catalog-create + go-live sequence
@@ -206,7 +206,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				// bring the catalog into ALIVE state BEFORE the subscription is opened —
 				// `CatalogSchemaUpdated` only fires on schema-version bumps from a live (or
 				// closing-warming-up) session, and host events are live-tail only so the
@@ -215,8 +215,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
 
 				// open the subscription on the now-ALIVE catalog
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onSystemChange(criteria: [{area: HOST}]) " +
 						"{ version index operation body { " +
@@ -226,9 +226,9 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 						"... on CatalogSchemaUpdated { catalogName newSchemaVersion currentEngineVersion } " +
 						"} }"
 				));
-				// give the server time to register the subscription before triggering events,
-				// otherwise the host event may fire before the publisher is wired up
-				wait(2000);
+				// wait for connection_ack so the server has time to register the CDC subscription
+				// before triggering events — closes the race against the live-tail publisher hookup
+				ctx.awaitEvents(1);
 
 				// bump the catalog schema version inside an ALIVE transaction — the issue spec
 				// guarantees one coalesced `CatalogSchemaUpdated` per such commit regardless of
@@ -307,9 +307,9 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 	void shouldTestBasicSubprotocolOperations(GraphQLTester tester) {
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
-				writer.write(createPingMessage());
-				writer.write(createConnectionInitMessage());
+			ctx -> {
+				ctx.writer().write(createPingMessage());
+				ctx.writer().write(createConnectionInitMessage());
 			},
 			2, receivedEvents -> {
 				assertThatJson(receivedEvents.get(0)).node("type").isEqualTo("pong");
@@ -327,10 +327,11 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(subscriptionId, "onSystemChange { version index operation }"));
-				wait(2000);
+			ctx -> {
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(subscriptionId, "onSystemChange { version index operation }"));
+				// wait for connection_ack so the server has time to register the CDC subscription
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
@@ -356,10 +357,11 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(subscriptionId, "onSystemChangeUntyped { version index operation }"));
-				wait(2000);
+			ctx -> {
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(subscriptionId, "onSystemChangeUntyped { version index operation }"));
+				// wait for connection_ack so the server has time to register the CDC subscription
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
@@ -385,14 +387,14 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onSystemChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
@@ -418,14 +420,14 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onSystemChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
 				));
@@ -451,14 +453,14 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onSystemChange(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body { ... on CreateCatalogSchemaMutation { mutationType } ... on TransactionMutation { mutationType } } }"
 				));
@@ -492,14 +494,14 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onSystemChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\") { version index operation body }"
 				));
@@ -533,7 +535,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				// prepare data
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
@@ -541,11 +543,15 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onCatalogChange(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -577,7 +583,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				// prepare data
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
@@ -585,11 +591,15 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onCatalogChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -621,7 +631,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				// prepare data
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
@@ -637,8 +647,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onCatalogChange(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation body { ... on CreateEntitySchemaMutation { mutationType } ... on TransactionMutation { mutationType } } }"
 				));
@@ -673,7 +683,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				// prepare data
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
@@ -689,8 +699,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onCatalogChangeUntyped(sinceVersion: \\\"" + startVersion + "\\\", catalogName: \\\"" + newCatalogName + "\\\") { version index operation body }"
 				));
@@ -725,7 +735,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				// prepare data
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
@@ -741,8 +751,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onCatalogChange(" +
 						"sinceVersion: \\\"" + startVersion + "\\\", " +
@@ -775,7 +785,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 		tester.testWebSocket(
 			SYSTEM_URL,
-			writer -> {
+			ctx -> {
 				// prepare data
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 				evita.updateCatalog(newCatalogName, EvitaSessionContract::goLiveAndClose);
@@ -791,8 +801,8 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"onCatalogChangeUntyped(" +
 						"sinceVersion: \\\"" + startVersion + "\\\", " +

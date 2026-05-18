@@ -83,16 +83,17 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 	}
 
 	/**
-	 * Connects to a websocket and provides tools to test the subprotocol
+	 * Connects to a websocket and provides tools to test the subprotocol.
 	 *
 	 * @param catalogName where the GraphQL API is located
-	 * @param writer accepts a writer to send an input data
+	 * @param writer receives a {@link WebSocketContext} that can write outbound frames and
+	 *               synchronise mid-flow on received inbound frames
 	 * @param waitForEvents specifies how many events should be received before the validator is called
 	 * @param validator accepts a list of received events and validates them
 	 */
 	public void testWebSocket(
 		@Nonnull String catalogName,
-		@Nonnull Consumer<WebSocketWriter> writer,
+		@Nonnull Consumer<WebSocketContext> writer,
 		int waitForEvents,
 		@Nonnull Consumer<List<String>> validator
 	) {
@@ -100,18 +101,19 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 	}
 
 	/**
-	 * Connects to a websocket and provides tools to test the subprotocol
+	 * Connects to a websocket and provides tools to test the subprotocol.
 	 *
 	 * @param catalogName where the GraphQL API is located
 	 * @param urlPathSuffix specifies GraphQL API path suffix
-	 * @param writer accepts a writer to send an input data
+	 * @param writer receives a {@link WebSocketContext} that can write outbound frames and
+	 *               synchronise mid-flow on received inbound frames
 	 * @param waitForEvents specifies how many events should be received before the validator is called
 	 * @param validator accepts a list of received events and validates them
 	 */
 	public void testWebSocket(
 		@Nonnull String catalogName,
 		@Nullable String urlPathSuffix,
-		@Nonnull Consumer<WebSocketWriter> writer,
+		@Nonnull Consumer<WebSocketContext> writer,
 		int waitForEvents,
 		@Nonnull Consumer<List<String>> validator
 	) {
@@ -124,7 +126,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 
 		final List<String> receivedEventsHolder = new LinkedList<>();
 		session.inbound().subscribe(new WebSocketSubscriber(receivedEventsHolder));
-		writer.accept(outbound);
+		writer.accept(new WebSocketContextImpl(catalogName, outbound, receivedEventsHolder));
 
 		try {
 			await().atMost(30, TimeUnit.SECONDS).until(() -> receivedEventsHolder.size() >= waitForEvents);
@@ -142,6 +144,59 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 		validator.accept(receivedEventsHolder);
 
 		outbound.close();
+	}
+
+	/**
+	 * Test-side context exposing both the outbound {@link WebSocketWriter} and a barrier method
+	 * that blocks until at least a given number of inbound text frames has been received. Used
+	 * by subscription tests to wait for `connection_ack` (or other early control frames) before
+	 * triggering data-emitting operations, which closes the race between a server-side
+	 * `subscribe` registration and the data change firing on the same thread.
+	 */
+	public interface WebSocketContext {
+
+		/**
+		 * Outbound writer for sending frames to the server.
+		 */
+		@Nonnull
+		WebSocketWriter writer();
+
+		/**
+		 * Block until at least {@code count} text frames have been received from the server,
+		 * or fail after the standard 30-second await timeout.
+		 */
+		void awaitEvents(int count);
+	}
+
+	@RequiredArgsConstructor
+	private static class WebSocketContextImpl implements WebSocketContext {
+
+		@Nonnull private final String catalogName;
+		@Nonnull private final WebSocketWriter writer;
+		@Nonnull private final List<String> receivedEvents;
+
+		@Nonnull
+		@Override
+		public WebSocketWriter writer() {
+			return this.writer;
+		}
+
+		@Override
+		public void awaitEvents(int count) {
+			try {
+				await().atMost(30, TimeUnit.SECONDS).until(() -> this.receivedEvents.size() >= count);
+			} catch (RuntimeException ex) {
+				log.error(
+					"WebSocket awaitEvents failed for catalog {} - only {} of {} events received within timeout: {}",
+					this.catalogName,
+					this.receivedEvents.size(),
+					count,
+					this.receivedEvents,
+					ex
+				);
+				throw ex;
+			}
+		}
 	}
 
 	@SneakyThrows

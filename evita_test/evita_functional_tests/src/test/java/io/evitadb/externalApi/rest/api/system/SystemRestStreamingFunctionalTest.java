@@ -107,12 +107,12 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 		tester.testWebSocket(
 			SYSTEM_URL,
 			SYSTEM_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
+			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
 				// open subscription that opts into both ENGINE and HOST areas
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"{ " +
 						"\"sinceVersion\": \"" + startVersion + "\", " +
@@ -123,7 +123,9 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 						"\"content\": \"BODY\" " +
 						"}"
 				));
-				wait(2000);
+				// wait for connection_ack so the server has time to register the CDC subscription
+				// before triggering events — closes the race against the live-tail publisher hookup
+				ctx.awaitEvents(1);
 
 				// trigger a catalog state transition that emits a host event when the catalog
 				// settles into the ALIVE state on this host
@@ -222,7 +224,7 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 		tester.testWebSocket(
 			SYSTEM_URL,
 			SYSTEM_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
+			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
 				// subscribe to the HOST area only — the ENGINE area would deliver the underlying
@@ -232,8 +234,8 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 				// before the host event arrives. Coalescing semantics for `CatalogSchemaUpdated`
 				// are independent of the engine-mutation surface, so HOST-only is the focused
 				// scope for this test.
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"{ " +
 						"\"sinceVersion\": \"" + startVersion + "\", " +
@@ -243,7 +245,9 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 						"\"content\": \"BODY\" " +
 						"}"
 				));
-				wait(2000);
+				// wait for connection_ack so the server has time to register the CDC subscription
+				// before triggering events — closes the race against the live-tail publisher hookup
+				ctx.awaitEvents(1);
 
 				// trigger a schema-version bump on the WARMING_UP catalog: define an entity with
 				// two attributes and close the session. The session-close path emits a single
@@ -378,9 +382,9 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 		tester.testWebSocket(
 			SYSTEM_URL,
 			SYSTEM_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
-				writer.write(createPingMessage());
-				writer.write(createConnectionInitMessage());
+			ctx -> {
+				ctx.writer().write(createPingMessage());
+				ctx.writer().write(createConnectionInitMessage());
 			},
 			2, receivedEvents -> {
 				assertThatJson(receivedEvents.get(0)).node("type").isEqualTo("pong");
@@ -399,10 +403,12 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 		tester.testWebSocket(
 			SYSTEM_URL,
 			SYSTEM_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(subscriptionId, "{}"));
-				wait(2000);
+			ctx -> {
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(subscriptionId, "{}"));
+				// wait for connection_ack so the server has time to register the CDC subscription
+				// before triggering events — closes the race against the live-tail publisher hookup
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
@@ -429,14 +435,14 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 		tester.testWebSocket(
 			SYSTEM_URL,
 			SYSTEM_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
+			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"{ \"sinceVersion\": \"" + startVersion + "\" }"
 				));
@@ -463,14 +469,14 @@ public class SystemRestStreamingFunctionalTest extends RestEndpointFunctionalTes
 		tester.testWebSocket(
 			SYSTEM_URL,
 			SYSTEM_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
+			ctx -> {
 				final long startVersion = evita.getEngineState().version() + 1;
 
 				// apply operation to trigger a new event
 				evita.applyMutation(new CreateCatalogSchemaMutation(newCatalogName)).onCompletion().toCompletableFuture().join();
 
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"{ \"sinceVersion\": \"" + startVersion + "\", \"content\": \"BODY\" }"
 				));
