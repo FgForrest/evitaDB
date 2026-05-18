@@ -50,14 +50,18 @@ jobs:
       #   operator chooses push_latest explicitly via the dispatch input.
       - name: Resolve build inputs
         id: inputs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PUSH_LATEST: ${{ inputs.push_latest }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "source=release_asset" >> "$GITHUB_OUTPUT"
-            echo "version_tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-            echo "push_latest=${{ inputs.push_latest }}" >> "$GITHUB_OUTPUT"
+            echo "version_tag=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "push_latest=$INPUT_PUSH_LATEST" >> "$GITHUB_OUTPUT"
           else
             echo "source=workflow_artifact" >> "$GITHUB_OUTPUT"
-            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
             if [ "$HEAD_BRANCH" = "master" ]; then
               echo "push_latest=true" >> "$GITHUB_OUTPUT"
             else
