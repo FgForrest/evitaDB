@@ -54,6 +54,15 @@ import java.math.BigDecimal;
  * are added. {@link #estimateSize} accepts the per-inner-record array length directly from the
  * caller — no iteration, no allocations.
  *
+ * **Serialization contract** — this payload MUST be (de)serialized through its own registered
+ * Kryo serializer (id 205, `FlattenedFormulaWithFilteredPricesForHistogramSerializer`). Because
+ * it extends `FlattenedFormulaWithFilteredPricesAndFilteredOutRecords` (serializer id 203), any
+ * caller that forces the parent's static type via `Kryo.writeObject(output, payload,
+ * parentSerializer)` would silently drop the `perInnerRecordPriceRecords` field and produce a
+ * truncated cache entry that would deserialize back as the parent payload — yielding wrong
+ * histograms with no error. Always use the polymorphic `writeClassAndObject` / `readClassAndObject`
+ * dispatch (or the matching registered serializer) so the sibling payload round-trips intact.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public class FlattenedFormulaWithFilteredPricesForHistogram

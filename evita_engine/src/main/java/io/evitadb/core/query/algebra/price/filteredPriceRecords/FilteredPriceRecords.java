@@ -142,7 +142,7 @@ public interface FilteredPriceRecords extends Serializable {
 			}
 		}
 		if (totalCount == 0) {
-			return new PriceRecordContract[0];
+			return ResolvedFilteredPriceRecords.EMPTY_PRICE_RECORDS;
 		}
 		final PriceRecordContract[] merged = new PriceRecordContract[totalCount];
 		int offset = 0;

@@ -318,6 +318,20 @@ public class SelectionFormula extends AbstractFormula implements ChildrenDepende
 	 * - two or more histogram-aware inner accessors → the actual concatenation is delegated to
 	 *   {@link FilteredPriceRecords#mergePerInnerRecordHistogramRecords(Collection, QueryExecutionContext)}
 	 *   so the algorithm stays in one place.
+	 *
+	 * The capability-mismatch fallbacks differ intentionally between size-1 and size≥2:
+	 *
+	 * - size-1 falls back to the *inner* accessor's per-entity records because the wrapper's view
+	 *   over a single delegate is, by construction, that single delegate's view — there is nothing to
+	 *   merge and routing through the wrapper would just add a no-op `createFromFormulas` round-trip;
+	 * - size≥2 falls back to the *wrapper's* per-entity records because per-inner-record arrays from
+	 *   multiple accessors can overlap on the same entity primary key, and only the wrapper's own
+	 *   `getFilteredPriceRecords` knows how to reduce them (via `createFromFormulas`) into a single
+	 *   coherent per-entity view.
+	 *
+	 * Today both fallbacks are dead in production because the caller (`PriceHistogramComputer`)
+	 * always probes `exposesPerInnerRecordHistogramRecords()` first; the asymmetry is kept as a
+	 * defensive safety net in case that contract ever loosens.
 	 */
 	@Nonnull
 	@Override

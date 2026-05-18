@@ -249,7 +249,11 @@ class CacheableVariantsGeneratingVisitorTest {
 
 		final List<Formula> variants = visitor.getFormulaVariants();
 		assertEquals(1, variants.size());
-		assertInstanceOf(FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class, variants.get(0));
+		// exact class match: FlattenedFormulaWithFilteredPricesForHistogram extends
+		// FlattenedFormulaWithFilteredPricesAndFilteredOutRecords, so a permissive instanceof
+		// would still pass if a plain LP were wrongly upgraded to the histogram payload —
+		// which is exactly the regression this test guards against.
+		assertEquals(FlattenedFormulaWithFilteredPricesAndFilteredOutRecords.class, variants.get(0).getClass());
 	}
 
 	/**
