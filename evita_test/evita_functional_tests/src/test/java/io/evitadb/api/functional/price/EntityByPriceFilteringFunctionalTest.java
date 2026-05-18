@@ -60,6 +60,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
@@ -86,8 +87,9 @@ import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.summingInt;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.PRICE;
 import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.PRICE;
 
 /**
  * This test verifies whether entities can be filtered by prices.
@@ -110,11 +112,51 @@ public class EntityByPriceFilteringFunctionalTest {
 
 	/**
 	 * Verifies histogram integrity against source entities.
+	 *
+	 * Auto-detects the engine path used to build the histogram and dispatches to the matching assertion
+	 * helper. When **every** filtered entity has `LOWEST_PRICE` inner-record handling the engine activates
+	 * the per-inner-record histogram bypass — each inner-record-id contributes one bucket data point. In
+	 * any other case (pure `NONE`, pure `SUM`, or a mixed catalog that contains at least one
+	 * non-LOWEST_PRICE accessor) the engine falls back to the per-entity histogram path, so each entity
+	 * contributes exactly one bucket data point.
 	 */
 	protected static void assertHistogramIntegrity(
-		EvitaResponse<SealedEntity> result,
-		List<SealedEntity> filteredProducts,
-		BigDecimal from, BigDecimal to, OffsetDateTime validIn
+		@Nonnull EvitaResponse<SealedEntity> result,
+		@Nonnull List<SealedEntity> filteredProducts,
+		@Nullable BigDecimal from,
+		@Nullable BigDecimal to,
+		@Nullable OffsetDateTime validIn
+	) {
+		// detect whether the engine fired the per-inner-record bypass: requires every accessor to be a
+		// histogram-aware LOWEST_PRICE termination formula, which in practice maps to "every filtered
+		// entity uses LOWEST_PRICE handling"
+		boolean allLowestPrice = !filteredProducts.isEmpty();
+		for (final SealedEntity entity : filteredProducts) {
+			if (entity.getPriceInnerRecordHandling() != PriceInnerRecordHandling.LOWEST_PRICE) {
+				allLowestPrice = false;
+				break;
+			}
+		}
+		if (allLowestPrice) {
+			assertHistogramIntegrityPerInnerRecord(result, filteredProducts, from, to, validIn);
+		} else {
+			assertHistogramIntegrityPerEntity(result, filteredProducts, from, to, validIn);
+		}
+	}
+
+	/**
+	 * Verifies histogram integrity against source entities for the per-entity histogram path.
+	 *
+	 * The histogram reports one bucket data point per filtered entity — the entity's selling price (the
+	 * winner across the queried price-list priority). Used for pure `NONE` and pure `SUM` handling
+	 * catalogs as well as for mixed catalogs where the engine cannot fire the per-inner-record bypass.
+	 */
+	protected static void assertHistogramIntegrityPerEntity(
+		@Nonnull EvitaResponse<SealedEntity> result,
+		@Nonnull List<SealedEntity> filteredProducts,
+		@Nullable BigDecimal from,
+		@Nullable BigDecimal to,
+		@Nullable OffsetDateTime validIn
 	) {
 		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
 		assertNotNull(priceHistogram);
@@ -159,6 +201,110 @@ public class EntityByPriceFilteringFunctionalTest {
 				bucket.occurrences()
 			);
 		}
+	}
+
+	/**
+	 * Verifies histogram integrity against source entities for the per-inner-record histogram path.
+	 *
+	 * For every entity (all of which are expected to be `LOWEST_PRICE` handling) each distinct
+	 * inner-record-id with an indexed price in the queried scope (currency + price-list priority + optional
+	 * validity moment) contributes one bucket data point. The price used for bucket assignment is the
+	 * lowest-priority winner among the queried price lists for that inner record — same selection rule the
+	 * engine applies inside `LowestPriceTerminationFormula.computeInternal()`.
+	 */
+	protected static void assertHistogramIntegrityPerInnerRecord(
+		@Nonnull EvitaResponse<SealedEntity> result,
+		@Nonnull List<SealedEntity> filteredProducts,
+		@Nullable BigDecimal from,
+		@Nullable BigDecimal to,
+		@Nullable OffsetDateTime validIn
+	) {
+		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
+		assertNotNull(priceHistogram);
+		assertTrue(priceHistogram.getBuckets().length <= 20);
+
+		// expand each entity into its per-inner-record winning prices
+		final List<PriceContract> expandedPrices = collectPerInnerRecordPricesForSale(filteredProducts, validIn);
+
+		assertEquals(
+			expandedPrices.size(), priceHistogram.getOverallCount(),
+			"Per-inner-record histogram overall count must equal the total number of distinct " +
+				"inner-record prices across all LOWEST_PRICE entities"
+		);
+
+		final BigDecimal expectedMin = expandedPrices.stream()
+			.map(PriceContract::priceWithTax)
+			.min(Comparator.naturalOrder())
+			.orElse(BigDecimal.ZERO);
+		final BigDecimal expectedMax = expandedPrices.stream()
+			.map(PriceContract::priceWithTax)
+			.max(Comparator.naturalOrder())
+			.orElse(BigDecimal.ZERO);
+		assertEquals(expectedMin, priceHistogram.getMin());
+		assertEquals(expectedMax, priceHistogram.getMax());
+
+		// verify bucket occurrences — one data point per per-inner-record price
+		final Map<Integer, Integer> expectedOccurrences = new HashMap<>(expandedPrices.size());
+		for (final PriceContract price : expandedPrices) {
+			final int bucketIndex = findIndexInHistogramByPrice(price.priceWithTax(), priceHistogram);
+			expectedOccurrences.merge(bucketIndex, 1, Integer::sum);
+		}
+
+		final Bucket[] buckets = priceHistogram.getBuckets();
+		for (int i = 0; i < buckets.length; i++) {
+			final Bucket bucket = buckets[i];
+			if (from == null && to == null) {
+				assertTrue(bucket.requested());
+			} else if (
+				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+				assertTrue(bucket.requested());
+			} else {
+				assertFalse(bucket.requested());
+			}
+			assertEquals(
+				ofNullable(expectedOccurrences.get(i)).orElse(0),
+				bucket.occurrences()
+			);
+		}
+	}
+
+	/**
+	 * Collects per-inner-record selling prices from all passed entities using the same priority rule the
+	 * engine applies (`getAllPricesForSale` for LOWEST_PRICE entities returns one winner per inner record
+	 * id). Entities that resolve to no candidates in scope are silently skipped — they would not appear in
+	 * the engine's histogram funnel either.
+	 */
+	@Nonnull
+	private static List<PriceContract> collectPerInnerRecordPricesForSale(
+		@Nonnull List<SealedEntity> entities,
+		@Nullable OffsetDateTime validIn
+	) {
+		// capacity hint of `entities.size() * 2` reflects the typical LOWEST_PRICE catalog shape — most
+		// entities have ~2 inner records; under-shoots are cheap (ArrayList grows by ~50%), over-shoots are
+		// wasted memory only for the duration of the assertion
+		final List<PriceContract> expanded = new ArrayList<>(entities.size() * 2);
+		for (final SealedEntity entity : entities) {
+			expanded.addAll(entity.getAllPricesForSale(CURRENCY_EUR, validIn, PRICE_LIST_VIP, PRICE_LIST_BASIC));
+		}
+		return expanded;
+	}
+
+	/**
+	 * Locates the histogram bucket index for an arbitrary price value. Mirrors the logic of
+	 * `findIndexInHistogram` but works against a pre-computed price (used when expanding LOWEST_PRICE
+	 * entities into multiple data points — one per inner record id).
+	 */
+	private static int findIndexInHistogramByPrice(@Nonnull BigDecimal price, @Nonnull HistogramContract histogram) {
+		final Bucket[] buckets = histogram.getBuckets();
+		for (int i = buckets.length - 1; i >= 0; i--) {
+			final Bucket bucket = buckets[i];
+			if (price.compareTo(bucket.threshold()) >= 0) {
+				return i;
+			}
+		}
+		fail("Histogram span doesn't match price: " + price);
+		return -1;
 	}
 
 	/**
@@ -287,17 +433,14 @@ public class EntityByPriceFilteringFunctionalTest {
 		final Function<SealedEntity, BigDecimal> discountCalculator = entity -> {
 			final BigDecimal result = memoizedDiscounts.computeIfAbsent(
 				entity.getPrimaryKey(),
-				epk -> {
-					final BigDecimal discount = entity.getPriceForSaleWithAccompanyingPrices(
-							CURRENCY_EUR, null, new String[]{PRICE_LIST_VIP, PRICE_LIST_BASIC},
-							accompanyingPrices
-						)
-						.map(it -> toDiscount(it, PriceContract::priceWithTax))
-						.orElse(NEGATIVE);
-					return discount;
-				}
+				epk -> entity.getPriceForSaleWithAccompanyingPrices(
+						CURRENCY_EUR, null, new String[]{PRICE_LIST_VIP, PRICE_LIST_BASIC},
+						accompanyingPrices
+					)
+					.map(it -> toDiscount(it, PriceContract::priceWithTax))
+					.orElse(NEGATIVE)
 			);
-			return result == NEGATIVE ? null : result;
+			return NEGATIVE.equals(result) ? null : result;
 		};
 		return (o1, o2) -> {
 			final BigDecimal priceDiscount1 = discountCalculator.apply(o1);
@@ -1566,6 +1709,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@DisplayName("Should return price histogram for returned products")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
+	@Tag(HISTOGRAM)
 	void shouldReturnPriceHistogram(Evita evita, List<SealedEntity> originalProductEntities) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -1605,6 +1749,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@DisplayName("Should return price histogram for returned products excluding price between query")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
+	@Tag(HISTOGRAM)
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(Evita evita, List<SealedEntity> originalProductEntities) {
 		final BigDecimal from = new BigDecimal("80");
 		final BigDecimal to = new BigDecimal("150");
@@ -1662,6 +1807,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@DisplayName("Should return price histogram for returned products excluding price between query (and validity)")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
+	@Tag(HISTOGRAM)
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterAndValidity(Evita evita, List<SealedEntity> originalProductEntities) {
 		final BigDecimal from = new BigDecimal("80");
 		final BigDecimal to = new BigDecimal("150");
@@ -1722,6 +1868,7 @@ public class EntityByPriceFilteringFunctionalTest {
 	@DisplayName("Should return price histogram for returned products excluding price between query")
 	@UseDataSet(HUNDRED_PRODUCTS_WITH_PRICES)
 	@Test
+	@Tag(HISTOGRAM)
 	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilterUsingPrefetch(Evita evita, List<SealedEntity> originalProductEntities) {
 		final BigDecimal from = new BigDecimal("50");
 		final BigDecimal to = new BigDecimal("150");

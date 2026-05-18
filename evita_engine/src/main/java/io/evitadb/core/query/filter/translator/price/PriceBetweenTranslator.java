@@ -159,7 +159,8 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 		final io.evitadb.core.query.algebra.price.predicate.PriceRecordPredicate priceFilter = new PriceRecordPredicate(from, to, queryPriceMode, indexedPricePlaces);
 
 		return PriceListCompositionTerminationVisitor.translate(
-			formula, priceLists, currency, validIn, filterByVisitor.getQueryPriceMode(), priceFilter
+			formula, priceLists, currency, validIn, filterByVisitor.getQueryPriceMode(), priceFilter,
+			filterByVisitor.isHistogramSideOutputApplicable()
 		);
 	}
 

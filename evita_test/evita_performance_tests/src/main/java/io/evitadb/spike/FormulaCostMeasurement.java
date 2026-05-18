@@ -295,7 +295,8 @@ public class FormulaCostMeasurement {
 				null, new PriceIndexKey("whatever", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE)
 			),
 			QueryPriceMode.WITH_TAX,
-			PricePredicate.ALL_RECORD_FILTER
+			PricePredicate.ALL_RECORD_FILTER,
+			false
 		);
 		blackhole.consume(testedFormula.compute());
 	}

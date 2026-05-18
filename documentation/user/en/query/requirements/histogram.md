@@ -292,6 +292,17 @@ prices actually reachable under the user's current attribute range and facet pic
 The [`priceType`](price.md#price-type) requirement the source price property for the histogram computation. If no
 requirement, the histogram visualizes the price with tax.
 
+### Price histogram granularity and inner-record handling {#price-histogram-granularity}
+
+The histogram answers *"what prices are reachable in the candidate pool?"* The answer depends on how the collection
+handles inner records (`PriceInnerRecordHandling`), because that determines what constitutes one price data point:
+
+| Inner-record handling | Histogram data point per entity |
+|-----------------------|--------------------------------|
+| `NONE`                | One — the price for sale of the entity |
+| `SUM`                 | One — the cumulated price of all inner records |
+| `LOWEST_PRICE`        | **One per inner-record id** — the winning price of each variant |
+
 To demonstrate the use of the histogram, we will use the following example:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>

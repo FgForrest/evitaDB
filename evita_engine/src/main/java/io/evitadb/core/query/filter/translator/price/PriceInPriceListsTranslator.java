@@ -80,7 +80,8 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 			if (filterByVisitor.isEntityTypeKnown()) {
 				final List<Formula> priceListFormula = createFormula(filterByVisitor, priceLists, currency);
 				final Formula filteringFormula = PriceListCompositionTerminationVisitor.translate(
-					priceListFormula, priceLists, currency, null, filterByVisitor.getQueryPriceMode(), null
+					priceListFormula, priceLists, currency, null, filterByVisitor.getQueryPriceMode(), null,
+					filterByVisitor.isHistogramSideOutputApplicable()
 				);
 				if (filterByVisitor.isPrefetchPossible()) {
 					return new SelectionFormula(

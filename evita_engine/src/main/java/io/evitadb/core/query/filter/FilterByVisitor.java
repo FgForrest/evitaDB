@@ -558,6 +558,42 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
+	 * Returns `true` when the currently translated constraint has **no** {@link UserFilter} ancestor in
+	 * the processing stack — i.e. it is being translated outside any `userFilter` block. Used by
+	 * price-filter translators to decide whether a
+	 * {@link io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula} they're about
+	 * to construct should collect the per-inner-record histogram side-output — the rule is "outer LP
+	 * only", so an LP being built under `userFilter(priceBetween(...))` must remain un-flagged to avoid
+	 * double-counting in the histogram bypass.
+	 */
+	public boolean isOutsideUserFilter() {
+		for (FilterConstraint ancestor : getProcessingScope().getProcessedConstraintParents()) {
+			if (ancestor instanceof UserFilter) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Returns `true` when the {@link io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula}
+	 * being built by a price-filter translator should collect the per-inner-record histogram side-output.
+	 *
+	 * The side-output is required precisely when both conditions hold:
+	 *
+	 * - the planner asked for a `priceHistogram` extra result
+	 *   (see {@link EvitaRequest#isPriceHistogramRequested()}), and
+	 * - the current translation site is outside any `userFilter` block
+	 *   (see {@link #isOutsideUserFilter()}) — the "outer LP only" rule, otherwise an LP built under
+	 *   `userFilter(priceBetween(...))` would double-count inner records in the histogram bypass.
+	 *
+	 * Consolidates a predicate previously duplicated across every price-filter translator.
+	 */
+	public boolean isHistogramSideOutputApplicable() {
+		return getEvitaRequest().isPriceHistogramRequested() && isOutsideUserFilter();
+	}
+
+	/**
 	 * Method returns true if any of the siblings of the currently examined query matches any of the passed types.
 	 */
 	@SuppressWarnings("unchecked")
