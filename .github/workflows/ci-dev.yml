@@ -50,7 +50,7 @@ jobs:
         jacoco/jacoco-summary.sh jacoco/target/site/jacoco-aggregate/jacoco.csv
 
     - name: Upload test results    # upload XML with unit test results for debugging
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       if: success() || failure()
       with:
         name: test-results
@@ -61,7 +61,7 @@ jobs:
       if: success() || failure()
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-canary.yml` to deploy to DockerHub
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       if: success()
       with:
         name: evita-server.jar
