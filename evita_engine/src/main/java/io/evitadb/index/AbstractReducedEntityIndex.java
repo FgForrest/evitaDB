@@ -107,6 +107,10 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 	/**
 	 * Creates a new empty reduced entity index.
 	 *
+	 * This constructor intentionally leaves the change-detection baseline empty; terminal
+	 * subclasses (`ReducedEntityIndex`, `ReducedGroupEntityIndex`) must call
+	 * `captureOriginalsFromComponents()` after registering their own subclass-owned components.
+	 *
 	 * @param primaryKey     the primary key of this index
 	 * @param entityType     the type of entity being indexed
 	 * @param entityIndexKey the key identifying this index
@@ -123,6 +127,10 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 
 	/**
 	 * Creates a reduced entity index from persisted data.
+	 *
+	 * This constructor intentionally leaves the change-detection baseline empty; terminal
+	 * subclasses (`ReducedEntityIndex`, `ReducedGroupEntityIndex`) must call
+	 * `captureOriginalsFromComponents()` after registering their own subclass-owned components.
 	 *
 	 * @param primaryKey          the primary key of this index
 	 * @param entityIndexKey      the key identifying this index
@@ -148,10 +156,12 @@ public abstract class AbstractReducedEntityIndex extends EntityIndex
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex, priceIndex
+			attributeIndex, hierarchyIndex, facetIndex
 		);
 		this.priceIndex = priceIndex;
 		addComponent(new PriceIndexComponent(this.priceIndex));
+		// baseline capture is deferred to terminal subclasses (ReducedEntityIndex /
+		// ReducedGroupEntityIndex) so it runs after every subclass-owned component is registered
 	}
 
 	/**

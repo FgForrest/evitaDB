@@ -31,7 +31,6 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -210,6 +209,9 @@ public class GlobalEntityIndex extends EntityIndex
 		super(primaryKey, entityType, entityIndexKey);
 		this.priceIndex = new PriceSuperIndex();
 		addComponent(new PriceIndexComponent(this.priceIndex));
+		// fresh empty index — every component contributes an empty manifest, so the baseline
+		// captured here is the immutable empty set, preventing spurious manifest emits
+		captureOriginalsFromComponents();
 	}
 
 	public GlobalEntityIndex(
@@ -226,10 +228,13 @@ public class GlobalEntityIndex extends EntityIndex
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex, priceIndex
+			attributeIndex, hierarchyIndex, facetIndex
 		);
 		this.priceIndex = priceIndex;
 		addComponent(new PriceIndexComponent(this.priceIndex));
+		// re-capture the change-detection baseline from the components now that the price super
+		// index is registered, so the baseline includes every persisted sub-index
+		captureOriginalsFromComponents();
 	}
 
 	/**

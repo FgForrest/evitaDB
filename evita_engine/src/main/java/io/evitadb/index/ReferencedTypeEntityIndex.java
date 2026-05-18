@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -264,7 +263,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex, VoidPriceIndex.INSTANCE
+			attributeIndex, hierarchyIndex, facetIndex
 		);
 		this.indexPrimaryKeyCardinality = indexPrimaryKeyCardinality;
 		this.cardinalityIndexes = new TransactionalMap<>(

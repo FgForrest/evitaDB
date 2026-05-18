@@ -86,6 +86,9 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 			entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY,
 			() -> "ReducedEntityIndex only supports REFERENCED_ENTITY type, got: " + entityIndexKey.type()
 		);
+		// fresh empty index — every component contributes an empty manifest, so the baseline
+		// captured here is the immutable empty set, preventing spurious manifest emits
+		captureOriginalsFromComponents();
 	}
 
 	/**
@@ -121,6 +124,9 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 			entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY,
 			() -> "ReducedEntityIndex only supports REFERENCED_ENTITY type, got: " + entityIndexKey.type()
 		);
+		// re-capture the change-detection baseline from the components now that the price ref
+		// index is registered, so the baseline includes every persisted sub-index
+		captureOriginalsFromComponents();
 	}
 
 	/**
@@ -206,6 +212,9 @@ public class ReducedEntityIndex extends AbstractReducedEntityIndex {
 			originalAttributeIndexes, originalPriceIndexes, originalFacetIndexes,
 			priceIndex
 		);
+		// do NOT call captureOriginalsFromComponents here — this constructor is the "preserve
+		// originals" path used by catalog re-attachment, and recapturing would overwrite the
+		// caller-provided baselines with the current live state, losing dirty/change tracking
 	}
 
 	@Nonnull

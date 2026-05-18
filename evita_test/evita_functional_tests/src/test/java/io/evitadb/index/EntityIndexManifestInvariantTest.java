@@ -147,8 +147,8 @@ class EntityIndexManifestInvariantTest {
 	/**
 	 * Synthesizes the expected attribute-index storage keys for the four sub-index types
 	 * exposed by `AttributeIndex`. This mirrors the loop in
-	 * `EntityIndex.getAttributeIndexStorageKeys()` and is reused by every subclass-specific
-	 * derivation below.
+	 * `AttributeIndex.collectKeys()` (invoked through `AttributeIndexComponent` during
+	 * manifest collection) and is reused by every subclass-specific derivation below.
 	 *
 	 * @param indexKey the entity index key used to compose the storage keys
 	 * @param uniqueKeys set of unique attribute keys held by the instance
@@ -328,7 +328,7 @@ class EntityIndexManifestInvariantTest {
 			);
 
 			// derive the expected manifest by walking the live sub-indexes — the same
-			// public getters EntityIndex.getAttributeIndexStorageKeys() uses internally
+			// public getters AttributeIndex.collectKeys() uses internally
 			final Set<AttributeIndexStorageKey> expected = baseExpectedKeys(
 				this.index.getIndexKey(),
 				this.index.getUniqueIndexes(),

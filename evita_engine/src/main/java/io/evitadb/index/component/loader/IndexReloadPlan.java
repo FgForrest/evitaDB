@@ -89,14 +89,13 @@ public final class IndexReloadPlan {
 	@Nonnull
 	public EntityIndex run(@Nonnull LoadContext context) {
 		// HashMap is fine here; reload is not on the hot path
+		final int initialCapacity = this.loaders.size() << 1;
 		final Map<Class<? extends LoadedComponentBundle>, LoadedComponentBundle> bundles =
-			new HashMap<>(this.loaders.size() * 2);
+			new HashMap<>(initialCapacity);
 		// no plan should register two loaders that return the same bundle class — any collision
 		// is a programming error
-		final Map<Class<? extends LoadedComponentBundle>, ComponentLoader> producers =
-			new HashMap<>(this.loaders.size() * 2);
-		for (int i = 0; i < this.loaders.size(); i++) {
-			final ComponentLoader loader = this.loaders.get(i);
+		final Map<Class<? extends LoadedComponentBundle>, ComponentLoader> producers = new HashMap<>(initialCapacity);
+		for (final ComponentLoader loader : this.loaders) {
 			final LoadedComponentBundle bundle = loader.load(context);
 			final ComponentLoader previousProducer = producers.put(bundle.getClass(), loader);
 			final LoadedComponentBundle previous = bundles.put(bundle.getClass(), bundle);
