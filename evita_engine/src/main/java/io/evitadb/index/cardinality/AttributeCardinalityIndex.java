@@ -29,6 +29,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
@@ -97,31 +98,41 @@ public class AttributeCardinalityIndex
 	}
 
 	/**
-	 * Increases cardinality of given value by one. If value is not present in the index, it is added with cardinality 1
-	 * and TRUE is returned, otherwise existing cardinality is increased by one FALSE is returned.
-	 * @param value value to be added
-	 * @return TRUE if value was not present in the index, FALSE otherwise
+	 * Increases cardinality of the given value by one. If the value was not present in the index before
+	 * this call, it is added with cardinality 1 and `BOUNDARY_CROSSED` is returned so callers can
+	 * propagate the new entry to downstream membership-only indexes. Otherwise the existing cardinality
+	 * is incremented and `NO_BOUNDARY_CROSSING` is returned.
+	 *
+	 * @param value    value whose cardinality should be incremented
+	 * @param recordId identifier of the owning record (cardinality is tracked per record)
+	 * @return `BOUNDARY_CROSSED` if the cardinality went from 0 to 1, `NO_BOUNDARY_CROSSING` otherwise
 	 */
-	public boolean addRecord(@Nonnull Serializable value, int recordId) {
+	@Nonnull
+	public CardinalityChange addRecord(@Nonnull Serializable value, int recordId) {
 		Assert.isTrue(
 			this.valueType.isInstance(value),
 			"Value of type `" + value.getClass() + "` is not compatible with this index that accepts only values of type `" + this.valueType + "`!"
 		);
 		this.dirty.setToTrue();
-		return this.cardinalities.compute(
+		final int newCardinality = this.cardinalities.compute(
 			new AttributeCardinalityKey(recordId, value),
 			(k, v) -> v == null ? 1 : v + 1
-		) == 1;
+		);
+		return newCardinality == 1 ? CardinalityChange.BOUNDARY_CROSSED : CardinalityChange.NO_BOUNDARY_CROSSING;
 	}
 
 	/**
-	 * Decreases cardinality of given value by one. If the cardinality of the value reaches zero, the value is removed from
-	 * the index and TRUE is returned, otherwise FALSE is returned.
+	 * Decreases cardinality of the given value by one. If the cardinality reaches zero the value is
+	 * removed from the index and `BOUNDARY_CROSSED` is returned so callers can propagate the removal
+	 * to downstream membership-only indexes. Otherwise the cardinality is decremented and
+	 * `NO_BOUNDARY_CROSSING` is returned.
 	 *
-	 * @param value value to be removed
-	 * @return TRUE if value was removed from the index, FALSE otherwise
+	 * @param value    value whose cardinality should be decremented
+	 * @param recordId identifier of the owning record (cardinality is tracked per record)
+	 * @return `BOUNDARY_CROSSED` if the cardinality dropped to 0, `NO_BOUNDARY_CROSSING` otherwise
 	 */
-	public boolean removeRecord(@Nonnull Serializable value, int recordId) {
+	@Nonnull
+	public CardinalityChange removeRecord(@Nonnull Serializable value, int recordId) {
 		Assert.isTrue(
 			this.valueType.isInstance(value),
 			"Value of type `" + value.getClass() + "` is not compatible with this index that accepts only values of type `" + this.valueType + "`!"
@@ -136,9 +147,9 @@ public class AttributeCardinalityIndex
 			throw new GenericEvitaInternalError("Cardinality of value `" + value + "` for record `" + recordId + "` is null");
 		} else if (newValue == 0) {
 			this.cardinalities.remove(cardinalityKey);
-			return true;
+			return CardinalityChange.BOUNDARY_CROSSED;
 		} else {
-			return false;
+			return CardinalityChange.NO_BOUNDARY_CROSSING;
 		}
 	}
 

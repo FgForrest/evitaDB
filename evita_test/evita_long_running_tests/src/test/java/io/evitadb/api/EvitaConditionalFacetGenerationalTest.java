@@ -721,7 +721,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 		this.evita.close();
 		System.out.println(
 			"Survived " + generation + " generations, size on disk is "
-				+ byteCountToDisplaySize(sizeOfDirectory(getTestDirectory().toFile()))
+				+ byteCountToDisplaySize(sizeOfDirectory(this.paths.storage().toFile()))
 		);
 		this.evita = new Evita(getEvitaConfiguration());
 		this.evita.waitUntilFullyInitialized();
@@ -735,7 +735,7 @@ class EvitaConditionalFacetGenerationalTest implements EvitaTestSupport, TimeBou
 	private void logFinished(@Nonnull TestState finalState) {
 		System.out.println(
 			"Finished " + finalState.generation() + " generations, size on disk is "
-				+ byteCountToDisplaySize(sizeOfDirectory(getTestDirectory().toFile()))
+				+ byteCountToDisplaySize(sizeOfDirectory(this.paths.storage().toFile()))
 		);
 	}
 

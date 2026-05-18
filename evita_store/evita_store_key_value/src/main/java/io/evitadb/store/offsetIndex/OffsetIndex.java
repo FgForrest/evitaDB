@@ -31,7 +31,9 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressorView;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
@@ -558,17 +560,44 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns an immutable snapshot of the current index of compressed keys. Callers that persist this map
-	 * (e.g. into `CatalogHeader` / `EntityCollectionFileHeader`) must see a copy rather than a live view, so
-	 * the persisted record is never affected by subsequent mutations of the write key compressor.
+	 * Returns the **live** index of compressed keys.
 	 *
-	 * @return immutable snapshot of the current compressed keys
+	 * The compressor manages its own thread safety internally, so no external coordination is needed. Callers
+	 * that retain the map past their own consumption window (i.e. iterate it later or hand it to a long-lived
+	 * data structure that may iterate after concurrent writers have advanced) must use
+	 * {@link #getKeyCompressorSnapshot()} instead, which returns the compressor's memoized immutable copy.
+	 *
+	 * Safe live-view consumers in this codebase:
+	 *
+	 * - `.size()` / peek-only reads;
+	 * - `storeHeader` building a `CatalogHeader` whose subsequent Kryo serialization runs inside the
+	 *   compressor's write session and whose serializer (including value-key sub-serializers for `AttributeKey`,
+	 *   `AssociatedDataKey`, `CompressiblePriceKey`, `ReferenceNameKey`) never calls back into
+	 *   {@link io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor#getId(Comparable)} mid-iteration.
+	 *
+	 * @return live id → key index of the current compressed keys
 	 */
 	@Nonnull
 	public Map<Integer, Object> getCompressedKeys() {
-		return Map.copyOf(
-			this.fileOffsetDescriptor.getWriteKeyCompressor().getKeys()
-		);
+		return this.fileOffsetDescriptor.getWriteKeyCompressor().getKeys();
+	}
+
+	/**
+	 * Returns an atomic snapshot of the trunk's key compressor — both the id → key map and the highest assigned id,
+	 * coordinated inside the compressor so the two fields are coherent. Callers seeding a new
+	 * {@link ReadWriteKeyCompressor} from the snapshot rely on the invariant `max(keys.keySet()) <= peakId`; reading
+	 * the fields without coordination could let a concurrent writer advance the peak between the two reads, leaving
+	 * the new compressor with a sequence that collides with already-seeded ids.
+	 *
+	 * The id → key map returned here is the compressor's memoized **immutable** snapshot. This is the only call
+	 * path whose downstream iteration runs outside the writer's session (e.g.
+	 * `TransactionalStoragePartPersistenceService` seeding a new compressor while trunk-side writers keep mutating).
+	 * Quiescent callers pay only a volatile read; a fresh `Map.copyOf` happens at most once per inter-snapshot
+	 * mutation burst.
+	 */
+	@Nonnull
+	public KeyCompressorSnapshot getKeyCompressorSnapshot() {
+		return this.fileOffsetDescriptor.getWriteKeyCompressor().getAtomicSnapshot();
 	}
 
 	/**
@@ -775,19 +804,27 @@ public class OffsetIndex {
 	 * @param value          value to be stored
 	 */
 	public <T extends StoragePart> long put(long catalogVersion, @Nonnull T value) {
-		return this.writeHandle.checkAndExecute(
-			"Storing record",
-			this::assertOperative,
-			exclusiveWriteAccess -> {
-				final long partId = ofNullable(value.getStoragePartPK())
-					.orElseGet(() -> value.computeUniquePartIdAndSet(this.fileOffsetDescriptor.getWriteKeyCompressor()));
-				doPut(
-					catalogVersion,
-					partId, value,
-					exclusiveWriteAccess
-				);
-				return partId;
-			}
+		// the compressor's write session covers both the explicit `computeUniquePartIdAndSet` call (which may
+		// invoke `keyCompressor.getId(...)`) and the Kryo serialization inside `doPut(...)` (which also drives
+		// key allocation through the write compressor); without it, a concurrent snapshot reader would see the
+		// underlying HashMap mid-mutation and throw ConcurrentModificationException. `getId(...)` calls inside
+		// the session are reentrant on the write lock (~5 ns per call) instead of paying a full acquire/release
+		final ReadWriteKeyCompressor compressor = this.fileOffsetDescriptor.getWriteKeyCompressor();
+		return compressor.executeWithWriteAccess(() ->
+			this.writeHandle.checkAndExecute(
+				"Storing record",
+				this::assertOperative,
+				exclusiveWriteAccess -> {
+					final long partId = ofNullable(value.getStoragePartPK())
+						.orElseGet(() -> value.computeUniquePartIdAndSet(compressor));
+					doPut(
+						catalogVersion,
+						partId, value,
+						exclusiveWriteAccess
+					);
+					return partId;
+				}
+			)
 		);
 	}
 
@@ -885,63 +922,69 @@ public class OffsetIndex {
 	) {
 		// flush all non-flushed values to the disk
 		this.doSoftFlush();
-		// copy the active parts to a new file
-		return this.readOnlyHandlePool.borrowAndExecute(
-			readOnlyFileHandle -> readOnlyFileHandle.execute(
-				// by requesting write-handle we enforce no other thread can write to the source file while we are copying
-				inputStream -> this.writeHandle.checkAndExecute(
-					"Writing mem table",
-					this::assertOperative,
-					output -> this.readKryoPool.borrowAndExecute(
-						kryo -> {
-							Assert.isTrue(inputStream.getInputStream() instanceof RandomAccessFileInputStream, "Input stream must be RandomAccessFileInputStream!");
-							@SuppressWarnings("unchecked") final ObservableInput<RandomAccessFileInputStream> randomAccessFileInputStream =
-								(ObservableInput<RandomAccessFileInputStream>) inputStream;
-							final Map<RecordKey, byte[]> overriddenEntries;
-							if (updatedStorageParts != null && updatedStorageParts.length > 0) {
-								overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
-								final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.outputBufferSize);
-								final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
-									baos, this.outputBufferSize, 0,
-									this.checksumFactory.createChecksum(),
-									this.compressionFactory.createCompressor().orElse(null)
-								);
-								for (StoragePart value : updatedStorageParts) {
-									final RecordKey recordKey = new RecordKey(
-										this.recordTypeRegistry.idFor(value.getClass()),
-										ofNullable(value.getStoragePartPK())
-											.orElseGet(() -> value.computeUniquePartIdAndSet(this.fileOffsetDescriptor.getWriteKeyCompressor()))
+		// the compressor's write session covers the explicit `computeUniquePartIdAndSet` calls below and the
+		// Kryo serialization inside `serializeValue(...)` — both can mutate the write compressor; without it
+		// a concurrent snapshot reader would see the underlying HashMap mid-mutation and throw CME
+		final ReadWriteKeyCompressor compressor = this.fileOffsetDescriptor.getWriteKeyCompressor();
+		return compressor.executeWithWriteAccess(() ->
+			// copy the active parts to a new file
+			this.readOnlyHandlePool.borrowAndExecute(
+				readOnlyFileHandle -> readOnlyFileHandle.execute(
+					// by requesting write-handle we enforce no other thread can write to the source file while we are copying
+					inputStream -> this.writeHandle.checkAndExecute(
+						"Writing mem table",
+						this::assertOperative,
+						output -> this.readKryoPool.borrowAndExecute(
+							kryo -> {
+								Assert.isTrue(inputStream.getInputStream() instanceof RandomAccessFileInputStream, "Input stream must be RandomAccessFileInputStream!");
+								@SuppressWarnings("unchecked") final ObservableInput<RandomAccessFileInputStream> randomAccessFileInputStream =
+									(ObservableInput<RandomAccessFileInputStream>) inputStream;
+								final Map<RecordKey, byte[]> overriddenEntries;
+								if (updatedStorageParts != null && updatedStorageParts.length > 0) {
+									overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
+									final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.outputBufferSize);
+									final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
+										baos, this.outputBufferSize, 0,
+										this.checksumFactory.createChecksum(),
+										this.compressionFactory.createCompressor().orElse(null)
 									);
-									baos.reset();
-									observableOutput.reset();
-									serializeValue(value, observableOutput);
-									observableOutput.flush();
-									overriddenEntries.put(recordKey, baos.toByteArray());
+									for (StoragePart value : updatedStorageParts) {
+										final RecordKey recordKey = new RecordKey(
+											this.recordTypeRegistry.idFor(value.getClass()),
+											ofNullable(value.getStoragePartPK())
+												.orElseGet(() -> value.computeUniquePartIdAndSet(compressor))
+										);
+										baos.reset();
+										observableOutput.reset();
+										serializeValue(value, observableOutput);
+										observableOutput.flush();
+										overriddenEntries.put(recordKey, baos.toByteArray());
+									}
+								} else {
+									overriddenEntries = Collections.emptyMap();
 								}
-							} else {
-								overriddenEntries = Collections.emptyMap();
+								final FileLocationAndWrittenBytes locationAndWrittenBytes = OffsetIndexSerializationService.copySnapshotTo(
+									this,
+									randomAccessFileInputStream,
+									outputStream,
+									catalogVersion,
+									overriddenEntries,
+									this.volatileValues,
+									progressConsumer,
+									this.checksumFactory,
+									this.compressionFactory,
+									this.outputBufferSize
+								);
+								return new OffsetIndexDescriptor(
+									this.fileOffsetDescriptor.version() + 1,
+									locationAndWrittenBytes.fileLocation(),
+									compressor.getKeys(),
+									this.fileOffsetDescriptor.getKryoFactory(),
+									1,
+									locationAndWrittenBytes.writtenBytes()
+								);
 							}
-							final FileLocationAndWrittenBytes locationAndWrittenBytes = OffsetIndexSerializationService.copySnapshotTo(
-								this,
-								randomAccessFileInputStream,
-								outputStream,
-								catalogVersion,
-								overriddenEntries,
-								this.volatileValues,
-								progressConsumer,
-								this.checksumFactory,
-								this.compressionFactory,
-								this.outputBufferSize
-							);
-							return new OffsetIndexDescriptor(
-								this.fileOffsetDescriptor.version() + 1,
-								locationAndWrittenBytes.fileLocation(),
-								this.getCompressedKeys(),
-								this.fileOffsetDescriptor.getKryoFactory(),
-								1,
-								locationAndWrittenBytes.writtenBytes()
-							);
-						}
+						)
 					)
 				)
 			)
@@ -1873,14 +1916,18 @@ public class OffsetIndex {
 				} finally {
 					this.lock.unlock();
 				}
-				if (hv != null) {
-					int index = Arrays.binarySearch(hv, catalogVersion);
-					if (index != -1 && hvValues != null) {
-						final int startIndex = index >= 0 ? index : -index - 1;
-						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
-							final PastMemory differenceSet = hvValues.get(hv[ix]);
-							diff -= differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
-						}
+				if (hv != null && hvValues != null) {
+					final int index = Arrays.binarySearch(hv, catalogVersion);
+					// on exact match, skip the matched version (its diff is already reflected in keyToLocations);
+					// on miss, -index-1 is the insertion point — the first version greater than catalogVersion,
+					// which must be included in the subtraction. When catalogVersion precedes all historical
+					// versions (binarySearch returns -1, insertion point 0), every entry must be subtracted
+					final int startIndex = index >= 0 ? index + 1 : -index - 1;
+					for (int ix = hv.length - 1; ix >= startIndex; ix--) {
+						// hvValues is the shared ConcurrentHashMap referenced by recordHistoricalVersions;
+						// a concurrent purge can remove an entry after we snapshotted hv under the lock
+						final PastMemory differenceSet = hvValues.get(hv[ix]);
+						diff -= differenceSet == null ? 0 : differenceSet.getAddedKeys().size() - differenceSet.getRemovedKeys().size();
 					}
 				}
 			}
@@ -1924,13 +1971,15 @@ public class OffsetIndex {
 					this.lock.unlock();
 				}
 				if (hv != null && hvValues != null) {
-					int index = Arrays.binarySearch(hv, catalogVersion);
-					if (index != -1) {
-						final int startIndex = index >= 0 ? index : -index - 1;
-						for (int ix = hv.length - 1; ix > startIndex && ix >= 0; ix--) {
-							final PastMemory differenceSet = hvValues.get(hv[ix]);
-							diff -= differenceSet == null ? 0 : differenceSet.getCountFor(recordTypeId);
-						}
+					final int index = Arrays.binarySearch(hv, catalogVersion);
+					// on exact match, skip the matched version (its diff is already reflected in the histogram);
+					// on miss, -index-1 is the insertion point — the first version greater than catalogVersion,
+					// which must be included in the subtraction. When catalogVersion precedes all historical
+					// versions (binarySearch returns -1, insertion point 0), every entry must be subtracted (issue #1162).
+					final int startIndex = index >= 0 ? index + 1 : -index - 1;
+					for (int ix = hv.length - 1; ix >= startIndex; ix--) {
+						final PastMemory differenceSet = hvValues.get(hv[ix]);
+						diff -= differenceSet == null ? 0 : differenceSet.getCountFor(recordTypeId);
 					}
 				}
 			}

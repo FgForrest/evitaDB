@@ -39,7 +39,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -50,7 +49,10 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
@@ -372,6 +374,51 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 		System.out.println(
 			"Finished " + finalState.generation() + " generations (" + finalState.updateCounter() + " updates), size on disk is " +
 				byteCountToDisplaySize(sizeOfDirectory(getTestDirectory().toFile()))
+		);
+	}
+
+	/**
+	 * Deterministic regression test pinned to seed `1623796816` — captures the open bug where the
+	 * group-path iteration in `ReferenceIndexMutator#forEachUniqueReferenceIndex` resolves a mutation
+	 * against a freshly-created `ReducedGroupEntityIndex` whose discriminator (built from
+	 * `bothKeys.stored().representativeAttributeValues()`) does not match any RGEI where the
+	 * entity's data physically lives.
+	 *
+	 * Reproduces in ~14 seconds; surfaces as either:
+	 *
+	 *   - `Price index for price list <X> and currency <Y> not found!` thrown from
+	 *     `AbstractPriceIndex.priceRemove`, or
+	 *   - `Cardinality index for attribute <X> not found.` thrown from
+	 *     `ReducedGroupEntityIndex.removeFilterAttribute`.
+	 *
+	 * Both manifestations stem from the same drift: the iteration in
+	 * {@link io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachUniqueReferenceIndex}
+	 * (group path) uses the plural `getRepresentativeReferenceKeys` which does NOT trigger migration;
+	 * only the singular `getRepresentativeReferenceKey` runs
+	 * {@code getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary}.
+	 *
+	 * Empirical evidence captured during investigation: for entity 613, price `sellout/CZK/NONE`
+	 * was added (via `indexAllExistingData`) to 8 distinct `PriceRefIndex` instances — but NOT to
+	 * the one `priceRemove` targets at the moment of failure.
+	 *
+	 * Disabled until the iteration-layer fix lands. Re-enable by removing the `@Disabled`
+	 * annotation after fix — this test then serves as the canonical regression marker.
+	 *
+	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachUniqueReferenceIndex
+	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachReferenceIndex
+	 * @see io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary
+	 */
+	@Test
+	@Tag(SLOW)
+	@DisplayName("Generative seed 1623796816 must not surface reduced-reference-index drift")
+	@Disabled("See #1075 — generational seed 1623796816 fails at mod 613")
+	void shouldNotSurfaceReducedReferenceIndexDriftForSeed1623796816() {
+		// Re-invokes the generative driver with the deterministic seed pinned to the original
+		// CI failure. Calls `generationalTransactionalModificationProofTest` directly with a
+		// hand-built `GenerationalTestInput` so a single CI green/red lights up exactly this
+		// scenario without depending on `-Dtest.seed=...` plumbing.
+		generationalTransactionalModificationProofTest(
+			new GenerationalTestInput(/* intervalInMinutes */ 1, /* randomSeed */ 1623796816)
 		);
 	}
 

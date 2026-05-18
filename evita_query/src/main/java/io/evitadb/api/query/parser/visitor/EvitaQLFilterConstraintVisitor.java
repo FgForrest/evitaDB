@@ -39,7 +39,6 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.HierarchyAnyHavingConst
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 import io.evitadb.dataType.Scope;
 
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -85,6 +84,17 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 		OffsetDateTime.class
 	);
 	protected final EvitaQLValueTokenVisitor priceBetweenArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
+		Byte.class,
+		short.class,
+		Short.class,
+		int.class,
+		Integer.class,
+		long.class,
+		Long.class,
+		BigDecimal.class
+	);
+	protected final EvitaQLValueTokenVisitor numericValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		byte.class,
 		Byte.class,
 		short.class,
@@ -579,15 +589,15 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 				final String histogramName = ctx.args.histogramName == null
 					? null
 					: ctx.args.histogramName.accept(this.stringValueTokenVisitor).asString();
-				final Serializable from;
-				final Serializable to;
+				// histogram bounds are inherently numeric; restrict allowed token types to numeric scalars
+				// and coerce to BigDecimal — the canonical type for histogram bounds across the engine
+				// (HistogramHavingTranslator stashes bounds as BigDecimal and AttributeBetweenTranslator
+				// narrows back to the attribute's indexed plain type via EvitaDataTypes.toTargetType).
+				final BigDecimal from;
+				final BigDecimal to;
 				if (ctx.args.valueFrom != null && ctx.args.valueTo != null) {
-					from = ctx.args.valueFrom
-						.accept(this.comparableValueTokenVisitor)
-						.asSerializableAndComparable();
-					to = ctx.args.valueTo
-						.accept(this.comparableValueTokenVisitor)
-						.asSerializableAndComparable();
+					from = ctx.args.valueFrom.accept(this.numericValueTokenVisitor).asNumber(BigDecimal.class);
+					to = ctx.args.valueTo.accept(this.numericValueTokenVisitor).asNumber(BigDecimal.class);
 				} else {
 					from = null;
 					to = null;

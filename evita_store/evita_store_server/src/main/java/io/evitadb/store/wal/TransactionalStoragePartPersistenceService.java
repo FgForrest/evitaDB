@@ -29,6 +29,7 @@ import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.AggregatedKeyCompressor;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
@@ -117,12 +118,14 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		this.targetFile = storageSettings.transactionWorkDirectory()
 			.resolve(transactionId.toString())
 			.resolve(name + ".tmp");
-		final KeyCompressor delegateReadOnlyKeys = this.delegate.getReadOnlyKeyCompressor();
+		// atomic snapshot under the delegate's read lock — capturing keys and peakId separately would race against
+		// a concurrent trunk-side writer mutating the shared HashMap and either throw ConcurrentModificationException
+		// or produce a torn (keys, peakId) pair that lets the new compressor allocate ids already present in the seed
+		final KeyCompressorSnapshot trunkSnapshot = this.delegate.getKeyCompressorSnapshot();
 		this.offsetIndex = new OffsetIndex(
 			catalogVersion + 1,
 			new OffsetIndexDescriptor(
-				// the delegate's read-only compressor tracks the peak intrinsically, so we avoid rescanning the keys map
-				new PersistentStorageHeader(1L, FileLocation.EMPTY, delegateReadOnlyKeys.getKeys(), delegateReadOnlyKeys.getPeakId()),
+				new PersistentStorageHeader(1L, FileLocation.EMPTY, trunkSnapshot.keys(), trunkSnapshot.peakId()),
 				kryoFactory,
 				// we don't care here
 				1.0, 0L
@@ -270,6 +273,19 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 			);
 		}
 		return this.readOnlyKeyCompressor;
+	}
+
+	@Nonnull
+	@Override
+	public KeyCompressorSnapshot getKeyCompressorSnapshot() {
+		// matches the contract of `createTransactionalService` (line 158): a transactional service exists to be
+		// written into, not snapshotted from. Snapshotting a per-transaction layer would aggregate the layer's
+		// keys with the delegate's keys without a single read-lock guarantee and is therefore intentionally
+		// unsupported. If a use-case ever needs this, decide the semantics first (atomic over delegate only?
+		// best-effort union?) and implement explicitly.
+		throw new UnsupportedOperationException(
+			"Cannot snapshot a transactional persistence service — snapshot the underlying trunk delegate instead."
+		);
 	}
 
 	@Override

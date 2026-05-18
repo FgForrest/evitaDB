@@ -93,10 +93,11 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public class AttributeIndex implements AttributeIndexContract,
+public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	TransactionalLayerProducer<AttributeIndexChanges, AttributeIndex>,
 	IndexDataStructure,
 	Serializable
+	permits EntityAttributeIndex, ReferenceAttributeIndex
 {
 	@Serial private static final long serialVersionUID = 479979988960202298L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -192,6 +193,9 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nullable Locale locale
 	) {
+		// entity-level attributes can also appear inside reference-scoped indexes via reference
+		// fan-out — EntityAttributeSchemaContract always nulls out the reference name regardless
+		// of the surrounding index, keeping the storage key shape uniform across both fan-outs
 		return new AttributeIndexKey(
 			attributeSchema instanceof EntityAttributeSchemaContract || referenceSchema == null ?
 				null : referenceSchema.getName(),
@@ -287,7 +291,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		);
 	}
 
-	public AttributeIndex(@Nonnull String entityType, @Nullable RepresentativeReferenceKey referenceKey) {
+	protected AttributeIndex(@Nonnull String entityType, @Nullable RepresentativeReferenceKey referenceKey) {
 		this.entityType = entityType;
 		this.referenceKey = referenceKey;
 		this.uniqueIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
@@ -296,7 +300,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		this.chainIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32), ChainIndex.class, Function.identity());
 	}
 
-	public AttributeIndex(
+	protected AttributeIndex(
 		@Nonnull String entityType,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndex,
@@ -713,6 +717,40 @@ public class AttributeIndex implements AttributeIndexContract,
 		}
 	}
 
+	/**
+	 * Synthesizes the full set of {@link AttributeIndexStorageKey} entries currently held by this
+	 * index — one key per UNIQUE / FILTER / SORT / CHAIN sub-index — and adds them into `target`.
+	 * The keys are composed from the supplied `indexKey` (which carries the discriminator and scope
+	 * of the owning {@link io.evitadb.index.EntityIndex}) and the per-attribute key already held
+	 * by each sub-index map.
+	 *
+	 * This method exists as a public accessor so the
+	 * {@link io.evitadb.index.component.AttributeIndexComponent} adapter can announce the keys
+	 * into the parent index manifest without duplicating the loop. Subclass-specific attribute
+	 * types (e.g. CARDINALITY) are owned by the subclass and added separately.
+	 *
+	 * @param indexKey the parent {@link io.evitadb.index.EntityIndexKey} used as the storage-key
+	 *                 prefix
+	 * @param target the set into which the synthesized storage keys are added
+	 */
+	public void collectKeys(
+		@Nonnull io.evitadb.index.EntityIndexKey indexKey,
+		@Nonnull Set<AttributeIndexStorageKey> target
+	) {
+		for (final AttributeIndexKey key : this.uniqueIndex.keySet()) {
+			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, key));
+		}
+		for (final AttributeIndexKey key : this.filterIndex.keySet()) {
+			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, key));
+		}
+		for (final AttributeIndexKey key : this.sortIndex.keySet()) {
+			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, key));
+		}
+		for (final AttributeIndexKey key : this.chainIndex.keySet()) {
+			target.add(new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, key));
+		}
+	}
+
 	@Override
 	public void resetDirty() {
 		for (UniqueIndex theUniqueIndex : this.uniqueIndex.values()) {
@@ -755,7 +793,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nullable AttributeIndexChanges layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
-		final AttributeIndex attributeIndex = new AttributeIndex(
+		final AttributeIndex attributeIndex = createCopy(
 			this.entityType,
 			this.referenceKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex),
@@ -766,6 +804,41 @@ public class AttributeIndex implements AttributeIndexContract,
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return attributeIndex;
 	}
+
+	/**
+	 * Returns the structural scope of this index — `ENTITY` for indexes that store attributes
+	 * defined directly on the entity, `REFERENCE` for indexes attached to a relation. Call sites
+	 * that fan out mutations across entity / reference indexes use this getter instead of
+	 * re-inspecting the surrounding schema.
+	 *
+	 * @return the immutable scope tag for this index
+	 */
+	@Nonnull
+	public abstract AttributeScope getScope();
+
+	/**
+	 * Factory hook implemented by each [AttributeIndex] subclass so the merged-transactional-memory
+	 * copy preserves the exact subclass identity. The concrete subclass is the only place that
+	 * knows whether the resulting index must be [EntityAttributeIndex] or [ReferenceAttributeIndex];
+	 * the base class never instantiates itself.
+	 *
+	 * @param entityType   the owning entity type
+	 * @param referenceKey the representative reference key (null for [EntityAttributeIndex])
+	 * @param uniqueIndex  the merged unique sub-index map
+	 * @param filterIndex  the merged filter sub-index map
+	 * @param sortIndex    the merged sort sub-index map
+	 * @param chainIndex   the merged chain sub-index map
+	 * @return a freshly built subclass-typed copy
+	 */
+	@Nonnull
+	protected abstract AttributeIndex createCopy(
+		@Nonnull String entityType,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndex,
+		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndex,
+		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
+		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex
+	);
 
 	/**
 	 * Method creates container for storing any of attribute related indexes from memory to the persistent storage.

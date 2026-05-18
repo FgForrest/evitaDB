@@ -51,6 +51,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
@@ -372,6 +373,22 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 			}
 		);
 		logFinished(finalState);
+	}
+
+	/**
+	 * Re-invokes [#shouldSurviveGenerationalTestWithReferenceAttributeExpression] with the
+	 * deterministic seed pinned to the CI failure. Lets a single CI green/red light up exactly
+	 * this scenario without depending on `-Dtest.seed=...` plumbing. A 5-minute interval is
+	 * sufficient to reach the originally-failing generation (~738, reproduced in ~43s before
+	 * the fix); the time-bounded driver short-circuits on the first assertion failure.
+	 */
+	@Test
+	@Tag(SLOW)
+	@DisplayName("Generative seed -1128235571 must not surface conditional histogram drift")
+	void shouldNotSurfaceHistogramDriftForSeedMinus1128235571() {
+		shouldSurviveGenerationalTestWithReferenceAttributeExpression(
+			new GenerationalTestInput(/* intervalInMinutes */ 5, /* randomSeed */ -1128235571)
+		);
 	}
 
 	// --- Test 3: Group Entity Attribute Condition (cross-entity fan-out) ---
@@ -914,7 +931,7 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 		this.evita.close();
 		System.out.println(
 			"Survived " + generation + " generations, size on disk is "
-				+ byteCountToDisplaySize(sizeOfDirectory(getTestDirectory().toFile()))
+				+ byteCountToDisplaySize(sizeOfDirectory(this.paths.storage().toFile()))
 		);
 		this.evita = new Evita(getEvitaConfiguration());
 		this.evita.waitUntilFullyInitialized();
@@ -926,7 +943,7 @@ class EvitaConditionalBucketGenerationalTest implements EvitaTestSupport, TimeBo
 	private void logFinished(@Nonnull TestState finalState) {
 		System.out.println(
 			"Finished " + finalState.generation() + " generations, size on disk is "
-				+ byteCountToDisplaySize(sizeOfDirectory(getTestDirectory().toFile()))
+				+ byteCountToDisplaySize(sizeOfDirectory(this.paths.storage().toFile()))
 		);
 	}
 

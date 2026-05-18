@@ -27,29 +27,35 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
-import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
+import io.evitadb.index.component.AttributeCardinalityIndexMapComponent;
+import io.evitadb.index.component.HistogramIndexMapComponent;
+import io.evitadb.index.component.PriceIndexComponent;
+import io.evitadb.index.component.ReferenceTypeCardinalityComponent;
+import io.evitadb.index.component.loader.AttributeCardinalityIndexMapLoader;
+import io.evitadb.index.component.loader.AttributeIndexLoader;
+import io.evitadb.index.component.loader.FacetIndexLoader;
+import io.evitadb.index.component.loader.HierarchyIndexLoader;
+import io.evitadb.index.component.loader.HistogramIndexMapLoader;
+import io.evitadb.index.component.loader.IndexReloadPlan;
+import io.evitadb.index.component.loader.LoadedComponentBundle;
+import io.evitadb.index.component.loader.ReferenceTypeCardinalityLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
-import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
@@ -69,7 +75,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -236,6 +241,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		this.histogramIndexes = new TransactionalMap<>(
 			CollectionUtils.createHashMap(4), HistogramIndex.class, Function.identity()
 		);
+		registerSubclassComponents();
+		// fresh empty index — every component contributes an empty manifest, so the baseline
+		// captured here is the immutable empty set, preventing spurious manifest emits
+		captureOriginalsFromComponents();
 	}
 
 	public ReferencedTypeEntityIndex(
@@ -244,7 +253,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		int version,
 		@Nonnull Bitmap entityIds,
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
-		@Nonnull AttributeIndex attributeIndex,
+		@Nonnull ReferenceAttributeIndex attributeIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull ReferenceTypeCardinalityIndex indexPrimaryKeyCardinality,
@@ -254,7 +263,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		super(
 			primaryKey, entityIndexKey, version,
 			entityIds, entityIdsByLanguage,
-			attributeIndex, hierarchyIndex, facetIndex, VoidPriceIndex.INSTANCE
+			attributeIndex, hierarchyIndex, facetIndex
 		);
 		this.indexPrimaryKeyCardinality = indexPrimaryKeyCardinality;
 		this.cardinalityIndexes = new TransactionalMap<>(
@@ -263,8 +272,69 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		this.histogramIndexes = new TransactionalMap<>(
 			histogramIndexes, HistogramIndex.class, Function.identity()
 		);
-		collectAttributeIndexStorageKeys();
+		registerSubclassComponents();
+		// re-capture the change-detection baseline from the components now that every subclass
+		// sub-index map is populated, so the baseline includes CARDINALITY and histogram keys
+		captureOriginalsFromComponents();
 	}
+
+	/**
+	 * Returns the read-side reload plan for `ReferencedTypeEntityIndex`. Unlike the reduced
+	 * variants, RTEI does not carry a price sub-index (its `priceIndex` field is
+	 * `VoidPriceIndex.INSTANCE`), so the plan omits any price loader. The plan adds three
+	 * subclass-owned loaders: per-attribute cardinality, histogram map, and the cross-reference
+	 * type-cardinality bookkeeping.
+	 *
+	 * @return the immutable reload plan for this subclass
+	 */
+	@Nonnull
+	public static IndexReloadPlan reloadPlan() {
+		return REFERENCED_TYPE_RELOAD_PLAN;
+	}
+
+	private static final IndexReloadPlan REFERENCED_TYPE_RELOAD_PLAN = IndexReloadPlan.builder()
+		.add(new AttributeIndexLoader())
+		.add(new HierarchyIndexLoader())
+		.add(new FacetIndexLoader())
+		.add(new AttributeCardinalityIndexMapLoader())
+		.add(new HistogramIndexMapLoader())
+		.add(new ReferenceTypeCardinalityLoader())
+		.build((bundles, context) -> {
+			final LoadedComponentBundle.AttributeIndexes attributes =
+				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
+			final LoadedComponentBundle.Hierarchy hierarchy =
+				(LoadedComponentBundle.Hierarchy) bundles.get(LoadedComponentBundle.Hierarchy.class);
+			final LoadedComponentBundle.Facet facet =
+				(LoadedComponentBundle.Facet) bundles.get(LoadedComponentBundle.Facet.class);
+			final LoadedComponentBundle.AttributeCardinalityIndexes cardinalities =
+				(LoadedComponentBundle.AttributeCardinalityIndexes)
+					bundles.get(LoadedComponentBundle.AttributeCardinalityIndexes.class);
+			final LoadedComponentBundle.Histograms histograms =
+				(LoadedComponentBundle.Histograms) bundles.get(LoadedComponentBundle.Histograms.class);
+			final LoadedComponentBundle.ReferenceTypeCardinality refTypeCardinality =
+				(LoadedComponentBundle.ReferenceTypeCardinality)
+					bundles.get(LoadedComponentBundle.ReferenceTypeCardinality.class);
+			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
+				context.entityIndexStoragePart();
+			return new ReferencedTypeEntityIndex(
+				manifest.getPrimaryKey(),
+				manifest.getEntityIndexKey(),
+				manifest.getVersion(),
+				manifest.getEntityIds(),
+				manifest.getEntityIdsByLanguage(),
+				new ReferenceAttributeIndex(
+					context.entitySchema().getName(),
+					null,
+					attributes.uniqueIndexes(), attributes.filterIndexes(),
+					attributes.sortIndexes(), attributes.chainIndexes()
+				),
+				hierarchy.hierarchyIndex(),
+				facet.facetIndex(),
+				refTypeCardinality.referenceTypeCardinalityIndex(),
+				cardinalities.cardinalityIndexes(),
+				histograms.histogramIndexes()
+			);
+		});
 
 	/**
 	 * Retrieves the reference name derived from the discriminator of the entity index key.
@@ -281,13 +351,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public <S extends PriceIndexContract> S getPriceIndex() {
 		//noinspection unchecked
 		return (S) this.priceIndex;
-	}
-
-	@Override
-	public void resetDirty() {
-		super.resetDirty();
-
-		this.indexPrimaryKeyCardinality.resetDirty();
 	}
 
 	@Override
@@ -352,85 +415,26 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * Populates {@link #originalAttributeIndexes} with cardinality storage keys reconstructed
-	 * from persisted data. Called at the end of the deserialization constructor.
+	 * Registers the four subclass-owned {@link io.evitadb.index.component.IndexComponent}
+	 * adapters into the parent {@link EntityIndex#addComponent} loop so cardinality / histogram /
+	 * reference-type-cardinality flush, reset and remove-layer all flow through the uniform
+	 * component path. The void price component preserves the parity with peer subclasses — its
+	 * `getPriceListAndCurrencyIndexes()` returns the empty collection so the manifest contribution
+	 * is trivially empty.
+	 *
+	 * Called from every constructor right after the subclass fields are populated and before
+	 * {@link #captureOriginalsFromComponents()}. Registration order matters for deterministic
+	 * flush sequencing.
 	 */
-	private void collectAttributeIndexStorageKeys() {
-		for (AttributeIndexKey attributeKey : this.cardinalityIndexes.keySet()) {
-			this.originalAttributeIndexes.add(new AttributeIndexStorageKey(
-				this.indexKey, AttributeIndexType.CARDINALITY, attributeKey
-			));
-		}
-	}
-
-	/**
-	 * Returns the current set of histogram index storage keys for storage part creation.
-	 */
-	@Nonnull
-	private Set<HistogramIndexStorageKey> getHistogramIndexStorageKeys() {
-		final Set<HistogramIndexStorageKey> result = CollectionUtils.createHashSet(
-			this.histogramIndexes.size()
+	private void registerSubclassComponents() {
+		// RTEI never has live prices, but the void price component is registered for shape
+		// consistency with peer subclasses — it is a no-op on every loop step
+		addComponent(new PriceIndexComponent(VoidPriceIndex.INSTANCE));
+		addComponent(new AttributeCardinalityIndexMapComponent(this.cardinalityIndexes, this.indexKey));
+		addComponent(new HistogramIndexMapComponent(this.histogramIndexes, this.indexKey));
+		addComponent(
+			new ReferenceTypeCardinalityComponent(this.indexPrimaryKeyCardinality, getReferenceName())
 		);
-		for (HistogramIndex histogramIndex : this.histogramIndexes.values()) {
-			histogramIndex.collectStorageKeys(this.indexKey, result);
-		}
-		return result;
-	}
-
-	@Override
-	protected StoragePart createStoragePart(
-		boolean hierarchyIndexEmpty,
-		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
-		@Nonnull Set<PriceIndexKey> priceIndexKeys,
-		@Nonnull Set<String> facetIndexReferencedEntities
-	) {
-		// the base class collects UNIQUE, FILTER, SORT, CHAIN keys from AttributeIndex — we must
-		// also include CARDINALITY keys so they appear in the EntityIndexStoragePart manifest and
-		// are loaded back during catalog restart
-		final Set<AttributeIndexStorageKey> allAttributeKeys;
-		if (this.cardinalityIndexes.isEmpty()) {
-			allAttributeKeys = attributeIndexStorageKeys;
-		} else {
-			allAttributeKeys = CollectionUtils.createHashSet(
-				attributeIndexStorageKeys.size() + this.cardinalityIndexes.size()
-			);
-			allAttributeKeys.addAll(attributeIndexStorageKeys);
-			for (AttributeIndexKey key : this.cardinalityIndexes.keySet()) {
-				allAttributeKeys.add(
-					new AttributeIndexStorageKey(
-						this.indexKey, AttributeIndexType.CARDINALITY, key
-					)
-				);
-			}
-		}
-		return new EntityIndexStoragePart(
-			this.primaryKey, this.version, this.indexKey,
-			this.entityIds, this.entityIdsByLanguage,
-			allAttributeKeys,
-			priceIndexKeys,
-			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities,
-			getHistogramIndexStorageKeys()
-		);
-	}
-
-	@Override
-	public void getModifiedStorageParts(@Nonnull TrappedChanges trappedChanges) {
-		super.getModifiedStorageParts(trappedChanges);
-
-		ofNullable(this.indexPrimaryKeyCardinality.createStoragePart(this.primaryKey, this.getReferenceName()))
-				.ifPresent(trappedChanges::addChangeToStore);
-
-		// add all modified cardinality indexes
-		for (Entry<AttributeIndexKey, AttributeCardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(this.primaryKey, entry.getKey()))
-				.ifPresent(trappedChanges::addChangeToStore);
-		}
-
-		// add all modified histogram storage parts
-		for (HistogramIndex histogramIndex : this.histogramIndexes.values()) {
-			histogramIndex.getModifiedStorageParts(this.primaryKey, trappedChanges);
-		}
 	}
 
 	/**
@@ -450,7 +454,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * both of the indexed primary key and the referenced primary key.
 	 */
 	public boolean insertPrimaryKeyIfMissing(int indexPrimaryKey, int referencedEntityPrimaryKey) {
-		if (this.indexPrimaryKeyCardinality.addRecord(indexPrimaryKey, referencedEntityPrimaryKey)) {
+		if (this.indexPrimaryKeyCardinality.addRecord(indexPrimaryKey, referencedEntityPrimaryKey) == CardinalityChange.BOUNDARY_CROSSED) {
 			super.insertPrimaryKeyIfMissing(indexPrimaryKey);
 		}
 		return true;
@@ -473,7 +477,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 * both of the indexed primary key and the referenced primary key.
 	 */
 	public boolean removePrimaryKey(int indexPrimaryKey, int referencedEntityPrimaryKey) {
-		if (this.indexPrimaryKeyCardinality.removeRecord(indexPrimaryKey, referencedEntityPrimaryKey)) {
+		if (this.indexPrimaryKeyCardinality.removeRecord(indexPrimaryKey, referencedEntityPrimaryKey) == CardinalityChange.BOUNDARY_CROSSED) {
 			super.removePrimaryKey(indexPrimaryKey);
 		}
 		return true;
@@ -518,7 +522,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			final Serializable[] onlyNewItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyNewItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.addRecord(valueItem, recordId)) {
+				if (theCardinalityIndex.addRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyNewItemsValueArray[onlyNewItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -531,7 +535,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
-			if (theCardinalityIndex.addRecord(value, recordId)) {
+			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.insertFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
 					value, recordId
@@ -562,7 +566,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			final Serializable[] onlyRemovedItemsValueArray = (Serializable[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyRemovedItemsValueArrayIndex = 0;
 			for (Serializable valueItem : valueArray) {
-				if (theCardinalityIndex.removeRecord(valueItem, recordId)) {
+				if (theCardinalityIndex.removeRecord(valueItem, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 					onlyRemovedItemsValueArray[onlyRemovedItemsValueArrayIndex++] = valueItem;
 				}
 			}
@@ -575,7 +579,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality reaches zero
-			if (theCardinalityIndex.removeRecord(value, recordId)) {
+			if (theCardinalityIndex.removeRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.removeFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
 					value, recordId
@@ -712,12 +716,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			", histograms=" + this.histogramIndexes.size() + ")";
 	}
 
-	@Override
-	public void removeTransactionalMemoryOfReferencedProducers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		removeOwnTransactionalLayers(transactionalLayer);
-	}
-
 	@Nonnull
 	@Override
 	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(
@@ -726,11 +724,12 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	) {
 		// we can safely throw away dirty flag now
 		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		// safe: AttributeIndex#createCopy preserves the subclass identity established by EntityIndex#isReferenceScoped
 		return new ReferencedTypeEntityIndex(
 			this.primaryKey, this.indexKey, this.version + (wasDirty ? 1 : 0),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
+			(ReferenceAttributeIndex) transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.indexPrimaryKeyCardinality),
@@ -741,17 +740,11 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		// drop our own diff layer (no-op for VoidTransactionMemoryProducer) and propagate the
+		// recursive remove into every registered component via the base method — the base loop
+		// covers the AttributeCardinality, Histogram and ReferenceTypeCardinality components too
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		removeOwnTransactionalLayers(transactionalLayer);
-	}
-
-	/**
-	 * Removes transactional layers for all fields owned by this class.
-	 */
-	private void removeOwnTransactionalLayers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		this.indexPrimaryKeyCardinality.removeLayer(transactionalLayer);
-		this.cardinalityIndexes.removeLayer(transactionalLayer);
-		this.histogramIndexes.removeLayer(transactionalLayer);
 	}
 
 	/**

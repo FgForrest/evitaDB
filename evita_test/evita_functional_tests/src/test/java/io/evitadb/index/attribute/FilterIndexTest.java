@@ -28,6 +28,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -70,6 +71,79 @@ import static io.evitadb.test.TestTags.FILTER;
 class FilterIndexTest {
 	private final FilterIndex stringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", null), String.class);
 	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeIndexKey(null, "b", null), NumberRange.class);
+
+	@Test
+	void filterIndexValidNowDelegatesToRangeIndexCachedPath() {
+		final FilterIndex filterIndex = new FilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+		filterIndex.addRecord(1, DateTimeRange.between(
+			OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+			OffsetDateTime.parse("2026-12-31T23:59:59Z")
+		));
+		filterIndex.addRecord(2, DateTimeRange.between(
+			OffsetDateTime.parse("2026-06-01T00:00:00Z"),
+			OffsetDateTime.parse("2026-07-31T23:59:59Z")
+		));
+		final long now = OffsetDateTime.parse("2026-07-01T00:00:00Z").toEpochSecond();
+
+		final var firstBitmap = filterIndex.getRecordsValidNowFormula(now).compute();
+		final var secondBitmap = filterIndex.getRecordsValidNowFormula(now).compute();
+
+		assertArrayEquals(new int[]{1, 2}, firstBitmap.getArray());
+		assertArrayEquals(new int[]{1, 2}, secondBitmap.getArray());
+		// cached path returns ConstantFormula wrapping the same memoized Bitmap reference
+		assertSame(firstBitmap, secondBitmap);
+	}
+
+	@Test
+	void filterIndexValidInUncachedPathProducesFreshBitmapEachCall() {
+		final FilterIndex filterIndex = new FilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+		filterIndex.addRecord(1, DateTimeRange.between(
+			OffsetDateTime.parse("2026-01-01T00:00:00Z"),
+			OffsetDateTime.parse("2026-12-31T23:59:59Z")
+		));
+		filterIndex.addRecord(2, DateTimeRange.between(
+			OffsetDateTime.parse("2026-06-01T00:00:00Z"),
+			OffsetDateTime.parse("2026-07-31T23:59:59Z")
+		));
+		final long moment = OffsetDateTime.parse("2026-07-01T00:00:00Z").toEpochSecond();
+
+		final var firstBitmap = filterIndex.getRecordsValidInFormula(moment).compute();
+		final var secondBitmap = filterIndex.getRecordsValidInFormula(moment).compute();
+
+		assertArrayEquals(new int[]{1, 2}, firstBitmap.getArray());
+		assertArrayEquals(new int[]{1, 2}, secondBitmap.getArray());
+		// uncached path builds a fresh formula tree and bitmap each call
+		assertNotSame(firstBitmap, secondBitmap);
+	}
+
+	@Test
+	void getAllRecordsReturnsStableBitmapAcrossCalls() {
+		this.stringAttribute.addRecord(1, "A");
+		this.stringAttribute.addRecord(2, "B");
+		this.stringAttribute.addRecord(3, "C");
+
+		final var firstBitmap = this.stringAttribute.getAllRecords();
+		final var secondBitmap = this.stringAttribute.getAllRecords();
+
+		assertArrayEquals(new int[]{1, 2, 3}, firstBitmap.getArray());
+		// AttributeIsTranslator wraps this bitmap directly in ConstantFormula so the planner
+		// cannot redistribute the inverted-index OR via DeMorgan; the contract is reference stability.
+		assertSame(firstBitmap, secondBitmap);
+	}
+
+	@Test
+	void getAllRecordsInvalidatesOnNonTxMutation() {
+		this.stringAttribute.addRecord(1, "A");
+		this.stringAttribute.addRecord(2, "B");
+		final var firstBitmap = this.stringAttribute.getAllRecords();
+		assertArrayEquals(new int[]{1, 2}, firstBitmap.getArray());
+
+		this.stringAttribute.addRecord(3, "C");
+		final var afterMutationBitmap = this.stringAttribute.getAllRecords();
+
+		assertArrayEquals(new int[]{1, 2, 3}, afterMutationBitmap.getArray());
+		assertNotSame(firstBitmap, afterMutationBitmap);
+	}
 
 	@Test
 	void shouldInsertNewStringRecordId() {

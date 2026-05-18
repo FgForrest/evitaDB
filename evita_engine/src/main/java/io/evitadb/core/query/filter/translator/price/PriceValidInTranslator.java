@@ -46,6 +46,7 @@ import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Optional.ofNullable;
 
@@ -67,7 +68,8 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 		} else {
 			verifyEntityPricesAreIndexed(filterByVisitor);
 
-			final OffsetDateTime theMoment = priceValidIn.getTheMoment(filterByVisitor::getNow);
+			final boolean isNow = priceValidIn.getArguments().length == 0;
+			final OffsetDateTime theMoment = Objects.requireNonNull(priceValidIn.getTheMoment(filterByVisitor::getNow));
 			final String[] priceLists = ofNullable(filterByVisitor.findInConjunctionTree(PriceInPriceLists.class))
 				.map(PriceInPriceLists::getPriceLists)
 				.orElse(null);
@@ -81,7 +83,7 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 
 			if (filterByVisitor.isEntityTypeKnown()) {
 				final Formula filteringFormula = PriceListCompositionTerminationVisitor.translate(
-					createFormula(filterByVisitor, theMoment, priceLists, currency),
+					createFormula(filterByVisitor, theMoment, isNow, priceLists, currency),
 					priceLists, currency, theMoment, filterByVisitor.getQueryPriceMode(), null,
 					filterByVisitor.isHistogramSideOutputApplicable()
 				);
@@ -114,7 +116,26 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 	@Nonnull
 	public static List<Formula> createFormula(
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nullable OffsetDateTime theMoment,
+		@Nonnull OffsetDateTime theMoment,
+		@Nullable String[] priceLists,
+		@Nullable Currency currency
+	) {
+		return createFormula(filterByVisitor, theMoment, false, priceLists, currency);
+	}
+
+	/**
+	 * Variant of {@link #createFormula(FilterByVisitor, OffsetDateTime, String[], Currency)} that routes the
+	 * underlying validity-range lookup through the cache-aware path on the price index when {@code isNow} is
+	 * {@code true}. {@code isNow} must be set only when the originating {@link PriceValidIn} constraint used
+	 * the {@code priceValidInNow} (no-argument) form — i.e. when {@code theMoment} equals
+	 * {@code filterByVisitor.getNow()} — so that consecutive same-bucket queries reuse the previously
+	 * materialized bitmap on the single-slot cache.
+	 */
+	@Nonnull
+	private static List<Formula> createFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull OffsetDateTime theMoment,
+		boolean isNow,
 		@Nullable String[] priceLists,
 		@Nullable Currency currency
 	) {
@@ -127,7 +148,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 						.getPriceListAndCurrencyIndexes()
 						.stream()
 						.filter(it -> innerRecordHandling.equals(it.getPriceIndexKey().getRecordHandling()))
-						.map(it -> it.getIndexedRecordIdsValidInFormula(theMoment))
+						.map(it -> isNow
+							? it.getIndexedRecordIdsValidNowFormula(theMoment)
+							: it.getIndexedRecordIdsValidInFormula(theMoment))
 						.toArray(Formula[]::new)
 				)
 			);
@@ -137,7 +160,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 				entityIndex -> FormulaFactory.or(
 					entityIndex
 						.getPriceIndexesStream(priceList, innerRecordHandling)
-						.map(it -> it.getIndexedRecordIdsValidInFormula(theMoment))
+						.map(it -> isNow
+							? it.getIndexedRecordIdsValidNowFormula(theMoment)
+							: it.getIndexedRecordIdsValidInFormula(theMoment))
 						.toArray(Formula[]::new)
 				)
 			);
@@ -147,7 +172,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 				entityIndex -> FormulaFactory.or(
 					entityIndex
 						.getPriceIndexesStream(curr, innerRecordHandling)
-						.map(it -> it.getIndexedRecordIdsValidInFormula(theMoment))
+						.map(it -> isNow
+							? it.getIndexedRecordIdsValidNowFormula(theMoment)
+							: it.getIndexedRecordIdsValidInFormula(theMoment))
 						.toArray(Formula[]::new)
 				)
 			);
@@ -155,7 +182,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 			// this is the easy way - we have both price list name and currency, we may use data from the specialized index
 			priceListFormulaComputer = (priceList, curr, innerRecordHandling) -> filterByVisitor.applyOnIndexes(
 				entityIndex -> ofNullable(entityIndex.getPriceIndex(priceList, currency, innerRecordHandling))
-					.map(it -> (Formula) it.getIndexedRecordIdsValidInFormula(theMoment))
+					.map(it -> (Formula) (isNow
+						? it.getIndexedRecordIdsValidNowFormula(theMoment)
+						: it.getIndexedRecordIdsValidInFormula(theMoment)))
 					.orElse(EmptyFormula.INSTANCE)
 			);
 		}

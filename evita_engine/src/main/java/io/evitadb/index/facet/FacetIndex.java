@@ -38,6 +38,8 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.component.EntityIndexManifest;
+import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.facet.FacetIndex.FacetIndexChanges;
 import io.evitadb.index.facet.FacetReferenceIndex.FacetEntityTypeIndexChanges;
 import io.evitadb.index.map.TransactionalMap;
@@ -72,7 +74,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class FacetIndex implements FacetIndexContract, TransactionalLayerProducer<FacetIndexChanges, FacetIndex>, IndexDataStructure, Serializable {
+public class FacetIndex implements FacetIndexContract, TransactionalLayerProducer<FacetIndexChanges, FacetIndex>, IndexDataStructure, IndexComponent, Serializable {
 	@Serial private static final long serialVersionUID = 7909305391436069776L;
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -250,6 +252,28 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 				)
 			)
 			.forEach(trappedChanges::addChangeToStore);
+	}
+
+	/**
+	 * Component-loop entry point: emits dirty per-reference {@link FacetIndexStoragePart} entries
+	 * into `trappedChanges` and announces every referenced entity type currently tracked into the
+	 * manifest so the parent `EntityIndex` can advertise them on the
+	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart}.
+	 *
+	 * @param entityIndexPrimaryKey the parent entity index PK
+	 * @param manifest the shared manifest gathered for this commit cycle
+	 * @param trappedChanges the accumulator collecting modified storage parts
+	 */
+	@Override
+	public void collectModifiedStorageParts(
+		int entityIndexPrimaryKey,
+		@Nonnull EntityIndexManifest manifest,
+		@Nonnull TrappedChanges trappedChanges
+	) {
+		getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges);
+		for (final String referencedEntityType : this.facetingEntities.keySet()) {
+			manifest.addFacetReferencedEntity(referencedEntityType);
+		}
 	}
 
 	/**

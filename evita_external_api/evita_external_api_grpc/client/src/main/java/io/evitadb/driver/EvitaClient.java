@@ -370,8 +370,7 @@ public class EvitaClient implements EvitaContract {
 			workerGroup = EventLoopGroups
 				.builder()
 				.numThreads(Runtime.getRuntime().availableProcessors())
-				/* TOBEDONE - UNCOMMENT THIS WHEN https://github.com/line/armeria/issues/6632 is closed */
-				//.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0))
+				.gracefulShutdown(Duration.ofMillis(0), Duration.ofMillis(0))
 				.build();
 		} else {
 			workerGroup = EventLoopGroups

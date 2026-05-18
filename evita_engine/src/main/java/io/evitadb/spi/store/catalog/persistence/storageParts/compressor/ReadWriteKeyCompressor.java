@@ -29,7 +29,7 @@ import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -37,6 +37,8 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -44,9 +46,16 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * This implementation of {@link KeyCompressor} is used for accessing and creating new mappings between keys and integer
  * ids that are used in persisted (serialized) form to minimize space occupied by the evitaDB records.
  *
+ * The compressor manages its own thread safety via an internal {@link ReentrantReadWriteLock}: the snapshot reader
+ * {@link #getAtomicSnapshot()} and writers ({@link #getId(Comparable)}) coordinate without external locking.
+ * Hot-path writers that allocate many ids in close succession (e.g. Kryo serialization inside `OffsetIndex.put`)
+ * should wrap the burst in {@link #executeWithWriteAccess(Supplier)} to amortize the acquisition cost — `getId(...)`
+ * is reentrant on the write lock, so calls inside such a session pay only a holdCount bump rather than a full lock
+ * acquire.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@NotThreadSafe
+@ThreadSafe
 public class ReadWriteKeyCompressor implements KeyCompressor {
 	@Serial private static final long serialVersionUID = -791089303429347949L;
 
@@ -67,6 +76,28 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	 * Contains TRUE when there are new keys registered in this instance.
 	 */
 	private final AtomicBoolean dirty = new AtomicBoolean();
+	/**
+	 * Lazily-built immutable view of {@link #idToKeyIndex} served by {@link #getAtomicSnapshot()}.
+	 *
+	 * The write compressor is typically quiescent after the initial schema / content phase, so the
+	 * snapshot is built once and reused across many calls until the next mutation. Each new key
+	 * inserted by {@link #getId(Comparable)} clears this field; the next snapshot reader rebuilds
+	 * it via `Map.copyOf`. Cheap consumers that don't retain the map past their lock window should
+	 * call {@link #getKeys()} instead and pay zero allocation.
+	 *
+	 * `volatile` provides the publish/visibility guarantee for the snapshot reference — readers
+	 * observing a non-null reference are guaranteed to see a fully-initialized immutable map
+	 * (immutables provide their own safe publication, but the field reference itself still needs
+	 * visibility).
+	 */
+	@Nullable private volatile Map<Integer, Object> immutableKeysSnapshot;
+	/**
+	 * Coordinates snapshot readers with writers. Snapshot iteration over the underlying `HashMap`
+	 * would race against a concurrent `getId(...)` mutation and throw
+	 * `ConcurrentModificationException`; the read/write lock prevents that while still allowing
+	 * many readers to inspect a quiescent compressor concurrently.
+	 */
+	private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
 	public ReadWriteKeyCompressor(@Nonnull Map<Integer, Object> keys) {
 		int peek = 0;
@@ -97,24 +128,97 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 		return this.sequence.get();
 	}
 
+	/**
+	 * Returns the **live** id → key index. Cheap (no allocation) but unsafe to retain past the
+	 * caller's lock window: any subsequent {@link #getId(Comparable)} that inserts a new entry
+	 * mutates the underlying `HashMap`, and an in-flight iterator would throw
+	 * `ConcurrentModificationException`.
+	 *
+	 * Consumers that hand the result off to a longer-lived structure (e.g. a `CatalogHeader`
+	 * persisted via Kryo at some later point, or a seed for a sibling compressor whose iteration
+	 * runs after the source lock is released) MUST use {@link #getAtomicSnapshot()} instead, which
+	 * returns a memoized immutable copy paired with the current `peakId`.
+	 *
+	 * Callers that are safe with the live view:
+	 *
+	 * - reads inside {@link #executeWithWriteAccess(Supplier)} whose downstream iteration finishes
+	 *   on the same thread before the session closes (e.g. `new ReadWriteKeyCompressor(seed)`
+	 *   inside an `OffsetIndexDescriptor` constructor called under such a session);
+	 * - `.size()`-only reads and similar non-iterating peeks;
+	 * - serializers that iterate the map inside a write session and do not call back into
+	 *   {@link #getId(Comparable)} mid-iteration (verified for `CatalogHeader` /
+	 *   `EntityCollectionHeader` headers, whose value-key serializers do not register new keys).
+	 */
 	@Override
 	public @Nonnull
 	Map<Integer, Object> getKeys() {
 		return this.idToKeyIndex;
 	}
 
+	/**
+	 * Returns the {@link KeyCompressorSnapshot} pair (memoized keys + current `peakId`) captured
+	 * **atomically** under the internal read lock. Required by callers seeding a sibling compressor
+	 * (e.g. transactional-layer bootstrap from the trunk) where the new compressor's monotonic
+	 * sequence must start strictly above every id in the seed map — reading the two fields without
+	 * coordination could leave the new compressor with a sequence that collides with already-seeded
+	 * ids.
+	 */
+	@Nonnull
+	public KeyCompressorSnapshot getAtomicSnapshot() {
+		this.lock.readLock().lock();
+		try {
+			Map<Integer, Object> snapshot = this.immutableKeysSnapshot;
+			if (snapshot == null) {
+				snapshot = Map.copyOf(this.idToKeyIndex);
+				this.immutableKeysSnapshot = snapshot;
+			}
+			return new KeyCompressorSnapshot(snapshot, this.sequence.get());
+		} finally {
+			this.lock.readLock().unlock();
+		}
+	}
+
+	/**
+	 * Executes `action` while holding the internal write lock. Use this to amortize the
+	 * acquisition cost across a burst of {@link #getId(Comparable)} calls — `getId` is reentrant
+	 * on the write lock, so calls inside the action pay only a holdCount bump (~5 ns) instead of
+	 * a full acquire/release pair (~30-50 ns).
+	 *
+	 * Outside a session, individual `getId` calls still acquire the write lock per-call; the
+	 * session is a pure perf optimization, not a correctness requirement.
+	 *
+	 * @param action work that may issue many `getId(...)` calls
+	 * @param <R>    return type of the action
+	 * @return value produced by the action
+	 */
+	public <R> R executeWithWriteAccess(@Nonnull Supplier<R> action) {
+		this.lock.writeLock().lock();
+		try {
+			return action.get();
+		} finally {
+			this.lock.writeLock().unlock();
+		}
+	}
+
 	@Override
 	public <T extends Comparable<T>> int getId(@Nonnull T key) {
-		return this.keyToIdIndex.computeIfAbsent(key, o -> {
-			Assert.isPremiseValid(
-				!(key instanceof String),
-				"String keys are not supported by ReadWriteKeyCompressor! Always use specialized classes to avoid conflicts!"
-			);
-			final int id = this.sequence.incrementAndGet();
-			this.idToKeyIndex.put(id, o);
-			this.dirty.compareAndSet(false, true);
-			return id;
-		});
+		this.lock.writeLock().lock();
+		try {
+			return this.keyToIdIndex.computeIfAbsent(key, o -> {
+				Assert.isPremiseValid(
+					!(key instanceof String),
+					"String keys are not supported by ReadWriteKeyCompressor! Always use specialized classes to avoid conflicts!"
+				);
+				final int id = this.sequence.incrementAndGet();
+				this.idToKeyIndex.put(id, o);
+				// invalidate the memoized snapshot — the next snapshot reader will rebuild
+				this.immutableKeysSnapshot = null;
+				this.dirty.compareAndSet(false, true);
+				return id;
+			});
+		} finally {
+			this.lock.writeLock().unlock();
+		}
 	}
 
 	@Nonnull

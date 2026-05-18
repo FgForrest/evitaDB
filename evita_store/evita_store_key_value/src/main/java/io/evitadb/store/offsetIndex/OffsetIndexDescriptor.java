@@ -216,9 +216,13 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	@Override
 	@Nonnull
 	public Map<Integer, Object> compressedKeys() {
-		// return an immutable snapshot so downstream consumers (headers persisted to disk, bootstrap inputs
-		// for newly constructed descriptors, etc.) cannot observe subsequent mutations of the live write map
-		return Map.copyOf(this.writeKeyCompressor.getKeys());
+		// Returns the **live** map from the descriptor's write compressor. The only production consumer
+		// (the delegating constructor at line 111) immediately copies the seed into a fresh
+		// `ReadWriteKeyCompressor` / `ReadOnlyKeyCompressor` and never retains the reference; in practice
+		// this is invoked with deserialized header records (e.g. `EntityCollectionHeader`) whose maps are
+		// already detached from any live compressor. Callers that retain the result past the descriptor's
+		// quiescent window must defensively copy or call the writer's `getAtomicSnapshot()` instead.
+		return this.writeKeyCompressor.getKeys();
 	}
 
 	@Override

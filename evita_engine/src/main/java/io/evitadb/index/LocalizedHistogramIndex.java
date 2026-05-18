@@ -29,6 +29,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
@@ -145,7 +146,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 			theLocale,
 			k -> new AttributeCardinalityIndex(theValueType)
 		);
-		if (cardinalityIdx.addRecord(value, ownerPK)) {
+		if (cardinalityIdx.addRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
 			final FilterIndex filterIdx = this.filterIndexes.computeIfAbsent(
 				theLocale,
 				k -> new FilterIndex(
@@ -172,7 +173,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 				"Cannot remove value from localized histogram — no data exists for locale `" + theLocale + "`!"
 			);
 		}
-		if (cardinalityIdx.removeRecord(value, ownerPK)) {
+		if (cardinalityIdx.removeRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
 			final FilterIndex filterIdx = this.filterIndexes.get(theLocale);
 			if (filterIdx != null) {
 				filterIdx.removeRecord(ownerPK, value);

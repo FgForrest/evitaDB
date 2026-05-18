@@ -143,3 +143,41 @@ the [`referenceHaving`](references.md#reference-having) constraint, which is com
 disjunction. Since there is no other entity that would refer to both the *amazon* brand and another brand (of course,
 a product can only have a single brand), the other possible options are automatically removed from the facet summary
 because they would produce an empty result set.
+
+### How userFilter shapes predictions
+
+When a query asks `require()` for a reference summary, a histogram, or a price histogram, the server has to answer
+a different shopper-facing question for each prediction — and each question demands a different baseline. The
+constraints a shopper drops into `userFilter` form three disjoint **carrier families**:
+
+| Carrier family             | Constraints                                | Powers prediction                                       |
+|----------------------------|--------------------------------------------|---------------------------------------------------------|
+| **Facet carriers**         | `facetHaving`                              | Facet COUNT and IMPACT in `referenceSummary`            |
+| **Value-range carriers**   | `attributeBetween`, `histogramHaving`      | Attribute and per-parameter (reference) histograms      |
+| **Price-range carriers**   | `priceBetween`                             | Price histogram                                         |
+
+The full matrix of what each prediction sees of `userFilter`:
+
+| Computing prediction for…                            | Facet carriers                                  | Value-range carriers | Price-range carriers |
+|------------------------------------------------------|:-----------------------------------------------:|:--------------------:|:--------------------:|
+| **Facet COUNT** (per option, universe-level)         | dropped — entire `userFilter` is ignored        | dropped              | dropped              |
+| **Facet IMPACT** (per option, delta)                 | kept; selection simulated per group rules       | kept                 | kept                 |
+| **Attribute / reference (per-parameter) histogram**  | kept                                            | **dropped**          | kept                 |
+| **Price histogram**                                  | kept                                            | kept                 | **dropped**          |
+
+The asymmetry is intentional. **Facet COUNT** is a stable upper bound — "how big is this option in this category"
+— so the whole `userFilter` is dropped. **Facet IMPACT** is the what-if answer — "what would I see if I picked
+this option from here" — so the whole `userFilter` is kept and the selection is simulated per the group's rules
+(default OR-add, `facetGroupsExclusivity` replaces, `facetGroupsConjunction` AND-merges, etc.). The same group
+rules leave COUNT alone, with one exception: `facetGroupsNegation` flips COUNT to the post-exclusion universe,
+since for a "hide this" toggle that's the meaningful number. **Histogram baselines** answer "where should this
+slider's handles sit" — they respect the rest of the shopper's intent but never their own family, so sliders
+don't collapse and siblings in the same family keep their catalog-wide spans.
+
+Constraints outside `userFilter` (the category, locale, currency, scope, price list) are never peeled. They define
+the universe; the relaxation surface is `userFilter` and nothing else.
+
+For the full UX story behind these rules — including the rich facet group algebra
+(`facetGroupsConjunction`, `…Disjunction`, `…Negation`, `…Exclusivity`) and why a dedicated `histogramHaving`
+exists rather than reusing `attributeBetween` — see the blog post
+[*The hidden choreography of a faceted filter panel*](/documentation/blog/en/25-faceted-filter-choreography).

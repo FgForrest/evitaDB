@@ -62,6 +62,250 @@ class RangeIndexTest {
 	private final RangeIndex tested = new RangeIndex();
 
 	@Test
+	void cacheFieldStartsNull() {
+		assertNull(this.tested.envelopingNowCache);
+	}
+
+	@Test
+	void getRecordsValidNowReturnsSameAsEnvelopingInclusiveForBetweenBucketCase() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.addRecord(150L, 300L, 2);
+		final long now = 175L;
+
+		final var expected = this.tested.getRecordsEnvelopingInclusive(now);
+		final var actual = this.tested.getRecordsValidNowFormula(now);
+
+		assertArrayEquals(expected.compute().getArray(), actual.compute().getArray());
+	}
+
+	@Test
+	void getRecordsValidNowPopulatesCacheWithFlankingBoundsOnMiss() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.addRecord(150L, 300L, 2);
+
+		this.tested.getRecordsValidNowFormula(175L);
+
+		final var cache = this.tested.envelopingNowCache;
+		assertNotNull(cache);
+		assertEquals(151L, cache.validFromInclusive());
+		assertEquals(199L, cache.validToInclusive());
+		assertArrayEquals(new int[]{1, 2}, cache.result().getArray());
+	}
+
+	@Test
+	void getRecordsValidNowReusesCachedBitmapForSecondCallInSameBucket() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.addRecord(150L, 300L, 2);
+
+		this.tested.getRecordsValidNowFormula(160L);
+		final var snapshot = this.tested.envelopingNowCache;
+		assertNotNull(snapshot);
+
+		this.tested.getRecordsValidNowFormula(180L);
+		assertSame(snapshot, this.tested.envelopingNowCache);
+	}
+
+	@Test
+	void getRecordsValidNowRecomputesAfterNowCrossesBoundary() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.addRecord(150L, 300L, 2);
+
+		this.tested.getRecordsValidNowFormula(175L);
+		final var first = this.tested.envelopingNowCache;
+
+		this.tested.getRecordsValidNowFormula(250L);
+		final var second = this.tested.envelopingNowCache;
+
+		assertNotSame(first, second);
+		assertEquals(201L, second.validFromInclusive());
+		assertEquals(299L, second.validToInclusive());
+		assertArrayEquals(new int[]{2}, second.result().getArray());
+	}
+
+	@Test
+	void getRecordsValidNowReturnsExactThresholdBoundariesOnHit() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.addRecord(150L, 300L, 2);
+
+		this.tested.getRecordsValidNowFormula(150L);
+
+		final var cache = this.tested.envelopingNowCache;
+		assertNotNull(cache);
+		assertEquals(150L, cache.validFromInclusive());
+		assertEquals(150L, cache.validToInclusive());
+		assertArrayEquals(new int[]{1, 2}, cache.result().getArray());
+	}
+
+	@Test
+	void getRecordsValidNowRecomputesWhenLeavingExactThresholdBucket() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.addRecord(150L, 300L, 2);
+
+		this.tested.getRecordsValidNowFormula(150L);
+		final var first = this.tested.envelopingNowCache;
+
+		this.tested.getRecordsValidNowFormula(151L);
+		assertNotSame(first, this.tested.envelopingNowCache);
+	}
+
+	@Test
+	void getRecordsValidNowOnEmptyIndexReturnsEmptyAndCachesMaxInterval() {
+		final var formula = this.tested.getRecordsValidNowFormula(0L);
+
+		assertTrue(formula.compute().isEmpty());
+		final var cache = this.tested.envelopingNowCache;
+		assertNotNull(cache);
+		assertEquals(Long.MIN_VALUE + 1, cache.validFromInclusive());
+		assertEquals(Long.MAX_VALUE - 1, cache.validToInclusive());
+		assertTrue(cache.result().isEmpty());
+	}
+
+	@Test
+	void getRecordsValidNowBeforeFirstThresholdReturnsEmpty() {
+		this.tested.addRecord(100L, 200L, 1);
+
+		final var formula = this.tested.getRecordsValidNowFormula(50L);
+
+		assertTrue(formula.compute().isEmpty());
+		final var cache = this.tested.envelopingNowCache;
+		assertNotNull(cache);
+		assertEquals(Long.MIN_VALUE + 1, cache.validFromInclusive());
+		assertEquals(99L, cache.validToInclusive());
+	}
+
+	@Test
+	void getRecordsValidNowAfterLastThresholdReturnsEmpty() {
+		this.tested.addRecord(100L, 200L, 1);
+
+		final var formula = this.tested.getRecordsValidNowFormula(500L);
+
+		assertTrue(formula.compute().isEmpty());
+		final var cache = this.tested.envelopingNowCache;
+		assertNotNull(cache);
+		assertEquals(201L, cache.validFromInclusive());
+		assertEquals(Long.MAX_VALUE - 1, cache.validToInclusive());
+	}
+
+	@Test
+	void nonTransactionalAddRecordInvalidatesCache() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.getRecordsValidNowFormula(150L);
+		assertNotNull(this.tested.envelopingNowCache);
+
+		this.tested.addRecord(120L, 180L, 2);
+
+		assertNull(this.tested.envelopingNowCache);
+	}
+
+	@Test
+	void nonTransactionalRemoveRecordInvalidatesCache() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.addRecord(120L, 180L, 2);
+		this.tested.getRecordsValidNowFormula(150L);
+		assertNotNull(this.tested.envelopingNowCache);
+
+		this.tested.removeRecord(120L, 180L, 2);
+
+		assertNull(this.tested.envelopingNowCache);
+	}
+
+	@Test
+	void recomputeAfterInvalidationReflectsNewState() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.getRecordsValidNowFormula(150L);
+
+		this.tested.addRecord(140L, 160L, 2);
+		final var formula = this.tested.getRecordsValidNowFormula(150L);
+
+		assertArrayEquals(new int[]{1, 2}, formula.compute().getArray());
+	}
+
+	@Test
+	void transactionalAddDoesNotInvalidateCommittedCache() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.getRecordsValidNowFormula(150L);
+		final var before = this.tested.envelopingNowCache;
+		assertNotNull(before);
+
+		assertStateAfterRollback(
+			this.tested,
+			original -> {
+				original.addRecord(140L, 160L, 2);
+				assertSame(before, original.envelopingNowCache);
+			},
+			(original, committedVersion) -> {
+				assertNull(committedVersion);
+				assertSame(before, original.envelopingNowCache);
+			}
+		);
+	}
+
+	@Test
+	void transactionalReadBypassesCacheAndSeesTxLayer() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.getRecordsValidNowFormula(150L);
+		final var before = this.tested.envelopingNowCache;
+		assertNotNull(before);
+		assertArrayEquals(new int[]{1}, before.result().getArray());
+
+		assertStateAfterRollback(
+			this.tested,
+			original -> {
+				original.addRecord(140L, 160L, 2);
+				final var inTx = original.getRecordsValidNowFormula(150L);
+				assertArrayEquals(new int[]{1, 2}, inTx.compute().getArray());
+				assertSame(before, original.envelopingNowCache);
+			},
+			(original, committedVersion) -> assertNull(committedVersion)
+		);
+	}
+
+	@Test
+	void commitProducesFreshRangeIndexWithNullCache() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.getRecordsValidNowFormula(150L);
+		assertNotNull(this.tested.envelopingNowCache);
+
+		assertStateAfterCommit(
+			this.tested,
+			original -> original.addRecord(140L, 160L, 2),
+			(original, committedVersion) -> {
+				assertNotNull(committedVersion);
+				assertNull(committedVersion.envelopingNowCache);
+				final var afterCommit = committedVersion.getRecordsValidNowFormula(150L);
+				assertArrayEquals(new int[]{1, 2}, afterCommit.compute().getArray());
+				assertNotNull(committedVersion.envelopingNowCache);
+			}
+		);
+	}
+
+	@Test
+	void concurrentReadersAgreeOnResult() throws Exception {
+		for (int i = 0; i < 1000; i++) {
+			this.tested.addRecord(i * 10L, i * 10L + 5L, i + 1);
+		}
+		final long now = 1234L;
+		final int threads = 16;
+		final java.util.concurrent.CyclicBarrier barrier = new java.util.concurrent.CyclicBarrier(threads);
+		final java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+		final java.util.List<java.util.concurrent.Future<int[]>> futures = new java.util.ArrayList<>();
+		try {
+			for (int t = 0; t < threads; t++) {
+				futures.add(pool.submit(() -> {
+					barrier.await();
+					return this.tested.getRecordsValidNowFormula(now).compute().getArray();
+				}));
+			}
+			final int[] expected = this.tested.getRecordsEnvelopingInclusive(now).compute().getArray();
+			for (java.util.concurrent.Future<int[]> f : futures) {
+				assertArrayEquals(expected, f.get());
+			}
+		} finally {
+			pool.shutdown();
+		}
+	}
+
+	@Test
 	void shouldAddTransactionalItemsAndRollback() {
 		assertStateAfterRollback(
 			this.tested,

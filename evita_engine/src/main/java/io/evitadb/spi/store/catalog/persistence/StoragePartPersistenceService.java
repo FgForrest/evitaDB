@@ -25,6 +25,7 @@ package io.evitadb.spi.store.catalog.persistence;
 
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -194,6 +195,17 @@ public interface StoragePartPersistenceService<S extends StorageDescriptor> exte
 	 */
 	@Nonnull
 	KeyCompressor getReadOnlyKeyCompressor();
+
+	/**
+	 * Returns an atomic snapshot of the underlying key compressor — both the id → key map and the highest assigned id,
+	 * captured under a single read-lock acquisition so the two fields cannot be split across a concurrent
+	 * {@link #putStoragePart} writer. This is the safe entry point for callers seeding a new {@link KeyCompressor}
+	 * from another service's current state (e.g. when opening a transactional layer over a shared trunk); using
+	 * {@link #getReadOnlyKeyCompressor()} and reading its `getKeys()` and `getPeakId()` separately races against
+	 * writers and would either tear the snapshot or throw `ConcurrentModificationException`.
+	 */
+	@Nonnull
+	KeyCompressorSnapshot getKeyCompressorSnapshot();
 
 	/**
 	 * Returns the version of the persistent storage stored with each flush operation.

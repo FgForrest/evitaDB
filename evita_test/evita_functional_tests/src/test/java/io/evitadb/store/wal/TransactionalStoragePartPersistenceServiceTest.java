@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadOnlyKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
@@ -81,6 +82,7 @@ class TransactionalStoragePartPersistenceServiceTest {
 		this.offHeapMemoryManager = new CatalogOffHeapMemoryManager(TestConstants.TEST_CATALOG, 2048, 1, ChecksumFactory.NO_OP);
 		this.delegateService = mock(StoragePartPersistenceService.class);
 		when(this.delegateService.getReadOnlyKeyCompressor()).thenReturn(new ReadOnlyKeyCompressor(Map.of()));
+		when(this.delegateService.getKeyCompressorSnapshot()).thenReturn(new KeyCompressorSnapshot(Map.of(), 0));
 		final StorageOptions storageOptions = StorageOptions.builder().build();
 		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
 		final ObservableOutputKeeper observableOutputKeeper = mock(ObservableOutputKeeper.class);

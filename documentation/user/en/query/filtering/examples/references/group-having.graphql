@@ -2,7 +2,9 @@
   queryProduct(
     filterBy: {
       hierarchyCategoriesWithin: {
-        ofParent: { attributeCodeEquals: "macbooks" }
+        ofParent: {
+          attributeCodeEquals: "macbooks"
+        }
       },
       referenceParameterValuesHaving: [
         {
@@ -13,7 +15,7 @@
       ]
     }
   ) {
-    recordPage(number: 1, size: 5) {
+    recordPage(size: 5) {
       data {
         primaryKey
         attributes {
@@ -27,6 +29,9 @@
           }
         ) {
           referencedPrimaryKey
+          attributes {
+            variant
+          }
           referencedEntity {
             primaryKey
             attributes {

@@ -605,9 +605,11 @@ The output histogram exposes:
 - a `requested` flag per bucket indicating whether it intersects an active
   [`histogramHaving`](../filtering/references.md#histogram-having) range carrier
 
-The `[min, max]` span is computed by **peeling out** all `histogramHaving` siblings under `userFilter` that target
-the same `(referenceName, histogramName, groupSelector)` tuple, so moving a slider does not contract its own outer
-handles — see [the three-group invariant in behavioral filtering](../filtering/behavioral.md#sliders-do-not-contract-under-their-own-handles).
+The `[min, max]` span is computed by **peeling out** every value-range carrier under `userFilter` — both
+`histogramHaving` and `attributeBetween` siblings — so moving a slider does not contract its own outer handles and
+sibling sliders in the same family also keep their catalog-wide spans. See
+[the peel-by-family rule in behavioral filtering](../filtering/behavioral.md#how-userfilter-shapes-predictions)
+for the full matrix.
 
 To attach histograms to a reference summary, use the dedicated `withHistograms` factory variants in Java / C#
 (`referenceSummaryWithHistograms` / `referenceSummaryOfReferenceWithHistograms`), which exist to side-step a varargs

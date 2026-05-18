@@ -37,6 +37,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
@@ -127,20 +128,27 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
-	 * Increases cardinality of given value by one. If value is not present in the index, it is added with cardinality 1
-	 * and TRUE is returned, otherwise existing cardinality is increased by one FALSE is returned.
+	 * Increases cardinality of the given (indexPrimaryKey, referencedEntityPrimaryKey) tuple by one.
+	 * If the indexPrimaryKey was not yet tracked at all (cardinality 0 -> 1 for the whole index
+	 * primary key), the method returns `BOUNDARY_CROSSED` so callers can propagate the new entry to
+	 * membership-only downstream indexes. Otherwise the cardinality is incremented and
+	 * `NO_BOUNDARY_CROSSING` is returned. The fine-grained bookkeeping of the referenced primary key
+	 * bitmap is performed unconditionally.
 	 *
-	 * @param indexPrimaryKey            primary key of the entity index that tracks relation between the record and the referenced entity
+	 * @param indexPrimaryKey            primary key of the entity index that tracks relation between
+	 *                                   the record and the referenced entity
 	 * @param referencedEntityPrimaryKey primary key of the referenced entity
-	 * @return TRUE if value was not present in the index, FALSE otherwise
+	 * @return `BOUNDARY_CROSSED` if this call caused the index primary key to enter the index for
+	 *         the first time, `NO_BOUNDARY_CROSSING` otherwise
 	 */
-	public boolean addRecord(int indexPrimaryKey, int referencedEntityPrimaryKey) {
+	@Nonnull
+	public CardinalityChange addRecord(int indexPrimaryKey, int referencedEntityPrimaryKey) {
 		Assert.isPremiseValid(
 			indexPrimaryKey != 0,
 			"Index primary key must not be zero!"
 		);
 
-		boolean added = addCardinality(NumberUtils.join(indexPrimaryKey, 0));
+		final boolean added = addCardinality(NumberUtils.join(indexPrimaryKey, 0));
 		if (addCardinality(-1L * NumberUtils.join(indexPrimaryKey, referencedEntityPrimaryKey))) {
 			TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
 			if (indexIdBitmap == null) {
@@ -154,18 +162,24 @@ public class ReferenceTypeCardinalityIndex
 			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
-		return added;
+		return added ? CardinalityChange.BOUNDARY_CROSSED : CardinalityChange.NO_BOUNDARY_CROSSING;
 	}
 
 	/**
-	 * Decreases cardinality of given value by one. If the cardinality of the value reaches zero, the value is removed from
-	 * the index and TRUE is returned, otherwise FALSE is returned.
+	 * Decreases cardinality of the given (indexPrimaryKey, referencedEntityPrimaryKey) tuple by one.
+	 * If the cardinality of the indexPrimaryKey reaches zero overall, the tuple is removed from the
+	 * index and `BOUNDARY_CROSSED` is returned so callers can propagate the removal to
+	 * membership-only downstream indexes. Otherwise the cardinality is decremented and
+	 * `NO_BOUNDARY_CROSSING` is returned.
 	 *
-	 * @param indexPrimaryKey            primary key of the entity index that tracks relation between the record and the referenced entity
+	 * @param indexPrimaryKey            primary key of the entity index that tracks relation between
+	 *                                   the record and the referenced entity
 	 * @param referencedEntityPrimaryKey primary key of the referenced entity
-	 * @return TRUE if value was removed from the index, FALSE otherwise
+	 * @return `BOUNDARY_CROSSED` if the index primary key fell out of the index entirely,
+	 *         `NO_BOUNDARY_CROSSING` otherwise
 	 */
-	public boolean removeRecord(int indexPrimaryKey, int referencedEntityPrimaryKey) {
+	@Nonnull
+	public CardinalityChange removeRecord(int indexPrimaryKey, int referencedEntityPrimaryKey) {
 		Assert.isPremiseValid(
 			indexPrimaryKey != 0,
 			"Index primary key must not be zero!"
@@ -196,7 +210,7 @@ public class ReferenceTypeCardinalityIndex
 			this.memoizedAllReferencedPrimaryKeys = null;
 		}
 		this.dirty.setToTrue();
-		return removed;
+		return removed ? CardinalityChange.BOUNDARY_CROSSED : CardinalityChange.NO_BOUNDARY_CROSSING;
 	}
 
 	/**

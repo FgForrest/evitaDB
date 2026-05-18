@@ -41,7 +41,9 @@ public class TimeArgumentProvider implements ArgumentsProvider {
 	protected static final int SEED;
 
 	static {
-		SEED = new Random().nextInt();
+		// allow reproducing a specific failing seed via `-Dtest.seed=NN`
+		final Integer overridden = Integer.getInteger("test.seed");
+		SEED = overridden != null ? overridden : new Random().nextInt();
 	}
 
 	@Override

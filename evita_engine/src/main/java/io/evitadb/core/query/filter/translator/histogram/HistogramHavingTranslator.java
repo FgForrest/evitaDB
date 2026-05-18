@@ -44,7 +44,6 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -57,7 +56,6 @@ import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -199,8 +197,8 @@ public class HistogramHavingTranslator
 		);
 		final HistogramValueDescriptor descriptor = resolvedSlot.descriptor();
 
-		final Serializable from = histogramHaving.getFrom();
-		final Serializable to = histogramHaving.getTo();
+		final BigDecimal from = histogramHaving.getFrom();
+		final BigDecimal to = histogramHaving.getTo();
 
 		final Integer resolvedGroupPk = resolveGroupPk(
 			histogramHaving.getGroupHaving(), referenceSchema, scopes, filterByVisitor
@@ -218,8 +216,8 @@ public class HistogramHavingTranslator
 				resolvedGroupPk == null
 					? ResolvedHistogramHaving.NON_GROUPED_SENTINEL
 					: resolvedGroupPk,
-				toBigDecimalOrNull(from),
-				toBigDecimalOrNull(to)
+				from,
+				to
 			)
 		);
 
@@ -262,8 +260,8 @@ public class HistogramHavingTranslator
 	private static FilterConstraint buildRewrite(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull HistogramValueDescriptor descriptor,
-		@Nullable Serializable from,
-		@Nullable Serializable to,
+		@Nullable BigDecimal from,
+		@Nullable BigDecimal to,
 		@Nullable Integer resolvedGroupPk
 	) {
 		final String referenceName = referenceSchema.getName();
@@ -516,19 +514,6 @@ public class HistogramHavingTranslator
 			&& a.sourceAttributeName().equals(b.sourceAttributeName())
 			&& a.plainType() == b.plainType()
 			&& a.localized() == b.localized();
-	}
-
-	/**
-	 * Converts a raw {@link HistogramHaving} bound argument to {@link BigDecimal}. A {@code null} bound
-	 * means "no bound on this side" and is preserved as {@code null} in the resulting
-	 * {@link ResolvedHistogramHaving#from()} / {@link ResolvedHistogramHaving#to()} slot.
-	 *
-	 * @param value the raw bound (may be null)
-	 * @return the converted {@link BigDecimal}, or null when the input was null
-	 */
-	@Nullable
-	private static BigDecimal toBigDecimalOrNull(@Nullable Serializable value) {
-		return value == null ? null : EvitaDataTypes.toTargetType(value, BigDecimal.class);
 	}
 
 	/**

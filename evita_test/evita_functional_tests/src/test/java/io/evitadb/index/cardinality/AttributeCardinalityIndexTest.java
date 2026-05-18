@@ -25,6 +25,7 @@ package io.evitadb.index.cardinality;
 
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
+import io.evitadb.index.result.CardinalityChange;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -85,47 +86,47 @@ class AttributeCardinalityIndexTest {
 	class NonTransactionalOperationsTest {
 
 		@Test
-		@DisplayName("should return true on first add of record (new entry)")
-		void shouldReturnTrueOnFirstAdd() {
+		@DisplayName("should report BOUNDARY_CROSSED on first add of record (new entry)")
+		void shouldReportBoundaryCrossedOnFirstAdd() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
-			assertTrue(index.addRecord("value", 1));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord("value", 1));
 		}
 
 		@Test
-		@DisplayName("should return false on subsequent add of same record (increment)")
-		void shouldReturnFalseOnSubsequentAdd() {
+		@DisplayName("should report NO_BOUNDARY_CROSSING on subsequent add of same record (increment)")
+		void shouldReportNoBoundaryCrossingOnSubsequentAdd() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
 			index.addRecord("value", 1);
-			assertFalse(index.addRecord("value", 1));
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.addRecord("value", 1));
 		}
 
 		@Test
 		@DisplayName("should increment cardinality beyond two")
 		void shouldIncrementCardinalityBeyondTwo() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
-			assertTrue(index.addRecord("value", 1));
-			assertFalse(index.addRecord("value", 1));
-			assertFalse(index.addRecord("value", 1));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord("value", 1));
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.addRecord("value", 1));
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.addRecord("value", 1));
 			final AttributeCardinalityKey key = new AttributeCardinalityKey(1, "value");
 			assertEquals(3, index.getCardinalities().get(key));
 		}
 
 		@Test
-		@DisplayName("should return true when remove reduces cardinality to zero")
-		void shouldReturnTrueWhenRemovedCompletely() {
+		@DisplayName("should report BOUNDARY_CROSSED when remove reduces cardinality to zero")
+		void shouldReportBoundaryCrossedWhenRemovedCompletely() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
 			index.addRecord("value", 1);
-			assertTrue(index.removeRecord("value", 1));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.removeRecord("value", 1));
 			assertTrue(index.isEmpty());
 		}
 
 		@Test
-		@DisplayName("should return false when remove reduces cardinality above zero")
-		void shouldReturnFalseWhenStillPresent() {
+		@DisplayName("should report NO_BOUNDARY_CROSSING when remove reduces cardinality above zero")
+		void shouldReportNoBoundaryCrossingWhenStillPresent() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
 			index.addRecord("value", 1);
 			index.addRecord("value", 1);
-			assertFalse(index.removeRecord("value", 1));
+			assertEquals(CardinalityChange.NO_BOUNDARY_CROSSING, index.removeRecord("value", 1));
 			assertFalse(index.isEmpty());
 		}
 
@@ -150,8 +151,8 @@ class AttributeCardinalityIndexTest {
 		@DisplayName("should support distinct keys for same value with different recordIds")
 		void shouldSupportDistinctKeysForSameValue() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
-			assertTrue(index.addRecord("value", 1));
-			assertTrue(index.addRecord("value", 2));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord("value", 1));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord("value", 2));
 			assertEquals(2, index.getCardinalities().size());
 		}
 
@@ -159,8 +160,8 @@ class AttributeCardinalityIndexTest {
 		@DisplayName("should support distinct keys for same recordId with different values")
 		void shouldSupportDistinctKeysForSameRecordId() {
 			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class);
-			assertTrue(index.addRecord("value1", 1));
-			assertTrue(index.addRecord("value2", 1));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord("value1", 1));
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord("value2", 1));
 			assertEquals(2, index.getCardinalities().size());
 		}
 	}
