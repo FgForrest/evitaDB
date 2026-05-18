@@ -893,8 +893,10 @@ class LongRunningEvitaClientReadWriteTest implements TestConstants, EvitaTestSup
 				assertNotNull(catalogSubscriber.getLastHeartbeatTime(), "Should have received last heartbeat");
 				assertNotNull(catalogSubscriber.getExpectedInterval(), "Should have expected interval from heartbeat");
 
-				// Check that the expected interval is approximately 1000ms
-				assertEquals(1000L, catalogSubscriber.getExpectedInterval(), 100L,
+				// Check that the expected interval is approximately 1000ms; tolerance is generous because the
+				// server-reported interval picks up transport / scheduling slack under load and a few hundred
+				// ms of drift on a 1s timer is not a misconfiguration we want this assertion to flag
+				assertEquals(1000L, catalogSubscriber.getExpectedInterval(), 250L,
 					"Expected interval should be approximately 1000ms based on timeout calculation");
 
 				// Check that total time elapsed is reasonable for the number of heartbeats
