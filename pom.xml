@@ -140,7 +140,7 @@
 		<bouncyCastle.version>1.84</bouncyCastle.version>
 		<swagger.version>2.2.43</swagger.version>
 		<armeria.version>1.39.0</armeria.version>
-		<prometheus.version>1.5.0</prometheus.version>
+		<prometheus.version>1.6.1</prometheus.version>
 		<micrometer.version>1.16.3</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
