@@ -421,7 +421,7 @@ jobs:
     # offline for inspection — even if the PATCH step skipped or failed.
     - name: Upload release-notes.md artifact
       if: always() && hashFiles('release-notes.md') != ''
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: release-notes-${{ steps.release_version.outputs.version }}
         path: release-notes.md
@@ -484,14 +484,14 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt
-      uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: success()
       with:
         name: version.txt
