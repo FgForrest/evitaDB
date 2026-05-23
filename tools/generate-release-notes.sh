@@ -233,22 +233,25 @@ _filter_user_facing() {
 }
 
 # Build merged sections.
-# Order: Breaking → Features → Bug Fixes → Dependencies upgrades.
+# Order: Breaking → Features → Bug Fixes → Performance → Dependencies upgrades.
 # In MAJOR mode the issues output is authoritative; commits supplement.
 # In PATCH mode there is no issues output, so commits are the only source.
 
 issues_breaking=$(_extract_section "$issues_output" "☢️ Breaking changes")
 issues_features=$(_extract_section "$issues_output" "🚀 Features")
 issues_bugfixes=$(_extract_section "$issues_output" "🐛 Bug Fixes")
+issues_performance=$(_extract_section "$issues_output" "⚡ Performance")
 issues_deps=$(_extract_section "$issues_output" "⛓ Dependencies upgrades")
 
 commits_breaking=$(_extract_section "$commits_output" "☢️ Breaking changes")
 commits_features=$(_extract_section "$commits_output" "🚀 Features")
 commits_bugfixes=$(_extract_section "$commits_output" "🐛 Bug Fixes")
+commits_performance=$(_extract_section "$commits_output" "⚡ Performance")
 
 commits_breaking=$(_filter_user_facing "$commits_breaking")
 commits_features=$(_filter_user_facing "$commits_features")
 commits_bugfixes=$(_filter_user_facing "$commits_bugfixes")
+commits_performance=$(_filter_user_facing "$commits_performance")
 
 # Merge issues (authoritative) with commits (supplemental, deduped).
 merged_breaking="$issues_breaking"
@@ -275,6 +278,14 @@ elif [ -n "$extra" ]; then
   merged_bugfixes="$extra"
 fi
 
+merged_performance="$issues_performance"
+extra=$(_dedupe_bullets "$issues_performance" "$commits_performance")
+if [ -n "$extra" ] && [ -n "$merged_performance" ]; then
+  merged_performance=$(printf "%s\n%s" "$merged_performance" "$extra")
+elif [ -n "$extra" ]; then
+  merged_performance="$extra"
+fi
+
 # Print final body.
 printf "## What's Changed\n"
 
@@ -288,6 +299,10 @@ fi
 
 if [ -n "$merged_bugfixes" ]; then
   printf "\n### 🐛 Bug Fixes\n\n%s\n" "$merged_bugfixes"
+fi
+
+if [ -n "$merged_performance" ]; then
+  printf "\n### ⚡ Performance\n\n%s\n" "$merged_performance"
 fi
 
 if [ -n "$issues_deps" ]; then

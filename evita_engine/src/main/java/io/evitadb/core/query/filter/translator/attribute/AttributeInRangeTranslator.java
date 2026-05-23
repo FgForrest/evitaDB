@@ -227,13 +227,18 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 			final long comparableValue = getComparableValue(attributeInRange, filterByVisitor, attributeSchema);
+			final boolean isNowOnDateTimeRange =
+				DateTimeRange.class.isAssignableFrom(attributeSchema.getPlainType())
+					&& attributeInRange.getTheMoment() == null;
 			final AttributeFormula filteringFormula = new AttributeFormula(
 				attributeSchema instanceof GlobalAttributeSchemaContract,
 				attributeKey,
 				filterByVisitor.applyOnFilterIndexes(
 					processingScope.getReferenceSchema(),
 					attributeSchema,
-					index -> index.getRecordsValidInFormula(comparableValue)
+					isNowOnDateTimeRange
+						? index -> index.getRecordsValidNowFormula(comparableValue)
+						: index -> index.getRecordsValidInFormula(comparableValue)
 				)
 			);
 			if (filterByVisitor.isPrefetchPossible()) {

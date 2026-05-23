@@ -111,6 +111,46 @@ class PriceSuperIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void priceIndexValidNowDelegatesToCachedPath() {
+		final OffsetDateTime now = OffsetDateTime.now();
+		final DateTimeRange validity1 = DateTimeRange.between(now.minusHours(1), now.plusHours(1));
+		final DateTimeRange validity2 = DateTimeRange.between(now.minusMinutes(30), now.plusMinutes(30));
+
+		priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity1, 1000, 1210);
+		priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity2, 999, 2000);
+		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
+		assertNotNull(priceAndCurrencyIndex);
+
+		final var firstBitmap = priceAndCurrencyIndex.getIndexedRecordIdsValidNowFormula(now).compute();
+		final var secondBitmap = priceAndCurrencyIndex.getIndexedRecordIdsValidNowFormula(now).compute();
+
+		assertArrayEquals(new int[]{1, 2}, firstBitmap.getArray());
+		assertArrayEquals(new int[]{1, 2}, secondBitmap.getArray());
+		// cached path returns ConstantFormula wrapping the same memoized Bitmap reference
+		assertSame(firstBitmap, secondBitmap);
+	}
+
+	@Test
+	void priceIndexValidInUncachedPathProducesFreshBitmapEachCall() {
+		final OffsetDateTime now = OffsetDateTime.now();
+		final DateTimeRange validity1 = DateTimeRange.between(now.minusHours(1), now.plusHours(1));
+		final DateTimeRange validity2 = DateTimeRange.between(now.minusMinutes(30), now.plusMinutes(30));
+
+		priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity1, 1000, 1210);
+		priceIndex.addPrice(null, 2, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.NONE, null, validity2, 999, 2000);
+		final PriceListAndCurrencyPriceSuperIndex priceAndCurrencyIndex = priceIndex.getPriceIndex(PRICE_LIST, CURRENCY_CZK, PriceInnerRecordHandling.NONE);
+		assertNotNull(priceAndCurrencyIndex);
+
+		final var firstBitmap = priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(now).compute();
+		final var secondBitmap = priceAndCurrencyIndex.getIndexedRecordIdsValidInFormula(now).compute();
+
+		assertArrayEquals(new int[]{1, 2}, firstBitmap.getArray());
+		assertArrayEquals(new int[]{1, 2}, secondBitmap.getArray());
+		// uncached path builds a fresh formula tree and bitmap each call
+		assertNotSame(firstBitmap, secondBitmap);
+	}
+
+	@Test
 	void shouldAddLowestPricePrice() {
 		priceIndex.addPrice(null, 1, 1, new PriceKey(10, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 20, null, 1000, 1210);
 		priceIndex.addPrice(null, 1, 2, new PriceKey(11, PRICE_LIST, CURRENCY_CZK), PriceInnerRecordHandling.LOWEST_PRICE, 21, null, 999, 2000);

@@ -49,23 +49,30 @@ else
   GIT_RANGE="$TAG_FROM..HEAD"
 fi
 
-# Fetch git log
-git_log=$(git log --pretty=format:"%s|||%b" "$GIT_RANGE" 2>/dev/null)
-
-if [ $? -ne 0 ]; then
-  echo "Error: Failed to retrieve git log for range '$GIT_RANGE'"
-  exit 1
-fi
-
 # Associative arrays to store deduplicated commits by type
 declare -A breaking_commits
 declare -A feat_commits
 declare -A fix_commits
+declare -A perf_commits
 declare -A doc_commits
 declare -A test_commits
 
-# Process each commit
-while IFS='|||' read -r subject body; do
+# Stream commits NUL-separated so multi-line bodies survive intact. Within
+# each record the first line is the subject and the rest (if any) is the body.
+# Read line-by-line `IFS='|||'` would only see the first line of each body,
+# silently dropping `Ref: #NNN` trailers (which conventionally live at the
+# bottom) and any multi-line BREAKING CHANGE notice.
+while IFS= read -r -d '' commit_msg; do
+  # `git log --pretty=format:` separates records with a single `\n`, which
+  # `read -d ''` leaves at the start of every record after the first. Strip it
+  # before splitting subject from body.
+  commit_msg="${commit_msg#$'\n'}"
+  subject="${commit_msg%%$'\n'*}"
+  if [[ "$commit_msg" == *$'\n'* ]]; then
+    body="${commit_msg#*$'\n'}"
+  else
+    body=""
+  fi
   # Check if commit follows conventional commit format
   # Group 1: type, Group 2: optional scope, Group 3: optional ! breaking marker, Group 4: description
   if [[ "$subject" =~ ^(feat|fix|doc|test|docs|refactor|perf|style|chore|build|ci|revert)(\(.+\))?(!)?:\ (.+)$ ]]; then
@@ -115,6 +122,9 @@ while IFS='|||' read -r subject body; do
       fix)
         fix_commits["$commit_desc"]="$entry"
         ;;
+      perf)
+        perf_commits["$commit_desc"]="$entry"
+        ;;
       doc)
         doc_commits["$commit_desc"]="$entry"
         ;;
@@ -123,7 +133,7 @@ while IFS='|||' read -r subject body; do
         ;;
     esac
   fi
-done <<< "$git_log"
+done < <(git log --pretty=format:"%s%n%b%x00" "$GIT_RANGE")
 
 # Print sections
 printed_header=false
@@ -158,6 +168,17 @@ if [ "${#fix_commits[@]}" -gt 0 ]; then
   echo -e "\n### 🐛 Bug Fixes\n"
   for key in "${!fix_commits[@]}"; do
     echo "* ${fix_commits[$key]}"
+  done | sort -f
+fi
+
+if [ "${#perf_commits[@]}" -gt 0 ]; then
+  if [ "$printed_header" = false ]; then
+    echo "## What's Changed"
+    printed_header=true
+  fi
+  echo -e "\n### ⚡ Performance\n"
+  for key in "${!perf_commits[@]}"; do
+    echo "* ${perf_commits[$key]}"
   done | sort -f
 fi
 
