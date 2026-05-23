@@ -191,18 +191,21 @@ public class EntityDecorator implements SealedEntity {
 				entityPrimaryKey, references, referencePredicate, theReferenceFilter, start, end
 			);
 		} else {
-			if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
-				epkAware.setEntityPrimaryKey(entityPrimaryKey);
-			}
 			final int filteredOutCount = filterOutReferences(
 				entityPrimaryKey, references, referencePredicate,
 				theReferenceFilter,
 				start, end
 			);
 			final int sortEnd = end - filteredOutCount;
-			// now do the sorting in multiple passes if needed
+			// now do the sorting in multiple passes if needed; the EPK-aware instanceof check must
+			// fire on every link of the chain — a query like `orderBy(attributeNatural("plain", ASC),
+			// attributeNatural("predecessor_attr", ASC))` parks the EPK-aware comparator as a non-head
+			// link and the original head-only check would leave it without an entity scope
 			int nonSortedReferenceCount;
 			do {
+				if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
+					epkAware.setEntityPrimaryKey(entityPrimaryKey);
+				}
 				// Just sort the current window
 				Arrays.sort(references, start, sortEnd, referenceComparator);
 				nonSortedReferenceCount = referenceComparator.getNonSortedReferenceCount();
