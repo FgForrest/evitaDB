@@ -80,9 +80,12 @@ class ReferenceMapping {
 
 	public ReferenceMapping(int expectedSize, @Nonnull List<? extends SealedEntity> richEnoughEntities) {
 		this.referenceGroupToReferencedEntitiesIndex = CollectionUtils.createHashMap(expectedSize);
+		// both lazy retrievers must see every reference of the source entity, not just the chunked
+		// page-slice exposed by EntityDecorator's predicate/chunk-filtered view — otherwise references
+		// outside the requested page never get indexed and the slicer cannot resolve their groups
 		this.groupToReferencedEntityLazyRetriever = referenceName -> richEnoughEntities
 			.stream()
-			.flatMap(it -> it.getReferences(referenceName).stream())
+			.flatMap(it -> ((EntityDecorator) it).getDelegate().getReferences(referenceName).stream())
 			.filter(it -> it.getGroup().isPresent())
 			.collect(
 				Collectors.groupingBy(
@@ -102,8 +105,7 @@ class ReferenceMapping {
 			for (SealedEntity richEnoughEntity : richEnoughEntities) {
 				// we can safely cast here, because we work only with server side entities
 				final EntityDecorator entityDecorator = (EntityDecorator) richEnoughEntity;
-				// we need to skip predicate, because named reference content is not considered a predicate
-				for (ReferenceContract reference : entityDecorator.getReferencesWithoutCheckingPredicate(referenceName)) {
+				for (ReferenceContract reference : entityDecorator.getDelegate().getReferences(referenceName)) {
 					if (reference.getGroup().isPresent()) {
 						container.compute(
 							reference.getReferenceKey(),
