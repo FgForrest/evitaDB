@@ -247,9 +247,16 @@ class BitmapSlicer {
 					// from the chunked-predicate view exposed by referencedEntityToGroupIdTranslator
 					final Collection<ReferenceContract> sourceRefs =
 						referenceContractsAccessor.apply(this.referenceName, epk);
-					final ReferenceContract[] filteredRefs = sourceRefs.stream()
-						.filter(r -> filteredReferenceEntityIds.contains(r.getReferencedPrimaryKey()))
-						.toArray(ReferenceContract[]::new);
+					final ReferenceContract[] filterBuffer = new ReferenceContract[sourceRefs.size()];
+					int filteredCount = 0;
+					for (ReferenceContract r : sourceRefs) {
+						if (filteredReferenceEntityIds.contains(r.getReferencedPrimaryKey())) {
+							filterBuffer[filteredCount++] = r;
+						}
+					}
+					final ReferenceContract[] filteredRefs = filteredCount == filterBuffer.length
+						? filterBuffer
+						: Arrays.copyOf(filterBuffer, filteredCount);
 					// group accounting reflects *all* filtered references (independent of slicing), so
 					// getGroupIds keeps returning the full set
 					this.groupsForEntity.put(epk, groupPksOf(filteredRefs));
@@ -274,11 +281,15 @@ class BitmapSlicer {
 	 */
 	@Nonnull
 	private static int[] groupPksOf(@Nonnull ReferenceContract[] refs) {
-		return Arrays.stream(refs)
-			.map(ReferenceContract::getGroup)
-			.flatMap(Optional::stream)
-			.mapToInt(GroupEntityReference::getPrimaryKeyOrThrowException)
-			.toArray();
+		final int[] buffer = new int[refs.length];
+		int count = 0;
+		for (ReferenceContract ref : refs) {
+			final Optional<GroupEntityReference> group = ref.getGroup();
+			if (group.isPresent()) {
+				buffer[count++] = group.get().getPrimaryKeyOrThrowException();
+			}
+		}
+		return count == buffer.length ? buffer : Arrays.copyOf(buffer, count);
 	}
 
 	/**
