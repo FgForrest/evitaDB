@@ -522,9 +522,9 @@ class EntityReferencePaginationFunctionalTest extends AbstractEntityFetchingFunc
 						groupEntitiesLoaded++;
 					}
 				}
-				assertTrue(
-					groupEntitiesLoaded > 0,
-					"At least one fetched parameter must have its groupEntity populated on the " +
+				assertEquals(
+					pageSize, groupEntitiesLoaded,
+					"Every fetched parameter must have its groupEntity populated on the " +
 						"group-sort fallback path (orderBy entityGroupProperty must trigger group fetch)"
 				);
 
