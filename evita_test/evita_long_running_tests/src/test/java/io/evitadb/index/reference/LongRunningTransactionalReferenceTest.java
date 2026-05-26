@@ -70,6 +70,11 @@ class LongRunningTransactionalReferenceTest implements TimeBoundedTestSupport {
 				assertStateAfterCommit(
 					transactionalBoolean,
 					original -> {
+						// seed the expected value with the reference's initial state, so that a
+						// transaction performing zero operations still compares against the correct
+						// current value instead of a stale (or null) value from a previous iteration
+						nextBooleanToCompare.set(testState.initialState());
+
 						final int operationsInTransaction = random.nextInt(100);
 						for (int i = 0; i < operationsInTransaction; i++) {
 							if (random.nextBoolean()) {
