@@ -755,6 +755,7 @@ public class EvitaEnumConverter {
 			case FETCHING -> QueryPhase.FETCHING;
 			case FETCHING_REFERENCES -> QueryPhase.FETCHING_REFERENCES;
 			case FETCHING_PARENTS -> QueryPhase.FETCHING_PARENTS;
+			case FETCHING_REFERENCE_BODIES -> QueryPhase.FETCHING_REFERENCE_BODIES;
 			case UNRECOGNIZED ->
 				throw new EvitaInvalidUsageException("Unrecognized remote query phase: " + grpcQueryPhase);
 		};
@@ -791,6 +792,7 @@ public class EvitaEnumConverter {
 			case FETCHING -> GrpcQueryPhase.FETCHING;
 			case FETCHING_REFERENCES -> GrpcQueryPhase.FETCHING_REFERENCES;
 			case FETCHING_PARENTS -> GrpcQueryPhase.FETCHING_PARENTS;
+			case FETCHING_REFERENCE_BODIES -> GrpcQueryPhase.FETCHING_REFERENCE_BODIES;
 		};
 	}
 

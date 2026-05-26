@@ -484,7 +484,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				subReferenceFetcher, existingEntityRetriever
 			);
 		} finally {
-			nestedQueryContext.popStep();
+			executionContext.popStep();
 		}
 		return entityIndex;
 	}
@@ -2055,25 +2055,30 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 
 		// prefetch the entities
-		this.envelopingEntityRequest = prefetchEntities(
-			this.referenceFetch,
-			this.namedReferenceFetch,
-			this.defaultRequirementContext,
-			this.executionContext,
-			internalCollection.getInternalSchema(),
-			this.existingEntityRetriever,
-			(referenceName, entityPk) -> toFormula(
-				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
-					.stream()
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray()
-			),
-			// reference contract accessor — see single-entity branch for rationale
-			(referenceName, entityPk) -> entityIndexSupplier.get().get(entityPk).getReferences(referenceName),
-			groupToEntityIdMapping::getReferencedEntityPrimaryKeys,
-			groupToEntityIdMapping::getGroup,
-			getPrimaryKeysIndexedByScope(entities)
-		);
+		this.executionContext.pushStep(QueryPhase.FETCHING_REFERENCE_BODIES);
+		try {
+			this.envelopingEntityRequest = prefetchEntities(
+				this.referenceFetch,
+				this.namedReferenceFetch,
+				this.defaultRequirementContext,
+				this.executionContext,
+				internalCollection.getInternalSchema(),
+				this.existingEntityRetriever,
+				(referenceName, entityPk) -> toFormula(
+					entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				),
+				// reference contract accessor — see single-entity branch for rationale
+				(referenceName, entityPk) -> entityIndexSupplier.get().get(entityPk).getReferences(referenceName),
+				groupToEntityIdMapping::getReferencedEntityPrimaryKeys,
+				groupToEntityIdMapping::getGroup,
+				getPrimaryKeysIndexedByScope(entities)
+			);
+		} finally {
+			this.executionContext.popStep();
+		}
 
 		return entities;
 	}
