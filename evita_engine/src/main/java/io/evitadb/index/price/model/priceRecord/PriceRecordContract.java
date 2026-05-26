@@ -53,7 +53,7 @@ public interface PriceRecordContract extends Serializable, Comparable<PriceRecor
 	 */
 	@Nonnull
 	Comparator<PriceRecordContract> PRICE_RECORD_COMPARATOR =
-		Comparator.comparing(PriceRecordContract::internalPriceId);
+		Comparator.comparingInt(PriceRecordContract::internalPriceId);
 
 	/**
 	 * Returns internal id for {@link PriceContract#priceId()}. It is unique for the price identified

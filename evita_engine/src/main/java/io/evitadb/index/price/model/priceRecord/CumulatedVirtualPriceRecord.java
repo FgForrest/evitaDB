@@ -59,9 +59,9 @@ public record CumulatedVirtualPriceRecord(
 	 * then price without tax, then price with tax.
 	 */
 	private static final Comparator<PriceRecordContract> FULL_COMPARATOR =
-		Comparator.comparing(PriceRecordContract::entityPrimaryKey)
-			.thenComparing(PriceRecordContract::priceWithoutTax)
-			.thenComparing(PriceRecordContract::priceWithTax);
+		Comparator.comparingInt(PriceRecordContract::entityPrimaryKey)
+			.thenComparingInt(PriceRecordContract::priceWithoutTax)
+			.thenComparingInt(PriceRecordContract::priceWithTax);
 
 	@Override
 	public int internalPriceId() {
