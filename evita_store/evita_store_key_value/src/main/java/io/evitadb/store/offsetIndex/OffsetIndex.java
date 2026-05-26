@@ -614,11 +614,13 @@ public class OffsetIndex {
 	}
 
 	/**
-	 * Returns unmodifiable collection of all ACTIVE entries in the OffsetIndex.
+	 * Returns unmodifiable collection of all ACTIVE entries in the OffsetIndex. The entries are wrapped via
+	 * {@link Collections#unmodifiableMap(Map)} so that callers cannot mutate the published - and by the
+	 * {@link SharedState} contract immutable - locations map through {@link Entry#setValue(Object)}.
 	 */
 	public Collection<Entry<RecordKey, FileLocation>> getEntries() {
 		assertOperative();
-		return Collections.unmodifiableCollection(this.sharedState.keyToLocations().entrySet());
+		return Collections.unmodifiableMap(this.sharedState.keyToLocations()).entrySet();
 	}
 
 	/**
@@ -909,11 +911,14 @@ public class OffsetIndex {
 	public OffsetIndexDescriptor flush(long catalogVersion) {
 		assertOperative();
 		this.fileOffsetDescriptor = doFlush(catalogVersion, this.fileOffsetDescriptor, false);
-		// when there were non-flushed values, doFlush already republished the shared state (version + locations)
+		// flush runs under the single-writer model: all writes (including the promotion inside doFlush) are
+		// serialized by the writeHandle ReentrantLock, so no other thread mutates sharedState concurrently here.
+		// When there were non-flushed values, doFlush already republished the shared state (version + locations)
 		// atomically; when there was nothing to promote, advance the conforming version while keeping the current
-		// locations, preserving the original invariant that a flush always moves the key catalog version forward
+		// locations. The guard is strictly monotonic (`<`, not `!=`) so the key catalog version can only move
+		// forward - it never regresses even if this assumption were ever violated.
 		final SharedState currentState = this.sharedState;
-		if (currentState.keyCatalogVersion() != catalogVersion) {
+		if (currentState.keyCatalogVersion() < catalogVersion) {
 			this.sharedState = new SharedState(catalogVersion, currentState.keyToLocations());
 		}
 		this.readOnlyKeyCompressorView = null;
@@ -2115,6 +2120,11 @@ public class OffsetIndex {
 					if (pastMemory.getAddedKeys().contains(key) && examinedVersion != catalogVersion) {
 						addedInFuture = true;
 					}
+					// note: there is intentionally no "removed key resets addedInFuture" branch here. Whenever
+					// addedInFuture is set to true above, the very same iteration immediately falls into the
+					// block below and returns (either via previousValue or via the addedInFuture branch). The
+					// loop can therefore only advance to the next version while addedInFuture is still false, so
+					// a reset tied to getRemovedKeys() would always be a no-op and was removed as dead code.
 					// we must skip the current version, because it contains previous value that was overwritten
 					// not the currently valid one
 					if (examinedVersion != catalogVersion) {
