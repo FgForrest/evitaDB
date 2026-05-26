@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.parallel.Isolated;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,6 +50,11 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 @DisplayName("ConsoleWriter contract tests")
 @Tag(ENGINE)
 @Tag(DATA_TYPE)
+// This class swaps the process-global System.out and toggles the static ConsoleWriter#quiet flag.
+// With junit.jupiter.execution.parallel.mode.classes.default=concurrent these would race sibling
+// test classes (which write to System.out) in the same JVM, intermittently failing the quiet-mode
+// assertions. @Isolated forces the class to run without any other test executing concurrently.
+@Isolated
 class ConsoleWriterTest {
 	private ByteArrayOutputStream outputCapture;
 	private PrintStream originalOut;
