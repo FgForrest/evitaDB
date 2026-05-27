@@ -316,7 +316,8 @@ public class CreateReferenceSchemaMutation
 											.map(def -> new ScopedHistogramIndexDefinition(
 												scopeEntry.getKey(),
 												def.nameOfTheIndex(),
-												def.valueExpression()
+												def.valueExpression(),
+												def.assignedWhen()
 											))
 										)
 										.toArray(ScopedHistogramIndexDefinition[]::new),

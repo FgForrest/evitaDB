@@ -105,7 +105,7 @@ public class SimpleHistogramIndex extends HistogramIndex {
 	@Override
 	public void insertValue(
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK
 	) {
 		if (this.cardinality.addRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {

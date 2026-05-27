@@ -68,12 +68,14 @@ public interface GetterBasedEntityWithFacetedPartiallyAndBucketed {
 				facetedPartially = @Expression(
 					"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'"
 				),
-				bucketed = @Histogram(
-					nameOfTheIndex = INTERVAL_REFERENCE_PARAMETER_VALUES,
-					value = @Expression(
-						"$reference.referencedEntity?.attributes['basicUnitValue'] ?? 0.0"
+				bucketed = {
+					@Histogram(
+						nameOfTheIndex = INTERVAL_REFERENCE_PARAMETER_VALUES,
+						value = @Expression(
+							"$reference.referencedEntity?.attributes['basicUnitValue'] ?? 0.0"
+						)
 					)
-				),
+				},
 				bucketedPartially = @Expression(
 					"$reference.groupEntity?.attributes['inputWidgetType'] == 'INTERVAL_INPUT'"
 				)

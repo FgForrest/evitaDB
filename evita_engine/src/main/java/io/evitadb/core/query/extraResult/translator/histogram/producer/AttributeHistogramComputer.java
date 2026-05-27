@@ -32,6 +32,7 @@ import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHis
 import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
@@ -197,17 +198,26 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	/**
 	 * Method creates lambda that converts any {@link Number} value to an int value. The number overflows are checked
 	 * in this method an any data precision loss is reported.
+	 *
+	 * For range-typed attribute schemas (`NumberRange` subtypes) the bucket values are the inner numeric type
+	 * emitted by the range histogram sweep (see {@link FilterIndex#toBucketKey(long, Class, int)}),
+	 * not the `Range` instance itself — so the converter dispatches on
+	 * {@link EvitaDataTypes#resolveRangeInnerNumericType(Class)} when the schema type is a `NumberRange` subtype.
 	 */
 	@Nonnull
 	private static <T extends Comparable<T>> ToIntFunction<T> createNumberToIntegerConverter(@Nonnull AttributeHistogramRequest histogramRequest) {
+		final Class<? extends Serializable> schemaType = histogramRequest.attributeSchema().getType();
+		// range histograms emit inner-numeric bucket keys, so the converter must look at the inner type
+		final Class<? extends Number> innerType = EvitaDataTypes.resolveRangeInnerNumericType(schemaType);
+		final Class<?> effectiveType = innerType != null ? innerType : schemaType;
 		final ToIntFunction<T> converter;
-		if (Byte.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+		if (Byte.class.isAssignableFrom(effectiveType)) {
 			converter = value -> (int) ((Byte) value);
-		} else if (Short.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+		} else if (Short.class.isAssignableFrom(effectiveType)) {
 			converter = value -> (int) ((Short) value);
-		} else if (Integer.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+		} else if (Integer.class.isAssignableFrom(effectiveType)) {
 			converter = value -> (int) ((Integer) value);
-		} else if (Long.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+		} else if (Long.class.isAssignableFrom(effectiveType)) {
 			converter = value -> {
 				final int converted = ((Long) value).intValue();
 				if ((Long) value != (long) converted) {
@@ -215,13 +225,13 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				}
 				return converted;
 			};
-		} else if (BigDecimal.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
+		} else if (BigDecimal.class.isAssignableFrom(effectiveType)) {
 			converter = value -> ((BigDecimal) value).stripTrailingZeros()
 				.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
 				.intValue();
 		} else {
 			throw new GenericEvitaInternalError(
-				"Unsupported histogram number type: " + histogramRequest.attributeSchema().getType() +
+				"Unsupported histogram number type: " + schemaType +
 					", supported are byte, short, int. Number types long and BigDecimal are allowed as long as their " +
 					"fit into an integer range!"
 			);
@@ -440,13 +450,35 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator
 	) {
 		if (this.memoizedNarrowedBuckets == null) {
-			// collect all INDEX histogram subsets that will be used for the computation
-			final ValueToRecordBitmap[][] attributeIndexes = histogramComputer
-				.getAttributeIndexes()
-				.stream()
-				.map(FilterIndex::getHistogramOfAllRecords)
-				.map(InvertedIndexSubSet::getHistogramBuckets)
-				.toArray(ValueToRecordBitmap[][]::new);
+			// dispatch per-leaf: range-typed leaves go through the sentinel-skipping sweep over the
+			// RangeIndex companion; scalar leaves use the existing InvertedIndex-backed bucket array.
+			// Mixed inputs are valid — sources for the same histogram name may be reused across scalar
+			// and range attributes in the same query (multi-histogram support).
+			final AttributeHistogramRequest request = histogramComputer.getRequest();
+			final Class<? extends Number> innerNumericType = EvitaDataTypes.resolveRangeInnerNumericType(
+				request.attributeSchema().getType()
+			);
+			final int retainedDecimalPlaces = request.getDecimalPlaces();
+			final List<FilterIndex> attributeIndexList = histogramComputer.getAttributeIndexes();
+			final ValueToRecordBitmap[][] attributeIndexes = new ValueToRecordBitmap[attributeIndexList.size()][];
+			for (int i = 0; i < attributeIndexList.size(); i++) {
+				final FilterIndex fi = attributeIndexList.get(i);
+				final InvertedIndexSubSet subset;
+				if (fi.getRangeIndex() != null) {
+					if (innerNumericType == null) {
+						throw new GenericEvitaInternalError(
+							"Filter index for attribute `" + request.getAttributeName() + "` carries a " +
+								"RangeIndex companion but the attribute schema type `" +
+								request.attributeSchema().getType().getName() + "` is not a supported " +
+								"NumberRange subtype — schema/index drift."
+						);
+					}
+					subset = fi.getRangeHistogramOfAllRecords(innerNumericType, retainedDecimalPlaces);
+				} else {
+					subset = fi.getHistogramOfAllRecords();
+				}
+				attributeIndexes[i] = subset.getHistogramBuckets();
+			}
 
 			this.memoizedNarrowedBuckets = AttributeHistogramProducer.getCombinedAndFilteredBucketArray(
 				filterFormula, attributeIndexes, comparator

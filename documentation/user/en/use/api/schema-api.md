@@ -143,6 +143,12 @@ The model is expected to be annotated with following annotations:
         <p>The `nameOfTheIndex` identifies the histogram slot (a single reference can have multiple named histograms).
         The `value` attribute accepts an `@Expression` that resolves to a numeric attribute — for example,
         `@Histogram(nameOfTheIndex = "priceHistogram", value = @Expression("$reference.referencedEntity.attributes['price']"))`.</p>
+        <p>The `value` expression may resolve to a scalar numeric attribute **or** to a numeric `NumberRange` attribute
+        (`ByteNumberRange` … `BigDecimalNumberRange`); a range source distributes each instance across every bucket its
+        interval overlaps and must not use a `??` default (see [Reference histograms](../../use/schema.md#reference-histograms)).
+        The optional `assignedWhen` element accepts an `@Expression` acting as a per-histogram partition selector — among
+        the instances eligible via `bucketedPartially`, only those for which `assignedWhen` evaluates to `true` feed this
+        particular histogram.</p>
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ScopeReferenceSettings.java</SourceClass></dt>
     <dd>

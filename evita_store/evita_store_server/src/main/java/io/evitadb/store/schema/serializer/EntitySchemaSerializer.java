@@ -297,6 +297,12 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 				} else {
 					output.writeBoolean(false);
 				}
+				if (definition.assignedWhen() != null) {
+					output.writeBoolean(true);
+					kryo.writeObject(output, definition.assignedWhen());
+				} else {
+					output.writeBoolean(false);
+				}
 			}
 		}
 	}
@@ -327,9 +333,13 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 				final Map<NamingConvention, String> nameVariants = readNameVariants(input);
 				final Expression valueExpression = input.readBoolean()
 					? kryo.readObject(input, Expression.class) : null;
+				final Expression assignedWhen = input.readBoolean()
+					? kryo.readObject(input, Expression.class) : null;
 				innerMap.put(
 					nameOfTheIndex,
-					new HistogramIndexDefinition(nameOfTheIndex, nameVariants, valueExpression)
+					new HistogramIndexDefinition(
+						nameOfTheIndex, nameVariants, valueExpression, assignedWhen
+					)
 				);
 			}
 			bucketedHistogramMap.put(scope, innerMap);

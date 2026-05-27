@@ -105,7 +105,7 @@ class SetReferenceSchemaBucketedMutationTest {
 			new Scope[]{Scope.LIVE},
 			null,
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 			},
 			null,
 			Collections.emptyMap(),
@@ -171,7 +171,7 @@ class SetReferenceSchemaBucketedMutationTest {
 			new Scope[]{Scope.LIVE},
 			null,
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse("1 > 0"))
@@ -237,7 +237,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 
@@ -270,7 +270,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					"differentName",
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 
@@ -311,7 +311,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 			final CreateReferenceSchemaMutation createMutation =
@@ -374,7 +374,7 @@ class SetReferenceSchemaBucketedMutationTest {
 					new Scope[]{Scope.LIVE},
 					null,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					},
 					null
 				);
@@ -404,7 +404,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 			final CreateReflectedReferenceSchemaMutation createMutation =
@@ -472,7 +472,7 @@ class SetReferenceSchemaBucketedMutationTest {
 					new Scope[]{Scope.LIVE},
 					null,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					},
 					null,
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -540,7 +540,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 
@@ -556,6 +556,45 @@ class SetReferenceSchemaBucketedMutationTest {
 				result.getHistogramIndexDefinition(Scope.LIVE, INDEX_NAME);
 			assertNotNull(definition);
 			assertEquals(INDEX_NAME, definition.nameOfTheIndex());
+		}
+
+		/**
+		 * Verifies that a non-null `assignedWhen` selector supplied on
+		 * {@link ScopedHistogramIndexDefinition} survives `mutate(...)` and lands unchanged on
+		 * the resulting {@link HistogramIndexDefinition}. Guards against a regression that
+		 * silently drops the per-histogram partition predicate while applying the mutation.
+		 */
+		@Test
+		@DisplayName("should preserve non-null assignedWhen through mutate round-trip")
+		void shouldPreserveNonNullAssignedWhenInMutateRoundTrip() {
+			final Expression valueExpr = ExpressionFactory.parse("$reference.attributes['quantity']");
+			final Expression assignedWhenExpr = ExpressionFactory.parse("$active == 1");
+			final SetReferenceSchemaBucketedMutation mutation =
+				new SetReferenceSchemaBucketedMutation(
+					REFERENCE_NAME,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(
+							Scope.LIVE, INDEX_NAME, valueExpr, assignedWhenExpr
+						)
+					}
+				);
+
+			final ReferenceSchemaContract result =
+				mutation.mutate(
+					Mockito.mock(EntitySchemaContract.class),
+					createNonBucketedReferenceSchema()
+				);
+
+			assertNotNull(result);
+			final HistogramIndexDefinition definition =
+				result.getHistogramIndexDefinition(Scope.LIVE, INDEX_NAME);
+			assertNotNull(definition);
+			assertNotNull(definition.assignedWhen(), "assignedWhen must survive mutate(...)");
+			assertEquals(
+				assignedWhenExpr.toExpressionString(),
+				definition.assignedWhen().toExpressionString(),
+				"assignedWhen expression must round-trip unchanged"
+			);
 		}
 
 		@Test
@@ -593,7 +632,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 
@@ -619,8 +658,8 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr1),
-						new ScopedHistogramIndexDefinition(Scope.LIVE, "quantity", expr2)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr1, null),
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "quantity", expr2, null)
 					}
 				);
 
@@ -703,7 +742,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 
@@ -749,7 +788,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					},
 					new ScopedBucketedPartially[]{
 						new ScopedBucketedPartially(Scope.LIVE, expression)
@@ -778,7 +817,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 
@@ -864,7 +903,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					}
 				);
 			assertTrue(bucketed.toString().contains("bucketed in scopes"));
@@ -874,7 +913,7 @@ class SetReferenceSchemaBucketedMutationTest {
 				new SetReferenceSchemaBucketedMutation(
 					REFERENCE_NAME,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null)
 					},
 					new ScopedBucketedPartially[]{
 						new ScopedBucketedPartially(Scope.LIVE, null)
@@ -902,7 +941,7 @@ class SetReferenceSchemaBucketedMutationTest {
 		void shouldRejectNullScopeInScopedHistogramIndexDefinition() {
 			assertThrows(
 				Exception.class,
-				() -> new ScopedHistogramIndexDefinition(null, INDEX_NAME, null)
+				() -> new ScopedHistogramIndexDefinition(null, INDEX_NAME, null, null)
 			);
 		}
 
@@ -920,7 +959,7 @@ class SetReferenceSchemaBucketedMutationTest {
 		void shouldRejectNullNameOfTheIndex() {
 			assertThrows(
 				Exception.class,
-				() -> new ScopedHistogramIndexDefinition(Scope.LIVE, null, null)
+				() -> new ScopedHistogramIndexDefinition(Scope.LIVE, null, null, null)
 			);
 		}
 
@@ -928,7 +967,7 @@ class SetReferenceSchemaBucketedMutationTest {
 		@DisplayName("should allow null expressions in scoped records")
 		void shouldAllowNullExpressions() {
 			final ScopedHistogramIndexDefinition histogram =
-				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null);
+				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, null, null);
 			assertNotNull(histogram);
 			assertNull(histogram.valueExpression());
 
@@ -944,9 +983,9 @@ class SetReferenceSchemaBucketedMutationTest {
 			final Expression expression = ExpressionFactory.parse("1 > 0");
 
 			final ScopedHistogramIndexDefinition h1 =
-				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, expression);
+				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, expression, null);
 			final ScopedHistogramIndexDefinition h2 =
-				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, expression);
+				new ScopedHistogramIndexDefinition(Scope.LIVE, INDEX_NAME, expression, null);
 			assertEquals(h1, h2);
 			assertEquals(h1.hashCode(), h2.hashCode());
 

@@ -78,17 +78,33 @@ public interface ScopedHistogramIndexDefinitionDescriptor extends ScopedDataDesc
 		.type(nullable(String.class))
 		.build();
 
+	PropertyDescriptor ASSIGNED_WHEN = PropertyDescriptor.builder()
+		.name("assignedWhen")
+		.description("""
+			Partition selector. Among references already eligible per the reference- or
+			scope-level `bucketedPartially` gate, this expression decides whether the referenced
+			entity is assigned to this specific histogram. The expression is evaluated against the
+			referenced entity and must return a boolean value — only entities for which the
+			expression evaluates to `true` participate in this histogram. Multiple histograms
+			on the same reference may declare overlapping or disjoint predicates; overlap is
+			allowed but means a record participates in every histogram whose predicate evaluates
+			to `true`. When null, no per-histogram restriction applies and the histogram contains
+			every referenced entity already eligible per the gate.
+			""")
+		.type(nullable(String.class))
+		.build();
+
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("ScopedHistogramIndexDefinition")
 		.description("""
 			Represents combination of a bucketed histogram configuration and the entity scope it applies to.
 			""")
-		.staticProperties(List.of(SCOPE, NAME_OF_THE_INDEX, NAME_VARIANTS, VALUE_EXPRESSION))
+		.staticProperties(List.of(SCOPE, NAME_OF_THE_INDEX, NAME_VARIANTS, VALUE_EXPRESSION, ASSIGNED_WHEN))
 		.build();
 
 	ObjectDescriptor THIS_INPUT = ObjectDescriptor.builder()
 		.name("InputScopedHistogramIndexDefinition")
 		.description(THIS.description())
-		.staticProperties(List.of(SCOPE, NAME_OF_THE_INDEX, VALUE_EXPRESSION))
+		.staticProperties(List.of(SCOPE, NAME_OF_THE_INDEX, VALUE_EXPRESSION, ASSIGNED_WHEN))
 		.build();
 }

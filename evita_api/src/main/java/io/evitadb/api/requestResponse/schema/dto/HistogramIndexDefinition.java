@@ -36,6 +36,7 @@ import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
@@ -52,16 +53,26 @@ import java.util.Map;
  * server-generated from the index name by {@link NamingConvention#generate(String)} —
  * callers never supply them.
  *
- * @param nameOfTheIndex  the name identifying the histogram index, must not be null
- * @param nameVariants    pre-computed variants of {@code nameOfTheIndex} in all naming conventions
- * @param valueExpression the expression computing the histogram bucket value, or null if not specified
+ * @param nameOfTheIndex   the name identifying the histogram index, must not be null
+ * @param nameVariants     pre-computed variants of {@code nameOfTheIndex} in all naming conventions
+ * @param valueExpression  the expression computing the histogram bucket value, or null if not specified
+ * @param assignedWhen     the partition selector for this histogram; null means no per-histogram
+ *                         restriction beyond the reference- or scope-level eligibility gate
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record HistogramIndexDefinition(
 	@Nonnull String nameOfTheIndex,
 	@Nonnull Map<NamingConvention, String> nameVariants,
-	@Nullable Expression valueExpression
+	@Nullable Expression valueExpression,
+	@Nullable Expression assignedWhen
 ) implements NamedContract {
+
+	/**
+	 * Explicit serialVersionUID — records still need a stable identifier for binary
+	 * serialization compatibility across schema evolution.
+	 */
+	@Serial
+	private static final long serialVersionUID = -7846150281245619827L;
 
 	/**
 	 * Compact constructor that validates the name is not null and not blank, and wraps the
@@ -76,8 +87,9 @@ public record HistogramIndexDefinition(
 
 	/**
 	 * Convenience factory that auto-generates the name variants from {@code nameOfTheIndex}
-	 * using {@link NamingConvention#generate(String)}. This is the canonical constructor
-	 * used by server-side code — variants are never user-supplied.
+	 * using {@link NamingConvention#generate(String)} and leaves the per-histogram condition
+	 * unset. Equivalent to calling {@link #of(String, Expression, Expression)} with a null
+	 * third argument.
 	 *
 	 * @param nameOfTheIndex  the name identifying the histogram index
 	 * @param valueExpression the expression computing the histogram bucket value, or null
@@ -88,10 +100,31 @@ public record HistogramIndexDefinition(
 		@Nonnull String nameOfTheIndex,
 		@Nullable Expression valueExpression
 	) {
+		return of(nameOfTheIndex, valueExpression, null);
+	}
+
+	/**
+	 * Convenience factory that auto-generates the name variants from {@code nameOfTheIndex}
+	 * using {@link NamingConvention#generate(String)} and accepts the optional per-histogram
+	 * partition selector that decides — among the references already eligible per the
+	 * reference- or scope-level gate — which entities are assigned to this specific histogram.
+	 *
+	 * @param nameOfTheIndex  the name identifying the histogram index
+	 * @param valueExpression the expression computing the histogram bucket value, or null
+	 * @param assignedWhen    the optional per-histogram partition selector, or null
+	 * @return a new {@link HistogramIndexDefinition} with auto-generated name variants
+	 */
+	@Nonnull
+	public static HistogramIndexDefinition of(
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression,
+		@Nullable Expression assignedWhen
+	) {
 		return new HistogramIndexDefinition(
 			nameOfTheIndex,
 			NamingConvention.generate(nameOfTheIndex),
-			valueExpression
+			valueExpression,
+			assignedWhen
 		);
 	}
 

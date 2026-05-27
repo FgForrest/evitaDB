@@ -654,12 +654,38 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull Bitmap inScope,
 		@Nullable NestedContextSorter facetSorter
 	) {
-		final Bitmap indexPkCandidates = referenceAttributeFilterIndex.getRecordsEqualTo(value);
+		final Bitmap indexPkCandidates = resolveBoundaryCandidates(
+			referenceAttributeFilterIndex, value
+		);
 		if (indexPkCandidates.isEmpty()) {
 			return null;
 		}
 		final Bitmap referencedPkCandidates = referencedPrimaryKeysForIndexPks(sourceIndex, indexPkCandidates);
 		return intersectAndPickBoundaryPk(referencedPkCandidates, inScope, facetSorter);
+	}
+
+	/**
+	 * Resolves the candidate record-id bitmap for a histogram boundary value. For scalar attribute
+	 * filter indexes this is the conventional `FilterIndex.getRecordsEqualTo(value)` lookup. For
+	 * range-typed leaves the bucket key is a threshold value (`Byte`/`Short`/`Integer`/`Long`/
+	 * `BigDecimal`) — not a `Range` instance — so the call must envelope the threshold via the
+	 * leaf's {@link io.evitadb.index.range.RangeIndex} companion. Returns every record whose stored
+	 * range covers the supplied bound, matching the closed-interval semantics emitted by the sweep.
+	 *
+	 * @param filterIndex the source FilterIndex (may or may not have a `RangeIndex` companion)
+	 * @param value       the boundary value (threshold-typed for range histograms; native-typed
+	 *                    otherwise)
+	 * @return bitmap of record ids matching the value; empty if none qualify
+	 */
+	@Nonnull
+	private static Bitmap resolveBoundaryCandidates(
+		@Nonnull FilterIndex filterIndex,
+		@Nonnull Serializable value
+	) {
+		if (filterIndex.getRangeIndex() != null) {
+			return filterIndex.getRecordsValidIn(FilterIndex.fromBucketKey(value));
+		}
+		return filterIndex.getRecordsEqualTo(value);
 	}
 
 	/**
@@ -704,7 +730,7 @@ final class ReferenceHistogramAccumulator {
 		@Nullable NestedContextSorter facetSorter
 	) {
 		return intersectAndPickBoundaryPk(
-			attributeFilterIndex.getRecordsEqualTo(value), inGroup, facetSorter
+			resolveBoundaryCandidates(attributeFilterIndex, value), inGroup, facetSorter
 		);
 	}
 

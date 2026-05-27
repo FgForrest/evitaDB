@@ -136,7 +136,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	@Override
 	public void insertValue(
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK
 	) {
 		final Locale theLocale = Objects.requireNonNull(

@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceA
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaBucketedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
@@ -51,6 +52,7 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -63,15 +65,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReferenceSchemaBuilder} verifying description, deprecation,
@@ -2443,8 +2444,8 @@ class ReferenceSchemaBuilderTest {
 		}
 
 		/**
-		 * Verifies the B1 bug fix: calling `bucketedPartiallyInScope` on a non-indexed
-		 * reference auto-promotes to indexed. This tests the override added to
+		 * Verifies that calling `bucketedPartiallyInScope` on a non-indexed
+		 * reference auto-promotes the reference to indexed. This pins the override on
 		 * {@link ReferenceSchemaBuilder}.
 		 */
 		@Test
@@ -2668,6 +2669,153 @@ class ReferenceSchemaBuilderTest {
 				() -> assertNull(
 					ref.getBucketedPartiallyInScope(Scope.LIVE),
 					"Orphaned bucketedPartially should be filtered out"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that the 4-arg `bucketedInScope(scope, name, valueExpression,
+		 * assignedWhen)` overload threads the per-histogram partition selector all the way
+		 * through `_internalBuild()` into the final
+		 * {@link HistogramIndexDefinition#assignedWhen()} field, while preserving
+		 * the value expression independently.
+		 */
+		@Test
+		@DisplayName("should propagate assignedWhen through 4-arg bucketedInScope")
+		void shouldPropagateAssignedWhenThroughFourArgBucketedInScope() {
+			final Expression valueExpr = ExpressionFactory.parse(
+				"$reference.attributes['someValue']"
+			);
+			final Expression assignedWhenExpr = ExpressionFactory.parse(
+				"$reference.attributes['priority'] > 0"
+			);
+
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(
+					Scope.LIVE, "myHist", valueExpr, assignedWhenExpr
+				)
+			);
+
+			final HistogramIndexDefinition def =
+				ref.getHistogramIndexDefinition(Scope.LIVE, "myHist");
+			assertNotNull(
+				def, "Histogram definition `myHist` must exist after the 4-arg call"
+			);
+			assertAll(
+				() -> assertNotNull(
+					def.assignedWhen(),
+					"Per-histogram partition selector must propagate into the DTO"
+				),
+				() -> assertEquals(
+					assignedWhenExpr.toExpressionString(),
+					def.assignedWhen().toExpressionString(),
+					"Per-histogram partition selector must be the supplied expression verbatim"
+				),
+				() -> assertNotNull(
+					def.valueExpression(),
+					"Value expression must be retained alongside the per-histogram partition selector"
+				),
+				() -> assertEquals(
+					valueExpr.toExpressionString(),
+					def.valueExpression().toExpressionString(),
+					"Value expression must equal the supplied expression"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that the 3-arg `bucketedInScope(scope, name, valueExpression)`
+		 * default delegate passes `null` for the per-histogram partition selector, leaving
+		 * {@link HistogramIndexDefinition#assignedWhen()} unset. Pins the
+		 * null-passing contract so a future refactor cannot silently start
+		 * synthesising a partition selector for callers that omitted it.
+		 */
+		@Test
+		@DisplayName("should default assignedWhen to null when using 3-arg bucketedInScope")
+		void shouldDefaultAssignedWhenToNullWhenUsingThreeArgBucketedInScope() {
+			final Expression valueExpr = ExpressionFactory.parse(
+				"$reference.attributes['someValue']"
+			);
+
+			final ReferenceSchemaContract ref = buildReference(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs.bucketedInScope(Scope.LIVE, "myHist", valueExpr)
+			);
+
+			final HistogramIndexDefinition def =
+				ref.getHistogramIndexDefinition(Scope.LIVE, "myHist");
+			assertNotNull(
+				def, "Histogram definition `myHist` must exist after the 3-arg call"
+			);
+			assertNull(
+				def.assignedWhen(),
+				"3-arg overload must leave per-histogram condition unset (null)"
+			);
+		}
+
+		/**
+		 * Verifies that the zero-arg `nonBucketed()` default on
+		 * {@link ReferenceSchemaEditor} clears bucketed state across **all**
+		 * `Scope.values()`. Pins the default's fan-out contract: a reference bucketed
+		 * in both LIVE and ARCHIVED must end up non-bucketed in both scopes, the
+		 * histogram definitions map must be empty, and the emitted
+		 * {@link SetReferenceSchemaBucketedMutation} must carry a zero-length
+		 * bucketed array.
+		 */
+		@Test
+		@DisplayName("should clear all scopes when nonBucketed called without arguments")
+		void shouldClearAllScopesWhenNonBucketedCalledWithoutArguments() {
+			final AtomicReference<ReferenceSchemaBuilder> captured = new AtomicReference<>();
+
+			final EntitySchemaContract schema = createEntitySchemaBuilder()
+				.withReferenceToEntity(
+					"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+					builder -> {
+						builder
+							.bucketedInScope(Scope.LIVE, "idx1", null)
+							.bucketedInScope(Scope.ARCHIVED, "idx2", null)
+							.nonBucketed();
+						captured.set((ReferenceSchemaBuilder) builder);
+					}
+				)
+				.toInstance();
+
+			final ReferenceSchemaContract ref = schema.getReference("brand").orElseThrow();
+
+			// locate the last bucketed mutation emitted on the captured builder — when the
+			// reference is created in-place, the bucketed payload is absorbed into the
+			// Create mutation; the empty-bucketed array must survive that combination
+			final Collection<LocalEntitySchemaMutation> mutations = captured.get().toMutation();
+			final CreateReferenceSchemaMutation createMutation = mutations.stream()
+				.filter(CreateReferenceSchemaMutation.class::isInstance)
+				.map(CreateReferenceSchemaMutation.class::cast)
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"CreateReferenceSchemaMutation should be present in builder mutations"
+				));
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"LIVE must be cleared by zero-arg nonBucketed()"
+				),
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.ARCHIVED),
+					"ARCHIVED must be cleared by zero-arg nonBucketed()"
+				),
+				() -> assertTrue(
+					ref.getAllHistogramIndexDefinitions().isEmpty(),
+					"Histogram definitions map must be empty after zero-arg nonBucketed()"
+				),
+				() -> assertNotNull(
+					createMutation.getBucketedInScopes(),
+					"Bucketed array must be propagated (not null) by the absorbed mutation"
+				),
+				() -> assertEquals(
+					0, createMutation.getBucketedInScopes().length,
+					"Bucketed array must be empty after zero-arg nonBucketed() fans out " +
+						"across Scope.values()"
 				)
 			);
 		}

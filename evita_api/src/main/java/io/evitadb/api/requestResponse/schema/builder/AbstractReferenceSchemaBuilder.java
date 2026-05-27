@@ -156,11 +156,35 @@ public abstract sealed class AbstractReferenceSchemaBuilder<
 				result[i++] = new ScopedHistogramIndexDefinition(
 					outer.getKey(),
 					inner.getValue().nameOfTheIndex(),
-					inner.getValue().valueExpression()
+					inner.getValue().valueExpression(),
+					inner.getValue().assignedWhen()
 				);
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Deep-copies a per-scope map of named histogram definitions so callers can mutate the result
+	 * (typically to add or replace a single (scope, name) entry) without leaking the change back
+	 * into the source map returned by {@link #getAllHistogramIndexDefinitions()}.
+	 *
+	 * The outer map is materialized as an {@link EnumMap} keyed by {@link Scope}; each inner map
+	 * is materialized as a {@link LinkedHashMap} to preserve insertion order, matching the form
+	 * produced by the schema accessors.
+	 *
+	 * @param source per-scope named histogram definitions to clone (may be empty)
+	 * @return a fresh mutable copy with independent inner maps
+	 */
+	@Nonnull
+	protected static Map<Scope, Map<String, HistogramIndexDefinition>> deepCopyHistogramIndexDefinitions(
+		@Nonnull Map<Scope, Map<String, HistogramIndexDefinition>> source
+	) {
+		final Map<Scope, Map<String, HistogramIndexDefinition>> copy = new EnumMap<>(Scope.class);
+		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : source.entrySet()) {
+			copy.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+		}
+		return copy;
 	}
 
 	/**

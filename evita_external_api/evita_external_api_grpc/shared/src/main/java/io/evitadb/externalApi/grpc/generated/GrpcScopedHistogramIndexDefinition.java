@@ -251,6 +251,62 @@ private static final long serialVersionUID = 0L;
     return valueExpression_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : valueExpression_;
   }
 
+  public static final int ASSIGNEDWHEN_FIELD_NUMBER = 5;
+  private com.google.protobuf.StringValue assignedWhen_;
+  /**
+   * <pre>
+   * Partition selector. Among references already eligible per the reference- or scope-level
+   * bucketedPartially gate, this expression decides whether the referenced entity is
+   * assigned to this specific histogram. Multiple histograms on the same reference may
+   * declare overlapping or disjoint predicates; overlap is allowed but means a record
+   * participates in every histogram whose predicate evaluates to true. When absent (not set),
+   * no per-histogram restriction applies and the histogram contains every referenced entity
+   * already eligible per the gate.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+   * @return Whether the assignedWhen field is set.
+   */
+  @java.lang.Override
+  public boolean hasAssignedWhen() {
+    return ((bitField0_ & 0x00000002) != 0);
+  }
+  /**
+   * <pre>
+   * Partition selector. Among references already eligible per the reference- or scope-level
+   * bucketedPartially gate, this expression decides whether the referenced entity is
+   * assigned to this specific histogram. Multiple histograms on the same reference may
+   * declare overlapping or disjoint predicates; overlap is allowed but means a record
+   * participates in every histogram whose predicate evaluates to true. When absent (not set),
+   * no per-histogram restriction applies and the histogram contains every referenced entity
+   * already eligible per the gate.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+   * @return The assignedWhen.
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValue getAssignedWhen() {
+    return assignedWhen_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : assignedWhen_;
+  }
+  /**
+   * <pre>
+   * Partition selector. Among references already eligible per the reference- or scope-level
+   * bucketedPartially gate, this expression decides whether the referenced entity is
+   * assigned to this specific histogram. Multiple histograms on the same reference may
+   * declare overlapping or disjoint predicates; overlap is allowed but means a record
+   * participates in every histogram whose predicate evaluates to true. When absent (not set),
+   * no per-histogram restriction applies and the histogram contains every referenced entity
+   * already eligible per the gate.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.StringValueOrBuilder getAssignedWhenOrBuilder() {
+    return assignedWhen_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : assignedWhen_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -277,6 +333,9 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       output.writeMessage(4, getValueExpression());
     }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      output.writeMessage(5, getAssignedWhen());
+    }
     getUnknownFields().writeTo(output);
   }
 
@@ -300,6 +359,10 @@ private static final long serialVersionUID = 0L;
     if (((bitField0_ & 0x00000001) != 0)) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(4, getValueExpression());
+    }
+    if (((bitField0_ & 0x00000002) != 0)) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(5, getAssignedWhen());
     }
     size += getUnknownFields().getSerializedSize();
     memoizedSize = size;
@@ -326,6 +389,11 @@ private static final long serialVersionUID = 0L;
       if (!getValueExpression()
           .equals(other.getValueExpression())) return false;
     }
+    if (hasAssignedWhen() != other.hasAssignedWhen()) return false;
+    if (hasAssignedWhen()) {
+      if (!getAssignedWhen()
+          .equals(other.getAssignedWhen())) return false;
+    }
     if (!getUnknownFields().equals(other.getUnknownFields())) return false;
     return true;
   }
@@ -348,6 +416,10 @@ private static final long serialVersionUID = 0L;
     if (hasValueExpression()) {
       hash = (37 * hash) + VALUEEXPRESSION_FIELD_NUMBER;
       hash = (53 * hash) + getValueExpression().hashCode();
+    }
+    if (hasAssignedWhen()) {
+      hash = (37 * hash) + ASSIGNEDWHEN_FIELD_NUMBER;
+      hash = (53 * hash) + getAssignedWhen().hashCode();
     }
     hash = (29 * hash) + getUnknownFields().hashCode();
     memoizedHashCode = hash;
@@ -486,6 +558,7 @@ private static final long serialVersionUID = 0L;
               .alwaysUseFieldBuilders) {
         getNameVariantsFieldBuilder();
         getValueExpressionFieldBuilder();
+        getAssignedWhenFieldBuilder();
       }
     }
     @java.lang.Override
@@ -505,6 +578,11 @@ private static final long serialVersionUID = 0L;
       if (valueExpressionBuilder_ != null) {
         valueExpressionBuilder_.dispose();
         valueExpressionBuilder_ = null;
+      }
+      assignedWhen_ = null;
+      if (assignedWhenBuilder_ != null) {
+        assignedWhenBuilder_.dispose();
+        assignedWhenBuilder_ = null;
       }
       return this;
     }
@@ -564,6 +642,12 @@ private static final long serialVersionUID = 0L;
             ? valueExpression_
             : valueExpressionBuilder_.build();
         to_bitField0_ |= 0x00000001;
+      }
+      if (((from_bitField0_ & 0x00000010) != 0)) {
+        result.assignedWhen_ = assignedWhenBuilder_ == null
+            ? assignedWhen_
+            : assignedWhenBuilder_.build();
+        to_bitField0_ |= 0x00000002;
       }
       result.bitField0_ |= to_bitField0_;
     }
@@ -649,6 +733,9 @@ private static final long serialVersionUID = 0L;
       if (other.hasValueExpression()) {
         mergeValueExpression(other.getValueExpression());
       }
+      if (other.hasAssignedWhen()) {
+        mergeAssignedWhen(other.getAssignedWhen());
+      }
       this.mergeUnknownFields(other.getUnknownFields());
       onChanged();
       return this;
@@ -705,6 +792,13 @@ private static final long serialVersionUID = 0L;
               bitField0_ |= 0x00000008;
               break;
             } // case 34
+            case 42: {
+              input.readMessage(
+                  getAssignedWhenFieldBuilder().getBuilder(),
+                  extensionRegistry);
+              bitField0_ |= 0x00000010;
+              break;
+            } // case 42
             default: {
               if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                 done = true; // was an endgroup tag
@@ -1381,6 +1475,217 @@ private static final long serialVersionUID = 0L;
         valueExpression_ = null;
       }
       return valueExpressionBuilder_;
+    }
+
+    private com.google.protobuf.StringValue assignedWhen_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> assignedWhenBuilder_;
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     * @return Whether the assignedWhen field is set.
+     */
+    public boolean hasAssignedWhen() {
+      return ((bitField0_ & 0x00000010) != 0);
+    }
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     * @return The assignedWhen.
+     */
+    public com.google.protobuf.StringValue getAssignedWhen() {
+      if (assignedWhenBuilder_ == null) {
+        return assignedWhen_ == null ? com.google.protobuf.StringValue.getDefaultInstance() : assignedWhen_;
+      } else {
+        return assignedWhenBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     */
+    public Builder setAssignedWhen(com.google.protobuf.StringValue value) {
+      if (assignedWhenBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        assignedWhen_ = value;
+      } else {
+        assignedWhenBuilder_.setMessage(value);
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     */
+    public Builder setAssignedWhen(
+        com.google.protobuf.StringValue.Builder builderForValue) {
+      if (assignedWhenBuilder_ == null) {
+        assignedWhen_ = builderForValue.build();
+      } else {
+        assignedWhenBuilder_.setMessage(builderForValue.build());
+      }
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     */
+    public Builder mergeAssignedWhen(com.google.protobuf.StringValue value) {
+      if (assignedWhenBuilder_ == null) {
+        if (((bitField0_ & 0x00000010) != 0) &&
+          assignedWhen_ != null &&
+          assignedWhen_ != com.google.protobuf.StringValue.getDefaultInstance()) {
+          getAssignedWhenBuilder().mergeFrom(value);
+        } else {
+          assignedWhen_ = value;
+        }
+      } else {
+        assignedWhenBuilder_.mergeFrom(value);
+      }
+      if (assignedWhen_ != null) {
+        bitField0_ |= 0x00000010;
+        onChanged();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     */
+    public Builder clearAssignedWhen() {
+      bitField0_ = (bitField0_ & ~0x00000010);
+      assignedWhen_ = null;
+      if (assignedWhenBuilder_ != null) {
+        assignedWhenBuilder_.dispose();
+        assignedWhenBuilder_ = null;
+      }
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     */
+    public com.google.protobuf.StringValue.Builder getAssignedWhenBuilder() {
+      bitField0_ |= 0x00000010;
+      onChanged();
+      return getAssignedWhenFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     */
+    public com.google.protobuf.StringValueOrBuilder getAssignedWhenOrBuilder() {
+      if (assignedWhenBuilder_ != null) {
+        return assignedWhenBuilder_.getMessageOrBuilder();
+      } else {
+        return assignedWhen_ == null ?
+            com.google.protobuf.StringValue.getDefaultInstance() : assignedWhen_;
+      }
+    }
+    /**
+     * <pre>
+     * Partition selector. Among references already eligible per the reference- or scope-level
+     * bucketedPartially gate, this expression decides whether the referenced entity is
+     * assigned to this specific histogram. Multiple histograms on the same reference may
+     * declare overlapping or disjoint predicates; overlap is allowed but means a record
+     * participates in every histogram whose predicate evaluates to true. When absent (not set),
+     * no per-histogram restriction applies and the histogram contains every referenced entity
+     * already eligible per the gate.
+     * </pre>
+     *
+     * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder> 
+        getAssignedWhenFieldBuilder() {
+      if (assignedWhenBuilder_ == null) {
+        assignedWhenBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.StringValue, com.google.protobuf.StringValue.Builder, com.google.protobuf.StringValueOrBuilder>(
+                getAssignedWhen(),
+                getParentForChildren(),
+                isClean());
+        assignedWhen_ = null;
+      }
+      return assignedWhenBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

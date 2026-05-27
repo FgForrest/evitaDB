@@ -148,4 +148,49 @@ public interface GrpcScopedHistogramIndexDefinitionOrBuilder extends
    * <code>.google.protobuf.StringValue valueExpression = 4;</code>
    */
   com.google.protobuf.StringValueOrBuilder getValueExpressionOrBuilder();
+
+  /**
+   * <pre>
+   * Partition selector. Among references already eligible per the reference- or scope-level
+   * bucketedPartially gate, this expression decides whether the referenced entity is
+   * assigned to this specific histogram. Multiple histograms on the same reference may
+   * declare overlapping or disjoint predicates; overlap is allowed but means a record
+   * participates in every histogram whose predicate evaluates to true. When absent (not set),
+   * no per-histogram restriction applies and the histogram contains every referenced entity
+   * already eligible per the gate.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+   * @return Whether the assignedWhen field is set.
+   */
+  boolean hasAssignedWhen();
+  /**
+   * <pre>
+   * Partition selector. Among references already eligible per the reference- or scope-level
+   * bucketedPartially gate, this expression decides whether the referenced entity is
+   * assigned to this specific histogram. Multiple histograms on the same reference may
+   * declare overlapping or disjoint predicates; overlap is allowed but means a record
+   * participates in every histogram whose predicate evaluates to true. When absent (not set),
+   * no per-histogram restriction applies and the histogram contains every referenced entity
+   * already eligible per the gate.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+   * @return The assignedWhen.
+   */
+  com.google.protobuf.StringValue getAssignedWhen();
+  /**
+   * <pre>
+   * Partition selector. Among references already eligible per the reference- or scope-level
+   * bucketedPartially gate, this expression decides whether the referenced entity is
+   * assigned to this specific histogram. Multiple histograms on the same reference may
+   * declare overlapping or disjoint predicates; overlap is allowed but means a record
+   * participates in every histogram whose predicate evaluates to true. When absent (not set),
+   * no per-histogram restriction applies and the histogram contains every referenced entity
+   * already eligible per the gate.
+   * </pre>
+   *
+   * <code>.google.protobuf.StringValue assignedWhen = 5;</code>
+   */
+  com.google.protobuf.StringValueOrBuilder getAssignedWhenOrBuilder();
 }

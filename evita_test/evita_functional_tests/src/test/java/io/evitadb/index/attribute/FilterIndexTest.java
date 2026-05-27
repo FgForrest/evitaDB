@@ -26,12 +26,18 @@ package io.evitadb.index.attribute;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangePoint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -42,6 +48,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -55,6 +62,8 @@ import java.util.stream.Collectors;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.FILTER;
@@ -1105,6 +1114,231 @@ class FilterIndexTest {
 		assertArrayEquals(new int[] {3}, this.rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(5, 15)).getArray());
 		assertEquals(3, this.rangeAttribute.getAllRecords().size());
 		assertFalse(this.rangeAttribute.isEmpty());
+	}
+
+	/**
+	 * Exercises the range-aware histogram sweep that backs reference histograms over `NumberRange`
+	 * source attributes. The sweep walks the leaf's `RangeIndex` companion, skips the `Long.MIN_VALUE`
+	 * / `Long.MAX_VALUE` sentinels, and emits a `ValueToRecordBitmap` per non-sentinel threshold
+	 * carrying every record whose stored range covers that threshold (closed-interval semantics).
+	 */
+	@Nested
+	@DisplayName("Range-aware histogram sweep over RangeIndex companion")
+	@Tag(ENGINE)
+	@Tag(INDEXING)
+	@Tag(HISTOGRAM)
+	@Tag(ATTRIBUTE)
+	class RangeHistogramSweep {
+
+		@Test
+		@DisplayName("empty range index emits no buckets and skips sentinels")
+		void shouldReturnEmptyArrayWhenRangeIndexHasNoRecords() {
+			final FilterIndex index = new FilterIndex(
+				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
+			);
+
+			final InvertedIndexSubSet subset = index.getRangeHistogramOfAllRecords(Integer.class, 0);
+
+			assertEquals(0, subset.getHistogramBuckets().length);
+		}
+
+		@Test
+		@DisplayName("single multi-bucket sweep covers every endpoint and respects closed intervals")
+		void shouldProduceClosedIntervalBucketsForOverlappingRanges() {
+			final FilterIndex index = new FilterIndex(
+				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
+			);
+			index.addRecord(1, IntegerNumberRange.between(10, 20));
+			index.addRecord(2, IntegerNumberRange.between(15, 25));
+			index.addRecord(3, IntegerNumberRange.between(20, 30));
+
+			final InvertedIndexSubSet subset = index.getRangeHistogramOfAllRecords(Integer.class, 0);
+			final ValueToRecordBitmap[] buckets = subset.getHistogramBuckets();
+
+			// RangeIndex consolidates same-threshold start/end into one point — so the five distinct
+			// thresholds 10, 15, 20, 25, 30 produce five buckets. At threshold 20, record 3 starts
+			// and record 1 ends; the closed-interval emission rule (add starts → snapshot → remove
+			// ends) puts all three records into the bucket at 20 before stripping record 1
+			final Integer[] keys = new Integer[buckets.length];
+			for (int i = 0; i < buckets.length; i++) {
+				keys[i] = (Integer) buckets[i].getValue();
+			}
+			assertArrayEquals(new Integer[] {10, 15, 20, 25, 30}, keys);
+			assertArrayEquals(new int[] {1}, buckets[0].getRecordIds().getArray());
+			assertArrayEquals(new int[] {1, 2}, buckets[1].getRecordIds().getArray());
+			assertArrayEquals(new int[] {1, 2, 3}, buckets[2].getRecordIds().getArray());
+			assertArrayEquals(new int[] {2, 3}, buckets[3].getRecordIds().getArray());
+			assertArrayEquals(new int[] {3}, buckets[4].getRecordIds().getArray());
+		}
+
+		@Test
+		@DisplayName("point ranges (from == to) emit a bucket containing the record")
+		void shouldEmitBucketContainingRecordForPointRange() {
+			final FilterIndex index = new FilterIndex(
+				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
+			);
+			index.addRecord(1, IntegerNumberRange.between(7, 7));
+			index.addRecord(2, IntegerNumberRange.between(3, 7));
+
+			final ValueToRecordBitmap[] buckets = index
+				.getRangeHistogramOfAllRecords(Integer.class, 0)
+				.getHistogramBuckets();
+
+			// distinct thresholds: 3 (record 2 starts) and 7 (record 1 starts and ends, record 2 ends)
+			final Integer[] keys = new Integer[buckets.length];
+			for (int i = 0; i < buckets.length; i++) {
+				keys[i] = (Integer) buckets[i].getValue();
+			}
+			assertArrayEquals(new Integer[] {3, 7}, keys);
+			// the bucket at threshold 7 must contain BOTH record 1 (point range) and record 2 — the
+			// snapshot must happen after adding starts but BEFORE removing ends; an inverse ordering
+			// would silently miss record 1 entirely
+			assertArrayEquals(new int[] {2}, buckets[0].getRecordIds().getArray());
+			assertArrayEquals(new int[] {1, 2}, buckets[1].getRecordIds().getArray());
+		}
+
+		@Test
+		@DisplayName("Byte/Short/Long inner numeric types materialize matching bucket keys")
+		void shouldEmitBucketKeysOfMatchingNumericType() {
+			final FilterIndex longIndex = new FilterIndex(
+				new AttributeIndexKey(null, "value", null), LongNumberRange.class
+			);
+			longIndex.addRecord(1, LongNumberRange.between(1_000_000_000_000L, 2_000_000_000_000L));
+
+			final ValueToRecordBitmap[] longBuckets = longIndex
+				.getRangeHistogramOfAllRecords(Long.class, 0)
+				.getHistogramBuckets();
+			assertEquals(2, longBuckets.length);
+			assertEquals(1_000_000_000_000L, longBuckets[0].getValue());
+			assertEquals(2_000_000_000_000L, longBuckets[1].getValue());
+		}
+
+		@Test
+		@DisplayName("BigDecimal inner numeric type recovers scaled decimal bucket keys")
+		void shouldEmitScaledBigDecimalBucketKeys() {
+			final FilterIndex bdIndex = new FilterIndex(
+				new AttributeIndexKey(null, "price", null), BigDecimalNumberRange.class
+			);
+			// BigDecimalNumberRange encodes the threshold as `value.scaleByPowerOfTen(scale).longValueExact()`;
+			// passing retainedDecimalPlaces=2 here reproduces the exact stored thresholds.
+			bdIndex.addRecord(1, BigDecimalNumberRange.between(
+				new BigDecimal("10.50"), new BigDecimal("20.75"), 2
+			));
+
+			final ValueToRecordBitmap[] buckets = bdIndex
+				.getRangeHistogramOfAllRecords(BigDecimal.class, 2)
+				.getHistogramBuckets();
+			assertEquals(2, buckets.length);
+			// `BigDecimal.valueOf(threshold, 2)` yields a scale-2 decimal; `compareTo` is required because
+			// BigDecimal equality is scale-sensitive
+			assertEquals(0, ((BigDecimal) buckets[0].getValue()).compareTo(new BigDecimal("10.50")));
+			assertEquals(0, ((BigDecimal) buckets[1].getValue()).compareTo(new BigDecimal("20.75")));
+			assertArrayEquals(new int[] {1}, buckets[0].getRecordIds().getArray());
+			assertArrayEquals(new int[] {1}, buckets[1].getRecordIds().getArray());
+		}
+
+		@Test
+		@DisplayName("memoization returns the same subset until a non-tx mutation invalidates it")
+		void shouldMemoizeUntilNonTxMutation() {
+			final FilterIndex index = new FilterIndex(
+				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
+			);
+			index.addRecord(1, IntegerNumberRange.between(10, 20));
+
+			final InvertedIndexSubSet first = index.getRangeHistogramOfAllRecords(Integer.class, 0);
+			final InvertedIndexSubSet second = index.getRangeHistogramOfAllRecords(Integer.class, 0);
+			assertSame(first, second);
+
+			index.addRecord(2, IntegerNumberRange.between(5, 30));
+			final InvertedIndexSubSet third = index.getRangeHistogramOfAllRecords(Integer.class, 0);
+			assertNotSame(first, third);
+			assertEquals(4, third.getHistogramBuckets().length);
+		}
+
+		@Test
+		@DisplayName("invocation on a non-range FilterIndex throws GenericEvitaInternalError")
+		void shouldThrowOnNonRangeFilterIndex() {
+			final FilterIndex scalarIndex = new FilterIndex(
+				new AttributeIndexKey(null, "name", null), String.class
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> scalarIndex.getRangeHistogramOfAllRecords(Integer.class, 0)
+			);
+		}
+
+		@Test
+		@DisplayName("unbounded-from range (IntegerNumberRange.to(X)) participates in every bucket V <= X")
+		void shouldIncludeUnboundedFromRangeInAllBucketsUpToUpperBound() {
+			final FilterIndex index = new FilterIndex(
+				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
+			);
+			// record 1: range [null, 50] — `getFrom()` returns `Long.MIN_VALUE`, so its
+			// recordId lands in the MIN sentinel's `starts` bitmap. The sweep must still
+			// account for it when emitting buckets at thresholds <= 50.
+			index.addRecord(1, IntegerNumberRange.to(50));
+			index.addRecord(2, IntegerNumberRange.between(20, 80));
+			index.addRecord(3, IntegerNumberRange.between(60, 100));
+
+			final ValueToRecordBitmap[] buckets = index
+				.getRangeHistogramOfAllRecords(Integer.class, 0)
+				.getHistogramBuckets();
+
+			final Integer[] keys = new Integer[buckets.length];
+			for (int i = 0; i < buckets.length; i++) {
+				keys[i] = (Integer) buckets[i].getValue();
+			}
+			assertArrayEquals(new Integer[] {20, 50, 60, 80, 100}, keys);
+			// closed-interval semantics: record 1 (`[null, 50]`) participates in every
+			// bucket V where V <= 50 — i.e. buckets at 20 and 50
+			assertArrayEquals(new int[] {1, 2}, buckets[0].getRecordIds().getArray());
+			assertArrayEquals(new int[] {1, 2}, buckets[1].getRecordIds().getArray());
+			assertArrayEquals(new int[] {2, 3}, buckets[2].getRecordIds().getArray());
+			assertArrayEquals(new int[] {2, 3}, buckets[3].getRecordIds().getArray());
+			assertArrayEquals(new int[] {3}, buckets[4].getRecordIds().getArray());
+		}
+
+		@Test
+		@DisplayName("unbounded-to range (IntegerNumberRange.from(X)) participates in every bucket V >= X")
+		void shouldIncludeUnboundedToRangeInAllBucketsFromLowerBound() {
+			final FilterIndex index = new FilterIndex(
+				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
+			);
+			// record 1: range [50, null] — `getTo()` returns `Long.MAX_VALUE`, so its
+			// recordId lands in the MAX sentinel's `ends` bitmap. The record's `starts`
+			// is at the real threshold 50, so the sweep correctly carries it through
+			// every subsequent real threshold even when the MAX sentinel is sentinel-skipped.
+			index.addRecord(1, IntegerNumberRange.from(50));
+			index.addRecord(2, IntegerNumberRange.between(20, 80));
+			index.addRecord(3, IntegerNumberRange.between(10, 30));
+
+			final ValueToRecordBitmap[] buckets = index
+				.getRangeHistogramOfAllRecords(Integer.class, 0)
+				.getHistogramBuckets();
+
+			final Integer[] keys = new Integer[buckets.length];
+			for (int i = 0; i < buckets.length; i++) {
+				keys[i] = (Integer) buckets[i].getValue();
+			}
+			assertArrayEquals(new Integer[] {10, 20, 30, 50, 80}, keys);
+			assertArrayEquals(new int[] {3}, buckets[0].getRecordIds().getArray());
+			assertArrayEquals(new int[] {2, 3}, buckets[1].getRecordIds().getArray());
+			assertArrayEquals(new int[] {2, 3}, buckets[2].getRecordIds().getArray());
+			// at threshold 50: record 1 (`[50, null]`) becomes active and is carried forward
+			assertArrayEquals(new int[] {1, 2}, buckets[3].getRecordIds().getArray());
+			assertArrayEquals(new int[] {1, 2}, buckets[4].getRecordIds().getArray());
+		}
+
+		@Test
+		@DisplayName("resolveRangeInnerNumericType maps each NumberRange subtype to its primitive wrapper")
+		void shouldMapEachNumberRangeSubtypeToInnerType() {
+			assertSame(Integer.class, EvitaDataTypes.resolveRangeInnerNumericType(IntegerNumberRange.class));
+			assertSame(Long.class, EvitaDataTypes.resolveRangeInnerNumericType(LongNumberRange.class));
+			assertSame(BigDecimal.class, EvitaDataTypes.resolveRangeInnerNumericType(BigDecimalNumberRange.class));
+			assertNull(EvitaDataTypes.resolveRangeInnerNumericType(Integer.class));
+			assertNull(EvitaDataTypes.resolveRangeInnerNumericType(DateTimeRange.class));
+		}
+
 	}
 
 }

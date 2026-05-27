@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
@@ -166,7 +165,7 @@ public class CreateReflectedReferenceSchemaMutation
 			createdVersion.getAllHistogramIndexDefinitions().entrySet().stream()
 				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
 					.map(def -> new ScopedHistogramIndexDefinition(
-						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression(), def.assignedWhen()
 					))
 				)
 				.toArray(ScopedHistogramIndexDefinition[]::new);
@@ -174,7 +173,7 @@ public class CreateReflectedReferenceSchemaMutation
 			existingVersion.getAllHistogramIndexDefinitions().entrySet().stream()
 				.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
 					.map(def -> new ScopedHistogramIndexDefinition(
-						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+						scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression(), def.assignedWhen()
 					))
 				)
 				.toArray(ScopedHistogramIndexDefinition[]::new);

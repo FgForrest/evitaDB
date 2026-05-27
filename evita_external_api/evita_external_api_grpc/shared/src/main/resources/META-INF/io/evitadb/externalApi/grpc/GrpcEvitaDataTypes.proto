@@ -505,6 +505,14 @@ message GrpcScopedHistogramIndexDefinition {
   // The expression computing the histogram bucket value for each referenced entity.
   // When absent (not set), no value expression is defined for this scope.
   google.protobuf.StringValue valueExpression = 4;
+  // Partition selector. Among references already eligible per the reference- or scope-level
+  // bucketedPartially gate, this expression decides whether the referenced entity is
+  // assigned to this specific histogram. Multiple histograms on the same reference may
+  // declare overlapping or disjoint predicates; overlap is allowed but means a record
+  // participates in every histogram whose predicate evaluates to true. When absent (not set),
+  // no per-histogram restriction applies and the histogram contains every referenced entity
+  // already eligible per the gate.
+  google.protobuf.StringValue assignedWhen = 5;
 }
 
 // Message representing a per-scope expression that narrows which entities participate

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.query.expression;
 
+import io.evitadb.api.query.expression.bool.ConjunctionOperator;
 import io.evitadb.api.query.expression.exception.ParserException;
 import io.evitadb.api.query.expression.parser.grammar.EvitaELLexer;
 import io.evitadb.api.query.expression.parser.grammar.EvitaELParser;
@@ -40,6 +41,7 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * The ExpressionFactory interface provides methods for parsing an expression string and generating the corresponding
@@ -86,6 +88,35 @@ public interface ExpressionFactory {
 				"Internal error occurred during expression parsing.",
 				e);
 		}
+	}
+
+	/**
+	 * Combines two optional expressions into a single logical conjunction (`AND`). The helper is null-safe:
+	 *
+	 * - `and(null, null)` returns `null` (no condition at all).
+	 * - `and(null, b)` returns `b` unchanged.
+	 * - `and(a, null)` returns `a` unchanged.
+	 * - `and(a, b)` returns a new `Expression` whose root is a `ConjunctionOperator` over both operands.
+	 *
+	 * The contract makes the helper safe to use anywhere two independent expression sources need to be merged
+	 * without forcing callers to write boilerplate null checks. The returned `Expression` shares the operand
+	 * nodes of the inputs — it does **not** clone or rewrite them.
+	 *
+	 * @param left  left-hand operand of the conjunction, may be `null`
+	 * @param right right-hand operand of the conjunction, may be `null`
+	 * @return combined expression, or `null` if both inputs are `null`
+	 */
+	@Nullable
+	static Expression and(@Nullable Expression left, @Nullable Expression right) {
+		if (left == null) {
+			return right;
+		}
+		if (right == null) {
+			return left;
+		}
+		return new Expression(
+			new ConjunctionOperator(left.getOperand(), right.getOperand())
+		);
 	}
 
 	/**

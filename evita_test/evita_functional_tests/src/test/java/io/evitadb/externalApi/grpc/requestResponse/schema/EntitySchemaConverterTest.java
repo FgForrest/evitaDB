@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -33,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPa
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
-import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
@@ -44,22 +44,19 @@ import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.LocalDateTime;
 import java.util.*;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies functionalities of methods in {@link EntitySchemaConverter} class.
@@ -439,6 +436,25 @@ class EntitySchemaConverterTest {
 		@Nonnull String histogramName,
 		@Nonnull Expression valueExpr
 	) {
+		return createEntitySchemaWithBucketedBrandRef(histogramName, valueExpr, null);
+	}
+
+	/**
+	 * Builds a minimal {@link EntitySchema} whose `brand` reference is bucketed on the LIVE scope
+	 * using the supplied canonical histogram name, value expression, and optional per-histogram
+	 * {@code assignedWhen} expression.
+	 *
+	 * @param histogramName  the canonical histogram index name
+	 * @param valueExpr      the bucketed value expression
+	 * @param assignedWhen   the optional per-histogram partition selector, or null when none
+	 * @return a newly-built entity schema
+	 */
+	@Nonnull
+	private static EntitySchema createEntitySchemaWithBucketedBrandRef(
+		@Nonnull String histogramName,
+		@Nonnull Expression valueExpr,
+		@Nullable Expression assignedWhen
+	) {
 		return EntitySchema._internalBuild(
 			1,
 			Entities.PRODUCT,
@@ -472,15 +488,76 @@ class EntitySchemaConverterTest {
 					new Scope[]{Scope.LIVE},
 					null,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, histogramName, valueExpr)
+						new ScopedHistogramIndexDefinition(
+							Scope.LIVE, histogramName, valueExpr, assignedWhen
+						)
 					},
-					new ScopedBucketedPartially[0],
+					ScopedBucketedPartially.EMPTY,
 					Collections.emptyMap(),
 					Collections.emptyMap()
 				)
 			),
 			Collections.emptySet(),
 			Collections.emptyMap()
+		);
+	}
+
+	/**
+	 * Verifies that a per-histogram {@code assignedWhen} expression survives the gRPC
+	 * round-trip — the canonical expression string serialized into
+	 * {@link GrpcScopedHistogramIndexDefinition#getAssignedWhen()} on the outbound side
+	 * and is parsed back into the reconstructed {@link HistogramIndexDefinition} on the
+	 * inbound side. Pins both ends of the wire contract for the field.
+	 */
+	@Test
+	@DisplayName("should round-trip per-histogram assignedWhen expression through gRPC")
+	void shouldRoundTripAssignedWhenExpressionThroughGrpc() {
+		final Expression valueExpr = ExpressionFactory.parse("$price * 1.21");
+		final Expression assignedWhen = ExpressionFactory.parse("$stock > 0");
+		final String canonicalName = "priceHistogram";
+
+		final EntitySchema entitySchema = createEntitySchemaWithBucketedBrandRef(
+			canonicalName, valueExpr, assignedWhen
+		);
+		final CatalogSchema catalogSchema = createCatalogSchemaWithSingleEntitySchema(entitySchema);
+
+		final GrpcEntitySchema grpcEntitySchema =
+			EntitySchemaConverter.convert(catalogSchema, entitySchema, true);
+
+		// --- forward direction: the gRPC message carries the assignedWhen expression ---
+		final GrpcReferenceSchema grpcBrandRef =
+			grpcEntitySchema.getReferencesOrDefault(Entities.BRAND, null);
+		assertNotNull(grpcBrandRef, "gRPC brand reference must be present");
+		assertEquals(1, grpcBrandRef.getBucketedCount(), "brand must carry exactly one bucketed entry");
+
+		final GrpcScopedHistogramIndexDefinition grpcHist = grpcBrandRef.getBucketed(0);
+		assertTrue(
+			grpcHist.hasAssignedWhen(),
+			"gRPC message must carry the per-histogram assignedWhen expression"
+		);
+		assertEquals(
+			assignedWhen.toExpressionString(),
+			grpcHist.getAssignedWhen().getValue(),
+			"Serialized assignedWhen string must match the canonical expression form"
+		);
+
+		// --- reverse direction: the reconstructed definition carries the same expression ---
+		final EntitySchemaContract roundTripped = EntitySchemaConverter.convert(grpcEntitySchema);
+		final ReferenceSchemaContract brandRef =
+			roundTripped.getReference(Entities.BRAND).orElseThrow();
+		final HistogramIndexDefinition reconstructed =
+			brandRef.getHistogramIndexDefinition(Scope.LIVE, canonicalName);
+
+		assertNotNull(reconstructed, "Reconstructed histogram must be present after gRPC round-trip");
+		final Expression reconstructedExpr = reconstructed.assignedWhen();
+		assertNotNull(
+			reconstructedExpr,
+			"Reconstructed assignedWhen must not be null when wire carried a value"
+		);
+		assertEquals(
+			assignedWhen.toExpressionString(),
+			reconstructedExpr.toExpressionString(),
+			"Reconstructed assignedWhen must match the originating expression"
 		);
 	}
 }

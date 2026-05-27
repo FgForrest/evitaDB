@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.mutation.conflict.CollectionConflictKey;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictGenerationContext;
@@ -31,42 +32,39 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_NAME;
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.REFERENCE_TYPE;
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.createExistingReferenceSchema;
 import static io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutationTest.createExistingReflectedReferenceSchema;
-import static java.util.Optional.of;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static java.util.Optional.of;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link CreateReflectedReferenceSchemaMutation} verifying creation of reflected reference schemas,
@@ -353,7 +351,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 					new Scope[]{Scope.LIVE},
 					null,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 					},
 					null,
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
@@ -439,6 +437,86 @@ class CreateReflectedReferenceSchemaMutationTest {
 				Arrays.stream(result.current())
 					.anyMatch(SetReferenceSchemaBucketedMutation.class::isInstance),
 				"Should not emit SetReferenceSchemaBucketedMutation when both versions have inherited bucketing"
+			);
+		}
+
+		/**
+		 * Verifies that when the only difference between the created and existing reflected
+		 * reference versions is the per-histogram `assignedWhen` selector, the diff path inside
+		 * `createCombinedBucketedMutation(...)` still emits a
+		 * {@link SetReferenceSchemaBucketedMutation}. Pins the array-equality check against a
+		 * regression that ignores the `assignedWhen` slot on the reflected path.
+		 */
+		@Test
+		@DisplayName("should emit bucketed diff when only assignedWhen differs on reflected")
+		void shouldEmitBucketedDiffWhenOnlyAssignedWhenDiffers() {
+			final Expression existingAssignedWhen = ExpressionFactory.parse("$active == 1");
+			final Expression createdAssignedWhen = ExpressionFactory.parse("$active == 2");
+			final ReflectedReferenceSchema inheritedBase = ReflectedReferenceSchema._internalBuild(
+				REFERENCE_NAME,
+				"reflectedDescription",
+				"reflectedDeprecationNotice",
+				REFERENCE_TYPE,
+				REFLECTED_REFERENCE_NAME,
+				Cardinality.ZERO_OR_MORE,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null, null, null,
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+				null
+			);
+			final ReferenceSchemaContract existingReflected = inheritedBase.withBucketed(
+				Map.of(
+					Scope.LIVE,
+					Map.of(
+						"priceHistogram",
+						HistogramIndexDefinition.of("priceHistogram", null, existingAssignedWhen)
+					)
+				)
+			);
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"reflectedDescription", "reflectedDeprecationNotice",
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.DEFAULT_SCOPE, ReferenceIndexType.FOR_FILTERING)
+					},
+					null,
+					new Scope[]{Scope.LIVE},
+					null,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(
+							Scope.LIVE, "priceHistogram", null, createdAssignedWhen
+						)
+					},
+					null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(existingReflected));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+			);
+
+			assertNotNull(result);
+			assertTrue(
+				Arrays.stream(result.current())
+					.anyMatch(SetReferenceSchemaBucketedMutation.class::isInstance),
+				"assignedWhen-only diff on reflected reference must still emit a "
+					+ "SetReferenceSchemaBucketedMutation"
 			);
 		}
 	}
@@ -536,8 +614,8 @@ class CreateReflectedReferenceSchemaMutationTest {
 		@Test
 		@DisplayName("should create reflected reference with bucketed histogram")
 		void shouldCreateReflectedReferenceWithBucketedHistogram() {
-			final io.evitadb.dataType.expression.Expression expression =
-				io.evitadb.api.query.expression.ExpressionFactory.parse("1 > 0");
+			final Expression expression =
+				ExpressionFactory.parse("1 > 0");
 			final CreateReflectedReferenceSchemaMutation mutation =
 				new CreateReflectedReferenceSchemaMutation(
 					REFERENCE_NAME,
@@ -552,7 +630,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 					new Scope[]{Scope.LIVE},
 					null,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", expression)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", expression, null)
 					},
 					new ScopedBucketedPartially[]{
 						new ScopedBucketedPartially(Scope.LIVE, expression)
@@ -572,6 +650,55 @@ class CreateReflectedReferenceSchemaMutationTest {
 				referenceSchema.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram").nameOfTheIndex()
 			);
 			assertNotNull(referenceSchema.getBucketedPartiallyInScope(Scope.LIVE));
+		}
+
+		/**
+		 * Verifies that a non-null `assignedWhen` selector supplied on
+		 * {@link ScopedHistogramIndexDefinition} for a reflected reference survives
+		 * `mutate(...)` and lands unchanged on the resulting reflected schema's
+		 * {@link HistogramIndexDefinition}.
+		 */
+		@Test
+		@DisplayName("should preserve non-null assignedWhen through reflected mutate round-trip")
+		void shouldPreserveNonNullAssignedWhenInMutateRoundTrip() {
+			final Expression valueExpr = ExpressionFactory.parse("$reference.attributes['quantity']");
+			final Expression assignedWhenExpr = ExpressionFactory.parse("$active == 1");
+			final CreateReflectedReferenceSchemaMutation mutation =
+				new CreateReflectedReferenceSchemaMutation(
+					REFERENCE_NAME,
+					"desc", null,
+					Cardinality.ZERO_OR_MORE,
+					REFERENCE_TYPE,
+					REFLECTED_REFERENCE_NAME,
+					new ScopedReferenceIndexType[]{
+						new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+					},
+					null,
+					new Scope[]{Scope.LIVE},
+					null,
+					new ScopedHistogramIndexDefinition[]{
+						new ScopedHistogramIndexDefinition(
+							Scope.LIVE, "priceHistogram", valueExpr, assignedWhenExpr
+						)
+					},
+					null,
+					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
+					null
+				);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			final Expression preserved = referenceSchema
+				.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram")
+				.assignedWhen();
+			assertNotNull(preserved, "assignedWhen must survive reflected mutate(...)");
+			assertEquals(
+				assignedWhenExpr.toExpressionString(),
+				preserved.toExpressionString(),
+				"assignedWhen expression must round-trip unchanged on reflected reference"
+			);
 		}
 
 	}
@@ -754,7 +881,7 @@ class CreateReflectedReferenceSchemaMutationTest {
 					REFLECTED_REFERENCE_NAME,
 					null, null, null, null,
 					new ScopedHistogramIndexDefinition[]{
-						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+						new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 					},
 					null,
 					AttributeInheritanceBehavior.INHERIT_ONLY_SPECIFIED,
