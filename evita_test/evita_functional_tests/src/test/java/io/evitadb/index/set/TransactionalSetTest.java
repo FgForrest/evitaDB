@@ -23,9 +23,13 @@
 
 package io.evitadb.index.set;
 
+import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -478,9 +482,87 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 		}
 	}
 
+	@Test
+	void shouldReplaceSameIdentityElementWithDifferentContentOnAdd() {
+		// reproduces the silent-drop bug in SetChanges#put: when an element with the same equals()
+		// identity is added on top of one already in the delegate, the new (potentially modified)
+		// instance must end up in the committed set - not the stale original.
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> original.add(newA),
+			(original, committed) -> {
+				assertEquals(1, committed.size());
+				final Box committedBox = committed.iterator().next();
+				assertEquals(1, committedBox.id());
+				assertEquals("NEW-A", committedBox.content(),
+					"Committed set must hold the NEW content, not the stale original instance");
+			}
+		);
+	}
+
+	@Test
+	void shouldReplaceSameIdentityElementOnRemoveThenAdd() {
+		// remove-then-add variant: the original is marked for removal, then a fresh instance with
+		// the same identity but new content is added. The committed set must carry the new content.
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> {
+				original.remove(oldA);
+				original.add(newA);
+			},
+			(original, committed) -> {
+				assertEquals(1, committed.size());
+				final Box committedBox = committed.iterator().next();
+				assertEquals(1, committedBox.id());
+				assertEquals("NEW-A", committedBox.content(),
+					"Committed set must hold the NEW content after remove-then-add of same identity");
+			}
+		);
+	}
+
 	private record TestState(
 		StringBuilder code,
 		Set<String> initialSet
 	) {}
+
+	/**
+	 * Identity-based record that mimics PriceRecordContract: equals/hashCode key only on
+	 * {@link #id()} while {@link #content()} is logical payload that may change without changing
+	 * identity. Implements {@link ContentComparator} so a fix in SetChanges can detect content
+	 * divergence and substitute the existing element.
+	 */
+	private record Box(int id, @Nonnull String content) implements ContentComparator<Box> {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (!(o instanceof Box other)) return false;
+			return this.id == other.id;
+		}
+
+		@Override
+		public int hashCode() {
+			return Integer.hashCode(this.id);
+		}
+
+		@Override
+		public boolean differsFrom(@Nullable Box other) {
+			if (other == this) return false;
+			if (other == null) return true;
+			return this.id != other.id || !this.content.equals(other.content);
+		}
+	}
 
 }
