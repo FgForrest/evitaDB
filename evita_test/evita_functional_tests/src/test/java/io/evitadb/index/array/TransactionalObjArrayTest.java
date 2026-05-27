@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -1003,6 +1005,135 @@ class TransactionalObjArrayTest {
 					);
 				}
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Content substitution (identity-equal, content-different records)")
+	class ContentSubstitutionTest {
+
+		@Test
+		void shouldReplaceRecordWithSameIdentityButDifferentContentOnRemoveThenAdd() {
+			final Box oldA = new Box(1, "OLD-A");
+			final Box oldB = new Box(2, "OLD-B");
+			final Box newB = new Box(2, "NEW-B");
+			final TransactionalObjArray<Box> array =
+				new TransactionalObjArray<>(new Box[]{oldA, oldB}, Box.BY_ID);
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					original.remove(oldB);
+					original.add(newB);
+					final Box[] inTx = original.getArray();
+					assertEquals(2, inTx.length);
+					assertEquals("NEW-B", inTx[1].content(),
+						"Transactional view must already reflect the replaced content");
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.length);
+					assertEquals("OLD-A", committed[0].content());
+					assertEquals("NEW-B", committed[1].content(),
+						"Committed array must contain the NEW content, not the stale OLD one");
+				}
+			);
+		}
+
+		@Test
+		void shouldReplaceFreshlyInsertedRecordWithSameIdentityButDifferentContent() {
+			final Box first = new Box(7, "FIRST");
+			final Box second = new Box(7, "SECOND");
+			final TransactionalObjArray<Box> array =
+				new TransactionalObjArray<>(new Box[0], Box.BY_ID);
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					original.add(first);
+					original.remove(first);
+					original.add(second);
+				},
+				(original, committed) -> {
+					assertEquals(1, committed.length);
+					assertEquals("SECOND", committed[0].content(),
+						"Committed insertion bucket must hold the latest object instance");
+				}
+			);
+		}
+
+		@Test
+		void shouldRemoveSubstitutedRecordWithinSameTransaction() {
+			final Box oldA = new Box(1, "OLD-A");
+			final Box oldB = new Box(2, "OLD-B");
+			final Box newB = new Box(2, "NEW-B");
+			final TransactionalObjArray<Box> array =
+				new TransactionalObjArray<>(new Box[]{oldA, oldB}, Box.BY_ID);
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					original.remove(oldB);
+					original.add(newB);
+					assertTrue(original.contains(newB), "Substituted record must be visible via contains()");
+					original.remove(newB);
+					assertFalse(original.contains(newB), "Removed substituted record must not be present");
+					assertArrayEquals(new Box[]{oldA}, original.getArray());
+				},
+				(original, committed) -> assertArrayEquals(new Box[]{oldA}, committed)
+			);
+		}
+
+		@Test
+		void shouldKeepLatestContentWhenSubstitutedRecordIsReplacedAgain() {
+			final Box oldA = new Box(1, "OLD-A");
+			final Box v1 = new Box(1, "V1");
+			final Box v2 = new Box(1, "V2");
+			final TransactionalObjArray<Box> array =
+				new TransactionalObjArray<>(new Box[]{oldA}, Box.BY_ID);
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					original.remove(oldA);
+					original.add(v1);
+					original.add(v2);
+				},
+				(original, committed) -> {
+					assertEquals(1, committed.length);
+					assertEquals("V2", committed[0].content(),
+						"Committed array must carry the latest substituted content");
+				}
+			);
+		}
+
+		/**
+		 * Identity-based record that mimics PriceRecordContract: equals/hashCode/compareTo key only on
+		 * {@link #id()} while {@link #content()} is logical payload that may change without changing
+		 * identity. Implements {@link ContentComparator} so the change layer can detect content
+		 * divergence and substitute the stale instance.
+		 */
+		record Box(int id, @Nonnull String content) implements ContentComparator<Box> {
+			static final Comparator<Box> BY_ID = Comparator.comparingInt(Box::id);
+
+			@Override
+			public boolean equals(Object o) {
+				if (this == o) return true;
+				if (!(o instanceof Box other)) return false;
+				return this.id == other.id;
+			}
+
+			@Override
+			public int hashCode() {
+				return Integer.hashCode(this.id);
+			}
+
+			@Override
+			public boolean differsFrom(@Nullable Box other) {
+				if (other == this) return false;
+				if (other == null) return true;
+				return this.id != other.id || !this.content.equals(other.content);
+			}
 		}
 
 	}

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.set;
 
+import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import lombok.Getter;
@@ -72,17 +73,31 @@ public class SetChanges<K> implements Serializable {
 	}
 
 	/**
-	 * Records the insertion of the given key. The update is trapped
-	 * within this diff layer.
+	 * Records the insertion of the given key. The update is trapped within this diff layer.
+	 *
+	 * When the key implements {@link ContentComparator} and an equal-by-identity element with
+	 * different content is already present (either in the delegate or in the change layer), the
+	 * existing instance is substituted by the new one. For the delegate case this is encoded as a
+	 * paired "remove + add" in the change layer - {@link #createMergedSet} honors both, so the new
+	 * instance ends up in the committed snapshot.
 	 */
 	public boolean put(@Nonnull K key) {
-		final boolean wasRemoved = this.removedKeys != null && this.removedKeys.remove(key);
 		if (containsCreated(key)) {
+			// already in change layer - replace identity-equal entry if its content has diverged
+			replaceInCreatedIfContentDiffers(key);
 			return false;
 		}
-		final boolean isPartOfOriginal = this.setDelegate.contains(key);
-		if (isPartOfOriginal) {
-			return wasRemoved;
+		if (this.setDelegate.contains(key)) {
+			// already in original delegate
+			if (contentDiffersFromDelegate(key)) {
+				// substitute: mark the original position for removal AND record the new instance as
+				// created - createMergedSet will drop the original and insert the new instance
+				getOrCreateRemovedKeys().add(key);
+				getOrCreateCreatedKeys().add(key);
+				return false;
+			}
+			// contents are logically equal - just cancel any pending removal
+			return this.removedKeys != null && this.removedKeys.remove(key);
 		}
 		getOrCreateCreatedKeys().add(key);
 		return true;
@@ -96,21 +111,87 @@ public class SetChanges<K> implements Serializable {
 	@SuppressWarnings("unchecked")
 	public boolean remove(@Nonnull Object key) {
 		@SuppressWarnings("SuspiciousMethodCalls") final boolean originalContained = this.setDelegate.contains(key);
-		if (originalContained && containsRemoved((K) key)) {
-			// value has been already removed - report false
+		final boolean wasInCreated = containsCreated((K) key);
+		final boolean wasInRemoved = containsRemoved((K) key);
+
+		// drop any pending creation (covers both fresh adds and substitution replacements)
+		if (wasInCreated) {
+			removeCreatedKey((K) key);
+		}
+
+		if (originalContained) {
+			if (wasInRemoved && !wasInCreated) {
+				// original already net-removed and no pending substitution to roll back -> no-op
+				return false;
+			}
+			// either this is a removal of an original entry, or a rollback of a "replace" -
+			// in both cases the original delegate position must end up removed
+			registerRemovedKey((K) key);
+			return true;
+		}
+		// not in delegate - only the pending creation (if any) had any effect
+		return wasInCreated;
+	}
+
+	/**
+	 * Detects whether an element identity-equal to {@code key} is already in {@link #setDelegate} but
+	 * carries different content. Returns false for types that do not implement {@link ContentComparator}
+	 * because for them {@link Object#equals} is content-aware and {@code setDelegate.contains} already
+	 * implies equality.
+	 */
+	private boolean contentDiffersFromDelegate(@Nonnull K key) {
+		if (!(key instanceof ContentComparator)) {
 			return false;
 		}
-		final boolean wasRemoved;
-		if (containsCreated((K) key)) {
-			removeCreatedKey((K) key);
-			wasRemoved = true;
-		} else if (originalContained) {
-			registerRemovedKey((K) key);
-			wasRemoved = true;
-		} else {
-			wasRemoved = false;
+		final K existing = findIdentityEqual(this.setDelegate, key);
+		return existing != null && contentDiffers(existing, key);
+	}
+
+	/**
+	 * If an identity-equal entry exists in the change layer with diverging content, substitutes it
+	 * for the new instance. No-op for types whose equals semantics already imply content equality.
+	 */
+	private void replaceInCreatedIfContentDiffers(@Nonnull K key) {
+		if (!(key instanceof ContentComparator)) {
+			return;
 		}
-		return wasRemoved;
+		final K existing = findIdentityEqual(getCreatedKeys(), key);
+		if (existing != null && contentDiffers(existing, key)) {
+			final Set<K> created = getOrCreateCreatedKeys();
+			created.remove(key); // removes identity-equal entry from the HashSet
+			created.add(key);
+		}
+	}
+
+	/**
+	 * Returns the element in {@code haystack} that is identity-equal (by {@link Object#equals}) to
+	 * {@code needle}, or {@code null} when none is present. A linear scan is required because the
+	 * {@link Set} API exposes no way to retrieve the stored instance equal to a probe.
+	 */
+	@Nullable
+	private K findIdentityEqual(@Nonnull Set<K> haystack, @Nonnull K needle) {
+		for (K candidate : haystack) {
+			if (needle.equals(candidate)) {
+				return candidate;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Detects whether the candidate carries different content than an identity-equal existing element.
+	 * Prefers the explicit {@link ContentComparator} contract; falls back to {@link Object#equals} so
+	 * types with content-aware equals keep working as before.
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static <T> boolean contentDiffers(@Nonnull T existing, @Nonnull T candidate) {
+		if (existing == candidate) {
+			return false;
+		}
+		if (candidate instanceof ContentComparator) {
+			return ((ContentComparator) candidate).differsFrom(existing);
+		}
+		return !existing.equals(candidate);
 	}
 
 	/**

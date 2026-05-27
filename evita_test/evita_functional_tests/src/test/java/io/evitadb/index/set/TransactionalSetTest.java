@@ -23,6 +23,7 @@
 
 package io.evitadb.index.set;
 
+import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -1254,6 +1256,128 @@ class TransactionalSetTest {
 			final String entry = it.next();
 			assertTrue(expectedSet.contains(entry));
 		}
+	}
+
+	/**
+	 * Tests content substitution for identity-equal but content-different elements.
+	 */
+	@Nested
+	@DisplayName("Content substitution (identity-equal, content-different elements)")
+	class ContentSubstitutionTest {
+
+		@Test
+		void shouldReplaceSameIdentityElementWithDifferentContentOnAdd() {
+			final Box oldA = new Box(1, "OLD-A");
+			final Box newA = new Box(1, "NEW-A");
+			final Set<Box> underlying = new LinkedHashSet<>();
+			underlying.add(oldA);
+			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+			assertStateAfterCommit(
+				set,
+				original -> original.add(newA),
+				(original, committed) -> {
+					assertEquals(1, committed.size());
+					assertEquals("NEW-A", committed.iterator().next().content(),
+						"Committed set must hold the NEW content, not the stale original instance");
+				}
+			);
+		}
+
+		@Test
+		void shouldReplaceSameIdentityElementOnRemoveThenAdd() {
+			final Box oldA = new Box(1, "OLD-A");
+			final Box newA = new Box(1, "NEW-A");
+			final Set<Box> underlying = new LinkedHashSet<>();
+			underlying.add(oldA);
+			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+			assertStateAfterCommit(
+				set,
+				original -> {
+					original.remove(oldA);
+					original.add(newA);
+				},
+				(original, committed) -> {
+					assertEquals(1, committed.size());
+					assertEquals("NEW-A", committed.iterator().next().content(),
+						"Committed set must hold the NEW content after remove-then-add of same identity");
+				}
+			);
+		}
+
+		@Test
+		void shouldKeepLatestContentWhenSubstitutedElementIsAddedAgain() {
+			final Box oldA = new Box(1, "OLD-A");
+			final Box v1 = new Box(1, "V1");
+			final Box v2 = new Box(1, "V2");
+			final Set<Box> underlying = new LinkedHashSet<>();
+			underlying.add(oldA);
+			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+			assertStateAfterCommit(
+				set,
+				original -> {
+					original.add(v1);
+					original.add(v2);
+				},
+				(original, committed) -> {
+					assertEquals(1, committed.size());
+					assertEquals("V2", committed.iterator().next().content(),
+						"Committed set must hold the latest substituted content");
+				}
+			);
+		}
+
+		@Test
+		void shouldRemoveSubstitutedElementWithinSameTransaction() {
+			final Box oldA = new Box(1, "OLD-A");
+			final Box newA = new Box(1, "NEW-A");
+			final Set<Box> underlying = new LinkedHashSet<>();
+			underlying.add(oldA);
+			final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+			assertStateAfterCommit(
+				set,
+				original -> {
+					original.add(newA);
+					assertTrue(original.contains(newA), "Substituted element must be visible via contains()");
+					original.remove(newA);
+					assertFalse(original.contains(newA), "Removed substituted element must not be present");
+				},
+				(original, committed) -> assertTrue(committed.isEmpty(),
+					"Committed set must be empty after substitute-then-remove")
+			);
+		}
+
+		/**
+		 * Identity-based record that mimics PriceRecordContract: equals/hashCode key only on
+		 * {@link #id()} while {@link #content()} is logical payload that may change without changing
+		 * identity. Implements {@link ContentComparator} so the change layer can detect content
+		 * divergence and substitute the stale instance.
+		 */
+		record Box(int id, @Nonnull String content) implements ContentComparator<Box> {
+
+			@Override
+			public boolean equals(Object o) {
+				if (this == o) return true;
+				if (!(o instanceof Box other)) return false;
+				return this.id == other.id;
+			}
+
+			@Override
+			public int hashCode() {
+				return Integer.hashCode(this.id);
+			}
+
+			@Override
+			public boolean differsFrom(@Nullable Box other) {
+				if (other == this) return false;
+				if (other == null) return true;
+				return this.id != other.id || !this.content.equals(other.content);
+			}
+		}
+
 	}
 
 }
