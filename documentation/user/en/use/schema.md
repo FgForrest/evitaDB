@@ -634,16 +634,38 @@ evitaDB can compute [histograms](../query/requirements/histogram.md) for any num
 
 **Bucketed histogram indexing** on references solves this by making histograms a first-class part of the reference schema. When a reference is marked as *bucketed*, evitaDB builds and maintains a histogram index alongside the facet index. These reference-level histograms are then **automatically included in the [reference summary](../query/requirements/reference.md#reference-summary)** — just like facets are. The client simply requests the summary and receives both checkbox-style facet counts and interval-style histograms in a single response, without naming individual attributes.
 
-A typical e-commerce example: a Product entity has a `parameterValues` reference to ParameterValue, grouped by Parameter. Each parameter group has an `inputWidgetType` attribute that determines how it should be presented to the user:
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Faceted checkboxes and bucketed sliders on a single reference
+
+</NoteTitle>
+
+Consider a Product entity with a `parameterValues` reference to ParameterValue, grouped by Parameter. Each parameter group has an `inputWidgetType` attribute that determines how it should be presented to the user:
 
 - Parameters with `inputWidgetType == 'CHECKBOX'` → the reference is **faceted** (users pick from checkboxes)
 - Parameters with `inputWidgetType == 'INTERVAL'` → the reference is **bucketed** for histogram (users slide a range bar)
 
 Both treatments coexist on a single reference definition. The [conditional expressions](#conditional-indexing-with-expressions) (`facetedPartially` and `bucketedPartially`) direct each group to the appropriate index type at indexing time.
 
-When defining a histogram, you provide a **value expression** — an [EvitaEL expression](../query/expression-language.md) that identifies which numeric attribute's value to store as the histogram bucket value for each reference instance. For example, `$reference.referencedEntity.attributes['basicUnitValue']` extracts the `basicUnitValue` attribute from the referenced entity. Each reference can define multiple **named histogram indexes** in each scope — the histogram name identifies the index slot, and different scopes may use different value expressions for the same name.
+</Note>
 
-Only numeric attribute types (`Byte`, `Short`, `Integer`, `Long`, `BigDecimal`) are supported as histogram values; non-numeric types are rejected at schema definition time. Like facets, all histogram data is built at **indexing time** — the value expression is evaluated when entities are created or updated, and the query engine reads the pre-built index directly without any expression evaluation.
+When defining a histogram, you provide a **value expression** — an [EvitaEL expression](../query/expression-language.md) that identifies which attribute value to store as the histogram bucket value for each reference instance. For example, `$reference.referencedEntity.attributes['basicUnitValue']` extracts the `basicUnitValue` attribute from the referenced entity. Each reference can define multiple **named histogram indexes** in each scope — the histogram name identifies the index slot, and different scopes may use different value expressions for the same name.
+
+The value expression may resolve either to a **scalar numeric** attribute (`Byte`, `Short`, `Integer`, `Long`, `BigDecimal`) or to a **numeric range** attribute (`ByteNumberRange`, `ShortNumberRange`, `IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`). Any other type — including `DateTimeRange` and non-numeric scalars — is rejected at schema definition time. Like facets, all histogram data is built at **indexing time** — the value expression is evaluated when entities are created or updated, and the query engine reads the pre-built index directly without any expression evaluation.
+
+###### Range-typed histogram sources
+
+When the value expression resolves to a `NumberRange` attribute, the reference instance does not contribute a single point — it contributes the whole interval `[from, to]`. evitaDB indexes the range's endpoints, and at query time each reference instance is counted in **every histogram bucket its interval overlaps**, using closed-interval semantics (a range is counted at both its lower and upper bound). A single reference instance whose range spans several buckets therefore raises the occurrence count of *each* of those buckets. The histogram's `min` / `max` are taken from the lowest `from` and highest `to` across the contributing ranges, and open-ended ranges (unbounded `from` or `to`) participate from / through the relevant end of the span. Scalar and range histograms may coexist on the same reference under different histogram names.
+
+<Note type="info">
+
+Because a single element can land in several buckets at once, a range histogram's `overallCount` (and the sum of bucket occurrences) counts **(instance × overlapped-bucket) attributions**, not distinct reference instances — it is normally larger than the number of contributing instances. This is intentional: an availability or validity range should "fill" every slider position it covers.
+
+Unlike scalar sources, a range source must **not** declare a `?? value` fallback default. A missing range simply contributes nothing rather than collapsing to a point value, so supplying a default is rejected at schema-definition time.
+
+</Note>
 
 The histogram data is maintained in the same reduced entity indexes that hold facet data — `ReducedGroupEntityIndex` for grouped references and `ReferencedTypeEntityIndex` for ungrouped references. This makes histogram computation at query time as fast as facet summary computation: the data is already partitioned and ready.
 
@@ -652,6 +674,8 @@ The histogram data is maintained in the same reduced entity indexes that hold fa
 Both [facet indexing](#reference-facets) and [reference histograms](#reference-histograms) support conditional participation via `facetedPartially` and `bucketedPartially` respectively. The `facetedPartially` expression controls which reference instances are included in the facet index; the `bucketedPartially` expression controls which participate in the histogram index. When a reference carries both facets and histograms, the condition expressions can separate reference instances into different index types — for example, directing checkbox parameters to the facet index and interval parameters to the histogram index, all within a single reference definition.
 
 Both expressions use the same [EvitaEL expression](../query/expression-language.md) language and are **evaluated at indexing time** — that is, when entities are created or updated. The expression result determines whether each individual reference instance is added to or removed from the respective index. The expressions play no role at query time; by then the indexes already contain only the reference instances that passed their conditions, and summary computation runs at full speed.
+
+**Per-histogram assignment (`assignedWhen`).** `bucketedPartially` is a *reference-level* gate — it decides which reference instances are eligible for bucketed indexing at all. A named histogram may additionally declare an `assignedWhen` selector that is applied **on top of** that gate: among the already-eligible instances, it decides which ones feed *this specific* histogram. The two are AND-combined (`bucketedPartially && assignedWhen`). Because each named histogram carries its own `assignedWhen`, several histograms on one reference can select overlapping or disjoint instance sets — an instance contributes to *every* histogram whose `assignedWhen` evaluates to `true`, plus any histogram that declares no `assignedWhen` at all. Like the other conditional expressions, `assignedWhen` is evaluated at indexing time and uses the same `$entity` / `$reference` data paths described below.
 
 **Available data paths in the expression:**
 
@@ -704,7 +728,7 @@ Not all expressions are supported. Each expression must be translatable into an 
 
 If the source reference defines `facetedPartially`, the reflected reference must define its own faceted settings explicitly (using `facetedInScope` with its own `facetedPartially` expression written for the reflected direction, or simply `faceted` without a partial expression). Attempting to use `withFacetedInherited()` when the source has `facetedPartially` results in an `InvalidSchemaMutationException`. The same exception is thrown if `facetedPartially` is added to a source reference that already has a reflected reference inheriting its faceted settings.
 
-Histogram definitions (`bucketedInScope`, `bucketedPartiallyInScope`) are never inherited by reflected references at all. If a reflected reference needs histogram indexing, it must define its own configuration explicitly.
+Histogram definitions (`bucketedInScope`, `bucketedPartiallyInScope`, including each histogram's value and `assignedWhen` expressions) are never inherited by reflected references at all. If a reflected reference needs histogram indexing, it must define its own configuration explicitly.
 
 </Note>
 

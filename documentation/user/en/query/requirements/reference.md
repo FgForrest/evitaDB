@@ -605,6 +605,22 @@ The output histogram exposes:
 - a `requested` flag per bucket indicating whether it intersects an active
   [`histogramHaving`](../filtering/references.md#histogram-having) range carrier
 
+<Note type="info">
+
+If the `valueExpression` resolves to a **numeric range** attribute (`ByteNumberRange`, `ShortNumberRange`,
+`IntegerNumberRange`, `LongNumberRange`, `BigDecimalNumberRange`) instead of a scalar, the histogram is computed
+over intervals: each contributing reference instance is counted in **every bucket its `[from, to]` range overlaps**
+(closed interval). For range sources, `overallCount` and the per-bucket occurrences therefore count *attributions*,
+not distinct reference instances — one instance spanning N buckets adds 1 to each of those N buckets — and
+`[min, max]` is taken from the extreme range endpoints. See
+[Range-typed histogram sources](../../use/schema.md#reference-histograms) for the schema-side details.
+
+When the targeted histogram declares an `assignedWhen` partition selector, only the instances matching that selector
+(and the reference-level `bucketedPartially` gate) contribute to it, so two histograms on the same reference can
+present different slices of the same underlying value.
+
+</Note>
+
 The `[min, max]` span is computed by **peeling out** every value-range carrier under `userFilter` — both
 `histogramHaving` and `attributeBetween` siblings — so moving a slider does not contract its own outer handles and
 sibling sliders in the same family also keep their catalog-wide spans. See

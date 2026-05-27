@@ -42,6 +42,21 @@ The histogram data structure is optimized for frontend rendering. It contains th
       and the bucket threshold lies within the range (inclusive) of the constraint
     - contains `false` otherwise
 
+<Note type="info">
+
+The identity `overallCount = sum of bucket occurrences` always holds. For histograms built over a **range-typed
+source** (reference histograms only — see [reference histograms](../../use/schema.md#reference-histograms)), a single
+element can fall into several buckets at once, so `overallCount` may exceed the number of distinct contributing
+elements. For every scalar-source histogram the two are equal.
+
+`relativeFrequency` stays a valid 0–100 visualization in both cases — it is a ratio of `occurrences` to `overallCount`
+(standard buckets still sum to 100, equalized buckets are still normalized to 100), and for a range source both
+numerator and denominator count the same overlap attributions. The only difference is interpretive: a range-source
+bucket's height reflects the share of **(element × overlapped-bucket) attributions** rather than the share of distinct
+elements, so positions covered by more overlapping ranges appear proportionally taller.
+
+</Note>
+
 ## Attribute histogram
 
 <LS to="e,j,r,c">
