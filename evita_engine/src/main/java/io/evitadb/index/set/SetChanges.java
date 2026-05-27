@@ -115,9 +115,10 @@ public class SetChanges<K> implements Serializable {
 	 * Records the insertion of `key` into this change layer. The exact behavior depends on where an
 	 * identity-equal element is currently found:
 	 *
-	 * **Key already in the change layer** — if the stored instance's content matches the new one, no
-	 * action is needed beyond cancelling any pending removal for the key; if content has diverged,
-	 * {@link #replaceInCreatedIfContentDiffers} substitutes the stored instance with the new one.
+	 * **Key already in the change layer** — if content has diverged, {@link #replaceInCreatedIfContentDiffers}
+	 * substitutes the stored instance with the new one; otherwise nothing changes. Any pending removal is
+	 * deliberately left untouched: when this key is the add-half of a delegate substitution its removal
+	 * marker must remain, otherwise {@link #createMergedSet} would resurface the stale original.
 	 *
 	 * **Key already in the delegate** — if content is equal, any pending removal is cancelled (idempotent
 	 * re-add); if content has diverged, the original position is added to {@link #removedKeys} AND `key`
