@@ -4284,7 +4284,6 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			.server(
 				ServerOptions.builder()
 					.closeSessionsAfterSecondsOfInactivity(inactivityTimeoutInSeconds)
-					.transactionTimeoutInMilliseconds(Long.MAX_VALUE)
 					.build()
 			)
 			.storage(
