@@ -133,9 +133,10 @@ public class SetChanges<K> implements Serializable {
 	 */
 	public boolean put(@Nonnull K key) {
 		if (containsCreated(key)) {
-			// already in change layer - replace identity-equal entry if its content has diverged
+			// already in change layer - replace identity-equal entry if its content has diverged;
+			// do NOT cancel a pending removal here: when this key is the "add half" of a delegate
+			// substitution it must stay in removedKeys, otherwise the stale original would resurface
 			replaceInCreatedIfContentDiffers(key);
-			this.removedKeys.remove(key);
 			return false;
 		}
 		if (this.setDelegate.contains(key)) {

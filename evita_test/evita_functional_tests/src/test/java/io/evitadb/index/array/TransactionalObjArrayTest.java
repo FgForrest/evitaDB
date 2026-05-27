@@ -457,6 +457,58 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldRemoveSubstitutedRecordWithinSameTransaction() {
+		// after a content-substitution (remove old + add new, same identity), removing the new record
+		// again in the same transaction must leave the array WITHOUT that record - the substitution
+		// encoding (removed delegate slot + insertion bucket) must not resurrect it
+		final Box oldA = new Box(1, "OLD-A");
+		final Box oldB = new Box(2, "OLD-B");
+		final Box newB = new Box(2, "NEW-B");
+		final TransactionalObjArray<Box> array =
+			new TransactionalObjArray<>(new Box[]{oldA, oldB}, Box.BY_ID);
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.remove(oldB);
+				original.add(newB);
+				// right after substitution the record must be reported present
+				assertTrue(original.contains(newB), "Substituted record must be visible via contains()");
+				// now remove it again - it must disappear entirely
+				original.remove(newB);
+				assertFalse(original.contains(newB), "Removed substituted record must not be present");
+				assertArrayEquals(new Box[]{oldA}, original.getArray());
+			},
+			(original, committed) -> assertArrayEquals(new Box[]{oldA}, committed)
+		);
+	}
+
+	@Test
+	void shouldKeepLatestContentWhenSubstitutedRecordIsReplacedAgain() {
+		// substitute (remove old + add new), then add an even newer instance with the same identity -
+		// the committed array must carry the LATEST content
+		final Box oldA = new Box(1, "OLD-A");
+		final Box v1 = new Box(1, "V1");
+		final Box v2 = new Box(1, "V2");
+		final TransactionalObjArray<Box> array =
+			new TransactionalObjArray<>(new Box[]{oldA}, Box.BY_ID);
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.remove(oldA);
+				original.add(v1);
+				original.add(v2);
+			},
+			(original, committed) -> {
+				assertEquals(1, committed.length);
+				assertEquals("V2", committed[0].content(),
+					"Committed array must carry the latest substituted content");
+			}
+		);
+	}
+
+	@Test
 	void shouldCorrectlyWipeAll() {
 		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{36, 59, 179}, Comparator.naturalOrder());
 

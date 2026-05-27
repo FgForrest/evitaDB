@@ -532,6 +532,55 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 		);
 	}
 
+	@Test
+	void shouldKeepLatestContentWhenSubstitutedElementIsAddedAgain() {
+		// substitute a delegate element (add new content over same identity), then add an even newer
+		// instance with the same identity - the committed set must carry the LATEST content and the
+		// stale original must not resurface
+		final Box oldA = new Box(1, "OLD-A");
+		final Box v1 = new Box(1, "V1");
+		final Box v2 = new Box(1, "V2");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> {
+				original.add(v1);
+				original.add(v2);
+			},
+			(original, committed) -> {
+				assertEquals(1, committed.size());
+				assertEquals("V2", committed.iterator().next().content(),
+					"Committed set must hold the latest substituted content");
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveSubstitutedElementWithinSameTransaction() {
+		// after substituting a delegate element, removing it again in the same transaction must leave
+		// the set without that element (the original must end up removed, the replacement dropped)
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> {
+				original.add(newA);
+				assertTrue(original.contains(newA), "Substituted element must be visible via contains()");
+				original.remove(newA);
+				assertFalse(original.contains(newA), "Removed substituted element must not be present");
+			},
+			(original, committed) -> assertTrue(committed.isEmpty(),
+				"Committed set must be empty after substitute-then-remove")
+		);
+	}
+
 	private record TestState(
 		StringBuilder code,
 		Set<String> initialSet

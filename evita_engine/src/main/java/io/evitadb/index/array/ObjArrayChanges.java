@@ -188,7 +188,12 @@ public class ObjArrayChanges<T> {
 	boolean contains(@Nonnull T recordId, @Nonnull Comparator<T> comparator) {
 		final int delegateIndex = Arrays.binarySearch(this.delegate, recordId, comparator);
 		if (delegateIndex >= 0) {
-			return Arrays.binarySearch(this.removals, delegateIndex) < 0;
+			if (Arrays.binarySearch(this.removals, delegateIndex) < 0) {
+				return true;
+			}
+			// delegate slot is removed - a content substitution may have queued a replacement with
+			// the same comparator key in the insertion bucket at this position
+			return insertionBucketContains(delegateIndex, recordId, comparator);
 		} else {
 			for (InsertionBucket<T> insertedValue : this.insertedValues) {
 				if (Arrays.binarySearch(insertedValue.getInsertedValues(), recordId, comparator) >= 0) {
@@ -197,6 +202,17 @@ public class ObjArrayChanges<T> {
 			}
 			return false;
 		}
+	}
+
+	/**
+	 * Returns true if the insertion bucket queued at the given delegate position contains a record
+	 * with the same comparator key as `recordId`. Used to recognize a content-substitution replacement
+	 * that sits at a delegate position that is simultaneously marked for removal.
+	 */
+	private boolean insertionBucketContains(int position, @Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+		final int insIdx = Arrays.binarySearch(this.insertions, position);
+		return insIdx >= 0
+			&& Arrays.binarySearch(this.insertedValues[insIdx].getInsertedValues(), recordId, comparator) >= 0;
 	}
 
 	/**
@@ -311,6 +327,19 @@ public class ObjArrayChanges<T> {
 		if (position >= 0) {
 			// if so, mark this position for removal (this operation is idempotent)
 			this.removals = ArrayUtils.insertIntIntoOrderedArray(position, this.removals);
+			// if a content substitution previously queued a replacement at this position, drop it too -
+			// otherwise the merge would resurrect the (now removed) record from the insertion bucket
+			final int insIdx = Arrays.binarySearch(this.insertions, position);
+			if (insIdx >= 0) {
+				final InsertionBucket<T> bucket = this.insertedValues[insIdx];
+				if (Arrays.binarySearch(bucket.getInsertedValues(), recordId, comparator) >= 0) {
+					bucket.removeRecord(recordId, comparator);
+					if (bucket.isEmpty()) {
+						this.insertions = ArrayUtils.removeIntFromArrayOnIndex(this.insertions, insIdx);
+						this.insertedValues = ArrayUtils.removeRecordFromArrayOnIndex(this.insertedValues, insIdx);
+					}
+				}
+			}
 		} else {
 			// record is not part of the original array but might be present on change layer
 			final int changePosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, comparator).position();
