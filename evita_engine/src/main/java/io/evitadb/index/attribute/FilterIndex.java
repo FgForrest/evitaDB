@@ -319,7 +319,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	public static long fromBucketKey(@Nonnull Serializable value) {
 		if (value instanceof BigDecimal bd) {
-			// inverse of `BigDecimal.valueOf(threshold, retainedDecimalPlaces)` in toBucketKey
+			// inverse of `BigDecimal.valueOf(threshold, retainedDecimalPlaces)` in toBucketKey;
+			// round-trip keys always carry scale >= 0, so the Math.max is a no-op there — it is a
+			// belt-and-suspenders guard for direct callers passing externally-built negative-scale
+			// BigDecimals (e.g. `1E+2`, scale -2) so those still decode to the correct long
 			final int scale = Math.max(bd.scale(), 0);
 			return bd.scaleByPowerOfTen(scale).longValueExact();
 		}
