@@ -41,6 +41,7 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -623,7 +624,7 @@ public class ClassSchemaAnalyzer {
 		@Nonnull Reference reference
 	) {
 		final ScopeReferenceSettings[] scopedDefinition = reference.scope();
-		final Histogram bucketedProperty = reference.bucketed();
+		final Histogram[] bucketedProperty = reference.bucketed();
 		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 			// general settings apply to DEFAULT_SCOPE
 			applyReferenceIndexType(
@@ -640,14 +641,7 @@ public class ClassSchemaAnalyzer {
 			if (!facetedPartiallyExpr.isEmpty()) {
 				editor.facetedPartially(ExpressionFactory.parse(facetedPartiallyExpr));
 			}
-			final String bucketedIndexName = bucketedProperty.nameOfTheIndex();
-			final String bucketedValueExpr = bucketedProperty.value().value();
-			if (!bucketedIndexName.isEmpty() || !bucketedValueExpr.isEmpty()) {
-				editor.bucketed(
-					bucketedIndexName,
-					bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr)
-				);
-			}
+			applyBucketedHistograms(editor, Scope.DEFAULT_SCOPE, bucketedProperty);
 			final String bucketedPartiallyExpr = reference.bucketedPartially().value();
 			if (!bucketedPartiallyExpr.isEmpty()) {
 				editor.bucketedPartially(ExpressionFactory.parse(bucketedPartiallyExpr));
@@ -673,8 +667,7 @@ public class ClassSchemaAnalyzer {
 					"(and thus it doesn't make sense to set it)!"
 			);
 			Assert.isTrue(
-				bucketedProperty.nameOfTheIndex().isEmpty() &&
-					bucketedProperty.value().value().isEmpty(),
+				ArrayUtils.isEmptyOrItsValuesNull(bucketedProperty),
 				"When `scope` is defined in `@Reference` annotation, " +
 					"the value of `bucketed` property is not taken into an account " +
 					"(and thus it doesn't make sense to set it)!"
@@ -715,21 +708,70 @@ public class ClassSchemaAnalyzer {
 				if (!fpExpr.isEmpty()) {
 					editor.facetedPartiallyInScope(scope, ExpressionFactory.parse(fpExpr));
 				}
-				final Histogram bucketed = ss.bucketed();
-				final String bucketedIndexName = bucketed.nameOfTheIndex();
-				final String bucketedValueExpr = bucketed.value().value();
-				if (!bucketedIndexName.isEmpty() || !bucketedValueExpr.isEmpty()) {
-					editor.bucketedInScope(
-						scope,
-						bucketedIndexName,
-						bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr)
-					);
-				}
+				applyBucketedHistograms(editor, scope, ss.bucketed());
 				final String bpExpr = ss.bucketedPartially().value();
 				if (!bpExpr.isEmpty()) {
 					editor.bucketedPartiallyInScope(scope, ExpressionFactory.parse(bpExpr));
 				}
 			}
+		}
+	}
+
+	/**
+	 * Iterates over the {@link Histogram} array declared on a {@link Reference} or
+	 * {@link ScopeReferenceSettings} annotation and emits one
+	 * {@link ReferenceSchemaEditor#bucketedInScope} call per entry. Validates that each
+	 * entry carries a non-blank {@code nameOfTheIndex} (blank histogram entries inside a
+	 * non-empty array are rejected) and that names are unique within the (reference, scope)
+	 * pair. A {@code null} entry inside a non-empty array is a programming error and surfaces
+	 * as a {@link GenericEvitaInternalError}.
+	 *
+	 * @param editor     the reference schema editor to configure
+	 * @param scope      the scope under which the histograms should be installed
+	 * @param histograms the histogram annotation entries (may be empty)
+	 */
+	private static void applyBucketedHistograms(
+		@Nonnull ReferenceSchemaEditor<?> editor,
+		@Nonnull Scope scope,
+		@Nullable Histogram[] histograms
+	) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(histograms)) {
+			return;
+		}
+		final Set<String> seenNames = CollectionUtils.createHashSet(histograms.length);
+		for (final Histogram histogram : histograms) {
+			// `isEmptyOrItsValuesNull` only short-circuits on all-null arrays; a mixed array
+			// like `{validHistogram, null}` reaches this loop and would NPE on the next line.
+			// Surface this as a programming-error (defensive-design rule) before dereferencing.
+			if (histogram == null) {
+				throw new GenericEvitaInternalError(
+					"Reference '" + editor.getName() + "' declares a null @Histogram entry — null " +
+						"histogram entries inside a non-empty array are not allowed."
+				);
+			}
+			final String bucketedIndexName = histogram.nameOfTheIndex();
+			if (bucketedIndexName.isBlank()) {
+				throw new InvalidSchemaMutationException(
+					"Reference '" + editor.getName() + "' declares a @Histogram with a blank " +
+						"nameOfTheIndex — blank histogram entries inside a non-empty array " +
+						"are not allowed."
+				);
+			}
+			if (!seenNames.add(bucketedIndexName)) {
+				throw new InvalidSchemaMutationException(
+					"Reference '" + editor.getName() + "' declares histogram index name '" +
+						bucketedIndexName + "' more than once in scope " + scope +
+						" — names must be unique within a (reference, scope)."
+				);
+			}
+			final String bucketedValueExpr = histogram.value().value();
+			final String assignedWhenExpr = histogram.assignedWhen().value();
+			editor.bucketedInScope(
+				scope,
+				bucketedIndexName,
+				bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr),
+				assignedWhenExpr.isEmpty() ? null : ExpressionFactory.parse(assignedWhenExpr)
+			);
 		}
 	}
 

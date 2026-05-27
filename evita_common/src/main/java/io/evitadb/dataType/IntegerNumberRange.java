@@ -81,15 +81,9 @@ public final class IntegerNumberRange extends NumberRange<Integer> {
 		);
 		final Integer from = delimiter == 1 ? null : parseInt(string.substring(1, delimiter));
 		final Integer to = delimiter == string.length() - 2 ? null : parseInt(string.substring(delimiter + 1, string.length() - 1));
-		if (from == null && to != null) {
-			return to(to);
-		} else if (from != null && to == null) {
-			return from(from);
-		} else if (from != null) {
-			return between(from, to);
-		} else {
-			throw new DataTypeParseException("Range has no sense with both limits open to infinity!");
-		}
+		return Range.materializeOpenEndedRange(
+			from, to, IntegerNumberRange::to, IntegerNumberRange::from, IntegerNumberRange::between
+		);
 	}
 
 	@Nonnull

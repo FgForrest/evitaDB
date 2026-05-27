@@ -594,7 +594,7 @@ public final class EntitySchema implements EntitySchemaContract {
 					.stream()
 					.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
 						.map(def -> new ScopedHistogramIndexDefinition(
-							scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression()
+							scopeEntry.getKey(), def.nameOfTheIndex(), def.valueExpression(), def.assignedWhen()
 						))
 					)
 					.toArray(ScopedHistogramIndexDefinition[]::new),

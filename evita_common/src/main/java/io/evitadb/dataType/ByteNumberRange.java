@@ -81,15 +81,9 @@ public final class ByteNumberRange extends NumberRange<Byte> {
 		);
 		final Byte from = delimiter == 1 ? null : parseByte(string.substring(1, delimiter));
 		final Byte to = delimiter == string.length() - 2 ? null : parseByte(string.substring(delimiter + 1, string.length() - 1));
-		if (from == null && to != null) {
-			return to(to);
-		} else if (from != null && to == null) {
-			return from(from);
-		} else if (from != null) {
-			return between(from, to);
-		} else {
-			throw new DataTypeParseException("Range has no sense with both limits open to infinity!");
-		}
+		return Range.materializeOpenEndedRange(
+			from, to, ByteNumberRange::to, ByteNumberRange::from, ByteNumberRange::between
+		);
 	}
 
 	@Nonnull

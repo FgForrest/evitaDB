@@ -44,6 +44,7 @@ import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.expression.trigger.HistogramValueSource;
+import io.evitadb.dataType.Range;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -274,7 +275,7 @@ public interface ReferenceIndexMutator {
 	) {
 		// dedup by AbstractReducedEntityIndex identity — single map spans both paths
 		final int referenceCount = executor.getReferencesStoragePart().getReferences().length;
-		final int upperBound = path == IterationPath.BOTH ? referenceCount * 2 : referenceCount;
+		final int upperBound = path == IterationPath.BOTH ? referenceCount << 1 : referenceCount;
 		final IdentityHashMap<AbstractReducedEntityIndex, Boolean> visited =
 			new IdentityHashMap<>(Math.max(2, upperBound));
 		final ReferenceIndexConsumer dedupConsumer =
@@ -696,9 +697,9 @@ public interface ReferenceIndexMutator {
 				true
 			)
 		);
-		// mirror the initial-population logic in `indexAllAttributes`: on grouped reduced indexes
-		// the reference-attribute FilterIndex is keyed on the referenced entity PK, so subsequent
-		// attribute updates must follow the same keying rule
+		// mirror the initial-population logic in `indexAllReferenceLevelAttributes`: on grouped
+		// reduced indexes the reference-attribute FilterIndex is keyed on the referenced entity PK,
+		// so subsequent attribute updates must follow the same keying rule
 		if (indexForUpsert instanceof ReducedGroupEntityIndex
 			|| indexForRemoval instanceof ReducedGroupEntityIndex) {
 			executor.executeWithDifferentPrimaryKeyToIndex(
@@ -1669,12 +1670,12 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
 		int ownerPK,
-		@Nonnull Number[] oldValues,
+		@Nonnull Serializable[] oldValues,
 		@Nonnull HistogramExpressionTrigger trigger,
 		@Nullable Locale locale,
 		@Nonnull Scope scope
 	) {
-		for (final Number value : oldValues) {
+		for (final Serializable value : oldValues) {
 			removeSingleHistogramValue(
 				executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
 				locale, value, ownerPK, groupId, scope
@@ -1687,7 +1688,8 @@ public interface ReferenceIndexMutator {
 	 * present in the histogram. Used when the condition attribute changed (but not the value source),
 	 * during reference removal, or during ungrouped-to-grouped group transfer.
 	 *
-	 * For each trigger, reads the source value, resolves to Number[], and removes each value only
+	 * For each trigger, reads the source value, resolves to the histogram-value array (typed to the
+	 * descriptor's `plainType` — either `Number` or `Range` instances), and removes each value only
 	 * if it is verified present in the histogram (the condition may have been false when the reference
 	 * was indexed, so the entry may not exist).
 	 *
@@ -1717,8 +1719,8 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Removes histogram entries contributed by a single trigger for the given reference. Reads the
-	 * current attribute value, resolves to Number[], and removes each value only if it is verified
-	 * present in the histogram.
+	 * current attribute value, resolves to the histogram-value array (typed to the descriptor's
+	 * `plainType`), and removes each value only if it is verified present in the histogram.
 	 *
 	 * Extracted as a separate method so that callers needing per-trigger condition evaluation (e.g.,
 	 * the synchronous reference removal path) can iterate triggers themselves, evaluate conditions,
@@ -1749,7 +1751,7 @@ public interface ReferenceIndexMutator {
 			final Serializable rawValue = readHistogramSourceValue(
 				executor, referenceKey, resolution, refAttrSupplier, locale, scope
 			);
-			final Number[] values = resolveHistogramValues(rawValue, resolution);
+			final Serializable[] values = resolveHistogramValues(rawValue, resolution);
 			if (values.length > 0) {
 				removeHistogramValuesWithGuard(
 					executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
@@ -1794,7 +1796,7 @@ public interface ReferenceIndexMutator {
 					final Serializable rawValue = readHistogramSourceValue(
 						executor, referenceKey, resolution, refAttrSupplier, locale, scope
 					);
-					final Number[] values = resolveHistogramValues(rawValue, resolution);
+					final Serializable[] values = resolveHistogramValues(rawValue, resolution);
 					if (values.length > 0) {
 						removeHistogramValuesWithGuard(
 							executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
@@ -1846,8 +1848,8 @@ public interface ReferenceIndexMutator {
 				final Serializable rawValue = readHistogramSourceValue(
 					executor, referenceKey, resolution, refAttrSupplier, locale, scope
 				);
-				final Number[] values = resolveHistogramValues(rawValue, resolution);
-				for (final Number value : values) {
+				final Serializable[] values = resolveHistogramValues(rawValue, resolution);
+				for (final Serializable value : values) {
 					for (final int storagePK : groupStoragePKs) {
 						final EntityIndex reducedIndex =
 							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
@@ -1885,45 +1887,59 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Resolves raw attribute value to an array of Number values for histogram operations.
-	 * Handles scalar numbers, array-typed attributes, null values with defaults, and
-	 * null values without defaults (returns empty array).
+	 * Resolves raw attribute value to an array of histogram values for histogram operations.
+	 * Returns either `Number` instances (for plain-numeric source attributes) or `Range` instances
+	 * (when the descriptor's `innerNumericType()` is non-null, i.e. the source attribute is a
+	 * `NumberRange` subtype). Handles scalar values, array-typed attributes, null values with
+	 * defaults, and null values without defaults (returns empty array).
+	 *
+	 * For range-typed sources `defaultValue` is always `null` by descriptor invariant, so a
+	 * missing raw value yields an empty result without consulting the default.
 	 *
 	 * @param rawValue   the raw attribute value (may be null)
 	 * @param resolution the value resolution metadata
-	 * @return array of Number values; empty if no values can be determined
+	 * @return array of histogram values typed to {@link HistogramValueDescriptor#plainType()};
+	 *         empty if no values can be determined
 	 */
 	@Nonnull
-	static Number[] resolveHistogramValues(
+	static Serializable[] resolveHistogramValues(
 		@Nullable Serializable rawValue,
 		@Nonnull HistogramValueDescriptor resolution
 	) {
+		final boolean rangeSource = resolution.innerNumericType() != null;
 		if (rawValue == null) {
 			if (resolution.defaultValue() != null) {
-				return new Number[]{resolution.defaultValue()};
+				return new Serializable[]{resolution.defaultValue()};
 			}
-			return new Number[0];
+			return new Serializable[0];
 		}
 		if (resolution.arrayType() && rawValue instanceof Serializable[] array) {
 			int count = 0;
 			for (final Serializable element : array) {
-				if (element instanceof Number) {
+				if (rangeSource ? element instanceof Range<?> : element instanceof Number) {
 					count++;
 				}
 			}
-			final Number[] result = new Number[count];
+			final Serializable[] result = new Serializable[count];
 			int idx = 0;
 			for (final Serializable element : array) {
-				if (element instanceof Number number) {
+				if (rangeSource) {
+					if (element instanceof Range<?> range) {
+						result[idx++] = range;
+					}
+				} else if (element instanceof Number number) {
 					result[idx++] = number;
 				}
 			}
 			return result;
 		}
-		if (rawValue instanceof Number number) {
-			return new Number[]{number};
+		if (rangeSource && rawValue instanceof Range<?> range) {
+			return new Serializable[]{range};
 		}
-		return new Number[0];
+		if (!rangeSource && rawValue instanceof Number number) {
+			return new Serializable[]{number};
+		}
+		return new Serializable[0];
 	}
 
 	/**
@@ -2513,8 +2529,9 @@ public interface ReferenceIndexMutator {
 	 * Indexes the reference-level attributes of the given reference into `targetIndex`. Reference-level
 	 * attributes are keyed by the reference's primary key (the referenced entity's PK), not the owner
 	 * entity's PK, so two different references on the same owner contribute under different cardinality
-	 * keys and must be indexed independently — this is the per-reference half of {@link #indexAllAttributes}
-	 * that {@link #indexAllExistingData} fires for every reference resolving to a given group reduced index.
+	 * keys and must be indexed independently — this is the per-reference half of
+	 * {@link #indexAllEntityLevelAttributes} that {@link #indexAllExistingData} fires for every
+	 * reference resolving to a given group reduced index.
 	 */
 	private static void indexAllReferenceLevelAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2948,11 +2965,14 @@ public interface ReferenceIndexMutator {
 	 * {@link #isValueInHistogram} to prevent cardinality assertion failures for entries that were
 	 * never inserted (condition was false at index time).
 	 *
+	 * Values may be `Number` instances (for plain-numeric histograms) or `Range` instances (for
+	 * range-typed histograms). The downstream index APIs accept `Serializable` directly.
+	 *
 	 * @param executor      the mutation executor
 	 * @param referenceName the reference name
 	 * @param histogramName the histogram definition name
 	 * @param locale        the locale, or `null` for non-localized
-	 * @param values        the numeric values to remove
+	 * @param values        the histogram values to remove (`Number` or `Range` instances)
 	 * @param ownerPK       the primary key of the owner entity
 	 * @param groupId       the group primary key (null for ungrouped)
 	 * @param scope         the current scope
@@ -2962,12 +2982,12 @@ public interface ReferenceIndexMutator {
 		@Nonnull String referenceName,
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number[] values,
+		@Nonnull Serializable[] values,
 		int ownerPK,
 		@Nullable Integer groupId,
 		@Nonnull Scope scope
 	) {
-		for (final Number value : values) {
+		for (final Serializable value : values) {
 			if (groupId != null) {
 				final EntityIndexKey groupTypeKey = new EntityIndexKey(
 					EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName
@@ -3011,7 +3031,7 @@ public interface ReferenceIndexMutator {
 	 * @param referenceName the reference name
 	 * @param histogramName the histogram definition name
 	 * @param locale        the locale, or `null` for non-localized
-	 * @param value         the numeric value to remove
+	 * @param value         the histogram value to remove (`Number` or `Range` instance)
 	 * @param ownerPK       the primary key of the owner entity
 	 * @param groupId       the group primary key (null for ungrouped)
 	 * @param scope         the current scope
@@ -3021,7 +3041,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull String referenceName,
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK,
 		@Nullable Integer groupId,
 		@Nonnull Scope scope
@@ -3075,7 +3095,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull HistogramCapableEntityIndex entityIndex,
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK
 	) {
 		final HistogramIndex histogramIndex = entityIndex.getHistogramIndex(histogramName);
@@ -3130,13 +3150,39 @@ public interface ReferenceIndexMutator {
 					resolution.defaultValue(), ownerPK, groupId, scope, plainType
 				);
 			}
-		} else if (resolution.arrayType() && rawValue instanceof Serializable[] array) {
+			return;
+		}
+		// enforce the array/scalar contract declared by the resolution before dispatching — a
+		// mismatch between `arrayType` and the runtime shape of `rawValue` is a programming error
+		// (schema vs. value drift) that must surface immediately rather than silently mis-index
+		final boolean rawValueIsArray = rawValue instanceof Serializable[];
+		if (resolution.arrayType() != rawValueIsArray) {
+			throw new GenericEvitaInternalError(
+				"Histogram value shape mismatch for reference `" + referenceName + "`, histogram `" +
+					histogramName + "`: resolution declares arrayType=" + resolution.arrayType() +
+					" but rawValue is " + (rawValueIsArray ? "an array" : "a scalar") +
+					" (class: " + rawValue.getClass().getName() + ")."
+			);
+		}
+		if (rawValueIsArray) {
 			// array-typed: iterate each element, values are already in the attribute's native type
+			final Serializable[] array = (Serializable[]) rawValue;
 			for (final Serializable element : array) {
 				if (element instanceof Number number) {
 					insertSingleHistogramValue(
 						executor, referenceName, histogramName, locale,
 						number, ownerPK, groupId, scope, plainType
+					);
+				} else if (element instanceof Range<?> range) {
+					insertSingleHistogramValue(
+						executor, referenceName, histogramName, locale,
+						range, ownerPK, groupId, scope, plainType
+					);
+				} else if (element != null) {
+					throw new GenericEvitaInternalError(
+						"Unsupported histogram array element type for reference `" + referenceName +
+							"`, histogram `" + histogramName + "`: expected Number or Range, got " +
+							element.getClass().getName() + "."
 					);
 				}
 			}
@@ -3144,6 +3190,17 @@ public interface ReferenceIndexMutator {
 			insertSingleHistogramValue(
 				executor, referenceName, histogramName, locale,
 				number, ownerPK, groupId, scope, plainType
+			);
+		} else if (rawValue instanceof Range<?> range) {
+			insertSingleHistogramValue(
+				executor, referenceName, histogramName, locale,
+				range, ownerPK, groupId, scope, plainType
+			);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unsupported histogram value type for reference `" + referenceName +
+					"`, histogram `" + histogramName + "`: expected Number or Range, got " +
+					rawValue.getClass().getName() + "."
 			);
 		}
 	}
@@ -3156,18 +3213,19 @@ public interface ReferenceIndexMutator {
 	 * @param referenceName the reference name
 	 * @param histogramName the histogram definition name
 	 * @param locale        the locale for localized histograms, or `null` for non-localized
-	 * @param value         the histogram value in its original numeric type
+	 * @param value         the histogram value in its original type (a `Number` for plain numeric
+	 *                      attributes or a `Range` instance for Range-typed attributes)
 	 * @param ownerPK       the primary key of the owner entity
 	 * @param groupId       the group primary key (null for ungrouped)
 	 * @param scope         the current scope
-	 * @param valueType     the numeric type of the value (used for lazy index creation)
+	 * @param valueType     the plain type of the value (used for lazy index creation)
 	 */
 	private static void insertSingleHistogramValue(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull String referenceName,
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK,
 		@Nullable Integer groupId,
 		@Nonnull Scope scope,
@@ -3189,14 +3247,40 @@ public interface ReferenceIndexMutator {
 						"reach this state)."
 				);
 			}
-			if (groupTypeIndex instanceof ReferencedTypeEntityIndex rtei) {
-				final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
-				for (final int storagePK : storagePKs) {
-					final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
-					if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-						hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
-					}
+			// REFERENCED_GROUP_ENTITY_TYPE always resolves to a ReferencedTypeEntityIndex by
+			// construction — any other type is a programming error
+			if (!(groupTypeIndex instanceof ReferencedTypeEntityIndex rtei)) {
+				throw new GenericEvitaInternalError(
+					"Expected ReferencedTypeEntityIndex for REFERENCED_GROUP_ENTITY_TYPE key on " +
+						"reference `" + referenceName + "`, scope `" + scope + "`, got " +
+						groupTypeIndex.getClass().getName() + "."
+				);
+			}
+			final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
+			for (final int storagePK : storagePKs) {
+				final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
+				// the type-level index advertises this storage PK, so the per-group reduced index
+				// must exist — a missing entry signals a corrupted index linkage
+				if (reducedIndex == null) {
+					throw new GenericEvitaInternalError(
+						"Cannot insert histogram value: per-group reduced index is missing for " +
+							"reference `" + referenceName + "`, histogram `" + histogramName +
+							"`, storage PK `" + storagePK + "`, group `" + groupId +
+							"`, scope `" + scope + "` — `ReferencedTypeEntityIndex` advertised " +
+							"this PK but no index is registered under it."
+					);
 				}
+				// every reduced group index must implement HistogramCapableEntityIndex —
+				// ReducedGroupEntityIndex is the only concrete type stored under these PKs
+				if (!(reducedIndex instanceof HistogramCapableEntityIndex hcei)) {
+					throw new GenericEvitaInternalError(
+						"Expected HistogramCapableEntityIndex for grouped reduced index of " +
+							"reference `" + referenceName + "`, histogram `" + histogramName +
+							"`, storage PK `" + storagePK + "`, scope `" + scope + "`, got " +
+							reducedIndex.getClass().getName() + "."
+					);
+				}
+				hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
 			}
 		} else {
 			// ungrouped reference: insert into ReferencedTypeEntityIndex
@@ -3215,11 +3299,18 @@ public interface ReferenceIndexMutator {
 						"indexedComponentsInScopes for this scope."
 				);
 			}
-			if (index instanceof HistogramCapableEntityIndex hcei) {
-				// mark the index dirty — it is modified via insertHistogramValue below
-				executor.getOrCreateIndex(typeKey);
-				hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+			// REFERENCED_ENTITY_TYPE always resolves to a ReferencedTypeEntityIndex which
+			// implements HistogramCapableEntityIndex — any other type is a programming error
+			if (!(index instanceof HistogramCapableEntityIndex hcei)) {
+				throw new GenericEvitaInternalError(
+					"Expected HistogramCapableEntityIndex for REFERENCED_ENTITY_TYPE key on " +
+						"reference `" + referenceName + "`, histogram `" + histogramName +
+						"`, scope `" + scope + "`, got " + index.getClass().getName() + "."
+				);
 			}
+			// mark the index dirty — it is modified via insertHistogramValue below
+			executor.getOrCreateIndex(typeKey);
+			hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
 		}
 	}
 
@@ -3255,8 +3346,7 @@ public interface ReferenceIndexMutator {
 			@Nonnull EntityIndex entityIndex,
 			@Nullable Locale locale,
 			@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
-			@Nonnull SortableAttributeCompoundSchemaProvider<?,
-				? extends SortableAttributeCompoundSchemaContract> compoundProvider,
+			@Nonnull SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> compoundProvider,
 			@Nonnull ExistingAttributeValueSupplier attributeValueSupplier,
 			@Nullable Consumer<Runnable> undoActionConsumer
 		);

@@ -739,6 +739,38 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Resolves the inner numeric type of a `NumberRange`-typed plain class. Returns `null` when
+	 * the supplied type is not one of the five `NumberRange` subtypes — callers may treat a `null`
+	 * result as "not a range type" or, if the surrounding contract guarantees a range, surface it
+	 * as a programming error via {@code Objects.requireNonNull}.
+	 *
+	 * Supported mapping:
+	 * - {@link ByteNumberRange} → {@link Byte}
+	 * - {@link ShortNumberRange} → {@link Short}
+	 * - {@link IntegerNumberRange} → {@link Integer}
+	 * - {@link LongNumberRange} → {@link Long}
+	 * - {@link BigDecimalNumberRange} → {@link java.math.BigDecimal}
+	 *
+	 * @param plainType the plain attribute type (e.g. {@link IntegerNumberRange})
+	 * @return the matching inner numeric type, or `null` for non-range / non-numeric-range inputs
+	 */
+	@Nullable
+	public static Class<? extends Number> resolveRangeInnerNumericType(@Nonnull Class<?> plainType) {
+		if (plainType == ByteNumberRange.class) {
+			return Byte.class;
+		} else if (plainType == ShortNumberRange.class) {
+			return Short.class;
+		} else if (plainType == IntegerNumberRange.class) {
+			return Integer.class;
+		} else if (plainType == LongNumberRange.class) {
+			return Long.class;
+		} else if (plainType == BigDecimalNumberRange.class) {
+			return BigDecimal.class;
+		}
+		return null;
+	}
+
+	/**
 	 * Checks whether the specified type is directly supported by evitaDB as an attribute value,
 	 * query parameter, or entity reference type. Returns `true` if the type is present in
 	 * {@link #SUPPORTED_QUERY_DATA_TYPES}, which includes primitives, wrappers, numeric types,

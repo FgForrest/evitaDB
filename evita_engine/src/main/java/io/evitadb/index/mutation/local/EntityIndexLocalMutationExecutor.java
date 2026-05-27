@@ -1436,7 +1436,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					if (snapshot.isValueSourceChanged(trigger)) {
 						// value source changed: use pre-captured old values for surgical removal
 						if (snapshot.isOldConditionMet(trigger)) {
-							for (final Entry<Locale, Number[]> entry : snapshot.getOldValuesByLocale(trigger).entrySet()) {
+							for (final Entry<Locale, Serializable[]> entry : snapshot.getOldValuesByLocale(trigger).entrySet()) {
 								ReferenceIndexMutator.removeHistogramWithKnownOldValues(
 									this, referenceKey, groupPK, entityPK,
 									entry.getValue(), trigger, entry.getKey(), scope

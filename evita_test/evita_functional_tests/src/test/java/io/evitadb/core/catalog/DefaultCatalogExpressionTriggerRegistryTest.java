@@ -1251,6 +1251,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				Integer.class,
 				false,
 				true,
+				null,
 				null
 			);
 			final DefaultHistogramExpressionTrigger histogramTrigger =
@@ -1286,6 +1287,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				Integer.class,
 				false,
 				false,
+				null,
 				null
 			);
 			final DefaultHistogramExpressionTrigger histogramTrigger =
@@ -1314,6 +1316,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				Integer.class,
 				false,
 				true,
+				null,
 				null
 			);
 			final DefaultHistogramExpressionTrigger histogramTrigger =
@@ -1348,6 +1351,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				Integer.class,
 				false,
 				false,
+				null,
 				null
 			);
 			final DefaultHistogramExpressionTrigger histogramTrigger =

@@ -91,7 +91,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 			new SetReferenceSchemaBucketedMutation(
 				"tags",
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 				}
 			);
 
@@ -157,7 +157,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 			new SetReferenceSchemaBucketedMutation(
 				"tags",
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 				}
 			);
 
@@ -176,6 +176,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
 							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
 							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), null)
+							.e(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(), null)
 					))
 					.build()
 			);
@@ -223,7 +224,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 			new SetReferenceSchemaBucketedMutation(
 				"tags",
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 				},
 				new ScopedBucketedPartially[]{
 					new ScopedBucketedPartially(Scope.LIVE, expression)
@@ -277,7 +278,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 			new SetReferenceSchemaBucketedMutation(
 				"tags",
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression, null)
 				}
 			);
 
@@ -298,6 +299,78 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		assertEquals("$price * $quantity", bucketedList.get(0).get(
 			ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name()
 		));
+	}
+
+	/**
+	 * Pins the input-parse path for the per-histogram `assignedWhen` partition selector
+	 * — a non-null `assignedWhen` field in the input map must end up on the parsed
+	 * `ScopedHistogramIndexDefinition`. Mirrors the gRPC encoder-bug coverage so the
+	 * REST/GraphQL surface cannot silently drop the field.
+	 */
+	@Test
+	@DisplayName("should resolve input with bucketed histogram and assignedWhen partition selector")
+	void shouldResolveInputWithBucketedHistogramAndAssignedWhen() {
+		final SetReferenceSchemaBucketedMutation convertedMutation =
+			this.converter.convertFromInput(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(SetReferenceSchemaBucketedMutationDescriptor.BUCKETED_IN_SCOPES.name(), list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
+							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$price * $quantity")
+							.e(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(), "$active == 1")
+					))
+					.build()
+			);
+
+		assertNotNull(convertedMutation.getBucketedInScopes());
+		assertEquals(1, convertedMutation.getBucketedInScopes().length);
+		assertNotNull(
+			convertedMutation.getBucketedInScopes()[0].assignedWhen(),
+			"assignedWhen must be parsed from input"
+		);
+		assertEquals(
+			"$active == 1",
+			convertedMutation.getBucketedInScopes()[0].assignedWhen().toExpressionString()
+		);
+	}
+
+	/**
+	 * Pins the output-serialize path for `assignedWhen` — a mutation carrying a non-null
+	 * `assignedWhen` on a histogram entry must emit the corresponding expression string
+	 * under the `ASSIGNED_WHEN` property in the serialized map.
+	 */
+	@Test
+	@DisplayName("should serialize output with assignedWhen partition selector")
+	void shouldSerializeOutputWithAssignedWhen() {
+		final Expression valueExpression = ExpressionFactory.parse("$price * $quantity");
+		final Expression assignedWhen = ExpressionFactory.parse("$active == 1");
+		final SetReferenceSchemaBucketedMutation inputMutation =
+			new SetReferenceSchemaBucketedMutation(
+				"tags",
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", valueExpression, assignedWhen
+					)
+				}
+			);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation =
+			(Map<String, Object>) this.converter.convertToOutput(inputMutation);
+
+		assertNotNull(serializedMutation);
+		//noinspection unchecked
+		final java.util.List<Map<String, Object>> bucketedList =
+			(java.util.List<Map<String, Object>>) serializedMutation.get(
+				SetReferenceSchemaBucketedMutationDescriptor.BUCKETED_IN_SCOPES.name()
+			);
+		assertEquals(1, bucketedList.size());
+		assertEquals(
+			"$active == 1",
+			bucketedList.get(0).get(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name())
+		);
 	}
 
 	/**

@@ -254,7 +254,8 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 				null,
 				new ScopedHistogramIndexDefinition[]{
 					new ScopedHistogramIndexDefinition(
-						Scope.LIVE, "priceHistogram", valueExpr
+						Scope.LIVE, "priceHistogram", valueExpr,
+						null
 					)
 				},
 				new ScopedBucketedPartially[]{
@@ -315,5 +316,57 @@ class CreateReflectedReferenceSchemaMutationConverterTest {
 		assertEquals(0, roundTripped.getBucketedInScopes().length);
 		assertNotNull(roundTripped.getBucketedPartiallyInScopes());
 		assertEquals(0, roundTripped.getBucketedPartiallyInScopes().length);
+	}
+
+	/**
+	 * Pins the gRPC encode path for the per-histogram `assignedWhen` partition selector
+	 * on `CreateReflectedReferenceSchemaMutation`. The encoder helper used to silently
+	 * drop this field — proto round-tripping would return `null` regardless of the input
+	 * — so this test exercises a non-null assignedWhen end-to-end.
+	 */
+	@Test
+	@DisplayName("should round-trip assignedWhen partition selector on bucketed histogram")
+	void shouldRoundTripAssignedWhenOnBucketedHistogram() {
+		final Expression valueExpr = ExpressionFactory.parse("$price * $quantity");
+		final Expression assignedWhen = ExpressionFactory.parse("$active == 1");
+		final CreateReflectedReferenceSchemaMutation mutation =
+			new CreateReflectedReferenceSchemaMutation(
+				"tags",
+				"desc",
+				null,
+				Cardinality.ZERO_OR_MORE,
+				"tag",
+				"originalTags",
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", valueExpr, assignedWhen
+					)
+				},
+				null,
+				AttributeInheritanceBehavior.INHERIT_ALL_EXCEPT,
+				new String[]{"order"}
+			);
+
+		final CreateReflectedReferenceSchemaMutation roundTripped =
+			converter.convert(converter.convert(mutation));
+
+		// the round-trip normalizes a null `bucketedPartially` field to EMPTY (bucketed is not
+		// inheritable), so we assert per-field rather than via the full-mutation equals
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(1, roundTripped.getBucketedInScopes().length);
+		assertNotNull(
+			roundTripped.getBucketedInScopes()[0].assignedWhen(),
+			"assignedWhen must survive gRPC round-trip"
+		);
+		assertEquals(
+			assignedWhen.toExpressionString(),
+			roundTripped.getBucketedInScopes()[0].assignedWhen().toExpressionString()
+		);
 	}
 }

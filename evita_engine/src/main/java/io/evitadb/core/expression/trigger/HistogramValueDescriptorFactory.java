@@ -37,9 +37,11 @@ import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition.Attrib
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Range;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.dataType.expression.ExpressionNode;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.NumberUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
@@ -174,22 +176,51 @@ public class HistogramValueDescriptorFactory {
 		}
 
 		final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
+		final boolean arrayType = attributeSchema.getType().isArray();
+
+		// Range-typed source attribute: derive the inner numeric type and skip the numeric-type
+		// validation. Defaults are not supported for Range histograms — reject `??` at the root
+		// of the value expression rather than silently dropping the user's specified default.
+		if (Range.class.isAssignableFrom(plainType)) {
+			if (valueExpression.getOperand() instanceof NullCoalesceOperator) {
+				throw new InvalidSchemaMutationException(
+					"Histogram value expression for reference '" + referenceName +
+						"', histogram '" + histogramName + "' uses a `??` default value with " +
+						"Range-typed attribute '" + attributeName + "' (type: " +
+						plainType.getSimpleName() + "). Default values are not supported for " +
+						"Range histograms — remove the default operand."
+				);
+			}
+			final Class<? extends Number> innerNumericType = EvitaDataTypes.resolveRangeInnerNumericType(plainType);
+			if (innerNumericType == null) {
+				throw new GenericEvitaInternalError(
+					"Unexpected Range subtype: " + plainType.getName()
+				);
+			}
+			return new HistogramValueDescriptor(
+				source, sourceEntityType, attributeName, plainType, arrayType, localized,
+				null, innerNumericType
+			);
+		}
+
 		if (!EvitaDataTypes.isNumericType(plainType)) {
 			throw new InvalidSchemaMutationException(
 				"Histogram value expression for reference '" + referenceName +
 					"', histogram '" + histogramName + "' references non-numeric attribute '" +
 					attributeName + "' (type: " + plainType.getSimpleName() +
-					"). Only numeric types are supported (Byte, Short, Integer, Long, BigDecimal)."
+					"). Only numeric types (Byte, Short, Integer, Long, BigDecimal) and Range types " +
+					"(ByteNumberRange, ShortNumberRange, IntegerNumberRange, LongNumberRange, " +
+					"BigDecimalNumberRange) are supported."
 			);
 		}
 
-		final boolean arrayType = attributeSchema.getType().isArray();
 		final Number defaultValue = extractDefaultValue(
 			valueExpression, referenceName, histogramName, plainType
 		);
 
 		return new HistogramValueDescriptor(
-			source, sourceEntityType, attributeName, plainType, arrayType, localized, defaultValue
+			source, sourceEntityType, attributeName, plainType, arrayType, localized,
+			defaultValue, null
 		);
 	}
 

@@ -640,7 +640,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 		// when the value source attribute was itself mutated, use captured pre-mutation values
 		// for deterministic removal (the source FilterIndex already reflects the NEW values)
-		final Number[] knownOldValues;
+		final Serializable[] knownOldValues;
 		if (preMutationValues != null) {
 			final Serializable rawOldValue = preMutationValues.get(locale);
 			knownOldValues = ReferenceIndexMutator.resolveHistogramValues(rawOldValue, resolution);
@@ -659,20 +659,20 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 			if (!matched.isEmpty()) {
 				// determine values to remove: known old values (value-change) or current source values (condition-change)
-				final List<Number> valuesToRemove;
+				final List<? extends Serializable> valuesToRemove;
 				if (knownOldValues != null) {
 					// value source changed: use pre-captured old values for deterministic removal
 					valuesToRemove = knownOldValues.length > 0 ? List.of(knownOldValues) : List.of();
 				} else {
 					// condition-only change: current source values == old values (value is unchanged)
 					valuesToRemove = resolveAllRefEntityValues(
-						sourceFilterIndex, group.referencedEntityPK(), resolution.defaultValue()
+						sourceFilterIndex, group.referencedEntityPK(), resolution
 					);
 				}
 
 				// remove each (value, ownerPK) pair from both RGEI and RTEI; skip when the histogram
 				// does not contain the entry (never created — condition was false, or different scope)
-				for (final Number value : valuesToRemove) {
+				for (final Serializable value : valuesToRemove) {
 					for (int ownerPK : matched) {
 						removeHistogramValue(
 							histogramName, locale, value, ownerPK,
@@ -685,41 +685,91 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
+	 * Dispatches on the descriptor's `plainType` to produce the value a histogram should emit
+	 * for a single source FilterIndex bucket. Range histograms see raw `Range` bucket values
+	 * (sourced from the FilterIndex's `InvertedIndex` shadow); scalar histograms see `Number`
+	 * instances. Returns `null` to signal the caller should skip the bucket (a non-`Number`
+	 * scalar bucket is the only legitimate skip case). Range-typed mismatches with the
+	 * descriptor's `plainType` are treated as index/schema drift and surface as a defensive
+	 * throw rather than a silent skip.
+	 *
+	 * @param bucketValue         raw bucket value pulled from the source FilterIndex
+	 * @param rangeSource         `true` when the histogram is range-typed (precomputed from
+	 *                            {@link HistogramValueDescriptor#innerNumericType()})
+	 * @param plainType           the descriptor's `plainType` — authoritative for value typing
+	 * @param sourceAttributeName name of the source attribute, used for error reporting
+	 * @return the typed value to emit, or `null` to skip the bucket
+	 */
+	@Nullable
+	private static Serializable resolveEmittedBucketValue(
+		@Nonnull Serializable bucketValue,
+		boolean rangeSource,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull String sourceAttributeName
+	) {
+		if (rangeSource) {
+			if (!plainType.isInstance(bucketValue)) {
+				throw new GenericEvitaInternalError(
+					"Source FilterIndex for range histogram attribute `" +
+						sourceAttributeName + "` emitted bucket value of type `" +
+						bucketValue.getClass().getName() + "` but plainType is `" +
+						plainType.getName() + "` — index/schema drift."
+				);
+			}
+			return bucketValue;
+		}
+		return bucketValue instanceof Number numericValue ? numericValue : null;
+	}
+
+	/**
 	 * Resolves ALL histogram values for the given referenced entity PK by scanning the source
 	 * FilterIndex. For scalar attributes returns a singleton list; for array-typed attributes
-	 * the entity may appear in multiple source buckets — all matching values are returned.
-	 * Falls back to a singleton list containing `defaultValue` if the entity is not in any bucket.
+	 * the entity may appear in multiple source buckets — all matching values are returned. For
+	 * range-typed source attributes the matching buckets carry raw `Range` instances (sourced from
+	 * the `InvertedIndex` shadow) and are returned as-is.
+	 *
+	 * Falls back to a singleton list containing
+	 * {@link HistogramValueDescriptor#defaultValue()} if the entity is not in any bucket; the
+	 * descriptor enforces `defaultValue == null` for range-typed sources, so the fallback is
+	 * scalar-only by construction.
 	 *
 	 * @param sourceFilterIndex the source collection's FilterIndex for the value attribute
 	 * @param refEntityPK       primary key of the referenced entity
-	 * @param defaultValue      default value from the histogram descriptor, or `null`
-	 * @return list of resolved numeric values; empty if no value can be determined
+	 * @param resolution        value resolution metadata; used to detect range-typed sources and
+	 *                          to enforce the descriptor's `plainType` invariant on bucket values
+	 * @return list of resolved values typed to {@link HistogramValueDescriptor#plainType()}; empty
+	 *         if no value can be determined
 	 */
 	@Nonnull
-	private static List<Number> resolveAllRefEntityValues(
+	private static List<? extends Serializable> resolveAllRefEntityValues(
 		@Nullable FilterIndex sourceFilterIndex,
 		int refEntityPK,
-		@Nullable Number defaultValue
+		@Nonnull HistogramValueDescriptor resolution
 	) {
-		if (sourceFilterIndex == null) {
-			return defaultValue != null ? List.of(defaultValue) : List.of();
-		} else {
+		final Number defaultValue = resolution.defaultValue();
+		if (sourceFilterIndex != null) {
+			final boolean rangeSource = resolution.innerNumericType() != null;
+			final Class<? extends Serializable> plainType = resolution.plainType();
 			final ValueToRecordBitmap[] buckets = sourceFilterIndex.getHistogramOfAllRecords().getHistogramBuckets();
-			List<Number> result = null;
+			List<Serializable> result = null;
 			for (final ValueToRecordBitmap bucket : buckets) {
-				if (bucket.getRecordIds().contains(refEntityPK)
-					&& bucket.getValue() instanceof Number num) {
-					if (result == null) {
-						result = new ArrayList<>(4);
+				if (bucket.getRecordIds().contains(refEntityPK)) {
+					final Serializable emittedValue = resolveEmittedBucketValue(
+						bucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
+					);
+					if (emittedValue != null) {
+						if (result == null) {
+							result = new ArrayList<>(4);
+						}
+						result.add(emittedValue);
 					}
-					result.add(num);
 				}
 			}
 			if (result != null) {
 				return result;
 			}
-			return defaultValue != null ? List.of(defaultValue) : List.of();
 		}
+		return defaultValue != null ? List.of(defaultValue) : List.of();
 	}
 
 	/**
@@ -847,6 +897,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			}
 		} else {
 			final Class<? extends Serializable> plainType = resolution.plainType();
+			final boolean rangeSource = resolution.innerNumericType() != null;
 			final RoaringBitmap shouldBeIndexedBitmap =
 				getRoaringBitmap(histogramShouldBeIndexed);
 			final ValueToRecordBitmap[] sourceBuckets =
@@ -855,25 +906,27 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final RoaringBitmapWriter<RoaringBitmap> encounteredRefPKsWriter = buildWriter();
 
 			for (final ValueToRecordBitmap sourceBucket : sourceBuckets) {
-				final Serializable bucketValue = sourceBucket.getValue();
-				// Only numeric attribute values are valid histogram bucket values; skip non-numeric types.
-				if (bucketValue instanceof Number numericValue) {
-					final RoaringBitmap refPKsInBucket = getRoaringBitmap(sourceBucket.getRecordIds());
+				final Serializable emittedValue = resolveEmittedBucketValue(
+					sourceBucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
+				);
+				if (emittedValue == null) {
+					continue;
+				}
+				final RoaringBitmap refPKsInBucket = getRoaringBitmap(sourceBucket.getRecordIds());
 
-					for (final AffectedReferenceGroup group : affected.groups()) {
-						// Check whether this group's referenced entity is present in the current source bucket.
-						if (refPKsInBucket.contains(group.referencedEntityPK())) {
-							encounteredRefPKsWriter.add(group.referencedEntityPK());
-							final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
-							// Intersect "should be indexed" with the group's owner PKs
-							// to avoid touching unrelated entities.
-							final RoaringBitmap matched = and(shouldBeIndexedBitmap, ownerPKs);
-							for (int ownerPK : matched) {
-								insertHistogramValue(
-									histogramName, locale, numericValue, ownerPK, group, rtei, isGrouped,
-									target, plainType
-								);
-							}
+				for (final AffectedReferenceGroup group : affected.groups()) {
+					// Check whether this group's referenced entity is present in the current source bucket.
+					if (refPKsInBucket.contains(group.referencedEntityPK())) {
+						encounteredRefPKsWriter.add(group.referencedEntityPK());
+						final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
+						// Intersect "should be indexed" with the group's owner PKs
+						// to avoid touching unrelated entities.
+						final RoaringBitmap matched = and(shouldBeIndexedBitmap, ownerPKs);
+						for (int ownerPK : matched) {
+							insertHistogramValue(
+								histogramName, locale, emittedValue, ownerPK, group, rtei, isGrouped,
+								target, plainType
+							);
 						}
 					}
 				}
@@ -1042,25 +1095,37 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * and invokes the given action for each matched (value, ownerPK) pair. Falls back to
 	 * {@link HistogramValueDescriptor#defaultValue()} for eligible PKs that have no matching bucket.
 	 *
+	 * For range-typed source attributes (signalled by
+	 * {@link HistogramValueDescriptor#innerNumericType()} being non-null), each bucket's value is a
+	 * raw `Range` instance (sourced from the `InvertedIndex` shadow of the source `FilterIndex`); the
+	 * action receives the `Range` directly. For scalar numeric sources the action receives a `Number`.
+	 * The descriptor's `plainType` is the authoritative source of truth and any type mismatch surfaces
+	 * as a defensive-design throw.
+	 *
 	 * @param resolution   value resolution metadata
 	 * @param filterIndex  the FilterIndex for the reference attribute, or `null`
 	 * @param eligiblePKs  bitmap of owner PKs to process
 	 * @param group        the group being processed
-	 * @param action       callback invoked for each (numericValue, ownerPK) pair
+	 * @param action       callback invoked for each (value, ownerPK) pair; the value type matches
+	 *                     {@link HistogramValueDescriptor#plainType()}
 	 */
 	private static void processRefAttrFilterIndexBuckets(
 		@Nonnull HistogramValueDescriptor resolution,
 		@Nullable FilterIndex filterIndex,
 		@Nonnull RoaringBitmap eligiblePKs,
 		@Nonnull AffectedReferenceGroup group,
-		@Nonnull ObjIntConsumer<Number> action
+		@Nonnull ObjIntConsumer<Serializable> action
 	) {
 		final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
+		final boolean rangeSource = resolution.innerNumericType() != null;
+		final Class<? extends Serializable> plainType = resolution.plainType();
+		// both `eligiblePKs` and `ownerPKs` are loop-invariant within this method —
+		// intersect once and reuse across every bucket and the default-fill block
+		final RoaringBitmap eligibleOwnerPKs = and(eligiblePKs, ownerPKs);
 		if (filterIndex == null) {
 			final Number defaultValue = resolution.defaultValue();
 			if (defaultValue != null) {
-				final RoaringBitmap matched = and(eligiblePKs, ownerPKs);
-				for (int ownerPK : matched) {
+				for (int ownerPK : eligibleOwnerPKs) {
 					action.accept(defaultValue, ownerPK);
 				}
 			}
@@ -1069,23 +1134,29 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final RoaringBitmap encountered = new RoaringBitmap();
 
 			for (final ValueToRecordBitmap bucket : buckets) {
-				final Serializable bucketValue = bucket.getValue();
-				if (bucketValue instanceof Number numericValue) {
-					final RoaringBitmap bucketPKs = getRoaringBitmap(bucket.getRecordIds());
-					final RoaringBitmap matched = and(and(eligiblePKs, ownerPKs), bucketPKs);
-					if (!matched.isEmpty()) {
-						encountered.or(matched);
-						for (int ownerPK : matched) {
-							action.accept(numericValue, ownerPK);
-						}
+				final Serializable emittedValue = resolveEmittedBucketValue(
+					bucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
+				);
+				if (emittedValue == null) {
+					// non-Range scalar histograms only accept Number buckets; anything else is a value
+					// the source FilterIndex shouldn't have produced for this attribute
+					continue;
+				}
+				final RoaringBitmap bucketPKs = getRoaringBitmap(bucket.getRecordIds());
+				final RoaringBitmap matched = and(eligibleOwnerPKs, bucketPKs);
+				if (!matched.isEmpty()) {
+					encountered.or(matched);
+					for (int ownerPK : matched) {
+						action.accept(emittedValue, ownerPK);
 					}
 				}
 			}
 
+			// defaults are scalar-only by construction — HistogramValueDescriptor enforces
+			// `defaultValue == null` for range-typed plainType
 			final Number defaultValue = resolution.defaultValue();
 			if (defaultValue != null) {
-				final RoaringBitmap eligible = and(eligiblePKs, ownerPKs);
-				final RoaringBitmap missing = andNot(eligible, encountered);
+				final RoaringBitmap missing = andNot(eligibleOwnerPKs, encountered);
 				for (int ownerPK : missing) {
 					action.accept(defaultValue, ownerPK);
 				}
@@ -1206,7 +1277,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	private static void removeHistogramValue(
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value, int ownerPK,
+		@Nonnull Serializable value, int ownerPK,
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
@@ -1232,11 +1303,15 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * Checks whether the histogram index contains the given (value, ownerPK) pair. Returns false when
 	 * the histogram index is null, the FilterIndex for the locale is null, or the specific value bucket
 	 * does not contain the ownerPK.
+	 *
+	 * Comparison uses `Object.equals` on the bucket value — `Range` subtypes implement value-based equality
+	 * over both bounds (and inner numeric type), so the lookup is symmetric for both scalar `Number` values
+	 * and range-typed bucket values.
 	 */
 	private static boolean histogramContainsOwner(
 		@Nullable HistogramIndex histogramIndex,
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK
 	) {
 		if (histogramIndex == null) {
@@ -1261,18 +1336,19 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param histogramName  name of the histogram definition
 	 * @param locale         locale for the histogram index, or `null` for non-localized
-	 * @param value          the numeric value to insert
+	 * @param value          the value to insert (a `Number` for plain numeric attributes or a `Range`
+	 *                       instance for Range-typed attributes)
 	 * @param ownerPK        primary key of the owner entity
 	 * @param group          the group for reduced-index routing
 	 * @param rtei           the top-level referenced-type index
 	 * @param isGrouped      `true` when the reference has a group type
 	 * @param target         access to entity collection indexes
-	 * @param valueType      the plain numeric type of the attribute
+	 * @param valueType      the plain type of the attribute
 	 */
 	private static void insertHistogramValue(
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK,
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferencedTypeEntityIndex rtei,

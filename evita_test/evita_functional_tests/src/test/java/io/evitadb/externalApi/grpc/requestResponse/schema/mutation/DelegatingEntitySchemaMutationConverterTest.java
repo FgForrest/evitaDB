@@ -75,7 +75,7 @@ class DelegatingEntitySchemaMutationConverterTest {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, null)

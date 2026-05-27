@@ -30,18 +30,17 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.Map;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for {@link HistogramIndexDefinition}.
@@ -237,7 +236,7 @@ class HistogramIndexDefinitionTest {
 			customVariants.put(NamingConvention.KEBAB_CASE, "custom-kebab");
 
 			final HistogramIndexDefinition def = new HistogramIndexDefinition(
-				"hist", customVariants, null
+				"hist", customVariants, null, null
 			);
 
 			assertEquals("customCamel", def.getNameVariant(NamingConvention.CAMEL_CASE));
@@ -262,7 +261,7 @@ class HistogramIndexDefinitionTest {
 			mutable.put(NamingConvention.UPPER_SNAKE_CASE, "HIST");
 			mutable.put(NamingConvention.KEBAB_CASE, "hist");
 
-			final HistogramIndexDefinition def = new HistogramIndexDefinition("hist", mutable, null);
+			final HistogramIndexDefinition def = new HistogramIndexDefinition("hist", mutable, null, null);
 
 			assertThrows(
 				UnsupportedOperationException.class,
@@ -286,7 +285,7 @@ class HistogramIndexDefinitionTest {
 		void shouldRejectNullVariantsMap() {
 			final EvitaInvalidUsageException exception = assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> new HistogramIndexDefinition("hist", null, null)
+				() -> new HistogramIndexDefinition("hist", null, null, null)
 			);
 			assertTrue(
 				exception.getMessage().contains("Name variants must not be null"),
@@ -306,7 +305,7 @@ class HistogramIndexDefinitionTest {
 			final Map<NamingConvention, String> partial = new EnumMap<>(NamingConvention.class);
 			partial.put(NamingConvention.CAMEL_CASE, "hist");
 
-			final HistogramIndexDefinition def = new HistogramIndexDefinition("hist", partial, null);
+			final HistogramIndexDefinition def = new HistogramIndexDefinition("hist", partial, null, null);
 
 			assertEquals("hist", def.getNameVariant(NamingConvention.CAMEL_CASE));
 			assertNull(def.getNameVariant(NamingConvention.KEBAB_CASE));
@@ -322,11 +321,11 @@ class HistogramIndexDefinitionTest {
 			final Map<NamingConvention, String> variants = NamingConvention.generate("placeholder");
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> new HistogramIndexDefinition("", variants, null)
+				() -> new HistogramIndexDefinition("", variants, null, null)
 			);
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> new HistogramIndexDefinition("\t\n ", variants, null)
+				() -> new HistogramIndexDefinition("\t\n ", variants, null, null)
 			);
 		}
 	}
@@ -367,7 +366,7 @@ class HistogramIndexDefinitionTest {
 
 			final HistogramIndexDefinition canonical = HistogramIndexDefinition.of("hist", null);
 			final HistogramIndexDefinition withCustomVariants = new HistogramIndexDefinition(
-				"hist", customVariants, null
+				"hist", customVariants, null, null
 			);
 
 			assertNotEquals(
@@ -392,12 +391,76 @@ class HistogramIndexDefinitionTest {
 			final Map<NamingConvention, String> generated = NamingConvention.generate("hist");
 			final HistogramIndexDefinition viaFactory = HistogramIndexDefinition.of("hist", null);
 			final HistogramIndexDefinition viaManual = new HistogramIndexDefinition(
-				"hist", new HashMap<>(generated), null
+				"hist", new EnumMap<>(generated), null, null
 			);
 
 			assertEquals(viaFactory, viaManual);
 			assertEquals(viaFactory.hashCode(), viaManual.hashCode());
 		}
+	}
+
+	@Nested
+	@DisplayName("Per-histogram partition selector component")
+	class PerHistogramConditionComponentTest {
+
+		/**
+		 * Verifies that the convenience 2-arg factory does not invent an `assignedWhen` value —
+		 * when the caller does not supply one, the slot remains `null`. This pins the
+		 * default-null contract that downstream code relies on to distinguish
+		 * "no per-histogram restriction" from "explicit partition selector".
+		 */
+		@Test
+		@DisplayName("should default assignedWhen to null when built via 2-arg factory")
+		void shouldDefaultAssignedWhenToNullWhenBuiltViaTwoArgFactory() {
+			final HistogramIndexDefinition def = HistogramIndexDefinition.of("hist", null);
+
+			assertNull(def.assignedWhen());
+		}
+
+		/**
+		 * Verifies that the 3-arg factory propagates a non-null `assignedWhen` expression
+		 * into the resulting record and does not cross-wire it into `valueExpression`. The two
+		 * expression slots are independent — the test asserts both at the same time so a future
+		 * accidental swap (which would still type-check) is caught.
+		 */
+		@Test
+		@DisplayName("should expose assignedWhen when built via 3-arg factory")
+		void shouldExposeAssignedWhenWhenBuiltViaThreeArgFactory() {
+			final Expression expr = ExpressionFactory.parse("$entity.attributes['x'] > 0");
+
+			final HistogramIndexDefinition def = HistogramIndexDefinition.of("hist", null, expr);
+
+			assertNotNull(def.assignedWhen());
+			assertEquals(
+				expr.toExpressionString(), def.assignedWhen().toExpressionString(),
+				"3-arg factory must preserve the assignedWhen expression verbatim"
+			);
+			assertNull(
+				def.valueExpression(),
+				"valueExpression slot must remain null when only assignedWhen is supplied"
+			);
+		}
+
+		/**
+		 * Verifies that the explicit 4-arg record constructor preserves a non-null
+		 * `assignedWhen` and that the `valueExpression` slot stays null when the caller
+		 * does not supply one. This pins the contract of the canonical constructor used by
+		 * deserialization paths.
+		 */
+		@Test
+		@DisplayName("should expose assignedWhen when built via explicit constructor")
+		void shouldExposeAssignedWhenWhenBuiltViaExplicitConstructor() {
+			final Expression expr = ExpressionFactory.parse("$entity.attributes['x'] > 0");
+
+			final HistogramIndexDefinition def = new HistogramIndexDefinition(
+				"hist", NamingConvention.generate("hist"), null, expr
+			);
+
+			assertNotNull(def.assignedWhen());
+			assertEquals(expr.toExpressionString(), def.assignedWhen().toExpressionString());
+			assertNull(def.valueExpression());
+		}
+
 	}
 
 	/**

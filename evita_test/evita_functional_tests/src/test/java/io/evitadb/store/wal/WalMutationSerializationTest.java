@@ -109,6 +109,7 @@ import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.WAL;
 
@@ -243,7 +244,7 @@ public class WalMutationSerializationTest {
 					new ScopedFacetedPartially(Scope.LIVE, ExpressionFactory.parse("1 > 0"))
 				},
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", bucketedValueExpr)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", bucketedValueExpr, null)
 				},
 				new ScopedBucketedPartially[]{
 					new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse("$active == 1"))
@@ -274,9 +275,10 @@ public class WalMutationSerializationTest {
 				},
 				new ScopedHistogramIndexDefinition[]{
 					new ScopedHistogramIndexDefinition(
-						Scope.LIVE, "categoryHistogram", ExpressionFactory.parse("$score")
+						Scope.LIVE, "categoryHistogram", ExpressionFactory.parse("$score"),
+						null
 					),
-					new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHistogram", null)
+					new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHistogram", null, null)
 				},
 				new ScopedBucketedPartially[]{
 					new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse("$status > 0"))
@@ -323,7 +325,8 @@ public class WalMutationSerializationTest {
 				"testReference",
 				new ScopedHistogramIndexDefinition[]{
 					new ScopedHistogramIndexDefinition(
-						Scope.LIVE, "histogramIndex", ExpressionFactory.parse("$price")
+						Scope.LIVE, "histogramIndex", ExpressionFactory.parse("$price"),
+						null
 					)
 				},
 				new ScopedBucketedPartially[]{
@@ -334,6 +337,127 @@ public class WalMutationSerializationTest {
 	}
 
 	@Test
+	@DisplayName(
+		"Should round-trip assignedWhen on ScopedHistogramIndexDefinition for both Set and Create mutations"
+	)
+	@Tag(HISTOGRAM)
+	void shouldRoundTripAssignedWhenOnScopedHistogramIndexDefinition() {
+		// Exercises the input.readBoolean() codec branch for the fourth-positional
+		// `assignedWhen` of ScopedHistogramIndexDefinition: one LIVE entry with a
+		// non-null partition selector and one ARCHIVED entry with null force the deserializer
+		// down both arms of the boolean prefix.
+		final Expression liveValueExpr = ExpressionFactory.parse("$price * $quantity");
+		final Expression liveAssignedWhen = ExpressionFactory.parse("$active == 1");
+
+		final SetReferenceSchemaBucketedMutation setMutation = new SetReferenceSchemaBucketedMutation(
+			"perHistogramFilterRef",
+			new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(
+					Scope.LIVE, "liveHistogram", liveValueExpr, liveAssignedWhen
+				),
+				new ScopedHistogramIndexDefinition(
+					Scope.ARCHIVED, "archivedHistogram", null, null
+				)
+			},
+			null
+		);
+		final SetReferenceSchemaBucketedMutation deserializedSet = deserialize(setMutation);
+		assertEquals(setMutation, deserializedSet);
+		final ScopedHistogramIndexDefinition[] roundTrippedSet = deserializedSet.getBucketedInScopes();
+		assertEquals(2, roundTrippedSet.length, "Both scoped entries must survive round-trip");
+		final ScopedHistogramIndexDefinition liveSet = findByScope(roundTrippedSet, Scope.LIVE);
+		final ScopedHistogramIndexDefinition archivedSet = findByScope(roundTrippedSet, Scope.ARCHIVED);
+		assertEquals(
+			liveAssignedWhen.toExpressionString(),
+			liveSet.assignedWhen().toExpressionString(),
+			"LIVE per-histogram assignedWhen must survive round-trip unchanged"
+		);
+		assertNull(
+			archivedSet.assignedWhen(),
+			"ARCHIVED per-histogram assignedWhen was null — must remain null"
+		);
+
+		// CreateReferenceSchemaMutation carries the same ScopedHistogramIndexDefinition codec —
+		// re-run the assertion through that mutation to pin the parallel WAL surface.
+		final Expression createAssignedWhen = ExpressionFactory.parse("$status > 0");
+		final CreateReferenceSchemaMutation createMutation = new CreateReferenceSchemaMutation(
+			"perHistogramFilterCreate",
+			"Create-form per-histogram assignedWhen probe",
+			null,
+			Cardinality.ZERO_OR_MORE,
+			"Product",
+			true,
+			null,
+			false,
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			},
+			new ScopedReferenceIndexedComponents[]{
+				new ScopedReferenceIndexedComponents(
+					Scope.LIVE, ReferenceIndexedComponents.DEFAULT_INDEXED_COMPONENTS
+				)
+			},
+			new Scope[]{Scope.LIVE},
+			null,
+			new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(
+					Scope.LIVE, "createLiveHistogram",
+					ExpressionFactory.parse("$price"),
+					createAssignedWhen
+				),
+				new ScopedHistogramIndexDefinition(
+					Scope.ARCHIVED, "createArchivedHistogram", null, null
+				)
+			},
+			null
+		);
+		final CreateReferenceSchemaMutation deserializedCreate = deserialize(createMutation);
+		assertEquals(createMutation, deserializedCreate);
+		final ScopedHistogramIndexDefinition[] roundTrippedCreate =
+			deserializedCreate.getBucketedInScopes();
+		assertEquals(
+			2, roundTrippedCreate.length,
+			"Create mutation must round-trip both scoped entries"
+		);
+		final ScopedHistogramIndexDefinition liveCreate =
+			findByScope(roundTrippedCreate, Scope.LIVE);
+		final ScopedHistogramIndexDefinition archivedCreate =
+			findByScope(roundTrippedCreate, Scope.ARCHIVED);
+		assertEquals(
+			createAssignedWhen.toExpressionString(),
+			liveCreate.assignedWhen().toExpressionString(),
+			"LIVE per-histogram assignedWhen must survive round-trip on Create mutation"
+		);
+		assertNull(
+			archivedCreate.assignedWhen(),
+			"ARCHIVED per-histogram assignedWhen was null — must remain null on Create mutation"
+		);
+	}
+
+	/**
+	 * Locates the single {@link ScopedHistogramIndexDefinition} matching the supplied scope.
+	 * Used by the per-histogram assignedWhen round-trip assertion to retrieve the LIVE
+	 * and ARCHIVED entries without depending on array ordering.
+	 *
+	 * @param entries the deserialized definition array
+	 * @param scope   the scope to look up
+	 * @return the matching entry
+	 * @throws AssertionError when no entry carries the requested scope
+	 */
+	@Nonnull
+	private static ScopedHistogramIndexDefinition findByScope(
+		@Nonnull ScopedHistogramIndexDefinition[] entries,
+		@Nonnull Scope scope
+	) {
+		for (final ScopedHistogramIndexDefinition entry : entries) {
+			if (entry.scope() == scope) {
+				return entry;
+			}
+		}
+		throw new AssertionError("No ScopedHistogramIndexDefinition found for scope " + scope);
+	}
+
+	@Test
 	@DisplayName("Should serialize and deserialize SetReferenceSchemaBucketedMutation with various nullability scenarios")
 	void shouldSerializeAndDeserializeSetReferenceSchemaBucketedMutationWithNullability() {
 		// multi-scope: LIVE with valueExpression, ARCHIVED with null valueExpression
@@ -341,9 +465,10 @@ public class WalMutationSerializationTest {
 			"multiScopeRef",
 			new ScopedHistogramIndexDefinition[]{
 				new ScopedHistogramIndexDefinition(
-					Scope.LIVE, "liveHistogram", ExpressionFactory.parse("$price * $quantity")
+					Scope.LIVE, "liveHistogram", ExpressionFactory.parse("$price * $quantity"),
+					null
 				),
-				new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHistogram", null)
+				new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHistogram", null, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse("$active == 1")),
@@ -383,7 +508,7 @@ public class WalMutationSerializationTest {
 		final SetReferenceSchemaBucketedMutation nullPartiallyMutation = new SetReferenceSchemaBucketedMutation(
 			"partiallyNullRef",
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "histogram", null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "histogram", null, null)
 			},
 			null
 		);

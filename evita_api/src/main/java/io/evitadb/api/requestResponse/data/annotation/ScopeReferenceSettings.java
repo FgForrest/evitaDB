@@ -76,12 +76,27 @@ public @interface ScopeReferenceSettings {
 	/**
 	 * Enables histogram (bucketed) computation for reference of this name
 	 * in this scope.
+	 *
+	 * Each {@link Histogram} entry declares a distinct named histogram index. Multiple
+	 * histograms may be declared for a single (reference, scope) pair, each with its
+	 * own `nameOfTheIndex`, `value` expression and optional `assignedWhen`
+	 * per-histogram partition selector. The default empty array means no histograms
+	 * are computed for this reference in this scope.
+	 *
+	 * Within the array, every entry must declare a non-empty `nameOfTheIndex`; empty
+	 * histogram entries inside a non-empty array are rejected by the analyzer. Names
+	 * must be unique within a (reference, scope) pair.
 	 */
-	Histogram bucketed() default @Histogram;
+	Histogram[] bucketed() default {};
 
 	/**
-	 * Defines a condition to further narrow down the histogram scope.
-	 * This is only evaluated if {@link #bucketed()} is set up.
+	 * Eligibility gate (per-scope variant). References (or referenced entities) for
+	 * which this expression evaluates to `true` in this scope are eligible for the
+	 * histograms declared in {@link #bucketed()}. References failing this predicate
+	 * are excluded from every bucketed histogram on this reference in this scope.
+	 * Pairs with each {@link Histogram#assignedWhen()} (which decides — among the
+	 * eligible set — which histogram each entity is assigned to). Evaluated only when
+	 * at least one {@link Histogram} is declared in {@link #bucketed()}.
 	 */
 	Expression bucketedPartially() default @Expression;
 

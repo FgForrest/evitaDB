@@ -73,6 +73,10 @@ public class SetReferenceSchemaBucketedMutationConverter
 				if (valueExpression != null) {
 					bhBuilder.setValueExpression(StringValue.of(valueExpression.toExpressionString()));
 				}
+				final Expression assignedWhen = entry.assignedWhen();
+				if (assignedWhen != null) {
+					bhBuilder.setAssignedWhen(StringValue.of(assignedWhen.toExpressionString()));
+				}
 				return bhBuilder.build();
 			})
 			.toList();

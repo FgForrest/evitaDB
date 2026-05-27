@@ -649,12 +649,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		// entities and the sort index couldn't handle multiple values
 	}
 
-	/**
-	 * Returns the {@link HistogramIndex} for the given histogram name, or `null` if none exists.
-	 *
-	 * @param histogramName the name of the histogram definition
-	 * @return the histogram index, or `null`
-	 */
 	@Nullable
 	@Override
 	public HistogramIndex getHistogramIndex(@Nonnull String histogramName) {
@@ -672,19 +666,14 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	public void insertHistogramValue(
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK,
 		@Nonnull Class<? extends Serializable> valueType
 	) {
-		final String referenceName = getReferenceName();
-		final HistogramIndex histogramIndex = this.histogramIndexes.computeIfAbsent(
-			histogramName,
-			k -> locale != null
-				? new LocalizedHistogramIndex(histogramName, referenceName, valueType)
-				: new SimpleHistogramIndex(histogramName, referenceName, valueType)
+		HistogramIndexOperations.insertHistogramValue(
+			this.histogramIndexes, this.dirty, getReferenceName(),
+			histogramName, locale, value, ownerPK, valueType
 		);
-		histogramIndex.insertValue(locale, value, ownerPK);
-		this.dirty.setToTrue();
 	}
 
 	@Override
@@ -694,20 +683,10 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
-		final HistogramIndex histogramIndex = this.histogramIndexes.get(histogramName);
-		Assert.isPremiseValid(
-			histogramIndex != null,
-			() -> "Histogram index for histogram " + histogramName + " not found."
+		HistogramIndexOperations.removeHistogramValue(
+			this.histogramIndexes, this.dirty, getTransactionalLayerMaintainer(),
+			histogramName, locale, value, ownerPK
 		);
-		histogramIndex.removeValue(locale, value, ownerPK);
-		this.dirty.setToTrue();
-		// if the histogram index is now empty, remove it from the map and clean up transactional layers
-		if (histogramIndex.isEmpty()) {
-			final HistogramIndex removed = this.histogramIndexes.remove(histogramName);
-			if (removed != null) {
-				ofNullable(getTransactionalLayerMaintainer()).ifPresent(removed::removeLayer);
-			}
-		}
 	}
 
 	@Override

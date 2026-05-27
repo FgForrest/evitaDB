@@ -97,15 +97,9 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 		);
 		final OffsetDateTime since = delimiter == 1 ? null : parseDateTime(string.substring(1, delimiter));
 		final OffsetDateTime until = delimiter == string.length() - 2 ? null : parseDateTime(string.substring(delimiter + 1, string.length() - 1));
-		if (since == null && until != null) {
-			return until(until);
-		} else if (since != null && until == null) {
-			return since(since);
-		} else if (since != null) {
-			return between(since, until);
-		} else {
-			throw new DataTypeParseException("Range has no sense with both limits open to infinity!");
-		}
+		return Range.materializeOpenEndedRange(
+			since, until, DateTimeRange::until, DateTimeRange::since, DateTimeRange::between
+		);
 	}
 
 	private static OffsetDateTime parseDateTime(@Nonnull String substring) {

@@ -30,16 +30,19 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.AbstractReferenceSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReflectedReferenceAttributeInheritanceSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
+import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaBucketedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
 import io.evitadb.dataType.Scope;
@@ -49,6 +52,7 @@ import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -59,15 +63,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.REFERENCE;
 
 /**
  * Tests for {@link ReflectedReferenceSchemaBuilder} verifying description, deprecation,
@@ -1727,6 +1730,256 @@ class ReflectedReferenceSchemaBuilderTest {
 			assertNull(
 				updatedRef.getBucketedPartiallyInScope(Scope.LIVE),
 				"Partial expression should be cleared"
+			);
+		}
+
+		/**
+		 * Verifies that the 4-arg `bucketedInScope(scope, name, valueExpression,
+		 * assignedWhen)` overload on a **reflected** reference threads the
+		 * per-histogram partition selector into the final
+		 * {@link HistogramIndexDefinition#assignedWhen()} field. Mirrors the
+		 * peer test on `ReferenceSchemaBuilder` because
+		 * `ReflectedReferenceSchemaBuilder` has its own override of the method.
+		 */
+		@Test
+		@DisplayName("should propagate assignedWhen through 4-arg bucketedInScope on reflected ref")
+		void shouldPropagateAssignedWhenThroughFourArgBucketedInScopeOnReflectedReference() {
+			final Expression valueExpr = ExpressionFactory.parse(
+				"$reference.attributes['someValue']"
+			);
+			final Expression assignedWhenExpr = ExpressionFactory.parse(
+				"$reference.attributes['priority'] > 0"
+			);
+
+			final ReflectedReferenceSchemaContract ref = buildReflectedReference(
+				whichIs -> whichIs.bucketedInScope(
+					Scope.LIVE, "myHist", valueExpr, assignedWhenExpr
+				)
+			);
+
+			final HistogramIndexDefinition def =
+				ref.getHistogramIndexDefinition(Scope.LIVE, "myHist");
+			assertNotNull(
+				def,
+				"Histogram definition `myHist` must exist after the 4-arg call on reflected ref"
+			);
+			assertAll(
+				() -> assertNotNull(
+					def.assignedWhen(),
+					"Per-histogram partition selector must propagate on reflected reference"
+				),
+				() -> assertEquals(
+					assignedWhenExpr.toExpressionString(),
+					def.assignedWhen().toExpressionString(),
+					"Per-histogram partition selector must equal the supplied expression"
+				),
+				() -> assertNotNull(
+					def.valueExpression(),
+					"Value expression must be retained alongside the per-histogram partition selector"
+				),
+				() -> assertEquals(
+					valueExpr.toExpressionString(),
+					def.valueExpression().toExpressionString(),
+					"Value expression must equal the supplied expression"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that the zero-arg `nonBucketed()` override on
+		 * {@link ReflectedReferenceSchemaBuilder} behaves like
+		 * `nonBucketed(Scope.DEFAULT_SCOPE)` (i.e. `LIVE` only) when the reflected
+		 * target reference is available. The target is made available by first
+		 * building the product schema with the `productCategory` base reference and
+		 * persisting the reflected reference (bucketed in both `LIVE` and `ARCHIVED`)
+		 * into the category schema; the test then constructs an **update** builder on
+		 * the persisted reflected reference (createNew=false path), where
+		 * `isReflectedReferenceAvailable()` returns true at the moment `nonBucketed()`
+		 * is invoked. The zero-arg call must clear only `LIVE` while leaving `ARCHIVED`
+		 * intact.
+		 */
+		@Test
+		@DisplayName("should clear only default scope when nonBucketed called without arguments and target available")
+		void shouldClearOnlyDefaultScopeWhenNonBucketedCalledWithoutArgumentsAndTargetAvailable() {
+			// Step 1: build the product schema with the productCategory base reference, indexed
+			// in both LIVE and ARCHIVED so the reflected reference can inherit indexedness in
+			// both scopes — bucketed implies indexed, and the validator rejects bucketed-
+			// without-indexed at toInstance() time
+			final EntitySchemaBuilder productBuilder = new InternalEntitySchemaBuilder(
+				ReflectedReferenceSchemaBuilderTest.this.catalogSchema,
+				ReflectedReferenceSchemaBuilderTest.this.productSchema
+			);
+			productBuilder.withReferenceToEntity(
+				"productCategory", Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+				ref -> ref.indexedInScope(Scope.LIVE, Scope.ARCHIVED)
+			);
+			ReflectedReferenceSchemaBuilderTest.this.productSchema =
+				(EntitySchema) productBuilder.toInstance();
+
+			// Step 2: build the initial category schema with a reflected reference
+			// bucketed in both LIVE and ARCHIVED (must also be indexed in both scopes —
+			// bucketed implies indexed and the validator rejects bucketed-without-indexed)
+			final EntitySchemaContract initialCategorySchema = createCategorySchemaBuilder()
+				.withReflectedReferenceToEntity(
+					"categoryProducts", Entities.PRODUCT, "productCategory",
+					whichIs -> whichIs
+						.indexedInScope(Scope.LIVE, Scope.ARCHIVED)
+						.bucketedInScope(Scope.LIVE, "myIdx", null)
+						.bucketedInScope(Scope.ARCHIVED, "myIdx2", null)
+				)
+				.toInstance();
+
+			final ReflectedReferenceSchemaContract initialRef = (ReflectedReferenceSchemaContract)
+				initialCategorySchema.getReference("categoryProducts").orElseThrow();
+			assertAll(
+				"Precondition checks on the persisted reflected reference",
+				() -> assertTrue(
+					initialRef.isReflectedReferenceAvailable(),
+					"Precondition: the persisted reflected reference must have its target " +
+						"resolved so that the zero-arg override's `if` branch is exercised"
+				),
+				() -> assertTrue(
+					initialRef.isBucketedInScope(Scope.LIVE),
+					"Precondition: LIVE must be bucketed in the initial schema"
+				),
+				() -> assertTrue(
+					initialRef.isBucketedInScope(Scope.ARCHIVED),
+					"Precondition: ARCHIVED must be bucketed in the initial schema"
+				)
+			);
+
+			// Step 3: build an update builder on the persisted reflected reference and invoke
+			// the zero-arg nonBucketed() — this hits the createNew=false path where
+			// isReflectedReferenceAvailable() returns true and the override delegates to
+			// nonBucketed(Scope.DEFAULT_SCOPE)
+			final EntitySchemaContract updatedSchema = new InternalEntitySchemaBuilder(
+				ReflectedReferenceSchemaBuilderTest.this.catalogSchema,
+				initialCategorySchema
+			)
+				.withReflectedReferenceToEntity(
+					"categoryProducts", Entities.PRODUCT, "productCategory",
+					ReferenceSchemaEditor::nonBucketed
+				)
+				.toInstance();
+
+			final ReflectedReferenceSchemaContract ref = (ReflectedReferenceSchemaContract)
+				updatedSchema.getReference("categoryProducts").orElseThrow();
+
+			assertAll(
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"LIVE (the default scope) must be cleared by zero-arg nonBucketed() " +
+						"when the reflected target is available"
+				),
+				() -> assertTrue(
+					ref.isBucketedInScope(Scope.ARCHIVED),
+					"ARCHIVED must NOT be cleared by zero-arg nonBucketed() when target " +
+						"is available — the override only clears Scope.DEFAULT_SCOPE"
+				)
+			);
+		}
+
+		/**
+		 * Verifies that the zero-arg `nonBucketed()` override on
+		 * {@link ReflectedReferenceSchemaBuilder} clears bucketed state across **all**
+		 * scopes when the reflected target is **not** available, regardless of any
+		 * prior bucketed configuration. The override emits a
+		 * {@link SetReferenceSchemaBucketedMutation} carrying the
+		 * {@link ScopedHistogramIndexDefinition#EMPTY} and
+		 * {@link ScopedBucketedPartially#EMPTY} sentinels; that mutation is absorbed
+		 * into the {@link CreateReflectedReferenceSchemaMutation} for newly-created
+		 * reflected references, so this test asserts the *observable outcome* — both
+		 * scopes cleared on the resulting schema, and the absorbed Create mutation's
+		 * bucketed arrays are zero-length — rather than scanning for the absorbed
+		 * intermediate {@code SetReferenceSchemaBucketedMutation}.
+		 */
+		@Test
+		@DisplayName("should emit empty bucketed mutation when nonBucketed called without arguments and target unavailable")
+		void shouldEmitEmptyBucketedMutationWhenNonBucketedCalledWithoutArgumentsAndTargetUnavailable() {
+			// deliberately do NOT create the productCategory base reference on product —
+			// this leaves the reflected reference's target unavailable so the override's
+			// "else" branch is taken
+			final AtomicReference<ReflectedReferenceSchemaBuilder> captured =
+				new AtomicReference<>();
+			final AtomicReference<Boolean> availableInsideConsumer = new AtomicReference<>();
+
+			final EntitySchemaContract schema = createCategorySchemaBuilder()
+				.withReflectedReferenceToEntity(
+					"categoryProducts", Entities.PRODUCT, "productCategory",
+					builder -> {
+						// stage prior bucketed state so we can prove the override discards it
+						builder
+							.bucketedInScope(Scope.LIVE, "myIdx", null)
+							.bucketedInScope(Scope.ARCHIVED, "myIdx2", null);
+						availableInsideConsumer.set(
+							builder.isReflectedReferenceAvailable()
+						);
+						builder.nonBucketed();
+						captured.set((ReflectedReferenceSchemaBuilder) builder);
+					}
+				)
+				.toInstance();
+
+			final ReflectedReferenceSchemaBuilder builder = captured.get();
+			assertNotNull(builder, "Builder must have been captured inside the consumer");
+
+			final ReflectedReferenceSchemaContract ref = (ReflectedReferenceSchemaContract)
+				schema.getReference("categoryProducts").orElseThrow();
+
+			// the SetReferenceSchemaBucketedMutation is absorbed into the
+			// CreateReflectedReferenceSchemaMutation for newly-created reflected
+			// references; assert the absorbed payload carries the EMPTY-EMPTY sentinels
+			final CreateReflectedReferenceSchemaMutation createMutation = builder.toMutation()
+				.stream()
+				.filter(CreateReflectedReferenceSchemaMutation.class::isInstance)
+				.map(CreateReflectedReferenceSchemaMutation.class::cast)
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"CreateReflectedReferenceSchemaMutation should be present in builder mutations"
+				));
+
+			assertAll(
+				() -> assertEquals(
+					Boolean.FALSE, availableInsideConsumer.get(),
+					"Precondition: the reflected target must be unavailable for this test " +
+						"setup to exercise the intended branch of the zero-arg override"
+				),
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.LIVE),
+					"LIVE must be cleared by zero-arg nonBucketed() in the " +
+						"unavailable-target branch"
+				),
+				() -> assertFalse(
+					ref.isBucketedInScope(Scope.ARCHIVED),
+					"ARCHIVED must be cleared by zero-arg nonBucketed() in the " +
+						"unavailable-target branch — the override emits EMPTY arrays " +
+						"regardless of prior bucketed state"
+				),
+				() -> assertTrue(
+					ref.getAllHistogramIndexDefinitions().isEmpty(),
+					"Histogram definitions map must be empty after the EMPTY-EMPTY " +
+						"mutation is applied"
+				),
+				() -> assertNotNull(
+					createMutation.getBucketedInScopes(),
+					"Bucketed array on the absorbed Create mutation must be non-null " +
+						"(the EMPTY sentinel) so the reflected absorber treats it as `clear all`"
+				),
+				() -> assertEquals(
+					0, createMutation.getBucketedInScopes().length,
+					"Bucketed array on the absorbed Create mutation must be empty " +
+						"in the unavailable-target branch"
+				),
+				() -> assertNotNull(
+					createMutation.getBucketedPartiallyInScopes(),
+					"BucketedPartially array on the absorbed Create mutation must be non-null " +
+						"(the EMPTY sentinel) so the reflected absorber treats it as `clear all`"
+				),
+				() -> assertEquals(
+					0, createMutation.getBucketedPartiallyInScopes().length,
+					"BucketedPartially array on the absorbed Create mutation must be empty " +
+						"in the unavailable-target branch"
+				)
 			);
 		}
 

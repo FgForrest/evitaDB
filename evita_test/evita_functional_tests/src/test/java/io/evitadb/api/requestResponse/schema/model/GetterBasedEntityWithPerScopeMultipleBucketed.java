@@ -28,99 +28,68 @@ import io.evitadb.api.requestResponse.data.annotation.Expression;
 import io.evitadb.api.requestResponse.data.annotation.Histogram;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.data.annotation.ScopeReferenceSettings;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.dataType.Scope;
 
-import javax.annotation.Nonnull;
-import java.util.List;
-import java.util.Optional;
+import java.io.Serializable;
 
 /**
- * Fixture entity reproducing the bug where @Reference annotations carrying
- * per-scope `facetedPartially`, `bucketed` (histogram) and `bucketedPartially`
- * expressions end up losing those fields in the emitted
- * {@link io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation}.
+ * Fixture entity declaring two `@Histogram` entries in the `bucketed` array of a
+ * `@ScopeReferenceSettings` annotation for `Scope.ARCHIVED`, plus a second
+ * `@ScopeReferenceSettings` for `Scope.LIVE` with no histograms at all.
  *
- * Mirrors the real-world `WithPublishedParameters` trait: a managed reference
- * (default `managed=true`) pointing to a @ReferencedEntity whose body is a
- * full @Entity type, with @ScopeReferenceSettings declaring `facetedPartially`,
- * `bucketed` (@Histogram) and `bucketedPartially` on the LIVE scope.
+ * The analyzer must emit two distinct `ScopedHistogramIndexDefinition` entries
+ * both tagged `Scope.ARCHIVED`, and zero entries for `Scope.LIVE` — proving the
+ * per-scope histogram list is keyed by scope and does not bleed across scopes.
  */
 @Entity
-public interface GetterBasedEntityWithFacetedPartiallyAndBucketed {
+public interface GetterBasedEntityWithPerScopeMultipleBucketed {
 
 	String REFERENCE_PARAMETER_VALUES = "parameterValues";
-	String INTERVAL_REFERENCE_PARAMETER_VALUES = "intervalParameterValues";
+	String HISTOGRAM_PRICE = "priceHist";
+	String HISTOGRAM_QUANTITY = "quantityHist";
+	String EXPR_PRICE = "$reference.referencedEntity?.attributes['price'] ?? 0.0";
+	String EXPR_QUANTITY = "$reference.referencedEntity?.attributes['quantity'] ?? 0.0";
 
 	@PrimaryKey
 	int getId();
 
 	@Reference(
 		name = REFERENCE_PARAMETER_VALUES,
+		managed = false,
 		scope = {
 			@ScopeReferenceSettings(
-				scope = Scope.LIVE,
+				scope = Scope.ARCHIVED,
 				indexed = ReferenceIndexType.FOR_FILTERING,
-				facetedPartially = @Expression(
-					"$reference.groupEntity?.attributes['inputWidgetType'] == 'CHECKBOX'"
-				),
 				bucketed = {
 					@Histogram(
-						nameOfTheIndex = INTERVAL_REFERENCE_PARAMETER_VALUES,
-						value = @Expression(
-							"$reference.referencedEntity?.attributes['basicUnitValue'] ?? 0.0"
-						)
+						nameOfTheIndex = HISTOGRAM_PRICE,
+						value = @Expression(EXPR_PRICE)
+					),
+					@Histogram(
+						nameOfTheIndex = HISTOGRAM_QUANTITY,
+						value = @Expression(EXPR_QUANTITY)
 					)
-				},
-				bucketedPartially = @Expression(
-					"$reference.groupEntity?.attributes['inputWidgetType'] == 'INTERVAL_INPUT'"
-				)
+				}
 			),
 			@ScopeReferenceSettings(
-				scope = Scope.ARCHIVED,
+				scope = Scope.LIVE,
 				indexed = ReferenceIndexType.FOR_FILTERING
 			)
 		}
 	)
 	ParameterValue[] getParameterValues();
 
-	@ReferenceRef(REFERENCE_PARAMETER_VALUES)
-	@Nonnull
-	Optional<List<ParameterValue>> getParameterValuesIfAvailable();
-
-	interface ParameterValue {
+	interface ParameterValue extends Serializable {
 
 		@ReferencedEntity
 		int getParameterValueId();
 
 		@ReferencedEntityGroup
 		int getParameterId();
-
-		@ReferencedEntity
-		ReferencedParameterValue getParameterValue();
-
-		@ReferencedEntityGroup
-		Parameter getParameter();
-
-	}
-
-	@Entity
-	interface ReferencedParameterValue {
-
-		@PrimaryKey
-		int getId();
-
-	}
-
-	@Entity
-	interface Parameter {
-
-		@PrimaryKey
-		int getId();
 
 	}
 

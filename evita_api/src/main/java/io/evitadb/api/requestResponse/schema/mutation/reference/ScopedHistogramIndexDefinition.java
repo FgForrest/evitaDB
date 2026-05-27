@@ -32,18 +32,22 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**
- * Associates a {@link Scope} with a bucketed histogram configuration — the index name
- * and the optional value expression that computes the bucket value for each referenced entity.
+ * Associates a {@link Scope} with a bucketed histogram configuration — the index name,
+ * the optional value expression that computes the bucket value for each referenced
+ * entity, and an optional per-histogram partition selector.
  *
- * @param scope           the scope this histogram configuration applies to
- * @param nameOfTheIndex  the name identifying the histogram index
- * @param valueExpression the expression computing the histogram bucket value, or null if not specified
+ * @param scope            the scope this histogram configuration applies to
+ * @param nameOfTheIndex   the name identifying the histogram index
+ * @param valueExpression  the expression computing the histogram bucket value, or null if not specified
+ * @param assignedWhen     the partition selector for this histogram; null means no per-histogram
+ *                         restriction beyond the reference- or scope-level eligibility gate
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record ScopedHistogramIndexDefinition(
 	@Nonnull Scope scope,
 	@Nonnull String nameOfTheIndex,
-	@Nullable Expression valueExpression
+	@Nullable Expression valueExpression,
+	@Nullable Expression assignedWhen
 ) implements Serializable {
 	/**
 	 * Reusable empty array constant to avoid repeated zero-length array allocations.
@@ -51,11 +55,15 @@ public record ScopedHistogramIndexDefinition(
 	public static final ScopedHistogramIndexDefinition[] EMPTY = new ScopedHistogramIndexDefinition[0];
 
 	/**
-	 * Compact constructor that validates the scope and name are not null.
+	 * Compact constructor that validates the scope and name are not null and that the
+	 * name is not blank. Matches the validation contract of the peer
+	 * {@link io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition} so the
+	 * two records reject the same set of invalid inputs.
 	 */
 	public ScopedHistogramIndexDefinition {
 		Assert.notNull(scope, "Scope must not be null!");
 		Assert.notNull(nameOfTheIndex, "Name of the index must not be null!");
+		Assert.isTrue(!nameOfTheIndex.isBlank(), "Name of the index must not be blank!");
 	}
 
 }

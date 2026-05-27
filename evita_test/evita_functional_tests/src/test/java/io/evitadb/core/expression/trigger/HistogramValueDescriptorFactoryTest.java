@@ -807,6 +807,74 @@ class HistogramValueDescriptorFactoryTest {
 		}
 	}
 
+	/**
+	 * Tests for Range-typed source attributes. Default values (`??` coalesce) are not supported
+	 * for Range histograms — the factory must reject them rather than silently dropping them.
+	 */
+	@Nested
+	@DisplayName("Range source attributes")
+	class RangeSourceAttributeTest {
+
+		@Test
+		@DisplayName("should reject default value on IntegerNumberRange source attribute")
+		void shouldRejectDefaultValueOnIntegerRangeSourceAttribute() {
+			final Expression expr = ExpressionFactory.parse(
+				"$reference.attributes['value'] ?? 0"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithRefAttribute(
+				ATTR_VALUE, io.evitadb.dataType.IntegerNumberRange.class
+			);
+
+			final InvalidSchemaMutationException ex = assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> HistogramValueDescriptorFactory.build(
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
+				)
+			);
+			assertTrue(
+				ex.getPrivateMessage().contains("Default values are not supported for Range histograms")
+					|| ex.getMessage().contains("Default values are not supported for Range histograms"),
+				"exception must surface the Range-default restriction explicitly, was: " + ex.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("should reject default value on BigDecimalNumberRange source attribute")
+		void shouldRejectDefaultValueOnBigDecimalRangeSourceAttribute() {
+			final Expression expr = ExpressionFactory.parse(
+				"$reference.attributes['value'] ?? 0"
+			);
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithRefAttribute(
+				ATTR_VALUE, io.evitadb.dataType.BigDecimalNumberRange.class
+			);
+
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> HistogramValueDescriptorFactory.build(
+					expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should accept Range source attribute without default value")
+		void shouldAcceptRangeSourceAttributeWithoutDefault() {
+			final Expression expr = ExpressionFactory.parse("$reference.attributes['value']");
+			final ReferenceSchemaContract refSchema = buildReferenceSchemaWithRefAttribute(
+				ATTR_VALUE, io.evitadb.dataType.IntegerNumberRange.class
+			);
+
+			final HistogramValueDescriptor result = HistogramValueDescriptorFactory.build(
+				expr, REFERENCE_NAME, HISTOGRAM_NAME, Scope.LIVE, refSchema, noEntityResolver()
+			);
+
+			assertNotNull(result);
+			assertEquals(io.evitadb.dataType.IntegerNumberRange.class, result.plainType());
+			assertEquals(Integer.class, result.innerNumericType());
+			assertNull(result.defaultValue());
+		}
+	}
+
 	// --- Helper methods ---
 
 	/**

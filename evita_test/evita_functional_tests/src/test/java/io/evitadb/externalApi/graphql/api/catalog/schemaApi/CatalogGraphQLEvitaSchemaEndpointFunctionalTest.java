@@ -168,10 +168,12 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 	/**
 	 * Creates a list of maps representing the bucketed histogram definitions for different scopes
 	 * based on the provided {@link ReferenceSchemaContract}. Each map entry contains a scope,
-	 * the histogram index name, and the optional value expression string.
+	 * the histogram index name, the optional value expression string, and the optional
+	 * per-histogram condition expression string.
 	 *
 	 * @param referenceSchema the reference schema containing bucketed histogram definitions
-	 * @return a list of maps, where each map contains scope, nameOfTheIndex, and valueExpression fields
+	 * @return a list of maps, where each map contains scope, nameOfTheIndex, valueExpression, and
+	 *         assignedWhen fields
 	 */
 	@Nonnull
 	protected static List<Map<String, Object>> createBucketedHistogramDto(
@@ -184,6 +186,7 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 			.flatMap(scopeEntry -> scopeEntry.getValue().values().stream()
 				.map(def -> {
 					final Expression valueExpression = def.valueExpression();
+					final Expression assignedWhen = def.assignedWhen();
 					return map()
 						.e(ScopedDataDescriptor.SCOPE.name(), scopeEntry.getKey().name())
 						.e(
@@ -193,6 +196,10 @@ public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends Gr
 						.e(
 							ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(),
 							valueExpression != null ? valueExpression.toExpressionString() : null
+						)
+						.e(
+							ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(),
+							assignedWhen != null ? assignedWhen.toExpressionString() : null
 						)
 						.build();
 				})

@@ -769,6 +769,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 										scope
 										nameOfTheIndex
 										valueExpression
+										assignedWhen
 									}
 									bucketedPartially {
 										scope

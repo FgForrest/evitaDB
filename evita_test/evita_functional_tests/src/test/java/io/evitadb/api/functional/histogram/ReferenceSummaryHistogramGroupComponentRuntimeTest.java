@@ -131,7 +131,8 @@ public class ReferenceSummaryHistogramGroupComponentRuntimeTest
 											HISTOGRAM_PRICE,
 											ExpressionFactory.parse(
 												"$reference.referencedEntity?.attributes['basicUnitValue']"
-											)
+											),
+											null
 										)
 									}
 								)

@@ -25,7 +25,7 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
-import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
@@ -49,22 +49,24 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPa
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
-import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
+import io.evitadb.utils.ReflectionLookup;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.Serializable;
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Currency;
@@ -75,11 +77,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link ClassSchemaAnalyzer}.
@@ -129,10 +132,10 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		}
 		assertSame(expectedType, attributeSchema.getType());
 		if (global) {
-			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+			assertInstanceOf(GlobalAttributeSchema.class, attributeSchema);
 		}
 		if (globallyUnique) {
-			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+			assertInstanceOf(GlobalAttributeSchema.class, attributeSchema);
 			assertTrue(((GlobalAttributeSchema) attributeSchema).isUniqueGlobally());
 		}
 		assertEquals(
@@ -546,7 +549,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		}
 		assertSame(expectedType, attributeSchema.getType());
 		if (global) {
-			assertTrue(attributeSchema instanceof GlobalAttributeSchema);
+			assertInstanceOf(GlobalAttributeSchema.class, attributeSchema);
 		}
 		assertEquals(
 			localized, attributeSchema.isLocalized(), "Attribute `" + attributeName + "` is expected to be " + (
@@ -1862,7 +1865,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with getter-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeReferenceSettingsForGetters() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReferenceSettings.class);
@@ -1938,7 +1941,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with field-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeReferenceSettingsForFields() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithScopeReferenceSettings.class);
@@ -2013,7 +2016,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with record-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeReferenceSettingsForRecords() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithScopeReferenceSettings.class);
@@ -2088,7 +2091,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeReferenceSettings work correctly with reflected references")
 	@Test
 	void shouldSetupNewSchemaWithScopeReferenceSettingsForReflectedReferences() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeReflectedReference.Brand.class);
@@ -2139,7 +2142,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that @Reference#indexedComponents is wired through ClassSchemaAnalyzer")
 	@Test
 	void shouldSetupNewSchemaWithIndexedComponents() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithIndexedComponents.class);
@@ -2198,7 +2201,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that @ReflectedReference#indexedComponents is wired through ClassSchemaAnalyzer")
 	@Test
 	void shouldSetupReflectedReferenceWithIndexedComponents() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(
@@ -2243,7 +2246,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that re-analysis of @Reference does not lose explicit indexedComponents")
 	@Test
 	void shouldPreserveIndexedComponentsOnReanalysis() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// first analysis pass
@@ -2277,7 +2280,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Debug simple ScopeAttributeSettings")
 	@Test
 	void shouldSetupSimpleScopeAttributeSettings() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(SimpleEntityWithScopeAttributeSettings.class);
@@ -2297,7 +2300,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Debug minimal ScopeAttributeSettings with two attributes")
 	@Test
 	void shouldSetupMinimalScopeAttributeSettings() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(MinimalEntityWithScopeAttributeSettings.class);
@@ -2324,7 +2327,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with getter-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeAttributeSettingsForGetters() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithScopeAttributeSettings.class);
@@ -2399,7 +2402,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with field-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeAttributeSettingsForFields() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(FieldBasedEntityWithScopeAttributeSettings.class);
@@ -2474,7 +2477,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that ScopeAttributeSettings work correctly with record-based entities")
 	@Test
 	void shouldSetupNewSchemaWithScopeAttributeSettingsForRecords() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.defineEntitySchemaFromModelClass(RecordBasedEntityWithScopeAttributeSettings.class);
@@ -2549,7 +2552,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (getter-based)")
 	@Test
 	void shouldProduceNoMutationsWhenGetterBasedSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema
@@ -2571,7 +2574,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (field-based)")
 	@Test
 	void shouldProduceNoMutationsWhenFieldBasedSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema
@@ -2593,7 +2596,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing same class twice produces no mutations on second analysis (record-based)")
 	@Test
 	void shouldProduceNoMutationsWhenRecordBasedSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema
@@ -2615,7 +2618,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing full-featured entity class twice produces no mutations on second analysis")
 	@Test
 	void shouldProduceNoMutationsWhenFullFeaturedSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema (including referenced entities)
@@ -2639,7 +2642,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("Verify that analyzing entity with scope attribute settings twice produces no mutations on second analysis")
 	@Test
 	void shouldProduceNoMutationsWhenScopeAttributeSettingsSchemaUnchanged() {
-		evita.updateCatalog(
+		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				// First analysis - creates schema
@@ -3701,7 +3704,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		// (e.g., AbstractMethodError) instead of swallowing them.
 		// getCode() has no default implementation, so unreflectSpecial
 		// throws AbstractMethodError which must not be caught.
-		final java.lang.reflect.Method getter = assertDoesNotThrow(
+		final Method getter = assertDoesNotThrow(
 			() -> GetterBasedEntity.class.getMethod("getCode")
 		);
 		assertThrows(
@@ -3717,7 +3720,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 	@DisplayName("extractDefaultValue returns value from default method implementation")
 	@Test
 	void shouldReturnValueFromExtractDefaultValueWhenDefaultImpl() {
-		final java.io.Serializable result = ClassSchemaAnalyzer.extractDefaultValue(
+		final Serializable result = ClassSchemaAnalyzer.extractDefaultValue(
 			GetterBasedEntity.class,
 			assertDoesNotThrow(() -> GetterBasedEntity.class.getMethod("getYears"))
 		);
@@ -4015,6 +4018,321 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 						);
 					}
 				}
+			);
+		}
+
+	}
+
+	/**
+	 * Tests covering the multi-histogram `bucketed = { @Histogram, … }` array path on
+	 * `@Reference` and `@ScopeReferenceSettings` annotations as processed by
+	 * `ClassSchemaAnalyzer.applyBucketedHistograms`. Verifies the analyzer emits one
+	 * `ScopedHistogramIndexDefinition` per entry, rejects duplicate names and empty
+	 * `nameOfTheIndex` values, and treats an explicit empty array as "no histograms".
+	 */
+	@DisplayName("Multi-histogram analyzer support")
+	@Tag(HISTOGRAM)
+	@Tag(REFERENCE)
+	@Nested
+	class MultiHistogramAnalyzer {
+
+		@DisplayName("multi-histogram on @Reference emits one entry per @Histogram in default scope")
+		@Test
+		void shouldEmitDistinctScopedHistogramEntriesForMultipleBucketedOnReferenceAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final CreateReferenceSchemaMutation mutation = analyzeAndGetReferenceMutation(
+						session,
+						GetterBasedEntityWithMultipleBucketed.class,
+						GetterBasedEntityWithMultipleBucketed.REFERENCE_PARAMETER_VALUES
+					);
+
+					final ScopedHistogramIndexDefinition[] bucketed = mutation.getBucketedInScopes();
+					assertEquals(
+						2, bucketed.length,
+						"Expected exactly two histogram entries in DEFAULT_SCOPE, got: "
+							+ Arrays.toString(bucketed)
+					);
+					final ScopedHistogramIndexDefinition priceEntry = findHistogramByName(
+						bucketed, GetterBasedEntityWithMultipleBucketed.HISTOGRAM_PRICE
+					);
+					final ScopedHistogramIndexDefinition quantityEntry = findHistogramByName(
+						bucketed, GetterBasedEntityWithMultipleBucketed.HISTOGRAM_QUANTITY
+					);
+					assertAll(
+						() -> assertEquals(Scope.DEFAULT_SCOPE, priceEntry.scope()),
+						() -> assertEquals(Scope.DEFAULT_SCOPE, quantityEntry.scope()),
+						() -> assertNotNull(
+							priceEntry.valueExpression(),
+							"price histogram must carry a non-null value expression"
+						),
+						() -> assertNotNull(
+							quantityEntry.valueExpression(),
+							"quantity histogram must carry a non-null value expression"
+						),
+						() -> assertNotEquals(
+							priceEntry.valueExpression().toExpressionString(),
+							quantityEntry.valueExpression().toExpressionString(),
+							"the two histogram entries must carry distinct value expressions"
+						)
+					);
+				}
+			);
+		}
+
+		@DisplayName("multi-histogram on @ScopeReferenceSettings is keyed by the declared scope")
+		@Test
+		void shouldEmitPerScopeHistogramEntriesForBucketedOnScopeReferenceSettings() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final CreateReferenceSchemaMutation mutation = analyzeAndGetReferenceMutation(
+						session,
+						GetterBasedEntityWithPerScopeMultipleBucketed.class,
+						GetterBasedEntityWithPerScopeMultipleBucketed.REFERENCE_PARAMETER_VALUES
+					);
+
+					final ScopedHistogramIndexDefinition[] bucketed = mutation.getBucketedInScopes();
+					final long archivedCount = Arrays.stream(bucketed)
+						.filter(it -> it.scope() == Scope.ARCHIVED)
+						.count();
+					final long liveCount = Arrays.stream(bucketed)
+						.filter(it -> it.scope() == Scope.LIVE)
+						.count();
+					assertAll(
+						() -> assertEquals(
+							2, archivedCount,
+							"Expected exactly two histograms tagged ARCHIVED, got: "
+								+ Arrays.toString(bucketed)
+						),
+						() -> assertEquals(
+							0, liveCount,
+							"LIVE scope declared no histograms, so none must be emitted: "
+								+ Arrays.toString(bucketed)
+						),
+						() -> assertNotNull(
+							findHistogramByName(
+								bucketed, GetterBasedEntityWithPerScopeMultipleBucketed.HISTOGRAM_PRICE
+							)
+						),
+						() -> assertNotNull(
+							findHistogramByName(
+								bucketed, GetterBasedEntityWithPerScopeMultipleBucketed.HISTOGRAM_QUANTITY
+							)
+						)
+					);
+				}
+			);
+		}
+
+		@DisplayName("explicit empty bucketed array produces no histogram entries")
+		@Test
+		void shouldEmitNoBucketedWhenEmptyArrayDeclaredOnReferenceAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final CreateReferenceSchemaMutation mutation = analyzeAndGetReferenceMutation(
+						session,
+						GetterBasedEntityWithEmptyBucketedArray.class,
+						GetterBasedEntityWithEmptyBucketedArray.REFERENCE_PARAMETER_VALUES
+					);
+
+					final ScopedHistogramIndexDefinition[] bucketed = mutation.getBucketedInScopes();
+					assertEquals(
+						0, bucketed.length,
+						"Empty `bucketed = {}` array must not emit any histogram entries, got: "
+							+ Arrays.toString(bucketed)
+					);
+				}
+			);
+		}
+
+		@DisplayName("duplicate nameOfTheIndex within a single @Reference is rejected")
+		@Test
+		void shouldRejectDuplicateHistogramNameWithinSingleReferenceAnnotation() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SchemaClassInvalidException thrown = assertThrows(
+						SchemaClassInvalidException.class,
+						() -> {
+							final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+								GetterBasedEntityWithDuplicateHistogramNames.class,
+								ReflectionLookup.NO_CACHE_INSTANCE
+							);
+							analyzer.analyze(session, session.getCatalogSchema().openForWrite());
+						}
+					);
+					final Throwable rootCause = findCauseOfType(
+						thrown, InvalidSchemaMutationException.class
+					);
+					assertNotNull(
+						rootCause,
+						"SchemaClassInvalidException must wrap an InvalidSchemaMutationException, got: "
+							+ thrown.getMessage()
+					);
+					final String message = rootCause.getMessage();
+					assertAll(
+						() -> assertTrue(
+							message.contains(GetterBasedEntityWithDuplicateHistogramNames.DUPLICATE_NAME),
+							"Message must name the duplicated histogram: " + message
+						),
+						() -> assertTrue(
+							message.contains("more than once"),
+							"Message must explain the duplication rule: " + message
+						)
+					);
+				}
+			);
+		}
+
+		@DisplayName("empty nameOfTheIndex inside non-empty bucketed array is rejected")
+		@Test
+		void shouldRejectEmptyNameOfTheIndexInsideNonEmptyBucketedArray() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SchemaClassInvalidException thrown = assertThrows(
+						SchemaClassInvalidException.class,
+						() -> {
+							final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+								GetterBasedEntityWithEmptyHistogramName.class,
+								ReflectionLookup.NO_CACHE_INSTANCE
+							);
+							analyzer.analyze(session, session.getCatalogSchema().openForWrite());
+						}
+					);
+					final Throwable rootCause = findCauseOfType(
+						thrown, InvalidSchemaMutationException.class
+					);
+					assertNotNull(
+						rootCause,
+						"SchemaClassInvalidException must wrap an InvalidSchemaMutationException, got: "
+							+ thrown.getMessage()
+					);
+					assertTrue(
+						rootCause.getMessage().contains("empty"),
+						"Message must mention empty nameOfTheIndex: " + rootCause.getMessage()
+					);
+				}
+			);
+		}
+
+		@DisplayName("blank (whitespace-only) nameOfTheIndex inside non-empty bucketed array is rejected")
+		@Test
+		void shouldRejectBlankNameOfTheIndexInsideNonEmptyBucketedArray() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SchemaClassInvalidException thrown = assertThrows(
+						SchemaClassInvalidException.class,
+						() -> {
+							final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+								GetterBasedEntityWithBlankHistogramName.class,
+								ReflectionLookup.NO_CACHE_INSTANCE
+							);
+							analyzer.analyze(session, session.getCatalogSchema().openForWrite());
+						}
+					);
+					final Throwable rootCause = findCauseOfType(
+						thrown, InvalidSchemaMutationException.class
+					);
+					assertNotNull(
+						rootCause,
+						"SchemaClassInvalidException must wrap an InvalidSchemaMutationException, got: "
+							+ thrown.getMessage()
+					);
+					final String message = rootCause.getMessage();
+					assertTrue(
+						message.contains("blank"),
+						"Message must mention blank nameOfTheIndex: " + message
+					);
+					assertTrue(
+						message.contains(
+							GetterBasedEntityWithBlankHistogramName.REFERENCE_PARAMETER_VALUES
+						),
+						"Message must mention the offending reference name: " + message
+					);
+				}
+			);
+		}
+
+		/**
+		 * Runs the analyzer on `modelClass` and locates the emitted
+		 * `CreateReferenceSchemaMutation` for the reference of name `referenceName`.
+		 *
+		 * @param session       the active write session used by the analyzer
+		 * @param modelClass    the entity model class to analyze
+		 * @param referenceName the reference name to extract the mutation for
+		 * @return the matching `CreateReferenceSchemaMutation`
+		 */
+		@Nonnull
+		private static CreateReferenceSchemaMutation analyzeAndGetReferenceMutation(
+			@Nonnull EvitaSessionContract session,
+			@Nonnull Class<?> modelClass,
+			@Nonnull String referenceName
+		) {
+			final ClassSchemaAnalyzer analyzer = new ClassSchemaAnalyzer(
+				modelClass, ReflectionLookup.NO_CACHE_INSTANCE
+			);
+			final ClassSchemaAnalyzer.AnalysisResult analysisResult = analyzer.analyze(
+				session, session.getCatalogSchema().openForWrite()
+			);
+			return streamEntitySchemaMutations(
+				analysisResult.entityMutations(),
+				CreateReferenceSchemaMutation.class
+			)
+				.filter(it -> referenceName.equals(it.getName()))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"Expected a CreateReferenceSchemaMutation for `" + referenceName + "`"
+				));
+		}
+
+		/**
+		 * Walks the cause chain of `top` looking for the first `Throwable` assignable to
+		 * `targetType`.
+		 *
+		 * @param top        the topmost throwable
+		 * @param targetType the throwable type to find in the chain
+		 * @return the matching cause or `null` when not found
+		 */
+		@Nullable
+		private static Throwable findCauseOfType(
+			@Nonnull Throwable top,
+			@Nonnull Class<? extends Throwable> targetType
+		) {
+			Throwable current = top;
+			while (current != null) {
+				if (targetType.isInstance(current)) {
+					return current;
+				}
+				current = current.getCause();
+			}
+			return null;
+		}
+
+		/**
+		 * Locates the `ScopedHistogramIndexDefinition` whose `nameOfTheIndex` equals `name`
+		 * inside a non-empty array, asserting it exists.
+		 *
+		 * @param entries the histogram entries to scan
+		 * @param name    the index name to match
+		 * @return the matching entry — never null
+		 */
+		@Nonnull
+		private static ScopedHistogramIndexDefinition findHistogramByName(
+			@Nonnull ScopedHistogramIndexDefinition[] entries,
+			@Nonnull String name
+		) {
+			for (final ScopedHistogramIndexDefinition entry : entries) {
+				if (name.equals(entry.nameOfTheIndex())) {
+					return entry;
+				}
+			}
+			throw new AssertionError(
+				"Expected histogram entry named `" + name + "` in: " + Arrays.toString(entries)
 			);
 		}
 

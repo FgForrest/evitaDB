@@ -78,7 +78,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression, null)
 			},
 			ScopedBucketedPartially.EMPTY
 		);
@@ -108,7 +108,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, expression)
@@ -165,7 +165,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 
 		final SetReferenceSchemaBucketedMutation roundTripped = converter.convert(converter.convert(mutation));
 
-		// after B1 fix: empty arrays should come back as EMPTY, not null
+		// empty input arrays must round-trip back as empty arrays, not null
 		assertNotNull(roundTripped.getBucketedInScopes());
 		assertEquals(0, roundTripped.getBucketedInScopes().length);
 		assertNotNull(roundTripped.getBucketedPartiallyInScopes());
@@ -183,8 +183,8 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", liveExpr),
-				new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHistogram", archivedExpr)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", liveExpr, null),
+				new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHistogram", archivedExpr, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, liveExpr),
@@ -211,7 +211,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 			}
 		);
 
@@ -234,7 +234,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, null)
@@ -260,7 +260,7 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
 			"tags",
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, partialExpression)
@@ -307,6 +307,39 @@ class SetReferenceSchemaBucketedMutationConverterTest {
 		assertEquals(
 			partialExpression.toExpressionString(),
 			roundTripped.getBucketedPartiallyInScopes()[0].expression().toExpressionString()
+		);
+	}
+
+	/**
+	 * Pins the gRPC encode path for the per-histogram `assignedWhen` partition selector.
+	 * The encoder used to drop this field — proto round-tripping would return `null`
+	 * regardless of the input — so this test exercises a non-null assignedWhen end-to-end.
+	 */
+	@Test
+	@DisplayName("should round-trip assignedWhen partition selector on bucketed histogram")
+	void shouldRoundTripAssignedWhenOnBucketedHistogram() {
+		final Expression valueExpression = ExpressionFactory.parse("1 > 0");
+		final Expression assignedWhen = ExpressionFactory.parse("$active == 1");
+		final SetReferenceSchemaBucketedMutation mutation = new SetReferenceSchemaBucketedMutation(
+			"tags",
+			new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression, assignedWhen)
+			},
+			ScopedBucketedPartially.EMPTY
+		);
+
+		final SetReferenceSchemaBucketedMutation roundTripped = converter.convert(converter.convert(mutation));
+
+		assertEquals(mutation, roundTripped);
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(1, roundTripped.getBucketedInScopes().length);
+		assertNotNull(
+			roundTripped.getBucketedInScopes()[0].assignedWhen(),
+			"assignedWhen must survive gRPC round-trip"
+		);
+		assertEquals(
+			assignedWhen.toExpressionString(),
+			roundTripped.getBucketedInScopes()[0].assignedWhen().toExpressionString()
 		);
 	}
 }

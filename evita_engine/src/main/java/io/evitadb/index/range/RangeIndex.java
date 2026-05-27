@@ -218,6 +218,31 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	}
 
 	/**
+	 * Returns a transaction-aware iterator over the sorted range points held in this index. Unlike
+	 * {@link #getRanges()}, which materializes the committed snapshot via `getArray()`, this iterator
+	 * walks the transactional view so callers inside an open transaction observe the in-progress state.
+	 * Intended for range-aware histogram sweeps that must respect transactional layering.
+	 */
+	@Nonnull
+	public Iterator<TransactionalRangePoint> rangesIterator() {
+		return this.ranges.iterator();
+	}
+
+	/**
+	 * Returns the number of {@link TransactionalRangePoint}s currently held in this index, including the two
+	 * `Long.MIN_VALUE`/`Long.MAX_VALUE` sentinels that the index always carries. Intended as a cheap upper-bound
+	 * hint for callers that need to pre-size a buffer before walking {@link #rangesIterator()} (e.g. the range
+	 * histogram sweep in `FilterIndex.getRangeHistogramOfAllRecords`).
+	 *
+	 * Outside an open transaction the result is `O(1)` — it reads the committed delegate's `length` directly.
+	 * Inside an open transaction this forces a merge of transactional changes to compute the effective length,
+	 * which is `O(N)`; callers should fall back to a constant hint on the transactional path.
+	 */
+	public int getRangePointCount() {
+		return this.ranges.getLength();
+	}
+
+	/**
 	 * Adds new record with the interval from/to to the range.
 	 */
 	public void addRecord(long from, long to, int recordId) {
