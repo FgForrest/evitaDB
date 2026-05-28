@@ -23,7 +23,6 @@
 
 package io.evitadb.driver.cdc;
 
-
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest;
@@ -48,6 +47,9 @@ import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConve
 public class ClientChangeCatalogCaptureProcessor extends
 	ClientChangeCapturePublisher<ChangeCatalogCapture, GrpcRegisterChangeCatalogCaptureRequest, GrpcRegisterChangeCatalogCaptureResponse> {
 
+	/**
+	 * @see ClientChangeCapturePublisher#ClientChangeCapturePublisher(int, Duration, ExecutorService, Consumer, Consumer)
+	 */
 	public ClientChangeCatalogCaptureProcessor(
 		int queueSize,
 		@Nonnull Duration streamingTimeout,
@@ -61,7 +63,8 @@ public class ClientChangeCatalogCaptureProcessor extends
 	@Nonnull
 	@Override
 	protected Optional<HeartBeat> deserializeAcknowledgementResponse(GrpcRegisterChangeCatalogCaptureResponse itemResponse) {
-		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT || itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT) {
+		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT
+			|| itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT) {
 			return Optional.of(toHeartBeat(itemResponse.getUuid(), itemResponse.getHeartBeat()));
 		} else {
 			return Optional.empty();
