@@ -26,7 +26,10 @@ package io.evitadb.index.array;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.utils.ArrayUtils;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -394,6 +397,147 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldReplaceRecordWithSameIdentityButDifferentContentOnRemoveThenAdd() {
+		// reproduces the stale-record bug in ObjArrayChanges#addRecordId: when a record is
+		// removed and then re-added within the same transaction with the same comparator
+		// identity but different content, the merged array must reflect the NEW content
+		final Box oldA = new Box(1, "OLD-A");
+		final Box oldB = new Box(2, "OLD-B");
+		final Box newB = new Box(2, "NEW-B");
+		final TransactionalObjArray<Box> array =
+			new TransactionalObjArray<>(new Box[]{oldA, oldB}, Box.BY_ID);
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.remove(oldB);
+				original.add(newB);
+				final Box[] inTx = original.getArray();
+				assertEquals(2, inTx.length);
+				assertEquals(1, inTx[0].id());
+				assertEquals(2, inTx[1].id());
+				assertEquals("NEW-B", inTx[1].content(),
+					"Transactional view must already reflect the replaced content");
+			},
+			(original, committed) -> {
+				assertEquals(2, committed.length);
+				assertEquals(1, committed[0].id());
+				assertEquals(2, committed[1].id());
+				assertEquals("OLD-A", committed[0].content());
+				assertEquals("NEW-B", committed[1].content(),
+					"Committed array must contain the NEW content, not the stale OLD one");
+			}
+		);
+	}
+
+	@Test
+	void shouldReplaceFreshlyInsertedRecordWithSameIdentityButDifferentContent() {
+		// symmetric scenario: record is first added on the change layer, then removed
+		// and re-added with the same identity but new content – the add path must replace
+		// the previously inserted (not yet committed) value
+		final Box first = new Box(7, "FIRST");
+		final Box second = new Box(7, "SECOND");
+		final TransactionalObjArray<Box> array =
+			new TransactionalObjArray<>(new Box[0], Box.BY_ID);
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.add(first);
+				original.remove(first);
+				original.add(second);
+			},
+			(original, committed) -> {
+				assertEquals(1, committed.length);
+				assertEquals(7, committed[0].id());
+				assertEquals("SECOND", committed[0].content(),
+					"Committed insertion bucket must hold the latest object instance, not the first one");
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveSubstitutedRecordWithinSameTransaction() {
+		// after a content-substitution (remove old + add new, same identity), removing the new record
+		// again in the same transaction must leave the array WITHOUT that record - the substitution
+		// encoding (removed delegate slot + insertion bucket) must not resurrect it
+		final Box oldA = new Box(1, "OLD-A");
+		final Box oldB = new Box(2, "OLD-B");
+		final Box newB = new Box(2, "NEW-B");
+		final TransactionalObjArray<Box> array =
+			new TransactionalObjArray<>(new Box[]{oldA, oldB}, Box.BY_ID);
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.remove(oldB);
+				original.add(newB);
+				// right after substitution the record must be reported present
+				assertTrue(original.contains(newB), "Substituted record must be visible via contains()");
+				// now remove it again - it must disappear entirely
+				original.remove(newB);
+				assertFalse(original.contains(newB), "Removed substituted record must not be present");
+				assertArrayEquals(new Box[]{oldA}, original.getArray());
+			},
+			(original, committed) -> assertArrayEquals(new Box[]{oldA}, committed)
+		);
+	}
+
+	@Test
+	void shouldNotDuplicateRecordWhenSubstitutionIsRevertedToOriginalContent() {
+		// regression: a substitute (content-different add) followed by an add of the
+		// original content used to leave the substitution queued in the insertion bucket
+		// while cancelling the removal, so the merged array contained the record twice -
+		// once from the delegate, once from the orphaned bucket
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Box originalAgain = new Box(1, "OLD-A");
+		final TransactionalObjArray<Box> array =
+			new TransactionalObjArray<>(new Box[]{oldA}, Box.BY_ID);
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.add(newA);
+				original.add(originalAgain);
+				assertEquals(1, original.getArray().length,
+					"Reverting a substitution must not leave a duplicate in the change layer");
+			},
+			(original, committed) -> {
+				assertEquals(1, committed.length,
+					"Reverting a substitution must not duplicate the record in the committed array");
+				assertEquals("OLD-A", committed[0].content(),
+					"Reverted content must match the original delegate record");
+			}
+		);
+	}
+
+	@Test
+	void shouldKeepLatestContentWhenSubstitutedRecordIsReplacedAgain() {
+		// substitute (remove old + add new), then add an even newer instance with the same identity -
+		// the committed array must carry the LATEST content
+		final Box oldA = new Box(1, "OLD-A");
+		final Box v1 = new Box(1, "V1");
+		final Box v2 = new Box(1, "V2");
+		final TransactionalObjArray<Box> array =
+			new TransactionalObjArray<>(new Box[]{oldA}, Box.BY_ID);
+
+		assertStateAfterCommit(
+			array,
+			original -> {
+				original.remove(oldA);
+				original.add(v1);
+				original.add(v2);
+			},
+			(original, committed) -> {
+				assertEquals(1, committed.length);
+				assertEquals("V2", committed[0].content(),
+					"Committed array must carry the latest substituted content");
+			}
+		);
+	}
+
+	@Test
 	void shouldCorrectlyWipeAll() {
 		final TransactionalObjArray<Integer> array = new TransactionalObjArray<>(new Integer[]{36, 59, 179}, Comparator.naturalOrder());
 
@@ -510,6 +654,34 @@ class TransactionalObjArrayTest implements TimeBoundedTestSupport {
 	private record TestState(
 		Integer[] initialArray
 	) {
+	}
+
+	/**
+	 * Identity-based record that mimics PriceRecordContract: equals/hashCode/compareTo
+	 * key only on {@link #id()} while {@link #content()} is logical payload that may
+	 * change without changing identity.
+	 */
+	private record Box(int id, @Nonnull String content) implements ContentComparator<Box> {
+		static final Comparator<Box> BY_ID = Comparator.comparingInt(Box::id);
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (!(o instanceof Box other)) return false;
+			return this.id == other.id;
+		}
+
+		@Override
+		public int hashCode() {
+			return Integer.hashCode(this.id);
+		}
+
+		@Override
+		public boolean differsFrom(@Nullable Box other) {
+			if (other == this) return false;
+			if (other == null) return true;
+			return this.id != other.id || !this.content.equals(other.content);
+		}
 	}
 
 }

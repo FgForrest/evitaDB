@@ -23,9 +23,13 @@
 
 package io.evitadb.index.set;
 
+import io.evitadb.api.requestResponse.data.ContentComparator;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -478,9 +482,169 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 		}
 	}
 
+	@Test
+	void shouldReplaceSameIdentityElementWithDifferentContentOnAdd() {
+		// reproduces the silent-drop bug in SetChanges#put: when an element with the same equals()
+		// identity is added on top of one already in the delegate, the new (potentially modified)
+		// instance must end up in the committed set - not the stale original.
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> original.add(newA),
+			(original, committed) -> {
+				assertEquals(1, committed.size());
+				final Box committedBox = committed.iterator().next();
+				assertEquals(1, committedBox.id());
+				assertEquals("NEW-A", committedBox.content(),
+					"Committed set must hold the NEW content, not the stale original instance");
+			}
+		);
+	}
+
+	@Test
+	void shouldReplaceSameIdentityElementOnRemoveThenAdd() {
+		// remove-then-add variant: the original is marked for removal, then a fresh instance with
+		// the same identity but new content is added. The committed set must carry the new content.
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> {
+				original.remove(oldA);
+				original.add(newA);
+			},
+			(original, committed) -> {
+				assertEquals(1, committed.size());
+				final Box committedBox = committed.iterator().next();
+				assertEquals(1, committedBox.id());
+				assertEquals("NEW-A", committedBox.content(),
+					"Committed set must hold the NEW content after remove-then-add of same identity");
+			}
+		);
+	}
+
+	@Test
+	void shouldKeepLatestContentWhenSubstitutedElementIsAddedAgain() {
+		// substitute a delegate element (add new content over same identity), then add an even newer
+		// instance with the same identity - the committed set must carry the LATEST content and the
+		// stale original must not resurface
+		final Box oldA = new Box(1, "OLD-A");
+		final Box v1 = new Box(1, "V1");
+		final Box v2 = new Box(1, "V2");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> {
+				original.add(v1);
+				original.add(v2);
+			},
+			(original, committed) -> {
+				assertEquals(1, committed.size());
+				assertEquals("V2", committed.iterator().next().content(),
+					"Committed set must hold the latest substituted content");
+			}
+		);
+	}
+
+	@Test
+	void shouldRevertToOriginalContentWhenSubstitutionFollowedByOriginalAdd() {
+		// regression guard: after substituting with new content and adding the original-content
+		// instance again, the merged set must contain exactly one logical element and the change-layer
+		// bookkeeping (createdKeys / removedKeys) must not double-count or drop the entry
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Box originalAgain = new Box(1, "OLD-A");
+		final Box otherB = new Box(2, "B");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		underlying.add(otherB);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> {
+				original.add(newA);
+				original.add(originalAgain);
+				assertEquals(2, original.size(),
+					"Reverting a substitution must not change the logical size");
+				assertTrue(original.contains(oldA), "Identity must remain present after revert");
+				assertTrue(original.contains(otherB), "Unrelated elements must remain present");
+			},
+			(original, committed) -> {
+				assertEquals(2, committed.size(),
+					"Committed set must contain exactly one entry per identity");
+				assertTrue(committed.contains(oldA), "Identity must survive the substitute-then-revert");
+				assertTrue(committed.contains(otherB), "Unrelated elements must remain in the committed set");
+			}
+		);
+	}
+
+	@Test
+	void shouldRemoveSubstitutedElementWithinSameTransaction() {
+		// after substituting a delegate element, removing it again in the same transaction must leave
+		// the set without that element (the original must end up removed, the replacement dropped)
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> {
+				original.add(newA);
+				assertTrue(original.contains(newA), "Substituted element must be visible via contains()");
+				original.remove(newA);
+				assertFalse(original.contains(newA), "Removed substituted element must not be present");
+			},
+			(original, committed) -> assertTrue(committed.isEmpty(),
+				"Committed set must be empty after substitute-then-remove")
+		);
+	}
+
 	private record TestState(
 		StringBuilder code,
 		Set<String> initialSet
 	) {}
+
+	/**
+	 * Identity-based record that mimics PriceRecordContract: equals/hashCode key only on
+	 * {@link #id()} while {@link #content()} is logical payload that may change without changing
+	 * identity. Implements {@link ContentComparator} so a fix in SetChanges can detect content
+	 * divergence and substitute the existing element.
+	 */
+	private record Box(int id, @Nonnull String content) implements ContentComparator<Box> {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (!(o instanceof Box other)) return false;
+			return this.id == other.id;
+		}
+
+		@Override
+		public int hashCode() {
+			return Integer.hashCode(this.id);
+		}
+
+		@Override
+		public boolean differsFrom(@Nullable Box other) {
+			if (other == this) return false;
+			if (other == null) return true;
+			return this.id != other.id || !this.content.equals(other.content);
+		}
+	}
 
 }
