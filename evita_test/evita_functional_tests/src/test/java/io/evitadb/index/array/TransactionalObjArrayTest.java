@@ -1085,6 +1085,35 @@ class TransactionalObjArrayTest {
 		}
 
 		@Test
+		void shouldNotDuplicateRecordWhenSubstitutionIsRevertedToOriginalContent() {
+			// regression: a substitute (content-different add) followed by an add of the
+			// original content used to leave the substitution queued in the insertion bucket
+			// while cancelling the removal, so the merged array contained the record twice -
+			// once from the delegate, once from the orphaned bucket
+			final Box oldA = new Box(1, "OLD-A");
+			final Box newA = new Box(1, "NEW-A");
+			final Box originalAgain = new Box(1, "OLD-A");
+			final TransactionalObjArray<Box> array =
+				new TransactionalObjArray<>(new Box[]{oldA}, Box.BY_ID);
+
+			assertStateAfterCommit(
+				array,
+				original -> {
+					original.add(newA);
+					original.add(originalAgain);
+					assertEquals(1, original.getArray().length,
+						"Reverting a substitution must not leave a duplicate in the change layer");
+				},
+				(original, committed) -> {
+					assertEquals(1, committed.length,
+						"Reverting a substitution must not duplicate the record in the committed array");
+					assertEquals("OLD-A", committed[0].content(),
+						"Reverted content must match the original delegate record");
+				}
+			);
+		}
+
+		@Test
 		void shouldKeepLatestContentWhenSubstitutedRecordIsReplacedAgain() {
 			final Box oldA = new Box(1, "OLD-A");
 			final Box v1 = new Box(1, "V1");

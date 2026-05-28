@@ -144,7 +144,7 @@ public class SetChanges<K> implements Serializable {
 			return false;
 		}
 		final K existing = findIdentityEqual(this.setDelegate, key);
-		return existing != null && contentDiffers(existing, key);
+		return existing != null && ContentComparator.contentDiffers(existing, key);
 	}
 
 	/**
@@ -156,7 +156,7 @@ public class SetChanges<K> implements Serializable {
 			return;
 		}
 		final K existing = findIdentityEqual(getCreatedKeys(), key);
-		if (existing != null && contentDiffers(existing, key)) {
+		if (existing != null && ContentComparator.contentDiffers(existing, key)) {
 			final Set<K> created = getOrCreateCreatedKeys();
 			created.remove(key); // removes identity-equal entry from the HashSet
 			created.add(key);
@@ -176,22 +176,6 @@ public class SetChanges<K> implements Serializable {
 			}
 		}
 		return null;
-	}
-
-	/**
-	 * Detects whether the candidate carries different content than an identity-equal existing element.
-	 * Prefers the explicit {@link ContentComparator} contract; falls back to {@link Object#equals} so
-	 * types with content-aware equals keep working as before.
-	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static <T> boolean contentDiffers(@Nonnull T existing, @Nonnull T candidate) {
-		if (existing == candidate) {
-			return false;
-		}
-		if (candidate instanceof ContentComparator) {
-			return ((ContentComparator) candidate).differsFrom(existing);
-		}
-		return !existing.equals(candidate);
 	}
 
 	/**
