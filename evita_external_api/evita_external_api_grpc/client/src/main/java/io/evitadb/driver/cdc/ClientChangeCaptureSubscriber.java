@@ -126,7 +126,10 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 
 	/**
 	 * The subscription that manages the flow control between this subscriber and the publisher.
-	 * This is set in the onSubscribe method when the publisher creates a subscription for this subscriber.
+	 * Set by {@link #attachSubscription} when the publisher creates a subscription for this
+	 * subscriber — deliberately *before* the stream initializer runs so the gRPC inbound
+	 * thread cannot observe a null field. {@link #onSubscribe} only forwards the subscription
+	 * to the delegate; it does not assign this field.
 	 *
 	 * Declared `volatile` so writes from the `subscribe()` thread (via
 	 * {@link #attachSubscription}) are visible to the gRPC inbound thread reading the
