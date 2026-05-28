@@ -30,6 +30,15 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -38,10 +47,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.Currency;
+import java.util.List;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
@@ -175,6 +187,157 @@ class PriceIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 						.getPrices()
 						.size()
 				);
+			}
+		);
+	}
+
+	@DisplayName("Price index must not stay stale when a reference rebuild precedes price change in one mutation")
+	@ParameterizedTest(name = "reference-first, old price {0} -> new price {1}")
+	@CsvSource({"590.00, 295.00", "295.00, 590.00"})
+	void shouldNotLeaveStalePriceIndexWhenReferenceRebuildPrecedesPriceChange(
+		@Nonnull BigDecimal oldPrice,
+		@Nonnull BigDecimal newPrice
+	) {
+		// Reproduces #1193: a single EntityUpsertMutation that rebuilds the (filtering+partitioning)
+		// reference FIRST - which re-seeds the reduced reference index from the still-unchanged body -
+		// and only afterwards changes the LOWEST_PRICE inner-record prices reusing their internal price
+		// ids. The transactional change layer used to keep the OLD price record because the new record
+		// is identity-equal (same internal price id) yet content-different, so the index stayed stale.
+		runStalePriceIndexScenario(oldPrice, newPrice, /*referenceFirst*/ true);
+	}
+
+	@DisplayName("Price index must not stay stale when a price change precedes the reference rebuild in one mutation")
+	@ParameterizedTest(name = "price-first, old price {0} -> new price {1}")
+	@CsvSource({"590.00, 295.00", "295.00, 590.00"})
+	void shouldNotLeaveStalePriceIndexWhenPriceChangePrecedesReferenceRebuild(
+		@Nonnull BigDecimal oldPrice,
+		@Nonnull BigDecimal newPrice
+	) {
+		// Documents that the reverse mutation order (prices changed before the reference swap) also
+		// produces a correct index. The original bug surfaced only with the reference-first order, but
+		// this variant guards against future regressions in the price-first path.
+		runStalePriceIndexScenario(oldPrice, newPrice, /*referenceFirst*/ false);
+	}
+
+	/**
+	 * Common reproducer body shared by the reference-first and price-first variants. The
+	 * {@code referenceFirst} flag toggles only the order in which the reference rebuild and the price
+	 * updates appear inside the single {@link EntityUpsertMutation}; everything else - schema, seed
+	 * data, transactional mode switch and assertions - is identical so both orderings exercise the
+	 * same downstream pipeline.
+	 */
+	private void runStalePriceIndexScenario(
+		@Nonnull BigDecimal oldPrice,
+		@Nonnull BigDecimal newPrice,
+		boolean referenceFirst
+	) {
+		final int productPk = 100;
+		final int categoryPkOld = 500;
+		final int categoryPkNew = 501;
+		final int innerA = 200;
+		final int innerB = 201;
+
+		// define the Category and Product (price + indexed reference) schemas, then seed in warm-up mode
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withPriceInCurrency(CURRENCY_CZK)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCT_CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+					)
+					.updateVia(session);
+
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, categoryPkOld));
+				session.upsertEntity(session.createNewEntity(Entities.CATEGORY, categoryPkNew));
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, productPk)
+						.setPriceInnerRecordHandling(PriceInnerRecordHandling.LOWEST_PRICE)
+						.setPrice(1, PRICE_LIST_BASIC, CURRENCY_CZK, innerA, oldPrice, BigDecimal.ZERO, oldPrice, true)
+						.setPrice(2, PRICE_LIST_BASIC, CURRENCY_CZK, innerB, oldPrice, BigDecimal.ZERO, oldPrice, true)
+						.setReference(REFERENCE_PRODUCT_CATEGORY, categoryPkOld)
+				);
+			}
+		);
+
+		// switch to transactional mode - only then the mutation travels through the WAL / transaction
+		// apply path (index-first, then body) that produced the divergence
+		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
+
+		// sanity: the product is found by its OLD price in the OLD category
+		assertTrue(
+			isProductFoundByPriceInCategory(productPk, categoryPkOld, oldPrice),
+			"Pre-condition: product should be indexed with its OLD price in the OLD category"
+		);
+
+		final RemoveReferenceMutation removeRef =
+			new RemoveReferenceMutation(REFERENCE_PRODUCT_CATEGORY, categoryPkOld);
+		final InsertReferenceMutation insertRef =
+			new InsertReferenceMutation(new ReferenceKey(REFERENCE_PRODUCT_CATEGORY, categoryPkNew));
+		final UpsertPriceMutation upsertPriceA = new UpsertPriceMutation(
+			new PriceKey(1, PRICE_LIST_BASIC, CURRENCY_CZK), innerA,
+			newPrice, BigDecimal.ZERO, newPrice, null, true
+		);
+		final UpsertPriceMutation upsertPriceB = new UpsertPriceMutation(
+			new PriceKey(2, PRICE_LIST_BASIC, CURRENCY_CZK), innerB,
+			newPrice, BigDecimal.ZERO, newPrice, null, true
+		);
+
+		// the offending mutation: rebuild the reference and change both prices in one tx, in the order
+		// determined by the {@code referenceFirst} flag
+		final List<? extends LocalMutation<?, ?>> localMutations =
+			referenceFirst
+				? List.of(removeRef, insertRef, upsertPriceA, upsertPriceB)
+				: List.of(upsertPriceA, upsertPriceB, removeRef, insertRef);
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.applyMutation(
+					new EntityUpsertMutation(
+						Entities.PRODUCT, productPk, EntityExistence.MUST_EXIST, localMutations
+					)
+				);
+			}
+		);
+
+		// the index must reflect the new price: the product is found by the NEW price and NOT by the OLD one
+		assertTrue(
+			isProductFoundByPriceInCategory(productPk, categoryPkNew, newPrice),
+			"Product must be found by its NEW price in the NEW category - the index must reflect the change"
+		);
+		assertFalse(
+			isProductFoundByPriceInCategory(productPk, categoryPkNew, oldPrice),
+			"Product must NOT be found by its OLD price - a stale index would still match the original value"
+		);
+	}
+
+	/**
+	 * Queries the catalog through the public API for the given product, filtered by a reference to the
+	 * given category and by an exact price-for-sale. Both the reference filter (reduced reference index)
+	 * and the price filter (price index) are served from the committed indexes, so the result reflects
+	 * whether the indexes carry the expected price.
+	 */
+	private boolean isProductFoundByPriceInCategory(int productPk, int categoryPk, @Nonnull BigDecimal priceWithTax) {
+		return this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneEntityReference(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productPk),
+							referenceHaving(REFERENCE_PRODUCT_CATEGORY, entityPrimaryKeyInSet(categoryPk)),
+							priceInCurrency(CURRENCY_CZK),
+							priceInPriceLists(PRICE_LIST_BASIC),
+							priceBetween(priceWithTax, priceWithTax)
+						)
+					)
+				).isPresent();
 			}
 		);
 	}
