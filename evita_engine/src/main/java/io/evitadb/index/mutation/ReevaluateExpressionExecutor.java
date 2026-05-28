@@ -251,28 +251,43 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			refTypeIndex = null;
 		}
 
+		// Apply the *same* presence-aware decision matrix the local indexing path uses
+		// (ReferenceIndexMutator#applyFacetDecisionMatrix). The cross-entity executor never migrates a
+		// reference's group — group affiliation only ever changes via local SetReferenceGroupMutation /
+		// RemoveReferenceGroupMutation on the owner entity. A cross-entity trigger merely flips the
+		// faceted/not-faceted *decision* for the owner's reference in its current (resolved) group.
+		// By the time this executor runs, the local path may have already added the facet, removed it, or
+		// left it in a now-stale bucket; the decision matrix scans for the facet's actual location and
+		// reconciles it deterministically — missing bucket is a no-op, already-present is a no-op, a
+		// wrong bucket is a self-healing move. This eliminates the blind add/removeFacet calls that
+		// raised `Facet ... not found in index (group: ...)!` and the symmetric orphan-duplicate on add.
 		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
-			globalIndex.addFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
+			ReferenceIndexMutator.applyFacetDecisionMatrix(
+				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), true, null
+			);
 			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, true);
 		}
 		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldNotBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
-			globalIndex.removeFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
+			ReferenceIndexMutator.applyFacetDecisionMatrix(
+				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), false, null
+			);
 			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, false);
 		}
 	}
 
 	/**
-	 * Propagates a facet add/remove to every reduced index covering the given referenced entity.
-	 * No-op when `refTypeIndex` is `null` (non-partitioned schemas).
+	 * Propagates the facet decision to every reduced index covering the given referenced entity, using the
+	 * same presence-aware {@link ReferenceIndexMutator#applyFacetDecisionMatrix} as the global index. No-op
+	 * when `refTypeIndex` is `null` (non-partitioned schemas).
 	 *
 	 * @param target        access to the entity collection's index store
 	 * @param refTypeIndex  the `REFERENCED_ENTITY_TYPE` index, or `null` for non-partitioned schemas
 	 * @param refSchema     schema of the reference being updated
 	 * @param refKey        the `(referenceName, referencedEntityPK)` key
 	 * @param entry         the `(referencedEntityPK, groupPK, ownerPK)` triple
-	 * @param add           `true` to add, `false` to remove
+	 * @param nowFaceted    `true` when the owner should be faceted in `entry.groupPK()`, `false` otherwise
 	 */
 	private static void applyFacetToReducedIndexes(
 		@Nonnull IndexMutationTarget target,
@@ -280,7 +295,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull ReferenceSchemaContract refSchema,
 		@Nonnull ReferenceKey refKey,
 		@Nonnull AffectedReferenceEntry entry,
-		boolean add
+		boolean nowFaceted
 	) {
 		if (refTypeIndex == null) {
 			return;
@@ -293,11 +308,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				"Expected reduced index with storage PK " + reducedStoragePK +
 					" to exist for referenced entity PK " + entry.referencedEntityPK()
 			);
-			if (add) {
-				reducedIndex.addFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
-			} else {
-				reducedIndex.removeFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
-			}
+			ReferenceIndexMutator.applyFacetDecisionMatrix(
+				reducedIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), nowFaceted, null
+			);
 		}
 	}
 

@@ -2287,6 +2287,91 @@ class ConditionalFacetIndexingTest implements EvitaTestSupport, IndexingTestSupp
 				}
 			);
 		}
+
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should not fail when reference migrates to non-matching group then that group's attribute changes")
+		void shouldNotFailWhenReferenceMigratesToNonMatchingGroupThenGroupAttributeChanges(CatalogState state) {
+			// Reproduces the production reindex crash:
+			//   "Facet <pk> not found in index (group: <new group>)!"
+			// A faceted reference is moved from a CHECKBOX group (faceted) into a non-matching group.
+			// The local SetReferenceGroupMutation handler removes the facet from the old group's bucket
+			// (the new group is non-matching, so it is NOT re-added under the new group). When the new
+			// group's own attribute is subsequently indexed/changed, the cross-entity GROUP_ENTITY_ATTRIBUTE
+			// re-evaluation resolves the owner under the NEW group and issues an unconditional removeFacet
+			// against the new group's bucket — where the facet never lived — raising the assertion.
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalFacetSchema(session);
+
+					// old group is CHECKBOX (matching → faceted)
+					session.createNewEntity(ENTITY_PARAMETER_GROUP, 1)
+						.setAttribute(ATTR_WIDGET_TYPE, "CHECKBOX")
+						.upsertVia(session);
+					// new group is RADIO (non-matching → not faceted)
+					session.createNewEntity(ENTITY_PARAMETER_GROUP, 2)
+						.setAttribute(ATTR_WIDGET_TYPE, "RADIO")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER, 1).upsertVia(session);
+
+					// product 1 will be migrated between groups
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
+						)
+						.upsertVia(session);
+					// product 2 stays in group 1 — keeps the FacetReferenceIndex and the group-1
+					// bucket alive after product 1 migrates away (so the throw is a missing-group-bucket
+					// assertion, not a pruned-away no-op)
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 1)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					// both products faceted under the CHECKBOX group
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 2);
+
+					// migrate product 1's reference from group 1 (CHECKBOX) to group 2 (RADIO).
+					// the new group is non-matching, so the facet is removed and NOT re-added.
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER_GROUP, 2)
+						)
+						.upsertVia(session);
+
+					// product 1 no longer faceted anywhere; product 2 still faceted under group 1
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 2, 1);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 2);
+
+					// now change the NEW (non-matching) group's attribute. this fires the cross-entity
+					// GROUP_ENTITY_ATTRIBUTE re-evaluation for product 1, which previously threw
+					// "Facet 1 not found in index (group: 2)!" because it removed from the new bucket.
+					session.getEntity(ENTITY_PARAMETER_GROUP, 2, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					// no exception — and index state remains correct
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 2, 1);
+					assertFacetNotIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 1);
+					assertFacetIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1, 2);
+					// reference-based filtering still works for the migrated owner
+					assertReferenceStillIndexed(productCollection, REF_PARAM_BY_GROUP_ATTR, 1, 1);
+				}
+			);
+		}
 	}
 
 	/**
