@@ -57,7 +57,6 @@ import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.STREAM;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -109,9 +108,9 @@ class ClientChangeCapturePublisherTest implements TestConstants {
 			harness.deliverAck();
 
 			// a server-pushed heartbeat is not enqueued for the delegate
-			// — credit must be restored eagerly
-			harness.deliverHeartbeat(2);
-			verify(harness.observer, atLeastOnce()).request(1);
+			// — credit must be restored eagerly; index 1 follows ACK index 0 so the
+			// "Missed heartbeat" warn log stays quiet
+			harness.deliverHeartbeat(1);
 			// heartbeat top-up request(1) → exactly 1 single-credit call
 			verify(harness.observer, times(1)).request(1);
 		}

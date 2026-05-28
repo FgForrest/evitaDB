@@ -122,20 +122,29 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * This is initialized in the beforeStart method and used to cancel the stream when closing.
 	 */
 	@Nullable
-	private ClientCallStreamObserver<REQ> serverObserver;
+	private volatile ClientCallStreamObserver<REQ> serverObserver;
 
 	/**
 	 * The subscription that manages the flow control between this subscriber and the publisher.
 	 * This is set in the onSubscribe method when the publisher creates a subscription for this subscriber.
+	 *
+	 * Declared `volatile` so writes from the `subscribe()` thread (via
+	 * {@link #attachSubscription}) are visible to the gRPC inbound thread reading the
+	 * field in {@link #onNext} without relying on transitive happens-before through
+	 * gRPC stub internals.
 	 */
 	@Nullable
-	private ClientSubscription<C, REQ, RES> subscription;
+	private volatile ClientSubscription<C, REQ, RES> subscription;
 
 	/**
 	 * The last heartbeat received from the server, used to monitor the connection health.
+	 *
+	 * Declared `volatile` because {@link #toString} may be invoked from arbitrary threads
+	 * (logging, diagnostics) and must observe the most recent value written by the gRPC
+	 * inbound thread in {@link #onNext}.
 	 */
 	@Nullable
-	private HeartBeat lastHeartBeat;
+	private volatile HeartBeat lastHeartBeat;
 
 	/**
 	 * Creates a subscriber bound to a delegate `Flow.Subscriber` and the gRPC-side
@@ -182,15 +191,15 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @throws GenericEvitaInternalError if the subscriber has already been started
 	 */
 	@Override
-	public void beforeStart(ClientCallStreamObserver<REQ> observer) {
+	public void beforeStart(@Nonnull ClientCallStreamObserver<REQ> observer) {
 		Assert.isPremiseValid(
 			this.serverObserver == null,
 			"ClientChangeCaptureSubscriber can only be started once. It is already started."
 		);
 
 		this.serverObserver = observer;
-		// Initialize gRPC flow control by requesting the acknowledgement message.
-		// take over inbound flow control from gRPC defaults so the server cannot outpace us
+		// take over inbound flow control from gRPC defaults so the server cannot outpace us;
+		// explicitly ask for the single ACK message that primes the credit window
 		observer.disableAutoRequestWithInitial(1);
 	}
 
@@ -220,7 +229,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @param subscription the subscription created by the publisher
 	 */
 	@Override
-	public void onSubscribe(Subscription subscription) {
+	public void onSubscribe(@Nonnull Subscription subscription) {
 		this.delegate.onSubscribe(subscription);
 	}
 

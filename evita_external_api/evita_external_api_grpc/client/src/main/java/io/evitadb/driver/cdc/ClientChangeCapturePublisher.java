@@ -181,8 +181,15 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		// register the subscription with the publisher BEFORE the stream initializer runs so
 		// a synchronous failure during initialization has the subscription available for cleanup
 		this.subscriptions.add(subscription);
-		// initialize the gRPC stream now that the subscription is wired and registered
-		this.streamInitializer.accept(internalSubscriber);
+		// initialize the gRPC stream now that the subscription is wired and registered;
+		// a synchronous failure here must remove the zombie subscription before rethrowing,
+		// otherwise it would linger in `subscriptions` and keep the publisher from auto-closing
+		try {
+			this.streamInitializer.accept(internalSubscriber);
+		} catch (Throwable ex) {
+			this.subscriptions.remove(subscription);
+			throw ex;
+		}
 		// notify the delegate that it has a subscription it can drive
 		internalSubscriber.onSubscribe(subscription);
 	}
@@ -525,7 +532,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 							if (!this.cancelled.get()
 								&& (this.walkingDead.get() != null
 									|| (!this.items.isEmpty() && this.requested.get() > 0))) {
-								consume();
+								this.consume();
 							}
 						}
 					);
