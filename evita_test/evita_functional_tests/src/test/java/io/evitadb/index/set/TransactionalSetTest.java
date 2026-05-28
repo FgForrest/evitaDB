@@ -559,6 +559,39 @@ class TransactionalSetTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldRevertToOriginalContentWhenSubstitutionFollowedByOriginalAdd() {
+		// regression guard: after substituting with new content and adding the original-content
+		// instance again, the merged set must contain exactly one logical element and the change-layer
+		// bookkeeping (createdKeys / removedKeys) must not double-count or drop the entry
+		final Box oldA = new Box(1, "OLD-A");
+		final Box newA = new Box(1, "NEW-A");
+		final Box originalAgain = new Box(1, "OLD-A");
+		final Box otherB = new Box(2, "B");
+		final Set<Box> underlying = new LinkedHashSet<>();
+		underlying.add(oldA);
+		underlying.add(otherB);
+		final TransactionalSet<Box> set = new TransactionalSet<>(underlying);
+
+		assertStateAfterCommit(
+			set,
+			original -> {
+				original.add(newA);
+				original.add(originalAgain);
+				assertEquals(2, original.size(),
+					"Reverting a substitution must not change the logical size");
+				assertTrue(original.contains(oldA), "Identity must remain present after revert");
+				assertTrue(original.contains(otherB), "Unrelated elements must remain present");
+			},
+			(original, committed) -> {
+				assertEquals(2, committed.size(),
+					"Committed set must contain exactly one entry per identity");
+				assertTrue(committed.contains(oldA), "Identity must survive the substitute-then-revert");
+				assertTrue(committed.contains(otherB), "Unrelated elements must remain in the committed set");
+			}
+		);
+	}
+
+	@Test
 	void shouldRemoveSubstitutedElementWithinSameTransaction() {
 		// after substituting a delegate element, removing it again in the same transaction must leave
 		// the set without that element (the original must end up removed, the replacement dropped)

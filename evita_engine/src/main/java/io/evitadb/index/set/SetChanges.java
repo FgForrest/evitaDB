@@ -80,33 +80,6 @@ public class SetChanges<K> implements Serializable {
 	 */
 	private final Set<K> createdKeys = new HashSet<>();
 
-	/**
-	 * Returns `true` when `existing` and `candidate` are `equals`-equal (same identity) but carry
-	 * different content.
-	 *
-	 * Decision order:
-	 * 1. Same object reference — no difference (`false`).
-	 * 2. If `candidate` implements {@link ContentComparator}, delegates to
-	 *    {@link ContentComparator#differsFrom} (handles types like `PriceRecordContract` whose `equals`
-	 *    only compares identity fields while `differsFrom` checks all amount fields).
-	 * 3. Falls back to `!existing.equals(candidate)` for plain-value types whose `equals` already
-	 *    implies full content equality.
-	 *
-	 * @param existing  the instance currently stored in the set (delegate or change layer)
-	 * @param candidate the new instance being added in the current transaction
-	 * @return `true` if the two instances are identity-equal but content-different
-	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static <T> boolean contentDiffers(@Nonnull T existing, @Nonnull T candidate) {
-		if (existing == candidate) {
-			return false;
-		}
-		if (candidate instanceof ContentComparator) {
-			return ((ContentComparator) candidate).differsFrom(existing);
-		}
-		return !existing.equals(candidate);
-	}
-
 	public SetChanges(@Nonnull Set<K> setDelegate) {
 		this.setDelegate = setDelegate;
 	}
@@ -361,7 +334,7 @@ public class SetChanges<K> implements Serializable {
 			return false;
 		}
 		final K existing = findIdentityEqual(this.setDelegate, key);
-		return existing != null && contentDiffers(existing, key);
+		return existing != null && ContentComparator.contentDiffers(existing, key);
 	}
 
 	/**
@@ -380,7 +353,7 @@ public class SetChanges<K> implements Serializable {
 			return;
 		}
 		final K existing = findIdentityEqual(this.createdKeys, key);
-		if (existing != null && contentDiffers(existing, key)) {
+		if (existing != null && ContentComparator.contentDiffers(existing, key)) {
 			this.createdKeys.remove(key); // removes identity-equal entry from the HashSet
 			this.createdKeys.add(key);
 		}

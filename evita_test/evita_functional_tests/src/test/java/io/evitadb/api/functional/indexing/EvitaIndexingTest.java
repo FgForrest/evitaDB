@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.UpsertPriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
@@ -484,10 +485,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		);
 	}
 
-	@DisplayName("Price index must not stay stale when a reference rebuild and a price change share one mutation")
-	@ParameterizedTest(name = "old price {0} -> new price {1}")
+	@DisplayName("Price index must not stay stale when a reference rebuild precedes price change in one mutation")
+	@ParameterizedTest(name = "reference-first, old price {0} -> new price {1}")
 	@CsvSource({"590.00, 295.00", "295.00, 590.00"})
-	void shouldNotLeaveStalePriceIndexWhenReferenceRebuildAndPriceChangeShareOneMutation(
+	void shouldNotLeaveStalePriceIndexWhenReferenceRebuildPrecedesPriceChange(
 		@Nonnull BigDecimal oldPrice,
 		@Nonnull BigDecimal newPrice
 	) {
@@ -496,6 +497,34 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		// and only afterwards changes the LOWEST_PRICE inner-record prices reusing their internal price
 		// ids. The transactional change layer used to keep the OLD price record because the new record
 		// is identity-equal (same internal price id) yet content-different, so the index stayed stale.
+		runStalePriceIndexScenario(oldPrice, newPrice, /*referenceFirst*/ true);
+	}
+
+	@DisplayName("Price index must not stay stale when a price change precedes the reference rebuild in one mutation")
+	@ParameterizedTest(name = "price-first, old price {0} -> new price {1}")
+	@CsvSource({"590.00, 295.00", "295.00, 590.00"})
+	void shouldNotLeaveStalePriceIndexWhenPriceChangePrecedesReferenceRebuild(
+		@Nonnull BigDecimal oldPrice,
+		@Nonnull BigDecimal newPrice
+	) {
+		// Documents that the reverse mutation order (prices changed before the reference swap) also
+		// produces a correct index. The original bug surfaced only with the reference-first order, but
+		// this variant guards against future regressions in the price-first path.
+		runStalePriceIndexScenario(oldPrice, newPrice, /*referenceFirst*/ false);
+	}
+
+	/**
+	 * Common reproducer body shared by the reference-first and price-first variants. The
+	 * {@code referenceFirst} flag toggles only the order in which the reference rebuild and the price
+	 * updates appear inside the single {@link EntityUpsertMutation}; everything else - schema, seed
+	 * data, transactional mode switch and assertions - is identical so both orderings exercise the
+	 * same downstream pipeline.
+	 */
+	private void runStalePriceIndexScenario(
+		@Nonnull BigDecimal oldPrice,
+		@Nonnull BigDecimal newPrice,
+		boolean referenceFirst
+	) {
 		final int productPk = 100;
 		final int categoryPkOld = 500;
 		final int categoryPkNew = 501;
@@ -545,27 +574,31 @@ class EvitaIndexingTest implements EvitaTestSupport {
 			"Pre-condition: product should be indexed with its OLD price in the OLD category"
 		);
 
-		// 2) the offending mutation: rebuild the reference first, then change both prices - all in one tx
+		final RemoveReferenceMutation removeRef =
+			new RemoveReferenceMutation(REFERENCE_PRODUCT_CATEGORY, categoryPkOld);
+		final InsertReferenceMutation insertRef =
+			new InsertReferenceMutation(new ReferenceKey(REFERENCE_PRODUCT_CATEGORY, categoryPkNew));
+		final UpsertPriceMutation upsertPriceA = new UpsertPriceMutation(
+			new PriceKey(1, PRICE_LIST_BASIC, CURRENCY_CZK), innerA,
+			newPrice, BigDecimal.ZERO, newPrice, null, true
+		);
+		final UpsertPriceMutation upsertPriceB = new UpsertPriceMutation(
+			new PriceKey(2, PRICE_LIST_BASIC, CURRENCY_CZK), innerB,
+			newPrice, BigDecimal.ZERO, newPrice, null, true
+		);
+
+		// 2) the offending mutation: rebuild the reference and change both prices in one tx, in the
+		// order determined by the {@code referenceFirst} flag
+		final List<? extends LocalMutation<?, ?>> localMutations =
+			referenceFirst
+				? List.of(removeRef, insertRef, upsertPriceA, upsertPriceB)
+				: List.of(upsertPriceA, upsertPriceB, removeRef, insertRef);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
 				session.applyMutation(
 					new EntityUpsertMutation(
-						Entities.PRODUCT,
-						productPk,
-						EntityExistence.MUST_EXIST,
-						List.of(
-							new RemoveReferenceMutation(REFERENCE_PRODUCT_CATEGORY, categoryPkOld),
-							new InsertReferenceMutation(new ReferenceKey(REFERENCE_PRODUCT_CATEGORY, categoryPkNew)),
-							new UpsertPriceMutation(
-								new PriceKey(1, PRICE_LIST_BASIC, CURRENCY_CZK), innerA,
-								newPrice, BigDecimal.ZERO, newPrice, null, true
-							),
-							new UpsertPriceMutation(
-								new PriceKey(2, PRICE_LIST_BASIC, CURRENCY_CZK), innerB,
-								newPrice, BigDecimal.ZERO, newPrice, null, true
-							)
-						)
+						Entities.PRODUCT, productPk, EntityExistence.MUST_EXIST, localMutations
 					)
 				);
 			}

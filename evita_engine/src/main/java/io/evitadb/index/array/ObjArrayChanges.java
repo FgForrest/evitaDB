@@ -243,7 +243,7 @@ public class ObjArrayChanges<T> {
 			// base delegate already holds a record with the same comparator key
 			final T existing = this.delegate[positionIndex];
 			final int removalIndex = Arrays.binarySearch(this.removals, positionIndex);
-			if (contentDiffers(existing, recordId)) {
+			if (ContentComparator.contentDiffers(existing, recordId)) {
 				// identity matches but content differs - substitute the record:
 				// ensure the original position is marked for removal AND queue an insertion of
 				// the new instance at the same logical position
@@ -254,6 +254,10 @@ public class ObjArrayChanges<T> {
 			} else if (removalIndex >= 0) {
 				// contents are equal - cancel any pending removal
 				this.removals = ArrayUtils.removeIntFromArrayOnIndex(this.removals, removalIndex);
+				// also drop any orphaned substitution bucket that a prior addRecordId may have
+				// queued at this position - otherwise the merge would resurrect the stale
+				// replacement alongside the (now un-removed) delegate record
+				dropInsertionBucketEntry(positionIndex, recordId, comparator);
 			}
 			// else: identical record already present and not removed -> no-op
 		} else {
@@ -292,29 +296,32 @@ public class ObjArrayChanges<T> {
 	}
 
 	/**
-	 * Returns `true` when `existing` and `candidate` represent the same logical slot (same comparator
-	 * identity) but their *content* has diverged.
+	 * Drops the record from the insertion bucket queued at the given delegate position, when present.
+	 * If the bucket becomes empty as a result, the bucket entry is removed from the parallel
+	 * insertions/insertedValues arrays as well.
 	 *
-	 * Decision order:
-	 * 1. If both references point to the same object instance — no difference (`false`).
-	 * 2. If `candidate` implements {@link io.evitadb.api.requestResponse.data.ContentComparator}, its
-	 *    {@code differsFrom} method is authoritative (handles the price-record case where `equals` keys
-	 *    only on `internalPriceId` while `differsFrom` also compares amount fields).
-	 * 3. Otherwise falls back to `!existing.equals(candidate)` so plain-`equals` types work unchanged.
+	 * Used to clean up substitution buckets left over by a prior {@link #addRecordId} when the
+	 * substitution gets reverted (re-adding the original content) or when the record is removed
+	 * outright in the same transaction.
 	 *
-	 * @param existing  the record currently in the base delegate
-	 * @param candidate the record being added in the current transaction
-	 * @return `true` if the two records are identity-equal but content-different
+	 * @param position   the delegate-slot index where the substitution bucket may sit
+	 * @param recordId   the record to evict from the bucket
+	 * @param comparator the comparator used to locate the record within the bucket
 	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static <T> boolean contentDiffers(@Nonnull T existing, @Nonnull T candidate) {
-		if (existing == candidate) {
-			return false;
+	private void dropInsertionBucketEntry(int position, @Nonnull T recordId, @Nonnull Comparator<T> comparator) {
+		final int insIdx = Arrays.binarySearch(this.insertions, position);
+		if (insIdx < 0) {
+			return;
 		}
-		if (candidate instanceof ContentComparator) {
-			return ((ContentComparator) candidate).differsFrom(existing);
+		final InsertionBucket<T> bucket = this.insertedValues[insIdx];
+		if (Arrays.binarySearch(bucket.getInsertedValues(), recordId, comparator) < 0) {
+			return;
 		}
-		return !existing.equals(candidate);
+		bucket.removeRecord(recordId, comparator);
+		if (bucket.isEmpty()) {
+			this.insertions = ArrayUtils.removeIntFromArrayOnIndex(this.insertions, insIdx);
+			this.insertedValues = ArrayUtils.removeRecordFromArrayOnIndex(this.insertedValues, insIdx);
+		}
 	}
 
 	/**
@@ -329,17 +336,7 @@ public class ObjArrayChanges<T> {
 			this.removals = ArrayUtils.insertIntIntoOrderedArray(position, this.removals);
 			// if a content substitution previously queued a replacement at this position, drop it too -
 			// otherwise the merge would resurrect the (now removed) record from the insertion bucket
-			final int insIdx = Arrays.binarySearch(this.insertions, position);
-			if (insIdx >= 0) {
-				final InsertionBucket<T> bucket = this.insertedValues[insIdx];
-				if (Arrays.binarySearch(bucket.getInsertedValues(), recordId, comparator) >= 0) {
-					bucket.removeRecord(recordId, comparator);
-					if (bucket.isEmpty()) {
-						this.insertions = ArrayUtils.removeIntFromArrayOnIndex(this.insertions, insIdx);
-						this.insertedValues = ArrayUtils.removeRecordFromArrayOnIndex(this.insertedValues, insIdx);
-					}
-				}
-			}
+			dropInsertionBucketEntry(position, recordId, comparator);
 		} else {
 			// record is not part of the original array but might be present on change layer
 			final int changePosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(recordId, this.delegate, comparator).position();
