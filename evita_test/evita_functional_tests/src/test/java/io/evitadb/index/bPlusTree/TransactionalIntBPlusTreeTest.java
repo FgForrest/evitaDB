@@ -26,7 +26,9 @@ package io.evitadb.index.bPlusTree;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.TransactionalIntBPlusTree.Entry;
 import io.evitadb.index.list.TransactionalList;
+import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import org.junit.jupiter.api.DisplayName;
@@ -35,11 +37,14 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator;
 import java.util.Random;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -51,12 +56,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the correctness of the {@link TransactionalIntBPlusTree} implementation. It covers insert,
- * search, upsert, delete, rebalancing (steal and merge), forward and reverse iteration, transactional semantics,
- * tree visualization, and constructor validation. A generational randomized proof test ensures the tree survives
- * many random operations without losing consistency.
+ * search, upsert, delete, rebalancing (steal and merge), forward and reverse iteration of both keys and values,
+ * transactional semantics, tree visualization, constructor validation, and the internal consistency oracle.
+ * Bounded, fixed-seed randomized churn tests guard the rebalancing and commit machinery against regressions; the
+ * open-ended generational soak test lives in the long-running test module.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@SuppressWarnings("StringConcatenationMissingWhitespace")
 @DisplayName("Transactional int B+ tree")
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
@@ -197,6 +204,42 @@ class TransactionalIntBPlusTreeTest {
 		return result.get();
 	}
 
+	/**
+	 * Holds a B+ tree together with its expected sorted key array for use in tests.
+	 *
+	 * @param bPlusTree  the tree under test
+	 * @param plainArray the sorted array of inserted keys
+	 */
+	private record TreeTuple(
+		@Nonnull TransactionalIntBPlusTree<String> bPlusTree,
+		@Nonnull int[] plainArray
+	) {
+
+		/**
+		 * Returns the total number of elements in the tree.
+		 *
+		 * @return the length of the plain array
+		 */
+		public int totalElements() {
+			return this.plainArray.length;
+		}
+
+		/**
+		 * Converts the key array to a string value array where each element is `"Value" + key`.
+		 *
+		 * @return the string array of expected values
+		 */
+		@Nonnull
+		public String[] asStringArray() {
+			final String[] plainArrayAsString = new String[this.plainArray.length];
+			for (int i = 0; i < this.plainArray.length; i++) {
+				plainArrayAsString[i] = "Value" + this.plainArray[i];
+			}
+			return plainArrayAsString;
+		}
+
+	}
+
 	@Nested
 	@DisplayName("Insert operations")
 	class InsertOperationsTest {
@@ -269,59 +312,59 @@ class TransactionalIntBPlusTreeTest {
 				(original, committed) -> {
 					assertEquals(
 						"""
-						< 9:
-						   < 5:
-						      < 3:
-						         < 2:
-						            1:Value1
-						         >=2:
-						            2:Value2
-						      >=3:
-						         < 4:
-						            3:Value3
-						         >=4:
-						            4:Value4
-						   >=5:
-						      < 7:
-						         < 6:
-						            5:Value5
-						         >=6:
-						            6:Value6
-						      >=7:
-						         < 8:
-						            7:Value7
-						         >=8:
-						            8:Value8
-						>=9:
-						   < 13:
-						      < 11:
-						         < 10:
-						            9:Value9
-						         >=10:
-						            10:Value10
-						      >=11:
-						         < 12:
-						            11:Value11
-						         >=12:
-						            12:Value12
-						   >=13:
-						      < 15:
-						         < 14:
-						            13:Value13
-						         >=14:
-						            14:Value14
-						      >=15:
-						         < 16:
-						            15:Value15
-						         >=16:
-						            16:Value16
-						      >=17:
-						         < 18:
-						            17:Value17
-						         >=18:
-						            18:Value18
-						         >=19:
-						            19:Value19, 20:Value20""",
+							< 9:
+							   < 5:
+							      < 3:
+							         < 2:
+							            1:Value1
+							         >=2:
+							            2:Value2
+							      >=3:
+							         < 4:
+							            3:Value3
+							         >=4:
+							            4:Value4
+							   >=5:
+							      < 7:
+							         < 6:
+							            5:Value5
+							         >=6:
+							            6:Value6
+							      >=7:
+							         < 8:
+							            7:Value7
+							         >=8:
+							            8:Value8
+							>=9:
+							   < 13:
+							      < 11:
+							         < 10:
+							            9:Value9
+							         >=10:
+							            10:Value10
+							      >=11:
+							         < 12:
+							            11:Value11
+							         >=12:
+							            12:Value12
+							   >=13:
+							      < 15:
+							         < 14:
+							            13:Value13
+							         >=14:
+							            14:Value14
+							      >=15:
+							         < 16:
+							            15:Value15
+							         >=16:
+							            16:Value16
+							      >=17:
+							         < 18:
+							            17:Value17
+							         >=18:
+							            18:Value18
+							         >=19:
+							            19:Value19, 20:Value20""",
 						committed.toString()
 					);
 
@@ -347,33 +390,33 @@ class TransactionalIntBPlusTreeTest {
 				(original, committed) -> {
 					assertEquals(
 						"""
-						< 13:
-						   < 5:
-						      < 3:
-						         1:Value1, 2:Value2
-						      >=3:
-						         3:Value3, 4:Value4
-						   >=5:
-						      < 7:
-						         5:Value5, 6:Value6
-						      >=7:
-						         7:Value7, 8:Value8
-						   >=9:
-						      < 11:
-						         9:Value9, 10:Value10
-						      >=11:
-						         11:Value11, 12:Value12
-						>=13:
-						   < 17:
-						      < 15:
-						         13:Value13, 14:Value14
-						      >=15:
-						         15:Value15, 16:Value16
-						   >=17:
-						      < 19:
-						         17:Value17, 18:Value18
-						      >=19:
-						         19:Value19, 20:Value20""",
+							< 13:
+							   < 5:
+							      < 3:
+							         1:Value1, 2:Value2
+							      >=3:
+							         3:Value3, 4:Value4
+							   >=5:
+							      < 7:
+							         5:Value5, 6:Value6
+							      >=7:
+							         7:Value7, 8:Value8
+							   >=9:
+							      < 11:
+							         9:Value9, 10:Value10
+							      >=11:
+							         11:Value11, 12:Value12
+							>=13:
+							   < 17:
+							      < 15:
+							         13:Value13, 14:Value14
+							      >=15:
+							         15:Value15, 16:Value16
+							   >=17:
+							      < 19:
+							         17:Value17, 18:Value18
+							      >=19:
+							         19:Value19, 20:Value20""",
 						committed.toString()
 					);
 
@@ -517,6 +560,46 @@ class TransactionalIntBPlusTreeTest {
 			verifyTreeConsistency(tree);
 		}
 
+		@Test
+		@DisplayName("keeps separator keys and occupancy consistent through randomized insert and delete churn")
+		void shouldKeepConsistentThroughRandomizedChurn() {
+			for (long seed = 0; seed < 50; seed++) {
+				final Random random = new Random(seed);
+				final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(
+					3, 1, 3, 1, String.class);
+				final TreeMap<Integer, String> reference = new TreeMap<>();
+
+				for (int op = 0; op < 400; op++) {
+					final int key = random.nextInt(60);
+					// bias towards delete once the tree has grown so merges and borrows are exercised heavily
+					final boolean delete = reference.size() > 20
+						? random.nextInt(3) > 0
+						: random.nextBoolean();
+					if (delete) {
+						tree.delete(key);
+						reference.remove(key);
+					} else {
+						tree.insert(key, "Value" + key);
+						reference.put(key, "Value" + key);
+					}
+
+					// the consistency report validates separator keys (each internal key equals the left
+					// boundary of its child) and minimal node occupancy after every structural change
+					final ConsistencyReport report = tree.getConsistencyReport();
+					assertEquals(
+						ConsistencyState.CONSISTENT, report.state(),
+						"Inconsistent at seed " + seed + " op " + op + ": " + report.report()
+					);
+					assertEquals(reference.size(), tree.size(), "Size mismatch at seed " + seed + " op " + op);
+				}
+
+				// final contents must match the reference exactly, in order
+				final int[] expectedKeys = reference.keySet().stream().mapToInt(Integer::intValue).toArray();
+				verifyForwardValueIterator(tree, expectedKeys);
+				verifyReverseValueIterator(tree, expectedKeys);
+			}
+		}
+
 	}
 
 	@Nested
@@ -544,16 +627,16 @@ class TransactionalIntBPlusTreeTest {
 					verifyTreeConsistency(committed, 14, 15, 17, 20, 23, 25);
 					assertEquals(
 						"""
-						< 20:
-						   < 17:
-						      14:Value14, 15:Value15
-						   >=17:
-						      17:Value17
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 20:
+							   < 17:
+							      14:Value14, 15:Value15
+							   >=17:
+							      17:Value17
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 					theCommittedTree.set(committed);
@@ -567,16 +650,16 @@ class TransactionalIntBPlusTreeTest {
 					verifyTreeConsistency(committed, 14, 15, 20, 23, 25);
 					assertEquals(
 						"""
-						< 20:
-						   < 15:
-						      14:Value14
-						   >=15:
-						      15:Value15
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 20:
+							   < 15:
+							      14:Value14
+							   >=15:
+							      15:Value15
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 				}
@@ -611,23 +694,23 @@ class TransactionalIntBPlusTreeTest {
 
 					assertEquals(
 						"""
-						< 17:
-						   < 12:
-						      10:Value10, 11:Value11
-						   >=12:
-						      12:Value12, 14:Value14
-						   >=15:
-						      15:Value15, 16:Value16
-						>=17:
-						   < 18:
-						      17:Value17
-						   >=18:
-						      18:Value18, 19:Value19
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 17:
+							   < 12:
+							      10:Value10, 11:Value11
+							   >=12:
+							      12:Value12, 14:Value14
+							   >=15:
+							      15:Value15, 16:Value16
+							>=17:
+							   < 18:
+							      17:Value17
+							   >=18:
+							      18:Value18, 19:Value19
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 
@@ -652,23 +735,23 @@ class TransactionalIntBPlusTreeTest {
 
 					assertEquals(
 						"""
-						< 17:
-						   < 14:
-						      12:Value12
-						   >=14:
-						      14:Value14
-						   >=15:
-						      15:Value15, 16:Value16
-						>=17:
-						   < 18:
-						      17:Value17
-						   >=18:
-						      18:Value18, 19:Value19
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 17:
+							   < 14:
+							      12:Value12
+							   >=14:
+							      14:Value14
+							   >=15:
+							      15:Value15, 16:Value16
+							>=17:
+							   < 18:
+							      17:Value17
+							   >=18:
+							      18:Value18, 19:Value19
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 				}
@@ -701,23 +784,23 @@ class TransactionalIntBPlusTreeTest {
 					verifyTreeConsistency(committed, 11, 12, 14, 15, 16, 17, 18, 19, 20, 23, 25);
 					assertEquals(
 						"""
-						< 17:
-						   < 12:
-						      11:Value11
-						   >=12:
-						      12:Value12, 14:Value14
-						   >=15:
-						      15:Value15, 16:Value16
-						>=17:
-						   < 18:
-						      17:Value17
-						   >=18:
-						      18:Value18, 19:Value19
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 17:
+							   < 12:
+							      11:Value11
+							   >=12:
+							      12:Value12, 14:Value14
+							   >=15:
+							      15:Value15, 16:Value16
+							>=17:
+							   < 18:
+							      17:Value17
+							   >=18:
+							      18:Value18, 19:Value19
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 
@@ -741,23 +824,23 @@ class TransactionalIntBPlusTreeTest {
 					verifyTreeConsistency(committed, 11, 12, 14, 17, 18, 19, 20, 23, 25);
 					assertEquals(
 						"""
-						< 17:
-						   < 12:
-						      11:Value11
-						   >=12:
-						      12:Value12
-						   >=14:
-						      14:Value14
-						>=17:
-						   < 18:
-						      17:Value17
-						   >=18:
-						      18:Value18, 19:Value19
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 17:
+							   < 12:
+							      11:Value11
+							   >=12:
+							      12:Value12
+							   >=14:
+							      14:Value14
+							>=17:
+							   < 18:
+							      17:Value17
+							   >=18:
+							      18:Value18, 19:Value19
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 				}
@@ -769,6 +852,88 @@ class TransactionalIntBPlusTreeTest {
 	@Nested
 	@DisplayName("Rebalancing - merge operations")
 	class MergeOperationsTest {
+
+		/**
+		 * Builds an internal node with no children (peek == -1), the degenerate shape the merge methods
+		 * must reject. The node is created via the copy constructor with an empty range.
+		 *
+		 * @return an empty internal node
+		 */
+		@Nonnull
+		private static TransactionalIntBPlusTree.BPlusInternalTreeNode emptyInternalNode() {
+			return new TransactionalIntBPlusTree.BPlusInternalTreeNode(
+				new int[3], new TransactionalIntBPlusTree.BPlusTreeNode<?>[4], 0, 0, 0, 0, true
+			);
+		}
+
+		/**
+		 * Builds a single-element leaf node carrying the given key with a matching string value.
+		 *
+		 * @param key the key (and value suffix) to store
+		 * @return a leaf node holding exactly the one key
+		 */
+		@Nonnull
+		private static TransactionalIntBPlusTree.BPlusLeafTreeNode<String> leaf(int key) {
+			final int[] keys = {key};
+			final String[] values = {"Value" + key};
+			return new TransactionalIntBPlusTree.BPlusLeafTreeNode<>(
+				keys, values, new int[3], new String[3], 0, 1, true, null
+			);
+		}
+
+		/**
+		 * Builds an internal node with the given separator keys routing to the supplied children. The number
+		 * of keys must be exactly one less than the number of children.
+		 *
+		 * @param keys     the separator keys
+		 * @param children the child nodes
+		 * @return a hand-built internal node with the requested occupancy
+		 */
+		@Nonnull
+		private static TransactionalIntBPlusTree.BPlusInternalTreeNode internal(
+			@Nonnull int[] keys, @Nonnull TransactionalIntBPlusTree.BPlusTreeNode<?>... children
+		) {
+			final int[] keyArray = new int[3];
+			System.arraycopy(keys, 0, keyArray, 0, keys.length);
+			final TransactionalIntBPlusTree.BPlusTreeNode<?>[] childArray =
+				new TransactionalIntBPlusTree.BPlusTreeNode<?>[4];
+			System.arraycopy(children, 0, childArray, 0, children.length);
+			return new TransactionalIntBPlusTree.BPlusInternalTreeNode(
+				keyArray, childArray, 0, keys.length, 0, children.length, true
+			);
+		}
+
+		private static void exerciseChurn(
+			int valueBlockSize, int minValueBlockSize,
+			int internalNodeBlockSize, int minInternalNodeBlockSize, long seed
+		) {
+			final Random random = new Random(seed);
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(
+				valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize, String.class
+			);
+			final TreeMap<Integer, String> reference = new TreeMap<>();
+			final int range = 200;
+			for (int op = 0; op < 1500; op++) {
+				final int key = random.nextInt(range);
+				final boolean delete = reference.size() > 40
+					? random.nextInt(4) > 0
+					: random.nextBoolean();
+				if (delete) {
+					tree.delete(key);
+					reference.remove(key);
+				} else {
+					tree.insert(key, "Value" + key);
+					reference.put(key, "Value" + key);
+				}
+				final ConsistencyReport report = tree.getConsistencyReport();
+				assertEquals(
+					ConsistencyState.CONSISTENT, report.state(),
+					"Inconsistent at vbs=" + valueBlockSize + " mvbs=" + minValueBlockSize +
+						" ibs=" + internalNodeBlockSize + " mibs=" + minInternalNodeBlockSize +
+						" seed=" + seed + " op=" + op + ": " + report.report()
+				);
+			}
+		}
 
 		@Test
 		@DisplayName("merges with left sibling node")
@@ -837,11 +1002,62 @@ class TransactionalIntBPlusTreeTest {
 			deleteAndVerify(tree, expectedArray, 30);
 		}
 
+		@Test
+		@DisplayName("rejects merging the left sibling into an empty internal node")
+		void shouldRejectMergeWithLeftIntoEmptyInternalNode() {
+			// the rebalancer never drives a non-root internal node to zero children before merging it (a
+			// single-child node is collapsed first), so the merge methods assume at least one child is
+			// present; calling them on an empty node must fail loudly instead of corrupting the arrays
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode empty = emptyInternalNode();
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode sibling =
+				internal(new int[]{2}, leaf(1), leaf(2));
+
+			assertThrows(GenericEvitaInternalError.class, () -> empty.mergeWithLeft(sibling));
+		}
+
+		@Test
+		@DisplayName("rejects merging the right sibling into an empty internal node")
+		void shouldRejectMergeWithRightIntoEmptyInternalNode() {
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode empty = emptyInternalNode();
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode sibling =
+				internal(new int[]{2}, leaf(1), leaf(2));
+
+			assertThrows(GenericEvitaInternalError.class, () -> empty.mergeWithRight(sibling));
+		}
+
+		@Test
+		@DisplayName("survives heavy randomized churn across many block-size configurations")
+		void shouldSurviveRandomizedChurnAcrossConfigurations() {
+			// internal nodes are physically sized by valueBlockSize, so only internalNodeBlockSize <=
+			// valueBlockSize is structurally valid; exercise a broad matrix of valid configurations with
+			// long delete-biased churn and assert no exception and CONSISTENT state after every operation
+			final int[] blockSizes = {3, 5, 7, 9};
+			for (int valueBlockSize : blockSizes) {
+				final int maxMinValue = (int) Math.ceil((float) valueBlockSize / 2.0) - 1;
+				for (int minValueBlockSize = 1; minValueBlockSize <= maxMinValue; minValueBlockSize++) {
+					for (int internalNodeBlockSize : blockSizes) {
+						if (internalNodeBlockSize > valueBlockSize) {
+							continue;
+						}
+						final int maxMinInternal = (int) Math.ceil((float) internalNodeBlockSize / 2.0) - 1;
+						for (int minInternalNodeBlockSize = 1; minInternalNodeBlockSize <= maxMinInternal; minInternalNodeBlockSize++) {
+							for (long seed = 0; seed < 5; seed++) {
+								exerciseChurn(
+									valueBlockSize, minValueBlockSize,
+									internalNodeBlockSize, minInternalNodeBlockSize, seed
+								);
+							}
+						}
+					}
+				}
+			}
+		}
+
 	}
 
 	@Nested
-	@DisplayName("Forward iteration")
-	class ForwardIterationTest {
+	@DisplayName("Forward value iteration")
+	class ForwardValueIterationTest {
 
 		@Test
 		@DisplayName("iterates all keys in ascending order")
@@ -876,7 +1092,8 @@ class TransactionalIntBPlusTreeTest {
 			final TreeTuple testTree = prepareRandomTree(42, 100);
 			final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(40);
 			final int[] plainFullArray = testTree.plainArray();
-			final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+			final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(
+				40, plainFullArray);
 
 			assertTrue(insertionPosition.alreadyPresent());
 			final int startPos = insertionPosition.position();
@@ -901,7 +1118,8 @@ class TransactionalIntBPlusTreeTest {
 			final TreeTuple testTree = prepareRandomTree(42, 100);
 			final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(39);
 			final int[] plainFullArray = testTree.plainArray();
-			final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(39, plainFullArray);
+			final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfIntInOrderedArray(
+				39, plainFullArray);
 
 			assertFalse(insertionPosition.alreadyPresent());
 			final int startPos = insertionPosition.position();
@@ -922,7 +1140,7 @@ class TransactionalIntBPlusTreeTest {
 
 		@Test
 		@DisplayName("returns empty iterator when start key exceeds maximum")
-		void shouldFailToIterateThroughNonExistingValues() {
+		void shouldFailToIterateValuesLeftToRightThroughNonExistingValues() {
 			final TreeTuple testTree = prepareRandomTree(42, 100);
 			final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(1000);
 			assertFalse(it.hasNext());
@@ -988,11 +1206,304 @@ class TransactionalIntBPlusTreeTest {
 			assertEquals(keys.length, count);
 		}
 
+		@Test
+		@DisplayName("iterates values when start key falls in the gap after the last key of a leaf")
+		void shouldIterateFromKeyInGapBetweenLeaves() {
+			// build a tree whose leaves are [10,20,30] | [50,60] so that key 40 lands past the
+			// last key of the first leaf while a non-empty following leaf still holds keys >= 40
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final int[] keys = {10, 20, 30, 50, 60};
+			for (final int key : keys) {
+				tree.insert(key, "Value" + key);
+			}
+
+			final Iterator<String> it = tree.greaterOrEqualValueIterator(40);
+			final String[] reconstructed = new String[2];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructed[index++] = it.next();
+			}
+
+			assertArrayEquals(new String[]{"Value50", "Value60"}, reconstructed);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("matches sorted reference for arbitrary gap start keys across many leaves")
+		void shouldMatchReferenceForGapStartKeys() {
+			final TreeTuple testTree = prepareRandomTree(913, 200);
+			final int[] keys = testTree.plainArray();
+
+			// probe every possible start key from below the minimum to above the maximum
+			for (int startKey = keys[0] - 2; startKey <= keys[keys.length - 1] + 2; startKey++) {
+				final InsertionPosition position = ArrayUtils.computeInsertPositionOfIntInOrderedArray(startKey, keys);
+				final int from = position.position();
+
+				final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(startKey);
+				int index = from;
+				while (it.hasNext()) {
+					assertTrue(
+						index < keys.length, "Iterator returned more elements than reference for key " + startKey);
+					assertEquals("Value" + keys[index], it.next(), "Mismatch at key " + startKey + ", index " + index);
+					index++;
+				}
+				assertEquals(keys.length, index, "Iterator stopped early for start key " + startKey);
+			}
+		}
+
 	}
 
 	@Nested
-	@DisplayName("Reverse iteration")
-	class ReverseIterationTest {
+	@DisplayName("Forward key iteration")
+	class ForwardKeyIterationTest {
+
+		@Test
+		@DisplayName("iterates keys from exact existing key")
+		void shouldIterateThroughLeafNodeKeysLeftToRightFromExactPosition() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final PrimitiveIterator.OfInt it = testTree.bPlusTree().greaterOrEqualKeyIterator(40);
+			final int[] plainFullArray = testTree.plainArray();
+			final InsertionPosition insertionPosition =
+				ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+			assertTrue(insertionPosition.alreadyPresent());
+			final int startPos = insertionPosition.position();
+			final int[] partialCopy = new int[plainFullArray.length - startPos];
+			for (int i = startPos; i < plainFullArray.length; i++) {
+				partialCopy[i - startPos] = plainFullArray[i];
+			}
+
+			final int[] reconstructedArray = new int[partialCopy.length];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructedArray[index++] = it.nextInt();
+			}
+
+			assertArrayEquals(partialCopy, reconstructedArray);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("returns empty key iterator when exceeding bounds")
+		void shouldFailToIterateKeysLeftToRightThroughNonExistingValues() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final int[] keys = testTree.plainArray();
+
+			final PrimitiveIterator.OfInt it = testTree.bPlusTree().greaterOrEqualKeyIterator(
+				keys[keys.length - 1] + 1000);
+			assertFalse(it.hasNext());
+
+			// start key below the minimum must yield the whole tree, starting with the minimum key
+			final PrimitiveIterator.OfInt it2 = testTree.bPlusTree().greaterOrEqualKeyIterator(
+				keys[0] - 1000);
+			assertTrue(it2.hasNext());
+			assertEquals(keys[0], it2.nextInt());
+		}
+
+		@Test
+		@DisplayName("iterates all keys in ascending order")
+		void shouldIterateAllKeysLeftToRight() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final int[] keys = testTree.plainArray();
+
+			final PrimitiveIterator.OfInt it = testTree.bPlusTree().keyIterator();
+			int index = 0;
+			while (it.hasNext()) {
+				assertTrue(index < keys.length, "Iterator returned more keys than expected");
+				assertEquals(keys[index], it.nextInt());
+				index++;
+			}
+
+			assertEquals(keys.length, index);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates full tree from minimum key inclusive")
+		void shouldIterateFullTreeFromMinKey() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+			final int minKey = keys[0];
+
+			final PrimitiveIterator.OfInt it = testTree.bPlusTree().greaterOrEqualKeyIterator(minKey);
+			int count = 0;
+			while (it.hasNext()) {
+				it.nextInt();
+				count++;
+			}
+			assertEquals(keys.length, count);
+		}
+
+		@Test
+		@DisplayName("iterates keys when start key falls in the gap after the last key of a leaf")
+		void shouldIterateKeysFromKeyInGapBetweenLeaves() {
+			// build a tree whose leaves are [10,20,30] | [50,60] so that key 40 lands past the last
+			// key of the first leaf while a non-empty following leaf still holds keys >= 40; the
+			// greaterOrEqualKeyIterator must cross the inter-leaf gap and return every key >= 40
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final int[] keys = {10, 20, 30, 50, 60};
+			for (final int key : keys) {
+				tree.insert(key, "Value" + key);
+			}
+
+			final PrimitiveIterator.OfInt it = tree.greaterOrEqualKeyIterator(40);
+			final int[] reconstructed = new int[2];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructed[index++] = it.nextInt();
+			}
+
+			assertArrayEquals(new int[]{50, 60}, reconstructed);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("matches sorted reference for arbitrary gap start keys across many leaves")
+		void shouldMatchReferenceForGapStartKeysForward() {
+			final TreeTuple testTree = prepareRandomTree(913, 200);
+			final int[] keys = testTree.plainArray();
+
+			// probe every possible start key from below the minimum to above the maximum
+			for (int startKey = keys[0] - 2; startKey <= keys[keys.length - 1] + 2; startKey++) {
+				final InsertionPosition position =
+					ArrayUtils.computeInsertPositionOfIntInOrderedArray(startKey, keys);
+				final int from = position.position();
+
+				final PrimitiveIterator.OfInt it = testTree.bPlusTree().greaterOrEqualKeyIterator(startKey);
+				int index = from;
+				while (it.hasNext()) {
+					assertTrue(
+						index < keys.length, "Iterator returned more keys than reference for key " + startKey);
+					assertEquals(keys[index], it.nextInt(), "Mismatch at key " + startKey + ", index " + index);
+					index++;
+				}
+				assertEquals(keys.length, index, "Iterator stopped early for start key " + startKey);
+			}
+		}
+
+		@Test
+		@DisplayName("returns empty key iterator on empty tree")
+		void shouldReturnEmptyKeyIteratorOnEmptyTree() {
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final PrimitiveIterator.OfInt it = tree.keyIterator();
+			assertFalse(it.hasNext());
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates single key on single-element tree")
+		void shouldIterateKeyOnSingleElementTree() {
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			tree.insert(42, "Value42");
+			final PrimitiveIterator.OfInt it = tree.keyIterator();
+			assertTrue(it.hasNext());
+			assertEquals(42, it.nextInt());
+			assertFalse(it.hasNext());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Forward entry iteration")
+	class ForwardEntryIterationTest {
+
+		@Test
+		@DisplayName("iterates entries from exact existing key")
+		void shouldIterateThroughLeafNodeEntriesLeftToRightFromExactPosition() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final Iterator<Entry<String>> it = testTree.bPlusTree().greaterOrEqualEntryIterator(40);
+			final int[] plainFullArray = testTree.plainArray();
+			final InsertionPosition insertionPosition =
+				ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+			assertTrue(insertionPosition.alreadyPresent());
+			final int startPos = insertionPosition.position();
+			//noinspection unchecked
+			final Entry<String>[] partialCopy = new Entry[plainFullArray.length - startPos];
+			for (int i = startPos; i < plainFullArray.length; i++) {
+				partialCopy[i - startPos] = new Entry<>(plainFullArray[i], "Value" + plainFullArray[i]);
+			}
+
+			//noinspection unchecked
+			final Entry<String>[] reconstructedArray = new Entry[partialCopy.length];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructedArray[index++] = it.next();
+			}
+
+			assertArrayEquals(partialCopy, reconstructedArray);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("returns empty entry iterator when start key exceeds maximum")
+		void shouldFailToIterateEntriesLeftToRightThroughNonExistingValues() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final int[] keys = testTree.plainArray();
+			final Iterator<Entry<String>> it = testTree.bPlusTree().greaterOrEqualEntryIterator(
+				keys[keys.length - 1] + 1000);
+			assertFalse(it.hasNext());
+		}
+
+		@Test
+		@DisplayName("traverses full tree key and value pairs in ascending order")
+		void shouldIterateEntireTreeViaEntryIterator() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+
+			final Iterator<Entry<String>> it = testTree.bPlusTree().entryIterator();
+			int index = 0;
+			while (it.hasNext()) {
+				final Entry<String> entry = it.next();
+				assertEquals(keys[index], entry.key());
+				assertEquals("Value" + keys[index], entry.value());
+				index++;
+			}
+			assertEquals(keys.length, index);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates entries when start key falls in the gap after the last key of a leaf")
+		void shouldIterateEntriesFromKeyInGapBetweenLeaves() {
+			// key 40 falls past the last key of the leaf [10,20,30] while the following leaf [50,60]
+			// still holds entries >= 40; the iterator must cross the gap and return both entries
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final int[] keys = {10, 20, 30, 50, 60};
+			for (final int key : keys) {
+				tree.insert(key, "Value" + key);
+			}
+
+			final Iterator<Entry<String>> it = tree.greaterOrEqualEntryIterator(40);
+			//noinspection unchecked
+			final Entry<String>[] reconstructed = new Entry[2];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructed[index++] = it.next();
+			}
+
+			//noinspection unchecked
+			final Entry<String>[] expected = new Entry[]{
+				new Entry<>(50, "Value50"), new Entry<>(60, "Value60")
+			};
+			assertArrayEquals(expected, reconstructed);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("returns empty entry iterator on empty tree")
+		void shouldReturnEmptyEntryIteratorOnEmptyTree() {
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final Iterator<Entry<String>> it = tree.entryIterator();
+			assertFalse(it.hasNext());
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Reverse value iteration")
+	class ReverseValueIterationTest {
 
 		@Test
 		@DisplayName("iterates all keys in descending order")
@@ -1022,6 +1533,76 @@ class TransactionalIntBPlusTreeTest {
 		}
 
 		@Test
+		@DisplayName("iterates values backwards from exact existing key")
+		void shouldIterateThroughLeafNodeValuesRightToLeftFromExactPosition() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(40);
+			final int[] plainFullArray = testTree.plainArray();
+			final InsertionPosition insertionPosition =
+				ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+			assertTrue(insertionPosition.alreadyPresent());
+			final int endPos = insertionPosition.position();
+			final String[] partialCopy = new String[endPos + 1];
+			for (int i = endPos; i >= 0; i--) {
+				partialCopy[endPos - i] = "Value" + plainFullArray[i];
+			}
+
+			final String[] reconstructedArray = new String[partialCopy.length];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructedArray[index++] = it.next();
+			}
+
+			assertArrayEquals(partialCopy, reconstructedArray);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates values backwards from non-existing key position")
+		void shouldIterateThroughLeafNodeValuesRightToLeftFromExactNonExistingPosition() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(39);
+			final int[] plainFullArray = testTree.plainArray();
+			final InsertionPosition insertionPosition =
+				ArrayUtils.computeInsertPositionOfIntInOrderedArray(39, plainFullArray);
+
+			assertFalse(insertionPosition.alreadyPresent());
+			final int thePosition = insertionPosition.alreadyPresent()
+				? insertionPosition.position() + 1
+				: insertionPosition.position();
+			final String[] partialCopy = new String[thePosition];
+			for (int i = partialCopy.length - 1; i >= 0; i--) {
+				partialCopy[thePosition - i - 1] = "Value" + plainFullArray[i];
+			}
+
+			final String[] reconstructedArray = new String[partialCopy.length];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructedArray[index++] = it.next();
+			}
+
+			assertArrayEquals(partialCopy, reconstructedArray);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("returns empty reverse iterator when below minimum")
+		void shouldFailToIterateValuesRightToLeftThroughNonExistingValues() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final int[] keys = testTree.plainArray();
+
+			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(keys[0] - 1000);
+			assertFalse(it.hasNext());
+
+			// start key above the maximum must yield the whole tree backwards, starting with the maximum
+			final Iterator<String> it2 = testTree.bPlusTree().lesserOrEqualValueIterator(
+				keys[keys.length - 1] + 1000);
+			assertTrue(it2.hasNext());
+			assertEquals("Value" + keys[keys.length - 1], it2.next());
+		}
+
+		@Test
 		@DisplayName("returns empty reverse iterator on empty tree")
 		void shouldIterateReverseOnEmptyTree() {
 			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
@@ -1038,6 +1619,271 @@ class TransactionalIntBPlusTreeTest {
 			assertTrue(it.hasNext());
 			assertEquals("Value42", it.next());
 			assertFalse(it.hasNext());
+		}
+
+		@Test
+		@DisplayName("iterates all elements backwards from maximum key")
+		void shouldIterateFromLastKeyReverse() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+			final int lastKey = keys[keys.length - 1];
+			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(lastKey);
+			int count = 0;
+			while (it.hasNext()) {
+				it.next();
+				count++;
+			}
+			assertEquals(keys.length, count);
+		}
+
+		@Test
+		@DisplayName("iterates one element backwards from minimum key")
+		void shouldIterateFromFirstKeyReverse() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+			final int firstKey = keys[0];
+			final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(firstKey);
+			assertTrue(it.hasNext());
+			assertEquals("Value" + firstKey, it.next());
+			assertFalse(it.hasNext());
+		}
+
+		@Test
+		@DisplayName("iterates values backwards when start key falls in the gap before the first key of a leaf")
+		void shouldIterateValuesFromKeyInGapBetweenLeavesReverse() {
+			// key 40 falls below the first key of the leaf [50,60] while the preceding leaf [10,20,30]
+			// still holds values <= 40; the lesserOrEqualValueIterator must cross the inter-leaf gap and
+			// return, in descending order, every value <= 40
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final int[] keys = {10, 20, 30, 50, 60};
+			for (final int key : keys) {
+				tree.insert(key, "Value" + key);
+			}
+
+			final Iterator<String> it = tree.lesserOrEqualValueIterator(40);
+			final String[] reconstructed = new String[3];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructed[index++] = it.next();
+			}
+
+			assertArrayEquals(new String[]{"Value30", "Value20", "Value10"}, reconstructed);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("matches sorted reference for arbitrary gap start keys across many leaves")
+		void shouldMatchReferenceForGapStartKeysReverse() {
+			final TreeTuple testTree = prepareRandomTree(913, 200);
+			final int[] keys = testTree.plainArray();
+
+			// probe every possible start key from below the minimum to above the maximum
+			for (int startKey = keys[0] - 2; startKey <= keys[keys.length - 1] + 2; startKey++) {
+				final InsertionPosition position =
+					ArrayUtils.computeInsertPositionOfIntInOrderedArray(startKey, keys);
+				// the reverse iterator yields every key <= startKey in descending order; when startKey is
+				// already present the matching index is included, otherwise the insertion point is exclusive
+				int from = position.alreadyPresent() ? position.position() : position.position() - 1;
+
+				final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(startKey);
+				int index = from;
+				while (it.hasNext()) {
+					assertTrue(index >= 0, "Iterator returned more values than reference for key " + startKey);
+					assertEquals(
+						"Value" + keys[index], it.next(), "Mismatch at key " + startKey + ", index " + index);
+					index--;
+				}
+				assertEquals(-1, index, "Iterator stopped early for start key " + startKey);
+			}
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Reverse key iteration")
+	class ReverseKeyIterationTest {
+
+		@Test
+		@DisplayName("iterates keys backwards from exact existing key")
+		void shouldIterateThroughLeafNodeKeysRightToLeftFromExactPosition() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final PrimitiveIterator.OfInt it = testTree.bPlusTree().lesserOrEqualKeyIterator(40);
+			final int[] plainFullArray = testTree.plainArray();
+			final InsertionPosition insertionPosition =
+				ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+			assertTrue(insertionPosition.alreadyPresent());
+			final int endPos = insertionPosition.position();
+			final int[] partialCopy = new int[endPos + 1];
+			for (int i = endPos; i >= 0; i--) {
+				partialCopy[endPos - i] = plainFullArray[i];
+			}
+
+			final int[] reconstructedArray = new int[partialCopy.length];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructedArray[index++] = it.nextInt();
+			}
+
+			assertArrayEquals(partialCopy, reconstructedArray);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("returns empty reverse key iterator when below minimum")
+		void shouldFailToIterateKeysRightToLeftThroughNonExistingValues() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final int[] keys = testTree.plainArray();
+			final PrimitiveIterator.OfInt it = testTree.bPlusTree().lesserOrEqualKeyIterator(
+				keys[0] - 1000);
+			assertFalse(it.hasNext());
+		}
+
+		@Test
+		@DisplayName("iterates all keys in descending order")
+		void shouldIterateAllKeysRightToLeft() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final int[] keys = testTree.plainArray();
+
+			final PrimitiveIterator.OfInt it = testTree.bPlusTree().keyReverseIterator();
+			int index = keys.length;
+			while (it.hasNext()) {
+				assertTrue(index > 0, "Iterator returned more keys than expected");
+				assertEquals(keys[--index], it.nextInt());
+			}
+
+			assertEquals(0, index);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates full tree in reverse from maximum key inclusive")
+		void shouldIterateFullTreeInReverseFromMaxKey() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+			final int maxKey = keys[keys.length - 1];
+
+			final PrimitiveIterator.OfInt it = testTree.bPlusTree().lesserOrEqualKeyIterator(maxKey);
+			int count = 0;
+			while (it.hasNext()) {
+				it.nextInt();
+				count++;
+			}
+			assertEquals(keys.length, count);
+		}
+
+		@Test
+		@DisplayName("iterates keys backwards when start key falls in the gap before the first key of a leaf")
+		void shouldIterateKeysFromKeyInGapBetweenLeavesReverse() {
+			// key 40 falls below the first key of the leaf [50,60] while the preceding leaf [10,20,30]
+			// still holds keys <= 40; the lesserOrEqualKeyIterator must cross the inter-leaf gap and
+			// return, in descending order, every key <= 40
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final int[] keys = {10, 20, 30, 50, 60};
+			for (final int key : keys) {
+				tree.insert(key, "Value" + key);
+			}
+
+			final PrimitiveIterator.OfInt it = tree.lesserOrEqualKeyIterator(40);
+			final int[] reconstructed = new int[3];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructed[index++] = it.nextInt();
+			}
+
+			assertArrayEquals(new int[]{30, 20, 10}, reconstructed);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("returns empty reverse key iterator on empty tree")
+		void shouldReturnEmptyKeyReverseIteratorOnEmptyTree() {
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final PrimitiveIterator.OfInt it = tree.keyReverseIterator();
+			assertFalse(it.hasNext());
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates single key on single-element tree")
+		void shouldIterateKeyReverseOnSingleElementTree() {
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			tree.insert(42, "Value42");
+			final PrimitiveIterator.OfInt it = tree.keyReverseIterator();
+			assertTrue(it.hasNext());
+			assertEquals(42, it.nextInt());
+			assertFalse(it.hasNext());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Reverse entry iteration")
+	class ReverseEntryIterationTest {
+
+		@Test
+		@DisplayName("iterates entries backwards from exact existing key")
+		void shouldIterateThroughLeafNodeEntriesRightToLeftFromExactPosition() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final Iterator<Entry<String>> it = testTree.bPlusTree().lesserOrEqualEntryIterator(40);
+			final int[] plainFullArray = testTree.plainArray();
+			final InsertionPosition insertionPosition =
+				ArrayUtils.computeInsertPositionOfIntInOrderedArray(40, plainFullArray);
+
+			assertTrue(insertionPosition.alreadyPresent());
+			final int endPos = insertionPosition.position();
+			//noinspection unchecked
+			final Entry<String>[] partialCopy = new Entry[endPos + 1];
+			for (int i = endPos; i >= 0; i--) {
+				partialCopy[endPos - i] = new Entry<>(plainFullArray[i], "Value" + plainFullArray[i]);
+			}
+
+			//noinspection unchecked
+			final Entry<String>[] reconstructedArray = new Entry[partialCopy.length];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructedArray[index++] = it.next();
+			}
+
+			assertArrayEquals(partialCopy, reconstructedArray);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("returns empty reverse entry iterator when below minimum")
+		void shouldFailToIterateEntriesRightToLeftThroughNonExistingValues() {
+			final TreeTuple testTree = prepareRandomTree(42, 100);
+			final int[] keys = testTree.plainArray();
+			final Iterator<Entry<String>> it = testTree.bPlusTree().lesserOrEqualEntryIterator(
+				keys[0] - 1000);
+			assertFalse(it.hasNext());
+		}
+
+		@Test
+		@DisplayName("iterates entries backwards when start key falls in the gap before the first key of a leaf")
+		void shouldIterateEntriesFromKeyInGapBetweenLeavesReverse() {
+			// key 40 falls below the first key of the leaf [50,60] while the preceding leaf [10,20,30]
+			// still holds entries <= 40; the iterator must cross the gap and return them in descending order
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			final int[] keys = {10, 20, 30, 50, 60};
+			for (final int key : keys) {
+				tree.insert(key, "Value" + key);
+			}
+
+			final Iterator<Entry<String>> it = tree.lesserOrEqualEntryIterator(40);
+			//noinspection unchecked
+			final Entry<String>[] reconstructed = new Entry[3];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructed[index++] = it.next();
+			}
+
+			//noinspection unchecked
+			final Entry<String>[] expected = new Entry[]{
+				new Entry<>(30, "Value30"), new Entry<>(20, "Value20"), new Entry<>(10, "Value10")
+			};
+			assertArrayEquals(expected, reconstructed);
+			assertThrows(NoSuchElementException.class, it::next);
 		}
 
 	}
@@ -1151,11 +1997,147 @@ class TransactionalIntBPlusTreeTest {
 			);
 		}
 
+		@Test
+		@DisplayName("commit succeeds when a transaction splits then merges nodes under a fresh parent")
+		void shouldCommitWhenMergeHappensUnderSplitCreatedParent() {
+			// grow a tree large enough to have several internal levels, then within a single transaction
+			// trigger node splits (which create internal nodes that do not yet participate in STM) followed
+			// by deletes that force the just-created leaves to merge with their siblings - the merged-away
+			// leaf still carries a transactional layer that the commit walk must not leave stale
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, 1, 3, 1, String.class);
+			final TreeMap<Integer, String> reference = new TreeMap<>();
+			for (int i = 0; i < 30; i++) {
+				tree.insert(i, "Value" + i);
+				reference.put(i, "Value" + i);
+			}
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// insertions to provoke splits inside the transaction
+					for (int i = 100; i < 116; i++) {
+						tested.insert(i, "Value" + i);
+						reference.put(i, "Value" + i);
+					}
+					// deletions to provoke merges of the freshly created leaves
+					for (int i = 100; i < 116; i++) {
+						tested.delete(i);
+						reference.remove(i);
+					}
+					for (int i = 0; i < 20; i++) {
+						tested.delete(i);
+						reference.remove(i);
+					}
+				},
+				(original, committed) -> {
+					final ConsistencyReport report = committed.getConsistencyReport();
+					assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+
+					final String[] expectedValues = reference.values().toArray(new String[0]);
+					final String[] actualValues = new String[expectedValues.length];
+					int index = 0;
+					final Iterator<String> it = committed.valueIterator();
+					while (it.hasNext()) {
+						actualValues[index++] = it.next();
+					}
+					assertEquals(expectedValues.length, index);
+					assertArrayEquals(expectedValues, actualValues);
+					assertEquals(reference.size(), committed.size());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("commit of split- and merge-heavy transaction matches non-transactional application")
+		void shouldMatchNonTransactionalApplicationAfterSplitAndMergeHeavyCommit() {
+			for (long currentSeed = 0; currentSeed < 25; currentSeed++) {
+				final long seed = currentSeed;
+				final Random random = new Random(seed);
+
+				// seed a tree with a handful of keys (non-transactional), mirror it into a sorted reference
+				final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(
+					3, 1, 3, 1, String.class);
+				final TreeMap<Integer, String> reference = new TreeMap<>();
+				for (int i = 0; i < 8; i++) {
+					final int key = random.nextInt(40);
+					tree.insert(key, "Value" + key);
+					reference.put(key, "Value" + key);
+				}
+
+				// record the exact operation sequence so it can be replayed non-transactionally
+				final int[] ops = new int[60];
+				final int[] opKeys = new int[60];
+				for (int i = 0; i < ops.length; i++) {
+					ops[i] = random.nextInt(3);
+					opKeys[i] = random.nextInt(40);
+				}
+
+				assertStateAfterCommit(
+					tree,
+					tested -> {
+						for (int i = 0; i < ops.length; i++) {
+							final int key = opKeys[i];
+							switch (ops[i]) {
+								case 0 -> {
+									tested.insert(key, "Value" + key);
+									reference.put(key, "Value" + key);
+								}
+								case 1 -> {
+									tested.delete(key);
+									reference.remove(key);
+								}
+								default -> {
+									tested.upsert(key, existing -> "Value" + key);
+									reference.put(key, "Value" + key);
+								}
+							}
+						}
+					},
+					(original, committed) -> {
+						final ConsistencyReport report = committed.getConsistencyReport();
+						assertEquals(
+							ConsistencyState.CONSISTENT, report.state(),
+							"Committed tree inconsistent for seed " + seed + ": " + report.report()
+						);
+
+						// committed tree must contain exactly the reference key/value pairs in order
+						final int[] expectedKeys = reference.keySet().stream().mapToInt(Integer::intValue).toArray();
+						final String[] expectedValues = reference.values().toArray(new String[0]);
+
+						final String[] actualValues = new String[expectedValues.length];
+						int index = 0;
+						final Iterator<String> it = committed.valueIterator();
+						while (it.hasNext()) {
+							assertTrue(index < expectedValues.length, "Too many values for seed " + seed);
+							actualValues[index++] = it.next();
+						}
+						assertEquals(expectedValues.length, index, "Value count mismatch for seed " + seed);
+						assertArrayEquals(expectedValues, actualValues, "Value mismatch for seed " + seed);
+						assertEquals(expectedKeys.length, committed.size(), "Size mismatch for seed " + seed);
+						for (final int key : expectedKeys) {
+							assertEquals(
+								reference.get(key), committed.search(key).orElse(null),
+								"Search mismatch at key " + key + " for seed " + seed
+							);
+						}
+					}
+				);
+			}
+		}
+
 	}
 
 	@Nested
 	@DisplayName("Tree structure visualization")
 	class TreeStructureTest {
+
+		@Test
+		@DisplayName("prints empty leaf representation for empty tree")
+		void shouldPrintEmptyTree() {
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
+			// empty leaf node has no key:value pairs, so the representation is empty
+			assertEquals("", tree.toString());
+		}
 
 		@Test
 		@DisplayName("prints simple two-element tree")
@@ -1203,12 +2185,12 @@ class TransactionalIntBPlusTreeTest {
 
 					assertEquals(
 						"""
-						< 2:
-						   1:Value1
-						>=2:
-						   2:Value2
-						>=3:
-						   3:Value3, 4:Value4""",
+							< 2:
+							   1:Value1
+							>=2:
+							   2:Value2
+							>=3:
+							   3:Value3, 4:Value4""",
 						committed.toString()
 					);
 
@@ -1244,6 +2226,21 @@ class TransactionalIntBPlusTreeTest {
 		}
 
 		@Test
+		@DisplayName("rejects internal node block size larger than value block size")
+		void shouldRejectInternalNodeBlockSizeLargerThanValueBlockSize() {
+			assertThrows(
+				GenericEvitaInternalError.class, () -> new TransactionalIntBPlusTree<>(3, 1, 5, 2, String.class)
+			);
+		}
+
+		@Test
+		@DisplayName("accepts internal node block size equal to value block size")
+		void shouldAcceptInternalNodeBlockSizeEqualToValueBlockSize() {
+			assertDoesNotThrow(() -> new TransactionalIntBPlusTree<>(3, 1, 3, 1, String.class));
+			assertDoesNotThrow(() -> new TransactionalIntBPlusTree<>(3, String.class));
+		}
+
+		@Test
 		@DisplayName("returns zero size for newly created tree")
 		void shouldReturnZeroSizeForEmptyTree() {
 			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(3, String.class);
@@ -1258,40 +2255,132 @@ class TransactionalIntBPlusTreeTest {
 			assertEquals(ConsistencyState.CONSISTENT, report.state());
 		}
 
+		@Test
+		@DisplayName("genericClass returns the raw tree class")
+		void shouldReturnCorrectGenericClass() {
+			final Class<TransactionalIntBPlusTree<String>> theClass = TransactionalIntBPlusTree.genericClass();
+			assertSame(TransactionalIntBPlusTree.class, theClass);
+		}
+
 	}
 
-	/**
-	 * Holds a B+ tree together with its expected sorted key array for use in tests.
-	 *
-	 * @param bPlusTree  the tree under test
-	 * @param plainArray the sorted array of inserted keys
-	 */
-	private record TreeTuple(
-		@Nonnull TransactionalIntBPlusTree<String> bPlusTree,
-		@Nonnull int[] plainArray
-	) {
+	@Nested
+	@DisplayName("Consistency oracle")
+	class ConsistencyOracleTest {
 
 		/**
-		 * Returns the total number of elements in the tree.
+		 * Replaces the root and element count of the tree via reflection so a hand-built node structure can be
+		 * fed to the consistency oracle. This is the only way to exercise occupancy invariants on a node shape
+		 * that the rebalancer never produces on its own.
 		 *
-		 * @return the length of the plain array
+		 * @param tree the tree whose internal state is replaced
+		 * @param root the root node to install
+		 * @param size the element count to report
 		 */
-		public int totalElements() {
-			return this.plainArray.length;
+		@SuppressWarnings("unchecked")
+		private static void installRoot(
+			@Nonnull TransactionalIntBPlusTree<String> tree,
+			@Nonnull TransactionalIntBPlusTree.BPlusTreeNode<?> root,
+			int size
+		) {
+			try {
+				final Field rootField = TransactionalIntBPlusTree.class.getDeclaredField("root");
+				rootField.setAccessible(true);
+				((TransactionalReference<TransactionalIntBPlusTree.BPlusTreeNode<?>>)
+					rootField.get(tree)).set(root);
+				final Field sizeField = TransactionalIntBPlusTree.class.getDeclaredField("size");
+				sizeField.setAccessible(true);
+				((TransactionalReference<Integer>) sizeField.get(tree)).set(size);
+			} catch (ReflectiveOperationException e) {
+				throw new AssertionError("Unable to install hand-built root", e);
+			}
 		}
 
 		/**
-		 * Converts the key array to a string value array where each element is `"Value" + key`.
+		 * Builds a single-element leaf node carrying the given key with a matching string value.
 		 *
-		 * @return the string array of expected values
+		 * @param key the key (and value suffix) to store
+		 * @return a leaf node holding exactly the one key
 		 */
 		@Nonnull
-		public String[] asStringArray() {
-			final String[] plainArrayAsString = new String[this.plainArray.length];
-			for (int i = 0; i < this.plainArray.length; i++) {
-				plainArrayAsString[i] = "Value" + this.plainArray[i];
-			}
-			return plainArrayAsString;
+		private static TransactionalIntBPlusTree.BPlusLeafTreeNode<String> leaf(int key) {
+			final int[] keys = {key};
+			final String[] values = {"Value" + key};
+			return new TransactionalIntBPlusTree.BPlusLeafTreeNode<>(
+				keys, values, new int[3], new String[3], 0, 1, true, null
+			);
+		}
+
+		/**
+		 * Builds an internal node with the given separator keys routing to the supplied children. The number of
+		 * keys must be exactly one less than the number of children.
+		 *
+		 * @param keys     the separator keys
+		 * @param children the child nodes
+		 * @return a hand-built internal node with the requested occupancy
+		 */
+		@Nonnull
+		private static TransactionalIntBPlusTree.BPlusInternalTreeNode internal(
+			@Nonnull int[] keys, @Nonnull TransactionalIntBPlusTree.BPlusTreeNode<?>... children
+		) {
+			final int[] keyArray = new int[5];
+			System.arraycopy(keys, 0, keyArray, 0, keys.length);
+			final TransactionalIntBPlusTree.BPlusTreeNode<?>[] childArray =
+				new TransactionalIntBPlusTree.BPlusTreeNode<?>[6];
+			System.arraycopy(children, 0, childArray, 0, children.length);
+			return new TransactionalIntBPlusTree.BPlusInternalTreeNode(
+				keyArray, childArray, 0, keys.length, 0, children.length, true
+			);
+		}
+
+		@Test
+		@DisplayName("flags a non-root internal node that holds fewer keys than the minimum")
+		void shouldReportBrokenWhenInternalNodeHasTooFewKeys() {
+			// minInternalNodeBlockSize = 2 means every non-root internal node must carry at least 2 keys
+			// (3 children); a node with a single key (2 children) is under-occupied even though its child
+			// count (2) is not below the minimum - the occupancy invariant is on keys, not children
+			// (valueBlockSize must be >= internalNodeBlockSize, so it is raised to 5 to keep the
+			// internal-node configuration valid)
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(5, 1, 5, 2, String.class);
+
+			// under-occupied internal node: 2 children -> 1 key (keyCount 1 < minInternalNodeBlockSize 2),
+			// yet size 2 satisfies the lenient child-count check
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode underOccupied =
+				internal(new int[]{2}, leaf(1), leaf(2));
+			// properly occupied internal node: 3 children -> 2 keys (keyCount 2 == minimum)
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode wellOccupied =
+				internal(new int[]{4, 5}, leaf(3), leaf(4), leaf(5));
+
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode root =
+				internal(new int[]{3}, underOccupied, wellOccupied);
+
+			installRoot(tree, root, 5);
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.BROKEN, report.state(), report.report());
+		}
+
+		@Test
+		@DisplayName("accepts a non-root internal node that meets the minimum key count")
+		void shouldReportConsistentWhenInternalNodeMeetsMinimum() {
+			// counter-check that the tightened oracle does not flag a legitimately-occupied internal node
+			// (valueBlockSize must be >= internalNodeBlockSize, so it is raised to 5 to keep the
+			// internal-node configuration valid)
+			final TransactionalIntBPlusTree<String> tree = new TransactionalIntBPlusTree<>(5, 1, 5, 2, String.class);
+
+			// both children carry the minimum of 2 keys (3 leaves each)
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode left =
+				internal(new int[]{2, 3}, leaf(1), leaf(2), leaf(3));
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode right =
+				internal(new int[]{5, 6}, leaf(4), leaf(5), leaf(6));
+
+			final TransactionalIntBPlusTree.BPlusInternalTreeNode root =
+				internal(new int[]{4}, left, right);
+
+			installRoot(tree, root, 6);
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
 		}
 
 	}

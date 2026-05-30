@@ -30,6 +30,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.IntObjBiFunction;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -247,13 +248,19 @@ public class TransactionalIntBPlusTree<V> implements
 	 */
 	private static void verifyMinimalCountOfValuesInNodes(
 		@Nonnull BPlusTreeNode<?> node, int minValueBlockSize, int minInternalNodeBlockSize, boolean isRoot) {
-		if (node instanceof BPlusInternalTreeNode internalNode && !isRoot) {
-			if (internalNode.size() < minInternalNodeBlockSize) {
+		if (node instanceof BPlusInternalTreeNode internalNode) {
+			// the minimum occupancy invariant constrains the number of keys, not children; an internal node
+			// with c children holds c - 1 keys, so checking the child count (size()) would be one slot too
+			// lenient and would accept a node that is genuinely under-occupied in keys; the root is exempt
+			// from the minimum because it may legitimately hold a single key
+			if (!isRoot && internalNode.keyCount() < minInternalNodeBlockSize) {
 				throw new IllegalStateException(
 					"Internal node " + internalNode + " has less than " + minInternalNodeBlockSize +
-						" values (" + node.size() + ")!"
+						" keys (" + internalNode.keyCount() + ")!"
 				);
 			}
+			// recurse into the whole subtree regardless of whether this node is the root - the occupancy of
+			// the descendants must always be validated, only the root itself is exempt from the minimum
 			for (int i = 0; i < internalNode.size(); i++) {
 				verifyMinimalCountOfValuesInNodes(
 					internalNode.getChildren()[i], minValueBlockSize, minInternalNodeBlockSize, false
@@ -350,6 +357,45 @@ public class TransactionalIntBPlusTree<V> implements
 	}
 
 	/**
+	 * This method recursively traverses the B+ tree to find the least (leftmost) leaf node.
+	 * It also populates the path traversed with internal nodes.
+	 *
+	 * @param currentNode The current internal tree node being traversed. Must not be null.
+	 * @param path        A list to store the sequence of internal nodes visited. Must not be null.
+	 */
+	private static void addLeftmostCursorLevels(
+		@Nonnull BPlusInternalTreeNode currentNode,
+		@Nonnull List<CursorLevel> path
+	) {
+		final BPlusTreeNode<?>[] children = currentNode.getChildren();
+		path.add(new CursorLevel(children, 0, currentNode.getPeek()));
+		// if the child is an internal node, continue traversing down the tree
+		if (children[0] instanceof BPlusInternalTreeNode childInternalNode) {
+			addLeftmostCursorLevels(childInternalNode, path);
+		}
+	}
+
+	/**
+	 * This method recursively traverses the B+ tree to find the greatest (rightmost) leaf node.
+	 * It also populates the path traversed with internal nodes.
+	 *
+	 * @param currentNode The current internal tree node being traversed. Must not be null.
+	 * @param path        A list to store the sequence of internal nodes visited. Must not be null.
+	 */
+	private static void addRightmostCursorLevels(
+		@Nonnull BPlusInternalTreeNode currentNode,
+		@Nonnull List<CursorLevel> path
+	) {
+		final int currentNodePeek = currentNode.getPeek();
+		final BPlusTreeNode<?>[] children = currentNode.getChildren();
+		path.add(new CursorLevel(children, currentNodePeek, currentNodePeek));
+		// if the child is an internal node, continue traversing down the tree
+		if (children[currentNodePeek] instanceof BPlusInternalTreeNode childInternalNode) {
+			addRightmostCursorLevels(childInternalNode, path);
+		}
+	}
+
+	/**
 	 * Constructor to initialize the B+ Tree with default block sizes.
 	 *
 	 * @param valueType                 the type of the values stored in the tree
@@ -437,6 +483,10 @@ public class TransactionalIntBPlusTree<V> implements
 		Assert.isPremiseValid(
 			minInternalNodeBlockSize <= Math.ceil((float) internalNodeBlockSize / 2.0) - 1,
 			"Minimum internal node block size must be less than half of the internal node block size, otherwise the tree nodes might be immediately full after merges."
+		);
+		Assert.isPremiseValid(
+			internalNodeBlockSize <= valueBlockSize,
+			"Internal node block size must not exceed the value block size, otherwise internal node merges overflow the node arrays."
 		);
 		Assert.isPremiseValid(
 			transactionalLayerWrapper != null || !TransactionalLayerProducer.class.isAssignableFrom(valueType),
@@ -585,7 +635,31 @@ public class TransactionalIntBPlusTree<V> implements
 	 */
 	@Nonnull
 	public OfInt keyIterator() {
-		return new ForwardKeyIterator(createCursor(Integer.MIN_VALUE));
+		return new ForwardTreeKeyIterator<>(createLeftmostCursor());
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree keys from left to right starting from the specified key or
+	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree keys from left to right starting from the specified key
+	 */
+	@Nonnull
+	public OfInt greaterOrEqualKeyIterator(int key) {
+		return new ForwardTreeKeyIterator<>(createCursor(key), key);
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree keys from right to left starting from the specified key or
+	 * a key that is immediately lesser than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree keys from right to left starting from the specified key
+	 */
+	@Nonnull
+	public OfInt lesserOrEqualKeyIterator(int key) {
+		return new ReverseTreeKeyIterator<>(createCursor(key), key);
 	}
 
 	/**
@@ -595,7 +669,7 @@ public class TransactionalIntBPlusTree<V> implements
 	 */
 	@Nonnull
 	public OfInt keyReverseIterator() {
-		return new ReverseKeyIterator(createCursor(Integer.MAX_VALUE));
+		return new ReverseTreeKeyIterator<>(createRightmostCursor());
 	}
 
 	/**
@@ -605,7 +679,7 @@ public class TransactionalIntBPlusTree<V> implements
 	 */
 	@Nonnull
 	public Iterator<V> valueIterator() {
-		return new ForwardTreeValueIterator<>(createCursor(Integer.MIN_VALUE));
+		return new ForwardTreeValueIterator<>(createLeftmostCursor());
 	}
 
 	/**
@@ -621,13 +695,59 @@ public class TransactionalIntBPlusTree<V> implements
 	}
 
 	/**
+	 * Returns an iterator that traverses the B+ tree values from right to left starting from the specified key or
+	 * a key that is immediately lesser than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree values from right to left starting from the specified key
+	 */
+	@Nonnull
+	public Iterator<V> lesserOrEqualValueIterator(int key) {
+		return new ReverseTreeValueIterator<>(createCursor(key), key);
+	}
+
+	/**
 	 * Returns an iterator that traverses the B+ tree values from right to left.
 	 *
 	 * @return an iterator that traverses the B+ tree values from right to left
 	 */
 	@Nonnull
 	public Iterator<V> valueReverseIterator() {
-		return new ReverseTreeValueIterator<>(createCursor(Integer.MAX_VALUE));
+		return new ReverseTreeValueIterator<>(createRightmostCursor());
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right.
+	 *
+	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right
+	 */
+	@Nonnull
+	public Iterator<Entry<V>> entryIterator() {
+		return new ForwardTreeEntryIterator<>(createLeftmostCursor());
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key or
+	 * a key that is immediately greater than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree entries (both keys and values) from left to right starting from the specified key
+	 */
+	@Nonnull
+	public Iterator<Entry<V>> greaterOrEqualEntryIterator(int key) {
+		return new ForwardTreeEntryIterator<>(createCursor(key), key);
+	}
+
+	/**
+	 * Returns an iterator that traverses the B+ tree entries (both keys and values) from right to left starting from the specified key or
+	 * a key that is immediately lesser than the specified key. The key may not be present in the tree.
+	 *
+	 * @param key the key from which to start the iteration
+	 * @return an iterator that traverses the B+ tree entries (both keys and values) from right to left starting from the specified key
+	 */
+	@Nonnull
+	public Iterator<Entry<V>> lesserOrEqualEntryIterator(int key) {
+		return new ReverseTreeEntryIterator<>(createCursor(key), key);
 	}
 
 	@Override
@@ -770,6 +890,11 @@ public class TransactionalIntBPlusTree<V> implements
 							// remove the removed child from the parent
 							parent.removeChildOnIndex(
 								previousNodeCursor.currentNodeIndex(), previousNodeCursor.currentNodeIndex());
+							// the merged-away node is detached from the tree - drop its transactional layer
+							// (touched during the merge) so the commit walk does not leave it stale
+							if (Transaction.getTransactionalMemoryLayerIfExists(previousNode) != null) {
+								previousNode.removeLayer();
+							}
 							// update parent keys, previous node has been removed
 							updateParentKeys(previousNodeCursor.withReplacedCurrentNode(node));
 							// consolidate the parent node
@@ -788,6 +913,11 @@ public class TransactionalIntBPlusTree<V> implements
 							// remove the removed child from the parent
 							parent.removeChildOnIndex(
 								nextNodeCursor.currentNodeIndex() - 1, nextNodeCursor.currentNodeIndex());
+							// the merged-away node is detached from the tree - drop its transactional layer
+							// (touched during the merge) so the commit walk does not leave it stale
+							if (Transaction.getTransactionalMemoryLayerIfExists(nextNode) != null) {
+								nextNode.removeLayer();
+							}
 							// update parent keys, next node has been removed
 							updateParentKeys(cursorWithLevel.withReplacedCurrentNode(node));
 							// consolidate the parent node
@@ -822,6 +952,46 @@ public class TransactionalIntBPlusTree<V> implements
 				cursorWithLevel = null;
 			}
 		}
+	}
+
+	/**
+	 * Finds the leftmost leaf node in the B+ tree. The method begins its search from the root node and
+	 * traverses down to the leaf node by following the first child pointer of each internal node.
+	 *
+	 * @return the cursor to the leftmost leaf node of the tree
+	 */
+	@Nonnull
+	private Cursor<V> createLeftmostCursor() {
+		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
+		final BPlusTreeNode<?> theRoot = this.getRoot();
+		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
+		path.add(new CursorLevel(rootSiblings, 0, 0));
+		// if the root is internal node, add the levels to the path until the leaf node is reached
+		if (theRoot instanceof BPlusInternalTreeNode rootInternalNode) {
+			addLeftmostCursorLevels(rootInternalNode, path);
+
+		}
+		return new Cursor<>(path);
+	}
+
+	/**
+	 * Finds the rightmost leaf node in the B+ tree. The method begins its search from the root node and
+	 * traverses down to the leaf node by following the last child pointer of each internal node.
+	 *
+	 * @return the cursor to the rightmost leaf node of the tree
+	 */
+	@Nonnull
+	private Cursor<V> createRightmostCursor() {
+		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
+		final BPlusTreeNode<?> theRoot = this.getRoot();
+		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
+		path.add(new CursorLevel(rootSiblings, 0, 0));
+		// if the root is internal node, add the levels to the path until the leaf node is reached
+		if (theRoot instanceof BPlusInternalTreeNode rootInternalNode) {
+			addRightmostCursorLevels(rootInternalNode, path);
+
+		}
+		return new Cursor<>(path);
 	}
 
 	/**
@@ -1432,6 +1602,12 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusInternalTreeNode previousNode) {
+			// merging into an empty internal node (peek == -1) is never requested by the rebalancer: a node
+			// with a single child (peek == 0) is collapsed before another deletion could drain it further,
+			// so the shift arithmetic below assumes this node already holds at least one child
+			Assert.isPremiseValid(
+				getPeek() >= 0, "Cannot merge into an empty internal node (it has no children)!"
+			);
 			final int mergePeek = previousNode.getPeek();
 
 			final BPlusInternalTreeNode layer = this.transactionalLayer ?
@@ -1461,6 +1637,12 @@ public class TransactionalIntBPlusTree<V> implements
 
 		@Override
 		public void mergeWithRight(@Nonnull BPlusInternalTreeNode nextNode) {
+			// merging into an empty internal node (peek == -1) is never requested by the rebalancer: a node
+			// with a single child (peek == 0) is collapsed before another deletion could drain it further,
+			// so the separator-key write below assumes this node already holds at least one child
+			Assert.isPremiseValid(
+				getPeek() >= 0, "Cannot merge into an empty internal node (it has no children)!"
+			);
 			final int mergePeek = nextNode.getPeek();
 
 			final BPlusInternalTreeNode layer = this.transactionalLayer ?
@@ -1468,14 +1650,8 @@ public class TransactionalIntBPlusTree<V> implements
 				null;
 			if (layer == null) {
 				System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
-				final int offset;
-				if (this.peek >= 0) {
-					this.keys[this.peek] = nextNode.getChildren()[0].getLeftBoundaryKey();
-					offset = 1;
-				} else {
-					offset = 0;
-				}
-				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + offset, mergePeek);
+				this.keys[this.peek] = nextNode.getChildren()[0].getLeftBoundaryKey();
+				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek);
 				this.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
 			} else {
@@ -1483,14 +1659,8 @@ public class TransactionalIntBPlusTree<V> implements
 				// we don't need to do: nodeToMergeWith.decoupleTransactionalArrays();
 				// the other node will be fully merged to this node, so its arrays remain unmodified by this operation
 				System.arraycopy(nextNode.getChildrenForUpdate(), 0, layer.children, layer.peek + 1, mergePeek + 1);
-				final int offset;
-				if (layer.peek >= 0) {
-					layer.keys[layer.peek] = layer.children[layer.peek + 1].getLeftBoundaryKey();
-					offset = 1;
-				} else {
-					offset = 0;
-				}
-				System.arraycopy(nextNode.getKeysForUpdate(), 0, layer.keys, layer.peek + offset, mergePeek);
+				layer.keys[layer.peek] = layer.children[layer.peek + 1].getLeftBoundaryKey();
+				System.arraycopy(nextNode.getKeysForUpdate(), 0, layer.keys, layer.peek + 1, mergePeek);
 				layer.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
 			}
@@ -1811,9 +1981,9 @@ public class TransactionalIntBPlusTree<V> implements
 					true
 				);
 			} else if (!this.transactionalLayer) {
-				// BUG-1 fix: nodes created during splits have
-				// transactionalLayer=false; after commit they
-				// must participate in STM
+				// nodes created during splits/merges are built with transactionalLayer=false so they do
+				// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
+				// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
 				return new BPlusInternalTreeNode(
 					theKeys,
 					theChildren,
@@ -1870,19 +2040,17 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		private final boolean transactionalLayer;
 		/**
+		 * The function to wrap the values into a transactional layer.
+		 */
+		@Nullable private final Function<Object, V> transactionalLayerWrapper;
+		/**
 		 * The keys stored in this node.
 		 */
 		private int[] keys;
-
 		/**
 		 * The values stored in this node. Index i corresponds to the value associated with key i.
 		 */
 		private V[] values;
-		/**
-		 * The function to wrap the values into a transactional layer.
-		 */
-		@Nullable private final Function<Object, V> transactionalLayerWrapper;
-
 		/**
 		 * Index of the last occupied position in the keys array.
 		 */
@@ -1891,10 +2059,10 @@ public class TransactionalIntBPlusTree<V> implements
 		/**
 		 * Creates a new empty leaf node with the specified block size.
 		 *
-		 * @param blockSize                the maximum number of key-value pairs this leaf node can hold
-		 * @param valueType                the class of the values stored in this node
+		 * @param blockSize                 the maximum number of key-value pairs this leaf node can hold
+		 * @param valueType                 the class of the values stored in this node
 		 * @param transactionalLayerWrapper optional function to wrap values into a transactional layer
-		 * @param transactionalLayer       whether this node participates in the transactional memory layer
+		 * @param transactionalLayer        whether this node participates in the transactional memory layer
 		 */
 		public BPlusLeafTreeNode(
 			int blockSize,
@@ -2435,9 +2603,9 @@ public class TransactionalIntBPlusTree<V> implements
 					this.transactionalLayerWrapper
 				);
 			} else if (!this.transactionalLayer) {
-				// BUG-1 fix: nodes created during splits have
-				// transactionalLayer=false; after commit they must
-				// participate in STM
+				// nodes created during splits/merges are built with transactionalLayer=false so they do
+				// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
+				// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
 				return new BPlusLeafTreeNode<>(
 					theKeys,
 					theValues,
@@ -2849,9 +3017,14 @@ public class TransactionalIntBPlusTree<V> implements
 	}
 
 	/**
-	 * Iterator that traverses the B+ Tree from left to right.
+	 * Iterator that traverses the B+ Tree from left to right and owns all the path traversal state shared
+	 * by the key, value and entry iterators. Subclasses add the concrete iterator interface and decide how
+	 * the current element is extracted - the primitive key iterators read the key directly to avoid boxing,
+	 * while the value and entry iterators delegate to an {@link IntObjBiFunction} output extractor.
+	 *
+	 * @param <V> the type of the values stored in the tree
 	 */
-	private static class ForwardKeyIterator implements OfInt {
+	private abstract static class AbstractForwardTreeIterator<V> {
 		/**
 		 * Array of arrays representing siblings on each level of the path.
 		 */
@@ -2867,18 +3040,18 @@ public class TransactionalIntBPlusTree<V> implements
 		/**
 		 * The index of the current key within the current leaf node.
 		 */
-		private int currentKeyIndex;
+		protected int currentIndex;
 		/**
 		 * Flag indicating whether there are more elements to traverse.
 		 */
-		private boolean hasNext;
+		protected boolean hasNextElement;
 
 		/**
-		 * Initializes the forward key iterator starting from the leftmost position of the cursor.
+		 * Initializes the forward iterator starting from the leftmost position of the cursor.
 		 *
 		 * @param cursor the cursor providing the traversal path through the B+ tree
 		 */
-		public ForwardKeyIterator(@Nonnull Cursor<?> cursor) {
+		protected AbstractForwardTreeIterator(@Nonnull Cursor<V> cursor) {
 			final List<CursorLevel> cursorPath = cursor.path();
 			this.path = new BPlusTreeNode[cursorPath.size()][];
 			this.pathIndex = new int[this.path.length];
@@ -2889,201 +3062,17 @@ public class TransactionalIntBPlusTree<V> implements
 				this.pathIndex[i] = cursorLevel.index();
 				this.pathPeeks[i] = cursorLevel.peek();
 			}
-			this.currentKeyIndex = 0;
-			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
-		}
-
-		@Override
-		public int nextInt() {
-			if (!this.hasNext) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			final BPlusTreeNode<?> currentLeaf = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
-			final int key = currentLeaf.getKeys()[this.currentKeyIndex];
-
-			if (this.currentKeyIndex < currentLeaf.getPeek()) {
-				// easy path, there is another key in current leaf
-				this.currentKeyIndex++;
-			} else {
-				// we need to traverse up the path to find the next sibling
-				int level = this.pathIndex.length - 1;
-				BPlusTreeNode<?>[] parentLevel = this.path[level];
-				while (parentLevel != null) {
-					// if parent has index greater than zero
-					if (this.pathIndex[level] < this.pathPeeks[level]) {
-						// we found the parent that has a next sibling - so move the index
-						this.pathIndex[level] = this.pathIndex[level] + 1;
-						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
-						// all levels below, will point to the first child of the new cursor level
-						for (int i = level + 1; i <= this.path.length - 1; i++) {
-							Assert.isPremiseValid(
-								currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
-							this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
-							this.pathIndex[i] = 0;
-							this.pathPeeks[i] = currentNode.getPeek();
-							currentNode = this.path[i][0];
-						}
-						this.currentKeyIndex = 0;
-						this.hasNext = true;
-						return key;
-					} else {
-						// we need to continue search with the parent of the parent
-						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
-					}
-				}
-				this.hasNext = false;
-			}
-			return key;
-		}
-
-		@Override
-		public boolean hasNext() {
-			return this.hasNext;
-		}
-	}
-
-	/**
-	 * Iterator that traverses the B+ Tree from right to left.
-	 */
-	private static class ReverseKeyIterator implements OfInt {
-		/**
-		 * Array of arrays representing siblings on each level of the path.
-		 */
-		@Nonnull private final BPlusTreeNode<?>[][] path;
-		/**
-		 * The index of the current key on particular path.
-		 */
-		@Nonnull private final int[] pathIndex;
-		/**
-		 * The index of the current key within the current leaf node.
-		 */
-		private int currentKeyIndex;
-		/**
-		 * Flag indicating whether there are more elements to traverse.
-		 */
-		private boolean hasNext;
-
-		/**
-		 * Initializes the reverse key iterator starting from the rightmost position of the cursor.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 */
-		public ReverseKeyIterator(@Nonnull Cursor<?> cursor) {
-			final List<CursorLevel> cursorPath = cursor.path();
-			this.path = new BPlusTreeNode[cursorPath.size()][];
-			this.pathIndex = new int[this.path.length];
-			for (int i = 0; i < cursorPath.size(); i++) {
-				final CursorLevel cursorLevel = cursorPath.get(i);
-				this.path[i] = cursorLevel.siblings();
-				this.pathIndex[i] = cursorLevel.index();
-			}
-			this.currentKeyIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
-			this.hasNext = this.currentKeyIndex >= 0;
-		}
-
-		@Override
-		public int nextInt() {
-			if (!this.hasNext) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			final BPlusTreeNode<?> currentLeaf = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
-			final int key = currentLeaf.getKeys()[this.currentKeyIndex];
-			if (this.currentKeyIndex > 0) {
-				// easy path, there is another key in current leaf
-				this.currentKeyIndex--;
-			} else {
-				// we need to traverse up the path to find the previous sibling
-				int level = this.pathIndex.length - 1;
-				BPlusTreeNode<?>[] parentLevel = this.path[level];
-				while (parentLevel != null) {
-					// if there is a previous sibling at this level
-					if (this.pathIndex[level] > 0) {
-						// move to the previous sibling
-						this.pathIndex[level] = this.pathIndex[level] - 1;
-						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
-						// all levels below will point to the last child of the new cursor level
-						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
-							Assert.isPremiseValid(
-								currentNode instanceof BPlusInternalTreeNode,
-								"Internal node expected!"
-							);
-							this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
-							this.pathIndex[i] = currentNode.getPeek();
-							currentNode = this.path[i][this.pathIndex[i]];
-						}
-						this.hasNext = true;
-						this.currentKeyIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
-						return key;
-					} else {
-						// we need to continue search with the parent of the parent
-						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
-					}
-				}
-				this.hasNext = false;
-			}
-			return key;
-		}
-
-		@Override
-		public boolean hasNext() {
-			return this.hasNext;
-		}
-	}
-
-	/**
-	 * Iterator that traverses the B+ Tree from left to right.
-	 */
-	static class ForwardTreeValueIterator<V> implements Iterator<V> {
-		/**
-		 * Array of arrays representing siblings on each level of the path.
-		 */
-		@Nonnull private final BPlusTreeNode<?>[][] path;
-		/**
-		 * The index of the current key on particular path.
-		 */
-		@Nonnull private final int[] pathIndex;
-		/**
-		 * The peek index of each sibling array on the path.
-		 */
-		@Nonnull private final int[] pathPeeks;
-		/**
-		 * The index of the current value within the current leaf node.
-		 */
-		private int currentValueIndex;
-		/**
-		 * Flag indicating whether there are more elements to traverse.
-		 */
-		private boolean hasNext;
-
-		/**
-		 * Initializes the forward value iterator starting from the leftmost position of the cursor.
-		 *
-		 * @param cursor the cursor providing the traversal path through the B+ tree
-		 */
-		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor) {
-			final List<CursorLevel> cursorPath = cursor.path();
-			this.path = new BPlusTreeNode[cursorPath.size()][];
-			this.pathIndex = new int[this.path.length];
-			this.pathPeeks = new int[this.path.length];
-			for (int i = 0; i < cursorPath.size(); i++) {
-				final CursorLevel cursorLevel = cursorPath.get(i);
-				this.path[i] = cursorLevel.siblings();
-				this.pathIndex[i] = cursorLevel.index();
-				this.pathPeeks[i] = cursorLevel.peek();
-			}
-			this.currentValueIndex = 0;
-			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
+			this.currentIndex = 0;
+			this.hasNextElement = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
 		}
 
 		/**
-		 * Initializes the forward value iterator starting from the specified key or the first key greater than it.
+		 * Initializes the forward iterator starting from the specified key or the first key greater than it.
 		 *
 		 * @param cursor the cursor providing the traversal path through the B+ tree
 		 * @param key    the key to start the iteration from
 		 */
-		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor, int key) {
+		protected AbstractForwardTreeIterator(@Nonnull Cursor<V> cursor, int key) {
 			final List<CursorLevel> cursorPath = cursor.path();
 			this.path = new BPlusTreeNode[cursorPath.size()][];
 			this.pathIndex = new int[this.path.length];
@@ -3098,67 +3087,102 @@ public class TransactionalIntBPlusTree<V> implements
 				key, cursor.leafNode()
 					.getKeys(), 0, cursor.leafNode().size()
 			);
-			this.currentValueIndex = insertionPosition.position();
-			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= insertionPosition.position();
-		}
-
-		@Override
-		public boolean hasNext() {
-			return this.hasNext;
-		}
-
-		@Override
-		public V next() {
-			if (!this.hasNext) {
-				throw new NoSuchElementException("No more elements available");
-			}
-			//noinspection unchecked
-			final BPlusLeafTreeNode<V> currentLeaf = (BPlusLeafTreeNode<V>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
-			final V value = currentLeaf.getValues()[this.currentValueIndex];
-
-			if (this.currentValueIndex < currentLeaf.getPeek()) {
-				// easy path, there is another value in current leaf
-				this.currentValueIndex++;
+			this.currentIndex = insertionPosition.position();
+			if (this.currentIndex <= this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek()) {
+				// the start key lies within the current leaf - it has at least one key >= key
+				this.hasNextElement = true;
 			} else {
-				// we need to traverse up the path to find the next sibling
-				int level = this.pathIndex.length - 1;
-				BPlusTreeNode<?>[] parentLevel = this.path[level];
-				while (parentLevel != null) {
-					// if parent has index greater than zero
-					if (this.pathIndex[level] < this.pathPeeks[level]) {
-						// we found the parent that has a next sibling - so move the index
-						this.pathIndex[level] = this.pathIndex[level] + 1;
-						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
-						// all levels below, will point to the first child of the new cursor level
-						for (int i = level + 1; i <= this.path.length - 1; i++) {
-							Assert.isPremiseValid(
-								currentNode instanceof BPlusInternalTreeNode,
-								"Internal node expected!"
-							);
-							this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
-							this.pathIndex[i] = 0;
-							this.pathPeeks[i] = currentNode.getPeek();
-							currentNode = this.path[i][0];
-						}
-						this.currentValueIndex = 0;
-						this.hasNext = true;
-						return value;
-					} else {
-						// we need to continue search with the parent of the parent
-						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
-					}
-				}
-				this.hasNext = false;
+				// the start key is greater than every key in the current leaf - the matching keys, if any,
+				// live in a following leaf, so we must advance the path to the next leaf instead of stopping
+				// here (otherwise keys/values in the gap between two leaves would be skipped)
+				this.hasNextElement = moveToNextLeaf();
 			}
-			return value;
+		}
+
+		/**
+		 * Returns true if there is another element to traverse.
+		 *
+		 * @return true if there is another element to traverse, false otherwise
+		 */
+		public boolean hasNext() {
+			return this.hasNextElement;
+		}
+
+		/**
+		 * Returns the leaf node the iterator currently points at.
+		 *
+		 * @return the leaf node the iterator currently points at
+		 */
+		@Nonnull
+		protected BPlusLeafTreeNode<V> currentLeaf() {
+			//noinspection unchecked
+			return (BPlusLeafTreeNode<V>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+		}
+
+		/**
+		 * Advances the iterator one position to the right after the current element has been consumed. The
+		 * position moves to the next key in the current leaf, or - when the current leaf is exhausted - to
+		 * the first key of the following leaf via {@link #moveToNextLeaf()}.
+		 */
+		protected void advance() {
+			final BPlusLeafTreeNode<V> currentLeaf = currentLeaf();
+			if (this.currentIndex < currentLeaf.getPeek()) {
+				// easy path, there is another key in the current leaf
+				this.currentIndex++;
+			} else {
+				// we need to traverse up the path to find the next sibling leaf
+				this.hasNextElement = moveToNextLeaf();
+			}
+		}
+
+		/**
+		 * Advances the iterator path to the first entry of the next leaf to the right of the current one.
+		 * On success the path arrays point at the following leaf and {@link #currentIndex} is reset to its
+		 * first entry; on failure the path is left untouched.
+		 *
+		 * @return true if a following leaf was found, false if the current leaf is the rightmost one
+		 */
+		private boolean moveToNextLeaf() {
+			int level = this.pathIndex.length - 1;
+			BPlusTreeNode<?>[] parentLevel = this.path[level];
+			while (parentLevel != null) {
+				// if there is a next sibling at this level
+				if (this.pathIndex[level] < this.pathPeeks[level]) {
+					// we found the parent that has a next sibling - so move the index
+					this.pathIndex[level] = this.pathIndex[level] + 1;
+					BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
+					// all levels below, will point to the first child of the new cursor level
+					for (int i = level + 1; i <= this.path.length - 1; i++) {
+						Assert.isPremiseValid(
+							currentNode instanceof BPlusInternalTreeNode,
+							"Internal node expected!"
+						);
+						this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
+						this.pathIndex[i] = 0;
+						this.pathPeeks[i] = currentNode.getPeek();
+						currentNode = this.path[i][0];
+					}
+					this.currentIndex = 0;
+					return true;
+				} else {
+					// we need to continue search with the parent of the parent
+					level--;
+					parentLevel = level > 0 ? this.path[level] : null;
+				}
+			}
+			return false;
 		}
 	}
 
 	/**
-	 * Iterator that traverses the B+ Tree from right to left.
+	 * Iterator that traverses the B+ Tree from right to left and owns all the path traversal state shared
+	 * by the key, value and entry iterators. Subclasses add the concrete iterator interface and decide how
+	 * the current element is extracted - the primitive key iterators read the key directly to avoid boxing,
+	 * while the value and entry iterators delegate to an {@link IntObjBiFunction} output extractor.
+	 *
+	 * @param <V> the type of the values stored in the tree
 	 */
-	static class ReverseTreeValueIterator<V> implements Iterator<V> {
+	private abstract static class AbstractReverseTreeIterator<V> {
 		/**
 		 * Array of arrays representing siblings on each level of the path.
 		 */
@@ -3168,20 +3192,20 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		@Nonnull private final int[] pathIndex;
 		/**
-		 * The index of the current value within the current leaf node.
+		 * The index of the current key within the current leaf node.
 		 */
-		private int currentValueIndex;
+		protected int currentIndex;
 		/**
 		 * Flag indicating whether there are more elements to traverse.
 		 */
-		private boolean hasNext;
+		protected boolean hasNextElement;
 
 		/**
-		 * Initializes the reverse value iterator starting from the rightmost position of the cursor.
+		 * Initializes the reverse iterator starting from the rightmost position of the cursor.
 		 *
 		 * @param cursor the cursor providing the traversal path through the B+ tree
 		 */
-		public ReverseTreeValueIterator(@Nonnull Cursor<V> cursor) {
+		protected AbstractReverseTreeIterator(@Nonnull Cursor<V> cursor) {
 			final List<CursorLevel> cursorPath = cursor.path();
 			this.path = new BPlusTreeNode[cursorPath.size()][];
 			this.pathIndex = new int[this.path.length];
@@ -3190,60 +3214,387 @@ public class TransactionalIntBPlusTree<V> implements
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 			}
+			this.currentIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+			this.hasNextElement = this.currentIndex >= 0;
+		}
 
-			this.currentValueIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
-			this.hasNext = this.currentValueIndex >= 0;
+		/**
+		 * Initializes the reverse iterator starting from the specified key or the first key lesser than or
+		 * equal to it.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 * @param key    the key to start the iteration from
+		 */
+		protected AbstractReverseTreeIterator(@Nonnull Cursor<V> cursor, int key) {
+			final List<CursorLevel> cursorPath = cursor.path();
+			this.path = new BPlusTreeNode[cursorPath.size()][];
+			this.pathIndex = new int[this.path.length];
+			for (int i = 0; i < cursorPath.size(); i++) {
+				final CursorLevel cursorLevel = cursorPath.get(i);
+				this.path[i] = cursorLevel.siblings();
+				this.pathIndex[i] = cursorLevel.index();
+			}
+			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
+				key, cursor.leafNode()
+					.getKeys(), 0, cursor.leafNode().size()
+			);
+			if (insertionPosition.alreadyPresent()) {
+				this.currentIndex = insertionPosition.position();
+				this.hasNextElement = true;
+			} else {
+				this.currentIndex = insertionPosition.position() - 1;
+				this.hasNextElement = true;
+				if (this.currentIndex < 0) {
+					moveToPreviousLeaf();
+				}
+			}
+		}
+
+		/**
+		 * Returns true if there is another element to traverse.
+		 *
+		 * @return true if there is another element to traverse, false otherwise
+		 */
+		public boolean hasNext() {
+			return this.hasNextElement;
+		}
+
+		/**
+		 * Returns the leaf node the iterator currently points at.
+		 *
+		 * @return the leaf node the iterator currently points at
+		 */
+		@Nonnull
+		protected BPlusLeafTreeNode<V> currentLeaf() {
+			//noinspection unchecked
+			return (BPlusLeafTreeNode<V>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+		}
+
+		/**
+		 * Advances the iterator one position to the left after the current element has been consumed. The
+		 * position moves to the previous key in the current leaf, or - when the current leaf is exhausted -
+		 * to the last key of the preceding leaf via {@link #moveToPreviousLeaf()}.
+		 */
+		protected void advance() {
+			if (this.currentIndex > 0) {
+				// easy path, there is another key in the current leaf
+				this.currentIndex--;
+			} else {
+				// we need to traverse up the path to find the previous sibling leaf
+				moveToPreviousLeaf();
+			}
+		}
+
+		/**
+		 * Iterates through the path of B+ tree nodes in reverse order to position the iterator on the last
+		 * entry of the leaf preceding the current one.
+		 *
+		 * The method operates by traversing the parent nodes from the current position, and:
+		 * 1. Checks if the current parent node has a previous sibling node that can be accessed.
+		 * 2. If such a sibling exists, updates internal paths and indices to point to the previous leaf.
+		 * 3. Ensures that the search continues upwards in the tree hierarchy if no valid sibling is found.
+		 * 4. Verifies consistency for internal tree nodes during updates.
+		 *
+		 * This method sets the {@link #hasNextElement} field to true if a preceding leaf is found, and false
+		 * otherwise. Additionally, it updates {@link #currentIndex} to reflect the new position of the iterator.
+		 */
+		private void moveToPreviousLeaf() {
+			boolean found = false;
+			int level = this.pathIndex.length - 1;
+			BPlusTreeNode<?>[] parentLevel = this.path[level];
+			while (parentLevel != null) {
+				// if there is a previous sibling at this level
+				if (this.pathIndex[level] > 0) {
+					// move to the previous sibling
+					this.pathIndex[level] = this.pathIndex[level] - 1;
+					BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
+					// all levels below will point to the last child of the new cursor level
+					for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
+						Assert.isPremiseValid(
+							currentNode instanceof BPlusInternalTreeNode,
+							"Internal node expected!"
+						);
+						this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
+						this.pathIndex[i] = currentNode.getPeek();
+						currentNode = this.path[i][this.pathIndex[i]];
+					}
+					this.hasNextElement = true;
+					this.currentIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+					found = true;
+					break;
+				} else {
+					// we need to continue search with the parent of the parent
+					level--;
+					parentLevel = level > 0 ? this.path[level] : null;
+				}
+			}
+			this.hasNextElement = found;
+		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree keys from left to right. The primitive key is returned directly
+	 * from {@link #nextInt()} so that no boxing occurs on the iteration path.
+	 *
+	 * @param <V> the type of the values stored in the tree
+	 */
+	private static class ForwardTreeKeyIterator<V> extends AbstractForwardTreeIterator<V> implements OfInt {
+
+		/**
+		 * Creates a forward key iterator starting from the leftmost key.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
+		public ForwardTreeKeyIterator(@Nonnull Cursor<V> cursor) {
+			super(cursor);
+		}
+
+		/**
+		 * Creates a forward key iterator starting from the specified key or the first key greater than it.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 * @param key    the key to start the iteration from
+		 */
+		public ForwardTreeKeyIterator(@Nonnull Cursor<V> cursor, int key) {
+			super(cursor, key);
 		}
 
 		@Override
-		public boolean hasNext() {
-			return this.hasNext;
+		public int nextInt() {
+			if (!this.hasNextElement) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final int key = currentLeaf().getKeys()[this.currentIndex];
+			advance();
+			return key;
+		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree keys from right to left. The primitive key is returned directly
+	 * from {@link #nextInt()} so that no boxing occurs on the iteration path.
+	 *
+	 * @param <V> the type of the values stored in the tree
+	 */
+	private static class ReverseTreeKeyIterator<V> extends AbstractReverseTreeIterator<V> implements OfInt {
+
+		/**
+		 * Creates a reverse key iterator starting from the rightmost key.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
+		public ReverseTreeKeyIterator(@Nonnull Cursor<V> cursor) {
+			super(cursor);
+		}
+
+		/**
+		 * Creates a reverse key iterator starting from the specified key or the first key lesser than or equal to it.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 * @param key    the key to start the iteration from
+		 */
+		public ReverseTreeKeyIterator(@Nonnull Cursor<V> cursor, int key) {
+			super(cursor, key);
+		}
+
+		@Override
+		public int nextInt() {
+			if (!this.hasNextElement) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final int key = currentLeaf().getKeys()[this.currentIndex];
+			advance();
+			return key;
+		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree values from left to right.
+	 *
+	 * @param <V> the type of the values stored in the tree
+	 */
+	static class ForwardTreeValueIterator<V> extends AbstractForwardTreeIterator<V> implements Iterator<V> {
+		/**
+		 * Function allowing to extract the iterator output from the current index and leaf node.
+		 */
+		@Nonnull private final IntObjBiFunction<BPlusLeafTreeNode<V>, V> outputExtractor;
+
+		/**
+		 * Creates a forward value iterator starting from the leftmost value.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
+		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor) {
+			super(cursor);
+			this.outputExtractor = (index, leafNode) -> leafNode.getValues()[index];
+		}
+
+		/**
+		 * Creates a forward value iterator starting from the specified key or the first key greater than it.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 * @param key    the key to start the iteration from
+		 */
+		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor, int key) {
+			super(cursor, key);
+			this.outputExtractor = (index, leafNode) -> leafNode.getValues()[index];
 		}
 
 		@Override
 		public V next() {
-			if (!this.hasNext) {
+			if (!this.hasNextElement) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			//noinspection unchecked
-			final BPlusLeafTreeNode<V> currentLeaf = (BPlusLeafTreeNode<V>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
-			final V value = currentLeaf.getValues()[this.currentValueIndex];
-			if (this.currentValueIndex > 0) {
-				// easy path, there is another value in current leaf
-				this.currentValueIndex--;
-			} else {
-				// we need to traverse up the path to find the previous sibling
-				int level = this.pathIndex.length - 1;
-				BPlusTreeNode<?>[] parentLevel = this.path[level];
-				while (parentLevel != null) {
-					// if there is a previous sibling at this level
-					if (this.pathIndex[level] > 0) {
-						// move to the previous sibling
-						this.pathIndex[level] = this.pathIndex[level] - 1;
-						BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
-						// all levels below will point to the last child of the new cursor level
-						for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
-							Assert.isPremiseValid(
-								currentNode instanceof BPlusInternalTreeNode,
-								"Internal node expected!"
-							);
-							this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
-							this.pathIndex[i] = currentNode.getPeek();
-							currentNode = this.path[i][this.pathIndex[i]];
-						}
-						this.hasNext = true;
-						this.currentValueIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
-						return value;
-					} else {
-						// we need to continue search with the parent of the parent
-						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
-					}
-				}
-				this.hasNext = false;
-			}
+			final V value = this.outputExtractor.apply(this.currentIndex, currentLeaf());
+			advance();
 			return value;
 		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree values from right to left.
+	 *
+	 * @param <V> the type of the values stored in the tree
+	 */
+	static class ReverseTreeValueIterator<V> extends AbstractReverseTreeIterator<V> implements Iterator<V> {
+		/**
+		 * Function allowing to extract the iterator output from the current index and leaf node.
+		 */
+		@Nonnull private final IntObjBiFunction<BPlusLeafTreeNode<V>, V> outputExtractor;
+
+		/**
+		 * Creates a reverse value iterator starting from the rightmost value.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
+		public ReverseTreeValueIterator(@Nonnull Cursor<V> cursor) {
+			super(cursor);
+			this.outputExtractor = (index, leafNode) -> leafNode.getValues()[index];
+		}
+
+		/**
+		 * Creates a reverse value iterator starting from the specified key or the first key lesser than or equal to it.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 * @param key    the key to start the iteration from
+		 */
+		public ReverseTreeValueIterator(@Nonnull Cursor<V> cursor, int key) {
+			super(cursor, key);
+			this.outputExtractor = (index, leafNode) -> leafNode.getValues()[index];
+		}
+
+		@Override
+		public V next() {
+			if (!this.hasNextElement) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final V value = this.outputExtractor.apply(this.currentIndex, currentLeaf());
+			advance();
+			return value;
+		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree from left to right and provides access to entries (both keys and values).
+	 *
+	 * @param <V> the type of the values stored in the tree
+	 */
+	static class ForwardTreeEntryIterator<V> extends AbstractForwardTreeIterator<V> implements Iterator<Entry<V>> {
+		/**
+		 * Function allowing to extract the iterator output from the current index and leaf node.
+		 */
+		@Nonnull private final IntObjBiFunction<BPlusLeafTreeNode<V>, Entry<V>> outputExtractor;
+
+		/**
+		 * Creates a forward entry iterator starting from the leftmost entry.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
+		public ForwardTreeEntryIterator(@Nonnull Cursor<V> cursor) {
+			super(cursor);
+			this.outputExtractor = (index, leafNode) -> new Entry<>(
+				leafNode.getKeys()[index], leafNode.getValues()[index]);
+		}
+
+		/**
+		 * Creates a forward entry iterator starting from the specified key or the first key greater than it.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 * @param key    the key to start the iteration from
+		 */
+		public ForwardTreeEntryIterator(@Nonnull Cursor<V> cursor, int key) {
+			super(cursor, key);
+			this.outputExtractor = (index, leafNode) -> new Entry<>(
+				leafNode.getKeys()[index], leafNode.getValues()[index]);
+		}
+
+		@Override
+		public Entry<V> next() {
+			if (!this.hasNextElement) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final Entry<V> entry = this.outputExtractor.apply(this.currentIndex, currentLeaf());
+			advance();
+			return entry;
+		}
+	}
+
+	/**
+	 * Iterator that traverses the B+ Tree from right to left and provides access to entries (both keys and values).
+	 *
+	 * @param <V> the type of the values stored in the tree
+	 */
+	static class ReverseTreeEntryIterator<V> extends AbstractReverseTreeIterator<V> implements Iterator<Entry<V>> {
+		/**
+		 * Function allowing to extract the iterator output from the current index and leaf node.
+		 */
+		@Nonnull private final IntObjBiFunction<BPlusLeafTreeNode<V>, Entry<V>> outputExtractor;
+
+		/**
+		 * Creates a reverse entry iterator starting from the rightmost entry.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 */
+		public ReverseTreeEntryIterator(@Nonnull Cursor<V> cursor) {
+			super(cursor);
+			this.outputExtractor = (index, leafNode) -> new Entry<>(
+				leafNode.getKeys()[index], leafNode.getValues()[index]);
+		}
+
+		/**
+		 * Creates a reverse entry iterator starting from the specified key or the first key lesser than or equal to it.
+		 *
+		 * @param cursor the cursor providing the traversal path through the B+ tree
+		 * @param key    the key to start the iteration from
+		 */
+		public ReverseTreeEntryIterator(@Nonnull Cursor<V> cursor, int key) {
+			super(cursor, key);
+			this.outputExtractor = (index, leafNode) -> new Entry<>(
+				leafNode.getKeys()[index], leafNode.getValues()[index]);
+		}
+
+		@Override
+		public Entry<V> next() {
+			if (!this.hasNextElement) {
+				throw new NoSuchElementException("No more elements available");
+			}
+			final Entry<V> entry = this.outputExtractor.apply(this.currentIndex, currentLeaf());
+			advance();
+			return entry;
+		}
+	}
+
+	/**
+	 * Entry is an immutable data structure that stores a primitive `int` key together with its value.
+	 *
+	 * @param <V>   the type of the value
+	 * @param key   the primitive key of the entry
+	 * @param value the value associated with the key
+	 */
+	public record Entry<V>(
+		int key,
+		@Nonnull V value
+	) {
 	}
 
 }

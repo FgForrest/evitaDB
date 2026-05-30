@@ -256,11 +256,17 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	 */
 	private static void verifyMinimalCountOfValuesInNodes(
 		@Nonnull BPlusTreeNode<?, ?> node, int minValueBlockSize, int minInternalNodeBlockSize, boolean isRoot) {
-		if (node instanceof BPlusInternalTreeNode<?> internalNode && !isRoot) {
-			if (internalNode.size() < minInternalNodeBlockSize) {
+		if (node instanceof BPlusInternalTreeNode<?> internalNode) {
+			// the minimum occupancy invariant constrains the number of keys, not children; an internal node
+			// with c children holds c - 1 keys, so checking the child count (size()) would be one slot too
+			// lenient and would accept a node that is genuinely under-occupied in keys; the root is exempt
+			// from the minimum because it may legitimately hold a single key
+			if (!isRoot && internalNode.keyCount() < minInternalNodeBlockSize) {
 				throw new IllegalStateException(
-					"Internal node " + internalNode + " has less than " + minInternalNodeBlockSize + " values (" + node.size() + ")!");
+					"Internal node " + internalNode + " has less than " + minInternalNodeBlockSize + " keys (" + internalNode.keyCount() + ")!");
 			}
+			// recurse into the whole subtree regardless of whether this node is the root - the occupancy of
+			// the descendants must always be validated, only the root itself is exempt from the minimum
 			for (int i = 0; i < internalNode.size(); i++) {
 				verifyMinimalCountOfValuesInNodes(
 					internalNode.getChildren()[i], minValueBlockSize, minInternalNodeBlockSize, false);
@@ -517,6 +523,10 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		Assert.isPremiseValid(
 			minInternalNodeBlockSize <= Math.ceil((float) internalNodeBlockSize / 2.0) - 1,
 			"Minimum internal node block size must be less than half of the internal node block size, otherwise the tree nodes might be immediately full after merges."
+		);
+		Assert.isPremiseValid(
+			internalNodeBlockSize <= valueBlockSize,
+			"Internal node block size must not exceed the value block size, otherwise internal node merges overflow the node arrays."
 		);
 		Assert.isPremiseValid(
 			!TransactionalLayerProducer.class.isAssignableFrom(keyType),
@@ -930,6 +940,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 								previousNodeCursor.currentNodeIndex(),
 								previousNodeCursor.currentNodeIndex()
 							);
+							// the merged-away node is detached from the tree - drop its transactional layer
+							// (touched during the merge) so the commit walk does not leave it stale
+							if (Transaction.getTransactionalMemoryLayerIfExists(previousNode) != null) {
+								previousNode.removeLayer();
+							}
 							// update parent keys, previous node has been removed
 							updateParentKeys(
 								previousNodeCursor.withReplacedCurrentNode(node)
@@ -952,6 +967,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 								nextNodeCursor.currentNodeIndex() - 1,
 								nextNodeCursor.currentNodeIndex()
 							);
+							// the merged-away node is detached from the tree - drop its transactional layer
+							// (touched during the merge) so the commit walk does not leave it stale
+							if (Transaction.getTransactionalMemoryLayerIfExists(nextNode) != null) {
+								nextNode.removeLayer();
+							}
 							// update parent keys, next node has been removed
 							updateParentKeys(
 								cursorWithLevel.withReplacedCurrentNode(node)
@@ -1668,6 +1688,12 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 
 		@Override
 		public void mergeWithLeft(@Nonnull BPlusInternalTreeNode<M> previousNode) {
+			// merging into an empty internal node (peek == -1) is never requested by the rebalancer: a node
+			// with a single child (peek == 0) is collapsed before another deletion could drain it further,
+			// so the shift arithmetic below assumes this node already holds at least one child
+			Assert.isPremiseValid(
+				getPeek() >= 0, "Cannot merge into an empty internal node (it has no children)!"
+			);
 			final int mergePeek = previousNode.getPeek();
 
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
@@ -1697,6 +1723,12 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 
 		@Override
 		public void mergeWithRight(@Nonnull BPlusInternalTreeNode<M> nextNode) {
+			// merging into an empty internal node (peek == -1) is never requested by the rebalancer: a node
+			// with a single child (peek == 0) is collapsed before another deletion could drain it further,
+			// so the separator-key write below assumes this node already holds at least one child
+			Assert.isPremiseValid(
+				getPeek() >= 0, "Cannot merge into an empty internal node (it has no children)!"
+			);
 			final int mergePeek = nextNode.getPeek();
 
 			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
@@ -1704,14 +1736,8 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				: null;
 			if (layer == null) {
 				System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
-				final int offset;
-				if (this.peek >= 0) {
-					this.keys[this.peek] = nextNode.getChildren()[0].getLeftBoundaryKey();
-					offset = 1;
-				} else {
-					offset = 0;
-				}
-				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + offset, mergePeek);
+				this.keys[this.peek] = nextNode.getChildren()[0].getLeftBoundaryKey();
+				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek);
 				this.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
 			} else {
@@ -1719,14 +1745,8 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				// we don't need to do: nodeToMergeWith.decoupleTransactionalArrays();
 				// the other node will be fully merged to this node, so its arrays remain unmodified by this operation
 				System.arraycopy(nextNode.getChildrenForUpdate(), 0, layer.children, layer.peek + 1, mergePeek + 1);
-				final int offset;
-				if (layer.peek >= 0) {
-					layer.keys[layer.peek] = layer.children[layer.peek + 1].getLeftBoundaryKey();
-					offset = 1;
-				} else {
-					offset = 0;
-				}
-				System.arraycopy(nextNode.getKeysForUpdate(), 0, layer.keys, layer.peek + offset, mergePeek);
+				layer.keys[layer.peek] = layer.children[layer.peek + 1].getLeftBoundaryKey();
+				System.arraycopy(nextNode.getKeysForUpdate(), 0, layer.keys, layer.peek + 1, mergePeek);
 				layer.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
 			}
@@ -2051,9 +2071,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					true
 				);
 			} else if (!this.transactionalLayer) {
-				// BUG-1 fix: nodes created during splits have
-				// transactionalLayer=false; after commit they
-				// must participate in STM
+				// nodes created during splits/merges are built with transactionalLayer=false so they do
+				// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
+				// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
 				return new BPlusInternalTreeNode<>(
 					theKeys,
 					theChildren,
@@ -2704,9 +2724,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					this.transactionalLayerWrapper
 				);
 			} else if (!this.transactionalLayer) {
-				// BUG-1 fix: nodes created during splits have
-				// transactionalLayer=false; after commit they must
-				// participate in STM
+				// nodes created during splits/merges are built with transactionalLayer=false so they do
+				// not allocate STM layers mid-transaction; on commit they must be rebuilt as participating
+				// (transactionalLayer=true) nodes so subsequent transactions can layer changes over them
 				return new BPlusLeafTreeNode<>(
 					theKeys,
 					theValues,
@@ -3200,8 +3220,15 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					.getKeys(), 0, cursor.leafNode().size()
 			);
 			this.currentIndex = insertionPosition.position();
-			this.hasNext = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek()
-				>= insertionPosition.position();
+			if (this.currentIndex <= this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek()) {
+				// the start key lies within the current leaf - it has at least one key >= key
+				this.hasNext = true;
+			} else {
+				// the start key is greater than every key in the current leaf - the matching keys, if any,
+				// live in a following leaf, so we must advance the path to the next leaf instead of stopping
+				// here (otherwise keys/values in the gap between two leaves would be skipped)
+				this.hasNext = moveToNextLeaf();
+			}
 			this.outputExtractor = outputExtractor;
 		}
 
@@ -3225,37 +3252,47 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				// easy path, there is another key in the current leaf
 				this.currentIndex++;
 			} else {
-				// we need to traverse up the path to find the next sibling
-				int level = this.pathIndex.length - 1;
-				BPlusTreeNode<?, ?>[] parentLevel = this.path[level];
-				while (parentLevel != null) {
-					// if parent has index greater than zero
-					if (this.pathIndex[level] < this.pathPeeks[level]) {
-						// we found the parent that has a next sibling - so move the index
-						this.pathIndex[level] = this.pathIndex[level] + 1;
-						BPlusTreeNode<?, ?> currentNode = this.path[level][this.pathIndex[level]];
-						// all levels below, will point to the first child of the new cursor level
-						for (int i = level + 1; i <= this.path.length - 1; i++) {
-							Assert.isPremiseValid(
-								currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
-							//noinspection unchecked
-							this.path[i] = ((BPlusInternalTreeNode<M>) currentNode).getChildren();
-							this.pathIndex[i] = 0;
-							this.pathPeeks[i] = currentNode.getPeek();
-							currentNode = this.path[i][0];
-						}
-						this.currentIndex = 0;
-						this.hasNext = true;
-						return key;
-					} else {
-						// we need to continue search with the parent of the parent
-						level--;
-						parentLevel = level > 0 ? this.path[level] : null;
-					}
-				}
-				this.hasNext = false;
+				// we need to traverse up the path to find the next sibling leaf
+				this.hasNext = moveToNextLeaf();
 			}
 			return key;
+		}
+
+		/**
+		 * Advances the iterator path to the first entry of the next leaf to the right of the current one.
+		 * On success the path arrays point at the following leaf and {@link #currentIndex} is reset to its
+		 * first entry; on failure the path is left untouched.
+		 *
+		 * @return true if a following leaf was found, false if the current leaf is the rightmost one
+		 */
+		private boolean moveToNextLeaf() {
+			int level = this.pathIndex.length - 1;
+			BPlusTreeNode<?, ?>[] parentLevel = this.path[level];
+			while (parentLevel != null) {
+				// if there is a next sibling at this level
+				if (this.pathIndex[level] < this.pathPeeks[level]) {
+					// we found the parent that has a next sibling - so move the index
+					this.pathIndex[level] = this.pathIndex[level] + 1;
+					BPlusTreeNode<?, ?> currentNode = this.path[level][this.pathIndex[level]];
+					// all levels below, will point to the first child of the new cursor level
+					for (int i = level + 1; i <= this.path.length - 1; i++) {
+						Assert.isPremiseValid(
+							currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
+						//noinspection unchecked
+						this.path[i] = ((BPlusInternalTreeNode<M>) currentNode).getChildren();
+						this.pathIndex[i] = 0;
+						this.pathPeeks[i] = currentNode.getPeek();
+						currentNode = this.path[i][0];
+					}
+					this.currentIndex = 0;
+					return true;
+				} else {
+					// we need to continue search with the parent of the parent
+					level--;
+					parentLevel = level > 0 ? this.path[level] : null;
+				}
+			}
+			return false;
 		}
 	}
 

@@ -30,6 +30,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
 import io.evitadb.index.list.TransactionalList;
+import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import org.junit.jupiter.api.DisplayName;
@@ -39,11 +40,13 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Random;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -55,12 +58,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the correctness of the {@link TransactionalObjectBPlusTree} implementation. It exercises insert,
- * search, upsert, delete, iteration, rebalancing (steal and merge), transactional semantics, tree structure
- * visualization, constructor validation, and randomized generational proof.
+ * search, upsert, delete, rebalancing (steal and merge), forward and reverse iteration of keys, values and entries,
+ * transactional semantics, tree structure visualization, constructor validation, and the internal consistency oracle.
+ * Bounded, fixed-seed randomized churn tests guard the rebalancing and commit machinery against regressions; the
+ * open-ended generational soak test lives in the long-running test module.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
-@DisplayName("TransactionalObjectBPlusTree")
+@SuppressWarnings("StringConcatenationMissingWhitespace")
+@DisplayName("Transactional object B+ tree")
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
 @Tag(TRANSACTION)
@@ -162,7 +168,7 @@ class TransactionalObjectBPlusTreeTest {
 		);
 		int[] plainArray = new int[0];
 		do {
-			final int i = random.nextInt(totalElements * 2);
+			final int i = random.nextInt(totalElements << 1);
 			bPlusTree.insert(i, "Value" + i);
 			plainArray = ArrayUtils.insertIntIntoOrderedArray(i, plainArray);
 		} while (plainArray.length < totalElements);
@@ -196,6 +202,75 @@ class TransactionalObjectBPlusTreeTest {
 			}
 		);
 		return result.get();
+	}
+
+	/**
+	 * Holds a reference to a B+ tree together with the plain sorted integer key array that mirrors its contents.
+	 *
+	 * @param bPlusTree  the B+ tree
+	 * @param plainArray the sorted key array
+	 */
+	private record TreeTuple(
+		@Nonnull TransactionalObjectBPlusTree<Integer, String> bPlusTree,
+		@Nonnull int[] plainArray
+	) {
+
+		/**
+		 * Returns the total number of elements in the tree.
+		 */
+		public int totalElements() {
+			return this.plainArray.length;
+		}
+
+		/**
+		 * Returns the key array converted to value strings.
+		 */
+		@Nonnull
+		public String[] asStringArray() {
+			final String[] plainArrayAsString = new String[this.plainArray.length];
+			for (int i = 0; i < this.plainArray.length; i++) {
+				plainArrayAsString[i] = "Value" + this.plainArray[i];
+			}
+			return plainArrayAsString;
+		}
+
+	}
+
+	/**
+	 * A test-only key class that implements both `Comparable` and `TransactionalLayerProducer`, used to verify that
+	 * the constructor rejects such key types.
+	 */
+	private static class TransactionalComparableKey
+		implements Comparable<TransactionalComparableKey>,
+		TransactionalLayerProducer<Void, TransactionalComparableKey> {
+
+		@Override
+		public int compareTo(@Nonnull TransactionalComparableKey o) {
+			return 0;
+		}
+
+		@Override
+		public long getId() {
+			return 0;
+		}
+
+		@Nullable
+		@Override
+		public Void createLayer() {
+			return null;
+		}
+
+		@Override
+		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			// no-op
+		}
+
+		@Nonnull
+		@Override
+		public TransactionalComparableKey createCopyWithMergedTransactionalMemory(
+			@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			return this;
+		}
 	}
 
 	@Nested
@@ -272,59 +347,59 @@ class TransactionalObjectBPlusTreeTest {
 				(original, committed) -> {
 					assertEquals(
 						"""
-						< 9:
-						   < 5:
-						      < 3:
-						         < 2:
-						            1:Value1
-						         >=2:
-						            2:Value2
-						      >=3:
-						         < 4:
-						            3:Value3
-						         >=4:
-						            4:Value4
-						   >=5:
-						      < 7:
-						         < 6:
-						            5:Value5
-						         >=6:
-						            6:Value6
-						      >=7:
-						         < 8:
-						            7:Value7
-						         >=8:
-						            8:Value8
-						>=9:
-						   < 13:
-						      < 11:
-						         < 10:
-						            9:Value9
-						         >=10:
-						            10:Value10
-						      >=11:
-						         < 12:
-						            11:Value11
-						         >=12:
-						            12:Value12
-						   >=13:
-						      < 15:
-						         < 14:
-						            13:Value13
-						         >=14:
-						            14:Value14
-						      >=15:
-						         < 16:
-						            15:Value15
-						         >=16:
-						            16:Value16
-						      >=17:
-						         < 18:
-						            17:Value17
-						         >=18:
-						            18:Value18
-						         >=19:
-						            19:Value19, 20:Value20""",
+							< 9:
+							   < 5:
+							      < 3:
+							         < 2:
+							            1:Value1
+							         >=2:
+							            2:Value2
+							      >=3:
+							         < 4:
+							            3:Value3
+							         >=4:
+							            4:Value4
+							   >=5:
+							      < 7:
+							         < 6:
+							            5:Value5
+							         >=6:
+							            6:Value6
+							      >=7:
+							         < 8:
+							            7:Value7
+							         >=8:
+							            8:Value8
+							>=9:
+							   < 13:
+							      < 11:
+							         < 10:
+							            9:Value9
+							         >=10:
+							            10:Value10
+							      >=11:
+							         < 12:
+							            11:Value11
+							         >=12:
+							            12:Value12
+							   >=13:
+							      < 15:
+							         < 14:
+							            13:Value13
+							         >=14:
+							            14:Value14
+							      >=15:
+							         < 16:
+							            15:Value15
+							         >=16:
+							            16:Value16
+							      >=17:
+							         < 18:
+							            17:Value17
+							         >=18:
+							            18:Value18
+							         >=19:
+							            19:Value19, 20:Value20""",
 						committed.toString()
 					);
 
@@ -351,33 +426,33 @@ class TransactionalObjectBPlusTreeTest {
 				(original, committed) -> {
 					assertEquals(
 						"""
-						< 13:
-						   < 5:
-						      < 3:
-						         1:Value1, 2:Value2
-						      >=3:
-						         3:Value3, 4:Value4
-						   >=5:
-						      < 7:
-						         5:Value5, 6:Value6
-						      >=7:
-						         7:Value7, 8:Value8
-						   >=9:
-						      < 11:
-						         9:Value9, 10:Value10
-						      >=11:
-						         11:Value11, 12:Value12
-						>=13:
-						   < 17:
-						      < 15:
-						         13:Value13, 14:Value14
-						      >=15:
-						         15:Value15, 16:Value16
-						   >=17:
-						      < 19:
-						         17:Value17, 18:Value18
-						      >=19:
-						         19:Value19, 20:Value20""",
+							< 13:
+							   < 5:
+							      < 3:
+							         1:Value1, 2:Value2
+							      >=3:
+							         3:Value3, 4:Value4
+							   >=5:
+							      < 7:
+							         5:Value5, 6:Value6
+							      >=7:
+							         7:Value7, 8:Value8
+							   >=9:
+							      < 11:
+							         9:Value9, 10:Value10
+							      >=11:
+							         11:Value11, 12:Value12
+							>=13:
+							   < 17:
+							      < 15:
+							         13:Value13, 14:Value14
+							      >=15:
+							         15:Value15, 16:Value16
+							   >=17:
+							      < 19:
+							         17:Value17, 18:Value18
+							      >=19:
+							         19:Value19, 20:Value20""",
 						committed.toString()
 					);
 
@@ -550,16 +625,16 @@ class TransactionalObjectBPlusTreeTest {
 					verifyTreeConsistency(committed, 14, 15, 17, 20, 23, 25);
 					assertEquals(
 						"""
-						< 20:
-						   < 17:
-						      14:Value14, 15:Value15
-						   >=17:
-						      17:Value17
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 20:
+							   < 17:
+							      14:Value14, 15:Value15
+							   >=17:
+							      17:Value17
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 					theCommittedTree.set(committed);
@@ -574,16 +649,16 @@ class TransactionalObjectBPlusTreeTest {
 
 					assertEquals(
 						"""
-						< 20:
-						   < 15:
-						      14:Value14
-						   >=15:
-						      15:Value15
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 20:
+							   < 15:
+							      14:Value14
+							   >=15:
+							      15:Value15
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 				}
@@ -619,23 +694,23 @@ class TransactionalObjectBPlusTreeTest {
 
 					assertEquals(
 						"""
-						< 17:
-						   < 12:
-						      10:Value10, 11:Value11
-						   >=12:
-						      12:Value12, 14:Value14
-						   >=15:
-						      15:Value15, 16:Value16
-						>=17:
-						   < 18:
-						      17:Value17
-						   >=18:
-						      18:Value18, 19:Value19
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 17:
+							   < 12:
+							      10:Value10, 11:Value11
+							   >=12:
+							      12:Value12, 14:Value14
+							   >=15:
+							      15:Value15, 16:Value16
+							>=17:
+							   < 18:
+							      17:Value17
+							   >=18:
+							      18:Value18, 19:Value19
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 
@@ -660,23 +735,23 @@ class TransactionalObjectBPlusTreeTest {
 
 					assertEquals(
 						"""
-						< 17:
-						   < 14:
-						      12:Value12
-						   >=14:
-						      14:Value14
-						   >=15:
-						      15:Value15, 16:Value16
-						>=17:
-						   < 18:
-						      17:Value17
-						   >=18:
-						      18:Value18, 19:Value19
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 17:
+							   < 14:
+							      12:Value12
+							   >=14:
+							      14:Value14
+							   >=15:
+							      15:Value15, 16:Value16
+							>=17:
+							   < 18:
+							      17:Value17
+							   >=18:
+							      18:Value18, 19:Value19
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 				}
@@ -710,23 +785,23 @@ class TransactionalObjectBPlusTreeTest {
 					verifyTreeConsistency(committed, 11, 12, 14, 15, 16, 17, 18, 19, 20, 23, 25);
 					assertEquals(
 						"""
-						< 17:
-						   < 12:
-						      11:Value11
-						   >=12:
-						      12:Value12, 14:Value14
-						   >=15:
-						      15:Value15, 16:Value16
-						>=17:
-						   < 18:
-						      17:Value17
-						   >=18:
-						      18:Value18, 19:Value19
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 17:
+							   < 12:
+							      11:Value11
+							   >=12:
+							      12:Value12, 14:Value14
+							   >=15:
+							      15:Value15, 16:Value16
+							>=17:
+							   < 18:
+							      17:Value17
+							   >=18:
+							      18:Value18, 19:Value19
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 
@@ -750,23 +825,23 @@ class TransactionalObjectBPlusTreeTest {
 					verifyTreeConsistency(committed, 11, 12, 14, 17, 18, 19, 20, 23, 25);
 					assertEquals(
 						"""
-						< 17:
-						   < 12:
-						      11:Value11
-						   >=12:
-						      12:Value12
-						   >=14:
-						      14:Value14
-						>=17:
-						   < 18:
-						      17:Value17
-						   >=18:
-						      18:Value18, 19:Value19
-						>=20:
-						   < 23:
-						      20:Value20
-						   >=23:
-						      23:Value23, 25:Value25""",
+							< 17:
+							   < 12:
+							      11:Value11
+							   >=12:
+							      12:Value12
+							   >=14:
+							      14:Value14
+							>=17:
+							   < 18:
+							      17:Value17
+							   >=18:
+							      18:Value18, 19:Value19
+							>=20:
+							   < 23:
+							      20:Value20
+							   >=23:
+							      23:Value23, 25:Value25""",
 						committed.toString()
 					);
 				}
@@ -778,6 +853,92 @@ class TransactionalObjectBPlusTreeTest {
 	@Nested
 	@DisplayName("Rebalancing - merge operations")
 	class MergeOperationsTest {
+
+		/**
+		 * Builds an internal node with no children (peek == -1), the degenerate shape the merge methods
+		 * must reject. The node is created via the copy constructor with an empty range.
+		 *
+		 * @return an empty internal node
+		 */
+		@Nonnull
+		private static TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> emptyInternalNode() {
+			//noinspection unchecked
+			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer>(
+				new Integer[3], new TransactionalObjectBPlusTree.BPlusTreeNode[4], 0, 0, 0, 0, Integer.class, true
+			);
+		}
+
+		/**
+		 * Builds a single-element leaf node carrying the given key with a matching string value.
+		 *
+		 * @param key the key (and value suffix) to store
+		 * @return a leaf node holding exactly the one key
+		 */
+		@Nonnull
+		private static TransactionalObjectBPlusTree.BPlusLeafTreeNode<Integer, String> leaf(int key) {
+			final Integer[] keys = {key};
+			final String[] values = {"Value" + key};
+			return new TransactionalObjectBPlusTree.BPlusLeafTreeNode<>(
+				keys, values, new Integer[3], new String[3], 0, 1, true, null
+			);
+		}
+
+		/**
+		 * Builds an internal node with the given separator keys routing to the supplied children. The number
+		 * of keys must be exactly one less than the number of children.
+		 *
+		 * @param keys     the separator keys
+		 * @param children the child nodes
+		 * @return a hand-built internal node with the requested occupancy
+		 */
+		@SafeVarargs
+		@Nonnull
+		private static TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> internal(
+			@Nonnull Integer[] keys, @Nonnull TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>... children
+		) {
+			final Integer[] keyArray = new Integer[3];
+			System.arraycopy(keys, 0, keyArray, 0, keys.length);
+			//noinspection unchecked
+			final TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>[] childArray =
+				new TransactionalObjectBPlusTree.BPlusTreeNode[4];
+			System.arraycopy(children, 0, childArray, 0, children.length);
+			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<>(
+				keyArray, childArray, 0, keys.length, 0, children.length, Integer.class, true
+			);
+		}
+
+		private static void exerciseChurn(
+			int valueBlockSize, int minValueBlockSize,
+			int internalNodeBlockSize, int minInternalNodeBlockSize, long seed
+		) {
+			final Random random = new Random(seed);
+			final TransactionalObjectBPlusTree<Integer, String> tree = new TransactionalObjectBPlusTree<>(
+				valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize,
+				Integer.class, String.class
+			);
+			final TreeMap<Integer, String> reference = new TreeMap<>();
+			final int range = 200;
+			for (int op = 0; op < 1500; op++) {
+				final int key = random.nextInt(range);
+				final boolean delete = reference.size() > 40
+					? random.nextInt(4) > 0
+					: random.nextBoolean();
+				if (delete) {
+					tree.delete(key);
+					reference.remove(key);
+				} else {
+					tree.insert(key, "Value" + key);
+					reference.put(key, "Value" + key);
+				}
+				final ConsistencyReport report = tree.getConsistencyReport();
+				assertEquals(
+					ConsistencyState.CONSISTENT, report.state(),
+					"Inconsistent at vbs=" + valueBlockSize + " mvbs=" + minValueBlockSize +
+						" ibs=" + internalNodeBlockSize + " mibs=" + minInternalNodeBlockSize +
+						" seed=" + seed + " op=" + op + ": " + report.report()
+				);
+			}
+		}
 
 		@Test
 		@DisplayName("merges with left sibling node")
@@ -844,6 +1005,57 @@ class TransactionalObjectBPlusTreeTest {
 			tree = deleteAndVerify(tree, expectedArray, 26);
 			tree = deleteAndVerify(tree, expectedArray, 27);
 			deleteAndVerify(tree, expectedArray, 30);
+		}
+
+		@Test
+		@DisplayName("rejects merging the left sibling into an empty internal node")
+		void shouldRejectMergeWithLeftIntoEmptyInternalNode() {
+			// the rebalancer never drives a non-root internal node to zero children before merging it (a
+			// single-child node is collapsed first), so the merge methods assume at least one child is
+			// present; calling them on an empty node must fail loudly instead of corrupting the arrays
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> empty = emptyInternalNode();
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> sibling =
+				internal(new Integer[]{2}, leaf(1), leaf(2));
+
+			assertThrows(GenericEvitaInternalError.class, () -> empty.mergeWithLeft(sibling));
+		}
+
+		@Test
+		@DisplayName("rejects merging the right sibling into an empty internal node")
+		void shouldRejectMergeWithRightIntoEmptyInternalNode() {
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> empty = emptyInternalNode();
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> sibling =
+				internal(new Integer[]{2}, leaf(1), leaf(2));
+
+			assertThrows(GenericEvitaInternalError.class, () -> empty.mergeWithRight(sibling));
+		}
+
+		@Test
+		@DisplayName("survives heavy randomized churn across many block-size configurations")
+		void shouldSurviveRandomizedChurnAcrossConfigurations() {
+			// internal nodes are physically sized by valueBlockSize, so only internalNodeBlockSize <=
+			// valueBlockSize is structurally valid; exercise a broad matrix of valid configurations with
+			// long delete-biased churn and assert no exception and CONSISTENT state after every operation
+			final int[] blockSizes = {3, 5, 7, 9};
+			for (int valueBlockSize : blockSizes) {
+				final int maxMinValue = (int) Math.ceil((float) valueBlockSize / 2.0) - 1;
+				for (int minValueBlockSize = 1; minValueBlockSize <= maxMinValue; minValueBlockSize++) {
+					for (int internalNodeBlockSize : blockSizes) {
+						if (internalNodeBlockSize > valueBlockSize) {
+							continue;
+						}
+						final int maxMinInternal = (int) Math.ceil((float) internalNodeBlockSize / 2.0) - 1;
+						for (int minInternalNodeBlockSize = 1; minInternalNodeBlockSize <= maxMinInternal; minInternalNodeBlockSize++) {
+							for (long seed = 0; seed < 5; seed++) {
+								exerciseChurn(
+									valueBlockSize, minValueBlockSize,
+									internalNodeBlockSize, minInternalNodeBlockSize, seed
+								);
+							}
+						}
+					}
+				}
+			}
 		}
 
 	}
@@ -1001,6 +1213,52 @@ class TransactionalObjectBPlusTreeTest {
 			assertEquals(keys.length, count);
 		}
 
+		@Test
+		@DisplayName("iterates values when start key falls in the gap after the last key of a leaf")
+		void shouldIterateFromKeyInGapBetweenLeaves() {
+			// build a tree whose leaves are [10,20,30] | [50,60] so that key 40 lands past the
+			// last key of the first leaf while a non-empty following leaf still holds keys >= 40
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			final int[] keys = {10, 20, 30, 50, 60};
+			for (final int key : keys) {
+				tree.insert(key, "Value" + key);
+			}
+
+			final Iterator<String> it = tree.greaterOrEqualValueIterator(40);
+			final String[] reconstructed = new String[2];
+			int index = 0;
+			while (it.hasNext()) {
+				reconstructed[index++] = it.next();
+			}
+
+			assertArrayEquals(new String[]{"Value50", "Value60"}, reconstructed);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("matches sorted reference for arbitrary gap start keys across many leaves")
+		void shouldMatchReferenceForGapStartKeys() {
+			final TreeTuple testTree = prepareRandomTree(913, 200);
+			final int[] keys = testTree.plainArray();
+
+			// probe every possible start key from below the minimum to above the maximum
+			for (int startKey = keys[0] - 2; startKey <= keys[keys.length - 1] + 2; startKey++) {
+				final InsertionPosition position = ArrayUtils.computeInsertPositionOfIntInOrderedArray(startKey, keys);
+				final int from = position.position();
+
+				final Iterator<String> it = testTree.bPlusTree().greaterOrEqualValueIterator(startKey);
+				int index = from;
+				while (it.hasNext()) {
+					assertTrue(
+						index < keys.length, "Iterator returned more elements than reference for key " + startKey);
+					assertEquals("Value" + keys[index], it.next(), "Mismatch at key " + startKey + ", index " + index);
+					index++;
+				}
+				assertEquals(keys.length, index, "Iterator stopped early for start key " + startKey);
+			}
+		}
+
 	}
 
 	@Nested
@@ -1049,6 +1307,62 @@ class TransactionalObjectBPlusTreeTest {
 			assertEquals(179, it3.next());
 		}
 
+		@Test
+		@DisplayName("iterates all keys in ascending order")
+		void shouldIterateAllKeysLeftToRight() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+
+			final Iterator<Integer> it = testTree.bPlusTree().keyIterator();
+			int index = 0;
+			while (it.hasNext()) {
+				assertTrue(index < keys.length, "Iterator returned more keys than expected");
+				assertEquals(keys[index], (int) it.next());
+				index++;
+			}
+			assertEquals(keys.length, index);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates full tree from minimum key inclusive")
+		void shouldIterateFullTreeFromMinKey() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+			final int minKey = keys[0];
+
+			final Iterator<Integer> it = testTree.bPlusTree().greaterOrEqualKeyIterator(minKey);
+			int count = 0;
+			while (it.hasNext()) {
+				it.next();
+				count++;
+			}
+			assertEquals(keys.length, count);
+		}
+
+		@Test
+		@DisplayName("returns empty key iterator on empty tree")
+		void shouldReturnEmptyKeyIteratorOnEmptyTree() {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			final Iterator<Integer> it = tree.keyIterator();
+			assertFalse(it.hasNext());
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates single key on single-element tree")
+		void shouldIterateKeyOnSingleElementTree() {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			tree.insert(42, "Value42");
+
+			final Iterator<Integer> it = tree.keyIterator();
+			assertTrue(it.hasNext());
+			assertEquals(42, it.next());
+			assertFalse(it.hasNext());
+		}
+
 	}
 
 	@Nested
@@ -1089,6 +1403,34 @@ class TransactionalObjectBPlusTreeTest {
 			final TreeTuple testTree = prepareRandomTree(42, 100);
 			final Iterator<Entry<Integer, String>> it = testTree.bPlusTree().greaterOrEqualEntryIterator(1000);
 			assertFalse(it.hasNext());
+		}
+
+		@Test
+		@DisplayName("traverses full tree key and value pairs in ascending order")
+		void shouldIterateEntireTreeViaEntryIterator() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+
+			final Iterator<Entry<Integer, String>> it = testTree.bPlusTree().entryIterator();
+			int index = 0;
+			while (it.hasNext()) {
+				final Entry<Integer, String> entry = it.next();
+				assertEquals(keys[index], (int) entry.key());
+				assertEquals("Value" + keys[index], entry.value());
+				index++;
+			}
+			assertEquals(keys.length, index);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("returns empty entry iterator on empty tree")
+		void shouldReturnEmptyEntryIteratorOnEmptyTree() {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			final Iterator<Entry<Integer, String>> it = tree.entryIterator();
+			assertFalse(it.hasNext());
+			assertThrows(NoSuchElementException.class, it::next);
 		}
 
 	}
@@ -1282,6 +1624,61 @@ class TransactionalObjectBPlusTreeTest {
 			assertFalse(it.hasNext());
 		}
 
+		@Test
+		@DisplayName("iterates all keys in descending order")
+		void shouldIterateAllKeysRightToLeft() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+
+			final Iterator<Integer> it = testTree.bPlusTree().keyReverseIterator();
+			int index = keys.length;
+			while (it.hasNext()) {
+				assertTrue(index > 0, "Iterator returned more keys than expected");
+				assertEquals(keys[--index], (int) it.next());
+			}
+			assertEquals(0, index);
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates full tree in reverse from maximum key inclusive")
+		void shouldIterateFullTreeInReverseFromMaxKey() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] keys = testTree.plainArray();
+			final int maxKey = keys[keys.length - 1];
+
+			final Iterator<Integer> it = testTree.bPlusTree().lesserOrEqualKeyIterator(maxKey);
+			int count = 0;
+			while (it.hasNext()) {
+				it.next();
+				count++;
+			}
+			assertEquals(keys.length, count);
+		}
+
+		@Test
+		@DisplayName("returns empty reverse key iterator on empty tree")
+		void shouldReturnEmptyKeyReverseIteratorOnEmptyTree() {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			final Iterator<Integer> it = tree.keyReverseIterator();
+			assertFalse(it.hasNext());
+			assertThrows(NoSuchElementException.class, it::next);
+		}
+
+		@Test
+		@DisplayName("iterates single key on single-element tree")
+		void shouldIterateKeyReverseOnSingleElementTree() {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			tree.insert(42, "Value42");
+
+			final Iterator<Integer> it = tree.keyReverseIterator();
+			assertTrue(it.hasNext());
+			assertEquals(42, it.next());
+			assertFalse(it.hasNext());
+		}
+
 	}
 
 	@Nested
@@ -1435,11 +1832,148 @@ class TransactionalObjectBPlusTreeTest {
 			);
 		}
 
+		@Test
+		@DisplayName("commit succeeds when a transaction splits then merges nodes under a fresh parent")
+		void shouldCommitWhenMergeHappensUnderSplitCreatedParent() {
+			// grow a tree large enough to have several internal levels, then within a single transaction
+			// trigger node splits (which create internal nodes that do not yet participate in STM) followed
+			// by deletes that force the just-created leaves to merge with their siblings - the merged-away
+			// leaf still carries a transactional layer that the commit walk must not leave stale
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, 1, 3, 1, Integer.class, String.class);
+			final TreeMap<Integer, String> reference = new TreeMap<>();
+			for (int i = 0; i < 30; i++) {
+				tree.insert(i, "Value" + i);
+				reference.put(i, "Value" + i);
+			}
+
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// insertions to provoke splits inside the transaction
+					for (int i = 100; i < 116; i++) {
+						tested.insert(i, "Value" + i);
+						reference.put(i, "Value" + i);
+					}
+					// deletions to provoke merges of the freshly created leaves
+					for (int i = 100; i < 116; i++) {
+						tested.delete(i);
+						reference.remove(i);
+					}
+					for (int i = 0; i < 20; i++) {
+						tested.delete(i);
+						reference.remove(i);
+					}
+				},
+				(original, committed) -> {
+					final ConsistencyReport report = committed.getConsistencyReport();
+					assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+
+					final String[] expectedValues = reference.values().toArray(new String[0]);
+					final String[] actualValues = new String[expectedValues.length];
+					int index = 0;
+					final Iterator<String> it = committed.valueIterator();
+					while (it.hasNext()) {
+						actualValues[index++] = it.next();
+					}
+					assertEquals(expectedValues.length, index);
+					assertArrayEquals(expectedValues, actualValues);
+					assertEquals(reference.size(), committed.size());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("commit of split- and merge-heavy transaction matches non-transactional application")
+		void shouldMatchNonTransactionalApplicationAfterSplitAndMergeHeavyCommit() {
+			for (long currentSeed = 0; currentSeed < 25; currentSeed++) {
+				final long seed = currentSeed;
+				final Random random = new Random(seed);
+
+				// seed a tree with a handful of keys (non-transactional), mirror it into a sorted reference
+				final TransactionalObjectBPlusTree<Integer, String> tree =
+					new TransactionalObjectBPlusTree<>(3, 1, 3, 1, Integer.class, String.class);
+				final TreeMap<Integer, String> reference = new TreeMap<>();
+				for (int i = 0; i < 8; i++) {
+					final int key = random.nextInt(40);
+					tree.insert(key, "Value" + key);
+					reference.put(key, "Value" + key);
+				}
+
+				// record the exact operation sequence so it can be replayed deterministically
+				final int[] ops = new int[60];
+				final int[] opKeys = new int[60];
+				for (int i = 0; i < ops.length; i++) {
+					ops[i] = random.nextInt(3);
+					opKeys[i] = random.nextInt(40);
+				}
+
+				assertStateAfterCommit(
+					tree,
+					tested -> {
+						for (int i = 0; i < ops.length; i++) {
+							final int key = opKeys[i];
+							switch (ops[i]) {
+								case 0 -> {
+									tested.insert(key, "Value" + key);
+									reference.put(key, "Value" + key);
+								}
+								case 1 -> {
+									tested.delete(key);
+									reference.remove(key);
+								}
+								default -> {
+									tested.upsert(key, existing -> "Value" + key);
+									reference.put(key, "Value" + key);
+								}
+							}
+						}
+					},
+					(original, committed) -> {
+						final ConsistencyReport report = committed.getConsistencyReport();
+						assertEquals(
+							ConsistencyState.CONSISTENT, report.state(),
+							"Committed tree inconsistent for seed " + seed + ": " + report.report()
+						);
+
+						final int[] expectedKeys = reference.keySet().stream().mapToInt(Integer::intValue).toArray();
+						final String[] expectedValues = reference.values().toArray(new String[0]);
+
+						final String[] actualValues = new String[expectedValues.length];
+						int index = 0;
+						final Iterator<String> it = committed.valueIterator();
+						while (it.hasNext()) {
+							assertTrue(index < expectedValues.length, "Too many values for seed " + seed);
+							actualValues[index++] = it.next();
+						}
+						assertEquals(expectedValues.length, index, "Value count mismatch for seed " + seed);
+						assertArrayEquals(expectedValues, actualValues, "Value mismatch for seed " + seed);
+						assertEquals(expectedKeys.length, committed.size(), "Size mismatch for seed " + seed);
+						for (final int key : expectedKeys) {
+							assertEquals(
+								reference.get(key), committed.search(key).orElse(null),
+								"Search mismatch at key " + key + " for seed " + seed
+							);
+						}
+					}
+				);
+			}
+		}
+
 	}
 
 	@Nested
 	@DisplayName("Tree structure visualization")
 	class TreeStructureTest {
+
+		@Test
+		@DisplayName("prints empty leaf representation for empty tree")
+		void shouldPrintEmptyTree() {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			// empty leaf node has no key:value pairs, so the representation is empty
+			assertEquals("", tree.toString());
+		}
 
 		@Test
 		@DisplayName("prints simple two-element tree")
@@ -1488,12 +2022,12 @@ class TransactionalObjectBPlusTreeTest {
 
 					assertEquals(
 						"""
-						< 2:
-						   1:Value1
-						>=2:
-						   2:Value2
-						>=3:
-						   3:Value3, 4:Value4""",
+							< 2:
+							   1:Value1
+							>=2:
+							   2:Value2
+							>=3:
+							   3:Value3, 4:Value4""",
 						committed.toString()
 					);
 
@@ -1531,6 +2065,26 @@ class TransactionalObjectBPlusTreeTest {
 		}
 
 		@Test
+		@DisplayName("rejects internal node block size larger than value block size")
+		void shouldRejectInternalNodeBlockSizeLargerThanValueBlockSize() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new TransactionalObjectBPlusTree<>(3, 1, 5, 2, Integer.class, String.class)
+			);
+		}
+
+		@Test
+		@DisplayName("accepts internal node block size equal to value block size")
+		void shouldAcceptInternalNodeBlockSizeEqualToValueBlockSize() {
+			assertDoesNotThrow(
+				() -> new TransactionalObjectBPlusTree<>(3, 1, 3, 1, Integer.class, String.class)
+			);
+			assertDoesNotThrow(
+				() -> new TransactionalObjectBPlusTree<>(3, Integer.class, String.class)
+			);
+		}
+
+		@Test
 		@DisplayName("returns zero size for newly created tree")
 		void shouldReturnZeroSizeForEmptyTree() {
 			final TransactionalObjectBPlusTree<Integer, String> tree =
@@ -1547,36 +2101,137 @@ class TransactionalObjectBPlusTreeTest {
 			assertEquals(ConsistencyState.CONSISTENT, report.state());
 		}
 
+		@Test
+		@DisplayName("genericClass returns the raw tree class")
+		void shouldReturnCorrectGenericClass() {
+			final Class<TransactionalObjectBPlusTree<Integer, String>> theClass =
+				TransactionalObjectBPlusTree.genericClass();
+			assertSame(TransactionalObjectBPlusTree.class, theClass);
+		}
+
 	}
 
-	/**
-	 * Holds a reference to a B+ tree together with the plain sorted integer key array that mirrors its contents.
-	 *
-	 * @param bPlusTree  the B+ tree
-	 * @param plainArray the sorted key array
-	 */
-	private record TreeTuple(
-		@Nonnull TransactionalObjectBPlusTree<Integer, String> bPlusTree,
-		@Nonnull int[] plainArray
-	) {
+	@Nested
+	@DisplayName("Consistency oracle")
+	class ConsistencyOracleTest {
 
 		/**
-		 * Returns the total number of elements in the tree.
+		 * Replaces the root and element count of the tree via reflection so a hand-built node structure can be
+		 * fed to the consistency oracle. This is the only way to exercise occupancy invariants on a node shape
+		 * that the rebalancer never produces on its own.
+		 *
+		 * @param tree the tree whose internal state is replaced
+		 * @param root the root node to install
+		 * @param size the element count to report
 		 */
-		public int totalElements() {
-			return this.plainArray.length;
+		@SuppressWarnings("unchecked")
+		private static void installRoot(
+			@Nonnull TransactionalObjectBPlusTree<Integer, String> tree,
+			@Nonnull TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?> root,
+			int size
+		) {
+			try {
+				final Field rootField = TransactionalObjectBPlusTree.class.getDeclaredField("root");
+				rootField.setAccessible(true);
+				((TransactionalReference<TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>>)
+					rootField.get(tree)).set(root);
+				final Field sizeField = TransactionalObjectBPlusTree.class.getDeclaredField("size");
+				sizeField.setAccessible(true);
+				((TransactionalReference<Integer>) sizeField.get(tree)).set(size);
+			} catch (ReflectiveOperationException e) {
+				throw new AssertionError("Unable to install hand-built root", e);
+			}
 		}
 
 		/**
-		 * Returns the key array converted to value strings.
+		 * Builds a single-element leaf node carrying the given key with a matching string value.
+		 *
+		 * @param key the key (and value suffix) to store
+		 * @return a leaf node holding exactly the one key
 		 */
 		@Nonnull
-		public String[] asStringArray() {
-			final String[] plainArrayAsString = new String[this.plainArray.length];
-			for (int i = 0; i < this.plainArray.length; i++) {
-				plainArrayAsString[i] = "Value" + this.plainArray[i];
-			}
-			return plainArrayAsString;
+		private static TransactionalObjectBPlusTree.BPlusLeafTreeNode<Integer, String> leaf(int key) {
+			final Integer[] keys = {key};
+			final String[] values = {"Value" + key};
+			return new TransactionalObjectBPlusTree.BPlusLeafTreeNode<>(
+				keys, values, new Integer[3], new String[3], 0, 1, true, null
+			);
+		}
+
+		/**
+		 * Builds an internal node with the given separator keys routing to the supplied children. The number
+		 * of keys must be exactly one less than the number of children.
+		 *
+		 * @param keys     the separator keys
+		 * @param children the child nodes
+		 * @return a hand-built internal node with the requested occupancy
+		 */
+		@SafeVarargs
+		@Nonnull
+		private static TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> internal(
+			@Nonnull Integer[] keys, @Nonnull TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>... children
+		) {
+			final Integer[] keyArray = new Integer[3];
+			System.arraycopy(keys, 0, keyArray, 0, keys.length);
+			//noinspection unchecked
+			final TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>[] childArray =
+				new TransactionalObjectBPlusTree.BPlusTreeNode[4];
+			System.arraycopy(children, 0, childArray, 0, children.length);
+			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<>(
+				keyArray, childArray, 0, keys.length, 0, children.length, Integer.class, true
+			);
+		}
+
+		@Test
+		@DisplayName("flags a non-root internal node that holds fewer keys than the minimum")
+		void shouldReportBrokenWhenInternalNodeHasTooFewKeys() {
+			// minInternalNodeBlockSize = 2 means every non-root internal node must carry at least 2 keys
+			// (3 children); a node with a single key (2 children) is under-occupied even though its child
+			// count (2) is not below the minimum - the occupancy invariant is on keys, not children
+			// (valueBlockSize must be >= internalNodeBlockSize, so it is raised to 5 to keep the
+			// internal-node configuration valid)
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(5, 1, 5, 2, Integer.class, String.class);
+
+			// under-occupied internal node: 2 children -> 1 key (keyCount 1 < minInternalNodeBlockSize 2),
+			// yet size 2 satisfies the lenient child-count check
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> underOccupied =
+				internal(new Integer[]{2}, leaf(1), leaf(2));
+			// properly occupied internal node: 3 children -> 2 keys (keyCount 2 == minimum)
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> wellOccupied =
+				internal(new Integer[]{4, 5}, leaf(3), leaf(4), leaf(5));
+
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> root =
+				internal(new Integer[]{3}, underOccupied, wellOccupied);
+
+			installRoot(tree, root, 5);
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.BROKEN, report.state(), report.report());
+		}
+
+		@Test
+		@DisplayName("accepts a non-root internal node that meets the minimum key count")
+		void shouldReportConsistentWhenInternalNodeMeetsMinimum() {
+			// counter-check that the tightened oracle does not flag a legitimately-occupied internal node
+			// (valueBlockSize must be >= internalNodeBlockSize, so it is raised to 5 to keep the
+			// internal-node configuration valid)
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(5, 1, 5, 2, Integer.class, String.class);
+
+			// both children carry the minimum of 2 keys (3 leaves each)
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> left =
+				internal(new Integer[]{2, 3}, leaf(1), leaf(2), leaf(3));
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> right =
+				internal(new Integer[]{5, 6}, leaf(4), leaf(5), leaf(6));
+
+			final TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> root =
+				internal(new Integer[]{4}, left, right);
+
+			installRoot(tree, root, 6);
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
 		}
 
 	}
@@ -1601,45 +2256,6 @@ class TransactionalObjectBPlusTreeTest {
 			assertEquals(id2, tree2.getId());
 			// ids are unique across instances
 			assertNotEquals(id1, id2);
-		}
-
-		@Test
-		@DisplayName("preserves baseline of pre-populated tree after commit")
-		void shouldPreserveBaselineAfterCommitOnPrePopulatedTree() {
-			final TreeTuple testTree = prepareRandomTree(42, 50);
-			final int[] originalArray = testTree.plainArray();
-
-			assertStateAfterCommit(
-				testTree.bPlusTree(),
-				tested -> tested.insert(9999, "Value9999"),
-				(original, committed) -> {
-					// original baseline unchanged
-					verifyTreeConsistency(original, originalArray);
-					assertEquals(originalArray.length, original.size());
-					// committed reflects the new insert
-					assertEquals(originalArray.length + 1, committed.size());
-					assertEquals("Value9999", committed.search(9999).orElse(null));
-				}
-			);
-		}
-
-		@Test
-		@DisplayName("removeLayer delegates to maintainer")
-		void shouldRemoveLayerCleaningNestedReferences() {
-			final TransactionalObjectBPlusTree<Integer, String> tree =
-				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
-
-			// removeLayer requires a TransactionalLayerMaintainer
-			// verify it does not throw when called correctly
-			assertStateAfterCommit(
-				tree,
-				tested -> tested.insert(1, "Value1"),
-				(original, committed) -> {
-					// after commit, the original tree is still accessible
-					assertEquals(0, original.size());
-					assertEquals(1, committed.size());
-				}
-			);
 		}
 
 		@Test
@@ -1931,112 +2547,6 @@ class TransactionalObjectBPlusTreeTest {
 			);
 		}
 
-		@Test
-		@DisplayName("keyIterator on empty tree has no elements")
-		void shouldReturnEmptyKeyIteratorOnEmptyTree() {
-			final TransactionalObjectBPlusTree<Integer, String> tree =
-				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
-			final Iterator<Integer> it = tree.keyIterator();
-			assertFalse(it.hasNext());
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("keyReverseIterator on empty tree has no elements")
-		void shouldReturnEmptyKeyReverseIteratorOnEmptyTree() {
-			final TransactionalObjectBPlusTree<Integer, String> tree =
-				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
-			final Iterator<Integer> it = tree.keyReverseIterator();
-			assertFalse(it.hasNext());
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("entryIterator on empty tree has no elements")
-		void shouldReturnEmptyEntryIteratorOnEmptyTree() {
-			final TransactionalObjectBPlusTree<Integer, String> tree =
-				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
-			final Iterator<Entry<Integer, String>> it = tree.entryIterator();
-			assertFalse(it.hasNext());
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("entryIterator traverses full tree left to right")
-		void shouldIterateEntireTreeViaEntryIterator() {
-			final TreeTuple testTree = prepareRandomTree(42, 50);
-			final int[] keys = testTree.plainArray();
-
-			final Iterator<Entry<Integer, String>> it = testTree.bPlusTree().entryIterator();
-			int index = 0;
-			while (it.hasNext()) {
-				final Entry<Integer, String> entry = it.next();
-				assertEquals(keys[index], (int) entry.key());
-				assertEquals("Value" + keys[index], entry.value());
-				index++;
-			}
-			assertEquals(keys.length, index);
-			assertThrows(NoSuchElementException.class, it::next);
-		}
-
-		@Test
-		@DisplayName("greaterOrEqualKeyIterator from minimum key iterates full tree")
-		void shouldIterateFullTreeFromMinKey() {
-			final TreeTuple testTree = prepareRandomTree(42, 50);
-			final int[] keys = testTree.plainArray();
-			final int minKey = keys[0];
-
-			final Iterator<Integer> it = testTree.bPlusTree().greaterOrEqualKeyIterator(minKey);
-			int count = 0;
-			while (it.hasNext()) {
-				it.next();
-				count++;
-			}
-			assertEquals(keys.length, count);
-		}
-
-		@Test
-		@DisplayName("lesserOrEqualKeyIterator from maximum key iterates full tree in reverse")
-		void shouldIterateFullTreeInReverseFromMaxKey() {
-			final TreeTuple testTree = prepareRandomTree(42, 50);
-			final int[] keys = testTree.plainArray();
-			final int maxKey = keys[keys.length - 1];
-
-			final Iterator<Integer> it = testTree.bPlusTree().lesserOrEqualKeyIterator(maxKey);
-			int count = 0;
-			while (it.hasNext()) {
-				it.next();
-				count++;
-			}
-			assertEquals(keys.length, count);
-		}
-
-		@Test
-		@DisplayName("keyIterator on single-element tree returns one key")
-		void shouldIterateKeyOnSingleElementTree() {
-			final TransactionalObjectBPlusTree<Integer, String> tree =
-				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
-			tree.insert(42, "Value42");
-
-			final Iterator<Integer> it = tree.keyIterator();
-			assertTrue(it.hasNext());
-			assertEquals(42, it.next());
-			assertFalse(it.hasNext());
-		}
-
-		@Test
-		@DisplayName("keyReverseIterator on single-element tree returns one key")
-		void shouldIterateKeyReverseOnSingleElementTree() {
-			final TransactionalObjectBPlusTree<Integer, String> tree =
-				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
-			tree.insert(42, "Value42");
-
-			final Iterator<Integer> it = tree.keyReverseIterator();
-			assertTrue(it.hasNext());
-			assertEquals(42, it.next());
-			assertFalse(it.hasNext());
-		}
-
 	}
 
 	@Nested
@@ -2158,66 +2668,5 @@ class TransactionalObjectBPlusTreeTest {
 		}
 
 	}
-
-	@Nested
-	@DisplayName("Miscellaneous")
-	class MiscellaneousTest {
-
-		@Test
-		@DisplayName("toString on empty tree returns empty leaf representation")
-		void shouldPrintEmptyTree() {
-			final TransactionalObjectBPlusTree<Integer, String> tree =
-				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
-			final String result = tree.toString();
-			// empty leaf node has no key:value pairs, so result should be empty
-			assertEquals("", result);
-		}
-
-		@Test
-		@DisplayName("genericClass returns TransactionalObjectBPlusTree.class")
-		void shouldReturnCorrectGenericClass() {
-			final Class<TransactionalObjectBPlusTree<Integer, String>> theClass = TransactionalObjectBPlusTree.genericClass();
-			assertEquals(TransactionalObjectBPlusTree.class, theClass);
-		}
-
-	}
-
-	/**
-	 * A test-only key class that implements both `Comparable` and `TransactionalLayerProducer`, used to verify that
-	 * the constructor rejects such key types.
-	 */
-	private static class TransactionalComparableKey
-		implements Comparable<TransactionalComparableKey>,
-		TransactionalLayerProducer<Void, TransactionalComparableKey> {
-
-		@Override
-		public int compareTo(@Nonnull TransactionalComparableKey o) {
-			return 0;
-		}
-
-		@Override
-		public long getId() {
-			return 0;
-		}
-
-		@Nullable
-		@Override
-		public Void createLayer() {
-			return null;
-		}
-
-		@Override
-		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			// no-op
-		}
-
-		@Nonnull
-		@Override
-		public TransactionalComparableKey createCopyWithMergedTransactionalMemory(
-			@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-			return this;
-		}
-	}
-
 
 }
