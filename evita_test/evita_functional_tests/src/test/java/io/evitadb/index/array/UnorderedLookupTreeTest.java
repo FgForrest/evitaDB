@@ -254,6 +254,31 @@ class UnorderedLookupTreeTest {
 	}
 
 	@Test
+	void shouldBulkLoadLargeArrayAndStayConsistent() {
+		// builds several internal levels bottom-up; then mutate to prove the bulk-built tree behaves like any other
+		final int count = UnorderedLookupTree.BLOCK_SIZE * UnorderedLookupTree.BLOCK_SIZE * 4;
+		final int[] input = new int[count];
+		final List<Integer> oracle = new ArrayList<>(count);
+		for (int i = 0; i < count; i++) {
+			input[i] = 1_000_000 - i;
+			oracle.add(input[i]);
+		}
+		final UnorderedLookupTree tested = new UnorderedLookupTree(input);
+		assertConsistentWithOracle(tested, oracle);
+		// remove a scattered third and reinsert at head to exercise post-bulk-load splits/collapses
+		final Random random = new Random(99);
+		for (int i = 0; i < count / 3; i++) {
+			final int idx = random.nextInt(oracle.size());
+			tested.removeRecord(oracle.remove(idx));
+		}
+		for (int i = 0; i < 500; i++) {
+			tested.addRecord(Integer.MIN_VALUE, 2_000_000 + i);
+			oracle.add(0, 2_000_000 + i);
+		}
+		assertConsistentWithOracle(tested, oracle);
+	}
+
+	@Test
 	void shouldStayConsistentWhenOrderKeyGapExhausts() {
 		// a tiny order-key gap forces repeated re-spacing as the leftmost region keeps splitting under head inserts
 		final UnorderedLookupTree tested = new UnorderedLookupTree(4L);

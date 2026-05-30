@@ -133,10 +133,8 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 	public UnorderedLookupTree(@Nonnull int[] unorderedArray) {
 		this(DEFAULT_ORDER_KEY_GAP);
-		// sequential append - O(N log N), allocates only small node blocks (no humongous temporaries)
-		for (int i = 0; i < unorderedArray.length; i++) {
-			insertAt(i, unorderedArray[i]);
-		}
+		// bottom-up bulk build - O(N), ~100% container fill, no humongous temporaries
+		bulkLoad(unorderedArray);
 	}
 
 	/**
@@ -351,6 +349,81 @@ public class UnorderedLookupTree implements Serializable {
 	/*
 		PRIVATE METHODS
 	 */
+
+	/**
+	 * Builds the whole tree bottom-up from an array of record ids in logical order: packs the records into
+	 * fully-filled containers with evenly spaced order-keys, then builds each internal level by grouping the level
+	 * below into nodes of up to {@link #BLOCK_SIZE} children (distributed evenly so no node is left with a single
+	 * child). `O(N)`, ~100% fill, no `O(N)`-sized temporaries.
+	 */
+	private void bulkLoad(@Nonnull int[] array) {
+		final int n = array.length;
+		if (n == 0) {
+			return;
+		}
+		// 1. pack records into containers, link them and index them
+		final int containerCount = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+		Node[] level = new Node[containerCount];
+		long[] minKeys = new long[containerCount];
+		int[] counts = new int[containerCount];
+		LeafNode previous = null;
+		int pos = 0;
+		for (int c = 0; c < containerCount; c++) {
+			final LeafNode container = new LeafNode();
+			container.orderKey = (long) c * this.orderKeyGap;
+			final int cnt = Math.min(BLOCK_SIZE, n - pos);
+			System.arraycopy(array, pos, container.recordIds, 0, cnt);
+			container.count = cnt;
+			for (int i = 0; i < cnt; i++) {
+				this.recordToLeaf.put(array[pos + i], container);
+			}
+			container.prev = previous;
+			if (previous != null) {
+				previous.next = container;
+			}
+			previous = container;
+			level[c] = container;
+			minKeys[c] = container.orderKey;
+			counts[c] = cnt;
+			pos += cnt;
+		}
+		this.size = n;
+		// 2. build internal levels bottom-up until a single root remains
+		int levelSize = containerCount;
+		while (levelSize > 1) {
+			final int parentCount = (levelSize + BLOCK_SIZE - 1) / BLOCK_SIZE;
+			final int base = levelSize / parentCount;
+			final int remainder = levelSize % parentCount;
+			final Node[] parents = new Node[parentCount];
+			final long[] parentMinKeys = new long[parentCount];
+			final int[] parentCounts = new int[parentCount];
+			int childCursor = 0;
+			for (int p = 0; p < parentCount; p++) {
+				// distribute children evenly so the tail node never ends up with a single child
+				final int childN = base + (p < remainder ? 1 : 0);
+				final InternalNode internal = new InternalNode();
+				internal.childCount = childN;
+				int subtree = 0;
+				for (int j = 0; j < childN; j++) {
+					internal.children[j] = level[childCursor + j];
+					internal.counts[j] = counts[childCursor + j];
+					subtree += counts[childCursor + j];
+					if (j >= 1) {
+						internal.separators[j - 1] = minKeys[childCursor + j];
+					}
+				}
+				parents[p] = internal;
+				parentMinKeys[p] = minKeys[childCursor];
+				parentCounts[p] = subtree;
+				childCursor += childN;
+			}
+			level = parents;
+			minKeys = parentMinKeys;
+			counts = parentCounts;
+			levelSize = parentCount;
+		}
+		this.root = level[0];
+	}
 
 	/**
 	 * Inserts `recordId` at the logical `index`, descending by position to the proper container.
