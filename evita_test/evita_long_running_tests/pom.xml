@@ -41,6 +41,12 @@
 		<maven.install.skip>true</maven.install.skip>
 		<maven.deploy.skip>true</maven.deploy.skip>
 		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
+		<!--
+			Fork heap for the long-running test JVM. Override on the command line
+			(e.g. `-DlongRunningArgLine=-Xmx55g`) for the large-dataset soak tests
+			that need more than the default heap.
+		-->
+		<longRunningArgLine>-Xmx5g</longRunningArgLine>
 	</properties>
 
 	<dependencies>
@@ -226,7 +232,7 @@
 							<skipTests>false</skipTests>
 							<parallel>all</parallel>
 							<useUnlimitedThreads>true</useUnlimitedThreads>
-							<argLine>-Xmx5g</argLine>
+							<argLine>${longRunningArgLine} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 						</configuration>
 					</plugin>
 				</plugins>
