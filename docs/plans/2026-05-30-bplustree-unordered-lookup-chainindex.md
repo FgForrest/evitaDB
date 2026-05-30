@@ -1,27 +1,32 @@
-# Count-augmented B+ tree backing for `UnorderedLookup` / `ChainIndex` — Implementation Plan
+# Two-tree (order-key coupled) B+ backing for `UnorderedLookup` / `ChainIndex` — Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use executing-plans to implement this plan task-by-task.
 
-**Goal:** Replace the dual-`int[]` backing of `io.evitadb.index.array.UnorderedLookup` (the mutable delegate behind `TransactionalUnorderedIntArray`, used by `ChainIndex`) with a **count-augmented (order-statistic) `int` B+ tree using implicit positions**, so that a single insert/remove touches only a leaf + its ancestors instead of reallocating two full-length arrays and renumbering a suffix. This removes the `O(N²)` CPU **and** the `O(N²)`-bytes / humongous-allocation GC wall that currently stalls high-cardinality chains — in **both** the warm-up (non-transactional) and transactional phases — **without degrading read performance**, which is the overriding constraint.
+**Goal:** Replace the dual-`int[]` backing of `io.evitadb.index.array.UnorderedLookup` (the mutable delegate behind `TransactionalUnorderedIntArray`, used by `ChainIndex`) with **two coordinated, count-augmented B+ trees coupled by a stable container order-key**, so that a single insert/remove touches only a root→leaf path in each tree instead of reallocating two full-length arrays and renumbering a suffix. This removes the `O(N²)` CPU **and** the `O(N²)`-bytes / humongous-allocation GC wall that currently stalls high-cardinality chains — in **both** the warm-up (non-transactional) and transactional phases — and additionally makes **commits of edits to a large chain `O(edits·log N)`** (structural sharing) instead of `O(N)` rebuild-from-array, **without degrading read performance**, which is the overriding constraint.
 
-**Architecture:** `TransactionalUnorderedIntArray` is retained as the public façade (its API is consumed across `ChainIndex`/`ChainIndexChanges`). Its internals change: the committed mutable delegate becomes a new in-place, count-augmented `int` B+ tree (working name **`UnorderedLookupTree`**); the transactional diff (`UnorderedIntArrayChanges`) is replaced by a path-copying copy-on-write layer mirroring the `TransactionalIntBPlusTree` model shipped in part A of #760. `UnorderedLookup` is retained **only as the immutable flattened snapshot DTO** (its dual `int[]` shape is the ideal read representation) that `getArray()` / `getPositions()` / `getRecordIds()` produce — and that `SortedRecordsSupplier` consumes — once per change, cached. **Reads never traverse the tree element-by-element.**
+**Architecture (two trees + order-key):** `TransactionalUnorderedIntArray` is retained as the public façade (its API is consumed across `ChainIndex`/`ChainIndexChanges`) and becomes the **composite producer** that coordinates two child `TransactionalLayerProducer` trees:
 
-**Tech Stack:** Java 17, evitaDB STM (`TransactionalLayerProducer` / `VoidTransactionMemoryProducer`), RoaringBitmap, JUnit 5 (functional + long-running generational tests). Build via Maven with toolchains (OpenJDK 17).
+1. **Value index** — a no-boxing primitive **`int`(recordId) → `long`(order-key) B+ tree** (new tree flavour). Keyed by record id (ascending), so it doubles as the source of `getRecordIds()` for free. Answers *"which container holds this record id?"*.
+2. **Position tree** — a **count-augmented (order-statistic), `long`(order-key)-keyed B+ tree** whose **leaves are containers** (each holds up to `B` record ids in logical order) and whose internal nodes carry both the separator order-keys *and* the **record-id count of each child subtree**. Answers *"what is at position k?"* (count descent) and *"what is the prefix count before this container?"* (order-key descent).
 
-**Relationship to #760 part A:** This is a sibling of `docs/plans/2026-05-30-bplustree-inverted-range-index.md` (the `InvertedIndex`/`RangeIndex` swap). It reuses the same STM patterns and the same hard-won bug fixes (composite-producer layer sweep, delete-cleanup). It is **independent in scope** — different data structure (a *position-indexed sequence*, not a *key-ordered map*), different consumer (`ChainIndex` sort providers). On-disk storage format is unchanged.
+Both trees mutate **in place** when committed (warm-up / non-transactional) and **path-copy** inside a transaction (`transactionalLayer`-flag dispatch, mirroring `TransactionalIntBPlusTree` + the part-A STM fixes). The previous `UnorderedIntArrayChanges` diff overlay is **removed** — transactional isolation now comes from the path-copying node layers of the two trees, composed by the façade. `UnorderedLookup` is retained **only as the immutable flattened snapshot DTO** that `getArray()` / `getPositions()` / `getRecordIds()` produce — and that `SortedRecordsSupplier` consumes — once per change, cached. **Reads never traverse either tree element-by-element.**
+
+**Tech Stack:** Java 17, evitaDB STM (`TransactionalLayerProducer` / `VoidTransactionMemoryProducer`), JUnit 5 (functional + long-running generational tests), `com.carrotsearch.hppc` for no-boxing primitive maps in the in-place path. Build via Maven with toolchains (OpenJDK 17).
+
+**Relationship to #760 part A:** Sibling of `docs/plans/2026-05-30-bplustree-inverted-range-index.md` (the `InvertedIndex`/`RangeIndex` swap). It reuses the same STM patterns and the same hard-won bug fixes (composite-producer layer sweep, delete-cleanup). On-disk storage format is unchanged.
 
 ---
 
 ## Background — read before starting
 
-Study, in order: `documentation/developer/stm/{overview,core-interfaces,layer-lifecycle,data-structures,rules-and-invariants,testing,debugging}.md`. Reference code: `TransactionalIntBPlusTree.java` (primitive-key path-copying template + COW layer + the composite-producer/delete-cleanup fixes from #760 part A), `UnorderedLookup.java` (current delegate — the thing being replaced), `TransactionalUnorderedIntArray.java` (the façade to preserve), `UnorderedIntArrayChanges.java` (current diff layer — being replaced), `ChainIndex.java` + `ChainIndexChanges.java` (the only consumers), `SortedRecordsSupplier.java` (the read boundary).
+Study, in order: `documentation/developer/stm/{overview,core-interfaces,layer-lifecycle,data-structures,rules-and-invariants,testing,debugging}.md`. Reference code: `TransactionalIntBPlusTree.java` (primitive-key path-copying template + COW layer + the composite-producer/delete-cleanup fixes from #760 part A — **the structural template for both new trees**), `TransactionalLongBPlusTree.java` (the `long`-key flavour — closest sibling for the order-key-keyed trees), `UnorderedLookup.java` (current delegate — becomes snapshot-only DTO), `TransactionalUnorderedIntArray.java` (the façade to preserve — becomes the composite producer), `UnorderedIntArrayChanges.java` (current diff overlay — **removed**), `ChainIndex.java` + `ChainIndexChanges.java` (the only consumers), `SortedRecordsSupplier.java` (the read boundary).
 
-**Project rules (CLAUDE.md / code-style.md):** tabs for indent; `final` locals; explicit types (no `var`); `@Nonnull`/`@Nullable`; Markdown JavaDoc (no HTML); **no streams in perf-critical loops** — allocation-optimized loops instead; **never box primitives** (no `AbstractList<Integer>.sort`, no `Objects.hash` on primitives, no `Integer` keys); pre-size `StringBuilder`; defensive design — unreachable branches throw `GenericEvitaInternalError`. **Never run git stash/reset/checkout/commit/push without Johnny's permission.** This plan commits per task on the feature branch — pre-authorized for *this* branch; **do not push**, **do not** run destructive git.
+**Project rules (CLAUDE.md / code-style.md):** tabs for indent; `final` locals; explicit types (no `var`); `@Nonnull`/`@Nullable`; Markdown JavaDoc (no HTML); **no streams in perf-critical loops**; **never box primitives** (the value index is a primitive `int→long` tree, never `TransactionalIntBPlusTree<Long>`); pre-size `StringBuilder`; defensive design — unreachable branches throw `GenericEvitaInternalError`. **Never run git stash/reset/checkout/commit/push without Johnny's permission.** This plan commits per task on the feature branch — pre-authorized for *this* branch (Johnny confirmed); **do not push**, **do not** run destructive git.
 
 **Build/test commands** (from repo root):
-- Compile engine: `mvn -q -pl evita_engine -am test-compile`
-- One functional test class: `mvn -q -pl evita_test/evita_functional_tests -am test -Dtest=<Class>` (append `#<method>` for one method)
-- Long-running (generational) tests: module `evita_test/evita_long_running_tests`, run via `-P longRunning`. **Beware** the module hardcodes `<skipTests>true</skipTests>` (not `${skipTests}`) — `-DskipTests=false` is ignored; the `longRunning` profile is mandatory, and `-Dsurefire.failIfNoSpecifiedTests=false` will make a *skipped* run exit 0 (a false-positive trap — verify tests actually ran).
+- Compile engine: `mvn -q -pl evita_engine test-compile`; **install before running functional tests** (`mvn -q -pl evita_engine install -DskipTests`) so the test module sees fresh classes — do **not** use `-am` (re-triggers protoc gRPC errors).
+- One functional test class: `mvn -q -pl evita_test/evita_functional_tests test -Dtest=<Class> -Dtest.tag.policy=warn -Dsurefire.failIfNoSpecifiedTests=false`.
+- Long-running (generational) tests: module `evita_test/evita_long_running_tests`, run via `-P longRunning`. **Beware** the module hardcodes `<skipTests>true</skipTests>` — the `longRunning` profile is mandatory, and `-Dsurefire.failIfNoSpecifiedTests=false` will make a *skipped* run exit 0 (a false-positive trap — verify tests actually ran).
 
 ---
 
@@ -36,27 +41,15 @@ Study, in order: `documentation/developer/stm/{overview,core-interfaces,layer-li
 
 ### CPU: positions are dense absolute integers ⇒ `O(N)` per write ⇒ `O(N²)` load
 
-| op (façade → delegate) | current cost | cause |
-|---|---|---|
-| `indexOf` → `findPosition(id)` | `O(log N)` ✅ | binary search on sorted `recordIds` |
-| `getRecordIds()` | `O(1)` | returns sorted array |
-| `getArray()`/`getPositions()` | `O(N)` memoized | full rebuild |
-| `get` → `getRecordAt(pos)` | **`O(N)`** ❌ | linear scan of `positions` |
-| `add`/`addOnIndex` → `addRecord` | **`O(N)`** ❌ | renumber every position ≥ insert point + 2 array splices |
-| `remove` → `removeRecord` | **`O(N)`** ❌ | decrement every position > removed + 2 array splices |
-
-Because positions are stored as an explicit dense `0..N-1` numbering, every insert/delete renumbers a suffix. Loading one chain to `N` is `O(N²)`.
+Because positions are stored as an explicit dense `0..N-1` numbering, every insert/delete renumbers a suffix (`addRecord`/`removeRecord` are `O(N)`; `getRecordAt` is an `O(N)` scan). Loading one chain to `N` is `O(N²)`.
 
 ### GC: `O(N²)` bytes routed through G1's worst path (the dominant pain)
 
-Three stacked allocation sources:
+`addRecord` calls `ArrayUtils.insertIntIntoArrayOnIndex` *twice* (recordIds + positions), each a fresh `int[N+1]`; loading one chain to `N` allocates and garbages `Σ 2·4k ≈ 4N²` bytes — **~400 TB at N=10M**. The constructor / `appendRecords` / `removeRange` also sort via an `AbstractList<Integer>` (`O(N log N)` `Integer` boxings). Under G1 the humongous threshold is half the region size, so at every tested scale `recordIds`/`positions`/`memoized` are **humongous objects**: never TLAB-allocated, never compacted (pinned), each allocation can trigger a concurrent cycle. The array design is `O(N²)` bytes through the *worst* allocation path G1 has.
 
-1. **Dual full-array realloc per write.** `addRecord` calls `ArrayUtils.insertIntIntoArrayOnIndex` *twice* (recordIds + positions), each a fresh `int[N+1]` + copy; `removeRecord` symmetrically. `memoizedUnorderedArray` (another `int[N]`) is nulled and rebuilt. Loading one chain to `N` allocates and immediately garbages:
-   `Σ_{k=1}^{N} 2·4k ≈ 4N²` bytes — **~400 TB at N=10M**.
-2. **Autoboxing in the sort.** The constructor / `appendRecords` / `removeRange` sort via `new IntArrayWrapper(...).sort(Comparator.comparing(o -> unorderedArray[o]))` over an `AbstractList<Integer>` — **`O(N log N)` `Integer` boxings** per rebuild. Every `ChainIndexChanges.getUnorderedLookup()` global rebuild pays this.
-3. **Boxed map keys.** `chains` is `TransactionalMap<Integer,…>` — every chain-head PK boxed (`O(#chains)`, minor).
+### Commit: rebuild-from-array per transaction
 
-**The humongous angle (the sharpest point).** Under G1 the humongous threshold is half the region size: with `-Xmx80g` region=32 MB ⇒ threshold 16 MB ⇒ an `int[]` is humongous at **≥4M elements**; with a 5 GB heap region≈4 MB ⇒ threshold≈2 MB ⇒ humongous at **≥0.5M elements**. So at every scale we test, `recordIds`/`positions`/`memoized` are **humongous objects**: never TLAB-allocated (always slow path), never moved/compacted (pinned), each allocation can trigger a concurrent cycle, and they fragment the old gen. The array design is therefore `O(N²)` bytes through the *worst* allocation path G1 has.
+`ChainIndex.chains` is a `TransactionalMap<Integer, TransactionalUnorderedIntArray>` whose reconstruction function is `TransactionalUnorderedIntArray::new(int[])`. Every commit touching a chain rebuilds the whole value from a fresh `int[]` (`UnorderedIntArrayChanges.getMergedArray()`, also humongous at scale) — `O(N)` + boxing per commit even when a transaction changed a handful of records.
 
 ---
 
@@ -69,49 +62,75 @@ new SortedRecordsSupplier(id, unorderedLookup.getArray(), unorderedLookup.getPos
 //                            int[] permutation      int[] positions          Bitmap
 ```
 
-`SortedRecordsSupplier` (`implements SortedRecordsProvider`) holds `@Getter int[] sortedRecordIds`, `int[] recordPositions`, `Bitmap allRecords`. Once built, **queries run against those flat arrays** — tight, cache-line-friendly, `O(1)`-indexed loops (`O(M log N)` to order `M` matched records). The supplier is cached in `ChainIndexChanges` and reset only on a predecessor change (`reset()`), via `getAscendingOrderRecordsSupplier()` / `getDescendingOrderRecordsSupplier()` (the descending case uses `ArrayUtils.reverse(getArray())` + `invert(getPositions())`).
+`SortedRecordsSupplier` (`implements SortedRecordsProvider`) holds `@Getter int[] sortedRecordIds`, `int[] recordPositions`, `Bitmap allRecords`. Once built, **queries run against those flat arrays** — tight, cache-line-friendly, `O(1)`-indexed loops. The supplier is cached in `ChainIndexChanges` and reset only on a predecessor change (`reset()`); the descending case uses `ArrayUtils.reverse(getArray())` + `invert(getPositions())`.
 
 **This yields the overriding design invariant (reads are king):**
 
-> **INV-READ — flat-array snapshot at the supplier boundary.** The mutable tree is a *write accumulator + cheap flattener*. At the supplier boundary it is flattened **once** (`O(N)`, cached) into the same contiguous `int[]` layout the supplier consumes today (`sortedRecordIds`, `recordPositions`, `allRecords`). Queries then operate on arrays **exactly as now** — byte-for-byte identical hot loop. The tree is **never** walked element-by-element to answer a query. Reading *through* the tree (`O(M log N)` pointer-chasing descents) is explicitly forbidden.
+> **INV-READ — flat-array snapshot at the supplier boundary.** The two trees are a *write accumulator + cheap flattener*. At the supplier boundary they are flattened **once** (`O(N)`, cached) into the same contiguous `int[]` layout the supplier consumes today (`sortedRecordIds`, `recordPositions`, `allRecords`). Queries then operate on arrays **exactly as now** — byte-for-byte identical hot loop. Neither tree is **ever** walked element-by-element to answer a query. Reading *through* a tree (`O(M log N)` pointer-chasing descents) is explicitly forbidden.
 
-Under INV-READ, steady-state read performance cannot regress (same arrays, same loops); it improves marginally at *build* time because we delete the boxing (source 2) and the humongous temporaries (sources 1 & 3).
+Under INV-READ, steady-state read performance cannot regress (same arrays, same loops); it improves marginally at *build* time because we delete the boxing and the humongous temporaries.
 
 ---
 
-## Design decision & rationale
+## Design decision & rationale — two trees coupled by an order-key
 
-**Chosen structure:** a **count-augmented (order-statistic) `int` B+ tree with implicit positions**, plus a `recordId → leaf` secondary index and a `RoaringBitmap` of present ids. Behind the retained `TransactionalUnorderedIntArray` façade:
+To answer fast writes you need **two views of the same data**: a *by-value* view ("where is record id 12345?") and a *by-position* view ("what is at slot 7?", "how many records precede this?"). The old array kept both as two parallel arrays and paid `O(N)` per write to keep absolute positions dense. The chosen structure keeps the two views as two B+ trees and makes positions **implicit** so a write touches only one path per tree.
 
-- **committed state** = `UnorderedLookupTree`, mutated **in place** (warm-up / non-transactional path);
-- **transactional state** = a **path-copying COW layer** (mirrors `TransactionalIntBPlusTree`), entered only inside a transaction;
-- **read snapshot** = a flattened `UnorderedLookup` (dual `int[]`) / the three flat arrays, produced on demand and cached by `ChainIndexChanges`.
+### The two trees and the order-key coupling
 
-The tree stores the sequence ordered by **logical position**; every internal node carries the **element count of its subtree**. The secondary `recordId → leaf` index supports `rank`/`delete` by value; the `RoaringBitmap` exposes the sorted id set for `getRecordIds()`.
+- **Order-key (`long`):** a stable, widely-spaced `long` that identifies a **container's slot** in the logical order. Order-keys are monotonically increasing in logical order, so *order-key order ≡ logical order*. Record ids inside a container share the container's order-key; their within-container order is the container's array offset. Order-keys are minted **only when a container splits** (a fresh key in the gap between neighbours), so order-key churn is amortized by a factor of `B` versus per-record keys.
+
+- **Value index** = primitive `int`(recordId) → `long`(order-key) B+ tree. `get(recordId)` → the order-key of the record's container. Keyed by record id ascending ⇒ an in-order key walk yields `getRecordIds()` **already sorted**, no extra sort/bitmap.
+
+- **Position tree** = count-augmented `long`(order-key)-keyed B+ tree. Leaves are **containers** (`int[B]` of record ids in logical order); internal nodes store separator order-keys **and** the record-id count of each child subtree. Two descents:
+  - **by order-key** (for `findPosition`): summing the child counts to the *left* of the descent path yields the **prefix count** (records before the container); add the in-container offset (found by an `≤ B` scan of the container).
+  - **by position** (for `getRecordAt` / `select`): choose the child whose cumulative count brackets the target — classic order-statistic select.
+
+### Operation mapping
+
+| façade op | mechanism | cost |
+|---|---|---|
+| `findPosition(id)` | value index `get` → order-key; position-tree order-key descent → prefix; `≤ B` scan for offset | `O(log N)` |
+| `getRecordAt(pos)` / `get` | position-tree count descent → container → `recordIds[offset]` | `O(log N)` |
+| `getLastRecordId` / `getLength` | rightmost container / root subtree count | `O(log N)` / `O(1)` |
+| `add(prev,id)` | value index `get(prev)` → order-key → container; insert after; counts++ along cursor; split mints order-key + re-stamps moved ids in value index | `O(log N)` |
+| `addOnIndex(k,id)` | position-tree count descent → container; insert; `put(id, containerOrderKey)` in value index | `O(log N)` |
+| `remove(id)` | value index `get` → order-key → container; remove; counts−− along cursor; steal/merge re-stamps moved ids; value index `remove(id)` | `O(log N)` |
+| `getRecordIds()` | value-index in-order key walk (already ascending) | `O(N)` walk |
+| `getArray()` | position-tree in-order leaf walk (order-key order ≡ logical order) | `O(N)` walk |
+| `getPositions()` | one flatten pass + primitive `int→int` map (no boxing) | `O(N)` |
+| **bulk load to N** | sequential append (or bottom-up bulk build) | `O(N log N)` / tens of MB |
+| **commit of `e` edits** | path-copy `e` paths in each tree (structural sharing) | `O(e·log N)` |
+
+Within-container inserts **do not** touch sibling record ids in the value index (their order-key is unchanged; the offset is recomputed on demand). Only **container split / steal / merge** re-stamps the order-keys of the `≤ B` records that physically moved — this is the bounded, lazy-at-commit update Johnny's original sketch called for.
 
 ### Why implicit positions (two independent arguments)
 
-1. **CPU:** positions derived from subtree counts mean an insert/delete re-stamps counts only along the root→leaf path — `O(log N)` — and *no suffix renumber*. (Your "only sibling PKs in the container / sibling containers need updating on split·steal·merge" intuition is exactly this — and it is **only** true under implicit positioning.)
-2. **GC under COW:** with **absolute** positions, an insert shifts the label of every later element, so every node holding a shifted element must be copied ⇒ `O(N)` node allocations per insert — the same wall, one layer down. With **implicit** positions only the path's nodes are re-stamped ⇒ `O(log N)` node allocations. Implicit positioning is what bounds COW allocation to the path.
+1. **CPU:** positions derived from subtree counts mean an insert/delete re-stamps counts only along one root→leaf path — `O(log N)` — and *no suffix renumber*.
+2. **GC under COW:** with **absolute** positions an insert shifts every later label ⇒ every node holding a shifted element must be copied ⇒ `O(N)` node allocations per insert. With **implicit** positions only the path's nodes are re-stamped ⇒ `O(log N)` node allocations. Implicit positioning is what bounds COW allocation to the path.
 
-### Why in-place (committed) + COW (transactional) dispatch
+### Why in-place (committed) + path-copying (transactional) dispatch
 
-`UnorderedLookup` is the *non-transactional* delegate; warm-up bulk load runs **outside any transaction**. In-place leaf mutation shifts within a fixed-capacity block and allocates **nothing until a split** ⇒ amortized `≈1/B` node allocations per insert. COW is paid **only** when transactional isolation actually requires it. This mirrors the `transactionalLayer`-flag read/write dispatch already built for `InvertedIndex`/`RangeIndex` in part A.
+Warm-up bulk load runs **outside any transaction**: in-place leaf mutation shifts within a fixed-capacity block and allocates **nothing until a split** ⇒ amortized `≈1/B` node allocations per insert. Path-copying is paid **only** inside a transaction, and only along the touched paths. Mirrors the `transactionalLayer`-flag read/write dispatch from part A.
 
-### Why small fixed-capacity primitive `int` nodes
+### Why two key-ordered trees rather than one position-ordered tree + parent pointers
 
-A node holds `int[B]` (B≈64 ⇒ 256 bytes): TLAB-allocated, dies young, cleaned in minor GC. **The humongous path disappears from the write path entirely** — turning ~400 TB of humongous churn into tens of MB of young-gen traffic. Build on the non-boxing `int` lineage so there is zero autoboxing anywhere; keep the secondary index `int`-keyed (never `HashMap<Integer,…>`).
+A position-ordered tree cannot be descended *by value*, so `findPosition`/`remove(id)` would need a `recordId → node` secondary index — and node identities are exactly what path-copying churns, so that index cannot hold node references across COW versions without parent-pointer materialization (which breaks structural sharing) or a per-version `int→node` map (heavy, off-pattern). The order-key indirection sidesteps this entirely: **both** trees are ordinary **key-ordered** B+ trees (descend by key, cursor model, no parent pointers — exactly like `TransactionalIntBPlusTree`), and the value index hands you the key with which to descend the position tree. Full structural sharing, `O(log N)` everything.
 
-### Why **not** sqrt-decomposition
+### Why a dedicated primitive `int→long` value-index tree (no boxing)
 
-A tiered vector (`O(√N)`) is allocation-friendly and was attractive as a "simplest warm-up fix". It is **rejected** because both phases must be write-performant, and the **transactional** write path makes internal `findPosition`/`indexOf` calls (today `O(log N)`) that sqrt would regress to `O(√N)`. Since reads are flattened to arrays (INV-READ), the structure's internal random-access complexity is the discriminator — and the tree's uniform `O(log N)` wins. Sqrt buys nothing on reads and loses on transactional writes.
+`TransactionalIntBPlusTree<Long>` would box every order-key value (`N` boxed `Long`s — heap + GC churn on the perf-critical structure). Johnny's call: build a **separate primitive `int`-key / `long`-value B+ tree flavour** (copy-paste of the `int`-key template with a `long[]` value block and copy-pasted test suite) rather than box. Zero autoboxing anywhere in either tree.
+
+### Why **not** sqrt-decomposition / the old diff overlay
+
+Sqrt (`O(√N)`) regresses the transactional internal `findPosition`/`indexOf` calls. The old `UnorderedIntArrayChanges` diff overlay works but rebuilds the value from an `int[]` at every commit (`O(N)` + humongous) and is a second, bespoke consistency mechanism alongside the producer model — off-pattern and the source of the part-A composite-producer bugs. The two-tree producer design is uniform STM and gets `O(e·log N)` commits.
 
 ### Two-phase behaviour (read-safe by construction)
 
-- **Warm-up:** pure load, no sort queries ⇒ supplier never built during load ⇒ flatten cost paid only at the first post-load query. Writes hit the in-place tree (small `int` blocks, no humongous).
-- **Transactional:** a commit invalidates the cached supplier; the next query flattens **once** (merge committed-tree + COW overlay → contiguous `int[]`, `O(N)` — same cadence as today's `getMergedArray`, minus boxing), caches it; all subsequent reads run at full array speed until the next change.
+- **Warm-up:** pure load, no sort queries ⇒ supplier never built during load ⇒ flatten cost paid only at the first post-load query. Writes hit the in-place trees (small blocks, no humongous).
+- **Transactional:** a commit invalidates the cached supplier; the next query flattens **once** (`O(N)` in-order walk, no boxing), caches it; all subsequent reads run at full array speed until the next change.
 
-*Future headroom (not in scope):* because reads always go through a cached flat snapshot, the transactional flatten can later be made **incremental** (patch only changed runs) with no change to the query hot path.
+*Future headroom (not in scope):* the flatten can later be made **incremental** (patch only changed runs).
 
 ---
 
@@ -119,93 +138,75 @@ A tiered vector (`O(√N)`) is allocation-friendly and was attractive as a "simp
 
 | # | Invariant |
 |---|---|
-| **INV-READ** | Flat-`int[]` snapshot at the supplier boundary; tree never traversed per-read-element (see above). |
-| **INV-IMPLICIT** | Positions are implicit (subtree counts); no absolute position is ever stored in a node or the secondary index. |
-| **INV-DISPATCH** | In-place mutation when committed (non-transactional); path-copying COW only inside a transaction. |
-| **INV-NOHUGE** | No `O(N)`-sized array on the write path; nodes are small fixed-capacity `int[B]`. The only `O(N)` array is the cached read snapshot. |
-| **INV-NOBOX** | Zero primitive boxing anywhere in the structure or its iteration. |
+| **INV-READ** | Flat-`int[]` snapshot at the supplier boundary; neither tree traversed per-read-element. |
+| **INV-IMPLICIT** | Positions are implicit (subtree counts). The order-key is a **routing key, not a position** — no absolute position is ever stored in a node or in the value index. |
+| **INV-DISPATCH** | In-place mutation when committed (non-transactional); path-copying inside a transaction — for **both** trees. |
+| **INV-NOHUGE** | No `O(N)`-sized array on the write path; nodes are small fixed-capacity blocks. The only `O(N)` arrays are the cached read snapshot. |
+| **INV-NOBOX** | Zero primitive boxing anywhere in either tree or its iteration; the value index is a primitive `int→long` tree. |
+| **INV-COUPLE** | Order-key coherence: every present record id has exactly one value-index entry whose order-key routes (in the position tree) to the container actually holding it. Split/steal/merge re-stamp **all** moved record ids within the same operation. Order-key gap exhaustion is handled by re-spacing — **never** silently dropped (defensive-design rule). |
 
 ### STM invariants (inherited from #760 part A — apply verbatim)
 
-The tree nodes are `TransactionalLayerProducer`s; `TransactionalUnorderedIntArray` is the composing producer. Reuse the part-A learnings:
+The tree nodes are `TransactionalLayerProducer`s; `TransactionalUnorderedIntArray` is the composite producer over the two trees. Reuse the part-A learnings:
 
 - **INV-1** stable unique `getId()` via `TransactionalObjectVersion.SEQUENCE.nextId()`; the façade's transactional contract unchanged.
-- **Composite-producer layer sweep** — the bug class from part A (a `VoidTransactionMemoryProducer` value whose `getTransactionalMemoryLayerIfExists(...) == null` orphans its children's layers): the new tree's `removeLayer` must recurse the whole node graph (size/root/node/values), and discard-on-delete must not guard on a non-null layer. **Confirm the part-A fixes are present in `TransactionalIntBPlusTree` before cloning its layer model.**
+- **Composite-producer layer sweep** — the bug class from part A: the composite producer's `removeLayer` must recurse the **whole node graph of both trees** (size/root/node/values), and discard-on-delete must not guard on a non-null layer. **The part-A fix `removeLayerRecursively` is confirmed present in `TransactionalIntBPlusTree` (lines 792–818) — clone it for both trees.**
 - **Delete-cleanup** — deleting an entry whose value was modified in the same transaction must release the value's diff layer (no `StaleTransactionMemoryException`).
 - `verifyLayerWasFullySwept()` must pass after every transactional test.
 
 ---
 
-## Complexity & allocation — target vs. today
-
-| op | today (CPU) | proposed (CPU) | today (alloc/op) | proposed (alloc/op) |
-|---|---|---|---|---|
-| insert (`add`/`addOnIndex`) | `O(N)` | `O(log N)` | 2×`int[N]` (humongous) | in-place: ~`1/B` node; COW: `O(log N)` small nodes |
-| remove | `O(N)` | `O(log N)` | 2×`int[N]` (humongous) | as above |
-| `indexOf`/`findPosition` | `O(log N)` | `O(log N)` | 0 | 0 |
-| `get`/`getRecordAt` | `O(N)` | `O(log N)` | 0 | 0 |
-| `getLastRecordId` / `getLength` | `O(1)`/`O(1)` | `O(1)` | 0 | 0 |
-| `getRecordIds()` | `O(1)` | `O(1)` (bitmap) | 0 | 0 |
-| flatten for supplier | `O(N log N)` + boxing | `O(N)` walk + primitive argsort | `int[N]` + `N`×`Integer` | one `int[N]`, no boxing |
-| **bulk load to N** | **`O(N²)` / ~400 TB bytes** | **`O(N log N)` / tens of MB** | — | — |
-
-Query-time reads (the hot path): **identical** flat-array loops in both columns (INV-READ).
-
----
-
 ## API contract to preserve
 
-`TransactionalUnorderedIntArray` public surface (all must keep identical semantics): `getPositions()`, `getRecordIds()` (`Bitmap`), `get(index)`, `getLastRecordId()`, `getArray()`, `getSubArray(start,end)`, `add(prev,rec)`, `addOnIndex(index,rec)`, `addAll(prev,recs…)`, `appendAll(recs…)`, `remove(rec)`, `removeAll(recs…)`, `removeRange(start,end)`, `getLength()`, `isEmpty()`, `indexOf(rec)`, `contains(rec)`, `iterator()` (`PrimitiveIterator.OfInt`), `hashCode`/`equals`/`toString`, plus the `TransactionalLayerProducer`/`createLayer()` contract. `ChainIndex.getUnorderedLookup()` keeps returning an `UnorderedLookup` snapshot (now produced by flattening). No consumer signature changes.
+`TransactionalUnorderedIntArray` public surface (all must keep identical semantics): `getPositions()`, `getRecordIds()` (`Bitmap`), `get(index)`, `getLastRecordId()`, `getArray()`, `getSubArray(start,end)`, `add(prev,rec)`, `addOnIndex(index,rec)`, `addAll(prev,recs…)`, `appendAll(recs…)`, `remove(rec)`, `removeAll(recs…)`, `removeRange(start,end)`, `getLength()`, `isEmpty()`, `indexOf(rec)`, `contains(rec)`, `iterator()` (`PrimitiveIterator.OfInt`), `hashCode`/`equals`/`toString`, plus the `TransactionalLayerProducer`/`createLayer()` contract. `ChainIndex.getUnorderedLookup()` keeps returning an `UnorderedLookup` snapshot. No consumer signature changes — **but** the `TransactionalMap` reconstruction in `ChainIndex` changes from `int[]`-based to passing the committed (shared) trees (Phase 4).
 
 ---
 
-## Phase 0 — Safety net & baseline
+## Phase 0 — Safety net & baseline ✅ (done)
 
-**Task 0.1 — Establish a green baseline (read-only).** Run the existing `UnorderedLookupTest`, `ChainIndexTest` (functional) and `LongRunningChainIndexTest` (generational, `-P longRunning`) on the current code; record pass/fail and timings. Do not change code.
-
-**Task 0.2 — Characterization tests (lock current behavior).** Before touching internals, add focused tests over `TransactionalUnorderedIntArray` covering every public method on a non-trivial sequence, both committed and inside a transaction (`assertStateAfterCommit`), **including**: insert-at-head (`previousRecordId == MIN_VALUE`), insert-after-known, `addOnIndex`, `appendAll`, `removeRange`, `get`/`indexOf`/`getLastRecordId`, and `getArray()`/`getPositions()`/`getRecordIds()` alignment (the three must stay mutually consistent — `getArray()[positions[i]] == recordIds[i]`). These tests must stay green through every later phase.
-
-**Task 0.3 — GC/throughput micro-benchmark harness.** Add a `@Tag(SLOW)` warm-up-style bench (sibling to `EvitaWarmUpInsertionTest`) that drives one chain to a large `N` with insert/remove churn and reports throughput + allocation (via `-Xlog:gc*` / `-verbose:gc` and `com.sun.management` allocated-bytes if available). This produces the before/after numbers proving the win. Capture the "before" run.
+- **0.1** Green baseline of `UnorderedLookupTest` / `ChainIndexTest` recorded.
+- **0.2** Characterization: `UnorderedLookupTreeTest` locks the order-statistic semantics against an `ArrayList` oracle **and** a per-op equivalence check against the array `UnorderedLookup` (2×20k randomized ops, split/collapse paths). Green.
+- **0.3** Chain warm-up load test added (`EvitaWarmUpInsertionTest#shouldGenerateLoadOfChainDataInWarmUpPhase`) — the acceptance/perf gate; infeasible against the current `O(N²)` delegate by design.
 
 ---
 
-## Phase 1 — `UnorderedLookupTree`: in-place count-augmented `int` B+ tree (non-transactional core)
+## Phase 1 — Position tree: count-augmented, order-key-keyed B+ tree ✅ (in-place core done; re-key pending)
 
-**Task 1.1 — Failing tests first.** Port the `UnorderedLookup` semantics suite to `UnorderedLookupTree` (rank/select/insert-after/insert-at/delete/last/size/flatten), plus order-statistic-specific cases (select after random insert/delete sequences vs. an `ArrayList<Integer>` oracle).
+**Done:** `UnorderedLookupTree` — in-place count-augmented tree with `O(log N)` insert/remove/select, no-boxing flatten, oracle-verified.
 
-**Task 1.2 — Implement the tree (in-place only).** Nodes = fixed-capacity `int[B]`; internal nodes carry subtree counts. Implement `select(k)`, `rank(id)` (via `recordId → leaf` index + count sum to root), `insertAfter(id,new)`, `insertAt(k,·)`, `delete(id)`, `getLast`, `size`, maintained `RoaringBitmap` of present ids. **Enforce INV-IMPLICIT / INV-NOHUGE / INV-NOBOX.** Add an **append/bulk-load fast path** (fill leaves to capacity before splitting → ~100% fill, `N/B` leaf allocations) to mirror `appendAll`/`appendRecords` and avoid rightmost-split half-empty-leaf churn.
+**1.4 — Re-key by order-key (pending).** Evolve the in-place tree so internal nodes route by a `long` order-key separator (not raw position), leaves become containers carrying their order-key, and the descent supports **both** by-order-key and by-position. Add order-key minting on split (gap midpoint) and the `≤ B` re-stamp hook. Keep the `ArrayList`/array-delegate oracle green; add order-key-coherence assertions (INV-COUPLE) and a gap-exhaustion / local re-spacing test.
 
-**Task 1.3 — Flatten.** Implement `toSnapshot()` producing the contiguous `int[] permutation` (in-order walk), `int[] sortedRecordIds` + aligned `int[] positions` (one primitive argsort — **no boxing**), and the `Bitmap`. This is the only `O(N)` array the structure produces. Add equivalence tests: `toSnapshot()` of the tree == the `UnorderedLookup` built from the same operations.
-
-**Done:** all Phase-1 tests green; engine `test-compile` clean; bench shows linear (not quadratic) in-place insert and no humongous allocations on the write path.
+**1.5 — Bulk-load fast path.** Bottom-up build (fill containers to capacity, assign spaced order-keys) so warm-up load and commit-merge are `O(N)` with ~100% fill.
 
 ---
 
-## Phase 2 — Transactional COW layer (mirror `TransactionalIntBPlusTree`)
+## Phase 2 — Value index: primitive `int→long` B+ tree (new flavour)
 
-**Task 2.1 — STM test matrix first (failing).** Apply the part-A matrix: modify-then-delete in one txn (delete-cleanup), composite-producer sweep (`verifyLayerWasFullySwept`), interleaved insert/remove with commit, abort/rollback leaves committed state intact, concurrent layers isolated. Include the `previousRecordId == MIN_VALUE` head-insert and `removeRange` under transaction.
+**Task 2.1 — Failing tests first.** Copy `TransactionalIntBPlusTree`'s test suite, retargeted to `int`-key / `long`-value semantics (insert/get/remove/iterate-ascending, split/merge, STM matrix).
 
-**Task 2.2 — Implement COW dispatch.** Add the path-copying layer with the `transactionalLayer`-flag read/write dispatch (INV-DISPATCH). Carry the composite-producer `removeLayer` recursion and delete-cleanup fixes verbatim from `TransactionalIntBPlusTree`. **Confirm those fixes exist in the source before cloning.**
+**Task 2.2 — Implement `TransactionalIntToLongBPlusTree`** (working name) — clone the `int`-key template with a primitive `long[]` value block. **No boxing.** Carry the part-A `removeLayerRecursively` sweep + delete-cleanup verbatim.
 
-**Done:** STM matrix green; `verifyLayerWasFullySwept()` passes; no `StaleTransactionMemoryException`.
+**Done:** value-index suite green; `verifyLayerWasFullySwept()` passes.
 
 ---
 
-## Phase 3 — Swap `TransactionalUnorderedIntArray` internals
+## Phase 3 — Transactional path-copying for the position tree + compose the façade
 
-**Task 3.1 — Replace delegate + diff.** Swap the `UnorderedLookup lookup` field for `UnorderedLookupTree`; replace `UnorderedIntArrayChanges` with the COW layer. Keep every façade method's signature and semantics (see API contract). `getArray()`/`getPositions()`/`getRecordIds()` delegate to `toSnapshot()`. Retain `UnorderedLookup` as the immutable snapshot DTO consumed by `SortedRecordsSupplier`; drop/deprecate its mutators (or keep them solely for snapshot construction).
+**Task 3.1 — STM matrix first (failing).** Part-A matrix for the position tree: modify-then-delete in one txn (delete-cleanup), composite-producer sweep (`verifyLayerWasFullySwept`), interleaved insert/remove with commit, abort leaves committed state intact, concurrent layers isolated. Include head-insert (`previousRecordId == MIN_VALUE`) and `removeRange` under transaction.
 
-**Task 3.2 — Characterization + STM suites green.** Phase-0 characterization, `UnorderedLookupTest`, and the new STM suites must pass unchanged against the new internals.
+**Task 3.2 — Path-copying node lifecycle for the position tree.** Make its nodes `TransactionalLayerProducer`s with the `transactionalLayer`-flag dispatch (INV-DISPATCH), cloning the template's `createLayer`/`removeLayer`(recursive)/`createCopyWithMergedTransactionalMemory` and cursor-based path-copy.
 
-**Done:** façade behavior identical; `mvn -pl evita_engine -am test-compile` clean.
+**Task 3.3 — `TransactionalUnorderedIntArray` becomes the composite producer.** Hold the two trees as fields; route every façade method through them; coordinate the order-key on split/steal/merge (INV-COUPLE). Remove `UnorderedIntArrayChanges` and `TransactionalIntArrayIterator`'s dependence on it. `getArray()`/`getPositions()`/`getRecordIds()` delegate to the flatten. `createCopyWithMergedTransactionalMemory` returns a new façade wrapping the two committed (shared) trees. Retain `UnorderedLookup` as the snapshot DTO only.
+
+**Done:** STM matrix green; `verifyLayerWasFullySwept()` passes; no `StaleTransactionMemoryException`; Phase-0 characterization + `UnorderedLookupTest` green against the new internals.
 
 ---
 
 ## Phase 4 — `ChainIndex` integration & read-path verification
 
-**Task 4.1 — `ChainIndexChanges` flatten path.** Ensure `getUnorderedLookup()` and the ascending/descending supplier builders consume `toSnapshot()` output; verify the descending path (`ArrayUtils.reverse` + `invert(positions)`) still produces identical arrays. **Assert INV-READ:** the supplier is built from flat arrays, never from per-element tree reads. Confirm cache/reset cadence is unchanged (rebuild only on predecessor change).
+**Task 4.1 — `TransactionalMap` reconstruction.** Change `ChainIndex.chains` reconstruction from `TransactionalUnorderedIntArray::new(int[])` to a path that passes the committed shared trees (no `int[]` round-trip), so commits are `O(e·log N)`. Verify `getUnorderedLookup()` and the ascending/descending supplier builders consume the flatten; the descending path (`ArrayUtils.reverse` + `invert(positions)`) still yields identical arrays. **Assert INV-READ.** Cache/reset cadence unchanged (rebuild only on predecessor change).
 
-**Task 4.2 — Downstream regression.** Run `ChainIndexTest` and every functional test that orders by a predecessor/chain attribute (sort-by-reference-attribute, `ReferenceSortedRecordsProvider`). Reads must be byte-identical; add an assertion that a sorted query result over a fixed dataset matches the pre-change result exactly.
+**Task 4.2 — Downstream regression.** Run `ChainIndexTest` and every functional test that orders by a predecessor/chain attribute (`EntityByChainOrderingFunctionalTest`, sort-by-reference-attribute, `ReferenceSortedRecordsProvider`). Reads must be byte-identical; assert a fixed sorted-query result matches the pre-change result exactly.
 
 **Done:** all chain-ordering functional tests green.
 
@@ -213,9 +214,9 @@ Query-time reads (the hot path): **identical** flat-array loops in both columns 
 
 ## Phase 5 — Generational, integration & performance validation
 
-**Task 5.1 — Generational long-running.** Run `LongRunningChainIndexTest` (`-P longRunning`), extended with a high-cardinality single-chain generation (drive `N` large) to exercise the order-statistic paths and STM sweep across generations. Verify the actually-ran (not skipped) trap.
+**Task 5.1 — Generational long-running.** Run `LongRunningChainIndexTest` (`-P longRunning`), extended with a high-cardinality single-chain generation to exercise the order-statistic + order-key paths and STM sweep across generations. Verify the actually-ran (not skipped) trap.
 
-**Task 5.2 — Perf + GC proof.** Re-run the Phase-0.3 bench. Required outcomes: insert/remove throughput is **linear** in op count (no `O(N²)`); allocated bytes per op are bounded by `O(log N)` small nodes (COW) / amortized `O(1)` (in-place); **no humongous allocations on the write path** (confirm via GC logs); **read/query latency unchanged** vs. baseline on the same sorted-query workload. Record before/after.
+**Task 5.2 — Perf + GC proof.** Run `EvitaWarmUpInsertionTest#shouldGenerateLoadOfChainDataInWarmUpPhase`. Required: insert/remove throughput **linear** in op count (no `O(N²)`); allocated bytes/op bounded by `O(log N)` small nodes (txn) / amortized `O(1)` (in-place); **no humongous allocations on the write path** (GC logs); commit of a few edits to a large chain is `O(e·log N)`; **read/query latency unchanged** vs. baseline. Record before/after.
 
 **Task 5.3 — Full targeted suite + engine build.** `mvn -pl evita_engine -am test-compile` + the chain/sort functional classes + the generational test, all green.
 
@@ -224,8 +225,8 @@ Query-time reads (the hot path): **identical** flat-array loops in both columns 
 ## Done criteria
 
 - All Phase 0–5 tasks green; `verifyLayerWasFullySwept()` passes on every transactional test.
-- INV-READ, INV-IMPLICIT, INV-DISPATCH, INV-NOHUGE, INV-NOBOX all hold (assertions / review).
-- Bench proves: linear writes, no humongous on write path, **read latency not degraded** (the king constraint).
+- INV-READ, INV-IMPLICIT, INV-DISPATCH, INV-NOHUGE, INV-NOBOX, INV-COUPLE all hold (assertions / review).
+- Bench proves: linear writes, no humongous on write path, `O(e·log N)` commits, **read latency not degraded** (the king constraint).
 - `TransactionalUnorderedIntArray` public API and `ChainIndex.getUnorderedLookup()` return type unchanged; on-disk format untouched.
 - No streams in perf-critical loops; no boxing; tabs; JavaDoc on all new types/methods.
 
@@ -235,18 +236,20 @@ Query-time reads (the hot path): **identical** flat-array loops in both columns 
 
 | Risk | Mitigation |
 |---|---|
-| Reading through the tree sneaks in and degrades query latency | INV-READ is a hard gate; Phase 4 asserts the supplier is built only from flat arrays; bench compares read latency to baseline. |
-| Absolute positions creep into a node/secondary index | INV-IMPLICIT; code review + a test that an insert in the middle does **not** rewrite later elements' stored state (only path counts). |
-| COW layer regresses to `O(N)` allocation | INV-DISPATCH + INV-IMPLICIT; STM bench asserts `O(log N)` allocations/op inside a transaction. |
-| Composite-producer / delete-cleanup STM bug recurs (part-A class) | Clone the *fixed* `TransactionalIntBPlusTree` layer model; Phase-2 matrix + `verifyLayerWasFullySwept`. |
-| Append/sequential load causes half-empty-leaf churn | Dedicated bulk-load fast path (Task 1.2); bench the append pattern specifically. |
+| Reading through a tree degrades query latency | INV-READ hard gate; Phase 4 asserts the supplier is built only from flat arrays; bench compares read latency to baseline. |
+| Order-key incoherence (value index points at the wrong container) | INV-COUPLE; split/steal/merge re-stamp moved ids atomically; oracle + per-op equivalence asserts `getArray()[positions[i]]==recordIds[i]` every op. |
+| Order-key gap exhaustion | wide `long` spacing; local re-spacing on exhaustion, lazy global re-spacing at commit; explicit test; never silently dropped. |
+| Absolute positions creep into a node/value index | INV-IMPLICIT; review + a test that a mid-insert does not rewrite later elements' stored state (only path counts + moved-id order-keys). |
+| Path-copying regresses to `O(N)` allocation | INV-DISPATCH + INV-IMPLICIT; STM bench asserts `O(log N)` allocations/op inside a transaction. |
+| Composite-producer / delete-cleanup STM bug recurs (part-A class) | Clone the *fixed* `TransactionalIntBPlusTree` layer model into both trees; Phase-3 matrix + `verifyLayerWasFullySwept`. |
+| Two-tree coordination doubles STM surface | One composite producer owns both trees and their joint commit; the order-key is the only coupling and is asserted by INV-COUPLE tests. |
+| Append/sequential load causes half-empty-container churn | Bulk-load fast path (Task 1.5); bench the append pattern specifically. |
 | Long-running module silently skips (false green) | Use `-P longRunning`; verify tests actually ran (not the `failIfNoSpecifiedTests` trap). |
-| Snapshot flatten becomes a per-read cost | Cache cadence unchanged (rebuild only on predecessor change); warm-up pays nothing until first query; future incremental-flatten noted as headroom. |
 
 ---
 
 ## Out of scope
 
 - StoragePart granularity / on-disk serialization changes (#760 part B).
-- Incremental (patch-only) transactional flatten — noted as future headroom; parity is met without it.
+- Incremental (patch-only) transactional flatten — future headroom; parity is met without it.
 - Changing `SortedRecordsSupplier` / `SortedRecordsProvider` (read consumer) — unchanged by design.
