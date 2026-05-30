@@ -43,6 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -50,6 +51,7 @@ import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -2733,6 +2735,133 @@ class TransactionalObjectBPlusTreeTest {
 					assertEquals(2, list2.size());
 				}
 			);
+		}
+
+	}
+
+	/**
+	 * Verifies that an optional custom {@link Comparator} drives every key-comparison site in the tree, so the
+	 * structure can be ordered by an arbitrary total order (here: reverse natural order) rather than the keys'
+	 * natural {@link Comparable} order. This is the Phase-1 payoff that lets the inverted index order buckets by a
+	 * locale-aware comparator.
+	 */
+	@Nested
+	@DisplayName("Custom comparator ordering")
+	@Tag(COMPARATOR)
+	class CustomComparator {
+
+		@Test
+		@DisplayName("orders keys and values by a reverse-order comparator")
+		void shouldOrderByCustomComparator() {
+			final TransactionalObjectBPlusTree<Integer, String> tree = new TransactionalObjectBPlusTree<>(
+				3, Integer.class, String.class, Comparator.reverseOrder()
+			);
+			for (int i = 1; i <= 10; i++) {
+				tree.insert(i, "Value" + i);
+			}
+
+			// the forward key iterator must yield keys in descending (comparator) order
+			final Iterator<Integer> keyIt = tree.keyIterator();
+			Integer previous = null;
+			int count = 0;
+			while (keyIt.hasNext()) {
+				final Integer key = keyIt.next();
+				if (previous != null) {
+					assertTrue(key < previous, "Keys must be in descending order, but " + key + " >= " + previous);
+				}
+				previous = key;
+				count++;
+			}
+			assertEquals(10, count);
+
+			// the reverse key iterator must yield keys in ascending (comparator-reverse) order
+			final Iterator<Integer> reverseKeyIt = tree.keyReverseIterator();
+			previous = null;
+			while (reverseKeyIt.hasNext()) {
+				final Integer key = reverseKeyIt.next();
+				if (previous != null) {
+					assertTrue(key > previous, "Reverse keys must be in ascending order, but " + key + " <= " + previous);
+				}
+				previous = key;
+			}
+
+			// search must still resolve every key correctly under the comparator order
+			for (int i = 1; i <= 10; i++) {
+				assertEquals("Value" + i, tree.search(i).orElseThrow());
+			}
+			assertTrue(tree.search(11).isEmpty());
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+		}
+
+		@Test
+		@DisplayName("honors the comparator across splits and deletes")
+		void shouldHonorComparatorAcrossSplitsAndDeletes() {
+			final Comparator<Integer> reverse = Comparator.reverseOrder();
+			final TransactionalObjectBPlusTree<Integer, String> tree = new TransactionalObjectBPlusTree<>(
+				3, 1, 3, 1, Integer.class, String.class, reverse
+			);
+			// reference double ordered by the same comparator (RULE-T3)
+			final TreeMap<Integer, String> reference = new TreeMap<>(reverse);
+
+			final Random random = new Random(42L);
+			final List<Integer> keys = new java.util.ArrayList<>();
+			for (int i = 0; i < 200; i++) {
+				keys.add(i);
+			}
+			java.util.Collections.shuffle(keys, random);
+
+			// insert ~200 keys to force many splits
+			for (final Integer key : keys) {
+				tree.insert(key, "Value" + key);
+				reference.put(key, "Value" + key);
+			}
+			assertEquals(reference.size(), tree.size());
+			assertOrderMatches(tree, reference);
+
+			// delete half of the keys to force merges/steals
+			java.util.Collections.shuffle(keys, random);
+			for (int i = 0; i < keys.size(); i += 2) {
+				final Integer key = keys.get(i);
+				tree.delete(key);
+				reference.remove(key);
+			}
+
+			assertEquals(reference.size(), tree.size());
+			assertOrderMatches(tree, reference);
+
+			// lookups must match the reference double for both present and absent keys
+			for (int i = 0; i < 200; i++) {
+				final String expected = reference.get(i);
+				if (expected == null) {
+					assertTrue(tree.search(i).isEmpty(), "Key " + i + " should be absent");
+				} else {
+					assertEquals(expected, tree.search(i).orElseThrow());
+				}
+			}
+
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+		}
+
+		/**
+		 * Asserts that the tree's forward key iteration matches the comparator-ordered reference map exactly.
+		 *
+		 * @param tree      the tree under test
+		 * @param reference the reference {@link TreeMap} ordered by the same comparator
+		 */
+		private void assertOrderMatches(
+			@Nonnull TransactionalObjectBPlusTree<Integer, String> tree,
+			@Nonnull TreeMap<Integer, String> reference
+		) {
+			final Iterator<Integer> treeKeys = tree.keyIterator();
+			final Iterator<Integer> referenceKeys = reference.keySet().iterator();
+			while (referenceKeys.hasNext()) {
+				assertTrue(treeKeys.hasNext(), "Tree iterator exhausted before reference!");
+				assertEquals(referenceKeys.next(), treeKeys.next());
+			}
+			assertFalse(treeKeys.hasNext(), "Tree iterator has more keys than reference!");
 		}
 
 	}
