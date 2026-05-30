@@ -339,6 +339,43 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
+		@DisplayName("getValueIteratorFrom anchors at the first bucket >= the given value")
+		void shouldIterateBucketsFromGivenValue() {
+			// buckets are 5, 10, 15, 20; starting from 10 should yield 10, 15, 20
+			final Iterator<ValueToRecordBitmap> it = InvertedIndexTest.this.tested.getValueIteratorFrom(10);
+			final List<Serializable> values = new ArrayList<>();
+			while (it.hasNext()) {
+				values.add(it.next().getValue());
+			}
+			assertEquals(List.of(10, 15, 20), values);
+
+			// a value between buckets (12) should anchor at the next greater bucket (15)
+			final Iterator<ValueToRecordBitmap> it2 = InvertedIndexTest.this.tested.getValueIteratorFrom(12);
+			assertEquals(15, it2.next().getValue());
+		}
+
+		@Test
+		@DisplayName("getValueIteratorFrom respects localized Czech collation order")
+		void shouldIterateBucketsFromGivenValueWithLocalizedComparator() {
+			final InvertedIndex index = new InvertedIndex(
+				FilterIndex.NO_NORMALIZATION,
+				new LocalizedStringComparator(Collator.getInstance(new Locale("cs", "CZ")))
+			);
+			index.addRecord("chladný", 1);
+			index.addRecord("hora", 2);
+			index.addRecord("cibule", 3);
+			index.addRecord("auto", 4);
+
+			// under cs-CZ collation "ch" sorts after "h" so the run from "hora" is [hora, chladný]
+			final Iterator<ValueToRecordBitmap> it = index.getValueIteratorFrom("hora");
+			final List<Serializable> values = new ArrayList<>();
+			while (it.hasNext()) {
+				values.add(it.next().getValue());
+			}
+			assertEquals(List.of("hora", "chladný"), values);
+		}
+
+		@Test
 		@DisplayName("getRecordsEqualTo with present value returns correct bitmap")
 		void shouldReturnRecordsForPresentValue() {
 			final Bitmap records = InvertedIndexTest.this.tested.getRecordsEqualTo(5);

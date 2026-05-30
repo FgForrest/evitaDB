@@ -429,48 +429,33 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Returns formula of record ids whose String attribute starts with particular prefix.
 	 *
+	 * Any value that starts with `prefix` sorts greater than or equal to `prefix` under the index comparator, and no
+	 * non-matching value can sort between `prefix` and a matching value - so the matching buckets form a single
+	 * contiguous run beginning at the first bucket `>= prefix`. We therefore anchor a bounded forward iteration at that
+	 * bucket and stream until the first non-matching value (early break), with no whole-array materialization and no
+	 * backward scan.
+	 *
 	 * TOBEDONE JNO naive and slow - use RadixTree
 	 */
 	@Nonnull
 	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
-		final ValueToRecordBitmap[] buckets = this.invertedIndex.getValueToRecordBitmap();
-		final int matchIndex = ArrayUtils.binarySearch(
-			buckets,
-			prefix,
-			(valueToRecordBitmap, textToSearch) -> {
-				final String valueA = String.valueOf(valueToRecordBitmap.getValue());
-				final String shortenedA = valueA.substring(0, Math.min(valueA.length(), textToSearch.length()));
-				return ((Comparator<String>)this.comparator).compare(shortenedA, textToSearch);
+		final LinkedList<Formula> formulas = new LinkedList<>();
+		// anchor at the first bucket whose value sorts >= prefix and walk forward while the prefix still matches
+		final Iterator<ValueToRecordBitmap> it = this.invertedIndex.getValueIteratorFrom(prefix);
+		while (it.hasNext()) {
+			final ValueToRecordBitmap bucket = it.next();
+			final String value = String.valueOf(bucket.getValue());
+			if (value.startsWith(prefix)) {
+				formulas.add(new ConstantFormula(bucket.getRecordIds()));
+			} else {
+				// break immediately when the prefix is no longer valid - the run is contiguous
+				break;
 			}
-		);
-		if (matchIndex < 0) {
-			return EmptyFormula.INSTANCE;
-		} else {
-			final LinkedList<Formula> formulas = new LinkedList<>();
-			// find all matching values to the end of the bucket list
-			for (int i = matchIndex; i < buckets.length; i++) {
-				final ValueToRecordBitmap bucket = buckets[i];
-				final String value = String.valueOf(bucket.getValue());
-				if (value.startsWith(prefix)) {
-					formulas.add(new ConstantFormula(bucket.getRecordIds()));
-				} else {
-					// break immediately when the prefix is no longer valid
-					break;
-				}
-			}
-			// find all matching values to the start of the bucket list
-			for (int i = matchIndex - 1; i >= 0; i--) {
-				final ValueToRecordBitmap bucket = buckets[i];
-				final String value = String.valueOf(bucket.getValue());
-				if (value.startsWith(prefix)) {
-					formulas.add(new ConstantFormula(bucket.getRecordIds()));
-				} else {
-					// break immediately when the prefix is no longer valid
-					break;
-				}
-			}
-			return FormulaFactory.or(formulas.toArray(Formula.EMPTY_FORMULA_ARRAY));
 		}
+		if (formulas.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		}
+		return FormulaFactory.or(formulas.toArray(Formula.EMPTY_FORMULA_ARRAY));
 	}
 
 	/**
