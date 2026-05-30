@@ -153,7 +153,21 @@ public class MapChanges<K, V> implements Serializable {
 			return null;
 		}
 		if (containsCreatedOrModified((K) key)) {
-			originalValue = existing ? removeModifiedKey((K) key) : removeCreatedKey((K) key);
+			if (existing) {
+				originalValue = removeModifiedKey((K) key);
+			} else {
+				// the key was created (and possibly mutated) earlier in this same transaction and is now being
+				// removed before commit — it will never be visited by createMergedMap (it is neither in the
+				// delegate nor in modifiedKeys after this call), so we must release the dropped instance's layer
+				// here to avoid orphaning it. Release is identity-based: only when no surviving key still holds
+				// the very same instance.
+				final V removedValue = removeCreatedKey((K) key);
+				if (removedValue instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer
+					&& !isInstanceReferencedBySurvivingKey((K) key, removedValue)) {
+					transactionalLayerProducer.removeLayer();
+				}
+				originalValue = removedValue;
+			}
 		} else {
 			originalValue = this.mapDelegate.get(key);
 		}
@@ -181,7 +195,12 @@ public class MapChanges<K, V> implements Serializable {
 			}
 		}
 		if (this.removedKeys.remove(key)) {
-			if (originalValue instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
+			// the key was removed earlier in this transaction and is now being re-inserted with a (potentially)
+			// different value — the original instance is discarded, so release its layer. The release is
+			// identity-based: keep the layer if some surviving key still references the very same instance.
+			if (originalValue instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer
+				&& originalValue != value
+				&& !isInstanceReferencedBySurvivingKey(key, originalValue)) {
 				transactionalLayerProducer.removeLayer();
 			}
 		}
@@ -218,6 +237,43 @@ public class MapChanges<K, V> implements Serializable {
 			}
 			return false;
 		}
+	}
+
+	/**
+	 * Resolves — by **instance identity** (`==`), not content equality — whether the given producer instance is
+	 * still referenced by a key that survives the commit. A surviving reference means the instance's transactional
+	 * layer will be (or already has been) swept normally via
+	 * {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)},
+	 * so it must not be released as part of removing `removedKey`.
+	 *
+	 * Identity is essential: a {@link TransactionalLayerProducer} owns its diff layer per-instance, so two distinct
+	 * instances with equal content are independent layer owners. Relying on {@link Object#equals(Object)} here would
+	 * conflate ownership with content and either orphan a layer or release one that is still needed.
+	 *
+	 * @param removedKey the key being removed (excluded from the survivor scan)
+	 * @param instance   the producer instance whose continued reference is being tested
+	 * @return `true` if some surviving key references the very same instance
+	 */
+	private boolean isInstanceReferencedBySurvivingKey(@Nonnull K removedKey, @Nullable Object instance) {
+		// any created/modified key holds a value that will be present in the committed map
+		for (Entry<K, V> modifiedEntry : this.modifiedKeys.entrySet()) {
+			if (modifiedEntry.getValue() == instance && !Objects.equals(modifiedEntry.getKey(), removedKey)) {
+				return true;
+			}
+		}
+		// any delegate key (other than the removed one) that is neither removed nor overridden survives the commit
+		for (Entry<K, V> delegateEntry : this.mapDelegate.entrySet()) {
+			final K delegateKey = delegateEntry.getKey();
+			if (Objects.equals(delegateKey, removedKey)) {
+				continue;
+			}
+			if (delegateEntry.getValue() == instance
+				&& !containsRemoved(delegateKey)
+				&& !containsCreatedOrModified(delegateKey)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -263,11 +319,18 @@ public class MapChanges<K, V> implements Serializable {
 					throw new IllegalStateException("Transactional layer producer is not expected to be used as a key!");
 				}
 				V value = entry.getValue();
-				final boolean wasValueRemoved = wasRemoved && !containsValue(value);
 				if (value instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer) {
-					if (wasValueRemoved) {
-						transactionalLayerProducer.removeLayer(transactionalLayer);
-					} else if (!wasRemoved) {
+					if (wasRemoved) {
+						// release the removed value's transactional layer, but only when no surviving key still
+						// references the very same instance. The decision must be identity-based (`==`): a
+						// producer owns its layer per-instance, so two distinct instances with equal content
+						// (e.g. two empty bitmaps) are independent layer owners. Using content equality here
+						// would either orphan the removed instance's layer (when a content-equal instance
+						// survives) or release a layer that a surviving key still needs.
+						if (!isInstanceReferencedBySurvivingKey(key, value)) {
+							transactionalLayerProducer.removeLayer(transactionalLayer);
+						}
+					} else {
 						value = this.transactionalLayerWrapper.apply(
 							transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 						);

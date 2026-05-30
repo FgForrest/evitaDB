@@ -24,6 +24,7 @@
 package io.evitadb.index.map;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -1298,6 +1299,150 @@ class TransactionalMapTest {
 				(original, committedVersion) -> {
 					assertFalse(committedVersion.containsValue(1));
 					assertTrue(committedVersion.containsValue(3));
+				}
+			);
+		}
+
+	}
+
+	/**
+	 * Tests covering the production shape `TransactionalMap<String, TransactionalBitmap>` (values that are
+	 * themselves {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}s). They focus on the
+	 * lifecycle of a value's nested transactional layer when the holding key is mutated and then removed within
+	 * one transaction. A leaked (never-released) inner layer surfaces as a
+	 * {@link io.evitadb.core.transaction.memory.StaleTransactionMemoryException} thrown by the layer-sweep
+	 * verification performed inside {@link io.evitadb.utils.AssertionUtils#assertStateAfterCommit}.
+	 *
+	 * The decision whether a removed value's layer must be released has to be made by **instance identity** (is
+	 * the exact removed instance still referenced by a surviving key?), not by content equality —
+	 * {@link TransactionalBitmap#equals(Object)} is content-based, so two distinct instances with equal content
+	 * (trivially: two empty bitmaps) must still each own and release their own layer.
+	 */
+	@Nested
+	@DisplayName("Producer value layer lifecycle")
+	class ProducerValueLayerLifecycleTest {
+
+		/**
+		 * Builds a `TransactionalMap<String, TransactionalBitmap>` using the producer constructor, exactly as
+		 * `EntityIndex#entityIdsByLanguage` does in production.
+		 */
+		@Nonnull
+		private TransactionalMap<String, TransactionalBitmap> producerMap(@Nonnull Map<String, TransactionalBitmap> delegate) {
+			return new TransactionalMap<>(delegate, TransactionalBitmap.class, TransactionalBitmap::new);
+		}
+
+		@Test
+		@DisplayName("modify-then-remove a key whose empty value content-collides with a surviving key sweeps cleanly")
+		void shouldReleaseLayerWhenRemovedEmptyValueContentCollidesWithSurvivingKey() {
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			// both values are empty -> content-equal, but distinct instances (distinct layer owners).
+			// the surviving key is inserted first so that the content-based containsValue scan matches it
+			// before the removed key and wrongly concludes the removed value is "still present"
+			delegate.put("b", new TransactionalBitmap());
+			delegate.put("a", new TransactionalBitmap());
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					// open an ALIVE layer on a's bitmap while keeping its content empty (add then remove)
+					original.get("a").add(5);
+					original.get("a").remove(5);
+					// remove key a; key b survives and is content-equal (also empty)
+					original.remove("a");
+				},
+				(original, committed) -> {
+					// original must remain untouched
+					assertEquals(2, original.size());
+					// committed reflects the removal: only b remains
+					assertEquals(1, committed.size());
+					assertTrue(committed.containsKey("b"));
+					assertFalse(committed.containsKey("a"));
+					assertArrayEquals(new int[0], committed.get("b").getArray());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("modify-then-remove a key whose non-empty value content-collides with a surviving key sweeps cleanly")
+		void shouldReleaseLayerWhenRemovedValueContentEqualsSurvivingKey() {
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			// identical non-empty content under two distinct instances; surviving key inserted first so the
+			// content-based containsValue scan matches it before the removed key
+			delegate.put("b", new TransactionalBitmap(10, 20));
+			delegate.put("a", new TransactionalBitmap(10, 20));
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					// open an ALIVE layer on a's bitmap, then restore its content to equal b again
+					original.get("a").add(30);
+					original.get("a").remove(30);
+					original.remove("a");
+				},
+				(original, committed) -> {
+					assertEquals(2, original.size());
+					assertEquals(1, committed.size());
+					assertTrue(committed.containsKey("b"));
+					assertFalse(committed.containsKey("a"));
+					assertArrayEquals(new int[]{10, 20}, committed.get("b").getArray());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("create-then-modify-then-remove a fresh key within one transaction sweeps cleanly")
+		void shouldReleaseLayerWhenFreshlyCreatedValueIsModifiedThenRemoved() {
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			delegate.put("a", new TransactionalBitmap(1));
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					// insert a brand-new key with a fresh producer value
+					final TransactionalBitmap fresh = new TransactionalBitmap();
+					original.put("z", fresh);
+					// mutate it -> opens an ALIVE nested layer on the fresh instance
+					fresh.add(42);
+					// remove the same new key within the same transaction
+					original.remove("z");
+				},
+				(original, committed) -> {
+					assertEquals(1, original.size());
+					// net effect is zero: z never makes it to the committed map
+					assertEquals(1, committed.size());
+					assertTrue(committed.containsKey("a"));
+					assertFalse(committed.containsKey("z"));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("removing one of two keys sharing the same value instance does not release the surviving layer")
+		void shouldNotReleaseLayerWhenRemovedValueInstanceIsStillReferenced() {
+			final TransactionalBitmap shared = new TransactionalBitmap(7);
+			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
+			// the very same instance is stored under two keys
+			delegate.put("a", shared);
+			delegate.put("b", shared);
+			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
+
+			assertStateAfterCommit(
+				map,
+				original -> {
+					// mutate the shared instance (opens its layer), then remove only key a
+					original.get("a").add(8);
+					original.remove("a");
+				},
+				(original, committed) -> {
+					assertEquals(2, original.size());
+					// b survives and must carry the committed (merged) content of the shared instance
+					assertEquals(1, committed.size());
+					assertTrue(committed.containsKey("b"));
+					assertFalse(committed.containsKey("a"));
+					assertArrayEquals(new int[]{7, 8}, committed.get("b").getArray());
 				}
 			);
 		}

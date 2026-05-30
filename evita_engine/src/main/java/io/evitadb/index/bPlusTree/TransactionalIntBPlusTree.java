@@ -567,7 +567,15 @@ public class TransactionalIntBPlusTree<V> implements
 			// update the value on specified index
 			leaf.decoupleTransactionalArrays();
 			final V[] values = leaf.getValues();
-			values[existingIndex] = updater.apply(values[existingIndex]);
+			final V previousValue = values[existingIndex];
+			final V newValue = updater.apply(previousValue);
+			// when the updater returns a different instance the previous one is discarded from the tree;
+			// release its transactional diff layer (if any) so it is not left ALIVE and detected as stale
+			// during commit; when the updater mutates and returns the same instance, nothing is discarded
+			if (newValue != previousValue) {
+				BPlusLeafTreeNode.discardRemovedValueLayer(previousValue);
+			}
+			values[existingIndex] = newValue;
 		} else {
 			// insert the new value
 			if (leaf.insert(key, updater.apply(null))) {
@@ -2634,6 +2642,10 @@ public class TransactionalIntBPlusTree<V> implements
 				final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
 
 				if (index >= 0) {
+					// the value is discarded from the tree - release its transactional diff layer (if any)
+					// so it is not left ALIVE and detected as stale during commit; outside a transaction the
+					// guard short-circuits and this is a no-op
+					discardRemovedValueLayer(this.values[index]);
 					removeIntFromSameArrayOnIndex(this.keys, index);
 					removeRecordFromSameArrayOnIndex(this.values, index);
 					this.keys[this.peek] = 0;
@@ -2648,6 +2660,9 @@ public class TransactionalIntBPlusTree<V> implements
 				final int index = Arrays.binarySearch(layer.keys, 0, layer.peek + 1, key);
 
 				if (index >= 0) {
+					// the value is discarded from the tree - release its transactional diff layer (if any)
+					// so it is not left ALIVE and detected as stale during commit
+					discardRemovedValueLayer(layer.values[index]);
 					removeIntFromSameArrayOnIndex(layer.keys, index);
 					removeRecordFromSameArrayOnIndex(layer.values, index);
 					layer.keys[layer.peek] = 0;
@@ -2657,6 +2672,26 @@ public class TransactionalIntBPlusTree<V> implements
 				} else {
 					return false;
 				}
+			}
+		}
+
+		/**
+		 * Releases the transactional diff layer of a value that is being discarded from this leaf node. When the
+		 * value is a [TransactionalLayerProducer] whose layer was opened earlier in the current transaction (e.g. its
+		 * inner state was mutated, or it was freshly created and mutated within the same transaction), that layer must
+		 * be removed explicitly - otherwise it stays ALIVE after commit and triggers a
+		 * `StaleTransactionMemoryException` during layer sweep verification.
+		 *
+		 * This mirrors the node-cleanup discipline already applied when nodes are discarded during splits, merges and
+		 * root replacement. It must not be applied to values that are merely moved to a sibling node (steal/merge
+		 * rebalancing), because those values remain referenced and their layers must survive.
+		 *
+		 * @param removed the value removed from the leaf, may be null
+		 */
+		private static void discardRemovedValueLayer(@Nullable Object removed) {
+			if (removed instanceof final TransactionalLayerProducer<?, ?> producer
+				&& Transaction.getTransactionalMemoryLayerIfExists(producer) != null) {
+				producer.removeLayer();
 			}
 		}
 
@@ -2682,6 +2717,12 @@ public class TransactionalIntBPlusTree<V> implements
 				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
 					key, this.keys, 0, this.peek + 1);
 				if (insertionPosition.alreadyPresent()) {
+					// an existing value is overwritten - release the discarded instance's diff layer (if any
+					// and if it is genuinely a different instance) so it is not left ALIVE during commit
+					final V previousValue = this.values[insertionPosition.position()];
+					if (value != previousValue) {
+						discardRemovedValueLayer(previousValue);
+					}
 					this.keys[insertionPosition.position()] = key;
 					this.values[insertionPosition.position()] = value;
 					return false;
@@ -2701,6 +2742,12 @@ public class TransactionalIntBPlusTree<V> implements
 				final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
 					key, layer.keys, 0, layer.peek + 1);
 				if (insertionPosition.alreadyPresent()) {
+					// an existing value is overwritten - release the discarded instance's diff layer (if any
+					// and if it is genuinely a different instance) so it is not left ALIVE during commit
+					final V previousValue = layer.values[insertionPosition.position()];
+					if (value != previousValue) {
+						discardRemovedValueLayer(previousValue);
+					}
 					layer.keys[insertionPosition.position()] = key;
 					layer.values[insertionPosition.position()] = value;
 					return false;

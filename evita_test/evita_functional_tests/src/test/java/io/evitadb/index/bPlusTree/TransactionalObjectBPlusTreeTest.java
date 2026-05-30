@@ -29,6 +29,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
@@ -542,6 +543,30 @@ class TransactionalObjectBPlusTreeTest {
 			);
 		}
 
+		@Test
+		@DisplayName("releases diff layer of a producer value replaced by a different instance via upsert")
+		void shouldNotLeakLayerWhenProducerValueIsReplacedByDifferentInstanceViaUpsert() {
+			final TransactionalObjectBPlusTree<Integer, TransactionalBitmap> tree =
+				new TransactionalObjectBPlusTree<>(Integer.class, TransactionalBitmap.class, o -> (TransactionalBitmap) o);
+			tree.insert(1, new TransactionalBitmap(new int[]{10}));
+
+			assertStateAfterCommit(
+				tree,
+				original -> {
+					// mutate the existing value (opens an ALIVE layer) and then replace it with a brand-new
+					// instance via upsert - the discarded old instance's layer must be released
+					original.upsert(1, existing -> {
+						existing.add(11);
+						return new TransactionalBitmap(new int[]{30});
+					});
+				},
+				(original, committed) -> {
+					assertEquals(1, committed.size());
+					assertArrayEquals(new int[]{30}, committed.search(1).orElseThrow().getArray());
+				}
+			);
+		}
+
 	}
 
 	@Nested
@@ -595,6 +620,49 @@ class TransactionalObjectBPlusTreeTest {
 			assertEquals(0, tree.size());
 			assertTrue(tree.search(42).isEmpty());
 			verifyTreeConsistency(tree);
+		}
+
+		@Test
+		@DisplayName("releases diff layer of a modified producer value that is deleted in the same transaction")
+		void shouldNotLeakLayerWhenModifiedProducerValueIsDeleted() {
+			final TransactionalObjectBPlusTree<Integer, TransactionalBitmap> tree =
+				new TransactionalObjectBPlusTree<>(Integer.class, TransactionalBitmap.class, o -> (TransactionalBitmap) o);
+			tree.insert(1, new TransactionalBitmap(new int[]{10}));
+
+			assertStateAfterCommit(
+				tree,
+				original -> {
+					// open an ALIVE layer on the inner bitmap, then drop the whole value in the same txn
+					original.search(1).orElseThrow().add(11);
+					original.delete(1);
+				},
+				(original, committed) -> {
+					assertEquals(1, original.size());
+					assertEquals(0, committed.size());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("sweeps cleanly when a freshly created producer value is added and deleted in the same transaction")
+		void shouldNotLeakLayerWhenFreshlyCreatedProducerValueIsAddedThenDeleted() {
+			final TransactionalObjectBPlusTree<Integer, TransactionalBitmap> tree =
+				new TransactionalObjectBPlusTree<>(Integer.class, TransactionalBitmap.class, o -> (TransactionalBitmap) o);
+
+			assertStateAfterCommit(
+				tree,
+				original -> {
+					// create a brand-new producer value, mutate it, then delete it within the same txn
+					final TransactionalBitmap fresh = new TransactionalBitmap(new int[]{20});
+					original.insert(2, fresh);
+					fresh.add(21);
+					original.delete(2);
+				},
+				(original, committed) -> {
+					assertEquals(0, original.size());
+					assertEquals(0, committed.size());
+				}
+			);
 		}
 
 	}
