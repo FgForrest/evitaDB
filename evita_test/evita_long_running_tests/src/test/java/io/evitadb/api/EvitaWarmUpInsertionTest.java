@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -153,6 +154,31 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 		log.info("Set-up completed in: " + StringUtils.formatNano(System.nanoTime() - start));
 	}
 
+	@Tag(SLOW)
+	@Test
+	void shouldGenerateLoadOfChainDataInWarmUpPhase() {
+		this.evita.defineCatalog(TEST_CATALOG);
+
+		final long start = System.nanoTime();
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(THE_ENTITY)
+					.withoutGeneratedPrimaryKey()
+					// a Predecessor-typed sortable attribute is what populates the ChainIndex, and therefore the
+					// unordered-array write path (TransactionalUnorderedIntArray / UnorderedLookup) this test targets
+					.withAttribute("order", Predecessor.class, AttributeSchemaEditor::sortable)
+					.updateVia(session);
+
+				insertAndChurnChain(session);
+
+				session.goLiveAndClose();
+			}
+		);
+
+		log.info("Set-up completed in: " + StringUtils.formatNano(System.nanoTime() - start));
+	}
+
 	/**
 	 * Drives the two-phase warm-up workload shared by the data-load tests:
 	 *
@@ -227,6 +253,89 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 		}
 		log.info(
 			"Churn of " + CHURN_OPERATIONS + " random remove/update operations completed in: " +
+				StringUtils.formatNano(System.nanoTime() - churnStart)
+		);
+	}
+
+	/**
+	 * Variant of {@link #insertAndChurn} that exercises the unordered-array write path behind the `ChainIndex`
+	 * (`TransactionalUnorderedIntArray` / `UnorderedLookup`) rather than the inverted or range index.
+	 *
+	 * Phase 1 builds a single consistent chain of {@link #INITIAL_RECORD_COUNT} elements: record `1` is the chain
+	 * `HEAD` and record `i` (for `i > 1`) is chained immediately after record `i - 1`. This drives one chain to full
+	 * cardinality - the worst case for the array-backed unordered lookup, where every middle insert renumbers a
+	 * suffix of positions.
+	 *
+	 * Phase 2 churns that chain with {@link #CHURN_OPERATIONS} random operations under a fixed seed (so runs are
+	 * comparable): a drawn live record is either removed (splitting the chain, ≈50 %) or re-chained after its natural
+	 * predecessor (a middle move/no-op, ≈50 %), while a previously removed record is re-inserted back into its slot -
+	 * healing the chain mid-way. The predecessor of every (re)inserted/updated record is record `pk - 1` when that
+	 * record is currently alive, otherwise `HEAD`; this keeps the working set as a (mostly) single long chain while
+	 * constantly reshuffling it, maximizing pressure on the unordered-array add/remove paths.
+	 *
+	 * The same `createNewEntity` (insert) versus `getEntity(...).openForWrite()` (update) distinction as in
+	 * {@link #insertAndChurn} applies - using `createNewEntity` for an existing key would be rejected with an
+	 * `InvalidMutationException`.
+	 *
+	 * @param session the warm-up session to operate within (before `goLiveAndClose`)
+	 */
+	private static void insertAndChurnChain(@Nonnull EvitaSessionContract session) {
+		// phase 1 - build a single chain 1..N (record i chained right after record i-1)
+		final long insertionStart = System.nanoTime();
+		for (int i = 0; i < INITIAL_RECORD_COUNT; i++) {
+			final int primaryKey = i + 1;
+			final EntityBuilder builder = session.createNewEntity(THE_ENTITY, primaryKey);
+			builder.setAttribute("order", primaryKey == 1 ? Predecessor.HEAD : new Predecessor(primaryKey - 1));
+			builder.upsertVia(session);
+			if (i % PROGRESS_STEP == 0) {
+				System.out.println("Inserted: " + i);
+			}
+		}
+		log.info(
+			"Initial insertion of " + INITIAL_RECORD_COUNT + " chained records completed in: " +
+				StringUtils.formatNano(System.nanoTime() - insertionStart)
+		);
+
+		// phase 2 - random remove / re-chain churn over the single chain
+		final long churnStart = System.nanoTime();
+		final Random random = new Random(42);
+		// tracks which primary keys currently hold a live record (index 0 is unused, keys are 1-based)
+		final boolean[] alive = new boolean[INITIAL_RECORD_COUNT + 1];
+		Arrays.fill(alive, 1, INITIAL_RECORD_COUNT + 1, true);
+		int aliveCount = INITIAL_RECORD_COUNT;
+		for (int op = 0; op < CHURN_OPERATIONS; op++) {
+			final int primaryKey = 1 + random.nextInt(INITIAL_RECORD_COUNT);
+			// chain after the natural predecessor (pk-1) when it is alive, otherwise become a HEAD
+			final Predecessor predecessor = primaryKey > 1 && alive[primaryKey - 1]
+				? new Predecessor(primaryKey - 1)
+				: Predecessor.HEAD;
+			if (alive[primaryKey] && random.nextBoolean()) {
+				// remove a live record - splits the chain at this element
+				session.deleteEntity(THE_ENTITY, primaryKey);
+				alive[primaryKey] = false;
+				aliveCount--;
+			} else if (alive[primaryKey]) {
+				// update a live record - fetch the existing entity (with its attributes) and open it for write
+				final EntityBuilder builder = session.getEntity(THE_ENTITY, primaryKey, attributeContentAll())
+					.map(SealedEntity::openForWrite)
+					.orElseThrow(() -> new IllegalStateException(
+						"Live record with primary key " + primaryKey + " is unexpectedly missing!"));
+				builder.setAttribute("order", predecessor);
+				builder.upsertVia(session);
+			} else {
+				// re-insert a previously removed record (insert semantics) - heals the chain mid-way
+				final EntityBuilder builder = session.createNewEntity(THE_ENTITY, primaryKey);
+				builder.setAttribute("order", predecessor);
+				builder.upsertVia(session);
+				alive[primaryKey] = true;
+				aliveCount++;
+			}
+			if (op % PROGRESS_STEP == 0) {
+				System.out.println("Churn op: " + op + " (alive=" + aliveCount + ")");
+			}
+		}
+		log.info(
+			"Churn of " + CHURN_OPERATIONS + " random remove/re-chain operations completed in: " +
 				StringUtils.formatNano(System.nanoTime() - churnStart)
 		);
 	}
