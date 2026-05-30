@@ -772,7 +772,49 @@ public class TransactionalIntBPlusTree<V> implements
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		// remove the tree's own diff layer
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		// recurse into the size and root references and the whole node/value graph so that a tree which was created
+		// and discarded within the same transaction (e.g. a removed sub-index) does not leave any of its inner
+		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5)
+		this.size.removeLayer(transactionalLayer);
+		this.root.removeLayer(transactionalLayer);
+		removeLayerRecursively(getRoot(), transactionalLayer);
+	}
+
+	/**
+	 * Recursively removes the transactional diff layers of the passed node, its descendants and - for leaf nodes -
+	 * their producer values. Walks the current transactional view of the tree.
+	 *
+	 * @param node               the node whose layer (and that of its subtree) is to be removed
+	 * @param transactionalLayer the maintainer that owns the diff layers
+	 */
+	private static void removeLayerRecursively(
+		@Nonnull BPlusTreeNode<?> node,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		if (node instanceof final BPlusInternalTreeNode internalNode) {
+			final BPlusTreeNode<?>[] children = internalNode.getChildren();
+			final int peek = internalNode.getPeek();
+			for (int i = 0; i <= peek; i++) {
+				removeLayerRecursively(children[i], transactionalLayer);
+			}
+		} else if (node instanceof final BPlusLeafTreeNode<?> leafNode) {
+			final Object[] values = leafNode.getValues();
+			final int peek = leafNode.getPeek();
+			for (int i = 0; i <= peek; i++) {
+				// value producers guard their own (and their children's) layer removal internally
+				if (values[i] instanceof final TransactionalLayerProducer<?, ?> producer) {
+					producer.removeLayer(transactionalLayer);
+				}
+			}
+		} else {
+			throw new GenericEvitaInternalError("Unknown node type: " + node);
+		}
+		// the node's own removeLayer asserts a layer exists - only call it when one is actually open
+		if (Transaction.getTransactionalMemoryLayerIfExists(node) != null) {
+			node.removeLayer(transactionalLayer);
+		}
 	}
 
 	@Nonnull
@@ -2686,11 +2728,18 @@ public class TransactionalIntBPlusTree<V> implements
 		 * root replacement. It must not be applied to values that are merely moved to a sibling node (steal/merge
 		 * rebalancing), because those values remain referenced and their layers must survive.
 		 *
+		 * The cleanup is delegated to [TransactionalLayerProducer#removeLayer()], which recurses into the value's inner
+		 * transactional objects. It must NOT be short-circuited on the parent's own layer presence: a composite producer
+		 * (e.g. a [io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer] such as a
+		 * [io.evitadb.index.invertedIndex.ValueToRecordBitmap]) never opens a layer of its own — only its children do —
+		 * so guarding on the parent's layer would leave the children's layers orphaned and detected as stale during
+		 * commit. The no-arg `removeLayer()` resolves the current transaction's maintainer and is a safe no-op when no
+		 * transaction is open.
+		 *
 		 * @param removed the value removed from the leaf, may be null
 		 */
 		private static void discardRemovedValueLayer(@Nullable Object removed) {
-			if (removed instanceof final TransactionalLayerProducer<?, ?> producer
-				&& Transaction.getTransactionalMemoryLayerIfExists(producer) != null) {
+			if (removed instanceof final TransactionalLayerProducer<?, ?> producer) {
 				producer.removeLayer();
 			}
 		}
