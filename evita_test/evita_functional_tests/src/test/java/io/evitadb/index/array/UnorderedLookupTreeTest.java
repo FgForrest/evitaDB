@@ -254,6 +254,18 @@ class UnorderedLookupTreeTest {
 	}
 
 	@Test
+	void shouldStayConsistentWhenOrderKeyGapExhausts() {
+		// a tiny order-key gap forces repeated re-spacing as the leftmost region keeps splitting under head inserts
+		final UnorderedLookupTree tested = new UnorderedLookupTree(4L);
+		final List<Integer> oracle = new ArrayList<>();
+		for (int i = 0; i < 2_000; i++) {
+			tested.addRecord(Integer.MIN_VALUE, 1000 + i);
+			oracle.add(0, 1000 + i);
+		}
+		assertConsistentWithOracle(tested, oracle);
+	}
+
+	@Test
 	void shouldMatchArrayDelegateForIdenticalOperations() {
 		final Random random = new Random(123);
 		final UnorderedLookupTree tree = new UnorderedLookupTree(new int[0]);
