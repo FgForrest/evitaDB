@@ -32,6 +32,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.range.RangeIndex.StartsEndsDTO;
+import io.evitadb.index.range.RangePoint;
 import io.evitadb.store.index.serializer.IntRangeIndexSerializer;
 import io.evitadb.store.index.serializer.TransactionalIntRangePointSerializer;
 import io.evitadb.store.index.serializer.TransactionalIntegerBitmapSerializer;
@@ -601,6 +602,240 @@ class RangeIndexTest {
 
 		final RangeIndex deserializedTested = kryo.readObject(new Input(bytes), RangeIndex.class);
 		assertEquals(this.tested, deserializedTested);
+	}
+
+	@Test
+	void shouldReportContainsAllRecordsAndSizeOverNonTrivialIndex() {
+		// duplicate thresholds (two records sharing 5..10), same-record multi-range edges and sentinels
+		this.tested.addRecord(Long.MIN_VALUE, Long.MAX_VALUE, 1);
+		this.tested.addRecord(5, 10, 2);
+		this.tested.addRecord(5, 10, 3);
+		this.tested.addRecord(1, 5, 4);
+		this.tested.addRecord(10, 20, 4);
+
+		assertTrue(this.tested.contains(1));
+		assertTrue(this.tested.contains(2));
+		assertTrue(this.tested.contains(3));
+		assertTrue(this.tested.contains(4));
+		assertFalse(this.tested.contains(99));
+
+		assertArrayEquals(new int[]{1, 2, 3, 4}, this.tested.getAllRecords().getArray());
+		assertEquals(4, this.tested.size());
+	}
+
+	@Test
+	void shouldExposeRangePointCountIncludingSentinels() {
+		// empty index carries only the MIN/MAX sentinels
+		assertEquals(2, this.tested.getRangePointCount());
+		this.tested.addRecord(5, 10, 1);
+		// two fresh thresholds added
+		assertEquals(4, this.tested.getRangePointCount());
+		this.tested.addRecord(5, 20, 2);
+		// threshold 5 is shared, threshold 20 is new
+		assertEquals(5, this.tested.getRangePointCount());
+	}
+
+	@Test
+	void shouldIterateRangesInThresholdOrder() {
+		this.tested.addRecord(5, 10, 1);
+		this.tested.addRecord(1, 7, 2);
+
+		final java.util.Iterator<TransactionalRangePoint> it = this.tested.rangesIterator();
+		long previous = Long.MIN_VALUE;
+		boolean first = true;
+		final java.util.List<Long> thresholds = new java.util.ArrayList<>();
+		while (it.hasNext()) {
+			final TransactionalRangePoint point = it.next();
+			if (!first) {
+				assertTrue(point.getThreshold() > previous, "Range points must be sorted ascending by threshold!");
+			}
+			previous = point.getThreshold();
+			first = false;
+			thresholds.add(point.getThreshold());
+		}
+		assertEquals(
+			List.of(Long.MIN_VALUE, 1L, 5L, 7L, 10L, Long.MAX_VALUE),
+			thresholds
+		);
+	}
+
+	@Test
+	void shouldReturnRangesArrayInThresholdOrder() {
+		this.tested.addRecord(5, 10, 1);
+		this.tested.addRecord(1, 7, 2);
+
+		final RangePoint<?>[] ranges = this.tested.getRanges();
+		assertEquals(6, ranges.length);
+		assertEquals(Long.MIN_VALUE, ranges[0].getThreshold());
+		assertEquals(1L, ranges[1].getThreshold());
+		assertEquals(5L, ranges[2].getThreshold());
+		assertEquals(7L, ranges[3].getThreshold());
+		assertEquals(10L, ranges[4].getThreshold());
+		assertEquals(Long.MAX_VALUE, ranges[5].getThreshold());
+	}
+
+	@Test
+	void shouldComputeEnvelopingInclusiveAtExactThresholdAndBetween() {
+		this.tested.addRecord(100L, 200L, 1);
+		this.tested.addRecord(150L, 300L, 2);
+
+		// exactly on a threshold (150) - record 1 and 2 valid
+		assertFormulaResultsIn(this.tested.getRecordsEnvelopingInclusive(150L), new int[]{1, 2});
+		// between thresholds (175) - both valid
+		assertFormulaResultsIn(this.tested.getRecordsEnvelopingInclusive(175L), new int[]{1, 2});
+		// exactly on the start threshold of record 1 (100)
+		assertFormulaResultsIn(this.tested.getRecordsEnvelopingInclusive(100L), new int[]{1});
+		// after record 1 ends but record 2 still valid (250)
+		assertFormulaResultsIn(this.tested.getRecordsEnvelopingInclusive(250L), new int[]{2});
+		// outside every range
+		assertFormulaResultsIn(this.tested.getRecordsEnvelopingInclusive(50L), new int[0]);
+	}
+
+	@Test
+	void shouldComputeRecordsToInclusiveBoundary() {
+		this.tested.addRecord(1, 4, 1);
+		this.tested.addRecord(5, 7, 2);
+		this.tested.addRecord(8, 10, 3);
+
+		// exactly on threshold 5 - records starting at or before 5 with no earlier end (record 1 already ended at 4)
+		assertFormulaResultsIn(this.tested.getRecordsTo(5L), new int[]{2});
+		// between thresholds (6) - same as 5 (inclusive -idx-2 boundary)
+		assertFormulaResultsIn(this.tested.getRecordsTo(6L), new int[]{2});
+		// at threshold 10 every record has both started and ended -> none "valid until" this point
+		assertFormulaResultsIn(this.tested.getRecordsTo(10L), new int[0]);
+		// at the first real threshold (1) only record 1 has started and not yet ended
+		assertFormulaResultsIn(this.tested.getRecordsTo(1L), new int[]{1});
+		// between record 1 start and end (2) record 1 still valid
+		assertFormulaResultsIn(this.tested.getRecordsTo(2L), new int[]{1});
+	}
+
+	@Test
+	void nonTransactionalAddAndRemoveMutatesDelegate() {
+		// T8 - outside a transaction, add/remove mutates this instance directly
+		this.tested.addRecord(5, 10, 1);
+		this.tested.addRecord(5, 10, 2);
+		assertTrue(this.tested.contains(1));
+		assertTrue(this.tested.contains(2));
+
+		this.tested.removeRecord(5, 10, 1);
+		assertFalse(this.tested.contains(1));
+		assertTrue(this.tested.contains(2));
+		assertArrayEquals(new int[]{2}, this.tested.getAllRecords().getArray());
+	}
+
+	@Test
+	void transactionalAddCommitsAtomically() {
+		// T2/T7 - committed version reflects the change, original is untouched until commit
+		assertStateAfterCommit(
+			new RangeIndex(),
+			original -> {
+				original.addRecord(5, 10, 1);
+				original.addRecord(7, 12, 2);
+				assertTrue(original.contains(1));
+				assertTrue(original.contains(2));
+			},
+			(original, committedVersion) -> {
+				// original delegate never mutated
+				assertFalse(original.contains(1));
+				assertFalse(original.contains(2));
+				// committed version sees everything
+				assertTrue(committedVersion.contains(1));
+				assertTrue(committedVersion.contains(2));
+				assertArrayEquals(new int[]{1, 2}, committedVersion.getAllRecords().getArray());
+			}
+		);
+	}
+
+	@Test
+	void transactionalAddRollbackLeavesOriginalUntouched() {
+		// T7 - rollback discards all changes
+		assertStateAfterRollback(
+			new RangeIndex(),
+			original -> {
+				original.addRecord(5, 10, 1);
+				assertTrue(original.contains(1));
+			},
+			(original, committedVersion) -> {
+				assertNull(committedVersion);
+				assertFalse(original.contains(1));
+			}
+		);
+	}
+
+	@Test
+	void modifyingPointBitmapCommitsAtomically() {
+		// T5 - mutate a point's bitmap (add a second record sharing an existing threshold) commits with the parent
+		final RangeIndex base = new RangeIndex();
+		base.addRecord(5, 10, 1);
+
+		assertStateAfterCommit(
+			base,
+			original -> {
+				// shares threshold 5 and 10 with record 1, mutating the existing range points in place
+				original.addRecord(5, 10, 2);
+				assertTrue(original.contains(2));
+			},
+			(original, committedVersion) -> {
+				assertFalse(original.contains(2));
+				assertTrue(committedVersion.contains(1));
+				assertTrue(committedVersion.contains(2));
+				assertArrayEquals(new int[]{1, 2}, committedVersion.getAllRecords().getArray());
+			}
+		);
+	}
+
+	@Test
+	void removeToEmptyInsideTransactionSweepsCleanly() {
+		// remove-to-empty inside a txn - modifies then removes the range points, must sweep cleanly
+		final RangeIndex base = new RangeIndex();
+		base.addRecord(5, 10, 1);
+		base.addRecord(5, 10, 2);
+
+		assertStateAfterCommit(
+			base,
+			original -> {
+				original.removeRecord(5, 10, 1);
+				original.removeRecord(5, 10, 2);
+				assertFalse(original.contains(1));
+				assertFalse(original.contains(2));
+			},
+			(original, committedVersion) -> {
+				// original still holds both
+				assertTrue(original.contains(1));
+				assertTrue(original.contains(2));
+				// committed version is empty
+				assertFalse(committedVersion.contains(1));
+				assertFalse(committedVersion.contains(2));
+				assertEquals(0, committedVersion.size());
+			}
+		);
+	}
+
+	@Test
+	void rangesIteratorReflectsInTransactionChanges() {
+		// T9 - the transactional iterator observes in-progress state inside the transaction
+		final RangeIndex base = new RangeIndex();
+		base.addRecord(5, 10, 1);
+
+		assertStateAfterRollback(
+			base,
+			original -> {
+				original.addRecord(1, 3, 2);
+				final java.util.List<Long> thresholds = new java.util.ArrayList<>();
+				final java.util.Iterator<TransactionalRangePoint> it = original.rangesIterator();
+				while (it.hasNext()) {
+					thresholds.add(it.next().getThreshold());
+				}
+				// the freshly added thresholds 1 and 3 are visible inside the transaction
+				assertTrue(thresholds.contains(1L));
+				assertTrue(thresholds.contains(3L));
+			},
+			(original, committedVersion) -> {
+				assertNull(committedVersion);
+				// after rollback the original no longer carries the in-txn thresholds
+				assertFalse(original.contains(2));
+			}
+		);
 	}
 
 	private static long timestampForDate(int day, int month) {
