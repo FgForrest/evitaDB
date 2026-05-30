@@ -63,8 +63,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -480,6 +482,61 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 		assertFalse(subscriber1.isCompleted(), "Subscriber 1 should not be completed yet");
 		assertFalse(subscriber2.isCompleted(), "Subscriber 2 should not be completed yet");
 		assertFalse(subscriber3.isCompleted(), "Subscriber 3 should not be completed yet");
+	}
+
+	/**
+	 * Regression test for issue #1201: the periodic subscriber cleanup must not crash when the
+	 * subscriber-version map drains to empty inside `clearUnusedDataInRingBuffer`.
+	 *
+	 * Mirrors the catalog-level regression for the system publisher. Reproduces the exact production
+	 * state: an initialised ring buffer plus a `versionSubscribersCount` whose only tracked version is
+	 * strictly below the buffer's effective start version. The cleanup loop removes that stale entry,
+	 * emptying the map; the old code then called
+	 * {@link java.util.concurrent.ConcurrentSkipListMap#firstKey()} on the now-empty map and threw
+	 * {@link java.util.NoSuchElementException}. The fix re-reads `firstEntry()`, which returns `null`
+	 * on an empty map, so the loop terminates cleanly.
+	 *
+	 * @param evita the Evita database instance with the test dataset already loaded
+	 */
+	@UseDataSet(value = SYSTEM_CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("clean ring buffer without crashing when subscriber-version map drains to empty")
+	void shouldCleanRingBufferWhenVersionSubscribersCountDrainsToEmpty(@Nonnull Evita evita) {
+		final SystemChangeObserver tested = evita.getChangeObserver();
+		final ChangeSystemCaptureSharedPublisher sharedPublisher = getNonnullFieldValue(tested, "sharedPublisher");
+
+		final long currentVersion = evita.getEngineState().version();
+		final ChangeSystemCaptureRequest request = new ChangeSystemCaptureRequest(
+			currentVersion + 1, 0, null, ChangeCaptureContent.BODY
+		);
+
+		try (
+			final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(request)
+		) {
+			final MockSystemChangeSubscriber subscriber = new MockSystemChangeSubscriber();
+			publisher.subscribe(subscriber);
+
+			// drive an engine mutation so the ring buffer (lastCaptures) is initialised
+			final String catalog = TEST_CATALOG + "_drain";
+			evita.defineCatalog(catalog);
+			evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+
+			// craft the production state: the only tracked version sits strictly below the ring
+			// buffer's effective start version, so cleanup removes it and empties the map
+			final ChangeCaptureRingBuffer<ChangeSystemCapture> ringBuffer =
+				getNonnullFieldValue(sharedPublisher, "lastCaptures");
+			final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+				getNonnullFieldValue(sharedPublisher, "versionSubscribersCount");
+			versionSubscribersCount.clear();
+			versionSubscribersCount.put(ringBuffer.getEffectiveStartCatalogVersion() - 1, 1);
+
+			// previously threw NoSuchElementException from firstKey() once the loop emptied the map
+			assertDoesNotThrow(sharedPublisher::checkSubscribersLeft);
+			assertTrue(
+				versionSubscribersCount.isEmpty(),
+				"Stale sub-threshold version entry should have been drained"
+			);
+		}
 	}
 
 	/**

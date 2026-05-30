@@ -683,17 +683,20 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 	private void clearUnusedDataInRingBuffer() {
 		// clear unused data from the ring buffer / statistics
 		final long lowestAvailableCatalogVersion = this.lastCaptures.getEffectiveStartCatalogVersion();
-		if (!this.versionSubscribersCount.isEmpty()) {
-			Long lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+		// firstEntry() returns null on an empty map atomically, unlike firstKey() which throws
+		// NoSuchElementException - this must be re-read on each loop iteration because removing the
+		// last remaining entry empties the map
+		Entry<Long, Integer> lowestUsedEntry = this.versionSubscribersCount.firstEntry();
+		if (lowestUsedEntry != null) {
 			// if the lowest available catalog version is lower than the lowest used catalog version
-			if (lowestUsedCatalogVersion != null && lowestAvailableCatalogVersion < lowestUsedCatalogVersion) {
+			if (lowestAvailableCatalogVersion < lowestUsedEntry.getKey()) {
 				// it means that we keep unnecessary data in the ring buffer and we may strip it
 				this.lastCaptures.clearAllUntil(lowestAvailableCatalogVersion);
 			} else {
 				// otherwise we may clear the statistics
-				while (lowestUsedCatalogVersion != null && lowestUsedCatalogVersion < lowestAvailableCatalogVersion) {
-					this.versionSubscribersCount.remove(lowestUsedCatalogVersion);
-					lowestUsedCatalogVersion = this.versionSubscribersCount.firstKey();
+				while (lowestUsedEntry != null && lowestUsedEntry.getKey() < lowestAvailableCatalogVersion) {
+					this.versionSubscribersCount.remove(lowestUsedEntry.getKey());
+					lowestUsedEntry = this.versionSubscribersCount.firstEntry();
 				}
 			}
 		}
