@@ -59,6 +59,7 @@ import static io.evitadb.test.TestTags.SLOW;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -230,16 +231,21 @@ class LongRunningInvertedIndexTest implements TimeBoundedTestSupport {
 										recordValues.remove(recordToRemove);
 									}
 
-									final int expectedIndex = indexOf(uniqueValues, valueToRemove);
-									if (mapToCompare.get(valueToRemove).isEmpty()) {
+									final boolean valueBecameEmpty = mapToCompare.get(valueToRemove).isEmpty();
+									if (valueBecameEmpty) {
 										uniqueValues.remove(valueToRemove);
 										mapToCompare.remove(valueToRemove);
 									}
 
 									codeBuffer.append("histogram.removeRecord(").append(valueToRemove).append("L,").append(recordToRemove).append(");\n");
-									final int removedAtIndex = histogram.removeRecord(Objects.requireNonNull(valueToRemove), recordToRemove);
+									histogram.removeRecord(Objects.requireNonNull(valueToRemove), recordToRemove);
 
-									assertEquals(expectedIndex, removedAtIndex);
+									// value-based verification: the removed record must no longer be assigned to the value,
+									// and the bucket must be gone entirely once its last record was removed
+									assertFalse(histogram.getRecordsEqualTo(valueToRemove).contains(recordToRemove));
+									if (valueBecameEmpty) {
+										assertFalse(histogram.contains(valueToRemove));
+									}
 								}
 							}
 						} catch (Exception ex) {
@@ -279,18 +285,6 @@ class LongRunningInvertedIndexTest implements TimeBoundedTestSupport {
 				);
 			}
 		);
-	}
-
-	private static <T extends Serializable> int indexOf(@Nonnull Set<T> values, @Nonnull T valueToFind) {
-		int result = -1;
-		for (T value : values) {
-			result++;
-			//noinspection rawtypes,unchecked
-			if (((Comparable) valueToFind).compareTo(value) == 0) {
-				return result;
-			}
-		}
-		return result;
 	}
 
 	private record TestState(
