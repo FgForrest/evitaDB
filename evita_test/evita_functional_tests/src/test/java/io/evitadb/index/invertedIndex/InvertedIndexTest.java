@@ -243,24 +243,24 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("addRecord returns insertion index")
-		void shouldReturnInsertionIndex() {
+		@DisplayName("addRecord inserts buckets in comparator order regardless of insertion sequence")
+		void shouldInsertBucketsInComparatorOrder() {
 			final InvertedIndex index = new InvertedIndex(
 				FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder()
 			);
 
-			final int firstIndex = index.addRecord(10, 1);
-			assertEquals(0, firstIndex);
+			index.addRecord(10, 1);
+			index.addRecord(5, 2);
+			index.addRecord(20, 3);
+			// add to the already existing bucket for value 10
+			index.addRecord(10, 4);
 
-			final int secondIndex = index.addRecord(5, 2);
-			assertEquals(0, secondIndex);
-
-			final int thirdIndex = index.addRecord(20, 3);
-			assertEquals(2, thirdIndex);
-
-			// adding to existing bucket
-			final int existingIndex = index.addRecord(10, 4);
-			assertEquals(1, existingIndex);
+			final ValueToRecordBitmap[] buckets = index.getValueToRecordBitmap();
+			assertEquals(3, buckets.length);
+			assertEquals(5, buckets[0].getValue());
+			assertEquals(10, buckets[1].getValue());
+			assertEquals(20, buckets[2].getValue());
+			assertArrayEquals(new int[]{1, 4}, buckets[1].getRecordIds().getArray());
 		}
 
 		@Test
@@ -276,11 +276,14 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("removeRecord returns -1 when value not found")
-		void shouldReturnMinusOneWhenValueNotFound() {
-			final int result = InvertedIndexTest.this.tested.removeRecord(999, 1);
+		@DisplayName("removeRecord on missing value is a silent no-op")
+		void shouldSilentlyIgnoreRemovalOfMissingValue() {
+			final int bucketCountBefore = InvertedIndexTest.this.tested.getBucketCount();
 
-			assertEquals(-1, result);
+			InvertedIndexTest.this.tested.removeRecord(999, 1);
+
+			assertEquals(bucketCountBefore, InvertedIndexTest.this.tested.getBucketCount());
+			assertFalse(InvertedIndexTest.this.tested.contains(999));
 		}
 
 		@Test
@@ -336,17 +339,17 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("getRecordsAtIndex with valid index returns correct bitmap")
-		void shouldReturnRecordsAtValidIndex() {
-			final Bitmap records = InvertedIndexTest.this.tested.getRecordsAtIndex(0);
+		@DisplayName("getRecordsEqualTo with present value returns correct bitmap")
+		void shouldReturnRecordsForPresentValue() {
+			final Bitmap records = InvertedIndexTest.this.tested.getRecordsEqualTo(5);
 
 			assertArrayEquals(new int[]{1, 20}, records.getArray());
 		}
 
 		@Test
-		@DisplayName("getRecordsAtIndex with negative index returns EmptyBitmap")
-		void shouldReturnEmptyBitmapForNegativeIndex() {
-			final Bitmap records = InvertedIndexTest.this.tested.getRecordsAtIndex(-1);
+		@DisplayName("getRecordsEqualTo with absent value returns EmptyBitmap")
+		void shouldReturnEmptyBitmapForAbsentValue() {
+			final Bitmap records = InvertedIndexTest.this.tested.getRecordsEqualTo(999);
 
 			assertSame(EmptyBitmap.INSTANCE, records);
 		}

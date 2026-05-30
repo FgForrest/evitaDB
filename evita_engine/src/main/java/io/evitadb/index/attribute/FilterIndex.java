@@ -1081,8 +1081,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		final int removalIndex = this.invertedIndex.removeRecord(value, recordId);
-		isTrue(removalIndex >= 0, "Sanity check - record not found!");
+		// sanity check first - the record must currently be assigned to this value's bucket
+		final Serializable normalizedValue = this.normalizer.apply(value);
+		isTrue(
+			this.invertedIndex.getRecordsEqualTo(normalizedValue).contains(recordId),
+			"Sanity check - record not found!"
+		);
+		this.invertedIndex.removeRecord(value, recordId);
 	}
 
 }
