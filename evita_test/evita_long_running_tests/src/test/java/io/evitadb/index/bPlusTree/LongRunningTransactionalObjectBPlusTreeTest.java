@@ -36,10 +36,13 @@ import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Random;
+import java.util.TreeMap;
 
+import static io.evitadb.test.TestTags.COMPARATOR;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SLOW;
@@ -117,6 +120,98 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 		);
 	}
 
+	@ParameterizedTest(
+		name = "TransactionalObjectBPlusTreeTest should survive generational randomized test under a reverse "
+			+ "comparator"
+	)
+	@Tag(SLOW)
+	@Tag(COMPARATOR)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("survives randomized insert/delete operations under a reverse comparator")
+	void generationalProofTestWithReverseComparator(@Nonnull GenerationalTestInput input) {
+		final int limitElements = 1000;
+		final Comparator<Integer> reverse = Comparator.reverseOrder();
+		final TransactionalObjectBPlusTree<Integer, String> theTree = new TransactionalObjectBPlusTree<>(
+			16, 7, 7, 3, Integer.class, String.class, reverse
+		);
+		// reference double ordered by the very same comparator (RULE-T3)
+		final TreeMap<Integer, String> reference = new TreeMap<>(reverse);
+
+		final Random seedRandom = new Random(42);
+		do {
+			final int i = seedRandom.nextInt(limitElements << 1);
+			theTree.insert(i, "Value" + i);
+			reference.put(i, "Value" + i);
+		} while (reference.size() < limitElements);
+		verifyComparatorTreeConsistency(theTree, reference);
+
+		runFor(
+			input, 1000, new ComparatorTestState(new StringBuilder(), true),
+			(random, testState) -> {
+				int key = -1;
+				final boolean delete =
+					(!reference.isEmpty() && random.nextInt(3) == 0)
+						|| (testState.limitReached() && reference.size() > limitElements / 2);
+
+				try {
+					if (delete) {
+						final Integer[] keys = reference.keySet().toArray(new Integer[0]);
+						key = keys[random.nextInt(keys.length)];
+						theTree.delete(key);
+						reference.remove(key);
+					} else {
+						key = random.nextInt(limitElements * 2);
+						theTree.insert(key, "Value" + key);
+						reference.put(key, "Value" + key);
+					}
+
+					verifyComparatorTreeConsistency(theTree, reference);
+
+					return new ComparatorTestState(
+						testState.code().append(delete ? "D:" : "I:").append(key),
+						testState.limitReached()
+							? reference.size() > limitElements / 2
+							: reference.size() >= limitElements
+					);
+				} catch (Exception ex) {
+					fail(
+						"Failed to " + (delete ? "delete" : "insert") + " key " + key
+							+ " with initial state: " + theTree,
+						ex
+					);
+					throw ex;
+				}
+			}
+		);
+	}
+
+	/**
+	 * Verifies that the comparator-ordered tree is internally consistent and that its forward key iteration matches
+	 * the comparator-ordered reference map exactly.
+	 *
+	 * @param tree      the tree under test
+	 * @param reference the reference {@link TreeMap} ordered by the same comparator
+	 */
+	private static void verifyComparatorTreeConsistency(
+		@Nonnull TransactionalObjectBPlusTree<Integer, String> tree,
+		@Nonnull TreeMap<Integer, String> reference
+	) {
+		final ConsistencyReport consistencyReport = tree.getConsistencyReport();
+		assertEquals(ConsistencyState.CONSISTENT, consistencyReport.state(), consistencyReport.report());
+		assertEquals(reference.size(), tree.size());
+		final Iterator<Integer> treeKeys = tree.keyIterator();
+		final Iterator<Integer> referenceKeys = reference.keySet().iterator();
+		while (referenceKeys.hasNext()) {
+			if (!treeKeys.hasNext()) {
+				fail("Tree iterator exhausted before reference!");
+			}
+			assertEquals(referenceKeys.next(), treeKeys.next());
+		}
+		if (treeKeys.hasNext()) {
+			fail("Tree iterator has more keys than reference!");
+		}
+	}
+
 	private static void verifyTreeConsistency(
 		@Nonnull TransactionalObjectBPlusTree<Integer, String> bPlusTree, @Nonnull int... expectedArray
 	) {
@@ -186,6 +281,12 @@ class LongRunningTransactionalObjectBPlusTreeTest implements TimeBoundedTestSupp
 	private record TestState(
 		@Nonnull StringBuilder code,
 		@Nonnull int[] initialArray,
+		boolean limitReached
+	) {
+	}
+
+	private record ComparatorTestState(
+		@Nonnull StringBuilder code,
 		boolean limitReached
 	) {
 	}

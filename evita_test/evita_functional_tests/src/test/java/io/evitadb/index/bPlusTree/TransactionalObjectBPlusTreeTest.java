@@ -934,7 +934,7 @@ class TransactionalObjectBPlusTreeTest {
 		private static TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> emptyInternalNode() {
 			//noinspection unchecked
 			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer>(
-				new Integer[3], new TransactionalObjectBPlusTree.BPlusTreeNode[4], 0, 0, 0, 0, Integer.class, true
+				new Integer[3], new TransactionalObjectBPlusTree.BPlusTreeNode[4], 0, 0, 0, 0, Integer.class, null, true
 			);
 		}
 
@@ -949,7 +949,7 @@ class TransactionalObjectBPlusTreeTest {
 			final Integer[] keys = {key};
 			final String[] values = {"Value" + key};
 			return new TransactionalObjectBPlusTree.BPlusLeafTreeNode<>(
-				keys, values, new Integer[3], new String[3], 0, 1, true, null
+				keys, values, new Integer[3], new String[3], 0, 1, null, true, null
 			);
 		}
 
@@ -973,7 +973,7 @@ class TransactionalObjectBPlusTreeTest {
 				new TransactionalObjectBPlusTree.BPlusTreeNode[4];
 			System.arraycopy(children, 0, childArray, 0, children.length);
 			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<>(
-				keyArray, childArray, 0, keys.length, 0, children.length, Integer.class, true
+				keyArray, childArray, 0, keys.length, 0, children.length, Integer.class, null, true
 			);
 		}
 
@@ -2224,7 +2224,7 @@ class TransactionalObjectBPlusTreeTest {
 			final Integer[] keys = {key};
 			final String[] values = {"Value" + key};
 			return new TransactionalObjectBPlusTree.BPlusLeafTreeNode<>(
-				keys, values, new Integer[3], new String[3], 0, 1, true, null
+				keys, values, new Integer[3], new String[3], 0, 1, null, true, null
 			);
 		}
 
@@ -2248,7 +2248,7 @@ class TransactionalObjectBPlusTreeTest {
 				new TransactionalObjectBPlusTree.BPlusTreeNode[4];
 			System.arraycopy(children, 0, childArray, 0, children.length);
 			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<>(
-				keyArray, childArray, 0, keys.length, 0, children.length, Integer.class, true
+				keyArray, childArray, 0, keys.length, 0, children.length, Integer.class, null, true
 			);
 		}
 

@@ -43,6 +43,7 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -98,6 +99,12 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	 * The type of the values stored in the tree.
 	 */
 	@Getter private final Class<V> valueType;
+	/**
+	 * Optional comparator that defines the total order of the keys. When `null`, the keys are ordered by their
+	 * natural [Comparable] order. The comparator (when present) is threaded into every node and drives every
+	 * key-comparison site so the tree can be ordered by an arbitrary total order (e.g. a locale-aware collator).
+	 */
+	@Nullable @Getter private final Comparator<K> comparator;
 	/**
 	 * Operator that wraps the values in a transactional layer.
 	 */
@@ -289,15 +296,19 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	 * @throws IllegalStateException if the iterator fails to return keys in increasing order
 	 *                               or if the number of keys does not match the expected size
 	 */
-	@SuppressWarnings("rawtypes")
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	private static void verifyForwardKeyIterator(@Nonnull TransactionalObjectBPlusTree<?, ?> tree, int size) {
 		int actualSize = 0;
 		Comparable previousKey = null;
+		final Comparator comparator = tree.comparator;
 		final Iterator<?> it = tree.keyIterator();
 		while (it.hasNext()) {
 			final Comparable key = (Comparable) it.next();
-			//noinspection unchecked
-			if (previousKey != null && key.compareTo(previousKey) <= 0) {
+			// route the order check through the tree's comparator when present, otherwise natural order
+			final int comparison = comparator == null
+				? (previousKey == null ? 0 : key.compareTo(previousKey))
+				: (previousKey == null ? 0 : comparator.compare(key, previousKey));
+			if (previousKey != null && comparison <= 0) {
 				throw new IllegalStateException("Forward iterator returned non-increasing keys!");
 			}
 			actualSize++;
@@ -319,15 +330,19 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	 * @throws IllegalStateException if the iterator returns non-decreasing keys or if the number of
 	 *                               keys returned by the iterator does not match the expected size
 	 */
-	@SuppressWarnings("rawtypes")
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	private static void verifyReverseKeyIterator(@Nonnull TransactionalObjectBPlusTree<?, ?> tree, int size) {
 		int actualSize = 0;
-		Object previousKey = null;
+		Comparable previousKey = null;
+		final Comparator comparator = tree.comparator;
 		final Iterator<?> it = tree.keyReverseIterator();
 		while (it.hasNext()) {
 			final Comparable key = (Comparable) it.next();
-			//noinspection unchecked
-			if (previousKey != null && key.compareTo(previousKey) >= 0) {
+			// route the order check through the tree's comparator when present, otherwise natural order
+			final int comparison = comparator == null
+				? (previousKey == null ? 0 : key.compareTo(previousKey))
+				: (previousKey == null ? 0 : comparator.compare(key, previousKey));
+			if (previousKey != null && comparison >= 0) {
 				throw new IllegalStateException("Reverse iterator returned non-decreasing keys!");
 			}
 			actualSize++;
@@ -421,7 +436,8 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			keyType,
 			valueType,
 			null,
-			new BPlusLeafTreeNode<>(DEFAULT_VALUE_BLOCK_SIZE, keyType, valueType, null, true),
+			null,
+			new BPlusLeafTreeNode<>(DEFAULT_VALUE_BLOCK_SIZE, keyType, valueType, null, null, true),
 			0
 		);
 	}
@@ -438,6 +454,23 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		@Nonnull Class<V> valueType,
 		@Nonnull Function<Object, V> transactionalLayerWrapper
 	) {
+		this(keyType, valueType, transactionalLayerWrapper, null);
+	}
+
+	/**
+	 * Constructor to initialize the B+ Tree with default block sizes, a value wrapper and an optional comparator.
+	 *
+	 * @param keyType                   the type of the keys stored in the tree
+	 * @param valueType                 the type of the values stored in the tree
+	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
+	 * @param comparator                optional comparator defining the key order; `null` ⇒ natural order
+	 */
+	public TransactionalObjectBPlusTree(
+		@Nonnull Class<K> keyType,
+		@Nonnull Class<V> valueType,
+		@Nonnull Function<Object, V> transactionalLayerWrapper,
+		@Nullable Comparator<K> comparator
+	) {
 		this(
 			DEFAULT_VALUE_BLOCK_SIZE,
 			DEFAULT_MIN_VALUE_BLOCK_SIZE,
@@ -445,8 +478,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE,
 			keyType,
 			valueType,
+			comparator,
 			transactionalLayerWrapper,
-			new BPlusLeafTreeNode<>(DEFAULT_VALUE_BLOCK_SIZE, keyType, valueType, transactionalLayerWrapper, true),
+			new BPlusLeafTreeNode<>(DEFAULT_VALUE_BLOCK_SIZE, keyType, valueType, comparator, transactionalLayerWrapper, true),
 			0
 		);
 	}
@@ -459,11 +493,29 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	 * @param valueType      the type of the values stored in the tree
 	 */
 	public TransactionalObjectBPlusTree(int valueBlockSize, @Nonnull Class<K> keyType, @Nonnull Class<V> valueType) {
+		this(valueBlockSize, keyType, valueType, null);
+	}
+
+	/**
+	 * Constructor to initialize the B+ Tree with an optional comparator.
+	 *
+	 * @param valueBlockSize maximum number of values in a leaf node
+	 * @param keyType        the type of the keys stored in the tree
+	 * @param valueType      the type of the values stored in the tree
+	 * @param comparator     optional comparator defining the key order; `null` ⇒ natural order
+	 */
+	public TransactionalObjectBPlusTree(
+		int valueBlockSize,
+		@Nonnull Class<K> keyType,
+		@Nonnull Class<V> valueType,
+		@Nullable Comparator<K> comparator
+	) {
 		this(
 			valueBlockSize, valueBlockSize / 2,
 			valueBlockSize, valueBlockSize / 2,
 			keyType,
-			valueType
+			valueType,
+			comparator
 		);
 	}
 
@@ -494,8 +546,42 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			minInternalNodeBlockSize,
 			keyType,
 			valueType,
+			null
+		);
+	}
+
+	/**
+	 * Constructor to initialize the B+ Tree with an optional comparator.
+	 *
+	 * @param valueBlockSize           maximum number of values in a leaf node
+	 * @param minValueBlockSize        minimum number of values in a leaf node
+	 *                                 (controls branching factor for leaf nodes)
+	 * @param internalNodeBlockSize    maximum number of keys in an internal node
+	 * @param minInternalNodeBlockSize minimum number of keys in an internal node
+	 *                                 (controls branching factor for internal nodes)
+	 * @param keyType                  the type of the keys stored in the tree
+	 * @param valueType                the type of the values stored in the tree
+	 * @param comparator               optional comparator defining the key order; `null` ⇒ natural order
+	 */
+	public TransactionalObjectBPlusTree(
+		int valueBlockSize,
+		int minValueBlockSize,
+		int internalNodeBlockSize,
+		int minInternalNodeBlockSize,
+		@Nonnull Class<K> keyType,
+		@Nonnull Class<V> valueType,
+		@Nullable Comparator<K> comparator
+	) {
+		this(
+			valueBlockSize,
+			minValueBlockSize,
+			internalNodeBlockSize,
+			minInternalNodeBlockSize,
+			keyType,
+			valueType,
+			comparator,
 			null,
-			new BPlusLeafTreeNode<>(valueBlockSize, keyType, valueType, null, true),
+			new BPlusLeafTreeNode<>(valueBlockSize, keyType, valueType, comparator, null, true),
 			0
 		);
 	}
@@ -507,6 +593,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		int minInternalNodeBlockSize,
 		@Nonnull Class<K> keyType,
 		@Nonnull Class<V> valueType,
+		@Nullable Comparator<K> comparator,
 		@Nullable Function<Object, V> transactionalLayerWrapper,
 		@Nonnull BPlusTreeNode<K, ?> root,
 		int size
@@ -536,6 +623,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			transactionalLayerWrapper != null || !TransactionalLayerProducer.class.isAssignableFrom(valueType),
 			"Value type cannot implement TransactionalLayerProducer if no transactional layer wrapper is provided."
 		);
+		Assert.isPremiseValid(
+			comparator != null || Comparable.class.isAssignableFrom(keyType),
+			"Key type must implement Comparable when no comparator is provided."
+		);
+		this.comparator = comparator;
 		this.valueBlockSize = valueBlockSize;
 		this.minValueBlockSize = minValueBlockSize;
 		this.internalNodeBlockSize = internalNodeBlockSize;
@@ -834,6 +926,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				this.internalNodeBlockSize, this.minInternalNodeBlockSize,
 				this.keyType,
 				this.valueType,
+				this.comparator,
 				this.transactionalLayerWrapper,
 				transactionalLayer.getStateCopyWithCommittedChanges(theLeafNode),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElseThrow()
@@ -845,6 +938,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				this.internalNodeBlockSize, this.minInternalNodeBlockSize,
 				this.keyType,
 				this.valueType,
+				this.comparator,
 				this.transactionalLayerWrapper,
 				transactionalLayer.getStateCopyWithCommittedChanges((BPlusInternalTreeNode<K>) internalNode),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElseThrow()
@@ -1008,6 +1102,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 								this.valueBlockSize,
 								this.keyType,
 								this.valueType,
+								this.comparator,
 								this.transactionalLayerWrapper,
 								true
 							)
@@ -1120,6 +1215,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			(V[]) Array.newInstance(this.valueType, this.valueBlockSize),
 			0,
 			mid,
+			this.comparator,
 			!Transaction.isTransactionAvailable(),
 			this.transactionalLayerWrapper
 		);
@@ -1132,6 +1228,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			originValues,
 			mid,
 			leftLeaf.getKeys().length,
+			this.comparator,
 			!Transaction.isTransactionAvailable(),
 			this.transactionalLayerWrapper
 		);
@@ -1150,6 +1247,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					rightLeaf.getKeys()[0],
 					leftLeaf, rightLeaf,
 					this.keyType,
+					this.comparator,
 					!Transaction.isTransactionAvailable()
 				)
 			);
@@ -1219,6 +1317,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			0,
 			mid,
 			this.keyType,
+			this.comparator,
 			!Transaction.isTransactionAvailable()
 		);
 
@@ -1231,6 +1330,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			mid,
 			leftInternal.getChildren().length,
 			this.keyType,
+			this.comparator,
 			!Transaction.isTransactionAvailable()
 		);
 
@@ -1247,6 +1347,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					rightInternal.getLeftBoundaryKey(),
 					leftInternal, rightInternal,
 					this.keyType,
+					this.comparator,
 					!Transaction.isTransactionAvailable()
 				)
 			);
@@ -1391,6 +1492,12 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		private int peek;
 
 		/**
+		 * Optional comparator defining the total order of the keys. When `null`, keys are ordered by their natural
+		 * [Comparable] order. Every key comparison performed by this node routes through [#compareKeys].
+		 */
+		@Nullable private final Comparator<M> comparator;
+
+		/**
 		 * Creates a new internal node with a single key separating two child nodes. This constructor is used
 		 * when creating a new root after a split operation.
 		 *
@@ -1399,6 +1506,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		 * @param leftLeaf           the left child node
 		 * @param rightLeaf          the right child node
 		 * @param keyType            the class of the key type
+		 * @param comparator         optional comparator defining the key order; `null` ⇒ natural order
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
 		public BPlusInternalTreeNode(
@@ -1407,6 +1515,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			@Nonnull BPlusTreeNode<M, ?> leftLeaf,
 			@Nonnull BPlusTreeNode<M, ?> rightLeaf,
 			@Nonnull Class<M> keyType,
+			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
 		) {
 			//noinspection unchecked
@@ -1417,6 +1526,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			this.children[0] = leftLeaf;
 			this.children[1] = rightLeaf;
 			this.peek = 1;
+			this.comparator = comparator;
 			this.transactionalLayer = transactionalLayer;
 		}
 
@@ -1431,6 +1541,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		 * @param childrenStart      the start index (inclusive) in the origin children array
 		 * @param childrenEnd        the end index (exclusive) in the origin children array
 		 * @param keyType            the class of the key type
+		 * @param comparator         optional comparator defining the key order; `null` ⇒ natural order
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
 		public BPlusInternalTreeNode(
@@ -1439,6 +1550,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			int keyStart, int keyEnd,
 			int childrenStart, int childrenEnd,
 			@Nonnull Class<M> keyType,
+			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
 		) {
 			// we always create a new array for keys and children
@@ -1450,6 +1562,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			System.arraycopy(originKeys, keyStart, this.keys, 0, keyEnd - keyStart);
 			System.arraycopy(originChildren, childrenStart, this.children, 0, childrenEnd - childrenStart);
 			this.peek = childrenEnd - childrenStart - 1;
+			this.comparator = comparator;
 			this.transactionalLayer = transactionalLayer;
 		}
 
@@ -1457,12 +1570,14 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			@Nonnull M[] originKeys,
 			@Nonnull BPlusTreeNode<M, ?>[] originChildren,
 			int originPeek,
+			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
 		) {
 			// we always create a new array for keys and children
 			this.keys = originKeys;
 			this.children = originChildren;
 			this.peek = originPeek;
+			this.comparator = comparator;
 			this.transactionalLayer = transactionalLayer;
 		}
 
@@ -1847,6 +1962,23 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		}
 
 		/**
+		 * Computes the insertion position of the given key within the ordered key range, routing the comparison
+		 * through this node's [#comparator] when present, otherwise through the keys' natural [Comparable] order.
+		 *
+		 * @param key  the key whose position is searched
+		 * @param keys the ordered key array to search within
+		 * @param from the start index (inclusive)
+		 * @param to   the end index (exclusive)
+		 * @return the computed insertion position
+		 */
+		@Nonnull
+		private InsertionPosition findKeyPosition(@Nonnull M key, @Nonnull M[] keys, int from, int to) {
+			return this.comparator == null
+				? computeInsertPositionOfObjInOrderedArray(key, keys, from, to)
+				: computeInsertPositionOfObjInOrderedArray(key, keys, from, to, this.comparator);
+		}
+
+		/**
 		 * Splits a B+ Tree node by inserting a new key into the node's keys array and updating its children accordingly.
 		 * This method is used for managing the internal structure of a B+ Tree when a node needs to be divided due to
 		 * overflow.
@@ -1872,8 +2004,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				: null;
 			if (layer == null) {
 				// the peek relates to children, which are one more than keys, that's why we don't use peek + 1, but mere peek
-				final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-					key, this.keys, 0, this.peek);
+				final InsertionPosition insertionPosition = findKeyPosition(key, this.keys, 0, this.peek);
 				Assert.isPremiseValid(
 					original == this.children[insertionPosition.position()],
 					"Original node must be the child of the internal node!"
@@ -1891,8 +2022,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				decoupleTransactionalArrays();
 
 				// the peek relates to children, which are one more than keys, that's why we don't use peek + 1, but mere peek
-				final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-					key, layer.keys, 0, layer.peek);
+				final InsertionPosition insertionPosition = findKeyPosition(key, layer.keys, 0, layer.peek);
 				Assert.isPremiseValid(
 					original == layer.children[insertionPosition.position()],
 					"Original node must be the child of the internal node!"
@@ -1921,13 +2051,11 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
 				: null;
 			if (layer == null) {
-				final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-					key, this.keys, 0, this.peek);
+				final InsertionPosition insertionPosition = findKeyPosition(key, this.keys, 0, this.peek);
 				return insertionPosition.alreadyPresent() ?
 					insertionPosition.position() + 1 : insertionPosition.position();
 			} else {
-				final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-					key, layer.keys, 0, layer.peek);
+				final InsertionPosition insertionPosition = findKeyPosition(key, layer.keys, 0, layer.peek);
 				return insertionPosition.alreadyPresent() ?
 					insertionPosition.position() + 1 : insertionPosition.position();
 			}
@@ -2023,6 +2151,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				this.keys,
 				this.children,
 				this.peek,
+				this.comparator,
 				false
 			);
 		}
@@ -2069,6 +2198,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					theKeys,
 					newChildren,
 					thePeek,
+					this.comparator,
 					true
 				);
 			} else if (layer != null) {
@@ -2076,6 +2206,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					theKeys,
 					theChildren,
 					thePeek,
+					this.comparator,
 					true
 				);
 			} else if (!this.transactionalLayer) {
@@ -2086,6 +2217,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					theKeys,
 					theChildren,
 					thePeek,
+					this.comparator,
 					true
 				);
 			} else {
@@ -2161,11 +2293,19 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		private int peek;
 
 		/**
+		 * Optional comparator defining the total order of the keys. When `null`, keys are ordered by their natural
+		 * [Comparable] order. Every key comparison performed by this node routes through [#findKeyPosition] /
+		 * [#findKeyIndex].
+		 */
+		@Nullable private final Comparator<M> comparator;
+
+		/**
 		 * Creates a new empty leaf node with the specified block size.
 		 *
 		 * @param blockSize                 the maximum number of key-value pairs this leaf node can hold
 		 * @param keyType                   the class of the keys stored in this node
 		 * @param valueType                 the class of the values stored in this node
+		 * @param comparator                optional comparator defining the key order; `null` ⇒ natural order
 		 * @param transactionalLayerWrapper optional function to wrap values into a transactional layer
 		 * @param transactionalLayer        whether this node participates in the transactional memory layer
 		 */
@@ -2173,6 +2313,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			int blockSize,
 			@Nonnull Class<M> keyType,
 			@Nonnull Class<N> valueType,
+			@Nullable Comparator<M> comparator,
 			@Nullable Function<Object, N> transactionalLayerWrapper,
 			boolean transactionalLayer
 		) {
@@ -2180,6 +2321,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			this.keys = (M[]) Array.newInstance(keyType, blockSize);
 			//noinspection unchecked
 			this.values = (N[]) Array.newInstance(valueType, blockSize);
+			this.comparator = comparator;
 			this.transactionalLayerWrapper = transactionalLayerWrapper;
 			this.peek = -1;
 			this.transactionalLayer = transactionalLayer;
@@ -2195,6 +2337,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		 * @param values                    the target array for values (may be the same as originValues)
 		 * @param start                     the start index (inclusive) in the origin arrays
 		 * @param end                       the end index (exclusive) in the origin arrays
+		 * @param comparator                optional comparator defining the key order; `null` ⇒ natural order
 		 * @param transactionalLayer        whether this node participates in the transactional memory layer
 		 * @param transactionalLayerWrapper optional function to wrap values into a transactional layer
 		 */
@@ -2204,6 +2347,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			@Nonnull M[] keys,
 			@Nonnull N[] values,
 			int start, int end,
+			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer,
 			@Nullable Function<Object, N> transactionalLayerWrapper
 		) {
@@ -2221,6 +2365,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				Arrays.fill(values, end - start, values.length, null);
 			}
 			this.peek = end - start - 1;
+			this.comparator = comparator;
 			this.transactionalLayer = transactionalLayer;
 			this.transactionalLayerWrapper = transactionalLayerWrapper;
 		}
@@ -2229,12 +2374,14 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			@Nonnull M[] keys,
 			@Nonnull N[] values,
 			int peek,
+			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer,
 			@Nullable Function<Object, N> transactionalLayerWrapper
 		) {
 			this.keys = keys;
 			this.values = values;
 			this.peek = peek;
+			this.comparator = comparator;
 			this.transactionalLayer = transactionalLayer;
 			this.transactionalLayerWrapper = transactionalLayerWrapper;
 		}
@@ -2582,6 +2729,42 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		}
 
 		/**
+		 * Computes the insertion position of the given key within the ordered key range, routing the comparison
+		 * through this node's [#comparator] when present, otherwise through the keys' natural [Comparable] order.
+		 *
+		 * @param key  the key whose position is searched
+		 * @param keys the ordered key array to search within
+		 * @param from the start index (inclusive)
+		 * @param to   the end index (exclusive)
+		 * @return the computed insertion position
+		 */
+		@Nonnull
+		private InsertionPosition findKeyPosition(@Nonnull M key, @Nonnull M[] keys, int from, int to) {
+			return this.comparator == null
+				? computeInsertPositionOfObjInOrderedArray(key, keys, from, to)
+				: computeInsertPositionOfObjInOrderedArray(key, keys, from, to, this.comparator);
+		}
+
+		/**
+		 * Returns the index of the given key within the ordered key range, or a negative value following the
+		 * [java.util.Arrays#binarySearch] convention when the key is absent. The comparison routes through this
+		 * node's [#comparator] when present, otherwise through the keys' natural [Comparable] order.
+		 *
+		 * @param key  the key to search for
+		 * @param keys the ordered key array to search within
+		 * @param from the start index (inclusive)
+		 * @param to   the end index (exclusive)
+		 * @return the index of the key if present; otherwise `(-(insertion point) - 1)`
+		 */
+		private int findKeyIndex(@Nonnull M key, @Nonnull M[] keys, int from, int to) {
+			// the JDK Arrays.binarySearch with comparator treats a null comparator as natural ordering; we keep
+			// the explicit branch so the natural-order path stays on the Comparable overload for clarity
+			return this.comparator == null
+				? Arrays.binarySearch(keys, from, to, key)
+				: Arrays.binarySearch(keys, from, to, key, this.comparator);
+		}
+
+		/**
 		 * Searches for a value in the node's key-value pairs by the specified key.
 		 * If the key is found, returns an Optional containing the associated value;
 		 * otherwise returns an empty Optional.
@@ -2609,9 +2792,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				thePeek = layer.peek;
 			}
 
-			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-				key, theKeys, 0, thePeek + 1
-			);
+			final InsertionPosition insertionPosition = findKeyPosition(key, theKeys, 0, thePeek + 1);
 			return insertionPosition.alreadyPresent()
 				? Optional.of(theValues[insertionPosition.position()])
 				: Optional.empty();
@@ -2639,9 +2820,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				thePeek = layer.peek;
 			}
 
-			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-				key, theKeys, 0, thePeek + 1
-			);
+			final InsertionPosition insertionPosition = findKeyPosition(key, theKeys, 0, thePeek + 1);
 			return insertionPosition.alreadyPresent()
 				? insertionPosition.position()
 				: -1;
@@ -2663,6 +2842,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				this.values,
 				0,
 				this.peek + 1,
+				this.comparator,
 				false,
 				this.transactionalLayerWrapper
 			);
@@ -2720,6 +2900,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					theKeys,
 					newValues,
 					thePeek,
+					this.comparator,
 					true,
 					this.transactionalLayerWrapper
 				);
@@ -2728,6 +2909,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					theKeys,
 					theValues,
 					thePeek,
+					this.comparator,
 					true,
 					this.transactionalLayerWrapper
 				);
@@ -2739,6 +2921,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					theKeys,
 					theValues,
 					thePeek,
+					this.comparator,
 					true,
 					this.transactionalLayerWrapper
 				);
@@ -2760,7 +2943,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
 			if (layer == null) {
-				final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
+				final int index = findKeyIndex(key, this.keys, 0, this.peek + 1);
 
 				if (index >= 0) {
 					// the value is discarded from the tree - release its transactional diff layer (if any)
@@ -2778,7 +2961,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				}
 			} else {
 				decoupleTransactionalArrays();
-				final int index = Arrays.binarySearch(layer.keys, 0, layer.peek + 1, key);
+				final int index = findKeyIndex(key, layer.keys, 0, layer.peek + 1);
 
 				if (index >= 0) {
 					// the value is discarded from the tree - release its transactional diff layer (if any)
@@ -2835,8 +3018,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 
-				final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-					key, this.keys, 0, this.peek + 1);
+				final InsertionPosition insertionPosition = findKeyPosition(key, this.keys, 0, this.peek + 1);
 				if (insertionPosition.alreadyPresent()) {
 					// an existing value is overwritten - release the discarded instance's diff layer (if any
 					// and if it is genuinely a different instance) so it is not left ALIVE during commit
@@ -2860,8 +3042,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 
-				final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-					key, layer.keys, 0, layer.peek + 1);
+				final InsertionPosition insertionPosition = findKeyPosition(key, layer.keys, 0, layer.peek + 1);
 				if (insertionPosition.alreadyPresent()) {
 					// an existing value is overwritten - release the discarded instance's diff layer (if any
 					// and if it is genuinely a different instance) so it is not left ALIVE during commit
@@ -3262,9 +3443,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				this.pathIndex[i] = cursorLevel.index();
 				this.pathPeeks[i] = cursorLevel.peek();
 			}
-			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-				key, cursor.leafNode()
-					.getKeys(), 0, cursor.leafNode().size()
+			final BPlusLeafTreeNode<M, N> startLeaf = cursor.leafNode();
+			final InsertionPosition insertionPosition = startLeaf.findKeyPosition(
+				key, startLeaf.getKeys(), 0, startLeaf.size()
 			);
 			this.currentIndex = insertionPosition.position();
 			if (this.currentIndex <= this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek()) {
@@ -3411,9 +3592,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 			}
-			final InsertionPosition insertionPosition = computeInsertPositionOfObjInOrderedArray(
-				key, cursor.leafNode()
-					.getKeys(), 0, cursor.leafNode().size()
+			final BPlusLeafTreeNode<M, N> startLeaf = cursor.leafNode();
+			final InsertionPosition insertionPosition = startLeaf.findKeyPosition(
+				key, startLeaf.getKeys(), 0, startLeaf.size()
 			);
 			if (insertionPosition.alreadyPresent()) {
 				this.currentIndex = insertionPosition.position();
