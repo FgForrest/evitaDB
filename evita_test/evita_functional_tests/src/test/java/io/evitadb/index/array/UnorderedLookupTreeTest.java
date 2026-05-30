@@ -23,6 +23,8 @@
 
 package io.evitadb.index.array;
 
+import com.carrotsearch.hppc.IntLongHashMap;
+import com.carrotsearch.hppc.IntLongMap;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -36,14 +38,14 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * This test verifies the contract of {@link UnorderedLookupTree} - the count-augmented B+ tree replacement for the
- * dual-`int[]` {@link UnorderedLookup} delegate. It locks the order-statistic semantics (select / rank / insert-after /
- * insert-at / delete / flatten) against an {@link ArrayList} oracle, including the leaf/internal split and collapse
- * paths exercised once the element count exceeds the block size.
+ * This test verifies the contract of {@link UnorderedLookupTree} - the count-augmented, order-key-routed position
+ * tree of the two-tree backing for {@link UnorderedLookup}. The tree is driven purely by order-key / position and
+ * reports order-key assignments through an {@link OrderKeyConsumer}; the test pairs it with a stand-in value index
+ * (an `int → long` map, exactly the role the real value index plays) so it can address records by id and assert the
+ * order-key coordination (INV-COUPLE) stays coherent through splits and re-spacing.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -52,210 +54,139 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class UnorderedLookupTreeTest {
 
 	/**
-	 * Asserts that the tree's flattened state matches the oracle and that the three snapshot arrays stay mutually
-	 * consistent (`getArray()[positions[i]] == recordIds[i]` and record ids ascending).
+	 * Bundles the position tree with a stand-in value index (`recordId → orderKey`), mirroring the composite that
+	 * will drive the tree in production. Implements {@link OrderKeyConsumer} to keep the index coherent.
 	 */
-	private static void assertConsistentWithOracle(@Nonnull UnorderedLookupTree tree, @Nonnull List<Integer> oracle) {
+	private static final class TreeWithIndex implements OrderKeyConsumer {
+		@Nonnull final UnorderedLookupTree tree;
+		@Nonnull final IntLongMap valueIndex = new IntLongHashMap();
+
+		TreeWithIndex() {
+			this.tree = new UnorderedLookupTree();
+		}
+
+		TreeWithIndex(long orderKeyGap) {
+			this.tree = new UnorderedLookupTree(orderKeyGap);
+		}
+
+		@Override
+		public void accept(int recordId, long orderKey) {
+			this.valueIndex.put(recordId, orderKey);
+		}
+
+		void bulkLoad(@Nonnull int[] recordIds) {
+			this.tree.bulkLoad(recordIds, this);
+		}
+
+		void addAtPosition(int index, int recordId) {
+			this.tree.insertAtPosition(index, recordId, this);
+		}
+
+		void addAfter(int previousRecordId, int recordId) {
+			this.tree.insertAfter(this.valueIndex.get(previousRecordId), previousRecordId, recordId, this);
+		}
+
+		void addAtHead(int recordId) {
+			this.tree.insertAtPosition(0, recordId, this);
+		}
+
+		void remove(int recordId) {
+			this.tree.removeByOrderKey(this.valueIndex.get(recordId), recordId, this);
+			this.valueIndex.remove(recordId);
+		}
+
+		int findPosition(int recordId) {
+			return this.tree.findPositionByOrderKey(this.valueIndex.get(recordId), recordId);
+		}
+
+		boolean contains(int recordId) {
+			return this.valueIndex.containsKey(recordId);
+		}
+	}
+
+	/**
+	 * Asserts that the tree's flattened state matches the oracle and that addressing every record by id (via the
+	 * stand-in value index) resolves to its true position.
+	 */
+	private static void assertConsistentWithOracle(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
 		final int[] expected = new int[oracle.size()];
 		for (int i = 0; i < oracle.size(); i++) {
 			expected[i] = oracle.get(i);
 		}
-		assertArrayEquals(expected, tree.getArray(), "Flattened array mismatch");
-		assertEquals(oracle.size(), tree.size());
-
-		final int[] array = tree.getArray();
-		final int[] recordIds = tree.getRecordIds();
-		final int[] positions = tree.getPositions();
-		assertEquals(array.length, recordIds.length);
-		assertEquals(array.length, positions.length);
-		// record ids must be ascending and aligned with positions through the permutation
-		for (int i = 0; i < recordIds.length; i++) {
-			if (i > 0) {
-				assertTrue(recordIds[i - 1] < recordIds[i], "Record ids must be strictly ascending");
-			}
-			assertEquals(recordIds[i], array[positions[i]], "positions[i] must point at recordIds[i]");
-			assertEquals(positions[i], tree.findPosition(recordIds[i]), "findPosition mismatch");
-		}
-		// every position must resolve back to the permutation entry
-		for (int position = 0; position < array.length; position++) {
-			assertEquals(array[position], tree.getRecordAt(position), "getRecordAt mismatch at " + position);
+		assertArrayEquals(expected, tested.tree.getArray(), "Flattened array mismatch");
+		assertEquals(oracle.size(), tested.tree.size());
+		for (int position = 0; position < expected.length; position++) {
+			final int recordId = expected[position];
+			assertEquals(recordId, tested.tree.getRecordAt(position), "getRecordAt mismatch at " + position);
+			assertEquals(position, tested.findPosition(recordId), "findPosition mismatch for " + recordId);
 		}
 	}
 
 	@Test
-	void shouldCreateLookupAndFindPositionsProperly() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[]{4, 2, 3, 1});
+	void shouldBulkLoadAndAddressByPosition() {
+		final TreeWithIndex tested = new TreeWithIndex();
+		tested.bulkLoad(new int[]{4, 2, 3, 1});
+		assertArrayEquals(new int[]{4, 2, 3, 1}, tested.tree.getArray());
 		assertEquals(0, tested.findPosition(4));
 		assertEquals(1, tested.findPosition(2));
 		assertEquals(2, tested.findPosition(3));
 		assertEquals(3, tested.findPosition(1));
-		assertEquals(Integer.MIN_VALUE, tested.findPosition(99));
-
-		assertEquals(4, tested.getRecordAt(0));
-		assertEquals(2, tested.getRecordAt(1));
-		assertEquals(3, tested.getRecordAt(2));
-		assertEquals(1, tested.getRecordAt(3));
+		assertEquals(4, tested.tree.getRecordAt(0));
+		assertEquals(1, tested.tree.getRecordAt(3));
+		assertEquals(1, tested.tree.getLastRecordId());
 	}
 
 	@Test
-	void shouldCreateLookupAndReturnArrayUntouched() {
-		final int[] inputArray = {4, 2, 3, 1};
-		final UnorderedLookupTree tested = new UnorderedLookupTree(inputArray);
-		assertArrayEquals(inputArray, tested.getArray());
+	void shouldAddRecordsAfterAndAtHead() {
+		final TreeWithIndex tested = new TreeWithIndex();
+		tested.addAtHead(3);
+		assertArrayEquals(new int[]{3}, tested.tree.getArray());
+		tested.addAtHead(5);
+		assertArrayEquals(new int[]{5, 3}, tested.tree.getArray());
+		tested.addAfter(5, 1);
+		assertArrayEquals(new int[]{5, 1, 3}, tested.tree.getArray());
+		tested.addAfter(3, 2);
+		assertArrayEquals(new int[]{5, 1, 3, 2}, tested.tree.getArray());
+		tested.addAtHead(0);
+		assertArrayEquals(new int[]{0, 5, 1, 3, 2}, tested.tree.getArray());
+		tested.addAfter(2, 10);
+		assertArrayEquals(new int[]{0, 5, 1, 3, 2, 10}, tested.tree.getArray());
+		assertEquals(10, tested.tree.getLastRecordId());
 	}
 
 	@Test
-	void shouldRemoveRecordAndStillMaintainCorrectPositions() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[]{4, 2, 3, 1, 6, 5});
-		tested.removeRecord(1);
-		assertArrayEquals(new int[]{4, 2, 3, 6, 5}, tested.getArray());
-		tested.removeRecord(4);
-		assertArrayEquals(new int[]{2, 3, 6, 5}, tested.getArray());
-		tested.removeRecord(5);
-		assertArrayEquals(new int[]{2, 3, 6}, tested.getArray());
-		tested.removeRecord(3);
-		assertArrayEquals(new int[]{2, 6}, tested.getArray());
-		tested.removeRecord(2);
-		assertArrayEquals(new int[]{6}, tested.getArray());
-		tested.removeRecord(6);
-		assertArrayEquals(new int[0], tested.getArray());
-		assertEquals(0, tested.size());
+	void shouldRemoveRecordsAndKeepPositions() {
+		final TreeWithIndex tested = new TreeWithIndex();
+		tested.bulkLoad(new int[]{4, 2, 3, 1, 6, 5});
+		tested.remove(1);
+		assertArrayEquals(new int[]{4, 2, 3, 6, 5}, tested.tree.getArray());
+		tested.remove(4);
+		assertArrayEquals(new int[]{2, 3, 6, 5}, tested.tree.getArray());
+		tested.remove(5);
+		assertArrayEquals(new int[]{2, 3, 6}, tested.tree.getArray());
+		assertFalse(tested.contains(5));
+		tested.remove(3);
+		tested.remove(2);
+		tested.remove(6);
+		assertArrayEquals(new int[0], tested.tree.getArray());
+		assertTrue(tested.tree.isEmpty());
 	}
 
 	@Test
-	void shouldAddRecordAndStillMaintainCorrectPositions() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[0]);
-		tested.addRecord(Integer.MIN_VALUE, 3);
-		assertArrayEquals(new int[]{3}, tested.getArray());
-		tested.addRecord(Integer.MIN_VALUE, 5);
-		assertArrayEquals(new int[]{5, 3}, tested.getArray());
-		tested.addRecord(5, 1);
-		assertArrayEquals(new int[]{5, 1, 3}, tested.getArray());
-		tested.addRecord(3, 2);
-		assertArrayEquals(new int[]{5, 1, 3, 2}, tested.getArray());
-		tested.addRecord(Integer.MIN_VALUE, 0);
-		assertArrayEquals(new int[]{0, 5, 1, 3, 2}, tested.getArray());
-		tested.addRecord(2, 10);
-		assertArrayEquals(new int[]{0, 5, 1, 3, 2, 10}, tested.getArray());
-	}
-
-	@Test
-	void shouldAppendRecordsAtTheEnd() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[]{9, 1, 5});
-		tested.appendRecords(new int[]{4, 3, 8});
-		assertArrayEquals(new int[]{9, 1, 5, 4, 3, 8}, tested.getArray());
-		tested.appendRecords(new int[]{2, 10});
-		assertArrayEquals(new int[]{9, 1, 5, 4, 3, 8, 2, 10}, tested.getArray());
-	}
-
-	@Test
-	void shouldReturnLastRecordId() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[]{9, 1, 5});
-		assertEquals(5, tested.getLastRecordId());
-		tested.addRecord(5, 7);
-		assertEquals(7, tested.getLastRecordId());
-		tested.removeRecord(7);
-		assertEquals(5, tested.getLastRecordId());
-	}
-
-	@Test
-	void shouldReportContainment() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[]{9, 1, 5});
-		assertTrue(tested.contains(9));
-		assertTrue(tested.contains(1));
-		assertFalse(tested.contains(2));
-		tested.removeRecord(1);
-		assertFalse(tested.contains(1));
-	}
-
-	@Test
-	void shouldRemoveRange() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[]{9, 1, 5, 4, 3, 8});
-		final int[] removed = tested.removeRange(1, 4);
-		assertArrayEquals(new int[]{1, 5, 4}, removed);
-		assertArrayEquals(new int[]{9, 3, 8}, tested.getArray());
-	}
-
-	@Test
-	void shouldThrowWhenAddingAfterMissingRecord() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[]{9, 1, 5});
-		assertThrows(Exception.class, () -> tested.addRecord(42, 7));
-	}
-
-	@Test
-	void shouldThrowWhenAddingDuplicate() {
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[]{9, 1, 5});
-		assertThrows(Exception.class, () -> tested.addRecord(9, 1));
-	}
-
-	@Test
-	void shouldGrowBeyondSingleLeafAndStayConsistent() {
-		// 5x the block size forces several leaf splits and at least one internal split
+	void shouldGrowBeyondSingleContainerAndStayConsistent() {
+		// 5x the block size forces several container splits and at least one internal split
 		final int count = UnorderedLookupTree.BLOCK_SIZE * 5;
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[0]);
+		final TreeWithIndex tested = new TreeWithIndex();
 		final List<Integer> oracle = new ArrayList<>(count);
 		for (int i = 0; i < count; i++) {
-			tested.addRecordOnIndex(i, 1000 + i);
+			tested.addAtPosition(i, 1000 + i);
 			oracle.add(1000 + i);
 		}
 		assertConsistentWithOracle(tested, oracle);
 	}
 
 	@Test
-	void shouldSurviveRandomizedInsertRemoveAgainstOracle() {
-		final Random random = new Random(42);
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[0]);
-		final List<Integer> oracle = new ArrayList<>();
-		int nextRecordId = 1;
-		for (int op = 0; op < 20_000; op++) {
-			final int size = oracle.size();
-			final boolean insert = size == 0 || random.nextInt(100) < 60;
-			if (insert) {
-				final int index = random.nextInt(size + 1);
-				final int recordId = nextRecordId++;
-				tested.addRecordOnIndex(index, recordId);
-				oracle.add(index, recordId);
-			} else {
-				final int index = random.nextInt(size);
-				final int recordId = oracle.remove(index);
-				tested.removeRecord(recordId);
-			}
-		}
-		assertConsistentWithOracle(tested, oracle);
-	}
-
-	@Test
-	void shouldSurviveRandomizedAddAfterAgainstOracle() {
-		final Random random = new Random(7);
-		final UnorderedLookupTree tested = new UnorderedLookupTree(new int[0]);
-		final List<Integer> oracle = new ArrayList<>();
-		int nextRecordId = 1;
-		for (int op = 0; op < 20_000; op++) {
-			final int size = oracle.size();
-			final boolean insert = size == 0 || random.nextInt(100) < 60;
-			if (insert) {
-				final int recordId = nextRecordId++;
-				if (size == 0 || random.nextInt(10) == 0) {
-					tested.addRecord(Integer.MIN_VALUE, recordId);
-					oracle.add(0, recordId);
-				} else {
-					final int prevIndex = random.nextInt(size);
-					final int previousRecordId = oracle.get(prevIndex);
-					tested.addRecord(previousRecordId, recordId);
-					oracle.add(prevIndex + 1, recordId);
-				}
-			} else {
-				final int index = random.nextInt(size);
-				final int recordId = oracle.remove(index);
-				tested.removeRecord(recordId);
-			}
-		}
-		assertConsistentWithOracle(tested, oracle);
-	}
-
-	@Test
 	void shouldBulkLoadLargeArrayAndStayConsistent() {
-		// builds several internal levels bottom-up; then mutate to prove the bulk-built tree behaves like any other
 		final int count = UnorderedLookupTree.BLOCK_SIZE * UnorderedLookupTree.BLOCK_SIZE * 4;
 		final int[] input = new int[count];
 		final List<Integer> oracle = new ArrayList<>(count);
@@ -263,16 +194,16 @@ class UnorderedLookupTreeTest {
 			input[i] = 1_000_000 - i;
 			oracle.add(input[i]);
 		}
-		final UnorderedLookupTree tested = new UnorderedLookupTree(input);
+		final TreeWithIndex tested = new TreeWithIndex();
+		tested.bulkLoad(input);
 		assertConsistentWithOracle(tested, oracle);
-		// remove a scattered third and reinsert at head to exercise post-bulk-load splits/collapses
+		// remove a scattered third then prepend, to exercise post-bulk-load splits/collapses
 		final Random random = new Random(99);
 		for (int i = 0; i < count / 3; i++) {
-			final int idx = random.nextInt(oracle.size());
-			tested.removeRecord(oracle.remove(idx));
+			tested.remove(oracle.remove(random.nextInt(oracle.size())));
 		}
 		for (int i = 0; i < 500; i++) {
-			tested.addRecord(Integer.MIN_VALUE, 2_000_000 + i);
+			tested.addAtHead(2_000_000 + i);
 			oracle.add(0, 2_000_000 + i);
 		}
 		assertConsistentWithOracle(tested, oracle);
@@ -281,11 +212,59 @@ class UnorderedLookupTreeTest {
 	@Test
 	void shouldStayConsistentWhenOrderKeyGapExhausts() {
 		// a tiny order-key gap forces repeated re-spacing as the leftmost region keeps splitting under head inserts
-		final UnorderedLookupTree tested = new UnorderedLookupTree(4L);
+		final TreeWithIndex tested = new TreeWithIndex(4L);
 		final List<Integer> oracle = new ArrayList<>();
 		for (int i = 0; i < 2_000; i++) {
-			tested.addRecord(Integer.MIN_VALUE, 1000 + i);
+			tested.addAtHead(1000 + i);
 			oracle.add(0, 1000 + i);
+		}
+		assertConsistentWithOracle(tested, oracle);
+	}
+
+	@Test
+	void shouldSurviveRandomizedInsertRemoveAgainstOracle() {
+		final Random random = new Random(42);
+		final TreeWithIndex tested = new TreeWithIndex();
+		final List<Integer> oracle = new ArrayList<>();
+		int nextRecordId = 1;
+		for (int op = 0; op < 20_000; op++) {
+			final int size = oracle.size();
+			final boolean insert = size == 0 || random.nextInt(100) < 60;
+			if (insert) {
+				final int index = random.nextInt(size + 1);
+				final int recordId = nextRecordId++;
+				tested.addAtPosition(index, recordId);
+				oracle.add(index, recordId);
+			} else {
+				final int index = random.nextInt(size);
+				tested.remove(oracle.remove(index));
+			}
+		}
+		assertConsistentWithOracle(tested, oracle);
+	}
+
+	@Test
+	void shouldSurviveRandomizedAddAfterAgainstOracle() {
+		final Random random = new Random(7);
+		final TreeWithIndex tested = new TreeWithIndex();
+		final List<Integer> oracle = new ArrayList<>();
+		int nextRecordId = 1;
+		for (int op = 0; op < 20_000; op++) {
+			final int size = oracle.size();
+			final boolean insert = size == 0 || random.nextInt(100) < 60;
+			if (insert) {
+				final int recordId = nextRecordId++;
+				if (size == 0 || random.nextInt(10) == 0) {
+					tested.addAtHead(recordId);
+					oracle.add(0, recordId);
+				} else {
+					final int prevIndex = random.nextInt(size);
+					tested.addAfter(oracle.get(prevIndex), recordId);
+					oracle.add(prevIndex + 1, recordId);
+				}
+			} else {
+				tested.remove(oracle.remove(random.nextInt(size)));
+			}
 		}
 		assertConsistentWithOracle(tested, oracle);
 	}
@@ -293,7 +272,7 @@ class UnorderedLookupTreeTest {
 	@Test
 	void shouldMatchArrayDelegateForIdenticalOperations() {
 		final Random random = new Random(123);
-		final UnorderedLookupTree tree = new UnorderedLookupTree(new int[0]);
+		final TreeWithIndex tested = new TreeWithIndex();
 		final UnorderedLookup array = new UnorderedLookup(new int[0]);
 		final List<Integer> live = new ArrayList<>();
 		int nextRecordId = 1;
@@ -302,20 +281,23 @@ class UnorderedLookupTreeTest {
 			final boolean insert = size == 0 || random.nextInt(100) < 60;
 			if (insert) {
 				final int recordId = nextRecordId++;
-				final int prev = size == 0 ? Integer.MIN_VALUE : live.get(random.nextInt(size));
-				tree.addRecord(prev, recordId);
-				array.addRecord(prev, recordId);
-				final int prevIndex = prev == Integer.MIN_VALUE ? -1 : live.indexOf(prev);
-				live.add(prevIndex + 1, recordId);
+				if (size == 0) {
+					tested.addAtHead(recordId);
+					array.addRecord(Integer.MIN_VALUE, recordId);
+					live.add(0, recordId);
+				} else {
+					final int prev = live.get(random.nextInt(size));
+					tested.addAfter(prev, recordId);
+					array.addRecord(prev, recordId);
+					live.add(live.indexOf(prev) + 1, recordId);
+				}
 			} else {
 				final int recordId = live.remove(random.nextInt(size));
-				tree.removeRecord(recordId);
+				tested.remove(recordId);
 				array.removeRecord(recordId);
 			}
-			// both delegates must agree on every observable projection
-			assertArrayEquals(array.getArray(), tree.getArray(), "permutation mismatch at op " + op);
-			assertArrayEquals(array.getRecordIds(), tree.getRecordIds(), "record ids mismatch at op " + op);
-			assertArrayEquals(array.getPositions(), tree.getPositions(), "positions mismatch at op " + op);
+			// the tree's permutation must match the array delegate operation for operation
+			assertArrayEquals(array.getArray(), tested.tree.getArray(), "permutation mismatch at op " + op);
 		}
 	}
 

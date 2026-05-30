@@ -23,12 +23,7 @@
 
 package io.evitadb.index.array;
 
-import com.carrotsearch.hppc.IntIntHashMap;
-import com.carrotsearch.hppc.IntIntMap;
-import com.carrotsearch.hppc.IntObjectHashMap;
-import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,24 +43,22 @@ import java.util.Arrays;
  * single tree answers both:
  *
  * - **by position** (`getRecordAt` / select): descend choosing the child whose cumulative count brackets the target;
- * - **by order-key** (`findPosition`): descend by key, summing the counts of the left siblings to obtain the prefix
- *   count of records before the container, then add the in-container offset.
+ * - **by order-key** (`findPositionByOrderKey`): descend by key, summing the counts of the left siblings to obtain
+ *   the prefix count of records before the container, then add the in-container offset.
  *
- * Descent is **cursor based** (the root → leaf path is captured during descent) — there are **no parent pointers** —
- * so the very same structure path-copies cleanly once the transactional layer is added (mirroring
- * `TransactionalIntBPlusTree`). Mutations touch only the cursor path: `O(log N)` count re-stamps, no suffix renumber,
- * and small fixed-capacity blocks instead of the `O(N)` humongous arrays of the array delegate.
+ * Descent is **cursor based** (the root → leaf path is captured during descent) — there are **no parent pointers and
+ * no sibling links** — so the very same structure path-copies cleanly once the transactional layer is added
+ * (mirroring `TransactionalIntBPlusTree`). Mutations touch only the cursor path: `O(log N)` count re-stamps, no
+ * suffix renumber, and small fixed-capacity blocks instead of the `O(N)` humongous arrays of the array delegate.
  *
- * Order-keys are minted **only on container split** (a fresh key in the gap between neighbours); the `≤ B` record ids
- * that physically move are re-homed in the secondary index. When a gap is exhausted the whole key space is re-spaced
- * (rare, `O(#containers)`). Within-container inserts mint nothing and move no siblings.
+ * This tree is **not** the owner of the `recordId → orderKey` mapping — that is the job of the value index held by
+ * the composite that drives this tree. Whenever a mutation assigns or re-stamps a record's order-key (a fresh insert
+ * or a container split), the tree reports it through an {@link OrderKeyConsumer} so the composite can keep its value
+ * index coherent (INV-COUPLE). Order-keys are minted **only on container split**; on gap exhaustion the whole key
+ * space is re-spaced (rare, `O(#containers)`).
  *
- * A secondary `recordId → container` index ({@link IntObjectMap}, no boxing) stands in here for the value index that
- * a later phase promotes to a first-class primitive `int → long` B+ tree; it gives `O(1)` presence and `O(log N)`
- * lookup by value.
- *
- * This class mutates **in place** and is **not** transactional — it is the committed / warm-up delegate. The array
- * must not contain duplicated record ids.
+ * This class mutates **in place** and is **not** transactional — it is the committed / warm-up delegate. The records
+ * must be distinct.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -79,10 +72,14 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 	static final int BLOCK_SIZE = 64;
 	/**
-	 * Default spacing between freshly assigned order-keys. Wide enough that gap subdivision practically never exhausts
-	 * before a tree of realistic height is built; exhaustion is nonetheless handled by re-spacing.
+	 * Default spacing between freshly assigned order-keys. Wide enough that gap subdivision practically never
+	 * exhausts before a tree of realistic height is built; exhaustion is nonetheless handled by re-spacing.
 	 */
 	static final long DEFAULT_ORDER_KEY_GAP = 1L << 40;
+	/**
+	 * Sentinel used during minting to signal "no container to the right" (rightmost container).
+	 */
+	private static final long NO_NEXT_KEY = Long.MAX_VALUE;
 	/**
 	 * Upper bound on tree height used to size the descent cursor. Internal nodes keep at least two children (single
 	 * child nodes are spliced out), so height is bounded by `log2(N)`; 40 covers the whole positive `int` range.
@@ -102,43 +99,19 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 	private final long orderKeyGap;
 	/**
-	 * Secondary index mapping each present record id to the container that currently holds it. Provides `O(1)`
-	 * presence checks and `O(log N)` position lookup / removal by record id without boxing.
-	 */
-	@Nonnull private final IntObjectMap<LeafNode> recordToLeaf = new IntObjectHashMap<>();
-	/**
 	 * Memoized flattened permutation (logical position → record id). Nullified on every mutation.
 	 */
 	@Nullable private int[] memoizedArray;
-	/**
-	 * Memoized sorted record id array (ascending). Nullified on every mutation.
-	 */
-	@Nullable private int[] memoizedRecordIds;
-	/**
-	 * Memoized positions aligned with {@link #memoizedRecordIds}. Nullified on every mutation.
-	 */
-	@Nullable private int[] memoizedPositions;
 
 	/**
-	 * Creates a new single-element tree.
+	 * Creates a new empty tree with the default order-key gap.
 	 */
-	public UnorderedLookupTree(int recordId) {
+	public UnorderedLookupTree() {
 		this(DEFAULT_ORDER_KEY_GAP);
-		insertAt(0, recordId);
 	}
 
 	/**
-	 * Creates a new tree from the passed unordered array (record ids in logical order). The array must not contain
-	 * duplicates.
-	 */
-	public UnorderedLookupTree(@Nonnull int[] unorderedArray) {
-		this(DEFAULT_ORDER_KEY_GAP);
-		// bottom-up bulk build - O(N), ~100% container fill, no humongous temporaries
-		bulkLoad(unorderedArray);
-	}
-
-	/**
-	 * Test-only constructor allowing a custom order-key gap so the re-spacing path can be exercised cheaply.
+	 * Creates a new empty tree with a custom order-key gap (used by tests to force the re-spacing path cheaply).
 	 */
 	UnorderedLookupTree(long orderKeyGap) {
 		this.orderKeyGap = orderKeyGap;
@@ -152,25 +125,85 @@ public class UnorderedLookupTree implements Serializable {
 	}
 
 	/**
-	 * Finds and returns the logical position of the passed record id.
-	 *
-	 * @return {@link Integer#MIN_VALUE} when the record id is not present
+	 * Returns true when the tree holds no records.
 	 */
-	public int findPosition(int recordId) {
-		final LeafNode container = this.recordToLeaf.get(recordId);
-		if (container == null) {
-			return Integer.MIN_VALUE;
-		}
-		// prefix = records before this container, obtained by an order-key descent summing left-sibling counts
-		final int prefix = prefixCountOf(container.orderKey);
-		return prefix + indexInContainer(container, recordId);
+	public boolean isEmpty() {
+		return this.size == 0;
 	}
 
 	/**
-	 * Returns true when the record id is present in the tree.
+	 * Bulk-loads an empty tree from an array of record ids in logical order, building it bottom-up with fully-filled
+	 * containers and evenly spaced order-keys. Reports every record's order-key through `assignments`. `O(N)`.
+	 *
+	 * @param recordIds   record ids in logical order (must be distinct)
+	 * @param assignments callback receiving each `recordId → orderKey` assignment
 	 */
-	public boolean contains(int recordId) {
-		return this.recordToLeaf.containsKey(recordId);
+	public void bulkLoad(@Nonnull int[] recordIds, @Nonnull OrderKeyConsumer assignments) {
+		if (this.root != null) {
+			throw new GenericEvitaInternalError("Bulk-load is only allowed on an empty tree!");
+		}
+		final int n = recordIds.length;
+		if (n == 0) {
+			return;
+		}
+		// 1. pack records into containers and report their order-keys
+		final int containerCount = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+		Node[] level = new Node[containerCount];
+		long[] minKeys = new long[containerCount];
+		int[] counts = new int[containerCount];
+		int pos = 0;
+		for (int c = 0; c < containerCount; c++) {
+			final LeafNode container = new LeafNode();
+			final long key = (long) c * this.orderKeyGap;
+			container.orderKey = key;
+			final int cnt = Math.min(BLOCK_SIZE, n - pos);
+			System.arraycopy(recordIds, pos, container.recordIds, 0, cnt);
+			container.count = cnt;
+			for (int i = 0; i < cnt; i++) {
+				assignments.accept(recordIds[pos + i], key);
+			}
+			level[c] = container;
+			minKeys[c] = key;
+			counts[c] = cnt;
+			pos += cnt;
+		}
+		this.size = n;
+		// 2. build internal levels bottom-up until a single root remains
+		int levelSize = containerCount;
+		while (levelSize > 1) {
+			final int parentCount = (levelSize + BLOCK_SIZE - 1) / BLOCK_SIZE;
+			final int base = levelSize / parentCount;
+			final int remainder = levelSize % parentCount;
+			final Node[] parents = new Node[parentCount];
+			final long[] parentMinKeys = new long[parentCount];
+			final int[] parentCounts = new int[parentCount];
+			int childCursor = 0;
+			for (int p = 0; p < parentCount; p++) {
+				// distribute children evenly so the tail node never ends up with a single child
+				final int childN = base + (p < remainder ? 1 : 0);
+				final InternalNode internal = new InternalNode();
+				internal.childCount = childN;
+				int subtree = 0;
+				for (int j = 0; j < childN; j++) {
+					internal.children[j] = level[childCursor + j];
+					internal.counts[j] = counts[childCursor + j];
+					subtree += counts[childCursor + j];
+					if (j >= 1) {
+						internal.separators[j - 1] = minKeys[childCursor + j];
+					}
+				}
+				parents[p] = internal;
+				parentMinKeys[p] = minKeys[childCursor];
+				parentCounts[p] = subtree;
+				childCursor += childN;
+			}
+			level = parents;
+			minKeys = parentMinKeys;
+			counts = parentCounts;
+			levelSize = parentCount;
+		}
+		this.root = level[0];
+		invalidateMemoizedState();
 	}
 
 	/**
@@ -216,129 +249,95 @@ public class UnorderedLookupTree implements Serializable {
 	}
 
 	/**
-	 * Adds a new record id just after `previousRecordId`. The special value {@link Integer#MIN_VALUE} adds the record
-	 * to the head of the array.
+	 * Returns the logical position of `recordId`, known to live in the container routed by `orderKey`.
 	 *
-	 * @throws GenericEvitaInternalError when `previousRecordId` is not present (and is not the head wildcard)
+	 * @return the prefix count of the container plus the record's in-container offset
+	 * @throws GenericEvitaInternalError when the record is not found in the routed container
 	 */
-	public void addRecord(int previousRecordId, int recordId) {
-		Assert.isTrue(
-			!this.recordToLeaf.containsKey(recordId),
-			"Record with id " + recordId + " is already part of the array!"
-		);
-		if (previousRecordId == Integer.MIN_VALUE) {
-			insertAt(0, recordId);
+	public int findPositionByOrderKey(long orderKey, int recordId) {
+		int prefix = 0;
+		Node node = this.root;
+		while (node instanceof final InternalNode internal) {
+			int childIndex = 0;
+			while (childIndex < internal.childCount - 1 && orderKey >= internal.separators[childIndex]) {
+				prefix += internal.counts[childIndex];
+				childIndex++;
+			}
+			node = internal.children[childIndex];
+		}
+		return prefix + indexInContainer((LeafNode) node, recordId);
+	}
+
+	/**
+	 * Inserts `recordId` at the logical `index` (descending by position to the proper container). Reports the
+	 * resulting `recordId → orderKey` assignment(s) through `assignments`.
+	 */
+	public void insertAtPosition(int index, int recordId, @Nonnull OrderKeyConsumer assignments) {
+		if (this.root == null) {
+			final LeafNode container = new LeafNode();
+			container.orderKey = 0L;
+			container.recordIds[0] = recordId;
+			container.count = 1;
+			this.root = container;
+			this.size = 1;
+			assignments.accept(recordId, 0L);
+			invalidateMemoizedState();
 			return;
 		}
-		final LeafNode container = this.recordToLeaf.get(previousRecordId);
-		if (container == null) {
-			throw new GenericEvitaInternalError(
-				"Record with id " + previousRecordId + " was not found in the array,"
-					+ " cannot add record " + recordId + " after it!",
-				"Referenced record was not found in the array! Cannot add record after it."
-			);
-		}
-		// insert directly after the previous record inside its container (a local, sibling-free operation)
 		final Cursor cursor = new Cursor();
-		descendByKey(container.orderKey, cursor);
-		final int offset = indexInContainer(container, previousRecordId) + 1;
-		insertIntoContainer(container, offset, recordId, cursor);
+		final LeafNode container = descendByPosition(index, cursor);
+		final int offset = Math.min(cursor.leafOffset, container.count);
+		insertIntoContainer(container, offset, recordId, cursor, assignments);
 		invalidateMemoizedState();
 	}
 
 	/**
-	 * Adds a new record id on the specified logical position.
-	 */
-	public void addRecordOnIndex(int index, int recordId) {
-		Assert.isTrue(
-			!this.recordToLeaf.containsKey(recordId),
-			"Record with id " + recordId + " is already part of the array!"
-		);
-		insertAt(index, recordId);
-	}
-
-	/**
-	 * Appends a set of (unsorted) record ids at the end of the array.
-	 */
-	public void appendRecords(@Nonnull int[] newRecordIds) {
-		for (final int recordId : newRecordIds) {
-			insertAt(this.size, recordId);
-		}
-	}
-
-	/**
-	 * Removes an existing record id from the array.
+	 * Inserts `recordId` immediately after `previousRecordId` inside the container routed by `previousOrderKey`.
+	 * Reports the resulting `recordId → orderKey` assignment(s) through `assignments`.
 	 *
-	 * @throws GenericEvitaInternalError when the record id is not present
+	 * @throws GenericEvitaInternalError when `previousRecordId` is not found in the routed container
 	 */
-	public void removeRecord(int recordId) {
-		final LeafNode container = this.recordToLeaf.get(recordId);
-		if (container == null) {
-			throw new GenericEvitaInternalError(
-				"Record id " + recordId + " is not part of the array!",
-				"Record id is not part of the array!"
-			);
-		}
+	public void insertAfter(long previousOrderKey, int previousRecordId, int recordId, @Nonnull OrderKeyConsumer assignments) {
 		final Cursor cursor = new Cursor();
-		descendByKey(container.orderKey, cursor);
+		final LeafNode container = descendByKey(previousOrderKey, cursor);
+		final int offset = indexInContainer(container, previousRecordId) + 1;
+		insertIntoContainer(container, offset, recordId, cursor, assignments);
+		invalidateMemoizedState();
+	}
+
+	/**
+	 * Removes `recordId` from the container routed by `orderKey`. Reports any order-key re-stamps caused by container
+	 * collapse through `reassignments` (currently none — empty containers are simply unlinked).
+	 *
+	 * @throws GenericEvitaInternalError when the record is not found in the routed container
+	 */
+	public void removeByOrderKey(long orderKey, int recordId, @Nonnull OrderKeyConsumer reassignments) {
+		final Cursor cursor = new Cursor();
+		final LeafNode container = descendByKey(orderKey, cursor);
 		final int offset = indexInContainer(container, recordId);
-		// shift the tail of the container one slot to the left to fill the gap
 		System.arraycopy(container.recordIds, offset + 1, container.recordIds, offset, container.count - offset - 1);
 		container.count--;
-		this.recordToLeaf.remove(recordId);
 		propagateCountDelta(cursor, -1);
 		this.size--;
 		if (container.count == 0) {
-			removeEmptyContainer(container, cursor);
+			removeEmptyContainer(cursor);
 		}
 		invalidateMemoizedState();
 	}
 
 	/**
-	 * Removes all records between two logical positions.
-	 *
-	 * @param startIndex inclusive
-	 * @param endIndex   exclusive
-	 * @return removed record ids in logical order
-	 */
-	@Nonnull
-	public int[] removeRange(int startIndex, int endIndex) {
-		final int[] array = getArray();
-		final int[] removed = Arrays.copyOfRange(array, startIndex, endIndex);
-		for (final int recordId : removed) {
-			removeRecord(recordId);
-		}
-		return removed;
-	}
-
-	/**
-	 * Returns the possibly modified unordered array of record ids (logical order).
+	 * Returns the flattened unordered array of record ids in logical order.
 	 */
 	@Nonnull
 	public int[] getArray() {
 		if (this.memoizedArray == null) {
-			this.memoizedArray = flatten();
+			final int[] result = new int[this.size];
+			if (this.root != null) {
+				flattenInto(this.root, result, new int[1]);
+			}
+			this.memoizedArray = result;
 		}
 		return this.memoizedArray;
-	}
-
-	/**
-	 * Returns the ordered array of record ids in ascending order.
-	 */
-	@Nonnull
-	public int[] getRecordIds() {
-		computeSnapshotIfNeeded();
-		return this.memoizedRecordIds;
-	}
-
-	/**
-	 * Returns the array of positions corresponding to the ascending record id array {@link #getRecordIds()}; i.e.
-	 * `getArray()[positions[i]] == getRecordIds()[i]`.
-	 */
-	@Nonnull
-	public int[] getPositions() {
-		computeSnapshotIfNeeded();
-		return this.memoizedPositions;
 	}
 
 	@Override
@@ -351,115 +350,19 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 
 	/**
-	 * Builds the whole tree bottom-up from an array of record ids in logical order: packs the records into
-	 * fully-filled containers with evenly spaced order-keys, then builds each internal level by grouping the level
-	 * below into nodes of up to {@link #BLOCK_SIZE} children (distributed evenly so no node is left with a single
-	 * child). `O(N)`, ~100% fill, no `O(N)`-sized temporaries.
+	 * Inserts `recordId` into `container` at the given in-container `offset`, propagates the count up the cursor path,
+	 * reports the assignment(s) and splits the container on overflow.
 	 */
-	private void bulkLoad(@Nonnull int[] array) {
-		final int n = array.length;
-		if (n == 0) {
-			return;
-		}
-		// 1. pack records into containers, link them and index them
-		final int containerCount = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
-		Node[] level = new Node[containerCount];
-		long[] minKeys = new long[containerCount];
-		int[] counts = new int[containerCount];
-		LeafNode previous = null;
-		int pos = 0;
-		for (int c = 0; c < containerCount; c++) {
-			final LeafNode container = new LeafNode();
-			container.orderKey = (long) c * this.orderKeyGap;
-			final int cnt = Math.min(BLOCK_SIZE, n - pos);
-			System.arraycopy(array, pos, container.recordIds, 0, cnt);
-			container.count = cnt;
-			for (int i = 0; i < cnt; i++) {
-				this.recordToLeaf.put(array[pos + i], container);
-			}
-			container.prev = previous;
-			if (previous != null) {
-				previous.next = container;
-			}
-			previous = container;
-			level[c] = container;
-			minKeys[c] = container.orderKey;
-			counts[c] = cnt;
-			pos += cnt;
-		}
-		this.size = n;
-		// 2. build internal levels bottom-up until a single root remains
-		int levelSize = containerCount;
-		while (levelSize > 1) {
-			final int parentCount = (levelSize + BLOCK_SIZE - 1) / BLOCK_SIZE;
-			final int base = levelSize / parentCount;
-			final int remainder = levelSize % parentCount;
-			final Node[] parents = new Node[parentCount];
-			final long[] parentMinKeys = new long[parentCount];
-			final int[] parentCounts = new int[parentCount];
-			int childCursor = 0;
-			for (int p = 0; p < parentCount; p++) {
-				// distribute children evenly so the tail node never ends up with a single child
-				final int childN = base + (p < remainder ? 1 : 0);
-				final InternalNode internal = new InternalNode();
-				internal.childCount = childN;
-				int subtree = 0;
-				for (int j = 0; j < childN; j++) {
-					internal.children[j] = level[childCursor + j];
-					internal.counts[j] = counts[childCursor + j];
-					subtree += counts[childCursor + j];
-					if (j >= 1) {
-						internal.separators[j - 1] = minKeys[childCursor + j];
-					}
-				}
-				parents[p] = internal;
-				parentMinKeys[p] = minKeys[childCursor];
-				parentCounts[p] = subtree;
-				childCursor += childN;
-			}
-			level = parents;
-			minKeys = parentMinKeys;
-			counts = parentCounts;
-			levelSize = parentCount;
-		}
-		this.root = level[0];
-	}
-
-	/**
-	 * Inserts `recordId` at the logical `index`, descending by position to the proper container.
-	 */
-	private void insertAt(int index, int recordId) {
-		if (this.root == null) {
-			final LeafNode container = new LeafNode();
-			container.orderKey = 0L;
-			container.recordIds[0] = recordId;
-			container.count = 1;
-			this.root = container;
-			this.size = 1;
-			this.recordToLeaf.put(recordId, container);
-			invalidateMemoizedState();
-			return;
-		}
-		final Cursor cursor = new Cursor();
-		final LeafNode container = descendByPosition(index, cursor);
-		final int offset = Math.min(cursor.leafOffset, container.count);
-		insertIntoContainer(container, offset, recordId, cursor);
-		invalidateMemoizedState();
-	}
-
-	/**
-	 * Inserts `recordId` into `container` at the given in-container `offset`, propagates the count up the cursor path
-	 * and splits the container on overflow.
-	 */
-	private void insertIntoContainer(@Nonnull LeafNode container, int offset, int recordId, @Nonnull Cursor cursor) {
+	private void insertIntoContainer(@Nonnull LeafNode container, int offset, int recordId, @Nonnull Cursor cursor, @Nonnull OrderKeyConsumer assignments) {
 		System.arraycopy(container.recordIds, offset, container.recordIds, offset + 1, container.count - offset);
 		container.recordIds[offset] = recordId;
 		container.count++;
-		this.recordToLeaf.put(recordId, container);
 		propagateCountDelta(cursor, +1);
 		this.size++;
 		if (container.count > BLOCK_SIZE) {
-			splitContainer(container, cursor);
+			splitContainer(container, offset, recordId, cursor, assignments);
+		} else {
+			assignments.accept(recordId, container.orderKey);
 		}
 	}
 
@@ -505,24 +408,6 @@ public class UnorderedLookupTree implements Serializable {
 	}
 
 	/**
-	 * Returns the number of records that precede the container routed by `orderKey` (its prefix count), by an
-	 * order-key descent summing the counts of all left siblings along the path.
-	 */
-	private int prefixCountOf(long orderKey) {
-		int prefix = 0;
-		Node node = this.root;
-		while (node instanceof final InternalNode internal) {
-			int childIndex = 0;
-			while (childIndex < internal.childCount - 1 && orderKey >= internal.separators[childIndex]) {
-				prefix += internal.counts[childIndex];
-				childIndex++;
-			}
-			node = internal.children[childIndex];
-		}
-		return prefix;
-	}
-
-	/**
 	 * Adjusts the stored subtree counts of every internal node on the cursor path by `delta`.
 	 */
 	private static void propagateCountDelta(@Nonnull Cursor cursor, int delta) {
@@ -532,31 +417,33 @@ public class UnorderedLookupTree implements Serializable {
 	}
 
 	/**
-	 * Splits an overflowing container into two, mints an order-key for the new right container and propagates the
-	 * split up the cursor path.
+	 * Splits an overflowing container into two, mints an order-key for the new right container, reports the affected
+	 * `recordId → orderKey` assignments (the newly inserted record plus the records moved to the right container) and
+	 * propagates the split up the cursor path.
+	 *
+	 * @param newOffset the in-container offset at which the new record was just inserted
+	 * @param newRecordId the newly inserted record id
 	 */
-	private void splitContainer(@Nonnull LeafNode container, @Nonnull Cursor cursor) {
+	private void splitContainer(@Nonnull LeafNode container, int newOffset, int newRecordId, @Nonnull Cursor cursor, @Nonnull OrderKeyConsumer assignments) {
 		final int total = container.count;
 		final int leftCount = total / 2;
 		final int rightCount = total - leftCount;
-		final long rightKey = mintOrderKey(container);
+		final long rightKey = mintOrderKey(container, cursor, assignments);
 		final LeafNode right = new LeafNode();
 		right.orderKey = rightKey;
 		System.arraycopy(container.recordIds, leftCount, right.recordIds, 0, rightCount);
 		right.count = rightCount;
 		container.count = leftCount;
 		Arrays.fill(container.recordIds, leftCount, total, 0);
-		// re-home the moved record ids in the secondary index
+		// report the new record (in whichever half it landed) and every other record that moved to the right half
+		final long newRecordKey = newOffset < leftCount ? container.orderKey : rightKey;
+		assignments.accept(newRecordId, newRecordKey);
 		for (int i = 0; i < rightCount; i++) {
-			this.recordToLeaf.put(right.recordIds[i], right);
+			final int movedRecordId = right.recordIds[i];
+			if (movedRecordId != newRecordId) {
+				assignments.accept(movedRecordId, rightKey);
+			}
 		}
-		// maintain the container sibling links (used by the in-order flatten)
-		right.next = container.next;
-		right.prev = container;
-		if (container.next != null) {
-			container.next.prev = right;
-		}
-		container.next = right;
 		propagateSplit(cursor, cursor.depth - 1, right, rightKey, rightCount);
 	}
 
@@ -645,41 +532,71 @@ public class UnorderedLookupTree implements Serializable {
 	}
 
 	/**
-	 * Mints a fresh order-key for a new right container inserted immediately after `container`, re-spacing the whole
-	 * key space when the gap to the next container is exhausted.
+	 * Mints a fresh order-key for a new right container inserted immediately after the container at the bottom of the
+	 * cursor, re-spacing the whole key space when the gap to the next container is exhausted.
 	 */
-	private long mintOrderKey(@Nonnull LeafNode container) {
-		if (container.next == null) {
+	private long mintOrderKey(@Nonnull LeafNode container, @Nonnull Cursor cursor, @Nonnull OrderKeyConsumer assignments) {
+		final long nextKey = nextContainerKey(cursor);
+		if (nextKey == NO_NEXT_KEY) {
 			// rightmost container - append a full gap to the right
 			long candidate = container.orderKey + this.orderKeyGap;
 			if (candidate <= container.orderKey) {
-				respaceOrderKeys();
+				respaceOrderKeys(assignments);
 				candidate = container.orderKey + this.orderKeyGap;
 			}
 			return candidate;
 		}
-		long gap = container.next.orderKey - container.orderKey;
+		long gap = nextKey - container.orderKey;
 		if (gap < 2) {
-			respaceOrderKeys();
-			gap = container.next.orderKey - container.orderKey;
+			respaceOrderKeys(assignments);
+			gap = nextContainerKey(cursor) - container.orderKey;
 		}
 		return container.orderKey + gap / 2;
+	}
+
+	/**
+	 * Returns the order-key of the container immediately following the one at the bottom of the cursor, or
+	 * {@link #NO_NEXT_KEY} when it is the rightmost container. Found by walking up the cursor to the first ancestor
+	 * that has a right sibling subtree (whose separator is that subtree's minimum order-key).
+	 */
+	private static long nextContainerKey(@Nonnull Cursor cursor) {
+		for (int level = cursor.depth - 1; level >= 0; level--) {
+			final InternalNode node = cursor.path[level];
+			final int ci = cursor.idx[level];
+			if (ci < node.childCount - 1) {
+				return node.separators[ci];
+			}
+		}
+		return NO_NEXT_KEY;
 	}
 
 	/**
 	 * Reassigns every container's order-key to an evenly spaced value (preserving logical order) and rebuilds all
 	 * internal separators. Rare; `O(#containers)`.
 	 */
-	private void respaceOrderKeys() {
-		LeafNode container = leftmostContainer();
-		long key = 0L;
-		while (container != null) {
-			container.orderKey = key;
-			key += this.orderKeyGap;
-			container = container.next;
-		}
-		if (this.root instanceof InternalNode) {
+	private void respaceOrderKeys(@Nonnull OrderKeyConsumer assignments) {
+		if (this.root != null) {
+			reassignKeys(this.root, new long[]{0L}, assignments);
 			recomputeSeparators(this.root);
+		}
+	}
+
+	/**
+	 * Reassigns container order-keys in logical (in-order) sequence, spaced by {@link #orderKeyGap}, reporting each
+	 * record's new order-key so the value index stays coherent (re-spacing re-stamps every record).
+	 */
+	private void reassignKeys(@Nonnull Node node, @Nonnull long[] counter, @Nonnull OrderKeyConsumer assignments) {
+		if (node instanceof final LeafNode leaf) {
+			leaf.orderKey = counter[0] * this.orderKeyGap;
+			counter[0]++;
+			for (int i = 0; i < leaf.count; i++) {
+				assignments.accept(leaf.recordIds[i], leaf.orderKey);
+			}
+		} else {
+			final InternalNode internal = (InternalNode) node;
+			for (int i = 0; i < internal.childCount; i++) {
+				reassignKeys(internal.children[i], counter, assignments);
+			}
 		}
 	}
 
@@ -703,14 +620,7 @@ public class UnorderedLookupTree implements Serializable {
 	 * Removes an emptied container from the tree, walking up the cursor to collapse emptied ancestors, splice out
 	 * single-child internals and reduce the root height.
 	 */
-	private void removeEmptyContainer(@Nonnull LeafNode container, @Nonnull Cursor cursor) {
-		// unlink from the container chain
-		if (container.prev != null) {
-			container.prev.next = container.next;
-		}
-		if (container.next != null) {
-			container.next.prev = container.prev;
-		}
+	private void removeEmptyContainer(@Nonnull Cursor cursor) {
 		if (cursor.depth == 0) {
 			// the container was the root and is now empty - the tree is empty
 			this.root = null;
@@ -787,79 +697,36 @@ public class UnorderedLookupTree implements Serializable {
 			}
 		}
 		throw new GenericEvitaInternalError(
-			"Record id " + recordId + " not found in its indexed container!",
+			"Record id " + recordId + " not found in its routed container!",
 			"Inconsistent lookup state!"
 		);
 	}
 
 	/**
-	 * Produces the flat permutation array (logical position → record id) by walking the container chain in order.
+	 * Recursively flattens the subtree rooted at `node` into `result`, advancing the single-element position holder.
 	 */
-	@Nonnull
-	private int[] flatten() {
-		final int[] result = new int[this.size];
-		if (this.root == null) {
-			return result;
+	private static void flattenInto(@Nonnull Node node, @Nonnull int[] result, @Nonnull int[] positionHolder) {
+		if (node instanceof final LeafNode leaf) {
+			System.arraycopy(leaf.recordIds, 0, result, positionHolder[0], leaf.count);
+			positionHolder[0] += leaf.count;
+		} else {
+			final InternalNode internal = (InternalNode) node;
+			for (int i = 0; i < internal.childCount; i++) {
+				flattenInto(internal.children[i], result, positionHolder);
+			}
 		}
-		LeafNode container = leftmostContainer();
-		int position = 0;
-		while (container != null) {
-			System.arraycopy(container.recordIds, 0, result, position, container.count);
-			position += container.count;
-			container = container.next;
-		}
-		return result;
 	}
 
 	/**
-	 * Returns the leftmost container of the tree (start of the logical order).
-	 */
-	@Nullable
-	private LeafNode leftmostContainer() {
-		Node node = this.root;
-		while (node instanceof final InternalNode internal) {
-			node = internal.children[0];
-		}
-		return (LeafNode) node;
-	}
-
-	/**
-	 * Computes and memoizes the ascending record id array together with the aligned positions array (single primitive
-	 * pass, no boxing).
-	 */
-	private void computeSnapshotIfNeeded() {
-		if (this.memoizedRecordIds != null && this.memoizedPositions != null) {
-			return;
-		}
-		final int[] permutation = getArray();
-		// map record id -> position (single pass, no boxing)
-		final IntIntMap recordToPosition = new IntIntHashMap(permutation.length);
-		for (int position = 0; position < permutation.length; position++) {
-			recordToPosition.put(permutation[position], position);
-		}
-		final int[] sortedRecordIds = permutation.clone();
-		Arrays.sort(sortedRecordIds);
-		final int[] positions = new int[sortedRecordIds.length];
-		for (int i = 0; i < sortedRecordIds.length; i++) {
-			positions[i] = recordToPosition.get(sortedRecordIds[i]);
-		}
-		this.memoizedRecordIds = sortedRecordIds;
-		this.memoizedPositions = positions;
-	}
-
-	/**
-	 * Drops all memoized snapshot arrays after a mutation.
+	 * Drops the memoized flattened array after a mutation.
 	 */
 	private void invalidateMemoizedState() {
 		this.memoizedArray = null;
-		this.memoizedRecordIds = null;
-		this.memoizedPositions = null;
 	}
 
 	/**
 	 * Mutable descent cursor capturing the internal-node path from the root to a leaf (plus the in-container offset
-	 * for positional descents). Reused per operation; never escapes the structure, so it carries no transactional
-	 * state.
+	 * for positional descents). Reused per operation; never escapes the structure.
 	 */
 	private static final class Cursor {
 		/**
@@ -898,7 +765,7 @@ public class UnorderedLookupTree implements Serializable {
 
 	/**
 	 * Leaf node = a **container** holding up to {@link #BLOCK_SIZE} record ids in logical order, identified by a
-	 * `long` order-key and linked to its logical neighbours for a fast in-order flatten.
+	 * `long` order-key.
 	 */
 	static final class LeafNode extends Node {
 		@Serial private static final long serialVersionUID = -2510718704128926730L;
@@ -914,14 +781,6 @@ public class UnorderedLookupTree implements Serializable {
 		 * Number of valid record ids in this container.
 		 */
 		int count;
-		/**
-		 * Next container in logical order, or `null`.
-		 */
-		@Nullable LeafNode next;
-		/**
-		 * Previous container in logical order, or `null`.
-		 */
-		@Nullable LeafNode prev;
 	}
 
 	/**
