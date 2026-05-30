@@ -23,11 +23,14 @@
 
 package io.evitadb.index.bPlusTree;
 
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalIntBPlusTree.Entry;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.ArrayUtils;
@@ -665,6 +668,64 @@ class TransactionalIntBPlusTreeTest {
 					assertEquals(0, original.size());
 					assertEquals(0, committed.size());
 				}
+			);
+		}
+
+		@Test
+		@DisplayName("releases inner layers of a composite (Void) producer value deleted in the same transaction")
+		void shouldNotLeakLayerWhenCompositeProducerValueIsDeleted() {
+			// ValueToRecordBitmap is a VoidTransactionMemoryProducer: it never opens a transactional layer of its
+			// own, only its inner TransactionalBitmap child does - exactly the composite producer that exposed the
+			// orphaned-child-layer bug fixed by Fix A.
+			final TransactionalIntBPlusTree<ValueToRecordBitmap> tree =
+				new TransactionalIntBPlusTree<>(ValueToRecordBitmap.class, o -> (ValueToRecordBitmap) o);
+			tree.insert(1, new ValueToRecordBitmap("a", 10));
+
+			assertStateAfterCommit(
+				tree,
+				original -> {
+					// open an ALIVE layer on the inner bitmap child (the parent producer stays layer-less), then
+					// drop the whole composite value in the same txn - the child's layer must still be released
+					original.search(1).orElseThrow().getRecordIds().add(11);
+					original.delete(1);
+				},
+				(original, committed) -> {
+					assertEquals(1, original.size());
+					assertEquals(0, committed.size());
+					assertTrue(committed.search(1).isEmpty());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("sweeps cleanly when a tree with composite values is created and discarded within a transaction")
+		void shouldNotLeakLayerWhenTreeIsCreatedAndDiscardedWithinTransaction() {
+			// outer tree we never touch - it only provides a transactional context to drive the commit sweep
+			final TransactionalIntBPlusTree<String> outer =
+				new TransactionalIntBPlusTree<>(3, String.class);
+
+			assertStateAfterCommit(
+				outer,
+				original -> {
+					// build a throwaway sub-tree, open ALIVE layers on its node graph and on inner producer children,
+					// then discard the whole sub-tree by removing its layers via the maintainer (Fix B). Without the
+					// deep recursion the sub-tree's size/root references, node graph and producer-child layers would
+					// remain ALIVE and trip StaleTransactionMemoryException during the commit sweep (INV-5).
+					final TransactionalIntBPlusTree<ValueToRecordBitmap> discarded =
+						new TransactionalIntBPlusTree<>(
+							ValueToRecordBitmap.class, o -> (ValueToRecordBitmap) o
+						);
+					for (int i = 0; i < 20; i++) {
+						discarded.insert(i, new ValueToRecordBitmap("v" + i, i));
+					}
+					// open ALIVE inner-child layers on a handful of composite values
+					for (int i = 0; i < 20; i += 3) {
+						discarded.search(i).orElseThrow().getRecordIds().add(1000 + i);
+					}
+					final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+					discarded.removeLayer(maintainer);
+				},
+				(original, committed) -> assertEquals(0, committed.size())
 			);
 		}
 
