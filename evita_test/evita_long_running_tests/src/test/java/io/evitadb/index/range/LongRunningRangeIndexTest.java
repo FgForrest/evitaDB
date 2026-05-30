@@ -31,10 +31,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -136,8 +138,15 @@ class LongRunningRangeIndexTest implements TimeBoundedTestSupport {
 								codeBuffer
 						);
 
+						// rebuild the index from the committed tree snapshot (simulates a serialization round-trip
+						// across generations); the tree is no longer array-backed, so collect its values explicitly
+						final List<TransactionalRangePoint> committedPoints = new ArrayList<>(committed.ranges.size());
+						final Iterator<TransactionalRangePoint> rangeIt = committed.ranges.valueIterator();
+						while (rangeIt.hasNext()) {
+							committedPoints.add(rangeIt.next());
+						}
 						committedResult.set(
-							new RangeIndex(committed.ranges.getArray())
+							new RangeIndex(committedPoints.toArray(new TransactionalRangePoint[0]))
 						);
 					}
 				);
