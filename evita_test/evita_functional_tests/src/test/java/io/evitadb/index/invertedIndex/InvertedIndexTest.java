@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
+import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.text.Collator;
 import java.util.*;
 import java.util.function.Function;
 
@@ -174,6 +176,36 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, comparator);
 
 			assertSame(comparator, index.getComparator());
+		}
+
+		@Test
+		@DisplayName("Localized Czech comparator orders buckets differently from natural String order")
+		void shouldOrderByLocalizedCzechComparatorNotNaturalStringOrder() {
+			// In Czech collation the digraph "ch" sorts as a single letter AFTER "h", so "chladný" sorts last;
+			// in natural String order 'c' < 'h' so "chladný" sorts near the front. This proves the comparator
+			// is actually driving bucket order (the Phase-1 payoff).
+			final InvertedIndex index = new InvertedIndex(
+				FilterIndex.NO_NORMALIZATION,
+				new LocalizedStringComparator(Collator.getInstance(new Locale("cs", "CZ")))
+			);
+			index.addRecord("chladný", 1);
+			index.addRecord("hora", 2);
+			index.addRecord("cibule", 3);
+			index.addRecord("auto", 4);
+
+			final ValueToRecordBitmap[] buckets = index.getValueToRecordBitmap();
+			assertArrayEquals(
+				new Serializable[]{"auto", "cibule", "hora", "chladný"},
+				new Serializable[]{
+					buckets[0].getValue(), buckets[1].getValue(),
+					buckets[2].getValue(), buckets[3].getValue()
+				}
+			);
+
+			// sanity: natural String ordering would put "chladný" right after "auto"
+			final String[] naturalOrder = {"chladný", "hora", "cibule", "auto"};
+			Arrays.sort(naturalOrder);
+			assertArrayEquals(new String[]{"auto", "chladný", "cibule", "hora"}, naturalOrder);
 		}
 	}
 
@@ -680,6 +712,77 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					assertNotSame(original, committed);
 					// committed should have the new record
 					assertTrue(committed.contains(99));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("T6: removing a bucket to empty inside a transaction commits cleanly (layer fully swept)")
+		void shouldRemoveBucketToEmptyInsideTransactionAndCommitCleanly() {
+			assertStateAfterCommit(
+				InvertedIndexTest.this.tested,
+				original -> {
+					// bucket for value 10 holds only record 3; removing it must delete the whole bucket
+					original.removeRecord(10, 3);
+					assertFalse(original.contains(10));
+				},
+				(original, committed) -> {
+					// original is unchanged, committed has the bucket gone - and the value's transactional
+					// layer must have been fully swept (assertStateAfterCommit runs verifyLayerWasFullySwept)
+					assertTrue(original.contains(10));
+					assertFalse(committed.contains(10));
+					assertArrayEquals(
+						new ValueToRecordBitmap[]{
+							new ValueToRecordBitmap(5, 1, 20),
+							new ValueToRecordBitmap(15, 2, 4),
+							new ValueToRecordBitmap(20, 5)
+						},
+						committed.getValueToRecordBitmap()
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("T6: modifying then removing a bucket to empty in one transaction sweeps cleanly")
+		void shouldModifyThenRemoveBucketToEmptyInOneTransaction() {
+			assertStateAfterCommit(
+				InvertedIndexTest.this.tested,
+				original -> {
+					// modify the bucket (touches its transactional bitmap layer) then delete it entirely
+					original.addRecord(10, 30);
+					original.removeRecord(10, 3, 30);
+					assertFalse(original.contains(10));
+				},
+				(original, committed) -> {
+					assertTrue(original.contains(10));
+					assertFalse(committed.contains(10));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("T9: value iterator reflects in-transaction additions and removals")
+		void shouldReflectInTransactionChangesInValueIterator() {
+			assertStateAfterCommit(
+				InvertedIndexTest.this.tested,
+				original -> {
+					original.addRecord(7, 70);
+					original.removeRecord(20, 5);
+
+					// the bounded range iteration used by getSortedRecords must observe the in-txn state
+					assertIteratorContains(
+						original.getSortedRecords(5, 15).getRecordIds().iterator(),
+						new int[]{1, 2, 3, 4, 20, 70}
+					);
+					assertTrue(original.contains(7));
+					assertFalse(original.contains(20));
+				},
+				(original, committed) -> {
+					assertFalse(original.contains(7));
+					assertTrue(original.contains(20));
+					assertTrue(committed.contains(7));
+					assertFalse(committed.contains(20));
 				}
 			);
 		}
