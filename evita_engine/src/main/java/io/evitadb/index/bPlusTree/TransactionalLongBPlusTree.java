@@ -772,7 +772,49 @@ public class TransactionalLongBPlusTree<V> implements
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		// remove the tree's own diff layer
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		// recurse into the size and root references and the whole node/value graph so that a tree which was created
+		// and discarded within the same transaction (e.g. a removed sub-index) does not leave any of its inner
+		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5)
+		this.size.removeLayer(transactionalLayer);
+		this.root.removeLayer(transactionalLayer);
+		removeLayerRecursively(getRoot(), transactionalLayer);
+	}
+
+	/**
+	 * Recursively removes the transactional diff layers of the passed node, its descendants and - for leaf nodes -
+	 * their producer values. Walks the current transactional view of the tree.
+	 *
+	 * @param node               the node whose layer (and that of its subtree) is to be removed
+	 * @param transactionalLayer the maintainer that owns the diff layers
+	 */
+	private static void removeLayerRecursively(
+		@Nonnull BPlusTreeNode<?> node,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		if (node instanceof final BPlusInternalTreeNode internalNode) {
+			final BPlusTreeNode<?>[] children = internalNode.getChildren();
+			final int peek = internalNode.getPeek();
+			for (int i = 0; i <= peek; i++) {
+				removeLayerRecursively(children[i], transactionalLayer);
+			}
+		} else if (node instanceof final BPlusLeafTreeNode<?> leafNode) {
+			final Object[] values = leafNode.getValues();
+			final int peek = leafNode.getPeek();
+			for (int i = 0; i <= peek; i++) {
+				// value producers guard their own (and their children's) layer removal internally
+				if (values[i] instanceof final TransactionalLayerProducer<?, ?> producer) {
+					producer.removeLayer(transactionalLayer);
+				}
+			}
+		} else {
+			throw new GenericEvitaInternalError("Unknown node type: " + node);
+		}
+		// the node's own removeLayer asserts a layer exists - only call it when one is actually open
+		if (Transaction.getTransactionalMemoryLayerIfExists(node) != null) {
+			node.removeLayer(transactionalLayer);
+		}
 	}
 
 	@Nonnull
