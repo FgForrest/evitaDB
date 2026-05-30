@@ -3076,6 +3076,47 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("Verify per-scope Attribute.filterable/sortable are narrowed when annotation drops the scoped flags")
+	@Test
+	void shouldNarrowPerScopeAttributeFilterableAndSortableWhenAnnotationDropsScopedFlags() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityScopedFlagsEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityScopedFlagsEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAttribute("scopedFlags").orElseThrow()
+					.isFilterableInScope(Scope.LIVE));
+				assertTrue(initial.getAttribute("scopedFlags").orElseThrow()
+					.isSortableInScope(Scope.LIVE));
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityScopedFlagsEvolutionV2NarrowFlags.class
+				);
+
+				final Optional<SetAttributeSchemaFilterableMutation> filterableMutation =
+					streamEntitySchemaMutations(mutations, SetAttributeSchemaFilterableMutation.class)
+						.filter(m -> "scopedFlags".equals(m.getName()))
+						.findFirst();
+				assertTrue(filterableMutation.isPresent(),
+					"Expected SetAttributeSchemaFilterableMutation clearing the scope for `scopedFlags`.");
+				final Optional<SetAttributeSchemaSortableMutation> sortableMutation =
+					streamEntitySchemaMutations(mutations, SetAttributeSchemaSortableMutation.class)
+						.filter(m -> "scopedFlags".equals(m.getName()))
+						.findFirst();
+				assertTrue(sortableMutation.isPresent(),
+					"Expected SetAttributeSchemaSortableMutation clearing the scope for `scopedFlags`.");
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityScopedFlagsEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAttribute("scopedFlags").orElseThrow()
+					.isFilterableInScope(Scope.LIVE));
+				assertFalse(updated.getAttribute("scopedFlags").orElseThrow()
+					.isSortableInScope(Scope.LIVE));
+			}
+		);
+	}
+
 	@DisplayName("Verify Reference.faceted=true is narrowed when annotation uses default settings")
 	@Test
 	void shouldNarrowReferenceFacetedWhenAnnotationUsesDefaultSettings() {

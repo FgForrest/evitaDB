@@ -960,24 +960,38 @@ public class ClassSchemaAnalyzer {
 					"(and thus it doesn't make sense to set it to true)!"
 			);
 
-			// unique - reconcile per-scope: desired set of scopes per uniqueness type
+			// unique - reconcile per-scope from a single pre-mutation snapshot. Both
+			// `uniqueInScope` and `uniqueWithinLocaleInScope` emit a SetAttributeSchemaUniqueMutation
+			// that replaces the whole uniqueness map, and combineWith keeps only the last of them -
+			// so emitting both would let one silently clobber the other. A single full-replacement
+			// call for the requested kind already expresses the complete desired state (it clears
+			// the opposite kind as well). Mixing both kinds across scopes on one attribute cannot be
+			// expressed by these kind-specific setters and is surfaced rather than silently corrupted.
 			final EnumSet<Scope> desiredUniqueScopes = collectScopesByUnique(
 				scopedDefinition, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			);
+			final EnumSet<Scope> desiredUniqueLocaleScopes = collectScopesByUnique(
+				scopedDefinition, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
 			);
 			final EnumSet<Scope> currentUniqueScopes = collectScopes(
 				Scope.values(), s -> editor.getUniquenessType(s) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
 			);
-			if (!desiredUniqueScopes.equals(currentUniqueScopes)) {
-				editor.uniqueInScope(desiredUniqueScopes.toArray(Scope[]::new));
-			}
-			final EnumSet<Scope> desiredUniqueLocaleScopes = collectScopesByUnique(
-				scopedDefinition, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
-			);
 			final EnumSet<Scope> currentUniqueLocaleScopes = collectScopes(
 				Scope.values(), s -> editor.getUniquenessType(s) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
 			);
-			if (!desiredUniqueLocaleScopes.equals(currentUniqueLocaleScopes)) {
-				editor.uniqueWithinLocaleInScope(desiredUniqueLocaleScopes.toArray(Scope[]::new));
+			if (!desiredUniqueScopes.equals(currentUniqueScopes) ||
+				!desiredUniqueLocaleScopes.equals(currentUniqueLocaleScopes)) {
+				if (desiredUniqueLocaleScopes.isEmpty()) {
+					editor.uniqueInScope(desiredUniqueScopes.toArray(Scope[]::new));
+				} else if (desiredUniqueScopes.isEmpty()) {
+					editor.uniqueWithinLocaleInScope(desiredUniqueLocaleScopes.toArray(Scope[]::new));
+				} else {
+					throw new GenericEvitaInternalError(
+						"Attribute `" + editor.getName() + "` mixes `UNIQUE_WITHIN_COLLECTION` and " +
+							"`UNIQUE_WITHIN_COLLECTION_LOCALE` uniqueness across scopes, which the class " +
+							"schema analyzer cannot apply within a single mutation."
+					);
+				}
 			}
 			// filterable - reconcile per-scope desired set
 			final EnumSet<Scope> desiredFilterableScopes = collectScopesByPredicate(
@@ -1085,26 +1099,38 @@ public class ClassSchemaAnalyzer {
 					"the value of `uniqueGlobally` property is not taken into an account " +
 					"(and thus it doesn't make sense to set it to any value)!"
 			);
-			// uniqueGlobally per-scope - reconcile desired set
+			// uniqueGlobally per-scope - reconcile from a single pre-mutation snapshot. As with
+			// entity-level uniqueness, both global setters emit a full-replacement mutation that
+			// combineWith collapses to the last one, so a single call for the requested kind
+			// expresses the complete desired state (clearing the opposite kind too). Mixing both
+			// global kinds across scopes is surfaced rather than silently corrupted.
 			final EnumSet<Scope> desiredUniqueGloballyScopes = collectScopesByUniqueGlobally(
 				scopedDefinition, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+			);
+			final EnumSet<Scope> desiredUniqueGloballyLocaleScopes = collectScopesByUniqueGlobally(
+				scopedDefinition, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
 			);
 			final EnumSet<Scope> currentUniqueGloballyScopes = collectScopes(
 				Scope.values(), s -> editor.getGlobalUniquenessType(s) == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
 			);
-			if (!desiredUniqueGloballyScopes.equals(currentUniqueGloballyScopes)) {
-				editor.uniqueGloballyInScope(desiredUniqueGloballyScopes.toArray(Scope[]::new));
-			}
-			final EnumSet<Scope> desiredUniqueGloballyLocaleScopes = collectScopesByUniqueGlobally(
-				scopedDefinition, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
-			);
 			final EnumSet<Scope> currentUniqueGloballyLocaleScopes = collectScopes(
 				Scope.values(), s -> editor.getGlobalUniquenessType(s) == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
 			);
-			if (!desiredUniqueGloballyLocaleScopes.equals(currentUniqueGloballyLocaleScopes)) {
-				editor.uniqueGloballyWithinLocaleInScope(
-					desiredUniqueGloballyLocaleScopes.toArray(Scope[]::new)
-				);
+			if (!desiredUniqueGloballyScopes.equals(currentUniqueGloballyScopes) ||
+				!desiredUniqueGloballyLocaleScopes.equals(currentUniqueGloballyLocaleScopes)) {
+				if (desiredUniqueGloballyLocaleScopes.isEmpty()) {
+					editor.uniqueGloballyInScope(desiredUniqueGloballyScopes.toArray(Scope[]::new));
+				} else if (desiredUniqueGloballyScopes.isEmpty()) {
+					editor.uniqueGloballyWithinLocaleInScope(
+						desiredUniqueGloballyLocaleScopes.toArray(Scope[]::new)
+					);
+				} else {
+					throw new GenericEvitaInternalError(
+						"Attribute `" + editor.getName() + "` mixes `UNIQUE_WITHIN_CATALOG` and " +
+							"`UNIQUE_WITHIN_CATALOG_LOCALE` global uniqueness across scopes, which the " +
+							"class schema analyzer cannot apply within a single mutation."
+					);
+				}
 			}
 		}
 	}
