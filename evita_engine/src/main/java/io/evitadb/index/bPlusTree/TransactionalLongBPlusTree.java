@@ -2686,11 +2686,17 @@ public class TransactionalLongBPlusTree<V> implements
 		 * root replacement. It must not be applied to values that are merely moved to a sibling node (steal/merge
 		 * rebalancing), because those values remain referenced and their layers must survive.
 		 *
+		 * The cleanup is delegated to [TransactionalLayerProducer#removeLayer()], which recurses into the value's inner
+		 * transactional objects. It must NOT be short-circuited on the parent's own layer presence: a composite producer
+		 * (e.g. a [io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer] such as a range point) never opens a
+		 * layer of its own — only its children do — so guarding on the parent's layer would leave the children's layers
+		 * orphaned and detected as stale during commit. The no-arg `removeLayer()` resolves the current transaction's
+		 * maintainer and is a safe no-op when no transaction is open.
+		 *
 		 * @param removed the value removed from the leaf, may be null
 		 */
 		private static void discardRemovedValueLayer(@Nullable Object removed) {
-			if (removed instanceof final TransactionalLayerProducer<?, ?> producer
-				&& Transaction.getTransactionalMemoryLayerIfExists(producer) != null) {
+			if (removed instanceof final TransactionalLayerProducer<?, ?> producer) {
 				producer.removeLayer();
 			}
 		}

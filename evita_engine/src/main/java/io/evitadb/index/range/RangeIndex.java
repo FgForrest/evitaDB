@@ -36,27 +36,24 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.array.TransactionalComplexObjArray;
+import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiConsumer;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -86,28 +83,18 @@ import java.util.stream.Collectors;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-@EqualsAndHashCode
-@ToString
 public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Serializable {
 	@Serial private static final long serialVersionUID = -6580254774575839798L;
 
 	/**
-	 * Function combines two {@link TransactionalRangePoint}s to new one that will hold combination of their starts
-	 * and ends. Threshold is not checked by the function and caller must ensure this function produces sane result.
+	 * Wrapper that adapts a committed value coming out of the B+ tree commit into a {@link TransactionalRangePoint}.
+	 * A {@link TransactionalRangePoint} merges to another {@link TransactionalRangePoint} (its
+	 * {@link TransactionalRangePoint#createCopyWithMergedTransactionalMemory} returns a {@link TransactionalRangePoint}),
+	 * therefore an identity cast is sufficient here — unlike value types that merge to a different class.
 	 */
-	private static final BiConsumer<TransactionalRangePoint, TransactionalRangePoint> INT_RANGE_POINT_PRODUCER = (target, source) -> {
-		target.addStarts(source.getStarts().getArray());
-		target.addEnds(source.getEnds().getArray());
-	};
-	/**
-	 * Function subtracts second argument {@link TransactionalRangePoint} from first {@link TransactionalRangePoint}.
-	 * So that first point contains no record id in the start/end set that is present in the second point.
-	 * Threshold is not checked by the function and caller must ensure this function produces sane result.
-	 */
-	private static final BiConsumer<TransactionalRangePoint, TransactionalRangePoint> INT_RANGE_POINT_REDUCER = (target, source) -> {
-		target.removeStarts(source.getStarts().getArray());
-		target.removeEnds(source.getEnds().getArray());
-	};
+	private static final Function<Object, TransactionalRangePoint> RANGE_POINT_WRAPPER =
+		o -> (TransactionalRangePoint) o;
+
 	/**
 	 * Predicate will return true if point has no sense because it contains no data (no starts, no ends). Predicate will
 	 * never return true for full range border points (MIN/MAX) even if empty.
@@ -116,16 +103,11 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		point -> point.getThreshold() != Long.MIN_VALUE && point.getThreshold() != Long.MAX_VALUE && point.getStarts().isEmpty() && point.getEnds().isEmpty();
 
 	/**
-	 * Predicate will return true if both range points are deeply equals
+	 * Contains range information keyed by {@link RangePoint#getThreshold()} in ascending order. At least two points are
+	 * always present for the `Long.MIN_VALUE` and `Long.MAX_VALUE` border points of the range. A write touches only the
+	 * affected leaf and its ancestors (path-copying) instead of reallocating the whole structure.
 	 */
-	private static final BiPredicate<TransactionalRangePoint, TransactionalRangePoint> INT_RANGE_POINT_DEEP_COMPARATOR =
-		TransactionalRangePoint::deepEquals;
-
-	/**
-	 * Contains range information sorted by {@link RangePoint#getThreshold()} in ascending order.
-	 * At least two points are always present for MIN and MAX point of the range.
-	 */
-	final TransactionalComplexObjArray<TransactionalRangePoint> ranges;
+	final TransactionalLongBPlusTree<TransactionalRangePoint> ranges;
 
 	/**
 	 * Memoized result for the "valid at now" query produced by {@link #getRecordsValidNowFormula(long)}.
@@ -133,23 +115,53 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * {@link RangeIndex} is produced by {@link #createCopyWithMergedTransactionalMemory} so this field
 	 * starts {@code null} automatically.
 	 */
-	@EqualsAndHashCode.Exclude
-	@ToString.Exclude
 	@Nullable transient volatile EnvelopingNowCache envelopingNowCache;
 
 	/**
-	 * Method collects all starts and ends from ranges between fromIndex and toIndex (inclusive) and returns them collected
-	 * in simple DTO.
+	 * Method collects all starts and ends from the range points between `fromIndex` and `toIndex` (inclusive) of the
+	 * passed materialized snapshot and returns them collected in a simple DTO.
+	 */
+	/**
+	 * Collects all starts and ends of every range point currently held in the passed index (transactional view) into a
+	 * simple DTO. Intended for tests that need to assert the full internal state of the index.
 	 */
 	@Nonnull
-	static StartsEndsDTO collectsStartsAndEnds(int fromIndex, int toIndex, @Nonnull TransactionalComplexObjArray<TransactionalRangePoint> ranges) {
+	static StartsEndsDTO collectAllStartsAndEnds(@Nonnull RangeIndex index) {
 		final StartsEndsDTO result = new StartsEndsDTO();
-		for (int i = fromIndex; i <= toIndex; i++) {
-			final RangePoint<?> rangePoint = ranges.get(i);
+		final Iterator<TransactionalRangePoint> it = index.ranges.valueIterator();
+		while (it.hasNext()) {
+			final RangePoint<?> rangePoint = it.next();
 			result.addStart(rangePoint.getStarts());
 			result.addEnd(rangePoint.getEnds());
 		}
 		return result;
+	}
+
+	@Nonnull
+	static StartsEndsDTO collectsStartsAndEnds(int fromIndex, int toIndex, @Nonnull TransactionalRangePoint[] ranges) {
+		final StartsEndsDTO result = new StartsEndsDTO();
+		for (int i = fromIndex; i <= toIndex; i++) {
+			final RangePoint<?> rangePoint = ranges[i];
+			result.addStart(rangePoint.getStarts());
+			result.addEnd(rangePoint.getEnds());
+		}
+		return result;
+	}
+
+	/**
+	 * Materializes the transactional view of all range points into a positionally addressable array, ordered ascending
+	 * by threshold. Used by the {@link RangeLookup}-based queries which reproduce the original positional index math; the
+	 * border sentinels guarantee at least two entries. This is the same O(N) scan the array-backed implementation
+	 * performed for these full-range queries.
+	 */
+	@Nonnull
+	private TransactionalRangePoint[] materializeRanges() {
+		final List<TransactionalRangePoint> result = new ArrayList<>(this.ranges.size());
+		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
+		while (it.hasNext()) {
+			result.add(it.next());
+		}
+		return result.toArray(new TransactionalRangePoint[0]);
 	}
 
 	/**
@@ -166,66 +178,78 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		}
 	}
 
+	/**
+	 * Creates a fresh tree carrying only the `Long.MIN_VALUE` / `Long.MAX_VALUE` border sentinels.
+	 */
+	@Nonnull
+	private static TransactionalLongBPlusTree<TransactionalRangePoint> createEmptyTree() {
+		final TransactionalLongBPlusTree<TransactionalRangePoint> tree = new TransactionalLongBPlusTree<>(
+			TransactionalRangePoint.class, RANGE_POINT_WRAPPER
+		);
+		tree.insert(Long.MIN_VALUE, new TransactionalRangePoint(Long.MIN_VALUE));
+		tree.insert(Long.MAX_VALUE, new TransactionalRangePoint(Long.MAX_VALUE));
+		return tree;
+	}
+
 	public RangeIndex(@Nonnull TransactionalRangePoint[] ranges) {
 		Assert.isTrue(ranges.length >= 2, "At least two ranges are expected!");
 		Assert.isTrue(ranges[0].getThreshold() == Long.MIN_VALUE, "First range should have threshold Long.MIN_VALUE!");
 		Assert.isTrue(ranges[ranges.length - 1].getThreshold() == Long.MAX_VALUE, "Last range should have threshold Long.MAX_VALUE!");
 		assertThresholdIsMonotonic(ranges);
-		this.ranges = new TransactionalComplexObjArray<>(
-			ranges,
-			INT_RANGE_POINT_PRODUCER,
-			INT_RANGE_POINT_REDUCER,
-			INT_RANGE_POINT_OBSOLETE_CHECKER,
-			INT_RANGE_POINT_DEEP_COMPARATOR
+		final TransactionalLongBPlusTree<TransactionalRangePoint> tree = new TransactionalLongBPlusTree<>(
+			TransactionalRangePoint.class, RANGE_POINT_WRAPPER
 		);
+		// rebuild the tree from the deserialized snapshot by inserting all points (thresholds are unique & monotonic)
+		for (final TransactionalRangePoint point : ranges) {
+			tree.insert(point.getThreshold(), point);
+		}
+		this.ranges = tree;
 	}
 
 	public RangeIndex() {
-		this.ranges = new TransactionalComplexObjArray<>(
-			new TransactionalRangePoint[]{
-				new TransactionalRangePoint(Long.MIN_VALUE),
-				new TransactionalRangePoint(Long.MAX_VALUE)
-			},
-			INT_RANGE_POINT_PRODUCER,
-			INT_RANGE_POINT_REDUCER,
-			INT_RANGE_POINT_OBSOLETE_CHECKER,
-			INT_RANGE_POINT_DEEP_COMPARATOR
-		);
+		this.ranges = createEmptyTree();
 	}
 
 	public RangeIndex(long from, long to, @Nonnull int[] recordIds) {
-		this.ranges = new TransactionalComplexObjArray<>(
-			new TransactionalRangePoint[]{
-				new TransactionalRangePoint(Long.MIN_VALUE),
-				new TransactionalRangePoint(Long.MAX_VALUE)
-			},
-			INT_RANGE_POINT_PRODUCER,
-			INT_RANGE_POINT_REDUCER,
-			INT_RANGE_POINT_OBSOLETE_CHECKER,
-			INT_RANGE_POINT_DEEP_COMPARATOR
-		);
+		this.ranges = createEmptyTree();
 		for (int recordId : recordIds) {
 			addRecord(from, to, recordId);
 		}
 	}
 
 	/**
-	 * Returns all ranges registered in this index.
+	 * Private constructor used by {@link #createCopyWithMergedTransactionalMemory} to wrap an already committed tree.
+	 *
+	 * @param committedTree the tree obtained from the committed transactional state
 	 */
-	@Nonnull
-	public RangePoint<?>[] getRanges() {
-		return this.ranges.getArray();
+	private RangeIndex(@Nonnull TransactionalLongBPlusTree<TransactionalRangePoint> committedTree) {
+		this.ranges = committedTree;
 	}
 
 	/**
-	 * Returns a transaction-aware iterator over the sorted range points held in this index. Unlike
-	 * {@link #getRanges()}, which materializes the committed snapshot via `getArray()`, this iterator
-	 * walks the transactional view so callers inside an open transaction observe the in-progress state.
+	 * Returns all ranges registered in this index, ordered ascending by threshold.
+	 */
+	@Nonnull
+	public RangePoint<?>[] getRanges() {
+		//TODO JNO (#760): materializes the whole range-point array on every commit only to feed the
+		// serialization route; remove once StorageParts become granular (issue #760 part B — persist
+		// only the changed parts of the index instead of rewriting the entire index per transaction).
+		final List<RangePoint<?>> result = new ArrayList<>(this.ranges.size());
+		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
+		while (it.hasNext()) {
+			result.add(it.next());
+		}
+		return result.toArray(new RangePoint<?>[0]);
+	}
+
+	/**
+	 * Returns a transaction-aware iterator over the sorted range points held in this index. The iterator walks the
+	 * transactional view so callers inside an open transaction observe the in-progress state.
 	 * Intended for range-aware histogram sweeps that must respect transactional layering.
 	 */
 	@Nonnull
 	public Iterator<TransactionalRangePoint> rangesIterator() {
-		return this.ranges.iterator();
+		return this.ranges.valueIterator();
 	}
 
 	/**
@@ -239,30 +263,72 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * which is `O(N)`; callers should fall back to a constant hint on the transactional path.
 	 */
 	public int getRangePointCount() {
-		return this.ranges.getLength();
+		return this.ranges.size();
 	}
 
 	/**
-	 * Adds new record with the interval from/to to the range.
+	 * Adds new record with the interval from/to to the range. The updater mutates and returns the SAME
+	 * {@link TransactionalRangePoint} instance (never swaps it) so the value's transactional diff layer is preserved.
 	 */
 	public void addRecord(long from, long to, int recordId) {
-		final Bitmap recArray = new BaseBitmap(recordId);
-		this.ranges.add(new TransactionalRangePoint(from, recArray, EmptyBitmap.INSTANCE));
-		this.ranges.add(new TransactionalRangePoint(to, EmptyBitmap.INSTANCE, recArray));
+		this.ranges.upsert(
+			from,
+			point -> {
+				if (point == null) {
+					return new TransactionalRangePoint(from, new BaseBitmap(recordId), EmptyBitmap.INSTANCE);
+				}
+				point.addStart(recordId);
+				return point;
+			}
+		);
+		this.ranges.upsert(
+			to,
+			point -> {
+				if (point == null) {
+					return new TransactionalRangePoint(to, EmptyBitmap.INSTANCE, new BaseBitmap(recordId));
+				}
+				point.addEnd(recordId);
+				return point;
+			}
+		);
 		if (!Transaction.isTransactionAvailable()) {
 			this.envelopingNowCache = null;
 		}
 	}
 
 	/**
-	 * Removes record with the interval from/to from the range.
+	 * Removes record with the interval from/to from the range. Each affected point is mutated in place; once a point
+	 * becomes obsolete (no starts, no ends) and is not a border sentinel it is deleted from the tree, which releases
+	 * its transactional layer.
 	 */
 	public void removeRecord(long start, long end, int recordId) {
-		final Bitmap recArray = new BaseBitmap(recordId);
-		this.ranges.remove(new TransactionalRangePoint(start, recArray, EmptyBitmap.INSTANCE));
-		this.ranges.remove(new TransactionalRangePoint(end, EmptyBitmap.INSTANCE, recArray));
+		removeFromPoint(start, recordId, true);
+		removeFromPoint(end, recordId, false);
 		if (!Transaction.isTransactionAvailable()) {
 			this.envelopingNowCache = null;
+		}
+	}
+
+	/**
+	 * Removes the passed `recordId` from the start or end bitmap of the point at the given `threshold` (mutating it in
+	 * place) and deletes the point afterwards when it became obsolete and is not a border sentinel.
+	 *
+	 * @param threshold the threshold of the point to mutate
+	 * @param recordId  the record id to remove
+	 * @param fromStart `true` to remove from the start bitmap, `false` to remove from the end bitmap
+	 */
+	private void removeFromPoint(long threshold, int recordId, boolean fromStart) {
+		final TransactionalRangePoint point = this.ranges.search(threshold).orElse(null);
+		if (point == null) {
+			return;
+		}
+		if (fromStart) {
+			point.removeStarts(new int[]{recordId});
+		} else {
+			point.removeEnds(new int[]{recordId});
+		}
+		if (INT_RANGE_POINT_OBSOLETE_CHECKER.test(point)) {
+			this.ranges.delete(threshold);
 		}
 	}
 
@@ -270,7 +336,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * Returns true if the range contains passed record id anywhere in its {@link #ranges}.
 	 */
 	public boolean contains(int recordId) {
-		final Iterator<TransactionalRangePoint> it = this.ranges.iterator();
+		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
 		while (it.hasNext()) {
 			final TransactionalRangePoint point = it.next();
 			if (point.getStarts().contains(recordId)) {
@@ -296,10 +362,15 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Formula getRecordsFrom(long threshold) {
-		final int index = this.ranges.indexOf(new TransactionalRangePoint(threshold));
-		final int startIndex = index >= 0 ? index : -1 * (index) - 1;
-
-		final StartsEndsDTO startsEndsDTO = collectsStartsAndEnds(startIndex, this.ranges.getLength() - 1, this.ranges);
+		// the array implementation collected all points from the first key >= threshold to the end; this is exactly
+		// the forward stream of points whose key is greater than or equal to the threshold
+		final StartsEndsDTO startsEndsDTO = new StartsEndsDTO();
+		final Iterator<TransactionalRangePoint> it = this.ranges.greaterOrEqualValueIterator(threshold);
+		while (it.hasNext()) {
+			final TransactionalRangePoint point = it.next();
+			startsEndsDTO.addStart(point.getStarts());
+			startsEndsDTO.addEnd(point.getEnds());
+		}
 		return createDisentangleFormulaIfNecessary(
 			getId(), startsEndsDTO.getRangeEndsAsBitmapArray(),
 			startsEndsDTO.getRangeStartsAsBitmapArray()
@@ -319,10 +390,20 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Formula getRecordsTo(long threshold) {
-		final int index = this.ranges.indexOf(new TransactionalRangePoint(threshold));
-		final int startIndex = index >= 0 ? index : -1 * (index) - 2;
-
-		final StartsEndsDTO startsEndsDTO = collectsStartsAndEnds(0, startIndex, this.ranges);
+		// the array implementation collected all points from the start up to (and including when present) the threshold;
+		// this is exactly the forward stream of points whose key is lesser than or equal to the threshold
+		final StartsEndsDTO startsEndsDTO = new StartsEndsDTO();
+		final Iterator<TransactionalLongBPlusTree.Entry<TransactionalRangePoint>> it = this.ranges.entryIterator();
+		while (it.hasNext()) {
+			final TransactionalLongBPlusTree.Entry<TransactionalRangePoint> entry = it.next();
+			if (entry.key() > threshold) {
+				// keys are ascending - everything that follows is past the threshold
+				break;
+			}
+			final TransactionalRangePoint point = entry.value();
+			startsEndsDTO.addStart(point.getStarts());
+			startsEndsDTO.addEnd(point.getEnds());
+		}
 		return createDisentangleFormulaIfNecessary(getId(), startsEndsDTO.getRangeStartsAsBitmapArray(), startsEndsDTO.getRangeEndsAsBitmapArray());
 	}
 
@@ -336,15 +417,16 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Formula getRecordsEnvelopingInclusive(long threshold) {
-		final RangeLookup rangeLookup = new RangeLookup(this.ranges, threshold, threshold);
+		final TransactionalRangePoint[] points = materializeRanges();
+		final RangeLookup rangeLookup = new RangeLookup(points, threshold, threshold);
 
 		final int startIndex = rangeLookup.isStartThresholdFound() ? rangeLookup.getStartIndex() : rangeLookup.getStartIndex() - 1;
 		final int endIndex = rangeLookup.isEndThresholdFound() ? rangeLookup.getEndIndex() + 1 : rangeLookup.getEndIndex();
 
 		final StartsEndsDTO before = startIndex >= 0 ?
-			collectsStartsAndEnds(0, startIndex, this.ranges) : new StartsEndsDTO();
-		final StartsEndsDTO after = endIndex < this.ranges.getLength() ?
-			collectsStartsAndEnds(endIndex, this.ranges.getLength() - 1, this.ranges) : new StartsEndsDTO();
+			collectsStartsAndEnds(0, startIndex, points) : new StartsEndsDTO();
+		final StartsEndsDTO after = endIndex < points.length ?
+			collectsStartsAndEnds(endIndex, points.length - 1, points) : new StartsEndsDTO();
 
 		final AndFormula envelopeFormula = new AndFormula(
 			createDisentangleFormulaIfNecessary(getId(), before.getRangeStartsAsBitmapArray(), before.getRangeEndsAsBitmapArray()),
@@ -357,8 +439,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 				rangeLookup.getStartIndex() == rangeLookup.getEndIndex(),
 				"Premise is invalid!"
 			);
-			final Bitmap starts = this.ranges.get(rangeLookup.getStartIndex()).getStarts();
-			final Bitmap ends = this.ranges.get(rangeLookup.getEndIndex()).getEnds();
+			final Bitmap starts = points[rangeLookup.getStartIndex()].getStarts();
+			final Bitmap ends = points[rangeLookup.getEndIndex()].getEnds();
 
 			if (starts.isEmpty() && ends.isEmpty()) {
 				return envelopeFormula;
@@ -397,16 +479,15 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		if (snapshot != null && snapshot.validFromInclusive() <= now && now <= snapshot.validToInclusive()) {
 			return snapshot.result().isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(snapshot.result());
 		}
-		final int idx = this.ranges.indexOf(new TransactionalRangePoint(now));
 		final long validFrom;
 		final long validTo;
-		if (idx >= 0) {
+		if (this.ranges.search(now).isPresent()) {
 			validFrom = now;
 			validTo = now;
 		} else {
-			final int insertionPoint = -idx - 1;
-			validFrom = this.ranges.get(insertionPoint - 1).getThreshold() + 1;
-			validTo = this.ranges.get(insertionPoint).getThreshold() - 1;
+			// `now` falls between two thresholds; the border sentinels guarantee both neighbors exist
+			validFrom = this.ranges.lesserOrEqualKeyIterator(now).nextLong() + 1;
+			validTo = this.ranges.greaterOrEqualKeyIterator(now).nextLong() - 1;
 		}
 		final Bitmap materialized = getRecordsEnvelopingInclusive(now).compute();
 		this.envelopingNowCache = new EnvelopingNowCache(validFrom, validTo, materialized);
@@ -475,10 +556,11 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Formula getRecordsWithRangesOverlapping(long from, long to) {
-		final RangeLookup rangeLookup = new RangeLookup(this.ranges, from, to);
-		final StartsEndsDTO between = collectsStartsAndEnds(rangeLookup.getStartIndex(), rangeLookup.getEndIndex(), this.ranges);
-		final StartsEndsDTO before = collectsStartsAndEnds(0, Math.min(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), this.ranges);
-		final StartsEndsDTO after = collectsStartsAndEnds(Math.max(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), this.ranges.getLength() - 1, this.ranges);
+		final TransactionalRangePoint[] points = materializeRanges();
+		final RangeLookup rangeLookup = new RangeLookup(points, from, to);
+		final StartsEndsDTO between = collectsStartsAndEnds(rangeLookup.getStartIndex(), rangeLookup.getEndIndex(), points);
+		final StartsEndsDTO before = collectsStartsAndEnds(0, Math.min(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), points);
+		final StartsEndsDTO after = collectsStartsAndEnds(Math.max(rangeLookup.getStartIndex(), rangeLookup.getEndIndex()), points.length - 1, points);
 
 		return new OrFormula(
 			between.getRangeStarts(),
@@ -499,7 +581,13 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public Bitmap getAllRecords() {
-		final StartsEndsDTO all = collectsStartsAndEnds(0, this.ranges.getLength() - 1, this.ranges);
+		final StartsEndsDTO all = new StartsEndsDTO();
+		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
+		while (it.hasNext()) {
+			final TransactionalRangePoint point = it.next();
+			all.addStart(point.getStarts());
+			all.addEnd(point.getEnds());
+		}
 		return new AndFormula(all.getRangeStarts(), all.getRangeEnds()).compute();
 	}
 
@@ -524,6 +612,67 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		this.ranges.removeLayer(transactionalLayer);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+	}
+
+	/**
+	 * Content-based equality over the logical `(threshold, starts, ends)` sequence of all range points. The transient
+	 * {@link #envelopingNowCache} is intentionally excluded.
+	 */
+	@Override
+	public boolean equals(@Nullable Object o) {
+		if (this == o) {
+			return true;
+		}
+		if (o == null || getClass() != o.getClass()) {
+			return false;
+		}
+		final RangeIndex that = (RangeIndex) o;
+		final Iterator<TransactionalRangePoint> thisIt = this.ranges.valueIterator();
+		final Iterator<TransactionalRangePoint> thatIt = that.ranges.valueIterator();
+		while (thisIt.hasNext() && thatIt.hasNext()) {
+			final TransactionalRangePoint thisPoint = thisIt.next();
+			final TransactionalRangePoint thatPoint = thatIt.next();
+			if (thisPoint.getThreshold() != thatPoint.getThreshold()
+				|| !Objects.equals(thisPoint.getStarts(), thatPoint.getStarts())
+				|| !Objects.equals(thisPoint.getEnds(), thatPoint.getEnds())) {
+				return false;
+			}
+		}
+		return thisIt.hasNext() == thatIt.hasNext();
+	}
+
+	/**
+	 * Content-based hash code over the logical `(threshold, starts, ends)` sequence of all range points.
+	 */
+	@Override
+	public int hashCode() {
+		int result = 1;
+		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
+		while (it.hasNext()) {
+			final TransactionalRangePoint point = it.next();
+			result = 31 * result + Long.hashCode(point.getThreshold());
+			result = 31 * result + point.getStarts().hashCode();
+			result = 31 * result + point.getEnds().hashCode();
+		}
+		return result;
+	}
+
+	@Override
+	public String toString() {
+		final StringBuilder sb = new StringBuilder(128);
+		sb.append("RangeIndex{ranges=[");
+		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
+		boolean first = true;
+		while (it.hasNext()) {
+			final TransactionalRangePoint point = it.next();
+			if (!first) {
+				sb.append(", ");
+			}
+			sb.append(point);
+			first = false;
+		}
+		sb.append("]}");
+		return sb.toString();
 	}
 
 	/**
@@ -723,11 +872,11 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		private final int endIndex;
 		private final TransactionalRangePoint endPoint;
 
-		RangeLookup(@Nonnull TransactionalComplexObjArray<TransactionalRangePoint> ranges, long from, long to) {
-			final int indexFrom = ranges.indexOf(new TransactionalRangePoint(from));
+		RangeLookup(@Nonnull TransactionalRangePoint[] ranges, long from, long to) {
+			final int indexFrom = binarySearchThreshold(ranges, from);
 			if (indexFrom >= 0) {
 				this.startIndex = indexFrom;
-				this.startPoint = ranges.get(indexFrom);
+				this.startPoint = ranges[indexFrom];
 			} else {
 				this.startIndex = -1 * (indexFrom) - 1;
 				this.startPoint = null;
@@ -737,15 +886,40 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 				this.endIndex = this.startIndex;
 				this.endPoint = this.startPoint;
 			} else {
-				final int indexTo = ranges.indexOf(new TransactionalRangePoint(to));
+				final int indexTo = binarySearchThreshold(ranges, to);
 				if (indexTo >= 0) {
 					this.endIndex = indexTo;
-					this.endPoint = ranges.get(indexTo);
+					this.endPoint = ranges[indexTo];
 				} else {
 					this.endIndex = -1 * (indexTo) - 2;
 					this.endPoint = null;
 				}
 			}
+		}
+
+		/**
+		 * Binary search over the ascending-by-threshold `ranges` array reproducing the {@link java.util.Arrays#binarySearch}
+		 * contract: returns the index of the matching threshold or `-(insertionPoint) - 1` when not found.
+		 *
+		 * @param ranges    the range points ordered ascending by threshold
+		 * @param threshold the threshold to search for
+		 * @return the found index or the negative insertion-point encoding
+		 */
+		private static int binarySearchThreshold(@Nonnull TransactionalRangePoint[] ranges, long threshold) {
+			int low = 0;
+			int high = ranges.length - 1;
+			while (low <= high) {
+				final int mid = (low + high) >>> 1;
+				final long midThreshold = ranges[mid].getThreshold();
+				if (midThreshold < threshold) {
+					low = mid + 1;
+				} else if (midThreshold > threshold) {
+					high = mid - 1;
+				} else {
+					return mid;
+				}
+			}
+			return -(low + 1);
 		}
 
 		/**

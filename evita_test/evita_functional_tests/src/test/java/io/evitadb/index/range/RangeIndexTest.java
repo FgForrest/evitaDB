@@ -325,10 +325,7 @@ class RangeIndexTest {
 						asListOfBitmaps(new int[0], new int[]{4}, new int[]{1, 2}, new int[]{3}, new int[0], new int[0]),
 						asListOfBitmaps(new int[0], new int[0], new int[]{4}, new int[0], new int[]{1, 2, 3}, new int[0])
 					).effectivelyEquals(
-						RangeIndex.collectsStartsAndEnds(
-							0, original.ranges.getLength() - 1,
-							original.ranges
-						)
+						RangeIndex.collectAllStartsAndEnds(original)
 					)
 				);
 			},
@@ -344,10 +341,7 @@ class RangeIndexTest {
 						asListOfBitmaps(new int[0], new int[0]),
 						asListOfBitmaps(new int[0], new int[0])
 					).effectivelyEquals(
-						RangeIndex.collectsStartsAndEnds(
-							0, original.ranges.getLength() - 1,
-							original.ranges
-						)
+						RangeIndex.collectAllStartsAndEnds(original)
 					)
 				);
 			}
@@ -379,10 +373,7 @@ class RangeIndexTest {
 						asListOfBitmaps(new int[0], new int[0]),
 						asListOfBitmaps(new int[0], new int[0])
 					).effectivelyEquals(
-						RangeIndex.collectsStartsAndEnds(
-							0, original.ranges.getLength() - 1,
-							original.ranges
-						)
+						RangeIndex.collectAllStartsAndEnds(original)
 					)
 				);
 
@@ -395,10 +386,7 @@ class RangeIndexTest {
 						asListOfBitmaps(new int[0], new int[]{4}, new int[]{1, 2}, new int[]{3}, new int[0], new int[0]),
 						asListOfBitmaps(new int[0], new int[0], new int[]{4}, new int[0], new int[]{1, 2, 3}, new int[0])
 					).effectivelyEquals(
-						RangeIndex.collectsStartsAndEnds(
-							0, committedVersion.ranges.getLength() - 1,
-							committedVersion.ranges
-						)
+						RangeIndex.collectAllStartsAndEnds(committedVersion)
 					)
 				);
 			}
@@ -426,10 +414,7 @@ class RangeIndexTest {
 						asListOfBitmaps(new int[0], new int[0]),
 						asListOfBitmaps(new int[0], new int[0])
 					).effectivelyEquals(
-						RangeIndex.collectsStartsAndEnds(
-							0, original.ranges.getLength() - 1,
-							original.ranges
-						)
+						RangeIndex.collectAllStartsAndEnds(original)
 					)
 				);
 
@@ -440,10 +425,7 @@ class RangeIndexTest {
 						asListOfBitmaps(new int[0], new int[0]),
 						asListOfBitmaps(new int[0], new int[0])
 					).effectivelyEquals(
-						RangeIndex.collectsStartsAndEnds(
-							0, committedVersion.ranges.getLength() - 1,
-							committedVersion.ranges
-						)
+						RangeIndex.collectAllStartsAndEnds(committedVersion)
 					)
 				);
 			}
@@ -478,10 +460,7 @@ class RangeIndexTest {
 						asListOfBitmaps(new int[0], new int[]{-1, 14}, new int[0], new int[0]),
 						asListOfBitmaps(new int[0], new int[0], new int[]{-1, 14}, new int[0])
 					).effectivelyEquals(
-						RangeIndex.collectsStartsAndEnds(
-							0, committedVersion.ranges.getLength() - 1,
-							committedVersion.ranges
-						)
+						RangeIndex.collectAllStartsAndEnds(committedVersion)
 					)
 				)
 		);
