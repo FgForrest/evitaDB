@@ -38,9 +38,16 @@ import io.evitadb.api.requestResponse.schema.model.evolution.*;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.CreateAssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
@@ -2727,6 +2734,435 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 						GetterBasedEntityEvolutionV1.ENTITY_NAME)
 					.orElseThrow();
 				assertTrue(updatedSchema.getAttribute("code").orElseThrow().isFilterable());
+			}
+		);
+	}
+
+	@DisplayName("Verify nullable=true is narrowed to non-null when annotation uses default settings")
+	@Test
+	void shouldNarrowNullableAttributeToNonNullWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				// Create initial schema with nullable=true
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNullableEvolutionV1.class);
+
+				// Verify initial state: attribute is nullable
+				final SealedEntitySchema initialSchema = session.getEntitySchema(
+						GetterBasedEntityNullableEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertTrue(
+					initialSchema.getAttribute("code").orElseThrow().isNullable(),
+					"Initial `code` attribute is expected to be nullable."
+				);
+
+				// Re-analyze with V2 that uses default @Attribute (nullable=false)
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNullableEvolutionV2NarrowToNonNull.class
+				);
+
+				// Expected mutation: nullable flipped to false
+				final Optional<SetAttributeSchemaNullableMutation> nullableMutation =
+					findEntitySchemaMutation(mutations, SetAttributeSchemaNullableMutation.class);
+				assertTrue(
+					nullableMutation.isPresent(),
+					"Expected SetAttributeSchemaNullableMutation flipping `code` to non-null."
+				);
+				assertEquals("code", nullableMutation.get().getName());
+				assertFalse(
+					nullableMutation.get().isNullable(),
+					"Expected the nullable mutation to set nullable=false."
+				);
+
+				// Verify schema is now non-null
+				final SealedEntitySchema updatedSchema = session.getEntitySchema(
+						GetterBasedEntityNullableEvolutionV1.ENTITY_NAME)
+					.orElseThrow();
+				assertFalse(
+					updatedSchema.getAttribute("code").orElseThrow().isNullable(),
+					"`code` attribute is expected to be non-null after re-analysis with default @Attribute."
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.localized=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeLocalizedWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAttribute("localizedCode").orElseThrow().isLocalized());
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaLocalizedMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaLocalizedMutation.class)
+					.filter(m -> "localizedCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaLocalizedMutation(false) for `localizedCode`.");
+				assertFalse(mutation.get().isLocalized());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAttribute("localizedCode").orElseThrow().isLocalized());
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.representative=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeRepresentativeWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(((EntityAttributeSchema) initial.getAttribute("representativeCode")
+					.orElseThrow()).isRepresentative());
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaRepresentativeMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaRepresentativeMutation.class)
+					.filter(m -> "representativeCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaRepresentativeMutation(false) for `representativeCode`.");
+				assertFalse(mutation.get().isRepresentative());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(((EntityAttributeSchema) updated.getAttribute("representativeCode")
+					.orElseThrow()).isRepresentative());
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.filterable=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeFilterableWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAttribute("filterableCode").orElseThrow()
+					.isFilterableInScope(Scope.DEFAULT_SCOPE));
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaFilterableMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaFilterableMutation.class)
+					.filter(m -> "filterableCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaFilterableMutation clearing filterable for `filterableCode`.");
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAttribute("filterableCode").orElseThrow()
+					.isFilterableInScope(Scope.DEFAULT_SCOPE));
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.sortable=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeSortableWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAttribute("sortableCode").orElseThrow()
+					.isSortableInScope(Scope.DEFAULT_SCOPE));
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaSortableMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaSortableMutation.class)
+					.filter(m -> "sortableCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaSortableMutation clearing sortable for `sortableCode`.");
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAttribute("sortableCode").orElseThrow()
+					.isSortableInScope(Scope.DEFAULT_SCOPE));
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.unique is narrowed to NOT_UNIQUE when annotation uses default settings")
+	@Test
+	void shouldNarrowAttributeUniqueWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					initial.getAttribute("uniqueCode").orElseThrow()
+						.getUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAttributeSchemaUniqueMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaUniqueMutation.class)
+					.filter(m -> "uniqueCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaUniqueMutation(NOT_UNIQUE) for `uniqueCode`.");
+				assertEquals(AttributeUniquenessType.NOT_UNIQUE, mutation.get().getUnique());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.NOT_UNIQUE,
+					updated.getAttribute("uniqueCode").orElseThrow()
+						.getUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify Attribute.unique within-locale is narrowed to within-collection when annotation switches kind")
+	@Test
+	void shouldNarrowAttributeUniqueWithinLocaleToCollectionWhenAnnotationSwitchesKind() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityUniquenessKindEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE,
+					initial.getAttribute("localeUniqueCode").orElseThrow()
+						.getUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityUniquenessKindEvolutionV2SwitchToCollection.class
+				);
+
+				final Optional<SetAttributeSchemaUniqueMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAttributeSchemaUniqueMutation.class)
+					.filter(m -> "localeUniqueCode".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAttributeSchemaUniqueMutation(UNIQUE_WITHIN_COLLECTION) for `localeUniqueCode`.");
+				assertEquals(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION, mutation.get().getUnique());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					updated.getAttribute("localeUniqueCode").orElseThrow()
+						.getUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify global Attribute.uniqueGlobally within-locale is narrowed to within-catalog when annotation switches kind")
+	@Test
+	void shouldNarrowGlobalAttributeUniqueGloballyWithinCatalogLocaleToCatalogWhenAnnotationSwitchesKind() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityUniquenessKindEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				final GlobalAttributeSchema initialGlobal = (GlobalAttributeSchema) initial
+					.getAttribute("globalLocaleUniqueCode").orElseThrow();
+				assertEquals(
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE,
+					initialGlobal.getGlobalUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+
+				analyzeAndCaptureMutations(
+					session, GetterBasedEntityUniquenessKindEvolutionV2SwitchToCollection.class
+				);
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				final GlobalAttributeSchema updatedGlobal = (GlobalAttributeSchema) updated
+					.getAttribute("globalLocaleUniqueCode").orElseThrow();
+				assertEquals(
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
+					updatedGlobal.getGlobalUniquenessType(Scope.DEFAULT_SCOPE)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify per-scope Attribute.unique within-locale is narrowed to within-collection when annotation switches kind")
+	@Test
+	void shouldNarrowPerScopeAttributeUniqueWithinLocaleToCollectionWhenAnnotationSwitchesKind() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityUniquenessKindEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE,
+					initial.getAttribute("scopedLocaleUniqueCode").orElseThrow()
+						.getUniquenessType(Scope.LIVE)
+				);
+
+				analyzeAndCaptureMutations(
+					session, GetterBasedEntityUniquenessKindEvolutionV2SwitchToCollection.class
+				);
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityUniquenessKindEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertEquals(
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					updated.getAttribute("scopedLocaleUniqueCode").orElseThrow()
+						.getUniquenessType(Scope.LIVE)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify re-analyzing an already-narrowed schema produces no further entity-schema mutations")
+	@Test
+	void shouldProduceNoMutationsWhenAlreadyNarrowedSchemaReanalyzed() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+
+				// First narrowing pass converges the schema to all-default flag values.
+				analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				// Second pass over the same narrowed model must be idempotent.
+				final LocalCatalogSchemaMutation[] secondPass = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final long entityMutationCount = streamEntitySchemaMutations(
+					secondPass, EntitySchemaMutation.class).count();
+				assertEquals(
+					0L, entityMutationCount,
+					"Re-analyzing an already-narrowed schema must not emit further entity-schema mutations."
+				);
+			}
+		);
+	}
+
+	@DisplayName("Verify Reference.faceted=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowReferenceFacetedWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getReferenceOrThrowException("facetedReference")
+					.isFacetedInScope(Scope.DEFAULT_SCOPE));
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetReferenceSchemaFacetedMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetReferenceSchemaFacetedMutation.class)
+					.filter(m -> "facetedReference".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetReferenceSchemaFacetedMutation clearing faceted for `facetedReference`.");
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getReferenceOrThrowException("facetedReference")
+					.isFacetedInScope(Scope.DEFAULT_SCOPE));
+			}
+		);
+	}
+
+	@DisplayName("Verify AssociatedData.nullable=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAssociatedDataNullableWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAssociatedData("nullableAssoc").orElseThrow().isNullable());
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAssociatedDataSchemaNullableMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAssociatedDataSchemaNullableMutation.class)
+					.filter(m -> "nullableAssoc".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAssociatedDataSchemaNullableMutation(false) for `nullableAssoc`.");
+				assertFalse(mutation.get().isNullable());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAssociatedData("nullableAssoc").orElseThrow().isNullable());
+			}
+		);
+	}
+
+	@DisplayName("Verify AssociatedData.localized=true is narrowed when annotation uses default settings")
+	@Test
+	void shouldNarrowAssociatedDataLocalizedWhenAnnotationUsesDefaultSettings() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
+				final SealedEntitySchema initial = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertTrue(initial.getAssociatedData("localizedAssoc").orElseThrow().isLocalized());
+
+				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
+				);
+
+				final Optional<SetAssociatedDataSchemaLocalizedMutation> mutation = streamEntitySchemaMutations(
+					mutations, SetAssociatedDataSchemaLocalizedMutation.class)
+					.filter(m -> "localizedAssoc".equals(m.getName()))
+					.findFirst();
+				assertTrue(mutation.isPresent(),
+					"Expected SetAssociatedDataSchemaLocalizedMutation(false) for `localizedAssoc`.");
+				assertFalse(mutation.get().isLocalized());
+
+				final SealedEntitySchema updated = session.getEntitySchema(
+					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
+				assertFalse(updated.getAssociatedData("localizedAssoc").orElseThrow().isLocalized());
 			}
 		);
 	}
