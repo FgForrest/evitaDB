@@ -266,16 +266,18 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	 * cardinality - the worst case for the array-backed unordered lookup, where every middle insert renumbers a
 	 * suffix of positions.
 	 *
-	 * Phase 2 churns that chain with {@link #CHURN_OPERATIONS} random operations under a fixed seed (so runs are
-	 * comparable): a drawn live record is either removed (splitting the chain, ≈50 %) or re-chained after its natural
-	 * predecessor (a middle move/no-op, ≈50 %), while a previously removed record is re-inserted back into its slot -
-	 * healing the chain mid-way. The predecessor of every (re)inserted/updated record is record `pk - 1` when that
-	 * record is currently alive, otherwise `HEAD`; this keeps the working set as a (mostly) single long chain while
-	 * constantly reshuffling it, maximizing pressure on the unordered-array add/remove paths.
+	 * Phase 2 churns that chain with coherent local **moves** over a maintained doubly-linked order (fixed seed, so
+	 * runs are comparable): each move relocates a random element after a random anchor (or to the `HEAD`) and is
+	 * applied as the (up to) three affected predecessor updates - x's old successor, x itself, x's new successor -
+	 * in the natural "detach-first" order. All records stay live, so the chain remains a single consistent run and
+	 * never shatters into unbounded split subchains. This is the realistic reorder workload the `ChainIndex` is
+	 * built for: every move perturbs only a constant number of neighbours and scales as `O(log N)`. (Purely-random
+	 * permanent deletes would instead splinter the chain and stress the unrelated chain-collapse bookkeeping rather
+	 * than the move path - see `ChainIndexChurnReproTest`.) Roughly {@link #CHURN_OPERATIONS} predecessor updates
+	 * are emitted in total, preserving the previous write volume.
 	 *
-	 * The same `createNewEntity` (insert) versus `getEntity(...).openForWrite()` (update) distinction as in
-	 * {@link #insertAndChurn} applies - using `createNewEntity` for an existing key would be rejected with an
-	 * `InvalidMutationException`.
+	 * Every update fetches the live entity via `getEntity(...).openForWrite()` (as in {@link #insertAndChurn}) and
+	 * resets its `order` attribute.
 	 *
 	 * @param session the warm-up session to operate within (before `goLiveAndClose`)
 	 */
@@ -296,48 +298,100 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 				StringUtils.formatNano(System.nanoTime() - insertionStart)
 		);
 
-		// phase 2 - random remove / re-chain churn over the single chain
+		// phase 2 - coherent local moves over a maintained doubly-linked order: relocate a random element after a
+		// random anchor (or to the HEAD), keeping every record live so the chain stays a single consistent run
 		final long churnStart = System.nanoTime();
 		final Random random = new Random(42);
-		// tracks which primary keys currently hold a live record (index 0 is unused, keys are 1-based)
-		final boolean[] alive = new boolean[INITIAL_RECORD_COUNT + 1];
-		Arrays.fill(alive, 1, INITIAL_RECORD_COUNT + 1, true);
-		int aliveCount = INITIAL_RECORD_COUNT;
-		for (int op = 0; op < CHURN_OPERATIONS; op++) {
-			final int primaryKey = 1 + random.nextInt(INITIAL_RECORD_COUNT);
-			// chain after the natural predecessor (pk-1) when it is alive, otherwise become a HEAD
-			final Predecessor predecessor = primaryKey > 1 && alive[primaryKey - 1]
-				? new Predecessor(primaryKey - 1)
-				: Predecessor.HEAD;
-			if (alive[primaryKey] && random.nextBoolean()) {
-				// remove a live record - splits the chain at this element
-				session.deleteEntity(THE_ENTITY, primaryKey);
-				alive[primaryKey] = false;
-				aliveCount--;
-			} else if (alive[primaryKey]) {
-				// update a live record - fetch the existing entity (with its attributes) and open it for write
-				final EntityBuilder builder = session.getEntity(THE_ENTITY, primaryKey, attributeContentAll())
-					.map(SealedEntity::openForWrite)
-					.orElseThrow(() -> new IllegalStateException(
-						"Live record with primary key " + primaryKey + " is unexpectedly missing!"));
-				builder.setAttribute("order", predecessor);
-				builder.upsertVia(session);
-			} else {
-				// re-insert a previously removed record (insert semantics) - heals the chain mid-way
-				final EntityBuilder builder = session.createNewEntity(THE_ENTITY, primaryKey);
-				builder.setAttribute("order", predecessor);
-				builder.upsertVia(session);
-				alive[primaryKey] = true;
-				aliveCount++;
+		// maintained doubly-linked order of the (all-live) records: pred[pk]/succ[pk], 0 == HEAD / none
+		final int[] pred = new int[INITIAL_RECORD_COUNT + 1];
+		final int[] succ = new int[INITIAL_RECORD_COUNT + 1];
+		for (int pk = 1; pk <= INITIAL_RECORD_COUNT; pk++) {
+			pred[pk] = pk - 1;
+			succ[pk] = pk == INITIAL_RECORD_COUNT ? 0 : pk + 1;
+		}
+		int head = 1;
+		int opsApplied = 0;
+		int nextProgress = 0;
+		while (opsApplied < CHURN_OPERATIONS) {
+			final int x = 1 + random.nextInt(INITIAL_RECORD_COUNT);
+			// 10 % of moves promote the element to the chain head, otherwise relocate after a random anchor
+			int anchor = random.nextInt(10) == 0 ? 0 : 1 + random.nextInt(INITIAL_RECORD_COUNT);
+			if (anchor == x) {
+				anchor = pred[x]; // avoid self-anchor; collapses to a no-op we skip below
 			}
-			if (op % PROGRESS_STEP == 0) {
-				System.out.println("Churn op: " + op + " (alive=" + aliveCount + ")");
+			if (anchor == pred[x]) {
+				continue; // element already sits right after the anchor - nothing to do
+			}
+
+			final int pOld = pred[x];
+			final int sOld = succ[x];
+			// detach x from its current position
+			if (pOld == 0) {
+				head = sOld; // x was the head; its successor becomes the new head
+			} else {
+				succ[pOld] = sOld;
+			}
+			if (sOld != 0) {
+				pred[sOld] = pOld;
+			}
+			// insert x right after the anchor (anchor == 0 means promote to head)
+			final int sNew = anchor == 0 ? head : succ[anchor];
+			if (anchor == 0) {
+				head = x;
+			} else {
+				succ[anchor] = x;
+			}
+			pred[x] = anchor;
+			succ[x] = sNew;
+			if (sNew != 0) {
+				pred[sNew] = x;
+			}
+
+			// apply the move as the (up to) three affected predecessor updates, in the natural "detach-first" order:
+			// first reconnect x's old successor to x's old predecessor (so x stops dragging a suffix), then relocate
+			// x, then attach x's new successor - keeping every single mutation a true local move
+			if (sOld != 0 && sOld != x) {
+				updateOrder(session, sOld, pOld == 0 ? Predecessor.HEAD : new Predecessor(pOld));
+				opsApplied++;
+			}
+			updateOrder(session, x, anchor == 0 ? Predecessor.HEAD : new Predecessor(anchor));
+			opsApplied++;
+			if (sNew != 0 && sNew != x) {
+				updateOrder(session, sNew, new Predecessor(x));
+				opsApplied++;
+			}
+
+			if (opsApplied >= nextProgress) {
+				System.out.println("Churn op: " + opsApplied);
+				nextProgress += PROGRESS_STEP;
 			}
 		}
 		log.info(
-			"Churn of " + CHURN_OPERATIONS + " random remove/re-chain operations completed in: " +
+			"Churn of " + CHURN_OPERATIONS + " coherent move operations completed in: " +
 				StringUtils.formatNano(System.nanoTime() - churnStart)
 		);
+	}
+
+	/**
+	 * Resets the `order` predecessor attribute of a still-live record. Fetches the existing entity (with its
+	 * attributes) and opens it for write - using `createNewEntity` for an existing key would be rejected with an
+	 * `InvalidMutationException`.
+	 *
+	 * @param session     the warm-up session to operate within
+	 * @param primaryKey  primary key of the (live) record to update
+	 * @param predecessor the new predecessor to set on the record's `order` attribute
+	 */
+	private static void updateOrder(
+		@Nonnull EvitaSessionContract session,
+		int primaryKey,
+		@Nonnull Predecessor predecessor
+	) {
+		final EntityBuilder builder = session.getEntity(THE_ENTITY, primaryKey, attributeContentAll())
+			.map(SealedEntity::openForWrite)
+			.orElseThrow(() -> new IllegalStateException(
+				"Live record with primary key " + primaryKey + " is unexpectedly missing!"));
+		builder.setAttribute("order", predecessor);
+		builder.upsertVia(session);
 	}
 
 	@Nonnull

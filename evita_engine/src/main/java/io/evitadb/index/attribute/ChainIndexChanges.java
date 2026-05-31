@@ -107,7 +107,7 @@ public class ChainIndexChanges implements Serializable {
 			this.recordIdToPositions = ofNullable(this.chainIndex.getReferenceKey())
 				.map(
 					referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
-						this.chainIndex.elementStates.getId(),
+						this.chainIndex.predecessors.getId(),
 						unorderedLookup.getArray(),
 						unorderedLookup.getPositions(),
 						recordIds,
@@ -117,7 +117,7 @@ public class ChainIndexChanges implements Serializable {
 				)
 				.orElseGet(
 					() -> new SortedRecordsSupplier(
-						this.chainIndex.elementStates.getId(),
+						this.chainIndex.predecessors.getId(),
 						unorderedLookup.getArray(),
 						unorderedLookup.getPositions(),
 						recordIds,

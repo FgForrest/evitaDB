@@ -33,7 +33,7 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
-import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexDataStructure;
@@ -44,26 +44,23 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import static io.evitadb.dataType.ChainableType.HEAD_PK;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
@@ -83,6 +80,24 @@ import static java.util.Optional.ofNullable;
  * circular dependency chain is setup at the moment when the element in existing chain is ordered to be successor of
  * an element which is present in the tail of its chain.
  *
+ * # Internal representation (positional model)
+ *
+ * All elements of the attribute live in a **single** order-statistic {@link TransactionalUnorderedIntArray}
+ * ({@link #elements}) in their materialized (semi-consistent) order. A logical *chain* is a **contiguous, head-first
+ * run** of that array, described by a {@link ChainDescriptor} keyed by the run's head primary key in {@link #chains}
+ * (the run spans `[indexOf(headPk), indexOf(headPk) + length)`). Chain membership of an element is therefore
+ * **positional** - it is not stored per element - so promoting a new head, merging or splitting a chain never has to
+ * re-stamp the elements of the chain (no `O(K)` reclassification). The only per-element datum kept is its predecessor
+ * primary key ({@link #predecessors}), which mirrors the entity's {@link ChainableType} attribute and is needed for
+ * the head's external predecessor and for integrity verification.
+ *
+ * A single-element relocation (`upsertPredecessor` on an existing element) therefore *detaches* the element from the
+ * tree and *re-inserts* it right after its new predecessor, **without rewriting any neighbour's predecessor** - a
+ * neighbour whose stored predecessor no longer equals its positional predecessor simply becomes the head of a new
+ * (transient) run, created in `O(1)`. The {@link #collapse()} pass then re-merges runs whose head predecessor is the
+ * tail of another run (relocating the shorter run when the two are not already physically adjacent), which restores the
+ * eventually-consistent single chain.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class ChainIndex implements
@@ -93,23 +108,22 @@ public class ChainIndex implements
 	Serializable
 {
 	@Serial private static final long serialVersionUID = 6633952268102524794L;
+
 	/**
-	 * Index contains tuples of entity primary key and its predecessor primary key. The conflicting primary key is
-	 * a value and the predecessor primary key is a key.
-	 *
-	 * Conflicting keys are keys that:
-	 *
-	 * - refer to the same predecessor multiple times
-	 * - refer to the predecessor that is transiently referring to them (circular reference)
-	 *
-	 * The key is the conflicting primary key and the value is the predecessor primary key.
+	 * Single global order-statistic array holding **all** elements of the attribute in their materialized
+	 * (semi-consistent) order. Each logical chain is a contiguous, head-first run of this array.
 	 */
-	final TransactionalMap<Integer, ChainElementState> elementStates;
+	final TransactionalUnorderedIntArray elements;
 	/**
-	 * Index contains information about non-interrupted chains of predecessors for an entity which is not a head entity
-	 * but is part of different chain (inconsistent state).
+	 * Per-chain descriptors keyed by the chain's head primary key. The descriptor stores the run length and the head's
+	 * {@link ElementState}; the run occupies `[elements.indexOf(headPk), +length)`.
 	 */
-	final TransactionalMap<Integer, TransactionalUnorderedIntArray> chains;
+	final TransactionalMap<Integer, ChainDescriptor> chains;
+	/**
+	 * Per-element predecessor primary key (mirror of the entity's {@link ChainableType} attribute). A head element maps
+	 * to {@link ChainableType#HEAD_PK} when it is a true head, or to the external/absent predecessor it points at.
+	 */
+	final TransactionalMap<Integer, Integer> predecessors;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
@@ -138,8 +152,9 @@ public class ChainIndex implements
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(CollectionUtils.createHashMap(32), TransactionalUnorderedIntArray.class, Function.identity());
-		this.elementStates = new TransactionalMap<>(CollectionUtils.createHashMap(32));
+		this.elements = new TransactionalUnorderedIntArray();
+		this.chains = new TransactionalMap<>(new java.util.HashMap<>(32));
+		this.predecessors = new TransactionalMap<>(new java.util.HashMap<>(64));
 	}
 
 	public ChainIndex(
@@ -159,32 +174,51 @@ public class ChainIndex implements
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(
-			Arrays.stream(chains)
-				.map(TransactionalUnorderedIntArray::new)
-				.collect(
-					Collectors.toMap(
-						it -> it.get(0),
-						Function.identity()
-					)
-				),
-			TransactionalUnorderedIntArray.class,
-			Function.identity()
-		);
-		this.elementStates = new TransactionalMap<>(elementStates);
+
+		// concatenate all chains into the single global array (run order = supplied array order)
+		int total = 0;
+		for (final int[] chain : chains) {
+			total += chain.length;
+		}
+		final int[] flattened = new int[total];
+		int offset = 0;
+		final Map<Integer, ChainDescriptor> descriptors = new java.util.HashMap<>(chains.length * 2);
+		for (final int[] chain : chains) {
+			if (chain.length == 0) {
+				continue;
+			}
+			System.arraycopy(chain, 0, flattened, offset, chain.length);
+			offset += chain.length;
+			final int headPk = chain[0];
+			final ChainElementState headState = elementStates.get(headPk);
+			// the head's state is preserved verbatim from the loaded data so the consistency report can validate it
+			final ElementState state = headState == null ? ElementState.SUCCESSOR : headState.state();
+			descriptors.put(headPk, new ChainDescriptor(chain.length, state));
+		}
+		this.elements = new TransactionalUnorderedIntArray(flattened);
+		this.chains = new TransactionalMap<>(descriptors);
+
+		// mirror the per-element predecessor primary keys
+		final Map<Integer, Integer> predecessorMap = new java.util.HashMap<>(elementStates.size() * 2);
+		for (final Entry<Integer, ChainElementState> entry : elementStates.entrySet()) {
+			predecessorMap.put(entry.getKey(), entry.getValue().predecessorPrimaryKey());
+		}
+		this.predecessors = new TransactionalMap<>(predecessorMap);
 	}
 
 	private ChainIndex(
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull Map<Integer, TransactionalUnorderedIntArray> chains,
-		@Nonnull Map<Integer, ChainElementState> elementStates
+		@Nonnull TransactionalUnorderedIntArray elements,
+		@Nonnull Map<Integer, ChainDescriptor> chains,
+		@Nonnull Map<Integer, Integer> predecessors
 	) {
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, Function.identity());
-		this.elementStates = new TransactionalMap<>(elementStates);
+		this.elements = elements;
+		this.chains = new TransactionalMap<>(chains);
+		this.predecessors = new TransactionalMap<>(predecessors);
 	}
 
 	/**
@@ -193,8 +227,7 @@ public class ChainIndex implements
 	 * @return TRUE if the index is consistent, FALSE otherwise
 	 */
 	public boolean isConsistent() {
-		final int numberOfChains = this.chains.size();
-		return numberOfChains <= 1;
+		return this.chains.size() <= 1;
 	}
 
 	/**
@@ -211,29 +244,29 @@ public class ChainIndex implements
 	 */
 	@Nonnull
 	public UnorderedLookup getUnorderedLookup() {
-		final int[][] orderedChains = this.chains
-			.entrySet()
-			.stream()
-			.sorted((o1, o2) -> {
-				final ChainElementState state1 = this.elementStates.get(o1.getKey());
-				final ChainElementState state2 = this.elementStates.get(o2.getKey());
-				if (state1.state() == state2.state()) {
-					// the longest chains come first
-					return Integer.compare(o2.getValue().getLength(), o1.getValue().getLength());
-				} else {
-					// this will sort heads first, then successors, then circulars
-					return Integer.compare(state1.state().ordinal(), state2.state().ordinal());
-				}
-			})
-			.map(Entry::getValue)
-			.map(TransactionalUnorderedIntArray::getArray)
-			.toArray(int[][]::new);
+		// sort the runs by element-state tier (HEAD, then SUCCESSOR, then CIRCULAR) and within the tier by descending
+		// length - exactly the documented semi-consistent ordering
+		final List<Entry<Integer, ChainDescriptor>> orderedChains = new ArrayList<>(this.chains.entrySet());
+		orderedChains.sort((o1, o2) -> {
+			final ChainDescriptor d1 = o1.getValue();
+			final ChainDescriptor d2 = o2.getValue();
+			if (d1.state() == d2.state()) {
+				// the longest chains come first
+				return Integer.compare(d2.length(), d1.length());
+			} else {
+				// this will sort heads first, then successors, then circulars
+				return Integer.compare(d1.state().ordinal(), d2.state().ordinal());
+			}
+		});
 
-		final int[] result = new int[Stream.of(orderedChains).mapToInt(arr -> arr.length).sum()];
+		final int[] result = new int[this.elements.getLength()];
 		int offset = 0;
-		for (int[] chain : orderedChains) {
-			System.arraycopy(chain, 0, result, offset, chain.length);
-			offset += chain.length;
+		for (final Entry<Integer, ChainDescriptor> entry : orderedChains) {
+			final int headPos = this.elements.indexOf(entry.getKey());
+			final int length = entry.getValue().length();
+			final int[] run = this.elements.getSubArray(headPos, headPos + length);
+			System.arraycopy(run, 0, result, offset, run.length);
+			offset += run.length;
 		}
 
 		return new UnorderedLookup(result);
@@ -250,16 +283,16 @@ public class ChainIndex implements
 			primaryKey != predecessor.predecessorPk() || predecessor instanceof ReferencedEntityPredecessor,
 			"An entity that is its own predecessor doesn't have sense!"
 		);
-		final ChainElementState existingState = this.elementStates.get(primaryKey);
-		if (existingState == null) {
+		final Integer existingPredecessor = this.predecessors.get(primaryKey);
+		if (existingPredecessor == null) {
 			// if existing state is not found - we need to insert new one
-			insertPredecessor(primaryKey, predecessor);
-		} else if (existingState.predecessorPrimaryKey() == predecessor.predecessorPk()) {
+			insertElement(primaryKey, predecessor);
+		} else if (existingPredecessor == predecessor.predecessorPk()) {
 			// the predecessor is the same - nothing to do
 			return;
 		} else {
-			// otherwise we need to perform update
-			updatePredecessor(primaryKey, predecessor, existingState);
+			// otherwise we need to perform update (single-element relocation)
+			updateElement(primaryKey, predecessor);
 		}
 		this.dirty.setToTrue();
 		getOrCreateChainIndexChanges().reset();
@@ -271,13 +304,13 @@ public class ChainIndex implements
 	 * @param primaryKey primary key of the element
 	 */
 	public void removePredecessor(int primaryKey) {
-		final ChainElementState existingState = this.elementStates.remove(primaryKey);
+		final Integer existingPredecessor = this.predecessors.remove(primaryKey);
 		isTrue(
-			existingState != null,
+			existingPredecessor != null,
 			"Value `" + primaryKey + "` is not present in the chain element index!"
 		);
-		// if existing state is not found - we need to insert new one
-		removePredecessorFromChain(primaryKey, existingState);
+		detachElement(primaryKey);
+		collapse();
 		this.dirty.setToTrue();
 		getOrCreateChainIndexChanges().reset();
 	}
@@ -286,7 +319,7 @@ public class ChainIndex implements
 	 * Returns true if {@link SortIndex} contains no data.
 	 */
 	public boolean isEmpty() {
-		return this.elementStates.isEmpty();
+		return this.predecessors.isEmpty();
 	}
 
 	@Nonnull
@@ -311,108 +344,68 @@ public class ChainIndex implements
 		final StringBuilder errors = new StringBuilder(512);
 
 		int overallCount = 0;
-		for (Entry<Integer, TransactionalUnorderedIntArray> entry : this.chains.entrySet()) {
-			overallCount += entry.getValue().getLength();
-			final int[] unorderedList = entry.getValue().getArray();
-			if (unorderedList.length <= 0) {
-				errors.append("\nThe chain with head `")
-					.append(entry.getKey())
-					.append("` is empty!");
-			}
-			int headElementId = unorderedList[0];
-			if (headElementId != entry.getKey()) {
+		for (final Entry<Integer, ChainDescriptor> entry : this.chains.entrySet()) {
+			final int headPk = entry.getKey();
+			final ChainDescriptor descriptor = entry.getValue();
+			final int length = descriptor.length();
+			overallCount += length;
+
+			final int headPos = this.elements.indexOf(headPk);
+			if (headPos == Integer.MIN_VALUE) {
 				errors.append("\nThe head of the chain `")
-					.append(headElementId).append("` doesn't match the chain head `")
-					.append(entry.getKey())
+					.append(headPk)
+					.append("` is not present in the element array!");
+				continue;
+			}
+			if (length <= 0 || headPos + length > this.elements.getLength()) {
+				errors.append("\nThe chain with head `")
+					.append(headPk)
+					.append("` has an invalid length `")
+					.append(length)
 					.append("`!");
+				continue;
 			}
 
-			int previousElementId = headElementId;
-			for (int i = 0; i < unorderedList.length; i++) {
-				int elementId = unorderedList[i];
-				final ChainElementState state = this.elementStates.get(elementId);
-				if (state == null) {
+			final int[] run = this.elements.getSubArray(headPos, headPos + length);
+			int previousElementId = headPk;
+			for (int i = 0; i < run.length; i++) {
+				final int elementId = run[i];
+				final Integer storedPredecessor = this.predecessors.get(elementId);
+				if (storedPredecessor == null) {
 					errors.append("\nThe element `")
 						.append(elementId)
 						.append("` is not present in the element states!");
-				} else if (i > 0) {
-					if (state.state() == ElementState.HEAD) {
-						errors.append("\nThe element `")
-							.append(elementId)
-							.append("` must not be a head of the chain!");
-					}
-					if (state.inChainOfHeadWithPrimaryKey() != headElementId) {
-						errors.append("\nThe element `")
-							.append(elementId)
-							.append("` is not in the chain with head `")
-							.append(headElementId)
-							.append("`!");
-					}
-					if (state.predecessorPrimaryKey() != previousElementId) {
-						errors.append("\nThe predecessor of the element `")
-							.append(elementId)
-							.append("` doesn't match the previous element!");
-					}
+				} else if (i > 0 && storedPredecessor != previousElementId) {
+					errors.append("\nThe predecessor of the element `")
+						.append(elementId)
+						.append("` doesn't match the previous element!");
 				}
 				previousElementId = elementId;
 			}
 
-			final Integer headId = entry.getKey();
-			final ChainElementState headState = this.elementStates.get(headId);
-			if (headState.state() == ElementState.CIRCULAR) {
-				// the chain must contain element the head refers to
-				if (Arrays.stream(entry.getValue().getArray()).noneMatch(it -> it == headState.predecessorPrimaryKey())) {
-					errors.append("\nThe chain with CIRCULAR head `")
-						.append(headId)
-						.append("` doesn't contain element `")
-						.append(headState.predecessorPrimaryKey())
-						.append("` the head refers to!");
-				}
-			} else {
-				// the chain must not contain element the head refers to
-				if (Arrays.stream(entry.getValue().getArray()).anyMatch(it -> it == headState.predecessorPrimaryKey())) {
-					errors.append("\nThe chain with head `")
-						.append(headId)
-						.append("` contain element `")
-						.append(headState.predecessorPrimaryKey())
-						.append("` the head refers to and is not marked as CIRCULAR!");
-				}
+			// verify the head state matches the structural reality
+			final ElementState expectedState = computeHeadState(headPk, length);
+			if (descriptor.state() != expectedState) {
+				errors.append("\nThe head `")
+					.append(headPk)
+					.append("` is flagged ")
+					.append(descriptor.state())
+					.append(" but the structure implies ")
+					.append(expectedState)
+					.append("!");
 			}
 		}
 
-		for (Entry<Integer, ChainElementState> entry : this.elementStates.entrySet()) {
-			final int chainHeadPk = entry.getValue().inChainOfHeadWithPrimaryKey();
-			if (entry.getValue().state() == ElementState.SUCCESSOR) {
-				final TransactionalUnorderedIntArray chain = this.chains.get(chainHeadPk);
-				if (chain == null) {
-					errors.append("\nThe referenced chain with head `")
-						.append(chainHeadPk)
-						.append("` referenced by ")
-						.append(entry.getValue().state())
-						.append("` element `")
-						.append(entry.getKey())
-						.append("` doesn't exist!");
-				} else if (chain.indexOf(entry.getKey()) < 0) {
-					errors.append("\nThe `")
-						.append(entry.getValue().state())
-						.append("` element `")
-						.append(entry.getKey())
-						.append("` is not in the chain with head `")
-						.append(chainHeadPk)
-						.append("`!");
-				}
-			} else if (chainHeadPk != entry.getKey()) {
-				errors.append("\nThe `")
-					.append(entry.getValue().state())
-					.append("` element `")
-					.append(entry.getKey())
-					.append("` is not in the chain with head `")
-					.append(chainHeadPk)
-					.append("`!");
+		// every known element must belong to exactly one chain (== be present in the element array)
+		for (final Integer elementId : this.predecessors.keySet()) {
+			if (!this.elements.contains(elementId)) {
+				errors.append("\nThe element `")
+					.append(elementId)
+					.append("` has a recorded predecessor but is not present in any chain!");
 			}
 		}
 
-		if (overallCount != this.elementStates.size()) {
+		if (overallCount != this.predecessors.size() || overallCount != this.elements.getLength()) {
 			errors.append("\nThe number of elements in chains doesn't match " +
 				"the number of elements in element states!");
 		}
@@ -426,22 +419,23 @@ public class ChainIndex implements
 			state = ConsistencyState.INCONSISTENT;
 		}
 
-		final String chainsListing = this.chains.values()
+		final String chainsListing = this.chains.entrySet()
 			.stream()
-			.map(it -> {
+			.map(entry -> {
 				final StringBuilder sb = new StringBuilder("\t- ");
-				final OfInt pkIt = it.iterator();
+				final int headPos = this.elements.indexOf(entry.getKey());
+				final int length = entry.getValue().length();
 				int counter = 0;
-				while (pkIt.hasNext() && sb.length() < 80) {
+				while (counter < length && sb.length() < 80) {
 					if (counter > 0) {
 						sb.append(", ");
 					}
-					sb.append(pkIt.nextInt());
+					sb.append(this.elements.get(headPos + counter));
 					counter++;
 				}
-				if (counter < it.getLength()) {
+				if (counter < length) {
 					sb.append("... (")
-						.append(it.getLength() - counter)
+						.append(length - counter)
 						.append(" more)");
 				}
 				return sb.toString();
@@ -462,14 +456,34 @@ public class ChainIndex implements
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.chainIndexChanges = null;
+
+			final int[][] chainArrays = new int[this.chains.size()][];
+			final Map<Integer, ChainElementState> elementStates = new java.util.HashMap<>(this.predecessors.size() * 2);
+			int chainIndex = 0;
+			for (final Entry<Integer, ChainDescriptor> entry : this.chains.entrySet()) {
+				final int headPk = entry.getKey();
+				final ChainDescriptor descriptor = entry.getValue();
+				final int headPos = this.elements.indexOf(headPk);
+				final int[] run = this.elements.getSubArray(headPos, headPos + descriptor.length());
+				chainArrays[chainIndex++] = run;
+				for (int i = 0; i < run.length; i++) {
+					final int elementId = run[i];
+					elementStates.put(
+						elementId,
+						new ChainElementState(
+							headPk,
+							this.predecessors.get(elementId),
+							i == 0 ? descriptor.state() : ElementState.SUCCESSOR
+						)
+					);
+				}
+			}
+
 			return new ChainIndexStoragePart(
 				entityIndexPrimaryKey,
 				this.attributeIndexKey,
-				this.elementStates,
-				this.chains.values()
-					.stream()
-					.map(TransactionalUnorderedIntArray::getArray)
-					.toArray(int[][]::new)
+				elementStates,
+				chainArrays
 			);
 		} else {
 			return null;
@@ -494,8 +508,9 @@ public class ChainIndex implements
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.dirty.removeLayer(transactionalLayer);
-		this.elementStates.removeLayer(transactionalLayer);
+		this.elements.removeLayer(transactionalLayer);
 		this.chains.removeLayer(transactionalLayer);
+		this.predecessors.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
@@ -508,16 +523,32 @@ public class ChainIndex implements
 		return new ChainIndex(
 			this.referenceKey,
 			this.attributeIndexKey,
+			transactionalLayer.getStateCopyWithCommittedChanges(this.elements),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.predecessors)
 		);
 	}
 
 	@Override
 	public String toString() {
+		final List<Entry<Integer, ChainDescriptor>> orderedChains = new ArrayList<>(this.chains.entrySet());
+		orderedChains.sort(Comparator.comparingInt(o -> this.elements.indexOf(o.getKey())));
+		final StringBuilder chainsDump = new StringBuilder(256);
+		for (final Entry<Integer, ChainDescriptor> entry : orderedChains) {
+			final int headPos = this.elements.indexOf(entry.getKey());
+			final int[] run = this.elements.getSubArray(headPos, headPos + entry.getValue().length());
+			chainsDump.append("\n      - ").append(java.util.Arrays.toString(run));
+		}
+		final List<Integer> orderedElements = new ArrayList<>(this.predecessors.keySet());
+		orderedElements.sort(Comparator.naturalOrder());
+		final StringBuilder statesDump = new StringBuilder(256);
+		for (final Integer elementId : orderedElements) {
+			statesDump.append("\n      - ").append(elementId).append(": ")
+				.append(reconstructState(elementId));
+		}
 		return "ChainIndex" + (this.referenceKey == null ? "" : " (refKey: " + this.referenceKey + ")") + ":\n" +
-			"   - chains:\n" + this.chains.values().stream().map(it -> "      - " + it.toString()).collect(Collectors.joining("\n")) + "\n" +
-			"   - elementStates:\n" + this.elementStates.entrySet().stream().map(it -> "      - " + it.getKey() + ": " + it.getValue()).collect(Collectors.joining("\n"));
+			"   - chains:" + chainsDump + "\n" +
+			"   - elementStates:" + statesDump;
 	}
 
 	/*
@@ -542,578 +573,322 @@ public class ChainIndex implements
 	}
 
 	/**
-	 * Method removes existing `predecessor` information for the `primaryKey` element in the index.
+	 * Inserts a brand-new element (one not yet present in the index) together with its predecessor pointer.
 	 *
-	 * @param primaryKey    primary key of the element
-	 * @param existingState existing state of the primary key element
+	 * @param primaryKey  primary key of the new element
+	 * @param predecessor pointer record to a predecessor element of the `primaryKey` element
 	 */
-	private void removePredecessorFromChain(int primaryKey, @Nonnull ChainElementState existingState) {
-		// and then remove it from the chain
-		switch (existingState.state()) {
-			case HEAD -> removeHeadElement(primaryKey)
-				.ifPresent(this::collapseChainsIfPossible);
-			case SUCCESSOR, CIRCULAR -> removeSuccessorElement(primaryKey, existingState.inChainOfHeadWithPrimaryKey())
-				.ifPresent(this::collapseChainsIfPossible);
-			default -> throw new IllegalStateException("Unexpected value: " + existingState.state());
+	private void insertElement(int primaryKey, @Nonnull ChainableType predecessor) {
+		this.predecessors.put(primaryKey, predecessor.predecessorPk());
+		attachElement(primaryKey, predecessor);
+		collapse();
+	}
+
+	/**
+	 * Updates the predecessor of an element that is already present in the index. The element is detached from its
+	 * current position and re-attached right after its new predecessor (single-element relocation, no suffix drag).
+	 *
+	 * @param primaryKey  primary key of the element
+	 * @param predecessor new predecessor pointer
+	 */
+	private void updateElement(int primaryKey, @Nonnull ChainableType predecessor) {
+		detachElement(primaryKey);
+		this.predecessors.put(primaryKey, predecessor.predecessorPk());
+		attachElement(primaryKey, predecessor);
+		collapse();
+	}
+
+	/**
+	 * Places `primaryKey` (already absent from {@link #elements}) into the array according to its (already stored)
+	 * predecessor: a head element starts a fresh run at the tail of the array, an element whose predecessor is present
+	 * and is a run tail is appended right after it (extending that run), and any other element starts a fresh
+	 * (possibly transient) successor run at the tail of the array.
+	 *
+	 * @param primaryKey  primary key of the element to place
+	 * @param predecessor predecessor pointer of the element
+	 */
+	private void attachElement(int primaryKey, @Nonnull ChainableType predecessor) {
+		if (predecessor.isHead()) {
+			// brand-new head: start a fresh run at the very end of the array
+			this.elements.addOnIndex(this.elements.getLength(), primaryKey);
+			this.chains.put(primaryKey, new ChainDescriptor(1, ElementState.HEAD));
+			return;
+		}
+		final int predecessorPk = predecessor.predecessorPk();
+		final int predecessorPos = this.elements.indexOf(predecessorPk);
+		if (predecessorPos == Integer.MIN_VALUE) {
+			// the predecessor is not present yet - start a fresh orphan successor run at the end
+			this.elements.addOnIndex(this.elements.getLength(), primaryKey);
+			this.chains.put(primaryKey, new ChainDescriptor(1, ElementState.SUCCESSOR));
+			return;
+		}
+		final RunRef predecessorRun = findRun(predecessorPos);
+		final boolean predecessorIsTail = predecessorPos == predecessorRun.headPos() + predecessorRun.length() - 1;
+		if (predecessorIsTail) {
+			// append right after the predecessor, extending its run
+			this.elements.addOnIndex(predecessorPos + 1, primaryKey);
+			final ChainDescriptor descriptor = this.chains.get(predecessorRun.headPk());
+			final int newLength = descriptor.length() + 1;
+			this.chains.put(
+				predecessorRun.headPk(),
+				new ChainDescriptor(newLength, computeHeadState(predecessorRun.headPk(), newLength))
+			);
+		} else {
+			// predecessor already has a successor - this element forms a separate (split) successor run
+			this.elements.addOnIndex(this.elements.getLength(), primaryKey);
+			this.chains.put(primaryKey, new ChainDescriptor(1, ElementState.SUCCESSOR));
 		}
 	}
 
 	/**
-	 * Method removes head element of the existing chain. The chain is removed completely if the head is the only
-	 * element in the chain.
+	 * Removes `primaryKey` from {@link #elements} and repairs the descriptor of the run it belonged to: a singleton run
+	 * is dropped, a removed head promotes its successor (re-keying the descriptor, no element re-stamping), a removed
+	 * tail just shrinks the run, and a removed middle element splits the run into a head-side run and a (transient)
+	 * orphan successor run. The element's {@link #predecessors} entry is left untouched (the caller decides whether to
+	 * overwrite or drop it).
+	 *
+	 * @param primaryKey primary key of the element to detach from the array
+	 */
+	private void detachElement(int primaryKey) {
+		final int position = this.elements.indexOf(primaryKey);
+		isPremiseValid(
+			position != Integer.MIN_VALUE,
+			"Index damaged! The primary key `" + primaryKey + "` must be present in the element array!"
+		);
+		final RunRef run = findRun(position);
+		final int headPk = run.headPk();
+		final int headPos = run.headPos();
+		final int length = run.length();
+		final ChainDescriptor descriptor = this.chains.get(headPk);
+
+		this.elements.remove(primaryKey);
+
+		if (length == 1) {
+			// the element was the only member of its run - the run disappears entirely
+			this.chains.remove(headPk);
+		} else if (position == headPos) {
+			// the element was the head - its successor (now at headPos) becomes the new head
+			final int newHead = this.elements.get(headPos);
+			this.chains.remove(headPk);
+			this.chains.put(newHead, new ChainDescriptor(length - 1, computeHeadState(newHead, length - 1)));
+		} else if (position == headPos + length - 1) {
+			// the element was the tail - just shrink the run (head state may stop being circular)
+			this.chains.put(headPk, new ChainDescriptor(length - 1, computeHeadState(headPk, length - 1)));
+		} else {
+			// the element was in the middle - split the run into a head-side run and an orphan successor run
+			final int prefixLength = position - headPos;
+			final int suffixLength = length - prefixLength - 1;
+			final int suffixHead = this.elements.get(position);
+			this.chains.put(headPk, new ChainDescriptor(prefixLength, computeHeadState(headPk, prefixLength)));
+			this.chains.put(suffixHead, new ChainDescriptor(suffixLength, computeHeadState(suffixHead, suffixLength)));
+		}
+	}
+
+	/**
+	 * Repeatedly merges any successor/orphan run whose head predecessor is the tail of another run into that run, until
+	 * no more merges are possible. When the two runs to merge are not already physically adjacent, the shorter run is
+	 * relocated so they become adjacent (`O(min)` and only transient - the steady state is a single chain).
+	 */
+	private void collapse() {
+		boolean merged = true;
+		while (merged) {
+			merged = false;
+			for (final Integer headPk : new ArrayList<>(this.chains.keySet())) {
+				final ChainDescriptor descriptor = this.chains.get(headPk);
+				if (descriptor == null || descriptor.state() != ElementState.SUCCESSOR) {
+					// HEAD and CIRCULAR runs never follow another run
+					continue;
+				}
+				final int headPredecessor = this.predecessors.get(headPk);
+				if (headPredecessor == HEAD_PK) {
+					continue;
+				}
+				final int predecessorPos = this.elements.indexOf(headPredecessor);
+				if (predecessorPos == Integer.MIN_VALUE) {
+					// predecessor not present yet - the run stays an orphan
+					continue;
+				}
+				final RunRef predecessorRun = findRun(predecessorPos);
+				if (predecessorRun.headPk() == headPk) {
+					// defensive: predecessor inside the same run would mean circular - handled by state, skip
+					continue;
+				}
+				final boolean predecessorIsTail =
+					predecessorPos == predecessorRun.headPos() + predecessorRun.length() - 1;
+				if (predecessorIsTail) {
+					mergeRunAfter(predecessorRun.headPk(), headPk);
+					merged = true;
+					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Merges the run headed by `followerHeadPk` immediately after the run headed by `targetHeadPk` (the follower's head
+	 * predecessor is the target's tail). If the two runs are not already physically adjacent the shorter of them is
+	 * relocated to restore contiguity. After the merge a single run headed by `targetHeadPk` remains.
+	 *
+	 * @param targetHeadPk   head of the run the follower is appended to
+	 * @param followerHeadPk head of the run being merged in
+	 */
+	private void mergeRunAfter(int targetHeadPk, int followerHeadPk) {
+		final int targetPos = this.elements.indexOf(targetHeadPk);
+		final int targetLength = this.chains.get(targetHeadPk).length();
+		final int followerPos = this.elements.indexOf(followerHeadPk);
+		final int followerLength = this.chains.get(followerHeadPk).length();
+
+		final boolean adjacent = targetPos + targetLength == followerPos;
+		if (!adjacent) {
+			if (followerLength <= targetLength) {
+				// relocate the follower run to right after the target's tail
+				final int targetTail = this.elements.get(targetPos + targetLength - 1);
+				relocateBlockAfter(followerPos, followerLength, targetTail);
+			} else {
+				// relocate the target run to right before the follower's head
+				relocateBlockBefore(targetPos, targetLength, followerHeadPk);
+			}
+		}
+
+		this.chains.remove(followerHeadPk);
+		final int mergedLength = targetLength + followerLength;
+		this.chains.put(targetHeadPk, new ChainDescriptor(mergedLength, computeHeadState(targetHeadPk, mergedLength)));
+	}
+
+	/**
+	 * Relocates the contiguous block `[blockStartPos, blockStartPos + blockLength)` so that it immediately follows the
+	 * element `afterPk` (which must lie outside the block). The block elements are read positionally (`O(block·log N)`)
+	 * rather than via {@code getSubArray}, which would flatten the whole array.
+	 */
+	private void relocateBlockAfter(int blockStartPos, int blockLength, int afterPk) {
+		final int[] block = readBlock(blockStartPos, blockLength);
+		for (final int recordId : block) {
+			this.elements.remove(recordId);
+		}
+		final int insertAt = this.elements.indexOf(afterPk) + 1;
+		for (int i = 0; i < block.length; i++) {
+			this.elements.addOnIndex(insertAt + i, block[i]);
+		}
+	}
+
+	/**
+	 * Relocates the contiguous block `[blockStartPos, blockStartPos + blockLength)` so that it immediately precedes the
+	 * element `beforePk` (which must lie outside the block). The block elements are read positionally
+	 * (`O(block·log N)`) rather than via {@code getSubArray}, which would flatten the whole array.
+	 */
+	private void relocateBlockBefore(int blockStartPos, int blockLength, int beforePk) {
+		final int[] block = readBlock(blockStartPos, blockLength);
+		for (final int recordId : block) {
+			this.elements.remove(recordId);
+		}
+		final int insertAt = this.elements.indexOf(beforePk);
+		for (int i = 0; i < block.length; i++) {
+			this.elements.addOnIndex(insertAt + i, block[i]);
+		}
+	}
+
+	/**
+	 * Reads the contiguous block `[startPos, startPos + length)` from {@link #elements} element-by-element. Used on the
+	 * hot relocation path to avoid {@link TransactionalUnorderedIntArray#getSubArray} flattening the entire array.
+	 */
+	@Nonnull
+	private int[] readBlock(int startPos, int length) {
+		final int[] block = new int[length];
+		for (int i = 0; i < length; i++) {
+			block[i] = this.elements.get(startPos + i);
+		}
+		return block;
+	}
+
+	/**
+	 * Finds the run (chain) that contains the element at the given array position.
+	 *
+	 * @param position position in {@link #elements}
+	 * @return reference to the run containing the position
+	 */
+	@Nonnull
+	private RunRef findRun(int position) {
+		for (final Entry<Integer, ChainDescriptor> entry : this.chains.entrySet()) {
+			final int headPos = this.elements.indexOf(entry.getKey());
+			final int length = entry.getValue().length();
+			if (position >= headPos && position < headPos + length) {
+				return new RunRef(entry.getKey(), headPos, length);
+			}
+		}
+		throw new GenericEvitaInternalError(
+			"Index damaged! Position `" + position + "` is not covered by any chain!"
+		);
+	}
+
+	/**
+	 * Computes the {@link ElementState} of a run head from the structural reality: a head with no predecessor is
+	 * {@link ElementState#HEAD}, a head whose predecessor currently sits inside its own run is
+	 * {@link ElementState#CIRCULAR}, otherwise {@link ElementState#SUCCESSOR}.
+	 *
+	 * @param headPk head primary key of the run
+	 * @param length length of the run
+	 * @return the computed head state
+	 */
+	@Nonnull
+	private ElementState computeHeadState(int headPk, int length) {
+		final int headPredecessor = this.predecessors.get(headPk);
+		if (headPredecessor == HEAD_PK) {
+			return ElementState.HEAD;
+		}
+		final int predecessorPos = this.elements.indexOf(headPredecessor);
+		if (predecessorPos == Integer.MIN_VALUE) {
+			return ElementState.SUCCESSOR;
+		}
+		final int headPos = this.elements.indexOf(headPk);
+		return predecessorPos >= headPos && predecessorPos < headPos + length
+			? ElementState.CIRCULAR
+			: ElementState.SUCCESSOR;
+	}
+
+	/**
+	 * Reconstructs the public {@link ChainElementState} of an element from the positional model. Package-private
+	 * test/diagnostic accessor mirroring the former per-element {@code elementStates} map (chain membership and head
+	 * state are derived positionally).
 	 *
 	 * @param primaryKey primary key of the element
+	 * @return reconstructed element state, or {@code null} when the element is not present
+	 */
+	@Nullable
+	ChainElementState getElementState(int primaryKey) {
+		return this.predecessors.containsKey(primaryKey) ? reconstructState(primaryKey) : null;
+	}
+
+	/**
+	 * Reconstructs the public {@link ChainElementState} of an element from the positional model (its chain head is
+	 * looked up positionally). Used for {@code toString}.
+	 *
+	 * @param elementId primary key of the element
+	 * @return reconstructed element state
 	 */
 	@Nonnull
-	private OptionalInt removeHeadElement(int primaryKey) {
-		// if the primary key is head of its chain
-		final TransactionalUnorderedIntArray removedChain = this.chains.remove(primaryKey);
-		final int[] head = removedChain.removeRange(0, 1);
-		isPremiseValid(
-			head.length == 1 && head[0] == primaryKey,
-			"The head of the chain is expected to be single element with primary key `" + primaryKey + "`!"
-		);
-		// if the chain is not empty
-		final OptionalInt newHead;
-		if (removedChain.getLength() > 0) {
-			newHead = OptionalInt.of(removedChain.get(0));
-			final int[] removedChainArray = removedChain.getArray();
-			this.chains.put(newHead.getAsInt(), new TransactionalUnorderedIntArray(removedChainArray));
-			// we need to reclassify the chain
-			reclassifyChain(newHead.getAsInt(), removedChainArray);
-		} else {
-			newHead = OptionalInt.empty();
-		}
-		// if there was transactional memory associated with the chain, discard it
-		removedChain.removeLayer();
-		// return the primary key of a new head
-		return newHead;
+	private ChainElementState reconstructState(int elementId) {
+		final int position = this.elements.indexOf(elementId);
+		final RunRef run = findRun(position);
+		final ElementState state = elementId == run.headPk()
+			? this.chains.get(run.headPk()).state()
+			: ElementState.SUCCESSOR;
+		return new ChainElementState(run.headPk(), this.predecessors.get(elementId), state);
 	}
 
 	/**
-	 * Method removes successor element of the existing chain. The chain is removed completely if the successor is the
-	 * only element in the chain. If the element is in the middle of the chain, the chain is split into two chains.
-	 *
-	 * @param primaryKey  primary key of the element
-	 * @param chainHeadPk primary key of the chain head to which the element belongs
+	 * Reference to a run (chain) in {@link #elements}: its head primary key, the position of the head and the run
+	 * length.
 	 */
-	@Nonnull
-	private OptionalInt removeSuccessorElement(int primaryKey, int chainHeadPk) {
-		// if the primary key is successor of its chain
-		final TransactionalUnorderedIntArray chain = ofNullable(this.chains.get(chainHeadPk))
-			.orElseThrow(() -> new EvitaInvalidUsageException("Chain with head `" + chainHeadPk + "` is not present in the index!"));
-		final ChainElementState existingStateHeadState = this.elementStates.get(chainHeadPk);
-
-		final int index = chain.indexOf(primaryKey);
-		// sanity check - the primary key must be present in the chain according to the state information
-		Assert.isPremiseValid(
-			index >= 0,
-			"Index damaged! The primary key `" + primaryKey + "` must be present in the chain according to the state information!"
-		);
-		// if the primary key is not located at the head of the chain
-		if (index > 0) {
-			// and there are more elements in the chain tail after it
-			if (index < chain.getLength() - 1) {
-				// we need to split the chain to two chains
-				final int[] subChain = chain.removeRange(index, chain.getLength());
-				final int[] subChainWithoutRemovedElement = Arrays.copyOfRange(subChain, 1, subChain.length);
-				this.chains.put(subChainWithoutRemovedElement[0], new TransactionalUnorderedIntArray(subChainWithoutRemovedElement));
-				reclassifyChain(subChainWithoutRemovedElement[0], subChainWithoutRemovedElement);
-
-				// verify whether the head of chain was not in circular conflict and if so
-				verifyIfCircularDependencyExistsAndIsBroken(chainHeadPk, existingStateHeadState);
-			} else {
-				// just remove it from the chain
-				chain.removeRange(index, chain.getLength());
-				// if the primary key was the perpetrator of the circular dependency, remove the status
-				if (existingStateHeadState.state() == ElementState.CIRCULAR && existingStateHeadState.predecessorPrimaryKey() == primaryKey) {
-					this.elementStates.put(
-						chainHeadPk,
-						new ChainElementState(existingStateHeadState, ElementState.SUCCESSOR)
-					);
-				}
-			}
-			return OptionalInt.of(chainHeadPk);
-		} else {
-			// remove the head element of the chain
-			return removeHeadElement(primaryKey);
-		}
+	private record RunRef(int headPk, int headPos, int length) {
 	}
 
 	/**
-	 * Method inserts new element into the index along with its predecessor information.
+	 * Descriptor of a single chain (run) in {@link #elements}: its length and the {@link ElementState} of its head.
 	 *
-	 * @param primaryKey  primary key of the element
-	 * @param predecessor pointer record to a predecessor element of the `primaryKey` element
+	 * @param length number of elements in the run
+	 * @param state  state of the run's head element
 	 */
-	private void insertPredecessor(int primaryKey, @Nonnull ChainableType predecessor) {
-		// the primary key was observed for the first time
-		if (predecessor.isHead()) {
-			// setup the new head of the chain
-			this.chains.put(primaryKey, new TransactionalUnorderedIntArray(new int[]{primaryKey}));
-			this.elementStates.put(primaryKey, new ChainElementState(primaryKey, predecessor, ElementState.HEAD));
-		} else {
-			final ChainElementState predecessorState = this.elementStates.get(predecessor.predecessorPk());
-			if (predecessorState == null) {
-				// the predecessor is not part of the index yet - we need to wait for it
-				introduceNewSuccessorChain(primaryKey, predecessor);
-			} else {
-				// the predecessor was found in the index - we can add the new element to its chain
-				final int chainHeadId = predecessorState.inChainOfHeadWithPrimaryKey();
-				final TransactionalUnorderedIntArray predecessorChain = this.chains.get(chainHeadId);
-				// if the predecessor is the last record of the predecessor chain
-				if (predecessorChain.getLastRecordId() == predecessor.predecessorPk()) {
-					// we may safely append the primary key to it
-					predecessorChain.add(predecessor.predecessorPk(), primaryKey);
-					this.elementStates.put(primaryKey, new ChainElementState(chainHeadId, predecessor, ElementState.SUCCESSOR));
-					// if the head of the chain refers to the appended primary key - we have circular dependency
-					final ChainElementState chainHeadState = this.elementStates.get(chainHeadId);
-					if (chainHeadState.predecessorPrimaryKey() == primaryKey) {
-						this.elementStates.put(
-							chainHeadId,
-							new ChainElementState(chainHeadState, ElementState.CIRCULAR)
-						);
-					}
-				} else {
-					// we have to create new "split" chain for the primary key
-					introduceNewSuccessorChain(primaryKey, predecessor);
-				}
-			}
-		}
-		// collapse the chains that refer to the last element of created chain
-		collapseChainsIfPossible(primaryKey);
-	}
-
-	/**
-	 * Method creates new "split" chain - i.e. when a single predecessor has two successor elements.
-	 *
-	 * @param primaryKey  primary key of the element
-	 * @param predecessor pointer record to a predecessor element of the `primaryKey` element
-	 */
-	private void introduceNewSuccessorChain(int primaryKey, @Nonnull ChainableType predecessor) {
-		this.chains.put(primaryKey, new TransactionalUnorderedIntArray(new int[]{primaryKey}));
-		this.elementStates.put(primaryKey, new ChainElementState(primaryKey, predecessor, ElementState.SUCCESSOR));
-	}
-
-	/**
-	 * Method updates existing element in the index along with its predecessor information.
-	 *
-	 * @param primaryKey    primary key of the element
-	 * @param predecessor   pointer record to a predecessor element of the `primaryKey` element
-	 * @param existingState existing state of the primary key element
-	 */
-	private void updatePredecessor(int primaryKey, @Nonnull ChainableType predecessor, @Nonnull ChainElementState existingState) {
-		// the primary key was already present in the index - we need to relocate it
-		final int primaryKeyOfExistingHeadState = existingState.inChainOfHeadWithPrimaryKey();
-		final TransactionalUnorderedIntArray existingChain = this.chains.get(primaryKeyOfExistingHeadState);
-		final int index = existingChain.indexOf(primaryKey);
-		// sanity check - the primary key must be present in the chain according to the state information
-		Assert.isPremiseValid(
-			index >= 0,
-			"Index damaged! The primary key `" + primaryKey + "` must be present in the chain according to the state information!"
-		);
-		// we need to remember original state of the chain head before changes in order to resolve possible circular dependency
-		final ChainElementState existingStateHeadState = this.elementStates.get(primaryKeyOfExistingHeadState);
-		// if newly created element is a head of its chain
-		if (predecessor.isHead()) {
-			updateElementToBecomeHeadOfTheChain(primaryKey, index, predecessor, existingChain, primaryKeyOfExistingHeadState, existingStateHeadState);
-		} else {
-			updateElementWithinExistingChain(primaryKey, index, predecessor, existingChain, primaryKeyOfExistingHeadState, existingStateHeadState, existingState);
-		}
-	}
-
-	/**
-	 * Method updates existing element in the index and makes it a head of its chain.
-	 *
-	 * @param primaryKey             primary key of the element
-	 * @param index                  index of the element in the chain
-	 * @param predecessor            pointer record to a predecessor element of the `primaryKey` element
-	 * @param existingChain          existing chain where the element is present
-	 * @param primaryKeyOfExistingHeadState primary key the `existingHeadState` is registered in `this.elementStates`
-	 * @param existingHeadState state of the head element of the existing chain where element is present
-	 */
-	private void updateElementToBecomeHeadOfTheChain(
-		int primaryKey,
-		int index, @Nonnull ChainableType predecessor,
-		@Nonnull TransactionalUnorderedIntArray existingChain,
-		int primaryKeyOfExistingHeadState,
-		@Nonnull ChainElementState existingHeadState
-	) {
-		// if the primary key is not located at the head of the chain
-		if (index > 0) {
-			// we need to promote its sub-chain as the new head of the chain
-			// setup the new head of the chain
-			final int[] subChain = existingChain.removeRange(index, existingChain.getLength());
-			this.chains.put(primaryKey, new TransactionalUnorderedIntArray(subChain));
-			reclassifyChain(primaryKey, subChain);
-			// we need to re-check whether the original chain has still circular dependency when this chain was split
-			verifyIfCircularDependencyExistsAndIsBroken(primaryKeyOfExistingHeadState, existingHeadState);
-		} else {
-			// we just need to change the state, since the chain is already present
-		}
-		this.elementStates.put(primaryKey, new ChainElementState(primaryKey, predecessor, ElementState.HEAD));
-		// collapse the chains that refer to the last element of any other chain
-		collapseChainsIfPossible(primaryKey);
-	}
-
-	/**
-	 * Method updates existing element in the index and makes it a successor of its predecessor.
-	 * If the predecessor is not present in the index, the method creates new chain for the element.
-	 * If the predecessor is present in the index, the method relocates the element to the chain of its predecessor or
-	 * creates a new split chain if the predecessor has already its successor present.
-	 *
-	 * @param primaryKey             primary key of the element
-	 * @param index                  index of the element in the chain
-	 * @param predecessor            pointer record to a predecessor element of the `primaryKey` element
-	 * @param existingChain          existing chain where the element is present
-	 * @param primaryKeyOfExistingHeadState primary key the `existingHeadState` is registered in `this.elementStates`
-	 * @param existingStateHeadState state of the head element of the existing chain where element is present
-	 * @param existingState          existing state of the primary key element
-	 */
-	private void updateElementWithinExistingChain(
-		int primaryKey,
-		int index,
-		@Nonnull ChainableType predecessor,
-		@Nonnull TransactionalUnorderedIntArray existingChain,
-		int primaryKeyOfExistingHeadState,
-		@Nonnull ChainElementState existingStateHeadState,
-		@Nonnull ChainElementState existingState
-	) {
-		// we need to relocate the element to the chain of its predecessor
-		final boolean circularConflict = existingChain.indexOf(predecessor.predecessorPk()) >= index;
-		// if there is circular conflict - set up a separate chain and update state
-		if (circularConflict) {
-			updateElementWithCircularConflict(
-				primaryKey, index, predecessor, existingChain, primaryKeyOfExistingHeadState, existingStateHeadState, existingState
-			);
-		} else {
-			final int[] movedChain;
-			final int movedChainHeadPk;
-
-			final ChainElementState predecessorState = this.elementStates.get(predecessor.predecessorPk());
-			if (predecessorState == null) {
-				// the predecessor doesn't exist in current index
-				if (index > 0) {
-					// we need to split the chain and make new successor chain
-					movedChain = existingChain.removeRange(index, existingChain.getLength());
-					movedChainHeadPk = primaryKey;
-					this.chains.put(primaryKey, new TransactionalUnorderedIntArray(movedChain));
-				} else {
-					// but we tackle the head of the chain - so we don't have to do anything
-					movedChainHeadPk = primaryKey;
-					movedChain = null;
-				}
-			} else {
-				final TransactionalUnorderedIntArray predecessorChain = this.chains.get(predecessorState.inChainOfHeadWithPrimaryKey());
-				// if we append the sub-chain to after the last record of the predecessor chain
-				if (predecessor.predecessorPk() == predecessorChain.getLastRecordId()) {
-					// we can merge both chains together
-					movedChainHeadPk = predecessorState.inChainOfHeadWithPrimaryKey();
-					if (index > 0) {
-						// the element is in the body of the chain, we need to split the chain
-						movedChain = existingChain.removeRange(index, existingChain.getLength());
-						// append only the sub-chain to the predecessor chain
-						predecessorChain.appendAll(movedChain);
-						// if the appended chain contains primary key the head of predecessor chain refers to - we have circular dependency
-						examineCircularConflictInNewlyAppendedChain(predecessorState.inChainOfHeadWithPrimaryKey(), movedChain);
-					} else {
-						// the element is the head of the chain, discard the chain completely
-						final TransactionalUnorderedIntArray removedChain = this.chains.remove(existingState.inChainOfHeadWithPrimaryKey());
-						// and fully merge with predecessor chain
-						movedChain = existingChain.getArray();
-						predecessorChain.appendAll(movedChain);
-						// if there was transactional memory associated with the chain, discard it
-						removedChain.removeLayer();
-					}
-				} else {
-					// if the element is in the body of the chain and is already successor of the predecessor
-					if (index > 0 && predecessor.predecessorPk() == existingChain.get(index - 1)) {
-						// do nothing - the update doesn't affect anything
-						return;
-					} else if (index > 0) {
-						// the element is in the body of the chain, we need to split the chain - we have a situation with
-						// multiple successors of the single predecessor
-						movedChain = existingChain.removeRange(index, existingChain.getLength());
-						movedChainHeadPk = primaryKey;
-						this.chains.put(primaryKey, new TransactionalUnorderedIntArray(movedChain));
-					} else {
-						// leave the current chain be - we need to switch the state to SUCCESSOR only
-						movedChain = null;
-						movedChainHeadPk = existingState.inChainOfHeadWithPrimaryKey();
-					}
-				}
-			}
-
-			// we need to update specially the state for current element - set the correct chain head, predecessor and state
-			this.elementStates.put(primaryKey, new ChainElementState(movedChainHeadPk, predecessor, ElementState.SUCCESSOR));
-			// if there was a chain split
-			if (movedChain != null) {
-				// check whether the new head doesn't introduce circular dependency with new chain
-				examineCircularConflictInNewlyAppendedChain(movedChainHeadPk, movedChain);
-
-				// then we need to update the chain head for all other elements in the split chain
-				// (except the element itself which was already updated by previous statement)
-				for (int i = 1; i < movedChain.length; i++) {
-					int movedPk = movedChain[i];
-					this.elementStates.put(
-						movedPk,
-						new ChainElementState(movedChainHeadPk, this.elementStates.get(movedPk))
-					);
-				}
-			}
-
-			// collapse the chains that refer to the last element of any other chain
-			collapseChainsIfPossible(movedChainHeadPk);
-			if (movedChainHeadPk != existingState.inChainOfHeadWithPrimaryKey()) {
-				collapseChainsIfPossible(existingState.inChainOfHeadWithPrimaryKey());
-			}
-
-			// verify whether the head of chain was not in circular conflict and if so
-			verifyIfCircularDependencyExistsAndIsBroken(primaryKeyOfExistingHeadState, existingStateHeadState);
-		}
-	}
-
-	/**
-	 * Method check whether there is circular dependency between chain head predecessor and the contents of the appended
-	 * chain. If so, the chain head is marked as circular.
-	 *
-	 * @param chainHeadPrimaryKey primary key of the chain head
-	 * @param appendedChain       chain that was appended to the chain head
-	 */
-	private void examineCircularConflictInNewlyAppendedChain(int chainHeadPrimaryKey, int[] appendedChain) {
-		final ChainElementState predecessorChainHeadState = this.elementStates.get(chainHeadPrimaryKey);
-		final boolean newCircularConflict = ArrayUtils.indexOf(predecessorChainHeadState.predecessorPrimaryKey(), appendedChain) >= 0;
-		if (newCircularConflict) {
-			this.elementStates.put(
-				chainHeadPrimaryKey,
-				new ChainElementState(predecessorChainHeadState, ElementState.CIRCULAR)
-			);
-		}
-	}
-
-	/**
-	 * Method updates existing element that is known to introduce circular dependency - i.e. it depends on one of its
-	 * successors.
-	 *
-	 * @param primaryKey             primary key of the element
-	 * @param index                  index of the element in the chain
-	 * @param predecessor            pointer record to a predecessor element of the `primaryKey` element
-	 * @param existingChain          existing chain where the element is present
-	 * @param primaryKeyOfExistingHeadState primary key the `existingHeadState` is registered in `this.elementStates`
-	 * @param existingStateHeadState state of the head element of the existing chain where element is present
-	 * @param existingState          existing state of the primary key element
-	 */
-	private void updateElementWithCircularConflict(
-		int primaryKey,
-		int index,
-		@Nonnull ChainableType predecessor,
-		@Nonnull TransactionalUnorderedIntArray existingChain,
-		int primaryKeyOfExistingHeadState,
-		@Nonnull ChainElementState existingStateHeadState,
-		@Nonnull ChainElementState existingState
-	) {
-		// mark element as circular
-		this.elementStates.put(primaryKey, new ChainElementState(primaryKey, predecessor, ElementState.CIRCULAR));
-		// if the primary key with circular dependency is not already a head of its chain
-		if (existingState.inChainOfHeadWithPrimaryKey() != primaryKey) {
-			// we need to set up special chain for it
-			Assert.isPremiseValid(index > 0, "When the primary key is not a head of its chain, the index must be greater than zero!");
-			final int[] subChain = existingChain.removeRange(index, existingChain.getLength());
-			this.chains.put(primaryKey, new TransactionalUnorderedIntArray(subChain));
-			reclassifyChain(primaryKey, subChain);
-			// we need to re-check whether the original chain has still circular dependency when this chain was split
-			verifyIfCircularDependencyExistsAndIsBroken(primaryKeyOfExistingHeadState, existingStateHeadState);
-		}
-	}
-
-	/**
-	 * Method verifies whether the original element visible before changes in the chain was in circular dependency.
-	 * If so, the method checks whether the circular dependency still exists for the current state of the chain and
-	 * if not, it is resolved.
-	 *
-	 * @param primaryKeyOfHeadState primary key that was used to get the state from `this.elementStates` for verification
-	 * @param originalChainHeadState the state of the original chain head before the change
-	 */
-	private void verifyIfCircularDependencyExistsAndIsBroken(
-		int primaryKeyOfHeadState,
-		@Nonnull ChainElementState originalChainHeadState
-	) {
-		// if original chain head is in circular dependency
-		if (originalChainHeadState.state() == ElementState.CIRCULAR) {
-			Assert.isPremiseValid(
-				primaryKeyOfHeadState == originalChainHeadState.inChainOfHeadWithPrimaryKey(),
-				"Primary key of the state must match the primary key of the state chain head!"
-			);
-
-			final TransactionalUnorderedIntArray originalHeadChain = this.chains.get(originalChainHeadState.inChainOfHeadWithPrimaryKey());
-			if (originalHeadChain != null) {
-				// verify it is still in circular dependency
-				if (originalHeadChain.indexOf(originalChainHeadState.predecessorPrimaryKey()) < 0) {
-					// the circular dependency was broken
-					this.elementStates.put(
-						primaryKeyOfHeadState,
-						new ChainElementState(originalChainHeadState, ElementState.SUCCESSOR)
-					);
-				}
-			} else {
-				// the circular dependency was broken - the chain is now part of another chain
-				this.elementStates.compute(
-					primaryKeyOfHeadState,
-					(k, existingState) -> new ChainElementState(
-						Objects.requireNonNull(existingState),
-						ElementState.SUCCESSOR
-					)
-				);
-			}
-		}
-	}
-
-	/**
-	 * Method updates all {@link #elementStates} for all passed `primaryKeys` to point to the new head of the chain
-	 * specified by `inChainOfHeadWithPrimaryKey`. Only the {@link ChainElementState#inChainOfHeadWithPrimaryKey} is
-	 * modified - the state and predecessor are left intact.
-	 */
-	private void reclassifyChain(int inChainOfHeadWithPrimaryKey, @Nonnull int[] primaryKeys) {
-		for (int splitPk : primaryKeys) {
-			this.elementStates.compute(
-				splitPk,
-				(key, movedPkState) -> new ChainElementState(
-					inChainOfHeadWithPrimaryKey,
-					Objects.requireNonNull(movedPkState)
-				)
-			);
-		}
-	}
-
-	/**
-	 * Method verifies whether the `element` chain can be collapsed into its predecessor chain, or
-	 * whether any other chain can be collapsed to its chain. If so, both chains are merged and the method continues
-	 * with checking the newly merged chain for collapsing until no more chains can be collapsed.
-	 *
-	 * @param element primary key of any element of the chain that is to be collapsed
-	 */
-	private void collapseChainsIfPossible(int element) {
-		Integer movingHeadOfTheChainToVerify = element;
-		do {
-			movingHeadOfTheChainToVerify = attemptToCollapseChain(movingHeadOfTheChainToVerify);
-		} while (movingHeadOfTheChainToVerify != null);
-	}
-
-	/**
-	 * Method verifies whether the `element` chain can be collapsed into its predecessor chain, or
-	 * whether any other chain can be collapsed to its chain. If so, both chains are merged and the method returns
-	 * the primary key of the new head of the chain. If not, the method returns NULL.
-	 *
-	 * @param element primary key of any element of the chain that is to be collapsed
-	 * @return primary key of the new head of the chain or NULL if the chain can't be collapsed
-	 */
-	@Nullable
-	private Integer attemptToCollapseChain(int element) {
-		final ChainElementState chainHeadState = this.elementStates.get(element);
-		if (chainHeadState.state() == ElementState.SUCCESSOR) {
-			return mergeSuccessorChainToElementChainIfPossible(chainHeadState);
-		} else if (chainHeadState.state == ElementState.HEAD) {
-			return findFirstSuccessorChainAndMergeToElementChain(chainHeadState.inChainOfHeadWithPrimaryKey());
-		} else {
-			return null;
-		}
-	}
-
-	/**
-	 * Method verifies, whether for the predecessor of the head element there is a chain whose last element is
-	 * the predecessor. In such case, the chain can be merged with this chain. The chain is then merged with it and
-	 * the method returns the primary key of the new head of the chain.
-	 *
-	 * If this primary lookup fails, the {@link #findFirstSuccessorChainAndMergeToElementChain(int)}
-	 * method is called to verify whether we can't collapse another chain with tail element of the chain.
-	 *
-	 * @param chainHeadState state of the element pointing to chain which head element we check for predecessor chain
-	 * @return primary key of the new head of the chain or NULL if the chain can't be collapsed
-	 */
-	@Nullable
-	private Integer mergeSuccessorChainToElementChainIfPossible(
-		@Nonnull ChainElementState chainHeadState
-	) {
-		final ChainElementState predecessorState = this.elementStates.get(chainHeadState.predecessorPrimaryKey());
-		// predecessor may not yet be present in the index
-		if (predecessorState != null) {
-			final TransactionalUnorderedIntArray predecessorChain = this.chains.get(predecessorState.inChainOfHeadWithPrimaryKey());
-			if (chainHeadState.predecessorPrimaryKey() == predecessorChain.getLastRecordId()) {
-				// we may append the chain to the predecessor chain
-				final TransactionalUnorderedIntArray removedChain = this.chains.remove(chainHeadState.inChainOfHeadWithPrimaryKey());
-				final int[] movedChain = removedChain.getArray();
-				// if there was transactional memory associated with the chain, discard it
-				removedChain.removeLayer();
-				predecessorChain.appendAll(movedChain);
-				reclassifyChain(predecessorState.inChainOfHeadWithPrimaryKey(), movedChain);
-				// if the moved chain contains primary key the new head refers to - we have circular dependency
-				examineCircularConflictInNewlyAppendedChain(predecessorState.inChainOfHeadWithPrimaryKey(), movedChain);
-				return predecessorState.inChainOfHeadWithPrimaryKey();
-			}
-		}
-		return findFirstSuccessorChainAndMergeToElementChain(chainHeadState.inChainOfHeadWithPrimaryKey());
-	}
-
-	/**
-	 * Method checks whether there is a chain that is marked as a SUCCESSOR of a last element of the chain belonging
-	 * to `chainHeadState`. If so, the SUCCESSOR chain is fully merged with the chain of `chainHeadState` and the
-	 * method returns the primary key of the new head of the chain.
-	 *
-	 * @param chainHeadElement the primary key of head of the chain to which we check for successor chain
-	 * @return primary key of the new head of the chain or NULL if the chain can't be collapsed
-	 */
-	@Nullable
-	private Integer findFirstSuccessorChainAndMergeToElementChain(int chainHeadElement) {
-		final TransactionalUnorderedIntArray chain = this.chains.get(chainHeadElement);
-		final int lastRecordId = chain.getLastRecordId();
-		final Optional<Integer> collapsableChain = this.chains.keySet()
-			.stream()
-			.filter(pk -> this.elementStates.get(pk).predecessorPrimaryKey() == lastRecordId)
-			.findFirst();
-		if (collapsableChain.isPresent()) {
-			final Integer collapsableHeadPk = collapsableChain.get();
-			final ChainElementState collapsableHeadChainState = this.elementStates.get(collapsableHeadPk);
-			final TransactionalUnorderedIntArray chainToBeCollapsed = this.chains.get(collapsableHeadPk);
-			if (chainToBeCollapsed.indexOf(collapsableHeadChainState.predecessorPrimaryKey()) >= 0) {
-				// we have circular dependency - we can't collapse the chain
-				this.elementStates.put(
-					collapsableHeadPk,
-					new ChainElementState(collapsableHeadChainState, ElementState.CIRCULAR)
-				);
-				return null;
-			} else {
-				// we may append the chain to the predecessor chain
-				final TransactionalUnorderedIntArray removedChain = this.chains.remove(collapsableHeadPk);
-				final int[] movedChain = removedChain.getArray();
-				// if there was transactional memory associated with the chain, discard it
-				removedChain.removeLayer();
-				chain.appendAll(movedChain);
-				reclassifyChain(chainHeadElement, movedChain);
-				// this collapse introduced new circular dependency
-				final ChainElementState chainHeadElementState = this.elementStates.get(chainHeadElement);
-				if (ArrayUtils.indexOf(chainHeadElementState.predecessorPrimaryKey(), movedChain) >= 0) {
-					this.elementStates.put(
-						chainHeadElement,
-						new ChainElementState(
-							chainHeadElement,
-							chainHeadElementState.predecessorPrimaryKey(),
-							ElementState.CIRCULAR
-						)
-					);
-				} else if (collapsableHeadChainState.state() == ElementState.CIRCULAR) {
-					this.elementStates.put(
-						collapsableHeadPk,
-						new ChainElementState(
-							chainHeadElement,
-							collapsableHeadChainState.predecessorPrimaryKey(),
-							ElementState.SUCCESSOR
-						)
-					);
-				}
-				return collapsableHeadPk;
-			}
-		}
-		return null;
+	public record ChainDescriptor(int length, @Nonnull ElementState state) {
 	}
 
 	/**
@@ -1121,11 +896,11 @@ public class ChainIndex implements
 	 */
 	public enum ElementState {
 		/**
-		 * Element is the head of one of the {@link #chains} and have no predecessor.
+		 * Element is the head of one of the chains and have no predecessor.
 		 */
 		HEAD,
 		/**
-		 * Element have defined predecessor element. Element might be the head of one of the {@link #chains} in case
+		 * Element have defined predecessor element. Element might be the head of one of the chains in case
 		 * it is in inconsistent state (i.e. there are multiple elements referring to same predecessor).
 		 */
 		SUCCESSOR,
@@ -1136,9 +911,10 @@ public class ChainIndex implements
 	}
 
 	/**
-	 * Record represents a state for each element in this index.
+	 * Record represents a state for each element in this index. It is the persisted / boundary representation; the live
+	 * index keeps chain membership positionally and reconstructs this record on demand.
 	 *
-	 * @param inChainOfHeadWithPrimaryKey primary key of the head of the {@link #chains} this element is part of
+	 * @param inChainOfHeadWithPrimaryKey primary key of the head of the chain this element is part of
 	 * @param predecessorPrimaryKey       primary key of the predecessor of this element
 	 * @param state                       state of the element
 	 */
@@ -1159,38 +935,18 @@ public class ChainIndex implements
 			this(inChainOfHeadWithPrimaryKey, predecessor.predecessorPk(), elementState);
 		}
 
-		/**
-		 * Constructor, which allows to override only the chain placement, leaving predecessor and state be.
-		 */
-		public ChainElementState(
-			int inChainOfHeadWithPrimaryKey,
-			@Nonnull ChainElementState previousState
-		) {
-			this(inChainOfHeadWithPrimaryKey, previousState.predecessorPrimaryKey, previousState.state);
-		}
-
-		/**
-		 * Constructor, which allows to override only the state, leaving the chain placement and predecessor be.
-		 */
-		public ChainElementState(
-			@Nonnull ChainElementState previousState,
-			@Nonnull ElementState newState
-		) {
-			this(previousState.inChainOfHeadWithPrimaryKey, previousState.predecessorPrimaryKey, newState);
-		}
-
 		@Nonnull
 		@Override
 		public String toString() {
 			switch (this.state) {
 				case HEAD -> {
-					return "HEAD \uD83D\uDD17 " + this.inChainOfHeadWithPrimaryKey;
+					return "HEAD 🔗 " + this.inChainOfHeadWithPrimaryKey;
 				}
 				case SUCCESSOR -> {
-					return "SUCCESSOR of " + this.predecessorPrimaryKey + " \uD83D\uDD17 " + this.inChainOfHeadWithPrimaryKey;
+					return "SUCCESSOR of " + this.predecessorPrimaryKey + " 🔗 " + this.inChainOfHeadWithPrimaryKey;
 				}
 				case CIRCULAR -> {
-					return "CIRCULAR of " + this.predecessorPrimaryKey + " \uD83D\uDD17 " + this.inChainOfHeadWithPrimaryKey;
+					return "CIRCULAR of " + this.predecessorPrimaryKey + " 🔗 " + this.inChainOfHeadWithPrimaryKey;
 				}
 				default -> throw new IllegalStateException("Unexpected value: " + this.state);
 			}

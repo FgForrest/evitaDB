@@ -26,11 +26,13 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.dataType.ChainableType;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.attribute.ChainIndex.ChainElementState;
+import io.evitadb.index.attribute.ChainIndex.ElementState;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
@@ -48,6 +50,9 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -359,6 +364,96 @@ class ChainIndexTest {
 		for (int pk : EXPECTED_CHAIN) {
 			ChainIndexTest.this.index.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
 		}
+	}
+
+	/**
+	 * Builds a HEAD element state for the given chain head.
+	 */
+	@Nonnull
+	private static ChainElementState head(int chainHeadPk) {
+		return new ChainElementState(chainHeadPk, ChainableType.HEAD_PK, ElementState.HEAD);
+	}
+
+	/**
+	 * Builds a SUCCESSOR element state inside the given chain with the given predecessor.
+	 */
+	@Nonnull
+	private static ChainElementState succ(int chainHeadPk, int predecessorPk) {
+		return new ChainElementState(chainHeadPk, predecessorPk, ElementState.SUCCESSOR);
+	}
+
+	/**
+	 * Builds a CIRCULAR element state inside the given chain with the given predecessor.
+	 */
+	@Nonnull
+	private static ChainElementState circ(int chainHeadPk, int predecessorPk) {
+		return new ChainElementState(chainHeadPk, predecessorPk, ElementState.CIRCULAR);
+	}
+
+	/**
+	 * Provides deliberately corrupt {@link ChainIndex} configurations together with a human-readable label. Each one
+	 * targets a distinct error-detection branch of {@link ChainIndex#getConsistencyReport()} that is reachable only by
+	 * feeding crafted state to the deserialization constructor (the public mutation API can never produce them).
+	 */
+	@Nonnull
+	static Stream<Arguments> brokenConfigurations() {
+		return Stream.of(
+			// predecessor recorded in the state does not match the actual previous element in the chain
+			Arguments.of(
+				"predecessor mismatch",
+				new int[][]{{1, 2, 3}},
+				Map.of(1, head(1), 2, succ(1, 7), 3, succ(1, 2))
+			),
+			// a head is flagged HEAD yet records a (non-head) predecessor - in the positional model membership can no
+			// longer disagree with the structure, so corruption now surfaces as a head-state mismatch
+			Arguments.of(
+				"head flagged HEAD with a real predecessor",
+				new int[][]{{1, 2}},
+				Map.of(1, new ChainElementState(1, 7, ElementState.HEAD), 2, succ(1, 1))
+			),
+			// element present in a chain has no element state at all
+			Arguments.of(
+				"missing element state",
+				new int[][]{{1, 2}},
+				Map.of(1, head(1))
+			),
+			// a true head (no predecessor) is flagged SUCCESSOR
+			Arguments.of(
+				"head flagged SUCCESSOR without a predecessor",
+				new int[][]{{1, 2}},
+				Map.of(1, new ChainElementState(1, ChainableType.HEAD_PK, ElementState.SUCCESSOR), 2, succ(1, 1))
+			),
+			// circular head whose chain does not actually contain the predecessor it points at
+			Arguments.of(
+				"circular head without referenced element",
+				new int[][]{{1, 2}},
+				Map.of(1, circ(1, 99), 2, succ(1, 1))
+			),
+			// non-circular head whose chain does contain the predecessor it points at (an unflagged circular)
+			Arguments.of(
+				"unflagged circular head",
+				new int[][]{{1, 2, 3}},
+				Map.of(1, succ(1, 2), 2, succ(1, 1), 3, succ(1, 2))
+			),
+			// successor element that claims a chain it is not part of
+			Arguments.of(
+				"successor absent from its chain",
+				new int[][]{{1, 2}},
+				Map.of(1, head(1), 2, succ(1, 1), 5, succ(1, 1))
+			),
+			// the total number of chained elements does not match the number of element states
+			Arguments.of(
+				"element count mismatch",
+				new int[][]{{1, 2}},
+				Map.of(1, head(1), 2, succ(1, 1), 9, head(9))
+			),
+			// a clean head (no predecessor) is flagged CIRCULAR
+			Arguments.of(
+				"head flagged CIRCULAR without a predecessor",
+				new int[][]{{1, 2}},
+				Map.of(1, new ChainElementState(1, ChainableType.HEAD_PK, ElementState.CIRCULAR), 2, succ(1, 1))
+			)
+		);
 	}
 
 	/**
@@ -892,6 +987,497 @@ class ChainIndexTest {
 			final ConsistencyState state =
 				ChainIndexTest.this.index.getConsistencyReport().state();
 			assertEquals(ConsistencyState.INCONSISTENT, state);
+		}
+
+		@Test
+		@DisplayName("report truncates a long chain listing with a remaining-count suffix")
+		void shouldTruncateLongChainListing() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "long", null));
+			for (int pk = 1; pk <= 40; pk++) {
+				idx.upsertPredecessor(pk == 1 ? Predecessor.HEAD : new Predecessor(pk - 1), pk);
+			}
+
+			final ConsistencyReport report = idx.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state());
+			assertTrue(
+				report.report().contains("more)"),
+				"A long chain listing must be truncated with a '(N more)' suffix."
+			);
+		}
+	}
+
+	/**
+	 * Asserts that the index is not in an internally corrupt ({@link ConsistencyState#BROKEN}) state. The
+	 * {@link ChainIndex#getConsistencyReport()} independently re-derives correctness from {@link ChainIndex#chains}
+	 * and {@link ChainIndex#predecessors}, so it is a strong, implementation-independent integrity oracle.
+	 */
+	private static void assertNotBroken(@Nonnull ChainIndex index) {
+		final ConsistencyReport report = index.getConsistencyReport();
+		assertNotEquals(
+			ConsistencyState.BROKEN, report.state(),
+			() -> "Index reported BROKEN internal state:\n" + report.report()
+		);
+	}
+
+	/**
+	 * Tests for the chain-split that happens when a successor in the middle of a chain is removed. The split is
+	 * asserted in its inconsistent intermediate state (before any correcting mutation re-collapses it), which the
+	 * existing removal tests never do.
+	 */
+	@Nested
+	@DisplayName("Successor removal split")
+	class SuccessorRemovalSplitTest {
+
+		@Test
+		@DisplayName("removing a mid-chain successor splits the chain and a reconnect collapses it back")
+		void shouldSplitChainWhenMidElementRemovedAndCollapseOnReconnect() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "split", null));
+			for (int pk : EXPECTED_CHAIN) {
+				idx.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
+			}
+			assertTrue(idx.isConsistent());
+
+			// remove the mid-chain successor 3 -> chain [1,2,3,4,5] splits into [1,2] and [4,5]
+			idx.removePredecessor(3);
+
+			assertFalse(idx.isConsistent(), "Removing a mid-chain element must leave the index inconsistent.");
+			assertNotBroken(idx);
+			assertEquals(2, idx.chains.size(), "The chain must split into exactly two chains.");
+			assertNotNull(idx.chains.get(1), "The head chain [1,2] must remain.");
+			assertNotNull(idx.chains.get(4), "The tail must become a new chain headed by 4.");
+			// 4 keeps its (now dangling) predecessor 3 but becomes the head of its own split chain
+			assertEquals(ElementState.SUCCESSOR, idx.getElementState(4).state());
+			assertEquals(4, idx.getElementState(4).inChainOfHeadWithPrimaryKey());
+			assertEquals(3, idx.getElementState(4).predecessorPrimaryKey());
+			// heads first then the orphan successor chain: [1,2] then [4,5]
+			assertArrayEquals(new int[]{1, 2, 4, 5}, idx.getUnorderedLookup().getArray());
+			assertEquals(ConsistencyState.INCONSISTENT, idx.getConsistencyReport().state());
+
+			// reconnect 4 to the tail of the head chain -> the two chains collapse into one
+			idx.upsertPredecessor(new Predecessor(2), 4);
+
+			assertTrue(idx.isConsistent(), "Reconnecting the split must restore consistency.");
+			assertNotBroken(idx);
+			assertEquals(1, idx.chains.size());
+			assertArrayEquals(new int[]{1, 2, 4, 5}, idx.getUnorderedLookup().getArray());
+			assertEquals(ConsistencyState.CONSISTENT, idx.getConsistencyReport().state());
+		}
+
+		@Test
+		@DisplayName("removing the tail successor shortens the chain without splitting")
+		void shouldShortenChainWhenTailRemoved() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "split", null));
+			for (int pk : EXPECTED_CHAIN) {
+				idx.upsertPredecessor(PREDECESSOR_MAP.get(pk), pk);
+			}
+
+			idx.removePredecessor(5);
+
+			assertTrue(idx.isConsistent(), "Removing the tail keeps a single chain.");
+			assertNotBroken(idx);
+			assertEquals(1, idx.chains.size());
+			assertArrayEquals(new int[]{1, 2, 3, 4}, idx.getUnorderedLookup().getArray());
+		}
+	}
+
+	/**
+	 * Tests for the full circular-dependency lifecycle: creation via the pure insert path, creation via the update
+	 * path, demotion back to SUCCESSOR when the perpetrator element is removed, and the consistency-report behaviour
+	 * while a circular head is live. These transitions are the reason this data structure exists and were previously
+	 * exercised by a single test only.
+	 */
+	@Nested
+	@DisplayName("Circular dependency lifecycle")
+	class CircularLifecycleTest {
+
+		@Test
+		@DisplayName("a circular dependency forms on the insert path when the closing element arrives last")
+		void shouldFormCircularOnInsertPath() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "circular", null));
+
+			// 1 arrives first pointing at a not-yet-present predecessor 3 -> orphan SUCCESSOR chain head
+			idx.upsertPredecessor(new Predecessor(3), 1);
+			assertEquals(ElementState.SUCCESSOR, idx.getElementState(1).state());
+			// 2 appended after 1
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			assertEquals(ElementState.SUCCESSOR, idx.getElementState(1).state());
+
+			// 3 now arrives for the FIRST time as successor of tail 2; the head 1 already points at 3 -> circular
+			idx.upsertPredecessor(new Predecessor(2), 3);
+
+			assertEquals(
+				ElementState.CIRCULAR, idx.getElementState(1).state(),
+				"The head must be flagged CIRCULAR via the insert path."
+			);
+			assertNotBroken(idx);
+			assertEquals(1, idx.chains.size());
+			assertArrayEquals(new int[]{1, 2, 3}, idx.getUnorderedLookup().getArray());
+
+			// promote 1 to a real head -> the circular dependency is broken and the chain becomes consistent
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+
+			assertEquals(ElementState.HEAD, idx.getElementState(1).state());
+			assertTrue(idx.isConsistent());
+			assertNotBroken(idx);
+			assertArrayEquals(new int[]{1, 2, 3}, idx.getUnorderedLookup().getArray());
+			assertEquals(ConsistencyState.CONSISTENT, idx.getConsistencyReport().state());
+		}
+
+		@Test
+		@DisplayName("removing the perpetrator tail demotes a circular head back to SUCCESSOR")
+		void shouldDemoteCircularHeadWhenPerpetratorRemoved() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "circular", null));
+			// build a consistent chain 1 <- 2 <- 3
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			idx.upsertPredecessor(new Predecessor(2), 3);
+
+			// close the loop: 1 now depends on its own tail 3. The cycle 1->2->3->1 is rotated so the run becomes
+			// [2,3,1] with 2 as the CIRCULAR head (2's predecessor 1 now sits in its own run); 1 keeps predecessor 3.
+			// Which element heads the cycle is an implementation-defined rotation choice for a circular (semi-consistent)
+			// chain - the contract is only that a single circular chain exists and the structure is not BROKEN.
+			idx.upsertPredecessor(new Predecessor(3), 1);
+			assertTrue(idx.isConsistent(), "A closed loop is a single (circular) chain.");
+			assertEquals(ElementState.CIRCULAR, idx.getElementState(2).state());
+			assertEquals(3, idx.getElementState(1).predecessorPrimaryKey());
+			// the consistency report's circular-head verification branch must accept this as not broken
+			assertNotBroken(idx);
+
+			// remove the perpetrator (the tail 3 the head points at) -> head demotes CIRCULAR -> SUCCESSOR
+			idx.removePredecessor(3);
+
+			assertEquals(
+				ElementState.SUCCESSOR, idx.getElementState(1).state(),
+				"Removing the perpetrator must clear the CIRCULAR flag on the head."
+			);
+			assertNotBroken(idx);
+			assertArrayEquals(new int[]{1, 2}, idx.getUnorderedLookup().getArray());
+
+			// fully recover by making 1 a head again
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			assertEquals(ElementState.HEAD, idx.getElementState(1).state());
+			assertTrue(idx.isConsistent());
+			assertNotBroken(idx);
+			assertArrayEquals(new int[]{1, 2}, idx.getUnorderedLookup().getArray());
+		}
+	}
+
+	/**
+	 * Tests for updating an element so that it points at a predecessor which is not currently present in the index
+	 * (its predecessor was removed, or has not arrived yet). Depending on the element's position this either splits
+	 * its chain into a new orphan successor chain (body element) or merely re-flags the head as an orphan successor
+	 * (head element). Both paths were previously unreached by the test suite.
+	 */
+	@Nested
+	@DisplayName("Update to an absent predecessor")
+	class AbsentPredecessorUpdateTest {
+
+		@Test
+		@DisplayName("a body element repointed at an absent predecessor splits off a new orphan successor chain")
+		void shouldSplitWhenBodyElementRepointedAtAbsentPredecessor() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "absent", null));
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			idx.upsertPredecessor(new Predecessor(2), 3);
+
+			// repoint the middle element 2 at predecessor 99 which is not present in the index
+			idx.upsertPredecessor(new Predecessor(99), 2);
+
+			assertFalse(idx.isConsistent());
+			assertNotBroken(idx);
+			assertEquals(2, idx.chains.size());
+			// 2 becomes the head of its own split chain [2,3] and keeps the dangling predecessor 99
+			assertEquals(2, idx.getElementState(2).inChainOfHeadWithPrimaryKey());
+			assertEquals(99, idx.getElementState(2).predecessorPrimaryKey());
+			assertEquals(ElementState.SUCCESSOR, idx.getElementState(2).state());
+			assertEquals(2, idx.getElementState(3).inChainOfHeadWithPrimaryKey());
+			// the head chain [1] precedes the orphan successor chain [2,3]
+			assertArrayEquals(new int[]{1, 2, 3}, idx.getUnorderedLookup().getArray());
+
+			// the missing predecessor 99 finally arrives at the tail of the head chain -> chains collapse into one
+			idx.upsertPredecessor(new Predecessor(1), 99);
+			assertTrue(idx.isConsistent());
+			assertNotBroken(idx);
+			assertArrayEquals(new int[]{1, 99, 2, 3}, idx.getUnorderedLookup().getArray());
+		}
+
+		@Test
+		@DisplayName("a head element repointed at an absent predecessor becomes an orphan successor without splitting")
+		void shouldOrphanHeadWhenRepointedAtAbsentPredecessor() {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "absent", null));
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			idx.upsertPredecessor(new Predecessor(1), 2);
+			idx.upsertPredecessor(new Predecessor(2), 3);
+
+			// repoint the head element 1 at predecessor 99 which is not present in the index
+			idx.upsertPredecessor(new Predecessor(99), 1);
+
+			assertNotBroken(idx);
+			assertEquals(1, idx.chains.size());
+			// the chain is structurally unchanged, but its head is now an orphan SUCCESSOR of the absent 99
+			assertEquals(ElementState.SUCCESSOR, idx.getElementState(1).state());
+			assertEquals(1, idx.getElementState(1).inChainOfHeadWithPrimaryKey());
+			assertEquals(99, idx.getElementState(1).predecessorPrimaryKey());
+			assertArrayEquals(new int[]{1, 2, 3}, idx.getUnorderedLookup().getArray());
+
+			// restore 1 as a real head -> fully consistent again
+			idx.upsertPredecessor(Predecessor.HEAD, 1);
+			assertTrue(idx.isConsistent());
+			assertNotBroken(idx);
+			assertEquals(ElementState.HEAD, idx.getElementState(1).state());
+			assertArrayEquals(new int[]{1, 2, 3}, idx.getUnorderedLookup().getArray());
+		}
+	}
+
+	/**
+	 * Tests pinning the documented ordering contract of {@link ChainIndex#getUnorderedLookup()} across an index that
+	 * simultaneously holds head chains, an orphan successor chain and a circular chain. The order is: head chains
+	 * first, then successor chains, then circular chains (by {@link ElementState} ordinal), and within the same
+	 * state the longer chains come first.
+	 */
+	@Nested
+	@DisplayName("Unordered lookup ordering")
+	class UnorderedLookupOrderingTest {
+
+		@Test
+		@DisplayName("chains are ordered by element-state tier and then by descending length")
+		void shouldOrderByStateTierThenLength() {
+			// two head chains (len 3 and 2), one orphan successor chain (len 4), one circular chain (len 2)
+			final int[][] chains = {
+				{1, 2, 3},
+				{10, 11},
+				{20, 21, 22, 23},
+				{30, 31}
+			};
+			final Map<Integer, ChainElementState> states = new HashMap<>(16);
+			states.put(1, new ChainElementState(1, ChainableType.HEAD_PK, ElementState.HEAD));
+			states.put(2, new ChainElementState(1, 1, ElementState.SUCCESSOR));
+			states.put(3, new ChainElementState(1, 2, ElementState.SUCCESSOR));
+			states.put(10, new ChainElementState(10, ChainableType.HEAD_PK, ElementState.HEAD));
+			states.put(11, new ChainElementState(10, 10, ElementState.SUCCESSOR));
+			// orphan successor chain - head 20 points at an absent predecessor 99
+			states.put(20, new ChainElementState(20, 99, ElementState.SUCCESSOR));
+			states.put(21, new ChainElementState(20, 20, ElementState.SUCCESSOR));
+			states.put(22, new ChainElementState(20, 21, ElementState.SUCCESSOR));
+			states.put(23, new ChainElementState(20, 22, ElementState.SUCCESSOR));
+			// circular chain - head 30 points at its own tail 31
+			states.put(30, new ChainElementState(30, 31, ElementState.CIRCULAR));
+			states.put(31, new ChainElementState(30, 30, ElementState.SUCCESSOR));
+
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "order", null), chains, states);
+
+			assertNotBroken(idx);
+			assertFalse(idx.isConsistent());
+			assertEquals(ConsistencyState.INCONSISTENT, idx.getConsistencyReport().state());
+			// HEAD tier (len 3 then len 2) -> SUCCESSOR tier (len 4) -> CIRCULAR tier (len 2)
+			assertArrayEquals(
+				new int[]{1, 2, 3, 10, 11, 20, 21, 22, 23, 30, 31},
+				idx.getUnorderedLookup().getArray()
+			);
+		}
+	}
+
+	/**
+	 * Tests that deliberately corrupt {@link ChainIndex} configurations (built via the deserialization constructor)
+	 * are detected and reported as {@link ConsistencyState#BROKEN}. No prior test exercised the BROKEN reporting path
+	 * or the individual error-detection branches of {@link ChainIndex#getConsistencyReport()}. Each parameter set
+	 * targets a distinct corruption; see {@link ChainIndexTest#brokenConfigurations()}.
+	 */
+	@Nested
+	@DisplayName("Broken state detection")
+	class BrokenStateDetectionTest {
+
+		@DisplayName("corrupt configuration is detected and reported as BROKEN")
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("io.evitadb.index.attribute.ChainIndexTest#brokenConfigurations")
+		void shouldDetectBrokenConfiguration(
+			String name,
+			int[][] chains,
+			Map<Integer, ChainElementState> states
+		) {
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "broken", null), chains, states);
+
+			final ConsistencyReport report = idx.getConsistencyReport();
+			assertEquals(ConsistencyState.BROKEN, report.state(), () -> "Expected BROKEN for: " + name);
+			assertTrue(
+				report.report().contains("Errors detected"),
+				() -> "Report for `" + name + "` must list the detected errors."
+			);
+		}
+	}
+
+	/**
+	 * Deterministic, seed-fixed randomized stress kept in the fast functional suite. It hammers a small element set
+	 * with circular-inducing repointing, removals and re-insertions - the operation mix that drives the hard-to-reach
+	 * collapse/circular branches (chain merge re-introducing a circular dependency, collapse blocked by a circular
+	 * candidate, demotion of a previously circular merged head, and the "chain merged away" circular-resolution arm).
+	 * After every single operation it asserts two invariants that hold regardless of the (implementation-defined)
+	 * intermediate ordering: the structure is never internally BROKEN, and it contains exactly the live element set
+	 * with no losses or duplicates. Finally it rebuilds a clean chain over the survivors and asserts the exact order.
+	 */
+	@Nested
+	@DisplayName("Randomized invariant stress")
+	class RandomizedInvariantTest {
+
+		@Test
+		@DisplayName("circular-heavy random churn never corrupts the structure and recovers to a consistent order")
+		void shouldPreserveInvariantsUnderCircularHeavyChurnAndRecover() {
+			final int n = 6;
+			final ChainIndex idx = new ChainIndex(new AttributeIndexKey(null, "fuzz", null));
+			// live[pk] tracks whether the element pk is currently present in the index
+			final boolean[] live = new boolean[n + 1];
+			final Random rnd = new Random(0xC0FFEEL);
+
+			// seed a consistent chain 1..n
+			for (int pk = 1; pk <= n; pk++) {
+				idx.upsertPredecessor(pk == 1 ? Predecessor.HEAD : new Predecessor(pk - 1), pk);
+				live[pk] = true;
+			}
+			assertNotBroken(idx);
+
+			final int operations = 10_000;
+			for (int op = 0; op < operations; op++) {
+				final int roll = rnd.nextInt(10);
+				if (roll < 2) {
+					// remove a present element
+					final int pk = pickPresent(rnd, live, n);
+					if (pk > 0) {
+						idx.removePredecessor(pk);
+						live[pk] = false;
+					}
+				} else if (roll < 4) {
+					// (re)insert an absent element as a head or as a successor of a present element
+					final int pk = pickAbsent(rnd, live, n);
+					if (pk > 0) {
+						final int anchor = pickPresent(rnd, live, n);
+						idx.upsertPredecessor(anchor < 0 ? Predecessor.HEAD : new Predecessor(anchor), pk);
+						live[pk] = true;
+					}
+				} else {
+					// repoint a present element at a head, another present element, or an ABSENT predecessor -
+					// may split, orphan or close a loop
+					final int pk = pickPresent(rnd, live, n);
+					if (pk > 0) {
+						final int dice = rnd.nextInt(10);
+						final int anchor;
+						if (dice == 0) {
+							anchor = -1; // promote to head
+						} else if (dice < 3) {
+							// any pk in range, possibly absent -> exercises the update-to-absent-predecessor path
+							final int candidate = 1 + rnd.nextInt(n);
+							anchor = candidate == pk ? -1 : candidate;
+						} else {
+							anchor = pickPresentOtherThan(rnd, live, n, pk);
+						}
+						idx.upsertPredecessor(anchor < 0 ? Predecessor.HEAD : new Predecessor(anchor), pk);
+					}
+				}
+
+				final int currentOp = op;
+				// invariant 1 - the internal structure is never corrupt
+				assertNotBroken(idx);
+				// invariant 2 - the index holds exactly the live set, each element exactly once
+				assertEquals(
+					liveSet(live, n), lookupSet(idx),
+					() -> "Element set diverged from the live set at operation " + currentOp
+				);
+			}
+
+			// drive the survivors back into a single fully-specified consistent chain and assert the exact order
+			final int[] survivors = liveArray(live, n);
+			for (int i = 0; i < survivors.length; i++) {
+				idx.upsertPredecessor(i == 0 ? Predecessor.HEAD : new Predecessor(survivors[i - 1]), survivors[i]);
+			}
+			assertTrue(idx.isConsistent(), "The index must be consistent after a clean rebuild.");
+			assertNotBroken(idx);
+			assertEquals(ConsistencyState.CONSISTENT, idx.getConsistencyReport().state());
+			assertArrayEquals(survivors, idx.getUnorderedLookup().getArray());
+		}
+
+		/**
+		 * Returns a random currently-present primary key, or -1 when none is present.
+		 */
+		private int pickPresent(@Nonnull Random rnd, @Nonnull boolean[] live, int n) {
+			return pickMatching(rnd, live, n, -1, true);
+		}
+
+		/**
+		 * Returns a random currently-absent primary key from the 1..n range, or -1 when all are present.
+		 */
+		private int pickAbsent(@Nonnull Random rnd, @Nonnull boolean[] live, int n) {
+			return pickMatching(rnd, live, n, -1, false);
+		}
+
+		/**
+		 * Returns a random present primary key other than `exclude`, or -1 when none qualifies.
+		 */
+		private int pickPresentOtherThan(@Nonnull Random rnd, @Nonnull boolean[] live, int n, int exclude) {
+			return pickMatching(rnd, live, n, exclude, true);
+		}
+
+		/**
+		 * Reservoir-samples a single primary key from 1..n whose liveness equals `wantPresent` and which is not
+		 * equal to `exclude`. Returns -1 when no primary key qualifies.
+		 */
+		private int pickMatching(@Nonnull Random rnd, @Nonnull boolean[] live, int n, int exclude, boolean wantPresent) {
+			int chosen = -1;
+			int seen = 0;
+			for (int pk = 1; pk <= n; pk++) {
+				if (live[pk] == wantPresent && pk != exclude) {
+					seen++;
+					if (rnd.nextInt(seen) == 0) {
+						chosen = pk;
+					}
+				}
+			}
+			return chosen;
+		}
+
+		/**
+		 * Builds the set of currently-present primary keys.
+		 */
+		@Nonnull
+		private Set<Integer> liveSet(@Nonnull boolean[] live, int n) {
+			final Set<Integer> result = new TreeSet<>();
+			for (int pk = 1; pk <= n; pk++) {
+				if (live[pk]) {
+					result.add(pk);
+				}
+			}
+			return result;
+		}
+
+		/**
+		 * Builds the set of primary keys currently returned by the index lookup.
+		 */
+		@Nonnull
+		private Set<Integer> lookupSet(@Nonnull ChainIndex index) {
+			final Set<Integer> result = new TreeSet<>();
+			for (int pk : index.getUnorderedLookup().getArray()) {
+				assertTrue(result.add(pk), "Duplicate primary key " + pk + " returned by the index!");
+			}
+			return result;
+		}
+
+		/**
+		 * Builds the ascending array of currently-present primary keys.
+		 */
+		@Nonnull
+		private int[] liveArray(@Nonnull boolean[] live, int n) {
+			int count = 0;
+			for (int pk = 1; pk <= n; pk++) {
+				if (live[pk]) {
+					count++;
+				}
+			}
+			final int[] result = new int[count];
+			int idx = 0;
+			for (int pk = 1; pk <= n; pk++) {
+				if (live[pk]) {
+					result[idx++] = pk;
+				}
+			}
+			return result;
 		}
 	}
 
