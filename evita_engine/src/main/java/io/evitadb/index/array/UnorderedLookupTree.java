@@ -23,7 +23,13 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.reference.TransactionalReference;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -47,9 +53,10 @@ import java.util.Arrays;
  *   the prefix count of records before the container, then add the in-container offset.
  *
  * Descent is **cursor based** (the root → leaf path is captured during descent) — there are **no parent pointers and
- * no sibling links** — so the very same structure path-copies cleanly once the transactional layer is added
- * (mirroring `TransactionalIntBPlusTree`). Mutations touch only the cursor path: `O(log N)` count re-stamps, no
- * suffix renumber, and small fixed-capacity blocks instead of the `O(N)` humongous arrays of the array delegate.
+ * no sibling links** — so the very same structure path-copies cleanly under the transactional layer (mirroring
+ * {@link io.evitadb.index.bPlusTree.TransactionalIntBPlusTree}). Mutations touch only the cursor path: `O(log N)`
+ * count re-stamps, no suffix renumber, and small fixed-capacity blocks instead of the `O(N)` humongous arrays of the
+ * array delegate.
  *
  * This tree is **not** the owner of the `recordId → orderKey` mapping — that is the job of the value index held by
  * the composite that drives this tree. Whenever a mutation assigns or re-stamps a record's order-key (a fresh insert
@@ -57,13 +64,17 @@ import java.util.Arrays;
  * index coherent (INV-COUPLE). Order-keys are minted **only on container split**; on gap exhaustion the whole key
  * space is re-spaced (rare, `O(#containers)`).
  *
- * This class mutates **in place** and is **not** transactional — it is the committed / warm-up delegate. The records
- * must be distinct.
+ * The tree is a {@link TransactionalLayerProducer}: **outside** a transaction it mutates strictly **in place** (the
+ * committed / warm-up delegate, byte-for-byte identical to the legacy behaviour); **inside** a transaction it
+ * path-copies (copy-on-write) — only the touched root→leaf path's nodes decouple their arrays into the per-transaction
+ * layer, the committed tree stays untouched, and the changes materialise on commit. The records must be distinct.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @NotThreadSafe
-public class UnorderedLookupTree implements Serializable {
+public class UnorderedLookupTree implements
+	TransactionalLayerProducer<Void, UnorderedLookupTree>,
+	Serializable {
 	@Serial private static final long serialVersionUID = -7242020610200620162L;
 
 	/**
@@ -87,19 +98,25 @@ public class UnorderedLookupTree implements Serializable {
 	private static final int MAX_HEIGHT = 40;
 
 	/**
-	 * Root node of the tree. `null` when the tree is empty.
+	 * Stable identity of this tree, used by the transactional memory machinery to key its per-transaction diff layer.
 	 */
-	@Nullable private Node root;
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/**
+	 * Root node of the tree. Holds `null` when the tree is empty.
+	 */
+	private final TransactionalReference<Node<?>> root;
 	/**
 	 * Total number of record ids held by the tree (equals the length of the logical array).
 	 */
-	private int size;
+	private final TransactionalReference<Integer> size;
 	/**
 	 * Spacing between freshly assigned order-keys (overridable for tests that force re-spacing).
 	 */
 	private final long orderKeyGap;
 	/**
-	 * Memoized flattened permutation (logical position → record id). Nullified on every mutation.
+	 * Memoized flattened permutation (logical position → record id). Nullified on every mutation. Not transactional —
+	 * it is a pure read-cache derived from the current view and is recomputed lazily; only ever populated outside a
+	 * transaction (mutations inside a transaction never read it back, they always invalidate it on entry).
 	 */
 	@Nullable private int[] memoizedArray;
 
@@ -115,20 +132,37 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 	UnorderedLookupTree(long orderKeyGap) {
 		this.orderKeyGap = orderKeyGap;
+		this.root = new TransactionalReference<>(null);
+		this.size = new TransactionalReference<>(0);
+	}
+
+	/**
+	 * Internal constructor used by {@link #createCopyWithMergedTransactionalMemory(Void, TransactionalLayerMaintainer)}
+	 * to rebuild a committed tree wrapping the already-merged root and size.
+	 *
+	 * @param orderKeyGap the order-key spacing to carry over
+	 * @param root        the committed root node (or `null` for an empty tree)
+	 * @param size        the committed record count
+	 */
+	private UnorderedLookupTree(long orderKeyGap, @Nullable Node<?> root, int size) {
+		this.orderKeyGap = orderKeyGap;
+		this.root = new TransactionalReference<>(root);
+		this.size = new TransactionalReference<>(size);
 	}
 
 	/**
 	 * Returns the number of record ids in the tree (length of the logical array).
 	 */
 	public int size() {
-		return this.size;
+		final Integer theSize = this.size.get();
+		return theSize == null ? 0 : theSize;
 	}
 
 	/**
 	 * Returns true when the tree holds no records.
 	 */
 	public boolean isEmpty() {
-		return this.size == 0;
+		return size() == 0;
 	}
 
 	/**
@@ -139,7 +173,7 @@ public class UnorderedLookupTree implements Serializable {
 	 * @param assignments callback receiving each `recordId → orderKey` assignment
 	 */
 	public void bulkLoad(@Nonnull int[] recordIds, @Nonnull OrderKeyConsumer assignments) {
-		if (this.root != null) {
+		if (getRoot() != null) {
 			throw new GenericEvitaInternalError("Bulk-load is only allowed on an empty tree!");
 		}
 		final int n = recordIds.length;
@@ -148,17 +182,18 @@ public class UnorderedLookupTree implements Serializable {
 		}
 		// 1. pack records into containers and report their order-keys
 		final int containerCount = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
-		Node[] level = new Node[containerCount];
+		Node<?>[] level = new Node<?>[containerCount];
 		long[] minKeys = new long[containerCount];
 		int[] counts = new int[containerCount];
 		int pos = 0;
 		for (int c = 0; c < containerCount; c++) {
-			final LeafNode container = new LeafNode();
+			final LeafNode container = new LeafNode(!Transaction.isTransactionAvailable());
 			final long key = (long) c * this.orderKeyGap;
-			container.orderKey = key;
+			container.setOrderKey(key);
 			final int cnt = Math.min(BLOCK_SIZE, n - pos);
-			System.arraycopy(recordIds, pos, container.recordIds, 0, cnt);
-			container.count = cnt;
+			final int[] containerRecordIds = container.getRecordIdsForUpdate();
+			System.arraycopy(recordIds, pos, containerRecordIds, 0, cnt);
+			container.setCount(cnt);
 			for (int i = 0; i < cnt; i++) {
 				assignments.accept(recordIds[pos + i], key);
 			}
@@ -167,29 +202,32 @@ public class UnorderedLookupTree implements Serializable {
 			counts[c] = cnt;
 			pos += cnt;
 		}
-		this.size = n;
+		setSize(n);
 		// 2. build internal levels bottom-up until a single root remains
 		int levelSize = containerCount;
 		while (levelSize > 1) {
 			final int parentCount = (levelSize + BLOCK_SIZE - 1) / BLOCK_SIZE;
 			final int base = levelSize / parentCount;
 			final int remainder = levelSize % parentCount;
-			final Node[] parents = new Node[parentCount];
+			final Node<?>[] parents = new Node<?>[parentCount];
 			final long[] parentMinKeys = new long[parentCount];
 			final int[] parentCounts = new int[parentCount];
 			int childCursor = 0;
 			for (int p = 0; p < parentCount; p++) {
 				// distribute children evenly so the tail node never ends up with a single child
 				final int childN = base + (p < remainder ? 1 : 0);
-				final InternalNode internal = new InternalNode();
-				internal.childCount = childN;
+				final InternalNode internal = new InternalNode(!Transaction.isTransactionAvailable());
+				final Node<?>[] internalChildren = internal.getChildrenForUpdate();
+				final int[] internalCounts = internal.getCountsForUpdate();
+				final long[] internalSeparators = internal.getSeparatorsForUpdate();
+				internal.setChildCount(childN);
 				int subtree = 0;
 				for (int j = 0; j < childN; j++) {
-					internal.children[j] = level[childCursor + j];
-					internal.counts[j] = counts[childCursor + j];
+					internalChildren[j] = level[childCursor + j];
+					internalCounts[j] = counts[childCursor + j];
 					subtree += counts[childCursor + j];
 					if (j >= 1) {
-						internal.separators[j - 1] = minKeys[childCursor + j];
+						internalSeparators[j - 1] = minKeys[childCursor + j];
 					}
 				}
 				parents[p] = internal;
@@ -202,7 +240,7 @@ public class UnorderedLookupTree implements Serializable {
 			counts = parentCounts;
 			levelSize = parentCount;
 		}
-		this.root = level[0];
+		setRoot(level[0]);
 		invalidateMemoizedState();
 	}
 
@@ -212,23 +250,28 @@ public class UnorderedLookupTree implements Serializable {
 	 * @throws GenericEvitaInternalError when the position is out of bounds
 	 */
 	public int getRecordAt(int position) {
-		if (position < 0 || position >= this.size || this.root == null) {
+		final Node<?> theRoot = getRoot();
+		if (position < 0 || position >= size() || theRoot == null) {
 			throw new GenericEvitaInternalError(
 				"Position " + position + " not found!",
 				"Unknown position in the array!"
 			);
 		}
-		Node node = this.root;
+		Node<?> node = theRoot;
 		int remaining = position;
 		while (node instanceof final InternalNode internal) {
+			final int childCount = internal.getChildCount();
+			final int[] counts = internal.getCounts();
+			final Node<?>[] children = internal.getChildren();
 			int childIndex = 0;
-			while (childIndex < internal.childCount - 1 && remaining >= internal.counts[childIndex]) {
-				remaining -= internal.counts[childIndex];
+			while (childIndex < childCount - 1 && remaining >= counts[childIndex]) {
+				remaining -= counts[childIndex];
 				childIndex++;
 			}
-			node = internal.children[childIndex];
+			node = children[childIndex];
 		}
-		return ((LeafNode) node).recordIds[remaining];
+		final LeafNode leaf = (LeafNode) node;
+		return leaf.getRecordIds()[remaining];
 	}
 
 	/**
@@ -237,15 +280,16 @@ public class UnorderedLookupTree implements Serializable {
 	 * @throws ArrayIndexOutOfBoundsException when the tree is empty
 	 */
 	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
-		if (this.size == 0 || this.root == null) {
+		final Node<?> theRoot = getRoot();
+		if (size() == 0 || theRoot == null) {
 			throw new ArrayIndexOutOfBoundsException("Array is empty!");
 		}
-		Node node = this.root;
+		Node<?> node = theRoot;
 		while (node instanceof final InternalNode internal) {
-			node = internal.children[internal.childCount - 1];
+			node = internal.getChildren()[internal.getChildCount() - 1];
 		}
 		final LeafNode container = (LeafNode) node;
-		return container.recordIds[container.count - 1];
+		return container.getRecordIds()[container.getCount() - 1];
 	}
 
 	/**
@@ -256,14 +300,18 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 	public int findPositionByOrderKey(long orderKey, int recordId) {
 		int prefix = 0;
-		Node node = this.root;
+		Node<?> node = getRoot();
 		while (node instanceof final InternalNode internal) {
+			final int childCount = internal.getChildCount();
+			final int[] counts = internal.getCounts();
+			final long[] separators = internal.getSeparators();
+			final Node<?>[] children = internal.getChildren();
 			int childIndex = 0;
-			while (childIndex < internal.childCount - 1 && orderKey >= internal.separators[childIndex]) {
-				prefix += internal.counts[childIndex];
+			while (childIndex < childCount - 1 && orderKey >= separators[childIndex]) {
+				prefix += counts[childIndex];
 				childIndex++;
 			}
-			node = internal.children[childIndex];
+			node = children[childIndex];
 		}
 		return prefix + indexInContainer((LeafNode) node, recordId);
 	}
@@ -273,20 +321,20 @@ public class UnorderedLookupTree implements Serializable {
 	 * resulting `recordId → orderKey` assignment(s) through `assignments`.
 	 */
 	public void insertAtPosition(int index, int recordId, @Nonnull OrderKeyConsumer assignments) {
-		if (this.root == null) {
-			final LeafNode container = new LeafNode();
-			container.orderKey = 0L;
-			container.recordIds[0] = recordId;
-			container.count = 1;
-			this.root = container;
-			this.size = 1;
+		if (getRoot() == null) {
+			final LeafNode container = new LeafNode(!Transaction.isTransactionAvailable());
+			container.setOrderKey(0L);
+			container.getRecordIdsForUpdate()[0] = recordId;
+			container.setCount(1);
+			setRoot(container);
+			setSize(1);
 			assignments.accept(recordId, 0L);
 			invalidateMemoizedState();
 			return;
 		}
 		final Cursor cursor = new Cursor();
 		final LeafNode container = descendByPosition(index, cursor);
-		final int offset = Math.min(cursor.leafOffset, container.count);
+		final int offset = Math.min(cursor.leafOffset, container.getCount());
 		insertIntoContainer(container, offset, recordId, cursor, assignments);
 		invalidateMemoizedState();
 	}
@@ -315,11 +363,13 @@ public class UnorderedLookupTree implements Serializable {
 		final Cursor cursor = new Cursor();
 		final LeafNode container = descendByKey(orderKey, cursor);
 		final int offset = indexInContainer(container, recordId);
-		System.arraycopy(container.recordIds, offset + 1, container.recordIds, offset, container.count - offset - 1);
-		container.count--;
+		final int count = container.getCount();
+		final int[] recordIds = container.getRecordIdsForUpdate();
+		System.arraycopy(recordIds, offset + 1, recordIds, offset, count - offset - 1);
+		container.setCount(count - 1);
 		propagateCountDelta(cursor, -1);
-		this.size--;
-		if (container.count == 0) {
+		setSize(size() - 1);
+		if (container.getCount() == 0) {
 			removeEmptyContainer(cursor);
 		}
 		invalidateMemoizedState();
@@ -330,10 +380,22 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 	@Nonnull
 	public int[] getArray() {
+		// inside a transaction the flattened view depends on the per-transaction layer, so it must never be memoized
+		// on the shared instance - otherwise the transactional view would poison the committed read-cache (and vice
+		// versa). Only the committed (no-transaction) view is cached.
+		if (Transaction.isTransactionAvailable()) {
+			final int[] result = new int[size()];
+			final Node<?> theRoot = getRoot();
+			if (theRoot != null) {
+				flattenInto(theRoot, result, new int[1]);
+			}
+			return result;
+		}
 		if (this.memoizedArray == null) {
-			final int[] result = new int[this.size];
-			if (this.root != null) {
-				flattenInto(this.root, result, new int[1]);
+			final int[] result = new int[size()];
+			final Node<?> theRoot = getRoot();
+			if (theRoot != null) {
+				flattenInto(theRoot, result, new int[1]);
 			}
 			this.memoizedArray = result;
 		}
@@ -345,24 +407,119 @@ public class UnorderedLookupTree implements Serializable {
 		return "UnorderedLookupTree" + Arrays.toString(getArray());
 	}
 
+	@Override
+	public Void createLayer() {
+		return null;
+	}
+
+	@Override
+	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		// remove the tree's own diff layer
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		// recurse into the size and root references and the whole node graph so that a tree which was created
+		// and discarded within the same transaction (e.g. a removed sub-index) does not leave any of its inner
+		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5)
+		this.size.removeLayer(transactionalLayer);
+		this.root.removeLayer(transactionalLayer);
+		final Node<?> theRoot = getRoot();
+		if (theRoot != null) {
+			removeLayerRecursively(theRoot, transactionalLayer);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public UnorderedLookupTree createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		// the reference merge yields the (possibly unchanged) root NODE; we must then merge that node's own diff
+		// layer and the whole subtree below it, exactly like the reference B+ tree does
+		final Node<?> referencedRoot = transactionalLayer.getStateCopyWithCommittedChanges(this.root).orElse(null);
+		final Node<?> theRoot = referencedRoot == null
+			? null
+			: transactionalLayer.getStateCopyWithCommittedChanges(referencedRoot);
+		final int theSize = transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElse(0);
+		return new UnorderedLookupTree(this.orderKeyGap, theRoot, theSize);
+	}
+
 	/*
 		PRIVATE METHODS
 	 */
+
+	/**
+	 * Returns the current view of the root node — the transactional view when a layer exists, the committed node
+	 * otherwise. Returns `null` for an empty tree.
+	 */
+	@Nullable
+	private Node<?> getRoot() {
+		return this.root.get();
+	}
+
+	/**
+	 * Replaces the root node, dropping any transactional layer held by the previous root that gets discarded.
+	 */
+	private void setRoot(@Nullable Node<?> newRoot) {
+		final Node<?> currentRoot = getRoot();
+		if (currentRoot != null && currentRoot != newRoot
+			&& Transaction.getTransactionalMemoryLayerIfExists(currentRoot) != null) {
+			currentRoot.removeLayer();
+		}
+		this.root.set(newRoot);
+	}
+
+	/**
+	 * Sets the total record count.
+	 */
+	private void setSize(int newSize) {
+		this.size.set(newSize);
+	}
+
+	/**
+	 * Recursively removes the transactional diff layers of the passed node and its descendants. Walks the current
+	 * transactional view of the tree. Nodes hold only primitive `int`/`long` payloads, so there are no per-value
+	 * {@link TransactionalLayerProducer}s to sweep.
+	 *
+	 * @param node               the node whose layer (and that of its subtree) is to be removed
+	 * @param transactionalLayer the maintainer that owns the diff layers
+	 */
+	private static void removeLayerRecursively(
+		@Nonnull Node<?> node,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		if (node instanceof final InternalNode internal) {
+			final Node<?>[] children = internal.getChildren();
+			final int childCount = internal.getChildCount();
+			for (int i = 0; i < childCount; i++) {
+				removeLayerRecursively(children[i], transactionalLayer);
+			}
+		} else if (node instanceof LeafNode) {
+			// leaf payload is primitive ints, never TransactionalLayerProducers - nothing to recurse into
+		} else {
+			throw new GenericEvitaInternalError("Unknown node type: " + node);
+		}
+		// the node's own removeLayer asserts a layer exists - only call it when one is actually open
+		if (Transaction.getTransactionalMemoryLayerIfExists(node) != null) {
+			node.removeLayer(transactionalLayer);
+		}
+	}
 
 	/**
 	 * Inserts `recordId` into `container` at the given in-container `offset`, propagates the count up the cursor path,
 	 * reports the assignment(s) and splits the container on overflow.
 	 */
 	private void insertIntoContainer(@Nonnull LeafNode container, int offset, int recordId, @Nonnull Cursor cursor, @Nonnull OrderKeyConsumer assignments) {
-		System.arraycopy(container.recordIds, offset, container.recordIds, offset + 1, container.count - offset);
-		container.recordIds[offset] = recordId;
-		container.count++;
+		final int count = container.getCount();
+		final int[] recordIds = container.getRecordIdsForUpdate();
+		System.arraycopy(recordIds, offset, recordIds, offset + 1, count - offset);
+		recordIds[offset] = recordId;
+		container.setCount(count + 1);
 		propagateCountDelta(cursor, +1);
-		this.size++;
-		if (container.count > BLOCK_SIZE) {
+		setSize(size() + 1);
+		if (container.getCount() > BLOCK_SIZE) {
 			splitContainer(container, offset, recordId, cursor, assignments);
 		} else {
-			assignments.accept(recordId, container.orderKey);
+			assignments.accept(recordId, container.getOrderKey());
 		}
 	}
 
@@ -373,17 +530,20 @@ public class UnorderedLookupTree implements Serializable {
 	@Nonnull
 	private LeafNode descendByPosition(int position, @Nonnull Cursor cursor) {
 		cursor.depth = 0;
-		Node node = this.root;
+		Node<?> node = getRoot();
 		int remaining = position;
 		while (node instanceof final InternalNode internal) {
+			final int childCount = internal.getChildCount();
+			final int[] counts = internal.getCounts();
+			final Node<?>[] children = internal.getChildren();
 			int childIndex = 0;
 			// for an insertion at a child boundary we stay in the left child (append at its end)
-			while (childIndex < internal.childCount - 1 && remaining > internal.counts[childIndex]) {
-				remaining -= internal.counts[childIndex];
+			while (childIndex < childCount - 1 && remaining > counts[childIndex]) {
+				remaining -= counts[childIndex];
 				childIndex++;
 			}
 			cursor.push(internal, childIndex);
-			node = internal.children[childIndex];
+			node = children[childIndex];
 		}
 		cursor.leafOffset = remaining;
 		return (LeafNode) node;
@@ -395,14 +555,17 @@ public class UnorderedLookupTree implements Serializable {
 	@Nonnull
 	private LeafNode descendByKey(long orderKey, @Nonnull Cursor cursor) {
 		cursor.depth = 0;
-		Node node = this.root;
+		Node<?> node = getRoot();
 		while (node instanceof final InternalNode internal) {
+			final int childCount = internal.getChildCount();
+			final long[] separators = internal.getSeparators();
+			final Node<?>[] children = internal.getChildren();
 			int childIndex = 0;
-			while (childIndex < internal.childCount - 1 && orderKey >= internal.separators[childIndex]) {
+			while (childIndex < childCount - 1 && orderKey >= separators[childIndex]) {
 				childIndex++;
 			}
 			cursor.push(internal, childIndex);
-			node = internal.children[childIndex];
+			node = children[childIndex];
 		}
 		return (LeafNode) node;
 	}
@@ -412,7 +575,9 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 	private static void propagateCountDelta(@Nonnull Cursor cursor, int delta) {
 		for (int level = 0; level < cursor.depth; level++) {
-			cursor.path[level].counts[cursor.idx[level]] += delta;
+			final InternalNode node = cursor.path[level];
+			final int[] counts = node.getCountsForUpdate();
+			counts[cursor.idx[level]] += delta;
 		}
 	}
 
@@ -425,21 +590,25 @@ public class UnorderedLookupTree implements Serializable {
 	 * @param newRecordId the newly inserted record id
 	 */
 	private void splitContainer(@Nonnull LeafNode container, int newOffset, int newRecordId, @Nonnull Cursor cursor, @Nonnull OrderKeyConsumer assignments) {
-		final int total = container.count;
+		final int total = container.getCount();
 		final int leftCount = total / 2;
 		final int rightCount = total - leftCount;
 		final long rightKey = mintOrderKey(container, cursor, assignments);
-		final LeafNode right = new LeafNode();
-		right.orderKey = rightKey;
-		System.arraycopy(container.recordIds, leftCount, right.recordIds, 0, rightCount);
-		right.count = rightCount;
-		container.count = leftCount;
-		Arrays.fill(container.recordIds, leftCount, total, 0);
+		// the offspring node is built in-place (transactionalLayer=false) and rebuilt as a participating node on
+		// commit, exactly like the reference tree's split offspring
+		final LeafNode right = new LeafNode(!Transaction.isTransactionAvailable());
+		right.setOrderKey(rightKey);
+		final int[] containerRecordIds = container.getRecordIdsForUpdate();
+		final int[] rightRecordIds = right.getRecordIdsForUpdate();
+		System.arraycopy(containerRecordIds, leftCount, rightRecordIds, 0, rightCount);
+		right.setCount(rightCount);
+		container.setCount(leftCount);
+		Arrays.fill(containerRecordIds, leftCount, total, 0);
 		// report the new record (in whichever half it landed) and every other record that moved to the right half
-		final long newRecordKey = newOffset < leftCount ? container.orderKey : rightKey;
+		final long newRecordKey = newOffset < leftCount ? container.getOrderKey() : rightKey;
 		assignments.accept(newRecordId, newRecordKey);
 		for (int i = 0; i < rightCount; i++) {
-			final int movedRecordId = right.recordIds[i];
+			final int movedRecordId = rightRecordIds[i];
 			if (movedRecordId != newRecordId) {
 				assignments.accept(movedRecordId, rightKey);
 			}
@@ -451,29 +620,35 @@ public class UnorderedLookupTree implements Serializable {
 	 * Propagates a node split up the cursor: inserts `newRight` (with `newRightMinKey` / `newRightCount`) into the
 	 * parent at `level`, creating a new root when the split reaches the top and splitting parents on overflow.
 	 */
-	private void propagateSplit(@Nonnull Cursor cursor, int level, @Nonnull Node newRight, long newRightMinKey, int newRightCount) {
-		Node right = newRight;
+	private void propagateSplit(@Nonnull Cursor cursor, int level, @Nonnull Node<?> newRight, long newRightMinKey, int newRightCount) {
+		Node<?> right = newRight;
 		long rightMinKey = newRightMinKey;
 		int rightCount = newRightCount;
 		while (true) {
 			if (level < 0) {
 				// the split reached the root - grow a new root above the two halves
-				final InternalNode newRoot = new InternalNode();
-				newRoot.children[0] = this.root;
-				newRoot.children[1] = right;
-				newRoot.counts[0] = subtreeCount(this.root);
-				newRoot.counts[1] = rightCount;
-				newRoot.separators[0] = rightMinKey;
-				newRoot.childCount = 2;
-				this.root = newRoot;
+				final Node<?> oldRoot = getRoot();
+				final InternalNode newRoot = new InternalNode(!Transaction.isTransactionAvailable());
+				final Node<?>[] children = newRoot.getChildrenForUpdate();
+				final int[] counts = newRoot.getCountsForUpdate();
+				final long[] separators = newRoot.getSeparatorsForUpdate();
+				children[0] = oldRoot;
+				children[1] = right;
+				counts[0] = subtreeCount(oldRoot);
+				counts[1] = rightCount;
+				separators[0] = rightMinKey;
+				newRoot.setChildCount(2);
+				// the new root replaces the old one, but the old root remains its first child, so do NOT drop the
+				// old root's layer here - simply publish the new root reference
+				this.root.set(newRoot);
 				return;
 			}
 			final InternalNode parent = cursor.path[level];
 			final int ci = cursor.idx[level];
 			// the existing child's stored count was already incremented for the inserted record; shed the moved part
-			parent.counts[ci] -= rightCount;
+			parent.getCountsForUpdate()[ci] -= rightCount;
 			insertIntoInternal(parent, ci, right, rightMinKey, rightCount);
-			if (parent.childCount <= BLOCK_SIZE) {
+			if (parent.getChildCount() <= BLOCK_SIZE) {
 				return;
 			}
 			// parent overflowed - split it and continue up the cursor
@@ -489,16 +664,20 @@ public class UnorderedLookupTree implements Serializable {
 	/**
 	 * Inserts `newChild` (separator `minKey`, subtree count `childCount`) into `parent` immediately after child `ci`.
 	 */
-	private static void insertIntoInternal(@Nonnull InternalNode parent, int ci, @Nonnull Node newChild, long minKey, int childCount) {
+	private static void insertIntoInternal(@Nonnull InternalNode parent, int ci, @Nonnull Node<?> newChild, long minKey, int childCount) {
+		final int parentChildCount = parent.getChildCount();
+		final Node<?>[] children = parent.getChildrenForUpdate();
+		final int[] counts = parent.getCountsForUpdate();
+		final long[] separators = parent.getSeparatorsForUpdate();
 		final int target = ci + 1;
-		System.arraycopy(parent.children, target, parent.children, target + 1, parent.childCount - target);
-		System.arraycopy(parent.counts, target, parent.counts, target + 1, parent.childCount - target);
+		System.arraycopy(children, target, children, target + 1, parentChildCount - target);
+		System.arraycopy(counts, target, counts, target + 1, parentChildCount - target);
 		// the separator between child ci and the new child goes at index ci, shifting the rest right
-		System.arraycopy(parent.separators, ci, parent.separators, ci + 1, parent.childCount - 1 - ci);
-		parent.children[target] = newChild;
-		parent.counts[target] = childCount;
-		parent.separators[ci] = minKey;
-		parent.childCount++;
+		System.arraycopy(separators, ci, separators, ci + 1, parentChildCount - 1 - ci);
+		children[target] = newChild;
+		counts[target] = childCount;
+		separators[ci] = minKey;
+		parent.setChildCount(parentChildCount + 1);
 	}
 
 	/**
@@ -507,27 +686,34 @@ public class UnorderedLookupTree implements Serializable {
 	 */
 	@Nonnull
 	private InternalNode splitInternal(@Nonnull InternalNode node, @Nonnull long[] promotedKey, @Nonnull int[] promotedCount) {
-		final int total = node.childCount;
+		final int total = node.getChildCount();
 		final int leftCount = total / 2;
 		final int rightCount = total - leftCount;
-		final InternalNode right = new InternalNode();
-		System.arraycopy(node.children, leftCount, right.children, 0, rightCount);
-		System.arraycopy(node.counts, leftCount, right.counts, 0, rightCount);
+		// the offspring node is built in-place (transactionalLayer=false) and rebuilt as a participating node on commit
+		final InternalNode right = new InternalNode(!Transaction.isTransactionAvailable());
+		final Node<?>[] nodeChildren = node.getChildrenForUpdate();
+		final int[] nodeCounts = node.getCountsForUpdate();
+		final long[] nodeSeparators = node.getSeparatorsForUpdate();
+		final Node<?>[] rightChildren = right.getChildrenForUpdate();
+		final int[] rightCounts = right.getCountsForUpdate();
+		final long[] rightSeparators = right.getSeparatorsForUpdate();
+		System.arraycopy(nodeChildren, leftCount, rightChildren, 0, rightCount);
+		System.arraycopy(nodeCounts, leftCount, rightCounts, 0, rightCount);
 		// right keeps the separators strictly inside its child range (rightCount - 1 of them)
-		System.arraycopy(node.separators, leftCount, right.separators, 0, rightCount - 1);
-		right.childCount = rightCount;
+		System.arraycopy(nodeSeparators, leftCount, rightSeparators, 0, rightCount - 1);
+		right.setChildCount(rightCount);
 		// the separator between the two halves is promoted to the parent (not kept in either node)
-		promotedKey[0] = node.separators[leftCount - 1];
+		promotedKey[0] = nodeSeparators[leftCount - 1];
 		int rightSubtreeCount = 0;
 		for (int i = 0; i < rightCount; i++) {
-			rightSubtreeCount += right.counts[i];
+			rightSubtreeCount += rightCounts[i];
 		}
 		promotedCount[0] = rightSubtreeCount;
 		// clear the moved slots in the left node
-		Arrays.fill(node.children, leftCount, total, null);
-		Arrays.fill(node.counts, leftCount, total, 0);
-		Arrays.fill(node.separators, leftCount - 1, total - 1, 0L);
-		node.childCount = leftCount;
+		Arrays.fill(nodeChildren, leftCount, total, null);
+		Arrays.fill(nodeCounts, leftCount, total, 0);
+		Arrays.fill(nodeSeparators, leftCount - 1, total - 1, 0L);
+		node.setChildCount(leftCount);
 		return right;
 	}
 
@@ -539,19 +725,19 @@ public class UnorderedLookupTree implements Serializable {
 		final long nextKey = nextContainerKey(cursor);
 		if (nextKey == NO_NEXT_KEY) {
 			// rightmost container - append a full gap to the right
-			long candidate = container.orderKey + this.orderKeyGap;
-			if (candidate <= container.orderKey) {
+			long candidate = container.getOrderKey() + this.orderKeyGap;
+			if (candidate <= container.getOrderKey()) {
 				respaceOrderKeys(assignments);
-				candidate = container.orderKey + this.orderKeyGap;
+				candidate = container.getOrderKey() + this.orderKeyGap;
 			}
 			return candidate;
 		}
-		long gap = nextKey - container.orderKey;
+		long gap = nextKey - container.getOrderKey();
 		if (gap < 2) {
 			respaceOrderKeys(assignments);
-			gap = nextContainerKey(cursor) - container.orderKey;
+			gap = nextContainerKey(cursor) - container.getOrderKey();
 		}
-		return container.orderKey + gap / 2;
+		return container.getOrderKey() + gap / 2;
 	}
 
 	/**
@@ -563,8 +749,8 @@ public class UnorderedLookupTree implements Serializable {
 		for (int level = cursor.depth - 1; level >= 0; level--) {
 			final InternalNode node = cursor.path[level];
 			final int ci = cursor.idx[level];
-			if (ci < node.childCount - 1) {
-				return node.separators[ci];
+			if (ci < node.getChildCount() - 1) {
+				return node.getSeparators()[ci];
 			}
 		}
 		return NO_NEXT_KEY;
@@ -572,12 +758,14 @@ public class UnorderedLookupTree implements Serializable {
 
 	/**
 	 * Reassigns every container's order-key to an evenly spaced value (preserving logical order) and rebuilds all
-	 * internal separators. Rare; `O(#containers)`.
+	 * internal separators. Rare; `O(#containers)`. Inside a transaction this decouples every node it touches into the
+	 * transactional layer - acceptable because re-spacing is rare.
 	 */
 	private void respaceOrderKeys(@Nonnull OrderKeyConsumer assignments) {
-		if (this.root != null) {
-			reassignKeys(this.root, new long[]{0L}, assignments);
-			recomputeSeparators(this.root);
+		final Node<?> theRoot = getRoot();
+		if (theRoot != null) {
+			reassignKeys(theRoot, new long[]{0L}, assignments);
+			recomputeSeparators(theRoot);
 		}
 	}
 
@@ -585,17 +773,22 @@ public class UnorderedLookupTree implements Serializable {
 	 * Reassigns container order-keys in logical (in-order) sequence, spaced by {@link #orderKeyGap}, reporting each
 	 * record's new order-key so the value index stays coherent (re-spacing re-stamps every record).
 	 */
-	private void reassignKeys(@Nonnull Node node, @Nonnull long[] counter, @Nonnull OrderKeyConsumer assignments) {
+	private void reassignKeys(@Nonnull Node<?> node, @Nonnull long[] counter, @Nonnull OrderKeyConsumer assignments) {
 		if (node instanceof final LeafNode leaf) {
-			leaf.orderKey = counter[0] * this.orderKeyGap;
+			final long newKey = counter[0] * this.orderKeyGap;
+			leaf.setOrderKey(newKey);
 			counter[0]++;
-			for (int i = 0; i < leaf.count; i++) {
-				assignments.accept(leaf.recordIds[i], leaf.orderKey);
+			final int count = leaf.getCount();
+			final int[] recordIds = leaf.getRecordIds();
+			for (int i = 0; i < count; i++) {
+				assignments.accept(recordIds[i], newKey);
 			}
 		} else {
 			final InternalNode internal = (InternalNode) node;
-			for (int i = 0; i < internal.childCount; i++) {
-				reassignKeys(internal.children[i], counter, assignments);
+			final int childCount = internal.getChildCount();
+			final Node<?>[] children = internal.getChildren();
+			for (int i = 0; i < childCount; i++) {
+				reassignKeys(children[i], counter, assignments);
 			}
 		}
 	}
@@ -604,14 +797,17 @@ public class UnorderedLookupTree implements Serializable {
 	 * Recomputes the separators of every internal node in the subtree rooted at `node` from the current container
 	 * order-keys, returning the minimum order-key in the subtree.
 	 */
-	private static long recomputeSeparators(@Nonnull Node node) {
+	private static long recomputeSeparators(@Nonnull Node<?> node) {
 		if (node instanceof final LeafNode leaf) {
-			return leaf.orderKey;
+			return leaf.getOrderKey();
 		}
 		final InternalNode internal = (InternalNode) node;
-		final long min = recomputeSeparators(internal.children[0]);
-		for (int i = 1; i < internal.childCount; i++) {
-			internal.separators[i - 1] = recomputeSeparators(internal.children[i]);
+		final int childCount = internal.getChildCount();
+		final Node<?>[] children = internal.getChildren();
+		final long min = recomputeSeparators(children[0]);
+		final long[] separators = internal.getSeparatorsForUpdate();
+		for (int i = 1; i < childCount; i++) {
+			separators[i - 1] = recomputeSeparators(children[i]);
 		}
 		return min;
 	}
@@ -623,7 +819,7 @@ public class UnorderedLookupTree implements Serializable {
 	private void removeEmptyContainer(@Nonnull Cursor cursor) {
 		if (cursor.depth == 0) {
 			// the container was the root and is now empty - the tree is empty
-			this.root = null;
+			setRoot(null);
 			return;
 		}
 		int level = cursor.depth - 1;
@@ -631,22 +827,22 @@ public class UnorderedLookupTree implements Serializable {
 			final InternalNode parent = cursor.path[level];
 			final int ci = cursor.idx[level];
 			removeChildAt(parent, ci);
-			if (parent.childCount == 0) {
+			if (parent.getChildCount() == 0) {
 				if (level == 0) {
-					this.root = null;
+					setRoot(null);
 					return;
 				}
 				level--;
 				continue;
 			}
-			if (parent.childCount == 1) {
+			if (parent.getChildCount() == 1) {
 				if (level == 0) {
 					// collapse a single-child root to reduce tree height
-					this.root = parent.children[0];
+					setRoot(parent.getChildren()[0]);
 				} else {
 					// splice a single-child internal out of its parent (keep internals >= 2 children)
 					final InternalNode grandParent = cursor.path[level - 1];
-					grandParent.children[cursor.idx[level - 1]] = parent.children[0];
+					grandParent.getChildrenForUpdate()[cursor.idx[level - 1]] = parent.getChildren()[0];
 				}
 			}
 			return;
@@ -657,32 +853,39 @@ public class UnorderedLookupTree implements Serializable {
 	 * Removes the child at index `ci` from `internal`, dropping the adjacent separator.
 	 */
 	private static void removeChildAt(@Nonnull InternalNode internal, int ci) {
-		System.arraycopy(internal.children, ci + 1, internal.children, ci, internal.childCount - ci - 1);
-		System.arraycopy(internal.counts, ci + 1, internal.counts, ci, internal.childCount - ci - 1);
+		final int childCount = internal.getChildCount();
+		final Node<?>[] children = internal.getChildrenForUpdate();
+		final int[] counts = internal.getCountsForUpdate();
+		final long[] separators = internal.getSeparatorsForUpdate();
+		System.arraycopy(children, ci + 1, children, ci, childCount - ci - 1);
+		System.arraycopy(counts, ci + 1, counts, ci, childCount - ci - 1);
 		// drop the separator that bordered the removed child (the one after it, or the last one when removing the tail)
-		final int separatorIndex = ci < internal.childCount - 1 ? ci : ci - 1;
+		final int separatorIndex = ci < childCount - 1 ? ci : ci - 1;
 		if (separatorIndex >= 0) {
-			System.arraycopy(internal.separators, separatorIndex + 1, internal.separators, separatorIndex, internal.childCount - separatorIndex - 2);
+			System.arraycopy(separators, separatorIndex + 1, separators, separatorIndex, childCount - separatorIndex - 2);
 		}
-		internal.childCount--;
-		internal.children[internal.childCount] = null;
-		internal.counts[internal.childCount] = 0;
-		if (internal.childCount >= 1) {
-			internal.separators[internal.childCount - 1] = 0L;
+		final int newChildCount = childCount - 1;
+		internal.setChildCount(newChildCount);
+		children[newChildCount] = null;
+		counts[newChildCount] = 0;
+		if (newChildCount >= 1) {
+			separators[newChildCount - 1] = 0L;
 		}
 	}
 
 	/**
 	 * Returns the number of record ids held in the subtree rooted at `node`.
 	 */
-	private static int subtreeCount(@Nonnull Node node) {
+	private static int subtreeCount(@Nonnull Node<?> node) {
 		if (node instanceof final LeafNode leaf) {
-			return leaf.count;
+			return leaf.getCount();
 		}
 		final InternalNode internal = (InternalNode) node;
+		final int childCount = internal.getChildCount();
+		final int[] counts = internal.getCounts();
 		int sum = 0;
-		for (int i = 0; i < internal.childCount; i++) {
-			sum += internal.counts[i];
+		for (int i = 0; i < childCount; i++) {
+			sum += counts[i];
 		}
 		return sum;
 	}
@@ -691,8 +894,10 @@ public class UnorderedLookupTree implements Serializable {
 	 * Returns the slot index of `recordId` within `container`.
 	 */
 	private static int indexInContainer(@Nonnull LeafNode container, int recordId) {
-		for (int i = 0; i < container.count; i++) {
-			if (container.recordIds[i] == recordId) {
+		final int count = container.getCount();
+		final int[] recordIds = container.getRecordIds();
+		for (int i = 0; i < count; i++) {
+			if (recordIds[i] == recordId) {
 				return i;
 			}
 		}
@@ -705,14 +910,16 @@ public class UnorderedLookupTree implements Serializable {
 	/**
 	 * Recursively flattens the subtree rooted at `node` into `result`, advancing the single-element position holder.
 	 */
-	private static void flattenInto(@Nonnull Node node, @Nonnull int[] result, @Nonnull int[] positionHolder) {
+	private static void flattenInto(@Nonnull Node<?> node, @Nonnull int[] result, @Nonnull int[] positionHolder) {
 		if (node instanceof final LeafNode leaf) {
-			System.arraycopy(leaf.recordIds, 0, result, positionHolder[0], leaf.count);
-			positionHolder[0] += leaf.count;
+			System.arraycopy(leaf.getRecordIds(), 0, result, positionHolder[0], leaf.getCount());
+			positionHolder[0] += leaf.getCount();
 		} else {
 			final InternalNode internal = (InternalNode) node;
-			for (int i = 0; i < internal.childCount; i++) {
-				flattenInto(internal.children[i], result, positionHolder);
+			final int childCount = internal.getChildCount();
+			final Node<?>[] children = internal.getChildren();
+			for (int i = 0; i < childCount; i++) {
+				flattenInto(children[i], result, positionHolder);
 			}
 		}
 	}
@@ -757,55 +964,450 @@ public class UnorderedLookupTree implements Serializable {
 	}
 
 	/**
-	 * Base class for both node types.
+	 * Base type for both node types. Each node is its own {@link TransactionalLayerProducer} (its diff layer is an
+	 * instance of the very same concrete class): a node opens a diff copy of itself in the per-transaction layer on
+	 * first write, exactly like the reference B+ trees. The recursive `N` type binds the layer / copy type to the
+	 * concrete node type so the transactional accessors stay strongly typed.
 	 */
-	abstract static class Node implements Serializable {
-		@Serial private static final long serialVersionUID = 6037764042741656045L;
+	interface Node<N extends Node<N>> extends TransactionalLayerProducer<N, N>, Serializable {
 	}
 
 	/**
 	 * Leaf node = a **container** holding up to {@link #BLOCK_SIZE} record ids in logical order, identified by a
 	 * `long` order-key.
+	 *
+	 * Mirrors `BPlusLeafTreeNode`: each mutable field (`orderKey`, `recordIds`, `count`) is copied-on-write into the
+	 * per-transaction layer on first write through the `...ForUpdate()` accessors; read-only accessors read from the
+	 * layer if present.
 	 */
-	static final class LeafNode extends Node {
+	static final class LeafNode implements Node<LeafNode> {
 		@Serial private static final long serialVersionUID = -2510718704128926730L;
+		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+		/**
+		 * Indicates whether this instance is permitted to create and use transactional layers. The tree nodes use
+		 * themselves (the same class) as their transactional memory layer; were this layer to also use transactional
+		 * memory it would create an infinite loop. This flag prevents that behavior - it is `false` for nodes created
+		 * mid-transaction during splits (which mutate in place within the txn and are rebuilt as participating nodes
+		 * on commit) and `true` for participating nodes.
+		 */
+		private final boolean transactionalLayer;
 		/**
 		 * Stable order-key identifying this container's slot in the logical order.
 		 */
-		long orderKey;
+		private long orderKey;
 		/**
 		 * Record ids in logical order (only the first {@link #count} slots are valid).
 		 */
-		@Nonnull final int[] recordIds = new int[BLOCK_SIZE + 1];
+		private int[] recordIds;
 		/**
 		 * Number of valid record ids in this container.
 		 */
-		int count;
+		private int count;
+
+		/**
+		 * Creates a new empty container.
+		 *
+		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 */
+		LeafNode(boolean transactionalLayer) {
+			this.recordIds = new int[BLOCK_SIZE + 1];
+			this.count = 0;
+			this.orderKey = 0L;
+			this.transactionalLayer = transactionalLayer;
+		}
+
+		/**
+		 * Internal constructor used by {@link #createLayer()} and {@link #createCopyWithMergedTransactionalMemory}.
+		 *
+		 * @param orderKey           the container order-key
+		 * @param recordIds          the record id array (used directly, not copied)
+		 * @param count              the number of valid record ids
+		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 */
+		LeafNode(long orderKey, @Nonnull int[] recordIds, int count, boolean transactionalLayer) {
+			this.orderKey = orderKey;
+			this.recordIds = recordIds;
+			this.count = count;
+			this.transactionalLayer = transactionalLayer;
+		}
+
+		/**
+		 * Returns the container order-key (read-only view).
+		 */
+		long getOrderKey() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.orderKey : layer.orderKey;
+		}
+
+		/**
+		 * Sets the container order-key, decoupling into the transactional layer when present.
+		 */
+		void setOrderKey(long orderKey) {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				this.orderKey = orderKey;
+			} else {
+				layer.orderKey = orderKey;
+			}
+		}
+
+		/**
+		 * Returns the number of valid record ids (read-only view).
+		 */
+		int getCount() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.count : layer.count;
+		}
+
+		/**
+		 * Sets the number of valid record ids, decoupling into the transactional layer when present.
+		 */
+		void setCount(int count) {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				this.count = count;
+			} else {
+				layer.count = count;
+			}
+		}
+
+		/**
+		 * Returns the record id array for READ-ONLY purposes (the layer copy when present).
+		 */
+		@Nonnull
+		int[] getRecordIds() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.recordIds : layer.recordIds;
+		}
+
+		/**
+		 * Returns the record id array for UPDATE, decoupling an independent copy into the transactional layer on first
+		 * write so the committed array stays untouched.
+		 */
+		@Nonnull
+		int[] getRecordIdsForUpdate() {
+			final LeafNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				return this.recordIds;
+			} else {
+				//noinspection ArrayEquality
+				if (layer.recordIds == this.recordIds) {
+					layer.recordIds = new int[this.recordIds.length];
+					System.arraycopy(this.recordIds, 0, layer.recordIds, 0, this.recordIds.length);
+				}
+				return layer.recordIds;
+			}
+		}
+
+		@Override
+		public LeafNode createLayer() {
+			return new LeafNode(this.orderKey, this.recordIds, this.count, false);
+		}
+
+		@Override
+		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			transactionalLayer.removeTransactionalMemoryLayer(this);
+		}
+
+		@Nonnull
+		@Override
+		public LeafNode createCopyWithMergedTransactionalMemory(
+			@Nullable LeafNode layer,
+			@Nonnull TransactionalLayerMaintainer transactionalLayer
+		) {
+			final LeafNode leafLayer = layer;
+			final long theOrderKey;
+			final int[] theRecordIds;
+			final int theCount;
+			if (leafLayer == null) {
+				theOrderKey = this.orderKey;
+				theRecordIds = this.recordIds;
+				theCount = this.count;
+			} else {
+				theOrderKey = leafLayer.orderKey;
+				theRecordIds = leafLayer.recordIds;
+				theCount = leafLayer.count;
+			}
+			// primitive int record ids never carry their own transactional layer, so there is nothing to merge
+			if (leafLayer != null) {
+				return new LeafNode(theOrderKey, theRecordIds, theCount, true);
+			} else if (!this.transactionalLayer) {
+				// nodes created during splits are built with transactionalLayer=false so they do not allocate STM
+				// layers mid-transaction; on commit they must be rebuilt as participating (transactionalLayer=true)
+				// nodes so subsequent transactions can layer changes over them
+				return new LeafNode(theOrderKey, theRecordIds, theCount, true);
+			} else {
+				return this;
+			}
+		}
+
+		@Override
+		public String toString() {
+			final int[] theRecordIds = getRecordIds();
+			final int theCount = getCount();
+			final StringBuilder sb = new StringBuilder(8 + theCount * 4);
+			sb.append('[');
+			for (int i = 0; i < theCount; i++) {
+				if (i > 0) {
+					sb.append(", ");
+				}
+				sb.append(theRecordIds[i]);
+			}
+			sb.append(']');
+			return sb.toString();
+		}
 	}
 
 	/**
 	 * Internal node routing by `long` order-key separators and carrying the record-id count of each child subtree.
 	 * Holds up to {@link #BLOCK_SIZE} children and `childCount - 1` separators (`separators[i]` is the minimum
 	 * order-key found in `children[i + 1]`).
+	 *
+	 * Mirrors `BPlusInternalTreeNode`: each mutable field (`children`, `separators`, `counts`, `childCount`) is
+	 * copied-on-write into the per-transaction layer on first write through the `...ForUpdate()` accessors; read-only
+	 * accessors read from the layer if present.
 	 */
-	static final class InternalNode extends Node {
+	static final class InternalNode implements Node<InternalNode> {
 		@Serial private static final long serialVersionUID = 1791772842933035170L;
+		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+		/**
+		 * Indicates whether this instance is permitted to create and use transactional layers (see the matching field
+		 * on {@link LeafNode}).
+		 */
+		private final boolean transactionalLayer;
 		/**
 		 * Child nodes (only the first {@link #childCount} slots are valid).
 		 */
-		@Nonnull final Node[] children = new Node[BLOCK_SIZE + 1];
+		private Node<?>[] children;
 		/**
 		 * Separator order-keys; `separators[i]` is the minimum order-key in `children[i + 1]`'s subtree.
 		 */
-		@Nonnull final long[] separators = new long[BLOCK_SIZE];
+		private long[] separators;
 		/**
 		 * Record-id count of each child subtree, aligned with {@link #children}.
 		 */
-		@Nonnull final int[] counts = new int[BLOCK_SIZE + 1];
+		private int[] counts;
 		/**
 		 * Number of valid children.
 		 */
-		int childCount;
+		private int childCount;
+
+		/**
+		 * Creates a new empty internal node.
+		 *
+		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 */
+		InternalNode(boolean transactionalLayer) {
+			this.children = new Node<?>[BLOCK_SIZE + 1];
+			this.separators = new long[BLOCK_SIZE];
+			this.counts = new int[BLOCK_SIZE + 1];
+			this.childCount = 0;
+			this.transactionalLayer = transactionalLayer;
+		}
+
+		/**
+		 * Internal constructor used by {@link #createLayer()} and {@link #createCopyWithMergedTransactionalMemory}.
+		 *
+		 * @param children           the children array (used directly, not copied)
+		 * @param separators         the separators array (used directly, not copied)
+		 * @param counts             the per-child subtree counts array (used directly, not copied)
+		 * @param childCount         the number of valid children
+		 * @param transactionalLayer whether this node participates in the transactional memory layer
+		 */
+		InternalNode(@Nonnull Node<?>[] children, @Nonnull long[] separators, @Nonnull int[] counts, int childCount, boolean transactionalLayer) {
+			this.children = children;
+			this.separators = separators;
+			this.counts = counts;
+			this.childCount = childCount;
+			this.transactionalLayer = transactionalLayer;
+		}
+
+		/**
+		 * Returns the number of valid children (read-only view).
+		 */
+		int getChildCount() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.childCount : layer.childCount;
+		}
+
+		/**
+		 * Sets the number of valid children, decoupling into the transactional layer when present.
+		 */
+		void setChildCount(int childCount) {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				this.childCount = childCount;
+			} else {
+				layer.childCount = childCount;
+			}
+		}
+
+		/**
+		 * Returns the children array for READ-ONLY purposes (the layer copy when present).
+		 */
+		@Nonnull
+		Node<?>[] getChildren() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.children : layer.children;
+		}
+
+		/**
+		 * Returns the children array for UPDATE, decoupling an independent copy into the transactional layer on first
+		 * write.
+		 */
+		@Nonnull
+		Node<?>[] getChildrenForUpdate() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				return this.children;
+			} else {
+				//noinspection ArrayEquality
+				if (layer.children == this.children) {
+					layer.children = new Node<?>[this.children.length];
+					System.arraycopy(this.children, 0, layer.children, 0, this.children.length);
+				}
+				return layer.children;
+			}
+		}
+
+		/**
+		 * Returns the separators array for READ-ONLY purposes (the layer copy when present).
+		 */
+		@Nonnull
+		long[] getSeparators() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.separators : layer.separators;
+		}
+
+		/**
+		 * Returns the separators array for UPDATE, decoupling an independent copy into the transactional layer on
+		 * first write.
+		 */
+		@Nonnull
+		long[] getSeparatorsForUpdate() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				return this.separators;
+			} else {
+				//noinspection ArrayEquality
+				if (layer.separators == this.separators) {
+					layer.separators = new long[this.separators.length];
+					System.arraycopy(this.separators, 0, layer.separators, 0, this.separators.length);
+				}
+				return layer.separators;
+			}
+		}
+
+		/**
+		 * Returns the per-child subtree counts array for READ-ONLY purposes (the layer copy when present).
+		 */
+		@Nonnull
+		int[] getCounts() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getTransactionalMemoryLayerIfExists(this) : null;
+			return layer == null ? this.counts : layer.counts;
+		}
+
+		/**
+		 * Returns the per-child subtree counts array for UPDATE, decoupling an independent copy into the transactional
+		 * layer on first write.
+		 */
+		@Nonnull
+		int[] getCountsForUpdate() {
+			final InternalNode layer = this.transactionalLayer ?
+				Transaction.getOrCreateTransactionalMemoryLayer(this) : null;
+			if (layer == null) {
+				return this.counts;
+			} else {
+				//noinspection ArrayEquality
+				if (layer.counts == this.counts) {
+					layer.counts = new int[this.counts.length];
+					System.arraycopy(this.counts, 0, layer.counts, 0, this.counts.length);
+				}
+				return layer.counts;
+			}
+		}
+
+		@Override
+		public InternalNode createLayer() {
+			return new InternalNode(this.children, this.separators, this.counts, this.childCount, false);
+		}
+
+		@Override
+		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			transactionalLayer.removeTransactionalMemoryLayer(this);
+		}
+
+		@Nonnull
+		@Override
+		public InternalNode createCopyWithMergedTransactionalMemory(
+			@Nullable InternalNode layer,
+			@Nonnull TransactionalLayerMaintainer transactionalLayer
+		) {
+			final InternalNode internalLayer = layer;
+			final Node<?>[] theChildren;
+			final long[] theSeparators;
+			final int[] theCounts;
+			final int theChildCount;
+			if (internalLayer == null) {
+				theChildren = this.children;
+				theSeparators = this.separators;
+				theCounts = this.counts;
+				theChildCount = this.childCount;
+			} else {
+				theChildren = internalLayer.children;
+				theSeparators = internalLayer.separators;
+				theCounts = internalLayer.counts;
+				theChildCount = internalLayer.childCount;
+			}
+
+			// merge the committed copies of every child; only allocate a fresh children array when at least one
+			// child actually changed under the transaction
+			Node<?>[] newChildren = null;
+			for (int i = 0; i < theChildCount; i++) {
+				final Node<?> child = transactionalLayer.getStateCopyWithCommittedChanges(theChildren[i]);
+				if (newChildren == null && child != theChildren[i]) {
+					newChildren = new Node<?>[theChildren.length];
+					System.arraycopy(theChildren, 0, newChildren, 0, i);
+				}
+				if (newChildren != null) {
+					newChildren[i] = child;
+				}
+			}
+
+			if (newChildren != null) {
+				return new InternalNode(newChildren, theSeparators, theCounts, theChildCount, true);
+			} else if (internalLayer != null) {
+				return new InternalNode(theChildren, theSeparators, theCounts, theChildCount, true);
+			} else if (!this.transactionalLayer) {
+				// nodes created during splits are built with transactionalLayer=false so they do not allocate STM
+				// layers mid-transaction; on commit they must be rebuilt as participating (transactionalLayer=true)
+				// nodes so subsequent transactions can layer changes over them
+				return new InternalNode(theChildren, theSeparators, theCounts, theChildCount, true);
+			} else {
+				return this;
+			}
+		}
+
+		@Override
+		public String toString() {
+			final int theChildCount = getChildCount();
+			final StringBuilder sb = new StringBuilder(16 + theChildCount * 8);
+			sb.append("Internal(children=").append(theChildCount).append(')');
+			return sb.toString();
+		}
 	}
 
 }
