@@ -179,7 +179,7 @@ class LongRunningTransactionalUnorderedIntArrayTest implements TimeBoundedTestSu
 					(original, committed) -> {
 						assertTransactionalArrayIs(
 							nextArrayToCompare.get(),
-							new TransactionalUnorderedIntArray(committed), "\nRecipe:\n\n" + codeBuffer
+							committed, "\nRecipe:\n\n" + codeBuffer
 						);
 					}
 				);
