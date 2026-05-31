@@ -23,14 +23,12 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -167,25 +165,29 @@ class TransactionalUnorderedIntArrayTest {
 	class TransactionalLayerProducerContractTest {
 
 		@Test
-		@DisplayName("createLayer() returns null when no transaction is available")
+		@DisplayName("createLayer() returns null - the façade holds no diff of its own")
 		void shouldReturnNullLayerOutsideTransaction() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
 
-			final UnorderedIntArrayChanges layer = array.createLayer();
+			final Void layer = array.createLayer();
 
 			assertNull(layer);
 		}
 
 		@Test
-		@DisplayName("returns delegate array when merged with null layer")
-		void shouldReturnMergedCopyWithNullLayer() {
-			final TransactionalLayerMaintainer maintainer =
-				Mockito.mock(TransactionalLayerMaintainer.class);
+		@DisplayName("merged transactional copy is a new façade reflecting the committed changes")
+		void shouldReturnMergedCopyReflectingChanges() {
 			final TransactionalUnorderedIntArray array = new TransactionalUnorderedIntArray(new int[]{7, 3, 5});
 
-			final int[] result = array.createCopyWithMergedTransactionalMemory(null, maintainer);
-
-			assertArrayEquals(new int[]{7, 3, 5}, result);
+			assertStateAfterCommit(
+				array,
+				original -> original.add(5, 8),
+				(original, committed) -> {
+					assertNotNull(committed);
+					assertNotSame(array, committed);
+					assertArrayEquals(new int[]{7, 3, 5, 8}, committed.getArray());
+				}
+			);
 		}
 
 		@Test
@@ -232,7 +234,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 3, 5}, array);
-					assertArrayEquals(new int[]{9, 7, 3, 6, 5, 8}, committed);
+					assertArrayEquals(new int[]{9, 7, 3, 6, 5, 8}, committed.getArray());
 				}
 			);
 		}
@@ -262,7 +264,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 3, 5}, array);
-					assertArrayEquals(new int[]{9, 7, 3, 6, 5, 8}, committed);
+					assertArrayEquals(new int[]{9, 7, 3, 6, 5, 8}, committed.getArray());
 				}
 			);
 		}
@@ -291,7 +293,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 7, 3}, original);
-					assertArrayEquals(new int[]{0, 1, 2, 4, 5, 6, 7, 3}, committed);
+					assertArrayEquals(new int[]{0, 1, 2, 4, 5, 6, 7, 3}, committed.getArray());
 				}
 			);
 		}
@@ -308,7 +310,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 8, 1}, array);
-					assertArrayEquals(new int[]{7, 8, 1}, committed);
+					assertArrayEquals(new int[]{7, 8, 1}, committed.getArray());
 				}
 			);
 		}
@@ -331,7 +333,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 3, 5}, original);
-					assertArrayEquals(new int[]{9, 10, 7, 3, 6, 11, 8, 12, 5}, committed);
+					assertArrayEquals(new int[]{9, 10, 7, 3, 6, 11, 8, 12, 5}, committed.getArray());
 				}
 			);
 		}
@@ -354,7 +356,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 3, 5}, original);
-					assertArrayEquals(new int[]{9, 10, 7, 3, 6, 11, 8, 12, 5}, committed);
+					assertArrayEquals(new int[]{9, 10, 7, 3, 6, 11, 8, 12, 5}, committed.getArray());
 				}
 			);
 		}
@@ -397,7 +399,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{6, 8, 2, 4, 5}, original);
-					assertArrayEquals(new int[]{8, 2}, committed);
+					assertArrayEquals(new int[]{8, 2}, committed.getArray());
 				}
 			);
 		}
@@ -416,7 +418,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 8, 2, 6, 5, 4}, original);
-					assertArrayEquals(new int[]{7, 8, 4}, committed);
+					assertArrayEquals(new int[]{7, 8, 4}, committed.getArray());
 				}
 			);
 		}
@@ -444,7 +446,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 2, 4, 9, 8, 3}, original);
-					assertArrayEquals(new int[]{7, 2}, committed);
+					assertArrayEquals(new int[]{7, 2}, committed.getArray());
 				}
 			);
 		}
@@ -472,7 +474,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 2, 4, 9, 8, 3}, original);
-					assertArrayEquals(new int[]{8, 3}, committed);
+					assertArrayEquals(new int[]{8, 3}, committed.getArray());
 				}
 			);
 		}
@@ -518,7 +520,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 8, 1}, array);
-					assertArrayEquals(new int[]{7, 8, 1}, committed);
+					assertArrayEquals(new int[]{7, 8, 1}, committed.getArray());
 				}
 			);
 		}
@@ -555,7 +557,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{7, 8, 1}, array);
-					assertArrayEquals(new int[]{7, 8, 1}, committed);
+					assertArrayEquals(new int[]{7, 8, 1}, committed.getArray());
 				}
 			);
 		}
@@ -588,7 +590,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[0], array);
-					assertArrayEquals(new int[0], committed);
+					assertArrayEquals(new int[0], committed.getArray());
 				}
 			);
 		}
@@ -629,7 +631,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{5, 1, 6, 10, 2, 11}, original);
-					assertArrayEquals(new int[]{15, 5, 4, 1, 3, 2, 11}, committed);
+					assertArrayEquals(new int[]{15, 5, 4, 1, 3, 2, 11}, committed.getArray());
 				}
 			);
 		}
@@ -664,7 +666,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 1, 10, 6, 11, 5}, original);
-					assertArrayEquals(new int[]{12, 1, 10, 6, 11, 0}, committed);
+					assertArrayEquals(new int[]{12, 1, 10, 6, 11, 0}, committed.getArray());
 				}
 			);
 		}
@@ -705,7 +707,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{1, 5, 8, 11}, original);
-					assertArrayEquals(new int[]{1, 6, 7, 8, 9, 10, 11}, committed);
+					assertArrayEquals(new int[]{1, 6, 7, 8, 9, 10, 11}, committed.getArray());
 				}
 			);
 		}
@@ -744,7 +746,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{1, 2}, original);
-					assertArrayEquals(new int[]{4, 5}, committed);
+					assertArrayEquals(new int[]{4, 5}, committed.getArray());
 				}
 			);
 		}
@@ -776,7 +778,7 @@ class TransactionalUnorderedIntArrayTest {
 					assertEquals(5, original.get(4));
 				},
 				(original, committed) -> {
-					assertArrayEquals(new int[]{9, 7, 3, 6, 5}, committed);
+					assertArrayEquals(new int[]{9, 7, 3, 6, 5}, committed.getArray());
 				}
 			);
 		}
@@ -796,7 +798,7 @@ class TransactionalUnorderedIntArrayTest {
 					assertArrayEquals(new int[]{7, 3, 6}, sub);
 				},
 				(original, committed) -> {
-					assertArrayEquals(new int[]{9, 7, 3, 6, 5}, committed);
+					assertArrayEquals(new int[]{9, 7, 3, 6, 5}, committed.getArray());
 				}
 			);
 		}
@@ -831,7 +833,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 4, 3, 1, 5}, original);
-					assertArrayEquals(new int[]{2, 4, 5}, committed);
+					assertArrayEquals(new int[]{2, 4, 5}, committed.getArray());
 				}
 			);
 		}
@@ -857,7 +859,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{4, 3, 1, 5, 2}, original);
-					assertArrayEquals(new int[]{4, 3, 2}, committed);
+					assertArrayEquals(new int[]{4, 3, 2}, committed.getArray());
 				}
 			);
 		}
@@ -883,7 +885,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 4, 3, 1, 5}, original);
-					assertArrayEquals(new int[]{2, 4, 3}, committed);
+					assertArrayEquals(new int[]{2, 4, 3}, committed.getArray());
 				}
 			);
 		}
@@ -909,7 +911,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 4, 3, 1, 5}, original);
-					assertArrayEquals(new int[]{3, 1, 5}, committed);
+					assertArrayEquals(new int[]{3, 1, 5}, committed.getArray());
 				}
 			);
 		}
@@ -935,7 +937,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 4, 3, 1, 5}, original);
-					assertArrayEquals(new int[]{2, 4, 3, 1, 5, 8, 6}, committed);
+					assertArrayEquals(new int[]{2, 4, 3, 1, 5, 8, 6}, committed.getArray());
 				}
 			);
 		}
@@ -1077,7 +1079,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{1, 2}, original);
-					assertArrayEquals(new int[]{1, 2}, committed);
+					assertArrayEquals(new int[]{1, 2}, committed.getArray());
 				}
 			);
 		}
@@ -1095,7 +1097,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{1, 2}, original);
-					assertArrayEquals(new int[]{1}, committed);
+					assertArrayEquals(new int[]{1}, committed.getArray());
 				}
 			);
 		}
@@ -1139,7 +1141,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{5, 4, 1, 19, 8, 17}, original);
-					assertTransactionalArrayIs(new int[]{4, 7, 18, 14, 8, 13, 17, 1}, new TransactionalUnorderedIntArray(committed));
+					assertTransactionalArrayIs(new int[]{4, 7, 18, 14, 8, 13, 17, 1}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1179,7 +1181,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{12, 19, 16, 5, 0, 11, 4, 13}, original);
-					assertTransactionalArrayIs(new int[]{12, 9, 0, 11, 6, 2, 8, 13, 10, 1}, new TransactionalUnorderedIntArray(committed));
+					assertTransactionalArrayIs(new int[]{12, 9, 0, 11, 6, 2, 8, 13, 10, 1}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1213,7 +1215,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{14, 16, 11, 18, 4, 10, 6, 3}, original);
-					assertTransactionalArrayIs(new int[]{7, 5, 11, 18, 4, 10, 6, 3, 19, 16, 0, 9}, new TransactionalUnorderedIntArray(committed));
+					assertTransactionalArrayIs(new int[]{7, 5, 11, 18, 4, 10, 6, 3, 19, 16, 0, 9}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1248,7 +1250,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{0, 6, 9, 2, 12, 11, 13, 7, 15, 10, 8, 5, 18, 1, 14}, original);
-					assertTransactionalArrayIs(new int[]{0, 11, 13, 7, 15, 10, 3, 16, 9, 19, 5, 14}, new TransactionalUnorderedIntArray(committed));
+					assertTransactionalArrayIs(new int[]{0, 11, 13, 7, 15, 10, 3, 16, 9, 19, 5, 14}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1271,7 +1273,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{6, 7, 5, 2, 4}, original);
-					assertTransactionalArrayIs(new int[]{6, 7, 2, 9, 0, 4}, new TransactionalUnorderedIntArray(committed));
+					assertTransactionalArrayIs(new int[]{6, 7, 2, 9, 0, 4}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1295,7 +1297,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertTransactionalArrayIs(new int[]{2, 3}, original);
-					assertTransactionalArrayIs(new int[]{9, 0, 8, 3}, new TransactionalUnorderedIntArray(committed));
+					assertTransactionalArrayIs(new int[]{9, 0, 8, 3}, new TransactionalUnorderedIntArray(committed.getArray()));
 				}
 			);
 		}
@@ -1362,19 +1364,19 @@ class TransactionalUnorderedIntArrayTest {
 	class BugFixTest {
 
 		@Test
-		@DisplayName("addIntAfterRecord should use position (not recordId) when adding to removals")
-		void shouldUsePositionNotRecordIdWhenMovingBaselineRecordAfterDiffRecord() {
+		@DisplayName("a baseline record is moved after a freshly-inserted record via remove + re-add")
+		void shouldMoveBaselineRecordAfterDiffRecordWithoutDuplicates() {
 			final TransactionalUnorderedIntArray array =
 				new TransactionalUnorderedIntArray(new int[]{10, 20, 30});
 
 			assertStateAfterCommit(
 				array,
 				original -> {
-					// insert 40 at head via diff (40 is not in baseline)
+					// insert 40 at head (40 is not in baseline)
 					original.add(Integer.MIN_VALUE, 40);
-					// move baseline record 10 (at position 0) after diff-inserted 40
-					// this triggers the prevRecLookup.isPresentInDiff() path
-					// where removals should get existingPosition=0, not recordId=10
+					// move baseline record 10 after the freshly-inserted 40 - the façade rejects re-adding an
+					// existing record id, so a move is expressed as remove + add (the idiom the consumers use)
+					original.remove(10);
 					original.add(40, 10);
 
 					assertTransactionalArrayIs(
@@ -1383,7 +1385,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertArrayEquals(
-						new int[]{40, 10, 20, 30}, committed,
+						new int[]{40, 10, 20, 30}, committed.getArray(),
 						"Committed array should have 10 moved after 40 without duplicates"
 					);
 				}
@@ -1415,7 +1417,7 @@ class TransactionalUnorderedIntArrayTest {
 				},
 				(original, committed) -> {
 					assertArrayEquals(
-						new int[0], committed,
+						new int[0], committed.getArray(),
 						"Committed array should be empty"
 					);
 				}
@@ -1423,5 +1425,7 @@ class TransactionalUnorderedIntArrayTest {
 		}
 
 	}
+
+
 
 }

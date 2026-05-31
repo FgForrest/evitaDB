@@ -138,7 +138,7 @@ public class ChainIndex implements
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(CollectionUtils.createHashMap(32), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
+		this.chains = new TransactionalMap<>(CollectionUtils.createHashMap(32), TransactionalUnorderedIntArray.class, Function.identity());
 		this.elementStates = new TransactionalMap<>(CollectionUtils.createHashMap(32));
 	}
 
@@ -169,7 +169,7 @@ public class ChainIndex implements
 					)
 				),
 			TransactionalUnorderedIntArray.class,
-			TransactionalUnorderedIntArray::new
+			Function.identity()
 		);
 		this.elementStates = new TransactionalMap<>(elementStates);
 	}
@@ -183,7 +183,7 @@ public class ChainIndex implements
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
-		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
+		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, Function.identity());
 		this.elementStates = new TransactionalMap<>(elementStates);
 	}
 

@@ -355,6 +355,39 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	}
 
 	/**
+	 * Internal constructor used by {@link #createCopyWithMergedTransactionalMemory} to wrap the already-merged
+	 * (committed) sorted-records façade directly, instead of rebuilding it from an array (preserves the structural
+	 * sharing of the underlying two-tree backing across commits).
+	 */
+	private SortIndex(
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull TransactionalUnorderedIntArray sortedRecords,
+		@Nonnull Serializable[] sortedRecordValues,
+		@Nonnull Map<Serializable, Integer> cardinalities
+	) {
+		this.dirty = new TransactionalBoolean();
+		this.comparatorBase = comparatorBase;
+		for (ComparatorSource comparatorSource : comparatorBase) {
+			assertComparable(comparatorSource.type());
+		}
+		this.referenceKey = referenceKey;
+		this.attributeIndexKey = attributeIndexKey;
+		if (this.comparatorBase.length == 1) {
+			this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);
+			this.comparator = createComparatorFor(this.attributeIndexKey.locale(), this.comparatorBase[0]);
+		} else {
+			this.normalizer = createNormalizerFor(this.comparatorBase);
+			this.comparator = createCombinedComparatorFor(this.attributeIndexKey.locale(), this.comparatorBase);
+		}
+		this.sortedRecords = sortedRecords;
+		//noinspection unchecked,rawtypes
+		this.sortedRecordsValues = new TransactionalObjArray(sortedRecordValues, this.comparator);
+		this.valueCardinalities = new TransactionalMap<>(cardinalities);
+	}
+
+	/**
 	 * Registers new record for passed comparable value. Record id must be present in array only once.
 	 */
 	public void addRecord(@Nonnull Serializable[] value, int recordId) {

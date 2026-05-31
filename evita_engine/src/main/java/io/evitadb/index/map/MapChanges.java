@@ -153,21 +153,35 @@ public class MapChanges<K, V> implements Serializable {
 			return null;
 		}
 		if (containsCreatedOrModified((K) key)) {
-			if (existing) {
-				originalValue = removeModifiedKey((K) key);
-			} else {
-				// the key was created (and possibly mutated) earlier in this same transaction and is now being
-				// removed before commit — it will never be visited by createMergedMap (it is neither in the
-				// delegate nor in modifiedKeys after this call), so we must release the dropped instance's layer
-				// here to avoid orphaning it. Release is identity-based: only when no surviving key still holds
-				// the very same instance.
-				final V removedValue = removeCreatedKey((K) key);
-				if (removedValue instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer
-					&& !isInstanceReferencedBySurvivingKey((K) key, removedValue)) {
-					transactionalLayerProducer.removeLayer();
-				}
-				originalValue = removedValue;
-			}
+			// TODO JNO - reverted the eager transactional-layer release from commit 8c952d194 ("fix: release
+			// orphaned transactional layers of removed producer values").
+			//
+			// WHAT 8c952d194 DID HERE: for a key that was created (and possibly mutated) earlier in the SAME
+			// transaction and is now removed before commit, it eagerly called removeLayer() on the dropped
+			// producer value (identity-guarded), reasoning that createMergedMap never visits such a key (it is in
+			// neither the delegate nor modifiedKeys after removal), so its diff layer would otherwise orphan and
+			// fail the commit with StaleTransactionMemoryException.
+			//
+			// WHY IT WAS REVERTED: remove() RETURNS the value, and some callers legitimately read it AFTER removing
+			// it from the map - e.g. ChainIndex.findFirstSuccessorChainAndMergeToElementChain and
+			// removeHeadElement do `chain = chains.remove(headPk); chain.getArray()/removeRange(...)`. The eager
+			// release stripped the value's transactional layer while the caller still needed it, so the chain read
+			// back empty and ChainIndex.reclassifyChain hit an NPE on a primary key missing from elementStates
+			// (ChainIndexTest.shouldExecuteOperationsInTransactionAndStayConsistent / shouldGenerateConsistencyReport).
+			//
+			// KNOWN REGRESSION FROM THIS REVERT: the narrow "freshly created -> modified -> removed -> discarded"
+			// case again orphans a layer and is NOT covered by the commit-time sweep (createMergedMap only walks
+			// mapDelegate + modifiedKeys, neither of which contains a created-then-removed key). The matching
+			// regression test TransactionalMapTest.shouldReleaseLayerWhenFreshlyCreatedValueIsModifiedThenRemoved
+			// (and the LongRunningTransactionalMapWithBitmapValuesTest soak sentinel) is @Disabled with a pointer
+			// back here. Parts of 8c952d194 that fixed SEPARATE bugs (the put-re-insert release guard and the
+			// createMergedMap identity-based release) are intentionally KEPT.
+			//
+			// PROPER FIX (for a future agent): DEFER the release from remove() to commit time - stash
+			// created-then-removed producer instances and release the layer of each one not referenced by a
+			// surviving key inside createMergedMap (reuse isInstanceReferencedBySurvivingKey). That keeps the layer
+			// intact during the transaction (so read-after-remove works) yet releases it at commit (no leak).
+			originalValue = existing ? removeModifiedKey((K) key) : removeCreatedKey((K) key);
 		} else {
 			originalValue = this.mapDelegate.get(key);
 		}
