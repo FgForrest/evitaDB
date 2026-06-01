@@ -38,11 +38,15 @@ import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -55,9 +59,17 @@ import static io.evitadb.test.TestTags.SLOW;
 /**
  * This test contains various integration tests for {@link Evita}.
  *
+ * Each data-load scenario is parametrized over the {@link CatalogState} in which the churn phase is exercised:
+ *
+ * - {@link CatalogState#WARMING_UP}: the original bulk workload - both the initial insertion and the subsequent
+ *   churn run single-threaded inside the warm-up session, before the catalog is taken live, and
+ * - {@link CatalogState#ALIVE}: the initial bulk insertion still runs in the warm-up session, but the catalog is
+ *   then taken live via `goLiveAndClose` and the whole churn phase is replayed through full ACID transactions.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
+@DisplayName("Warm-up bulk insertion and churn load generation")
 @Tag(CONTRACT)
 @Tag(QUERY)
 class EvitaWarmUpInsertionTest implements EvitaTestSupport {
@@ -74,6 +86,12 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	 * Progress is reported to the standard output every this many operations.
 	 */
 	private static final int PROGRESS_STEP = 200_000;
+	/**
+	 * Number of churn units (operations in the data/range tests, moves in the chain test) grouped into a single
+	 * transaction when the churn phase runs in {@link CatalogState#ALIVE} mode. Tune this to trade transaction
+	 * granularity against throughput.
+	 */
+	private static final int CHURN_TRANSACTION_BATCH_SIZE = 100;
 	private TestPaths paths;
 	private Evita evita;
 
@@ -92,98 +110,82 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
+	@DisplayName("Generate load over the unique-attribute index (insert + churn)")
 	@Tag(SLOW)
-	@Test
-	void shouldGenerateLoadOfDataInWarmUpPhase() {
+	@ParameterizedTest(name = "catalog state: {0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	void shouldGenerateLoadOfDataInWarmUpPhase(@Nonnull CatalogState mode) {
 		this.evita.defineCatalog(TEST_CATALOG);
 
 		final long start = System.nanoTime();
-		this.evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.defineEntitySchema(THE_ENTITY)
-					.withoutGeneratedPrimaryKey()
-					.withAttribute("url", String.class, AttributeSchemaEditor::unique)
-					.updateVia(session);
+		// every (re)insert/update assigns a freshly minted unique url, so the global counter guarantees
+		// uniqueness across both the insertion and the churn phase (the unique attribute index is exercised)
+		final AtomicInteger urlSequence = new AtomicInteger();
+		insertAndChurn(
+			mode,
+			session -> session.defineEntitySchema(THE_ENTITY)
+				.withoutGeneratedPrimaryKey()
+				.withAttribute("url", String.class, AttributeSchemaEditor::unique)
+				.updateVia(session),
+			builder -> builder.setAttribute("url", "http://www.example.com/" + urlSequence.getAndIncrement())
+		);
 
-				// every (re)insert/update assigns a freshly minted unique url, so the global counter guarantees
-				// uniqueness across both the insertion and the churn phase (the unique attribute index is exercised)
-				final AtomicInteger urlSequence = new AtomicInteger();
-				insertAndChurn(
-					session,
-					builder -> builder.setAttribute("url", "http://www.example.com/" + urlSequence.getAndIncrement())
-				);
+		log.info("Set-up completed in: " + StringUtils.formatNano(System.nanoTime() - start));
+	}
 
-				session.goLiveAndClose();
+	@DisplayName("Generate load over the range index (insert + churn)")
+	@Tag(SLOW)
+	@ParameterizedTest(name = "catalog state: {0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	void shouldGenerateLoadOfRangeDataInWarmUpPhase(@Nonnull CatalogState mode) {
+		this.evita.defineCatalog(TEST_CATALOG);
+
+		final long start = System.nanoTime();
+		// every (re)insert/update assigns a random range; overlapping ranges are allowed, so no uniqueness
+		// is required - this exercises the range index (RangeIndex) add/remove paths
+		final Random valueRandom = new Random(13);
+		insertAndChurn(
+			mode,
+			session -> session.defineEntitySchema(THE_ENTITY)
+				.withoutGeneratedPrimaryKey()
+				.withAttribute("validity", IntegerNumberRange.class, AttributeSchemaEditor::filterable)
+				.updateVia(session),
+			builder -> {
+				final int from = valueRandom.nextInt(100_000_000);
+				final int length = valueRandom.nextInt(10_000);
+				builder.setAttribute("validity", IntegerNumberRange.between(from, from + length));
 			}
 		);
 
 		log.info("Set-up completed in: " + StringUtils.formatNano(System.nanoTime() - start));
 	}
 
+	@DisplayName("Generate load over the chain index (insert + coherent move churn)")
 	@Tag(SLOW)
-	@Test
-	void shouldGenerateLoadOfRangeDataInWarmUpPhase() {
+	@ParameterizedTest(name = "catalog state: {0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	void shouldGenerateLoadOfChainDataInWarmUpPhase(@Nonnull CatalogState mode) {
 		this.evita.defineCatalog(TEST_CATALOG);
 
 		final long start = System.nanoTime();
-		this.evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.defineEntitySchema(THE_ENTITY)
-					.withoutGeneratedPrimaryKey()
-					.withAttribute("validity", IntegerNumberRange.class, AttributeSchemaEditor::filterable)
-					.updateVia(session);
-
-				// every (re)insert/update assigns a random range; overlapping ranges are allowed, so no uniqueness
-				// is required - this exercises the range index (RangeIndex) add/remove paths
-				final Random valueRandom = new Random(13);
-				insertAndChurn(
-					session,
-					builder -> {
-						final int from = valueRandom.nextInt(100_000_000);
-						final int length = valueRandom.nextInt(10_000);
-						builder.setAttribute("validity", IntegerNumberRange.between(from, from + length));
-					}
-				);
-
-				session.goLiveAndClose();
-			}
-		);
-
-		log.info("Set-up completed in: " + StringUtils.formatNano(System.nanoTime() - start));
-	}
-
-	@Tag(SLOW)
-	@Test
-	void shouldGenerateLoadOfChainDataInWarmUpPhase() {
-		this.evita.defineCatalog(TEST_CATALOG);
-
-		final long start = System.nanoTime();
-		this.evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.defineEntitySchema(THE_ENTITY)
-					.withoutGeneratedPrimaryKey()
-					// a Predecessor-typed sortable attribute is what populates the ChainIndex, and therefore the
-					// unordered-array write path (TransactionalUnorderedIntArray / UnorderedLookup) this test targets
-					.withAttribute("order", Predecessor.class, AttributeSchemaEditor::sortable)
-					.updateVia(session);
-
-				insertAndChurnChain(session);
-
-				session.goLiveAndClose();
-			}
-		);
+		insertAndChurnChain(mode);
 
 		log.info("Set-up completed in: " + StringUtils.formatNano(System.nanoTime() - start));
 	}
 
 	/**
-	 * Drives the two-phase warm-up workload shared by the data-load tests:
+	 * Drives the two-phase warm-up workload shared by the data-load tests, in the requested {@link CatalogState}:
 	 *
-	 * 1. inserts {@link #INITIAL_RECORD_COUNT} records with primary keys `1..INITIAL_RECORD_COUNT`, and
+	 * 1. defines the entity schema and inserts {@link #INITIAL_RECORD_COUNT} records with primary keys
+	 *    `1..INITIAL_RECORD_COUNT` - this always happens single-threaded in the WARMING_UP warm-up session, and
 	 * 2. performs {@link #CHURN_OPERATIONS} random remove/update operations over that record set.
+	 *
+	 * The churn phase is executed according to `mode`:
+	 *
+	 * - {@link CatalogState#WARMING_UP}: the churn runs inside the same warm-up session, before `goLiveAndClose` -
+	 *   the original, non-transactional bulk-mode workload, and
+	 * - {@link CatalogState#ALIVE}: the catalog is first taken live via `goLiveAndClose`, then each churn operation
+	 *   is applied through its own transactional read-write session (full ACID, one transaction per operation).
 	 *
 	 * In the churn phase a random primary key is drawn each iteration: a live record is either removed (≈50 %) or
 	 * updated with a fresh attribute value (≈50 %), while a previously removed record is re-inserted - this keeps the
@@ -195,30 +197,77 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	 * an update of a still-live record fetches the existing entity and opens it for write - using `createNewEntity`
 	 * for an existing key would be rejected by the engine with an `InvalidMutationException`.
 	 *
-	 * @param session            the warm-up session to operate within (before `goLiveAndClose`)
+	 * @param mode                catalog state in which the churn phase is exercised (WARMING_UP or ALIVE)
+	 * @param schemaDefinition    callback that defines the entity schema within the warm-up session
 	 * @param attributeCustomizer callback that sets a fresh attribute value on the supplied entity builder
 	 */
-	private static void insertAndChurn(
+	private void insertAndChurn(
+		@Nonnull CatalogState mode,
+		@Nonnull Consumer<EvitaSessionContract> schemaDefinition,
+		@Nonnull Consumer<EntityBuilder> attributeCustomizer
+	) {
+		// phase 1 - schema definition and initial bulk insertion always run in the WARMING_UP warm-up session
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				schemaDefinition.accept(session);
+				insertInitial(session, attributeCustomizer);
+				if (mode == CatalogState.WARMING_UP) {
+					// WARMING_UP mode: churn within the same warm-up session, then take the catalog live
+					churn(operation -> operation.accept(session), attributeCustomizer);
+				}
+				session.goLiveAndClose();
+			}
+		);
+		if (mode == CatalogState.ALIVE) {
+			// ALIVE mode: churn the now-live catalog through individual transactional read-write sessions
+			churn(transactionalExecutor(), attributeCustomizer);
+		}
+	}
+
+	/**
+	 * Phase 1 of {@link #insertAndChurn}: inserts {@link #INITIAL_RECORD_COUNT} records with primary keys
+	 * `1..INITIAL_RECORD_COUNT` into the supplied warm-up session, applying `attributeCustomizer` to each builder.
+	 *
+	 * @param session             the WARMING_UP warm-up session to insert into
+	 * @param attributeCustomizer callback that sets a fresh attribute value on each entity builder
+	 */
+	private static void insertInitial(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Consumer<EntityBuilder> attributeCustomizer
 	) {
-		// phase 1 - initial bulk insertion
 		final long insertionStart = System.nanoTime();
+		long lastLogNano = insertionStart;
 		for (int i = 0; i < INITIAL_RECORD_COUNT; i++) {
 			final EntityBuilder builder = session.createNewEntity(THE_ENTITY, i + 1);
 			attributeCustomizer.accept(builder);
 			builder.upsertVia(session);
 			if (i % PROGRESS_STEP == 0) {
-				System.out.println("Inserted: " + i);
+				final long now = System.nanoTime();
+				System.out.println("Inserted: " + i + " (+" + StringUtils.formatNano(now - lastLogNano) + " since last log)");
+				lastLogNano = now;
 			}
 		}
 		log.info(
 			"Initial insertion of " + INITIAL_RECORD_COUNT + " records completed in: " +
 				StringUtils.formatNano(System.nanoTime() - insertionStart)
 		);
+	}
 
-		// phase 2 - random remove/update churn
+	/**
+	 * Phase 2 of {@link #insertAndChurn}: performs {@link #CHURN_OPERATIONS} random remove/update/re-insert
+	 * operations over the record set, each applied through the supplied {@link ChurnExecutor} (which decides whether
+	 * the operation runs in the shared warm-up session or in its own transaction).
+	 *
+	 * @param executor            executor that applies each churn operation in the appropriate session/transaction
+	 * @param attributeCustomizer callback that sets a fresh attribute value on each (re)inserted/updated builder
+	 */
+	private static void churn(
+		@Nonnull ChurnExecutor executor,
+		@Nonnull Consumer<EntityBuilder> attributeCustomizer
+	) {
 		final long churnStart = System.nanoTime();
+		long lastLogNano = churnStart;
 		final Random random = new Random(42);
 		// tracks which primary keys currently hold a live record (index 0 is unused, keys are 1-based)
 		final boolean[] alive = new boolean[INITIAL_RECORD_COUNT + 1];
@@ -228,29 +277,40 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 			final int primaryKey = 1 + random.nextInt(INITIAL_RECORD_COUNT);
 			if (alive[primaryKey] && random.nextBoolean()) {
 				// remove a live record
-				session.deleteEntity(THE_ENTITY, primaryKey);
+				executor.run(session -> session.deleteEntity(THE_ENTITY, primaryKey));
 				alive[primaryKey] = false;
 				aliveCount--;
 			} else if (alive[primaryKey]) {
 				// update a live record - fetch the existing entity (with its attributes) and open it for write
-				final EntityBuilder builder = session.getEntity(THE_ENTITY, primaryKey, attributeContentAll())
-					.map(SealedEntity::openForWrite)
-					.orElseThrow(() -> new IllegalStateException(
-						"Live record with primary key " + primaryKey + " is unexpectedly missing!"));
-				attributeCustomizer.accept(builder);
-				builder.upsertVia(session);
+				executor.run(session -> {
+					final EntityBuilder builder = session.getEntity(THE_ENTITY, primaryKey, attributeContentAll())
+						.map(SealedEntity::openForWrite)
+						.orElseThrow(() -> new IllegalStateException(
+							"Live record with primary key " + primaryKey + " is unexpectedly missing!"));
+					attributeCustomizer.accept(builder);
+					builder.upsertVia(session);
+				});
 			} else {
 				// re-insert a previously removed record (insert semantics)
-				final EntityBuilder builder = session.createNewEntity(THE_ENTITY, primaryKey);
-				attributeCustomizer.accept(builder);
-				builder.upsertVia(session);
+				executor.run(session -> {
+					final EntityBuilder builder = session.createNewEntity(THE_ENTITY, primaryKey);
+					attributeCustomizer.accept(builder);
+					builder.upsertVia(session);
+				});
 				alive[primaryKey] = true;
 				aliveCount++;
 			}
 			if (op % PROGRESS_STEP == 0) {
-				System.out.println("Churn op: " + op + " (alive=" + aliveCount + ")");
+				final long now = System.nanoTime();
+				System.out.println(
+					"Churn op: " + op + " (alive=" + aliveCount + ", +" +
+						StringUtils.formatNano(now - lastLogNano) + " since last log)"
+				);
+				lastLogNano = now;
 			}
 		}
+		// commit any units left in a partially-filled final batch (no-op for the WARMING_UP shared-session executor)
+		executor.flush();
 		log.info(
 			"Churn of " + CHURN_OPERATIONS + " random remove/update operations completed in: " +
 				StringUtils.formatNano(System.nanoTime() - churnStart)
@@ -259,7 +319,8 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 
 	/**
 	 * Variant of {@link #insertAndChurn} that exercises the unordered-array write path behind the `ChainIndex`
-	 * (`TransactionalUnorderedIntArray` / `UnorderedLookup`) rather than the inverted or range index.
+	 * (`TransactionalUnorderedIntArray` / `UnorderedLookup`) rather than the inverted or range index, in the
+	 * requested {@link CatalogState}.
 	 *
 	 * Phase 1 builds a single consistent chain of {@link #INITIAL_RECORD_COUNT} elements: record `1` is the chain
 	 * `HEAD` and record `i` (for `i > 1`) is chained immediately after record `i - 1`. This drives one chain to full
@@ -276,31 +337,75 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	 * than the move path - see `ChainIndexChurnReproTest`.) Roughly {@link #CHURN_OPERATIONS} predecessor updates
 	 * are emitted in total, preserving the previous write volume.
 	 *
-	 * Every update fetches the live entity via `getEntity(...).openForWrite()` (as in {@link #insertAndChurn}) and
-	 * resets its `order` attribute.
+	 * The churn phase is executed according to `mode`:
 	 *
-	 * @param session the warm-up session to operate within (before `goLiveAndClose`)
+	 * - {@link CatalogState#WARMING_UP}: the moves run inside the warm-up session, before `goLiveAndClose`, and
+	 * - {@link CatalogState#ALIVE}: the catalog is first taken live via `goLiveAndClose`, then each move (its
+	 *   up-to-three predecessor updates) is committed atomically as a single transaction against the live catalog.
+	 *
+	 * @param mode catalog state in which the churn phase is exercised (WARMING_UP or ALIVE)
 	 */
-	private static void insertAndChurnChain(@Nonnull EvitaSessionContract session) {
-		// phase 1 - build a single chain 1..N (record i chained right after record i-1)
+	private void insertAndChurnChain(@Nonnull CatalogState mode) {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(THE_ENTITY)
+					.withoutGeneratedPrimaryKey()
+					// a Predecessor-typed sortable attribute is what populates the ChainIndex, and therefore the
+					// unordered-array write path (TransactionalUnorderedIntArray / UnorderedLookup) this test targets
+					.withAttribute("order", Predecessor.class, AttributeSchemaEditor::sortable)
+					.updateVia(session);
+				insertInitialChain(session);
+				if (mode == CatalogState.WARMING_UP) {
+					// WARMING_UP mode: churn within the same warm-up session, then take the catalog live
+					churnChain(operation -> operation.accept(session));
+				}
+				session.goLiveAndClose();
+			}
+		);
+		if (mode == CatalogState.ALIVE) {
+			// ALIVE mode: churn the now-live catalog, one transaction per move
+			churnChain(transactionalExecutor());
+		}
+	}
+
+	/**
+	 * Phase 1 of {@link #insertAndChurnChain}: builds a single chain `1..INITIAL_RECORD_COUNT` (record `i` chained
+	 * right after record `i - 1`) within the supplied warm-up session.
+	 *
+	 * @param session the WARMING_UP warm-up session to insert into
+	 */
+	private static void insertInitialChain(@Nonnull EvitaSessionContract session) {
 		final long insertionStart = System.nanoTime();
+		long lastLogNano = insertionStart;
 		for (int i = 0; i < INITIAL_RECORD_COUNT; i++) {
 			final int primaryKey = i + 1;
 			final EntityBuilder builder = session.createNewEntity(THE_ENTITY, primaryKey);
 			builder.setAttribute("order", primaryKey == 1 ? Predecessor.HEAD : new Predecessor(primaryKey - 1));
 			builder.upsertVia(session);
 			if (i % PROGRESS_STEP == 0) {
-				System.out.println("Inserted: " + i);
+				final long now = System.nanoTime();
+				System.out.println("Inserted: " + i + " (+" + StringUtils.formatNano(now - lastLogNano) + " since last log)");
+				lastLogNano = now;
 			}
 		}
 		log.info(
 			"Initial insertion of " + INITIAL_RECORD_COUNT + " chained records completed in: " +
 				StringUtils.formatNano(System.nanoTime() - insertionStart)
 		);
+	}
 
-		// phase 2 - coherent local moves over a maintained doubly-linked order: relocate a random element after a
-		// random anchor (or to the HEAD), keeping every record live so the chain stays a single consistent run
+	/**
+	 * Phase 2 of {@link #insertAndChurnChain}: churns the chain with coherent local moves over a maintained
+	 * doubly-linked order (fixed seed). Each move relocates a random element after a random anchor (or to the
+	 * `HEAD`) and is applied through the supplied {@link ChurnExecutor} as the (up to) three affected predecessor
+	 * updates. In {@link CatalogState#ALIVE} all updates of a single move are committed together as one transaction.
+	 *
+	 * @param executor executor that applies each move (its up-to-three updates) in the appropriate session/transaction
+	 */
+	private static void churnChain(@Nonnull ChurnExecutor executor) {
 		final long churnStart = System.nanoTime();
+		long lastLogNano = churnStart;
 		final Random random = new Random(42);
 		// maintained doubly-linked order of the (all-live) records: pred[pk]/succ[pk], 0 == HEAD / none
 		final int[] pred = new int[INITIAL_RECORD_COUNT + 1];
@@ -349,23 +454,33 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 
 			// apply the move as the (up to) three affected predecessor updates, in the natural "detach-first" order:
 			// first reconnect x's old successor to x's old predecessor (so x stops dragging a suffix), then relocate
-			// x, then attach x's new successor - keeping every single mutation a true local move
-			if (sOld != 0 && sOld != x) {
-				updateOrder(session, sOld, pOld == 0 ? Predecessor.HEAD : new Predecessor(pOld));
-				opsApplied++;
-			}
-			updateOrder(session, x, anchor == 0 ? Predecessor.HEAD : new Predecessor(anchor));
-			opsApplied++;
-			if (sNew != 0 && sNew != x) {
-				updateOrder(session, sNew, new Predecessor(x));
-				opsApplied++;
-			}
+			// x, then attach x's new successor - keeping every single mutation a true local move. In ALIVE mode all
+			// updates for one move are committed together as a single transaction
+			final int anchorForUpdate = anchor;
+			final boolean updateOldSuccessor = sOld != 0 && sOld != x;
+			final boolean updateNewSuccessor = sNew != 0 && sNew != x;
+			executor.run(session -> {
+				if (updateOldSuccessor) {
+					updateOrder(session, sOld, pOld == 0 ? Predecessor.HEAD : new Predecessor(pOld));
+				}
+				updateOrder(session, x, anchorForUpdate == 0 ? Predecessor.HEAD : new Predecessor(anchorForUpdate));
+				if (updateNewSuccessor) {
+					updateOrder(session, sNew, new Predecessor(x));
+				}
+			});
+			opsApplied += 1 + (updateOldSuccessor ? 1 : 0) + (updateNewSuccessor ? 1 : 0);
 
 			if (opsApplied >= nextProgress) {
-				System.out.println("Churn op: " + opsApplied);
+				final long now = System.nanoTime();
+				System.out.println(
+					"Churn op: " + opsApplied + " (+" + StringUtils.formatNano(now - lastLogNano) + " since last log)"
+				);
+				lastLogNano = now;
 				nextProgress += PROGRESS_STEP;
 			}
 		}
+		// commit any moves left in a partially-filled final batch (no-op for the WARMING_UP shared-session executor)
+		executor.flush();
 		log.info(
 			"Churn of " + CHURN_OPERATIONS + " coherent move operations completed in: " +
 				StringUtils.formatNano(System.nanoTime() - churnStart)
@@ -392,6 +507,70 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 				"Live record with primary key " + primaryKey + " is unexpectedly missing!"));
 		builder.setAttribute("order", predecessor);
 		builder.upsertVia(session);
+	}
+
+	/**
+	 * Returns a {@link ChurnExecutor} that groups churn units into transactions of {@link #CHURN_TRANSACTION_BATCH_SIZE}
+	 * and applies each batch in a single transactional read-write session against the (already live)
+	 * {@link #TEST_CATALOG}. Units are buffered and replayed in submission order, so a unit always observes the writes
+	 * of earlier units in the same batch; the session is committed when the batch fills up or {@link ChurnExecutor#flush()}
+	 * drains the remainder (try-with-resources). With a batch size of `1` this degrades to one ACID transaction per unit.
+	 *
+	 * @return a transactional, batching churn executor
+	 */
+	@Nonnull
+	private ChurnExecutor transactionalExecutor() {
+		return new ChurnExecutor() {
+			/** pending churn units not yet committed (drained once the batch fills up or on flush) */
+			private final List<Consumer<EvitaSessionContract>> pending = new ArrayList<>(CHURN_TRANSACTION_BATCH_SIZE);
+
+			@Override
+			public void run(@Nonnull Consumer<EvitaSessionContract> unit) {
+				this.pending.add(unit);
+				if (this.pending.size() >= CHURN_TRANSACTION_BATCH_SIZE) {
+					flush();
+				}
+			}
+
+			@Override
+			public void flush() {
+				if (this.pending.isEmpty()) {
+					return;
+				}
+				// replay the whole batch in submission order within a single transaction, then commit on close
+				try (final EvitaSessionContract session = EvitaWarmUpInsertionTest.this.evita.createReadWriteSession(TEST_CATALOG)) {
+					for (int i = 0; i < this.pending.size(); i++) {
+						this.pending.get(i).accept(session);
+					}
+				}
+				this.pending.clear();
+			}
+		};
+	}
+
+	/**
+	 * Applies a single logical churn unit (one or more mutations that must be applied atomically) against a session
+	 * supplied by the executor. In {@link CatalogState#WARMING_UP} the unit runs against the shared warm-up session;
+	 * in {@link CatalogState#ALIVE} the executor buffers units and commits them in batches of
+	 * {@link #CHURN_TRANSACTION_BATCH_SIZE} (see {@link #transactionalExecutor()}). Callers must invoke {@link #flush()}
+	 * once the churn loop finishes to commit any partially-filled final batch.
+	 */
+	@FunctionalInterface
+	private interface ChurnExecutor {
+		/**
+		 * Runs the given churn unit against an executor-provided session (possibly deferred until the batch is flushed).
+		 *
+		 * @param unit the mutations to apply (atomically) within a single session/transaction
+		 */
+		void run(@Nonnull Consumer<EvitaSessionContract> unit);
+
+		/**
+		 * Commits any buffered units that have not yet been flushed. A no-op for executors that apply units eagerly
+		 * (such as the WARMING_UP shared-session executor).
+		 */
+		default void flush() {
+			// executors that apply units eagerly have nothing to flush
+		}
 	}
 
 	@Nonnull
