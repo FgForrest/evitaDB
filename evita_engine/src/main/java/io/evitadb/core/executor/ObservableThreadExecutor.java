@@ -118,9 +118,11 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 	/**
 	 * Creates a new executor configured according to the supplied options.
 	 *
-	 * In production mode a {@link ForkJoinPool} is created in async mode (LIFO work-stealing) with parallelism
-	 * capped at `min(options.minThreadCount(), availableProcessors)`. Worker threads are daemon threads named
-	 * `Evita-{@code name}-N` with the configured priority.
+	 * In production mode a {@link ForkJoinPool} is created in async mode (LIFO work-stealing). Its parallelism
+	 * level is resolved by {@link #resolveParallelism(String, ThreadPoolOptions)} from the configured
+	 * {@link ThreadPoolOptions#maxThreadCount()} — deliberately decoupled from {@code availableProcessors()},
+	 * because pool tasks frequently block on I/O and lock contention rather than computing (see that method for
+	 * the rationale). Worker threads are daemon threads named `Evita-{@code name}-N` with the configured priority.
 	 *
 	 * @param name                   logical name of this executor, used in thread names, log messages, and JFR events
 	 * @param options                pool sizing and priority settings; see {@link ThreadPoolOptions}
@@ -133,7 +135,6 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		@Nonnull ThreadPoolOptions options,
 		boolean immediateExecutorService
 	) {
-		final int processorsCount = Runtime.getRuntime().availableProcessors();
 		this.rejectedExecutionHandler = new EvitaRejectingExecutorHandler(name, this.rejectedTaskCount::increment);
 		this.queueLimit = options.queueSize();
 		this.executorService = immediateExecutorService ?
@@ -141,7 +142,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 			new ImmediateExecutorService() :
 			// in standard environment we use a ForkJoinPool that allows to run tasks asynchronously
 			new ForkJoinPool(
-				Math.min(options.minThreadCount(), processorsCount),
+				resolveParallelism(name, options),
 				pool -> new EvitaWorkerThread(pool, name, options.threadPriority()),
 				LoggingUncaughtExceptionHandler.INSTANCE,
 				true,
@@ -161,6 +162,36 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 				60,
 				TimeUnit.SECONDS
 			);
+	}
+
+	/**
+	 * Resolves the {@link ForkJoinPool} parallelism level for a pool of the given logical {@code name}.
+	 *
+	 * The parallelism level is the effective concurrency cap for tasks that block on plain I/O (network,
+	 * gRPC/HTTP (de)serialization) or lock contention — such blocking does **not** spawn ForkJoinPool
+	 * compensation threads (only {@link java.util.concurrent.ForkJoinPool.ManagedBlocker} and `join()` do),
+	 * so the configured {@code corePoolSize}/{@code maximumPoolSize} alone never raise concurrency above this
+	 * value for that kind of work. Historically this was clamped to
+	 * `min(minThreadCount, availableProcessors())`, which silently throttled the pool to a single in-flight
+	 * task inside cgroup-limited containers where `availableProcessors()` reports ≈1 — overflowing the bounded
+	 * queue and rejecting requests while the configured {@code maxThreadCount} stayed inert.
+	 *
+	 * The level therefore defaults to the operator-configured {@link ThreadPoolOptions#maxThreadCount()} (the
+	 * explicit concurrency ceiling) rather than the live CPU count. It can be overridden per pool via the
+	 * `-Devita.poolParallelism.{@code <name>}` system property (clamped to `[1, maxThreadCount]`) as an
+	 * operational escape hatch.
+	 *
+	 * @param name    logical pool name (matches the `-Devita.poolParallelism.<name>` override key)
+	 * @param options pool sizing options supplying the {@link ThreadPoolOptions#maxThreadCount()} ceiling
+	 * @return the parallelism level to use, always at least {@code 1}
+	 */
+	private static int resolveParallelism(@Nonnull String name, @Nonnull ThreadPoolOptions options) {
+		final String override = System.getProperty("evita.poolParallelism." + name);
+		if (override != null && !override.isBlank()) {
+			final int requested = Integer.parseInt(override.trim());
+			return Math.max(1, Math.min(requested, options.maxThreadCount()));
+		}
+		return Math.max(1, options.maxThreadCount());
 	}
 
 	@Override
