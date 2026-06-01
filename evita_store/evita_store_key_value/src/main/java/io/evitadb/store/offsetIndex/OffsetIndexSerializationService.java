@@ -32,8 +32,6 @@ import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
-import io.evitadb.store.offsetIndex.OffsetIndex.VolatileValueInformation;
-import io.evitadb.store.offsetIndex.OffsetIndex.VolatileValues;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.offsetIndex.model.RecordKey;
@@ -56,7 +54,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
@@ -221,11 +218,22 @@ public class OffsetIndexSerializationService {
 	 * Copies a snapshot of an offset index to an output stream. The output stream is not closed by this method.
 	 * You are responsible for closing the output stream.
 	 *
-	 * @param offsetIndex    The original offset index to copy.
-	 * @param inputStream    The input stream containing the offset index file.
-	 * @param outputStream   The output stream to copy the snapshot to.
-	 * @param catalogVersion The generation ID of the snapshot.
-	 * @return The length of the copied snapshot.
+	 * The living data set to copy is resolved as-of `catalogVersion` through {@link OffsetIndex#getEntries(long)}
+	 * (the per-version snapshot), so each copied entry already carries the location valid for that version — there
+	 * is no per-key historical reconstruction.
+	 *
+	 * @param offsetIndex       the original offset index to copy from
+	 * @param inputStream       the input stream over the source offset index file
+	 * @param outputStream      the output stream the snapshot is written to
+	 * @param catalogVersion    the version resolving which entries are copied, and the version stamped onto every
+	 *                          copied record
+	 * @param valuesToOverride  records to write verbatim instead of copying from the source, keyed by record key
+	 * @param progressConsumer  optional callback notified with the running count of copied entries; may be
+	 *                          {@code null}
+	 * @param checksumFactory   factory for the checksum applied to the output stream
+	 * @param compressionFactory factory for the optional compressor applied to the output stream
+	 * @param outputBufferSize  output buffer size in bytes; also bounds the per-fragment record length
+	 * @return location of the last written offset-index fragment and the total number of bytes written
 	 */
 	@Nonnull
 	public static FileLocationAndWrittenBytes copySnapshotTo(
@@ -234,7 +242,6 @@ public class OffsetIndexSerializationService {
 		@Nonnull OutputStream outputStream,
 		long catalogVersion,
 		@Nonnull Map<RecordKey, byte[]> valuesToOverride,
-		@Nonnull VolatileValues volatileValues,
 		@Nullable IntConsumer progressConsumer,
 		@Nonnull ChecksumFactory checksumFactory,
 		@Nonnull CompressionFactory compressionFactory,
@@ -250,7 +257,9 @@ public class OffsetIndexSerializationService {
 			checksumFactory.createChecksum(),
 			compressionFactory.createCompressor().orElse(null)
 		);
-		final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
+		// the registry resolves the exact living data set as of catalogVersion, so each entry already carries the
+		// location valid for that version - no per-key historical reconstruction is needed
+		final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries(catalogVersion);
 		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
 		// Single scratch buffer reused across every storage-record fragment in this snapshot copy.
 		// Per-fragment recordLength is bounded by `outputBufferSize`, so a single buffer of that size is always enough.
@@ -259,23 +268,7 @@ public class OffsetIndexSerializationService {
 		final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
 		while (it.hasNext()) {
 			final Entry<RecordKey, FileLocation> entry = it.next();
-			final Optional<VolatileValueInformation> volatileValueInfoRef = volatileValues.getVolatileValueInformation(
-				catalogVersion, entry.getKey()
-			);
-
-			final FileLocation fileLocation;
-			if (volatileValueInfoRef.isPresent()) {
-				final VolatileValueInformation volatileValue = volatileValueInfoRef.get();
-				if (volatileValue.removed() || volatileValue.addedInFuture()) {
-					continue;
-				} else {
-					final VersionedValue versionedValue = volatileValue.versionedValue();
-					Assert.isPremiseValid(versionedValue != null, "Versioned value must be present!");
-					fileLocation = versionedValue.fileLocation();
-				}
-			} else {
-				fileLocation = entry.getValue();
-			}
+			final FileLocation fileLocation = entry.getValue();
 
 			final byte[] overriddenValue = valuesToOverride.get(entry.getKey());
 			final FileLocation copiedRecordLocation;
