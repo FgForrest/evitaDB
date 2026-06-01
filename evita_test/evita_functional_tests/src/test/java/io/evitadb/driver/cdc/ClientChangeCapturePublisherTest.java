@@ -32,7 +32,6 @@ import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -52,10 +51,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static io.evitadb.test.TestTags.CDC;
-import static io.evitadb.test.TestTags.DRIVER;
-import static io.evitadb.test.TestTags.GRPC;
-import static io.evitadb.test.TestTags.STREAM;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -73,10 +68,6 @@ import static org.mockito.Mockito.verify;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("ClientChangeCapturePublisher backpressure and flow control")
-@Tag(DRIVER)
-@Tag(GRPC)
-@Tag(CDC)
-@Tag(STREAM)
 class ClientChangeCapturePublisherTest implements TestConstants {
 	private static final int QUEUE_SIZE = 4;
 	private static final UUID SUBSCRIPTION_UUID = UUID.fromString("11111111-1111-1111-1111-111111111111");
