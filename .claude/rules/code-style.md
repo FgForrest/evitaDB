@@ -11,6 +11,7 @@ paths:
 - **JavaDoc**: Use Markdown syntax for formatting in JavaDoc - never use HTML tags
 - **Data structures**: Prefer immutable classes / records for data structures
 - **Annotations**: Automatically add `javax.annotation.Nullable` and `javax.annotation.Nonnull` annotations to method parameters and return types
+- **Optional as parameter**: `java.util.Optional` is permitted **only as a method return type**. Never declare it as a method parameter, constructor parameter, or field. For an optional input use a `@Nullable` reference instead; for optional state store the bare value and wrap it with `Optional.ofNullable(...)` at the read boundary. (`Optional` was designed to signal "no result" from a return, not to be passed around — boxing it into arguments adds allocation and an extra null-vs-empty axis.)
 - **Local variables**: Use `final` for local variables
 - **Instance variables**: Use `this` for instance variables
 - **Type declarations**: Never use `var` - always use explicit types

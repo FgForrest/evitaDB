@@ -296,3 +296,14 @@ These are domain-specific objects that implement `TransactionalLayerProducer` (o
 All follow the same pattern: they hold transactional primitive data structures as fields, and their
 `createCopyWithMergedTransactionalMemory` creates a new index instance by calling
 `getStateCopyWithCommittedChanges` on each field.
+
+---
+
+## Persistent (non-transactional) structures
+
+Not every structurally-shared data structure is a diff-layer `TransactionalLayerProducer`. The
+[CHAMP persistent hash map](champ-persistent-map.md) (`ChampMap`) achieves the same copy-on-write
+structural sharing but exposes it directly: each `updated`/`removed` returns a new immutable map instead
+of staging a thread-local diff. It is used by the persistence layer (`OffsetIndex`), not by the
+in-memory transactional indexes — see [champ-persistent-map.md](champ-persistent-map.md) for the
+contrast.

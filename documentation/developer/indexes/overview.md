@@ -353,6 +353,7 @@ See [schema-settings.md](schema-settings.md#reference-index-type) for the full i
 | [Schema Settings](schema-settings.md) | How schema configuration controls index creation and lifecycle |
 | [Mutation Flow](mutation-flow.md) | How entity mutations propagate into index updates |
 | [Query Mapping](query-mapping.md) | Which EvitaQL constraints read from which indexes |
+| [OffsetIndex](offset-index.md) | The append-only key-value **persistence** engine underneath the in-memory indexes |
 
 
 ## Test Blueprint Hints
