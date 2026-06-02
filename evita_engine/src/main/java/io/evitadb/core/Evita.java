@@ -85,9 +85,9 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.core.metric.event.storage.CatalogStatisticsEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
-import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.RequestThreadPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
-import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.TransactionThreadPoolStatisticsEvent;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.core.session.EvitaSession;
@@ -376,14 +376,16 @@ public final class Evita implements EvitaContract {
 			new Scheduler(configuration.server().serviceThreadPool());
 		this.requestExecutor = new ObservableThreadExecutor(
 			"request", configuration.server().requestThreadPool(),
-			configuration.server().directExecutor()
+			configuration.server().directExecutor(),
+			RequestThreadPoolStatisticsEvent::new
 		);
 		this.transactionExecutor = new ObservableThreadExecutor(
 			"transaction",
 			configuration.server().transactionThreadPool(),
 			// transaction handling must always run in a separate thread pool, even in tests
 			// because it uses thread local variables for transaction management
-			false
+			false,
+			TransactionThreadPoolStatisticsEvent::new
 		);
 
 		this.sessionKiller = of(configuration.server().closeSessionsAfterSecondsOfInactivity())
@@ -607,30 +609,16 @@ public final class Evita implements EvitaContract {
 			this::emitEvitaStatistics
 		);
 		FlightRecorder.addPeriodicEvent(
-			RequestForkJoinPoolStatisticsEvent.class,
-			() -> this.requestExecutor.emitPoolStatistics(
-				(fj, steals) -> new RequestForkJoinPoolStatisticsEvent(
-					steals,
-					fj.getQueuedTaskCount(),
-					fj.getActiveThreadCount(),
-					fj.getRunningThreadCount()
-				)
-			)
+			RequestThreadPoolStatisticsEvent.class,
+			this.requestExecutor::emitStatistics
 		);
 		FlightRecorder.addPeriodicEvent(
-			TransactionForkJoinPoolStatisticsEvent.class,
-			() -> this.transactionExecutor.emitPoolStatistics(
-				(fj, steals) -> new TransactionForkJoinPoolStatisticsEvent(
-					steals,
-					fj.getQueuedTaskCount(),
-					fj.getActiveThreadCount(),
-					fj.getRunningThreadCount()
-				)
-			)
+			TransactionThreadPoolStatisticsEvent.class,
+			this.transactionExecutor::emitStatistics
 		);
 		FlightRecorder.addPeriodicEvent(
 			ScheduledExecutorStatisticsEvent.class,
-			this.serviceExecutor::emitScheduledForkJoinPoolStatistics
+			this.serviceExecutor::emitStatistics
 		);
 	}
 
