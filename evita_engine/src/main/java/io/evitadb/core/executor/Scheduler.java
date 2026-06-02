@@ -271,6 +271,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 					runnable.run();
 				} catch (Throwable t) {
 					log.error("Uncaught error during execution of a task submitted via execute().", t);
+					// never swallow VM errors (OutOfMemoryError, StackOverflowError, ...) - the process may be in
+					// an inconsistent state, so re-raise them after logging while still absorbing ordinary exceptions
+					if (t instanceof Error error) {
+						throw error;
+					}
 				}
 			});
 			this.submittedTaskCount.increment();
@@ -419,6 +424,13 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Note: only 1 is added to {@link #submittedTaskCount} regardless of how many tasks are provided, because from
+	 * the caller's perspective a single logical operation has been submitted (this mirrors the convention used by
+	 * the sibling observable executor).
+	 */
 	@Nonnull
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
@@ -439,6 +451,13 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Note: only 1 is added to {@link #submittedTaskCount} regardless of how many tasks are provided, because from
+	 * the caller's perspective a single logical operation has been submitted (this mirrors the convention used by
+	 * the sibling observable executor).
+	 */
 	@Nullable
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
@@ -657,13 +676,18 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * Adds the task to the tracking {@link #queue}, returning the same instance to allow for fluent chaining. The
 	 * task is first added via a non-blocking {@link ArrayBlockingQueue#offer(Object) offer}; if the queue is full,
 	 * {@link #purgeFinishedAndLongWaitingTasks()} is triggered to reclaim space and the offer is retried. Should the
-	 * queue still be full afterwards, the task is marked as failed, the rejecting handler (when present) is notified
-	 * and an {@link IllegalStateException} is thrown.
+	 * queue still be full afterwards, the task is marked as failed and the overflow is reported.
+	 *
+	 * The exception type observed by the caller on overflow depends on whether a rejecting handler is registered:
+	 * with a handler (the regular runtime setup) {@link EvitaRejectingExecutorHandler#rejectedExecution()} emits its
+	 * event and throws a {@link RejectedExecutionException}; without one (the test-only constructor) the method falls
+	 * through to throw an {@link IllegalStateException}.
 	 *
 	 * @param task the task to add
 	 * @param <T>  the type of the task
 	 * @return the task that was added
-	 * @throws IllegalStateException if the queue remains full even after a purge attempt
+	 * @throws RejectedExecutionException if the queue remains full after a purge and a rejecting handler is registered
+	 * @throws IllegalStateException      if the queue remains full after a purge and no rejecting handler is registered
 	 */
 	@Nonnull
 	private <T extends ServerTask<?, ?>> T addTaskToQueue(@Nonnull T task) {

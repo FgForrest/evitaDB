@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -48,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.evitadb.test.TestTags.ENGINE;
@@ -56,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * This test verifies the correct functionality of the {@link Scheduler} class.
@@ -259,6 +262,17 @@ class SchedulerTest {
 			assertEquals(42, result);
 			assertEquals(before + 1, SchedulerTest.this.scheduler.getSubmittedTaskCount());
 		}
+
+		@Test
+		@DisplayName("counts a timed invokeAny submission")
+		void shouldCountTimedInvokeAnySubmission() throws InterruptedException, ExecutionException, TimeoutException {
+			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
+			final Integer result = SchedulerTest.this.scheduler.invokeAny(
+				List.of((Callable<Integer>) () -> 42), 5, TimeUnit.SECONDS
+			);
+			assertEquals(42, result);
+			assertEquals(before + 1, SchedulerTest.this.scheduler.getSubmittedTaskCount());
+		}
 	}
 
 	@Nested
@@ -270,31 +284,32 @@ class SchedulerTest {
 		void shouldLogExceptionThrownViaExecute() throws InterruptedException {
 			// an exception thrown by a fire-and-forget execute() task must not be silently swallowed inside the
 			// discarded future - it has to be logged
-			final Logger schedulerLogger = (Logger) LoggerFactory.getLogger(Scheduler.class);
-			final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+			final org.slf4j.Logger slf4jLogger = LoggerFactory.getLogger(Scheduler.class);
+			// the assertion captures log output through Logback's appender API; skip gracefully under a different
+			// SLF4J binding rather than failing with a ClassCastException
+			assumeTrue(slf4jLogger instanceof Logger, "Logback backend required to capture log output.");
+			final Logger schedulerLogger = (Logger) slf4jLogger;
+
+			// the appender releases the latch as soon as the expected error event arrives - no polling needed
+			final CountDownLatch errorLogged = new CountDownLatch(1);
+			final ListAppender<ILoggingEvent> appender = new ListAppender<>() {
+				@Override
+				protected void append(@Nonnull ILoggingEvent eventObject) {
+					super.append(eventObject);
+					if (eventObject.getLevel() == Level.ERROR && eventObject.getThrowableProxy() != null) {
+						errorLogged.countDown();
+					}
+				}
+			};
 			appender.start();
 			schedulerLogger.addAppender(appender);
 			try {
-				final CountDownLatch latch = new CountDownLatch(1);
 				SchedulerTest.this.scheduler.execute(() -> {
-					try {
-						throw new RuntimeException("boom");
-					} finally {
-						latch.countDown();
-					}
+					throw new RuntimeException("boom");
 				});
 
-				assertTrue(latch.await(5, TimeUnit.SECONDS), "Task was not executed in time.");
-
-				// the wrapper logs after run() returns, so wait until the error event is observed
-				final long start = System.currentTimeMillis();
-				while (appender.list.stream().noneMatch(it -> it.getLevel() == Level.ERROR)
-					&& System.currentTimeMillis() - start < 5_000) {
-					Thread.onSpinWait();
-				}
-
 				assertTrue(
-					appender.list.stream().anyMatch(it -> it.getLevel() == Level.ERROR && it.getThrowableProxy() != null),
+					errorLogged.await(5, TimeUnit.SECONDS),
 					"Expected an ERROR log entry carrying the swallowed exception."
 				);
 			} finally {
