@@ -35,6 +35,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.lang.Thread.UncaughtExceptionHandler;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.*;
@@ -60,7 +61,10 @@ import java.util.concurrent.atomic.LongAdder;
  * - **Bounded backlog**: once {@code maxThreadCount} threads are busy, up to
  *   `{@link ThreadPoolOptions#queueSize()}` tasks are queued; beyond that {@link GrowAwareRejectionHandler}
  *   rejects with a {@link RejectedExecutionException} (and {@link #rejectedTaskCount} is bumped), except for
- *   {@link UnrejectableTask}s which are always enqueued. An in-flight counter ({@link #queueSize}) drives the
+ *   {@link UnrejectableTask}s submitted via {@code execute(...)}/{@code submit(...)}, which are always enqueued.
+ *   The {@code invokeAll}/{@code invokeAny} batch paths do not preserve the unrejectable marker (the JDK
+ *   re-wraps each task in a plain {@link FutureTask} before it reaches the rejection handler); they are not used
+ *   with unrejectable tasks. An in-flight counter ({@link #queueSize}) drives the
  *   grow-before-queue decision and is decremented when a task finishes via the `onCompletion` callback.
  * - **Cancellable tasks**: every submitted {@link Runnable}/{@link Callable} is wrapped in
  *   {@link ObservableRunnable}/{@link ObservableCallable} which record the executing thread so that
@@ -449,7 +453,10 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 	@Nonnull
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks) {
-		final List<ObservableCallable<T>> tasksToSubmit = tasks.stream().map(this::wrapToCancellableTask).toList();
+		final List<ObservableCallable<T>> tasksToSubmit = new ArrayList<>(tasks.size());
+		for (final Callable<T> task : tasks) {
+			tasksToSubmit.add(wrapToCancellableTask(task));
+		}
 		try {
 			final List<Future<T>> futures = this.executorService.invokeAll(tasksToSubmit);
 			this.submittedTaskCount.add(futures.size());
@@ -472,7 +479,10 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 	@Nonnull
 	@Override
 	public <T> List<Future<T>> invokeAll(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException {
-		final List<ObservableCallable<T>> tasksToSubmit = tasks.stream().map(this::wrapToCancellableTask).toList();
+		final List<ObservableCallable<T>> tasksToSubmit = new ArrayList<>(tasks.size());
+		for (final Callable<T> task : tasks) {
+			tasksToSubmit.add(wrapToCancellableTask(task));
+		}
 		try {
 			final List<Future<T>> futures = this.executorService.invokeAll(tasksToSubmit, timeout, unit);
 			this.submittedTaskCount.add(futures.size());
@@ -496,7 +506,10 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 	@Nonnull
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
-		final List<ObservableCallable<T>> tasksToSubmit = tasks.stream().map(this::wrapToCancellableTask).toList();
+		final List<ObservableCallable<T>> tasksToSubmit = new ArrayList<>(tasks.size());
+		for (final Callable<T> task : tasks) {
+			tasksToSubmit.add(wrapToCancellableTask(task));
+		}
 		try {
 			final T result = this.executorService.invokeAny(tasksToSubmit);
 			this.submittedTaskCount.increment();
@@ -518,7 +531,10 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 	 */
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
-		final List<ObservableCallable<T>> tasksToSubmit = tasks.stream().map(this::wrapToCancellableTask).toList();
+		final List<ObservableCallable<T>> tasksToSubmit = new ArrayList<>(tasks.size());
+		for (final Callable<T> task : tasks) {
+			tasksToSubmit.add(wrapToCancellableTask(task));
+		}
 		try {
 			final T result = this.executorService.invokeAny(tasksToSubmit, timeout, unit);
 			this.submittedTaskCount.increment();
@@ -667,7 +683,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		 * Human-readable description of the task; {@code null} when an unnamed constructor was used,
 		 * in which case {@link #toString()} delegates to the delegate's {@code toString()}.
 		 */
-		private final String name;
+		@Nullable private final String name;
 		/**
 		 * Snapshot of the submitting thread's MDC and thread-local tracing state, captured eagerly at
 		 * construction time. Restored onto the worker thread by the subclass's run/call method so that log
@@ -1018,7 +1034,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		/** Counter feeding the {@code N} suffix of created thread names. */
 		private final AtomicInteger threadCounter = new AtomicInteger();
 		/** Logical pool name embedded in the thread name. */
-		private final String name;
+		@Nonnull private final String name;
 		/** {@link Thread} priority in the range 1–10. */
 		private final int priority;
 
