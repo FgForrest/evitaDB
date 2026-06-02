@@ -398,7 +398,7 @@ doba trvání probe.</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_active</code> (GAUGE)</dt>
   <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Dokončené úlohy</strong>: Přibližný celkový počet úloh, které byly dokončeny</dd>
+  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které dokončily vykonávání od předchozího pozorování; metriková pipeline tyto přírůstky za interval akumuluje do celkového čítače dokončených úloh</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
   <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která se kdy současně nacházela v poolu</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
@@ -408,7 +408,7 @@ doba trvání probe.</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Aktuální počet pracovníků</strong>: Aktuální počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Zbývající fronta</strong>: Počet dalších prvků, které může tato fronta ideálně přijmout bez blokování</dd>
+  <dd><strong>Zbývající fronta</strong>: Přibližný počet dalších úloh, které může vykonavatel ještě přijmout do své fronty; přesný význam závisí na konkrétním vykonavateli (rezerva do nakonfigurovaného měkkého limitu fronty u poolů požadavků/transakcí, nebo zbývající kapacita podkladové fronty u plánovaného poolu)</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_queued</code> (GAUGE)</dt>
   <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na vykonání</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_accepted</code> (COUNTER)</dt>
@@ -424,7 +424,7 @@ doba trvání probe.</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_active</code> (GAUGE)</dt>
   <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Dokončené úlohy</strong>: Přibližný celkový počet úloh, které byly dokončeny</dd>
+  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které dokončily vykonávání od předchozího pozorování; metriková pipeline tyto přírůstky za interval akumuluje do celkového čítače dokončených úloh</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_largest_pool_size</code> (GAUGE)</dt>
   <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která se kdy současně nacházela v poolu</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_core</code> (GAUGE)</dt>
@@ -434,13 +434,13 @@ doba trvání probe.</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Aktuální počet pracovníků</strong>: Aktuální počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Zbývající fronta</strong>: Počet dalších prvků, které může tato fronta ideálně přijmout bez blokování</dd>
+  <dd><strong>Zbývající fronta</strong>: Přibližný počet dalších úloh, které může vykonavatel ještě přijmout do své fronty; přesný význam závisí na konkrétním vykonavateli (rezerva do nakonfigurovaného měkkého limitu fronty u poolů požadavků/transakcí, nebo zbývající kapacita podkladové fronty u plánovaného poolu)</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queued</code> (GAUGE)</dt>
   <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na vykonání</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_active</code> (GAUGE)</dt>
   <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Dokončené úlohy</strong>: Přibližný celkový počet úloh, které byly dokončeny</dd>
+  <dd><strong>Dokončené úlohy</strong>: Počet úloh, které dokončily vykonávání od předchozího pozorování; metriková pipeline tyto přírůstky za interval akumuluje do celkového čítače dokončených úloh</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
   <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která se kdy současně nacházela v poolu</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
@@ -450,7 +450,7 @@ doba trvání probe.</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Aktuální počet pracovníků</strong>: Aktuální počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Zbývající fronta</strong>: Počet dalších prvků, které může tato fronta ideálně přijmout bez blokování</dd>
+  <dd><strong>Zbývající fronta</strong>: Přibližný počet dalších úloh, které může vykonavatel ještě přijmout do své fronty; přesný význam závisí na konkrétním vykonavateli (rezerva do nakonfigurovaného měkkého limitu fronty u poolů požadavků/transakcí, nebo zbývající kapacita podkladové fronty u plánovaného poolu)</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queued</code> (GAUGE)</dt>
   <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na vykonání</dd>
 </dl>

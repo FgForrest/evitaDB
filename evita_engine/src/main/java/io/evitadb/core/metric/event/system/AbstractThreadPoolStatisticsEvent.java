@@ -50,7 +50,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 public abstract class AbstractThreadPoolStatisticsEvent extends AbstractSystemEvent {
 
 	@Label("Tasks completed")
-	@Description("The approximate total number of tasks that have completed execution")
+	@Description("The number of tasks that completed execution since the previous observation; the metrics pipeline accumulates these per-tick deltas into the total completed-task counter")
 	@ExportMetric(metricType = MetricType.COUNTER)
 	final long completed;
 
@@ -65,7 +65,7 @@ public abstract class AbstractThreadPoolStatisticsEvent extends AbstractSystemEv
 	final int queued;
 
 	@Label("Queue remaining")
-	@Description("The number of additional elements that this queue can ideally accept without blocking")
+	@Description("The approximate number of additional tasks the executor can still admit to its backlog; the precise meaning is executor-specific (headroom to the configured soft queue limit for the request/transaction pools, or the backing queue's remaining capacity for the scheduled pool)")
 	@ExportMetric(metricType = MetricType.GAUGE)
 	final int queueRemaining;
 

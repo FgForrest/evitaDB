@@ -409,7 +409,7 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_active</code> (GAUGE)</dt>
   <dd><strong>Tasks active</strong>: The approximate number of threads that are actively executing tasks</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Tasks completed</strong>: The approximate total number of tasks that have completed execution</dd>
+  <dd><strong>Tasks completed</strong>: The number of tasks that completed execution since the previous observation; the metrics pipeline accumulates these per-tick deltas into the total completed-task counter</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
   <dd><strong>Largest worker count</strong>: The largest number of threads that have ever simultaneously been in the pool</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
@@ -419,7 +419,7 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Current worker count</strong>: The current number of threads in the pool</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Queue remaining</strong>: The number of additional elements that this queue can ideally accept without blocking</dd>
+  <dd><strong>Queue remaining</strong>: The approximate number of additional tasks the executor can still admit to its backlog; the precise meaning is executor-specific (headroom to the configured soft queue limit for the request/transaction pools, or the backing queue's remaining capacity for the scheduled pool)</dd>
   <dt><code>io_evitadb_system_request_thread_pool_statistics_queued</code> (GAUGE)</dt>
   <dd><strong>Tasks queued</strong>: The approximate number of queued tasks that are waiting to be executed</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_accepted</code> (COUNTER)</dt>
@@ -435,7 +435,7 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_active</code> (GAUGE)</dt>
   <dd><strong>Tasks active</strong>: The approximate number of threads that are actively executing tasks</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Tasks completed</strong>: The approximate total number of tasks that have completed execution</dd>
+  <dd><strong>Tasks completed</strong>: The number of tasks that completed execution since the previous observation; the metrics pipeline accumulates these per-tick deltas into the total completed-task counter</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_largest_pool_size</code> (GAUGE)</dt>
   <dd><strong>Largest worker count</strong>: The largest number of threads that have ever simultaneously been in the pool</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_core</code> (GAUGE)</dt>
@@ -445,13 +445,13 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Current worker count</strong>: The current number of threads in the pool</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Queue remaining</strong>: The number of additional elements that this queue can ideally accept without blocking</dd>
+  <dd><strong>Queue remaining</strong>: The approximate number of additional tasks the executor can still admit to its backlog; the precise meaning is executor-specific (headroom to the configured soft queue limit for the request/transaction pools, or the backing queue's remaining capacity for the scheduled pool)</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queued</code> (GAUGE)</dt>
   <dd><strong>Tasks queued</strong>: The approximate number of queued tasks that are waiting to be executed</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_active</code> (GAUGE)</dt>
   <dd><strong>Tasks active</strong>: The approximate number of threads that are actively executing tasks</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_completed</code> (COUNTER)</dt>
-  <dd><strong>Tasks completed</strong>: The approximate total number of tasks that have completed execution</dd>
+  <dd><strong>Tasks completed</strong>: The number of tasks that completed execution since the previous observation; the metrics pipeline accumulates these per-tick deltas into the total completed-task counter</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
   <dd><strong>Largest worker count</strong>: The largest number of threads that have ever simultaneously been in the pool</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
@@ -461,7 +461,7 @@ duration of the probe.</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
   <dd><strong>Current worker count</strong>: The current number of threads in the pool</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
-  <dd><strong>Queue remaining</strong>: The number of additional elements that this queue can ideally accept without blocking</dd>
+  <dd><strong>Queue remaining</strong>: The approximate number of additional tasks the executor can still admit to its backlog; the precise meaning is executor-specific (headroom to the configured soft queue limit for the request/transaction pools, or the backing queue's remaining capacity for the scheduled pool)</dd>
   <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queued</code> (GAUGE)</dt>
   <dd><strong>Tasks queued</strong>: The approximate number of queued tasks that are waiting to be executed</dd>
 </dl>
