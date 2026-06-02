@@ -301,7 +301,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 				// the onCompletion callback will never fire, so balance manually.
 				this.queueSize.decrementAndGet();
 			}
-			// the pool's GrowAwareRejectionHandler has already fired the rejection event and bumped the counter
+			// a backlog-overflow rejection already fired the event and bumped rejectedTaskCount via the pool's
+			// GrowAwareRejectionHandler; a shutdown rejection propagates without either
 			throw e;
 		}
 	}
@@ -363,7 +364,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 			if (wrapped != null) {
 				this.queueSize.decrementAndGet();
 			}
-			// the pool's GrowAwareRejectionHandler already fired the rejection event and bumped the counter
+			// a backlog-overflow rejection already fired the event and bumped rejectedTaskCount via the pool's
+			// GrowAwareRejectionHandler; a shutdown rejection propagates without either
 			throw e;
 		}
 	}
@@ -399,7 +401,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 			if (wrapped != null) {
 				this.queueSize.decrementAndGet();
 			}
-			// the pool's GrowAwareRejectionHandler already fired the rejection event and bumped the counter
+			// a backlog-overflow rejection already fired the event and bumped rejectedTaskCount via the pool's
+			// GrowAwareRejectionHandler; a shutdown rejection propagates without either
 			throw e;
 		}
 	}
@@ -435,7 +438,8 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 			if (wrapped != null) {
 				this.queueSize.decrementAndGet();
 			}
-			// the pool's GrowAwareRejectionHandler already fired the rejection event and bumped the counter
+			// a backlog-overflow rejection already fired the event and bumped rejectedTaskCount via the pool's
+			// GrowAwareRejectionHandler; a shutdown rejection propagates without either
 			throw e;
 		}
 	}
