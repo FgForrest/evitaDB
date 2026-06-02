@@ -60,6 +60,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Tests verifying the cancellation, queue-counter, queue-limit and wrapper semantics of
@@ -183,6 +184,9 @@ class ObservableThreadExecutorCancellationTest {
 				Thread.sleep(10);
 			}
 		}
+		// the backlog never drained within the deadline — fail fast with a clear cause instead of returning
+		// silently and letting a later assertion fail with a misleading, timing-dependent symptom
+		fail("Executor backlog did not drain within " + AWAIT_SECONDS + " seconds — cancelled tombstone tasks were never reclaimed by a worker");
 	}
 
 	@Nested
