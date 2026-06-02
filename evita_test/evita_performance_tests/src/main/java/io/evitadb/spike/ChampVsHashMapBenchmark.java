@@ -49,15 +49,23 @@ import java.util.concurrent.TimeUnit;
  * mirror the real `RecordKey` (a `byte` record type + a `long` primary key) and `FileLocation`
  * (a `long` start position + an `int` length) so hash distribution and entry size are representative.
  *
- * Three scenarios are measured across a range of base-map sizes `N`:
+ * Scenarios measured across a range of base-map sizes `N` (and, for the flush, change-counts `M`):
  *
  * 1. {@code get*} — random successful lookups (the read-heavy steady state). HashMap is expected to
  *    win by a small constant; the question is how small.
- * 2. {@code flush*} — the hotspot: produce a *new* map that applies `M ≪ N` changes to an `N`-entry
- *    base. The plain map must copy all `N` entries first (`O(N)` time + `O(N)` garbage + a possibly
- *    humongous backing array); the {@link ChampMap} applies the changes by path-copying in
- *    `O(M·log₃₂ N)` while structurally sharing the untouched bulk.
- * 3. {@code build*} — assemble an `N`-entry map from scratch (HashMap puts vs the CHAMP builder).
+ * 2. {@code flush*} — the hotspot, and a faithful proxy for the **transactional commit** of a plain-valued
+ *    STM map: produce a *new* map that applies `M ≪ N` changes to an `N`-entry base. This is exactly what
+ *    `TransactionalMap.createMergedMap` (the plain map — copy all `N` entries first, `O(N)` time + `O(N)`
+ *    garbage + a possibly humongous backing array, then apply the `M` diff entries) versus
+ *    `PersistentTransactionalMap.createCopyWithMergedTransactionalMemory` (the {@link ChampMap} — apply the
+ *    `M` changes by path-copying in `O(M·log₃₂ N)` while structurally sharing the untouched bulk) do on
+ *    commit. The change-count `M` is swept ∈ {1, 10, 100} to chart the win as a function of Δ.
+ * 3. {@code build*} / {@code warmUp*} — the **non-transactional warm-up / bulk-import** path. `buildWithHashMap`
+ *    is the `HashMap.put` baseline; `buildWithChampMap` seals an `N`-entry map through the CHAMP builder in
+ *    one `O(N)` pass (the *staging-buffer mitigation*); {@code warmUpWithChampMapUpdated} is the honest cost
+ *    of `PersistentTransactionalMap.put` outside a transaction — one immutable snapshot-replace
+ *    (`snapshot = snapshot.updated(k, v)`, `O(log₃₂ N)`) **per write**, which is the regression this path
+ *    risks if warm-up is not routed through the builder.
  *
  * The benchmarks jar uses a custom main class, so run through JMH's own runner:
  * {@code java -cp evita_performance_tests/target/benchmarks.jar org.openjdk.jmh.Main
@@ -97,9 +105,6 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 public class ChampVsHashMapBenchmark {
 
-	/** Number of changes applied per simulated flush — kept small to model the `M ≪ N` reality. */
-	private static final int CHANGES_PER_FLUSH = 100;
-
 	public static void main(String[] args) throws Exception {
 		org.openjdk.jmh.Main.main(args);
 	}
@@ -125,7 +130,7 @@ public class ChampVsHashMapBenchmark {
 	@Benchmark
 	public Map<RecordKey, FileLocation> flushWithHashMap(MapState state) {
 		// the plain-map flush: copy every entry, then apply the M changes
-		final Map<RecordKey, FileLocation> next = new HashMap<>(state.hashMapBase.size() + CHANGES_PER_FLUSH);
+		final Map<RecordKey, FileLocation> next = new HashMap<>(state.hashMapBase.size() + state.changesPerFlush);
 		next.putAll(state.hashMapBase);
 		final ChangeOp[] changes = state.changes;
 		for (int i = 0; i < changes.length; i++) {
@@ -179,6 +184,32 @@ public class ChampVsHashMapBenchmark {
 		return builder.build();
 	}
 
+	@Benchmark
+	public ChampMap<RecordKey, FileLocation> warmUpWithChampMapUpdated(MapState state) {
+		// the NAIVE non-transactional path the staging buffer avoids: a fresh immutable snapshot per write
+		// (O(log N) each), so the whole warm-up is O(N·log N) and allocates N intermediate maps
+		final RecordKey[] keys = state.lookupKeys;
+		final FileLocation[] values = state.values;
+		ChampMap<RecordKey, FileLocation> map = ChampMap.empty();
+		for (int i = 0; i < keys.length; i++) {
+			map = map.updated(keys[i], values[i]);
+		}
+		return map;
+	}
+
+	@Benchmark
+	public ChampMap<RecordKey, FileLocation> warmUpWithStagingBuffer(MapState state) {
+		// the ACTUAL PersistentTransactionalMap warm-up cost with the staging buffer: O(1) HashMap.put per
+		// write while thawed, then a single O(M) seal to a ChampMap on the first transactional touch
+		final RecordKey[] keys = state.lookupKeys;
+		final FileLocation[] values = state.values;
+		final Map<RecordKey, FileLocation> buffer = new HashMap<>(keys.length);
+		for (int i = 0; i < keys.length; i++) {
+			buffer.put(keys[i], values[i]);
+		}
+		return ChampMap.from(buffer);
+	}
+
 	/* =========================================================================================== */
 
 	/**
@@ -190,6 +221,10 @@ public class ChampVsHashMapBenchmark {
 
 		@Param({"1000", "10000", "100000", "1000000"})
 		public int size;
+
+		/** Number of changes applied per simulated flush/commit — swept to chart the win as a function of Δ. */
+		@Param({"1", "10", "100"})
+		public int changesPerFlush;
 
 		public RecordKey[] lookupKeys;
 		public FileLocation[] values;
@@ -218,8 +253,8 @@ public class ChampVsHashMapBenchmark {
 			this.champMapBase = builder.build();
 
 			// half of the changes update existing keys, half insert brand-new ones; a few removals
-			this.changes = new ChangeOp[CHANGES_PER_FLUSH];
-			for (int i = 0; i < CHANGES_PER_FLUSH; i++) {
+			this.changes = new ChangeOp[this.changesPerFlush];
+			for (int i = 0; i < this.changesPerFlush; i++) {
 				final boolean existing = (i % 2) == 0;
 				final boolean remove = (i % 10) == 0;
 				final RecordKey key = existing

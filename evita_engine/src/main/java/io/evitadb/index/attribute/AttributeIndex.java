@@ -49,6 +49,7 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.map.MapChanges;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -896,7 +897,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * transactional maps.
 	 */
 	public static class AttributeIndexChanges {
-		private final TransactionalContainerChanges<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>>, UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, PersistentTransactionalMap<Serializable, Integer>>, UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 		private final TransactionalContainerChanges<Void, FilterIndex, FilterIndex> filterIndexChanges = new TransactionalContainerChanges<>();
 		private final TransactionalContainerChanges<SortIndexChanges, SortIndex, SortIndex> sortIndexChanges = new TransactionalContainerChanges<>();
 		private final TransactionalContainerChanges<ChainIndexChanges, ChainIndex, ChainIndex> chainIndexChanges = new TransactionalContainerChanges<>();

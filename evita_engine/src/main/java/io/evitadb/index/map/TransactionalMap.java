@@ -619,9 +619,12 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	/**
 	 * Represents the key set view of a transactional map. Iterator is delegated to
 	 * {@link TransactionalMemoryEntryAbstractIterator}.
+	 *
+	 * Package-private (rather than private) so the sibling {@link PersistentTransactionalMap}, which reuses the very
+	 * same {@link MapChanges} diff layer, can present the same layered-read view without duplicating it.
 	 */
 	@RequiredArgsConstructor
-	private static class TransactionalMemoryKeySet<K, V> extends AbstractSet<K> {
+	static class TransactionalMemoryKeySet<K, V> extends AbstractSet<K> {
 		private final MapChanges<K, V> layer;
 		private final TransactionalLayerMaintainer maintainer;
 
@@ -672,9 +675,12 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	/**
 	 * Represents the values collection view of a transactional map. Iterator is delegated to
 	 * {@link TransactionalMemoryEntryAbstractIterator}.
+	 *
+	 * Package-private (rather than private) so the sibling {@link PersistentTransactionalMap}, which reuses the very
+	 * same {@link MapChanges} diff layer, can present the same layered-read view without duplicating it.
 	 */
 	@RequiredArgsConstructor
-	private static class TransactionalMemoryValues<K, V> extends AbstractCollection<V> {
+	static class TransactionalMemoryValues<K, V> extends AbstractCollection<V> {
 		private final MapChanges<K, V> layer;
 		private final TransactionalLayerMaintainer maintainer;
 
@@ -726,8 +732,11 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	/**
 	 * Represents the entry set view of a transactional map. Iterator is delegated to
 	 * {@link TransactionalMemoryEntryAbstractIterator}.
+	 *
+	 * Package-private (rather than private) so the sibling {@link PersistentTransactionalMap}, which reuses the very
+	 * same {@link MapChanges} diff layer, can present the same layered-read view without duplicating it.
 	 */
-	private static class TransactionalMemoryEntrySet<K, V> extends AbstractSet<Entry<K, V>> {
+	static class TransactionalMemoryEntrySet<K, V> extends AbstractSet<Entry<K, V>> {
 		private final MapChanges<K, V> layer;
 
 		public TransactionalMemoryEntrySet(@Nonnull MapChanges<K, V> layer) {
