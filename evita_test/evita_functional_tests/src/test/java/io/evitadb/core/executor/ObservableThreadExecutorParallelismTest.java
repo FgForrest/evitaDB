@@ -118,8 +118,10 @@ class ObservableThreadExecutorParallelismTest {
 		@DisplayName("grows to maxThreadCount for a blocking workload, ignoring the CPU count")
 		void shouldGrowToMaxThreadCountForBlockingWorkload() throws Exception {
 			final int processors = Runtime.getRuntime().availableProcessors();
-			// a maximum deliberately set well above the CPU count, to prove concurrency is no longer clamped
-			final int maxThreads = processors << 2;
+			// a maximum set above the CPU count but bounded (extra threads capped at min(processors, 8)) so the
+			// blocked-worker count and CI resource use stay deterministic on large build agents, while still
+			// proving concurrency is no longer clamped to availableProcessors()
+			final int maxThreads = processors + Math.min(processors, 8);
 			// start from a single core thread so the growth from min -> max is exercised
 			final int minThreads = 1;
 			// queue large enough that nothing is ever queued — every task should get its own worker thread
