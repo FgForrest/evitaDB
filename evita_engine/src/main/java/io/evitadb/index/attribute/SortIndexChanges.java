@@ -24,7 +24,6 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.index.array.TransactionalObjArray;
-import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
@@ -39,6 +38,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 
 import static io.evitadb.index.attribute.SortIndex.invert;
@@ -278,7 +278,7 @@ public class SortIndexChanges implements Serializable {
 	@Nonnull
 	ValueStartIndex[] getValueIndex(
 		@Nonnull TransactionalObjArray<? extends Serializable> sortedRecordsValues,
-		@Nonnull TransactionalMap<?, Integer> valueCardinalities
+		@Nonnull Map<?, Integer> valueCardinalities
 	) {
 		if (this.valueLocationIndex == null) {
 			final int valueCount = sortedRecordsValues.getLength();

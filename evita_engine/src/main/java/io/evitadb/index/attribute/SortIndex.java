@@ -49,7 +49,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
@@ -106,9 +106,14 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	final TransactionalObjArray<Serializable> sortedRecordsValues;
 	/**
 	 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
-	 * with low cardinality so this should save a lot of memory.
+	 * with low cardinality so this should save a lot of memory. Backed by a persistent immutable
+	 * {@link io.evitadb.dataType.champ.ChampMap} via {@link PersistentTransactionalMap}: values are plain
+	 * {@link Integer} cardinalities (no nested transactional state), so commit derives the next snapshot in
+	 * `O(Δ·log N)` instead of rebuilding the whole map. Mutated via `compute`/`computeIfPresent`, which the variant
+	 * inherits from the {@link Map} defaults (built on `get`/`put`/`remove`) — never the throwing
+	 * {@link io.evitadb.dataType.champ.ChampMap} mutators. Sorted ordering is carried by {@link #sortedRecordsValues}.
 	 */
-	final TransactionalMap<Serializable, Integer> valueCardinalities;
+	final PersistentTransactionalMap<Serializable, Integer> valueCardinalities;
 	/**
 	 * The array contains the descriptor allowing to create {@link #normalizer} and {@link #comparator} instances.
 	 */
@@ -266,6 +271,14 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		}
 	}
 
+	/**
+	 * Creates an empty sort index for a single attribute that belongs to the global
+	 * {@link GlobalEntityIndex} (no discriminating reference key). Convenience overload that defaults the
+	 * sort order to ascending with NULLs last.
+	 *
+	 * @param attributeType     the comparable type of the indexed attribute
+	 * @param attributeIndexKey identifies the indexed attribute (and its locale, if localized)
+	 */
 	public SortIndex(
 		@Nonnull Class<?> attributeType,
 		@Nonnull AttributeIndexKey attributeIndexKey
@@ -273,6 +286,15 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		this(attributeType, null, attributeIndexKey);
 	}
 
+	/**
+	 * Creates an empty sort index for a single attribute, defaulting the sort order to ascending with NULLs
+	 * last. The internal {@link ComparatorSource} is derived from `attributeType`.
+	 *
+	 * @param attributeType     the comparable type of the indexed attribute
+	 * @param referenceKey      discriminator of the owning {@link AbstractReducedEntityIndex}, or `null` when
+	 *                          this index lives in the global {@link GlobalEntityIndex}
+	 * @param attributeIndexKey identifies the indexed attribute (and its locale, if localized)
+	 */
 	@SuppressWarnings("unchecked")
 	public SortIndex(
 		@Nonnull Class<?> attributeType,
@@ -295,9 +317,16 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		this.sortedRecords = new TransactionalUnorderedIntArray();
 		//noinspection rawtypes
 		this.sortedRecordsValues = new TransactionalObjArray<>((Serializable[]) Array.newInstance(normalizedAttributeType, 0), (Comparator) this.comparator);
-		this.valueCardinalities = new TransactionalMap<>(CollectionUtils.createHashMap(32));
+		this.valueCardinalities = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(32));
 	}
 
+	/**
+	 * Creates an empty sort index for a sortable attribute compound (multiple attribute elements) that belongs
+	 * to the global {@link GlobalEntityIndex}. Convenience overload of the reference-key aware constructor.
+	 *
+	 * @param comparatorSources one descriptor per compound element, in element order; at least two are required
+	 * @param attributeIndexKey identifies the indexed compound (and its locale, if localized)
+	 */
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorSources,
 		@Nonnull AttributeIndexKey attributeIndexKey
@@ -305,6 +334,17 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		this(comparatorSources, null, attributeIndexKey);
 	}
 
+	/**
+	 * Creates an empty sort index for a sortable attribute compound. Each element of `comparatorSources`
+	 * describes one compound element (type, direction, NULL handling); the combined comparator orders records
+	 * lexicographically across those elements.
+	 *
+	 * @param comparatorSources one descriptor per compound element, in element order; at least two are required
+	 * @param referenceKey      discriminator of the owning {@link AbstractReducedEntityIndex}, or `null` when
+	 *                          this index lives in the global {@link GlobalEntityIndex}
+	 * @param attributeIndexKey identifies the indexed compound (and its locale, if localized)
+	 * @throws IllegalArgumentException if fewer than two comparator sources are supplied
+	 */
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorSources,
 		@Nullable RepresentativeReferenceKey referenceKey,
@@ -323,9 +363,23 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		this.sortedRecords = new TransactionalUnorderedIntArray();
 		//noinspection rawtypes,unchecked
 		this.sortedRecordsValues = new TransactionalObjArray<>(new ComparableArray[0], (Comparator) this.comparator);
-		this.valueCardinalities = new TransactionalMap<>(CollectionUtils.createHashMap(32));
+		this.valueCardinalities = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(32));
 	}
 
+	/**
+	 * Rehydrates a sort index from its persisted state (typically a {@link SortIndexStoragePart} read back from
+	 * disk). Works for both single-attribute and compound indexes: the comparator/normalizer is chosen by the
+	 * length of `comparatorBase`. The presorted arrays are taken as-is, so the caller is responsible for their
+	 * mutual consistency (`sortedRecords` aligned with `sortedRecordValues`, and `cardinalities` holding only
+	 * values whose cardinality is greater than one).
+	 *
+	 * @param comparatorBase     one descriptor per element (a single entry for plain attributes)
+	 * @param referenceKey       owning reference discriminator, or `null` for the global index
+	 * @param attributeIndexKey  identifies the indexed attribute / compound
+	 * @param sortedRecords      record ids ordered by their associated values, blocked per value
+	 * @param sortedRecordValues the naturally sorted distinct values backing `sortedRecords`
+	 * @param cardinalities      counts for values shared by more than one record (cardinality 1 is implicit)
+	 */
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
@@ -351,7 +405,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		this.sortedRecords = new TransactionalUnorderedIntArray(sortedRecords);
 		//noinspection unchecked,rawtypes
 		this.sortedRecordsValues = new TransactionalObjArray(sortedRecordValues, this.comparator);
-		this.valueCardinalities = new TransactionalMap<>(cardinalities);
+		this.valueCardinalities = new PersistentTransactionalMap<>(cardinalities);
 	}
 
 	/**
@@ -384,7 +438,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		this.sortedRecords = sortedRecords;
 		//noinspection unchecked,rawtypes
 		this.sortedRecordsValues = new TransactionalObjArray(sortedRecordValues, this.comparator);
-		this.valueCardinalities = new TransactionalMap<>(cardinalities);
+		this.valueCardinalities = new PersistentTransactionalMap<>(cardinalities);
 	}
 
 	/**
@@ -541,16 +595,28 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		}
 	}
 
+	/**
+	 * Clears the dirty flag once the current state has been flushed via {@link #createStoragePart(int)}, so the
+	 * index is no longer reported as needing persistence.
+	 */
 	@Override
 	public void resetDirty() {
 		this.dirty.reset();
 	}
 
+	/**
+	 * Creates the per-transaction change buffer ({@link SortIndexChanges}) that captures modifications without
+	 * touching the shared index, seeded with this index's comparator so newly inserted values keep sort order.
+	 */
 	@Override
 	public SortIndexChanges createLayer() {
 		return new SortIndexChanges(this, this.comparator);
 	}
 
+	/**
+	 * Discards this index's transactional layer together with the layers of every transactional sub-structure
+	 * it owns, so an aborted (or fully committed) transaction leaves no orphaned change buffers behind.
+	 */
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
@@ -560,6 +626,13 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		this.valueCardinalities.removeLayer(transactionalLayer);
 	}
 
+	/**
+	 * Produces the committed copy of this index with all transactional changes merged in. When nothing changed
+	 * (dirty flag is `false` after merge) the original instance is returned unchanged to avoid needless copying;
+	 * otherwise a new {@code SortIndex} is built from the committed copies of each sub-structure. The merged
+	 * sorted-records façade is passed through the private constructor so the underlying two-tree backing keeps
+	 * its structural sharing across commits rather than being rebuilt from a flat array.
+	 */
 	@Nonnull
 	@Override
 	public SortIndex createCopyWithMergedTransactionalMemory(
@@ -656,7 +729,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		@Nonnull T normalizedValue,
 		int recordId,
 		@Nonnull TransactionalObjArray<T> theSortedRecordsValues,
-		@Nonnull TransactionalMap<Serializable, Integer> theValueCardinalities,
+		@Nonnull Map<Serializable, Integer> theValueCardinalities,
 		@Nonnull SortIndexChanges sortIndexChanges
 	) {
 		// prepare internal datastructures
@@ -767,6 +840,14 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		@Nonnull Serializable[] array
 	) implements Serializable {
 
+		/**
+		 * Validating constructor that asserts each value matches the type declared by the corresponding
+		 * {@link ComparatorSource} element before wrapping the array (null values are permitted).
+		 *
+		 * @param comparatorBase the per-element type/order descriptors of the owning compound
+		 * @param value          the values to wrap, aligned positionally with `comparatorBase`
+		 * @throws IllegalArgumentException if any non-null value is not an instance of its declared element type
+		 */
 		public ComparableArray(@Nonnull ComparatorSource[] comparatorBase, @Nonnull Serializable[] value) {
 			this(value);
 			for (int i = 0; i < comparatorBase.length; i++) {
@@ -777,6 +858,10 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			}
 		}
 
+		/**
+		 * Uses element-wise array equality ({@link Arrays#equals}) instead of the record default, which would
+		 * compare the backing array by identity and break lookups in {@link #sortedRecordsValues}.
+		 */
 		@Override
 		public boolean equals(Object o) {
 			if (this == o) return true;
@@ -785,6 +870,10 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 			return Arrays.equals(this.array, that.array);
 		}
 
+		/**
+		 * Hashes the array contents ({@link Arrays#hashCode}) so it stays consistent with {@link #equals(Object)};
+		 * the record default would hash the array reference and violate the equals/hashCode contract.
+		 */
 		@Override
 		public int hashCode() {
 			return Arrays.hashCode(this.array);
@@ -805,6 +894,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static class ComparableArrayComparator implements Comparator<ComparableArray>, Serializable {
 		@Serial private static final long serialVersionUID = 8384226900454891700L;
+		/**
+		 * Per-element comparators, one per compound element, applied left-to-right until one breaks the tie.
+		 */
 		private final Comparator[] result;
 
 		public ComparableArrayComparator(@Nonnull Comparator[] result) {
@@ -834,6 +926,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@RequiredArgsConstructor
 	private static class ComparableArrayNormalizer<T> implements UnaryOperator<T> {
+		/**
+		 * Per-element normalizers applied positionally; elements that need no normalization hold an identity op.
+		 */
 		private final UnaryOperator<T>[] normalizers;
 
 		@SuppressWarnings({"unchecked"})
@@ -870,7 +965,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
 		 * with low cardinality so this should save a lot of memory.
 		 */
-		private final TransactionalMap<Serializable, Integer> valueCardinalities;
+		private final Map<Serializable, Integer> valueCardinalities;
 		/**
 		 * The total count of all records in the sorted collection.
 		 */
@@ -890,7 +985,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 		public SortedComparableForwardSeeker(
 			@Nonnull TransactionalObjArray<Serializable> sortedRecordsValues,
-			@Nonnull TransactionalMap<Serializable, Integer> valueCardinalities,
+			@Nonnull Map<Serializable, Integer> valueCardinalities,
 			int totalCount
 		) {
 			this.sortedRecordsValues = sortedRecordsValues;
@@ -964,7 +1059,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
 		 * with low cardinality so this should save a lot of memory.
 		 */
-		private final TransactionalMap<Serializable, Integer> valueCardinalities;
+		private final Map<Serializable, Integer> valueCardinalities;
 		/**
 		 * The total count of all records in the sorted collection.
 		 */
@@ -984,7 +1079,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 		public ReversedSortedComparableForwardSeeker(
 			@Nonnull TransactionalObjArray<Serializable> sortedRecordsValues,
-			@Nonnull TransactionalMap<Serializable, Integer> valueCardinalities,
+			@Nonnull Map<Serializable, Integer> valueCardinalities,
 			int totalCount
 		) {
 			this.sortedRecordsValues = sortedRecordsValues;

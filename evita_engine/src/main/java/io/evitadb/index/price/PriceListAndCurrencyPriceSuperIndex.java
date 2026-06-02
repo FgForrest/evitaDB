@@ -29,7 +29,7 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
@@ -65,13 +65,18 @@ public class PriceListAndCurrencyPriceSuperIndex
 
 	@Serial private static final long serialVersionUID = 182980639981206272L;
 	/**
-	 * Contains the same information as in {@link #priceRecords}, but indexed by entityId.
+	 * Contains the same information as in {@link #priceRecords}, but indexed by entityId. Backed by a persistent
+	 * immutable {@link io.evitadb.dataType.champ.ChampMap} via {@link PersistentTransactionalMap}: the values are
+	 * plain immutable {@link EntityPrices} (no nested transactional state), so commit derives the next snapshot in
+	 * `O(Δ·log N)` instead of rebuilding the whole map. Mutated via `compute`/`computeIfPresent`, which the variant
+	 * inherits from the {@link Map} defaults (built on `get`/`put`/`remove`) — never {@link io.evitadb.dataType.champ.ChampMap}'s
+	 * throwing mutators.
 	 */
-	private final TransactionalMap<Integer, EntityPrices> entityPrices;
+	private final PersistentTransactionalMap<Integer, EntityPrices> entityPrices;
 
 	public PriceListAndCurrencyPriceSuperIndex(@Nonnull PriceIndexKey priceIndexKey) {
 		super(priceIndexKey);
-		this.entityPrices = new TransactionalMap<>(new HashMap<>());
+		this.entityPrices = new PersistentTransactionalMap<>(new HashMap<>());
 	}
 
 	public PriceListAndCurrencyPriceSuperIndex(
@@ -80,10 +85,19 @@ public class PriceListAndCurrencyPriceSuperIndex
 		@Nonnull PriceRecordContract[] priceRecords
 	) {
 		super(priceIndexKey, validityIndex, priceRecords);
-		this.entityPrices = new TransactionalMap<>(createHashMap(priceRecords.length));
+		// aggregate the price records into a correctly pre-sized buffer before wrapping it once: this way the
+		// PersistentTransactionalMap defensive copy is sized to the distinct-entity count, instead of starting
+		// at the default capacity and rehashing repeatedly as the build loop populates it
+		final Map<Integer, EntityPrices> entityPricesBase = createHashMap(priceRecords.length);
 		for (final PriceRecordContract priceRecord : priceRecords) {
-			addEntityPrice(priceRecord);
+			entityPricesBase.compute(
+				priceRecord.entityPrimaryKey(),
+				(entityId, existingPriceRecords) -> existingPriceRecords == null ?
+					EntityPrices.create(priceRecord) :
+					EntityPrices.addPriceRecord(existingPriceRecords, priceRecord)
+			);
 		}
+		this.entityPrices = new PersistentTransactionalMap<>(entityPricesBase);
 	}
 
 	private PriceListAndCurrencyPriceSuperIndex(
@@ -95,7 +109,7 @@ public class PriceListAndCurrencyPriceSuperIndex
 		@Nonnull PriceRecordContract[] priceRecords
 	) {
 		super(priceIndexKey, indexedPriceEntityIds, priceIds, validityIndex, priceRecords);
-		this.entityPrices = new TransactionalMap<>(entityPrices);
+		this.entityPrices = new PersistentTransactionalMap<>(entityPrices);
 	}
 
 	/**
