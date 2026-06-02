@@ -49,7 +49,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -80,11 +80,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	/**
 	 * Counter monitoring the number of tasks submitted to the executor service.
 	 */
-	private final AtomicLong submittedTaskCount = new AtomicLong();
+	private final LongAdder submittedTaskCount = new LongAdder();
 	/**
 	 * Counter monitoring the number of tasks rejected by the executor service.
 	 */
-	private final AtomicLong rejectedTaskCount = new AtomicLong();
+	private final LongAdder rejectedTaskCount = new LongAdder();
 	/**
 	 * Flag indicating whether the scheduler is in the process of shutting down.
 	 */
@@ -98,6 +98,12 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 * Maximum number of tasks that can be stored in the queue.
 	 */
 	private final int queueCapacity;
+	/**
+	 * Physical capacity of the {@link #queue} - i.e. the actual number of slots the backing
+	 * {@link ArrayBlockingQueue} was allocated with. The purge logic reasons against this value so that the
+	 * "keep roughly one third of the queue empty" breathing-room invariant matches the real allocation.
+	 */
+	private final int physicalQueueCapacity;
 	/**
 	 * Rejected execution handler that is called when the queue is full and a new task cannot be added.
 	 */
@@ -136,7 +142,10 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	}
 
 	public Scheduler(@Nonnull ThreadPoolOptions options) {
-		this.rejectingExecutorHandler = new EvitaRejectingExecutorHandler("service", this.rejectedTaskCount::incrementAndGet);
+		this.rejectingExecutorHandler = new EvitaRejectingExecutorHandler("service", this.rejectedTaskCount::increment);
+		// note: a ScheduledThreadPoolExecutor uses an unbounded DelayedWorkQueue, so this handler is effectively only
+		// triggered for tasks submitted after shutdown - back-pressure for the bounded task registry is enforced
+		// separately in #addTaskToQueue, which invokes the same handler on overflow
 		final ScheduledThreadPoolExecutor theExecutor = new ScheduledThreadPoolExecutor(
 			options.maxThreadCount(),
 			new EvitaThreadFactory(options.threadPriority()),
@@ -148,7 +157,8 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		this.executorService = theExecutor;
 		// create queue with double the size of the configured queue size to have some breathing room
 		this.queueCapacity = options.queueSize();
-		this.queue = new ArrayBlockingQueue<>(this.queueCapacity << 1);
+		this.physicalQueueCapacity = this.queueCapacity << 1;
+		this.queue = new ArrayBlockingQueue<>(this.physicalQueueCapacity);
 		// schedule automatic purging task
 		this.purgingTask = new DelayedAsyncTask(
 			null,
@@ -167,8 +177,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	 */
 	public Scheduler(@Nonnull ScheduledThreadPoolExecutor executorService) {
 		this.executorService = executorService;
-		this.queue = new ArrayBlockingQueue<>(64);
 		this.queueCapacity = 64;
+		this.physicalQueueCapacity = 64;
+		this.queue = new ArrayBlockingQueue<>(this.physicalQueueCapacity);
 		this.rejectingExecutorHandler = null;
 		this.purgingTask = null;
 	}
@@ -177,7 +188,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Override
 	public ScheduledFuture<?> schedule(@Nonnull Runnable lambda, long delay, @Nonnull TimeUnit delayUnits) {
 		if (!this.executorService.isShutdown()) {
-			return this.executorService.schedule(lambda, delay, delayUnits);
+			final ScheduledFuture<?> scheduledFuture = this.executorService.schedule(lambda, delay, delayUnits);
+			this.submittedTaskCount.increment();
+			return scheduledFuture;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
 		} else {
@@ -189,7 +202,9 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	@Override
 	public <V> ScheduledFuture<V> schedule(@Nonnull Callable<V> callable, long delay, @Nonnull TimeUnit unit) {
 		if (!this.executorService.isShutdown()) {
-			return this.executorService.schedule(callable, delay, unit);
+			final ScheduledFuture<V> scheduledFuture = this.executorService.schedule(callable, delay, unit);
+			this.submittedTaskCount.increment();
+			return scheduledFuture;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
 		} else {
@@ -207,7 +222,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				period,
 				unit
 			);
-			this.submittedTaskCount.incrementAndGet();
+			this.submittedTaskCount.increment();
 			return scheduledFuture;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
@@ -226,7 +241,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				delay,
 				unit
 			);
-			this.submittedTaskCount.incrementAndGet();
+			this.submittedTaskCount.increment();
 			return scheduledFuture;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
@@ -237,17 +252,33 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 	/**
 	 * Method schedules immediate execution of `runnable`. If there is no free thread left in the pool, the runnable
-	 * will be executed "as soon as possible".
+	 * will be executed "as soon as possible". This is a fire-and-forget submission - no future is handed back to the
+	 * caller, therefore any exception thrown while the runnable executes is logged on the worker thread rather than
+	 * propagated to the caller.
 	 *
 	 * @param runnable the runnable task to be executed
 	 * @throws NullPointerException       if the runnable parameter is null
-	 * @throws RejectedExecutionException if the task cannot be submitted for execution
+	 * @throws RejectedExecutionException if the scheduler is already shut down (and shutdown is not merely in progress)
 	 */
 	@Override
 	public void execute(@Nonnull Runnable runnable) {
 		if (!this.executorService.isShutdown()) {
-			this.executorService.submit(runnable);
-			this.submittedTaskCount.incrementAndGet();
+			// ScheduledThreadPoolExecutor wraps every task (even via execute()) in a ScheduledFutureTask that
+			// captures thrown exceptions into the future. Since this fire-and-forget path hands no future back to
+			// the caller, wrap the runnable to log any otherwise-swallowed exception instead of losing it silently.
+			this.executorService.execute(() -> {
+				try {
+					runnable.run();
+				} catch (Throwable t) {
+					log.error("Uncaught error during execution of a task submitted via execute().", t);
+					// never swallow VM errors (OutOfMemoryError, StackOverflowError, ...) - the process may be in
+					// an inconsistent state, so re-raise them after logging while still absorbing ordinary exceptions
+					if (t instanceof Error error) {
+						throw error;
+					}
+				}
+			});
+			this.submittedTaskCount.increment();
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
 		}
@@ -255,12 +286,12 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 
 	@Override
 	public long getSubmittedTaskCount() {
-		return this.submittedTaskCount.get();
+		return this.submittedTaskCount.sum();
 	}
 
 	@Override
 	public long getRejectedTaskCount() {
-		return this.rejectedTaskCount.get();
+		return this.rejectedTaskCount.sum();
 	}
 
 	@Override
@@ -312,7 +343,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				st.transitionToIssued();
 			}
 			final Future<T> future = this.executorService.submit(task);
-			this.submittedTaskCount.incrementAndGet();
+			this.submittedTaskCount.increment();
 			return future;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
@@ -329,7 +360,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				st.transitionToIssued();
 			}
 			final Future<T> future = this.executorService.submit(task, result);
-			this.submittedTaskCount.incrementAndGet();
+			this.submittedTaskCount.increment();
 			return future;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
@@ -346,7 +377,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				st.transitionToIssued();
 			}
 			final Future<?> future = this.executorService.submit(task);
-			this.submittedTaskCount.incrementAndGet();
+			this.submittedTaskCount.increment();
 			return future;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
@@ -365,7 +396,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				}
 			}
 			final List<Future<T>> futures = this.executorService.invokeAll(tasks);
-			this.submittedTaskCount.addAndGet(futures.size());
+			this.submittedTaskCount.add(futures.size());
 			return futures;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
@@ -384,7 +415,7 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				}
 			}
 			final List<Future<T>> futures = this.executorService.invokeAll(tasks, timeout, unit);
-			this.submittedTaskCount.addAndGet(futures.size());
+			this.submittedTaskCount.add(futures.size());
 			return futures;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
@@ -393,6 +424,13 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Note: only 1 is added to {@link #submittedTaskCount} regardless of how many tasks are provided, because from
+	 * the caller's perspective a single logical operation has been submitted (this mirrors the convention used by
+	 * the sibling observable executor).
+	 */
 	@Nonnull
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
@@ -403,24 +441,34 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				}
 			}
 			final T result = this.executorService.invokeAny(tasks);
-			this.submittedTaskCount.incrementAndGet();
+			this.submittedTaskCount.increment();
 			return result;
 		} else {
+			// unlike the other shut-down branches this one cannot return a graceful sentinel: the method contract is
+			// @Nonnull and there is no result to hand back, so a RejectedExecutionException is thrown even while the
+			// shutdown is merely in progress
 			throw new RejectedExecutionException("Scheduler is already shut down.");
 		}
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Note: only 1 is added to {@link #submittedTaskCount} regardless of how many tasks are provided, because from
+	 * the caller's perspective a single logical operation has been submitted (this mirrors the convention used by
+	 * the sibling observable executor).
+	 */
 	@Nullable
 	@Override
 	public <T> T invokeAny(@Nonnull Collection<? extends Callable<T>> tasks, long timeout, @Nonnull TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 		if (!this.executorService.isShutdown()) {
 			for (Callable<T> task : tasks) {
-				if (task instanceof AbstractServerTask<?, ?> ast) {
-					ast.transitionToIssued();
+				if (task instanceof ServerTask<?, ?> st) {
+					st.transitionToIssued();
 				}
 			}
 			final T result = this.executorService.invokeAny(tasks, timeout, unit);
-			this.submittedTaskCount.incrementAndGet();
+			this.submittedTaskCount.increment();
 			return result;
 		} else if (!this.shutdownInProgress.get()) {
 			throw new RejectedExecutionException("Scheduler is already shut down.");
@@ -620,45 +668,75 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 		} else {
 			this.executorService.submit(task::execute);
 		}
-		this.submittedTaskCount.incrementAndGet();
+		this.submittedTaskCount.increment();
 		return task.getFutureResult();
 	}
 
 	/**
-	 * Wraps the task into an observable task and adds it to the queue. Returns the same type as the input argument
-	 * to allow for fluent chaining.
+	 * Adds the task to the tracking {@link #queue}, returning the same instance to allow for fluent chaining. The
+	 * task is first added via a non-blocking {@link ArrayBlockingQueue#offer(Object) offer}; if the queue is full,
+	 * {@link #purgeFinishedAndLongWaitingTasks()} is triggered to reclaim space and the offer is retried. Should the
+	 * queue still be full afterwards, the task is marked as failed and the overflow is reported.
+	 *
+	 * The exception type observed by the caller on overflow depends on whether a rejecting handler is registered:
+	 * with a handler (the regular runtime setup) {@link EvitaRejectingExecutorHandler#rejectedExecution()} emits its
+	 * event and throws a {@link RejectedExecutionException}; without one (the test-only constructor) the method falls
+	 * through to throw an {@link IllegalStateException}.
 	 *
 	 * @param task the task to add
 	 * @param <T>  the type of the task
-	 * @return the task that was added and wrapped
+	 * @return the task that was added
+	 * @throws RejectedExecutionException if the queue remains full after a purge and a rejecting handler is registered
+	 * @throws IllegalStateException      if the queue remains full after a purge and no rejecting handler is registered
 	 */
 	@Nonnull
 	private <T extends ServerTask<?, ?>> T addTaskToQueue(@Nonnull T task) {
+		final boolean added;
+		// hold the buffer lock around the whole add so that registry writes never interleave with a concurrent
+		// purge: this prevents the purge's drain/refill window from racing an offer, which could otherwise overflow
+		// the re-add and silently drop live tasks. The purge re-enters this lock reentrantly on the full-queue path.
+		this.bufferLock.lock();
 		try {
-			// add the task to the queue
-			this.queue.add(task);
-		} catch (IllegalStateException e) {
-			// this means the queue is full, so we need to remove some tasks
-			this.purgeFinishedAndLongWaitingTasks();
-			// and try adding the task again
-			try {
-				this.queue.add(task);
-			} catch (IllegalStateException exceptionAgain) {
-				// and this should never happen since queue was cleared of finished and timed out tasks and its size
-				// is double the configured size
-				if (this.rejectingExecutorHandler != null) {
-					this.rejectingExecutorHandler.rejectedExecution();
-				}
-				task.fail(exceptionAgain);
-				throw exceptionAgain;
+			// try to add the task to the queue without resorting to exceptions for control flow
+			if (this.queue.offer(task)) {
+				return task;
 			}
+			// the queue is full, so we need to remove some tasks and try again
+			this.purgeFinishedAndLongWaitingTasks();
+			added = this.queue.offer(task);
+		} finally {
+			this.bufferLock.unlock();
+		}
+		if (!added) {
+			// this should never happen since the queue was cleared of finished and timed out tasks and its
+			// physical size is double the configured size
+			final IllegalStateException exception = new IllegalStateException(
+				"Scheduler queue is full and no task could be purged to make room."
+			);
+			// mark the task as failed first so it is reported as failed regardless of the handler presence
+			task.fail(exception);
+			// the rejecting handler (when present) emits an event and rethrows a RejectedExecutionException
+			if (this.rejectingExecutorHandler != null) {
+				this.rejectingExecutorHandler.rejectedExecution();
+			}
+			throw exception;
 		}
 		return task;
 	}
 
 	/**
-	 * Iterates over all tasks in {@link #queue} in a batch manner and removes all finished tasks. Tasks that are
-	 * still waiting or running are added to the tail of the queue again.
+	 * Iterates over all tasks in {@link #queue} in a batch manner and prunes it according to the following policy:
+	 *
+	 * - tasks still waiting for a precondition longer than {@link #WAITING_TASKS_KEEP_INTERVAL_MILLIS} are dropped,
+	 * - finished or failed tasks are removed, but those whose completion falls within the defense period are
+	 *   re-queued up to a fill threshold that keeps roughly one third of {@link #physicalQueueCapacity} empty as
+	 *   breathing room for newly submitted tasks,
+	 * - all remaining waiting or running tasks are added back to the tail of the queue.
+	 *
+	 * The method is guarded by {@link #bufferLock}; a concurrent caller that cannot acquire the lock blocks until the
+	 * in-progress purge finishes rather than busy-spinning.
+	 *
+	 * @return always {@code 0L}, signalling the scheduling framework to re-plan the purge at its standard interval
 	 */
 	private long purgeFinishedAndLongWaitingTasks() {
 		if (this.bufferLock.tryLock()) {
@@ -699,26 +777,26 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 					// clear the buffer for the next iteration
 					this.buffer.clear();
 				}
-				// now add the tasks that are still in defense period back to the queue, but keep at least 1/3 of the queue empty
-				final int requiredEmptyBlock = Math.min(1, this.queueCapacity / 3);
-				final int remainingCapacity = this.queueCapacity - this.queue.size();
-				if (remainingCapacity > requiredEmptyBlock && finishedTaskInDefensePeriod != null) {
+				// now add the tasks that are still in defense period back to the queue, but keep at least 1/3 of the
+				// physical queue capacity empty as breathing room for newly submitted tasks
+				final int requiredEmptyBlock = Math.max(1, this.physicalQueueCapacity / 3);
+				final int maxFill = this.physicalQueueCapacity - requiredEmptyBlock;
+				if (finishedTaskInDefensePeriod != null) {
 					//noinspection rawtypes
 					final Iterator<Task> it = finishedTaskInDefensePeriod.iterator();
-					final int currentCapacity = this.queue.size();
-					for (int i = currentCapacity; i < this.queueCapacity - requiredEmptyBlock && i < remainingCapacity && it.hasNext(); i++) {
-						this.queue.add((ServerTask<?, ?>) it.next());
+					// re-add defense-period tasks until either the fill threshold is reached or we run out of tasks
+					while (this.queue.size() < maxFill && it.hasNext()) {
+						this.queue.offer((ServerTask<?, ?>) it.next());
 					}
 				}
 			} finally {
 				this.bufferLock.unlock();
 			}
 		} else {
-			// someone else is currently purging the queue
-			// we need to wait until he's done and then the queue should have enough free room
-			while (this.bufferLock.isLocked()) {
-				Thread.onSpinWait();
-			}
+			// someone else is currently purging the queue - block until they are done (at which point the queue
+			// should have enough free room) instead of busy-spinning on the lock state
+			this.bufferLock.lock();
+			this.bufferLock.unlock();
 		}
 		// plan to next standard time
 		return 0L;
