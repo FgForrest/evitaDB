@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2025
+ *   Copyright (c) 2025-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,9 +38,18 @@ import jdk.jfr.Period;
 @Description("Event that is fired on regular intervals to track request executor statistics.")
 @Label("Request executor statistics")
 @Period("1m")
-public class RequestForkJoinPoolStatisticsEvent extends AbstractForkJoinPoolStatisticsEvent {
+public class RequestThreadPoolStatisticsEvent extends AbstractThreadPoolStatisticsEvent {
 
-	public RequestForkJoinPoolStatisticsEvent(long steals, long queued, int active, int running) {
-		super(steals, queued, active, running);
+	public RequestThreadPoolStatisticsEvent(
+		long completed,
+		int active,
+		int queued,
+		int queueRemaining,
+		int poolSize,
+		int poolCore,
+		int poolMax,
+		int largestPoolSize
+	) {
+		super(completed, active, queued, queueRemaining, poolSize, poolCore, poolMax, largestPoolSize);
 	}
 }

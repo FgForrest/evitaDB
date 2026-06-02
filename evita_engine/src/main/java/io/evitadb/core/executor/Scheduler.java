@@ -576,9 +576,11 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 	}
 
 	/**
-	 * Emits statistics of the ThreadPool associated with the scheduler.
+	 * Emits statistics of the {@link java.util.concurrent.ScheduledThreadPoolExecutor} associated with the scheduler.
+	 * The {@code completed} count is emitted as a per-tick delta (the metric pipeline accumulates COUNTER fields),
+	 * mirroring {@link ObservableThreadExecutor#emitStatistics()}.
 	 */
-	public void emitScheduledForkJoinPoolStatistics() {
+	public void emitStatistics() {
 		try {
 			final long currentlyCompleted = this.executorService.getCompletedTaskCount();
 			new ScheduledExecutorStatisticsEvent(
@@ -588,7 +590,8 @@ public class Scheduler implements ObservableExecutorService, ScheduledExecutorSe
 				this.executorService.getQueue().remainingCapacity(),
 				this.executorService.getPoolSize(),
 				this.executorService.getCorePoolSize(),
-				this.executorService.getMaximumPoolSize()
+				this.executorService.getMaximumPoolSize(),
+				this.executorService.getLargestPoolSize()
 			).commit();
 			this.schedulerCompletedTasks = currentlyCompleted;
 		} catch (Throwable t) {

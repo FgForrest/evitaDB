@@ -395,14 +395,22 @@ doba trvání probe.</dd>
   <dd><strong>Maximální počet uchovávaných WAL souborů</strong>: Nastavený limit pro maximální počet uchovávaných WAL souborů (`transaction.walFileCountKept`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
   <dt><code>io_evitadb_system_evita_statistics_wal_max_file_size_bytes</code> (GAUGE)</dt>
   <dd><strong>Maximální velikost WAL souboru v bajtech</strong>: Nastavený limit pro maximální velikost WAL souboru v bajtech (`transaction.walFileSizeBytes`).<br/><br/><strong>Popisky:</strong> <Term>instanceId</Term>, <Term>serverVersion</Term><br/></dd>
-  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_active</code> (GAUGE)</dt>
-  <dd><strong>Aktivní pracovníci</strong>: Odhad počtu vláken, která aktuálně kradou nebo vykonávají úlohy</dd>
-  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_queued</code> (GAUGE)</dt>
-  <dd><strong>Úlohy ve frontě</strong>: Odhad celkového počtu úloh aktuálně držených ve frontách pracovními vlákny</dd>
-  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_running</code> (GAUGE)</dt>
-  <dd><strong>Běžící pracovníci</strong>: Odhad počtu pracovních vláken, která nejsou blokována čekáním na spojení úloh nebo na jiné synchronizační vlákna</dd>
-  <dt><code>io_evitadb_system_request_fork_join_pool_statistics_steals</code> (COUNTER)</dt>
-  <dd><strong>Ukradené úlohy</strong>: Odhad celkového počtu úloh ukradených z fronty jednoho vlákna jiným vláknem. Uváděná hodnota podhodnocuje skutečný počet ukradených úloh, pokud pool není v klidovém stavu</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_active</code> (GAUGE)</dt>
+  <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_completed</code> (COUNTER)</dt>
+  <dd><strong>Dokončené úlohy</strong>: Přibližný celkový počet úloh, které byly dokončeny</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která se kdy současně nacházela v poolu</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
+  <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken v poolu</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_max</code> (GAUGE)</dt>
+  <dd><strong>Maximální počet pracovníků</strong>: Maximální povolený počet vláken v poolu</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Aktuální počet pracovníků</strong>: Aktuální počet vláken v poolu</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
+  <dd><strong>Zbývající fronta</strong>: Počet dalších prvků, které může tato fronta ideálně přijmout bez blokování</dd>
+  <dt><code>io_evitadb_system_request_thread_pool_statistics_queued</code> (GAUGE)</dt>
+  <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na vykonání</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_accepted</code> (COUNTER)</dt>
   <dd><strong>Přijaté položky</strong>: Celkový počet položek přijatých do bufferu od jeho vytvoření.</dd>
   <dt><code>io_evitadb_system_ring_buffer_statistics_items_available</code> (GAUGE)</dt>
@@ -417,6 +425,8 @@ doba trvání probe.</dd>
   <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_completed</code> (COUNTER)</dt>
   <dd><strong>Dokončené úlohy</strong>: Přibližný celkový počet úloh, které byly dokončeny</dd>
+  <dt><code>io_evitadb_system_scheduled_executor_statistics_largest_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která se kdy současně nacházela v poolu</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_core</code> (GAUGE)</dt>
   <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken v poolu</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_pool_max</code> (GAUGE)</dt>
@@ -427,14 +437,22 @@ doba trvání probe.</dd>
   <dd><strong>Zbývající fronta</strong>: Počet dalších prvků, které může tato fronta ideálně přijmout bez blokování</dd>
   <dt><code>io_evitadb_system_scheduled_executor_statistics_queued</code> (GAUGE)</dt>
   <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na vykonání</dd>
-  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_active</code> (GAUGE)</dt>
-  <dd><strong>Aktivní pracovníci</strong>: Odhad počtu vláken, která aktuálně kradou nebo vykonávají úlohy</dd>
-  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_queued</code> (GAUGE)</dt>
-  <dd><strong>Úlohy ve frontě</strong>: Odhad celkového počtu úloh aktuálně držených ve frontách pracovními vlákny</dd>
-  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_running</code> (GAUGE)</dt>
-  <dd><strong>Běžící pracovníci</strong>: Odhad počtu pracovních vláken, která nejsou blokována čekáním na spojení úloh nebo na jiné synchronizační vlákna</dd>
-  <dt><code>io_evitadb_system_transaction_fork_join_pool_statistics_steals</code> (COUNTER)</dt>
-  <dd><strong>Ukradené úlohy</strong>: Odhad celkového počtu úloh ukradených z fronty jednoho vlákna jiným vláknem. Uváděná hodnota podhodnocuje skutečný počet ukradených úloh, pokud pool není v klidovém stavu</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_active</code> (GAUGE)</dt>
+  <dd><strong>Aktivní úlohy</strong>: Přibližný počet vláken, která aktuálně vykonávají úlohy</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_completed</code> (COUNTER)</dt>
+  <dd><strong>Dokončené úlohy</strong>: Přibližný celkový počet úloh, které byly dokončeny</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_largest_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Největší počet pracovníků</strong>: Největší počet vláken, která se kdy současně nacházela v poolu</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_core</code> (GAUGE)</dt>
+  <dd><strong>Minimální počet pracovníků</strong>: Základní počet vláken v poolu</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_max</code> (GAUGE)</dt>
+  <dd><strong>Maximální počet pracovníků</strong>: Maximální povolený počet vláken v poolu</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_pool_size</code> (GAUGE)</dt>
+  <dd><strong>Aktuální počet pracovníků</strong>: Aktuální počet vláken v poolu</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queue_remaining</code> (GAUGE)</dt>
+  <dd><strong>Zbývající fronta</strong>: Počet dalších prvků, které může tato fronta ideálně přijmout bez blokování</dd>
+  <dt><code>io_evitadb_system_transaction_thread_pool_statistics_queued</code> (GAUGE)</dt>
+  <dd><strong>Úlohy ve frontě</strong>: Přibližný počet úloh ve frontě čekajících na vykonání</dd>
 </dl>
 
 #### Transakce

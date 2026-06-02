@@ -50,10 +50,10 @@ import io.evitadb.core.metric.event.system.BackgroundTaskRejectedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskStartedEvent;
 import io.evitadb.core.metric.event.system.BackgroundTaskTimedOutEvent;
 import io.evitadb.core.metric.event.system.EvitaStatisticsEvent;
-import io.evitadb.core.metric.event.system.RequestForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.RequestThreadPoolStatisticsEvent;
 import io.evitadb.core.metric.event.system.RingBufferStatisticsEvent;
 import io.evitadb.core.metric.event.system.ScheduledExecutorStatisticsEvent;
-import io.evitadb.core.metric.event.system.TransactionForkJoinPoolStatisticsEvent;
+import io.evitadb.core.metric.event.system.TransactionThreadPoolStatisticsEvent;
 import io.evitadb.core.metric.event.transaction.*;
 import io.evitadb.externalApi.event.ReadinessEvent;
 import io.evitadb.externalApi.event.RequestEvent;
@@ -135,8 +135,8 @@ public class EvitaJfrEventRegistry {
 		BackgroundTaskRejectedEvent.class,
 		BackgroundTaskTimedOutEvent.class,
 		BackgroundTaskFinishedEvent.class,
-		RequestForkJoinPoolStatisticsEvent.class,
-		TransactionForkJoinPoolStatisticsEvent.class,
+		RequestThreadPoolStatisticsEvent.class,
+		TransactionThreadPoolStatisticsEvent.class,
 		ScheduledExecutorStatisticsEvent.class,
 		RingBufferStatisticsEvent.class,
 
