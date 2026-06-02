@@ -841,7 +841,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		 * The actual work to execute. Never invoked directly by the outer executor — always invoked
 		 * via {@link #run()} which adds tracing, lifecycle tracking, and interrupt cleanup around it.
 		 */
-		private final Runnable delegate;
+		@Nonnull private final Runnable delegate;
 
 		/**
 		 * Creates an unnamed observable wrapper around the given delegate.
@@ -938,7 +938,7 @@ public class ObservableThreadExecutor implements ObservableExecutorServiceWithCa
 		 * The actual work to execute. Never invoked directly by the outer executor — always invoked
 		 * via {@link #call()} which adds tracing, lifecycle tracking, and interrupt cleanup around it.
 		 */
-		private final Callable<V> delegate;
+		@Nonnull private final Callable<V> delegate;
 
 		/**
 		 * Creates an unnamed observable wrapper around the given delegate.
