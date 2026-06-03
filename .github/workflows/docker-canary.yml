@@ -33,7 +33,7 @@ jobs:
       - name: Set up QEMU
         # Add support for more platforms with QEMU (optional)
         # https://github.com/docker/setup-qemu-action
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
       - name: Configure QEMU
         # Configure QEMU for Docker Buildx, see https://github.com/docker/buildx/issues/1170#issuecomment-2424530330
