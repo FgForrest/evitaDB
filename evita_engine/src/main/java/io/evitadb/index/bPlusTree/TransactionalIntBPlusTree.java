@@ -30,7 +30,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.function.IntObjBiFunction;
 import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -457,6 +456,39 @@ public class TransactionalIntBPlusTree<V> implements
 			valueType,
 			null,
 			new BPlusLeafTreeNode<>(valueBlockSize, valueType, null, true),
+			0
+		);
+	}
+
+	/**
+	 * Constructor to initialize the B+ Tree with explicit block sizes and a value wrapper - the wrapper-aware
+	 * counterpart of {@link #TransactionalIntBPlusTree(int, int, int, int, Class)}, required when the value type
+	 * implements {@link TransactionalLayerProducer} and therefore must be wrapped on commit. Lets consumers tune the
+	 * leaf block size for their workload from the place of usage (the tree keeps the conservative default otherwise).
+	 *
+	 * @param valueBlockSize            maximum number of values in a leaf node
+	 * @param minValueBlockSize         minimum number of values in a leaf node
+	 * @param internalNodeBlockSize     maximum number of keys in an internal node
+	 * @param minInternalNodeBlockSize  minimum number of keys in an internal node
+	 * @param valueType                 the type of the values stored in the tree
+	 * @param transactionalLayerWrapper operator that wraps the values in a transactional layer
+	 */
+	public TransactionalIntBPlusTree(
+		int valueBlockSize,
+		int minValueBlockSize,
+		int internalNodeBlockSize,
+		int minInternalNodeBlockSize,
+		@Nonnull Class<V> valueType,
+		@Nonnull Function<Object, V> transactionalLayerWrapper
+	) {
+		this(
+			valueBlockSize,
+			minValueBlockSize,
+			internalNodeBlockSize,
+			minInternalNodeBlockSize,
+			valueType,
+			transactionalLayerWrapper,
+			new BPlusLeafTreeNode<>(valueBlockSize, valueType, transactionalLayerWrapper, true),
 			0
 		);
 	}
@@ -3114,9 +3146,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 	/**
 	 * Iterator that traverses the B+ Tree from left to right and owns all the path traversal state shared
-	 * by the key, value and entry iterators. Subclasses add the concrete iterator interface and decide how
-	 * the current element is extracted - the primitive key iterators read the key directly to avoid boxing,
-	 * while the value and entry iterators delegate to an {@link IntObjBiFunction} output extractor.
+	 * by the key, value and entry iterators. Subclasses add the concrete iterator interface and read
+	 * the current element straight from the per-leaf cached arrays - the primitive key iterators return the key
+	 * directly to avoid boxing, while the value and entry iterators index the cached value (and key) arrays.
 	 *
 	 * @param <V> the type of the values stored in the tree
 	 */
@@ -3141,6 +3173,16 @@ public class TransactionalIntBPlusTree<V> implements
 		 * Flag indicating whether there are more elements to traverse.
 		 */
 		protected boolean hasNextElement;
+		/**
+		 * The current leaf's key array, value array and last occupied index, resolved through the transactional layer
+		 * exactly once per leaf when the iterator enters it (see {@link #loadCurrentLeaf()}). Caching them here turns
+		 * the hot per-element path into plain array indexing and removes the per-element `ThreadLocal` lookup that
+		 * {@link BPlusLeafTreeNode#getKeys()} / {@link BPlusLeafTreeNode#getValues()} / {@link BPlusLeafTreeNode#getPeek()}
+		 * would otherwise repeat on every step. Visible to subclasses so the key/value/entry iterators index them directly.
+		 */
+		protected int[] leafKeys;
+		protected V[] leafValues;
+		protected int leafPeek;
 
 		/**
 		 * Initializes the forward iterator starting from the leftmost position of the cursor.
@@ -3159,7 +3201,9 @@ public class TransactionalIntBPlusTree<V> implements
 				this.pathPeeks[i] = cursorLevel.peek();
 			}
 			this.currentIndex = 0;
-			this.hasNextElement = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek() >= 0;
+			// resolve the first leaf's arrays once; all subsequent per-element access reads the cached arrays
+			loadCurrentLeaf();
+			this.hasNextElement = this.leafPeek >= 0;
 		}
 
 		/**
@@ -3183,8 +3227,10 @@ public class TransactionalIntBPlusTree<V> implements
 				key, cursor.leafNode()
 					.getKeys(), 0, cursor.leafNode().size()
 			);
+			// resolve the start leaf's arrays once; the per-element hot path then reads only the cached arrays
+			loadCurrentLeaf();
 			this.currentIndex = insertionPosition.position();
-			if (this.currentIndex <= this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek()) {
+			if (this.currentIndex <= this.leafPeek) {
 				// the start key lies within the current leaf - it has at least one key >= key
 				this.hasNextElement = true;
 			} else {
@@ -3216,13 +3262,25 @@ public class TransactionalIntBPlusTree<V> implements
 		}
 
 		/**
+		 * Resolves the current leaf (the deepest node on the path) through the transactional layer exactly once and
+		 * caches its key array, value array and last occupied index. All per-element access then reads these cached
+		 * fields, so the costly transactional-layer {@code ThreadLocal} lookup is paid once per leaf instead of three
+		 * times per element.
+		 */
+		private void loadCurrentLeaf() {
+			final BPlusLeafTreeNode<V> leaf = currentLeaf();
+			this.leafKeys = leaf.getKeys();
+			this.leafValues = leaf.getValues();
+			this.leafPeek = leaf.getPeek();
+		}
+
+		/**
 		 * Advances the iterator one position to the right after the current element has been consumed. The
 		 * position moves to the next key in the current leaf, or - when the current leaf is exhausted - to
 		 * the first key of the following leaf via {@link #moveToNextLeaf()}.
 		 */
 		protected void advance() {
-			final BPlusLeafTreeNode<V> currentLeaf = currentLeaf();
-			if (this.currentIndex < currentLeaf.getPeek()) {
+			if (this.currentIndex < this.leafPeek) {
 				// easy path, there is another key in the current leaf
 				this.currentIndex++;
 			} else {
@@ -3259,6 +3317,8 @@ public class TransactionalIntBPlusTree<V> implements
 						currentNode = this.path[i][0];
 					}
 					this.currentIndex = 0;
+					// refresh the cached key/value arrays + peek for the newly entered leaf
+					loadCurrentLeaf();
 					return true;
 				} else {
 					// we need to continue search with the parent of the parent
@@ -3272,9 +3332,9 @@ public class TransactionalIntBPlusTree<V> implements
 
 	/**
 	 * Iterator that traverses the B+ Tree from right to left and owns all the path traversal state shared
-	 * by the key, value and entry iterators. Subclasses add the concrete iterator interface and decide how
-	 * the current element is extracted - the primitive key iterators read the key directly to avoid boxing,
-	 * while the value and entry iterators delegate to an {@link IntObjBiFunction} output extractor.
+	 * by the key, value and entry iterators. Subclasses add the concrete iterator interface and read
+	 * the current element straight from the per-leaf cached arrays - the primitive key iterators return the key
+	 * directly to avoid boxing, while the value and entry iterators index the cached value (and key) arrays.
 	 *
 	 * @param <V> the type of the values stored in the tree
 	 */
@@ -3295,6 +3355,16 @@ public class TransactionalIntBPlusTree<V> implements
 		 * Flag indicating whether there are more elements to traverse.
 		 */
 		protected boolean hasNextElement;
+		/**
+		 * The current leaf's key array, value array and last occupied index, resolved through the transactional layer
+		 * exactly once per leaf when the iterator enters it (see {@link #loadCurrentLeaf()}). Caching them here turns
+		 * the hot per-element path into plain array indexing and removes the per-element `ThreadLocal` lookup that
+		 * {@link BPlusLeafTreeNode#getKeys()} / {@link BPlusLeafTreeNode#getValues()} / {@link BPlusLeafTreeNode#getPeek()}
+		 * would otherwise repeat on every step. Visible to subclasses so the key/value/entry iterators index them directly.
+		 */
+		protected int[] leafKeys;
+		protected V[] leafValues;
+		protected int leafPeek;
 
 		/**
 		 * Initializes the reverse iterator starting from the rightmost position of the cursor.
@@ -3310,7 +3380,9 @@ public class TransactionalIntBPlusTree<V> implements
 				this.path[i] = cursorLevel.siblings();
 				this.pathIndex[i] = cursorLevel.index();
 			}
-			this.currentIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+			// resolve the rightmost leaf's arrays once; all subsequent per-element access reads the cached arrays
+			loadCurrentLeaf();
+			this.currentIndex = this.leafPeek;
 			this.hasNextElement = this.currentIndex >= 0;
 		}
 
@@ -3334,6 +3406,8 @@ public class TransactionalIntBPlusTree<V> implements
 				key, cursor.leafNode()
 					.getKeys(), 0, cursor.leafNode().size()
 			);
+			// resolve the start leaf's arrays once; the per-element hot path then reads only the cached arrays
+			loadCurrentLeaf();
 			if (insertionPosition.alreadyPresent()) {
 				this.currentIndex = insertionPosition.position();
 				this.hasNextElement = true;
@@ -3364,6 +3438,19 @@ public class TransactionalIntBPlusTree<V> implements
 		protected BPlusLeafTreeNode<V> currentLeaf() {
 			//noinspection unchecked
 			return (BPlusLeafTreeNode<V>) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
+		}
+
+		/**
+		 * Resolves the current leaf (the deepest node on the path) through the transactional layer exactly once and
+		 * caches its key array, value array and last occupied index. All per-element access then reads these cached
+		 * fields, so the costly transactional-layer {@code ThreadLocal} lookup is paid once per leaf instead of three
+		 * times per element.
+		 */
+		private void loadCurrentLeaf() {
+			final BPlusLeafTreeNode<V> leaf = currentLeaf();
+			this.leafKeys = leaf.getKeys();
+			this.leafValues = leaf.getValues();
+			this.leafPeek = leaf.getPeek();
 		}
 
 		/**
@@ -3415,7 +3502,9 @@ public class TransactionalIntBPlusTree<V> implements
 						currentNode = this.path[i][this.pathIndex[i]];
 					}
 					this.hasNextElement = true;
-					this.currentIndex = this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]].getPeek();
+					// refresh the cached key/value arrays + peek for the newly entered leaf
+					loadCurrentLeaf();
+					this.currentIndex = this.leafPeek;
 					found = true;
 					break;
 				} else {
@@ -3460,7 +3549,8 @@ public class TransactionalIntBPlusTree<V> implements
 			if (!this.hasNextElement) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			final int key = currentLeaf().getKeys()[this.currentIndex];
+			// read straight from the cached leaf key array - no per-element ThreadLocal accessor call
+			final int key = this.leafKeys[this.currentIndex];
 			advance();
 			return key;
 		}
@@ -3498,7 +3588,8 @@ public class TransactionalIntBPlusTree<V> implements
 			if (!this.hasNextElement) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			final int key = currentLeaf().getKeys()[this.currentIndex];
+			// read straight from the cached leaf key array - no per-element ThreadLocal accessor call
+			final int key = this.leafKeys[this.currentIndex];
 			advance();
 			return key;
 		}
@@ -3510,10 +3601,6 @@ public class TransactionalIntBPlusTree<V> implements
 	 * @param <V> the type of the values stored in the tree
 	 */
 	static class ForwardTreeValueIterator<V> extends AbstractForwardTreeIterator<V> implements Iterator<V> {
-		/**
-		 * Function allowing to extract the iterator output from the current index and leaf node.
-		 */
-		@Nonnull private final IntObjBiFunction<BPlusLeafTreeNode<V>, V> outputExtractor;
 
 		/**
 		 * Creates a forward value iterator starting from the leftmost value.
@@ -3522,7 +3609,6 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor) {
 			super(cursor);
-			this.outputExtractor = (index, leafNode) -> leafNode.getValues()[index];
 		}
 
 		/**
@@ -3533,7 +3619,6 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		public ForwardTreeValueIterator(@Nonnull Cursor<V> cursor, int key) {
 			super(cursor, key);
-			this.outputExtractor = (index, leafNode) -> leafNode.getValues()[index];
 		}
 
 		@Override
@@ -3541,7 +3626,8 @@ public class TransactionalIntBPlusTree<V> implements
 			if (!this.hasNextElement) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			final V value = this.outputExtractor.apply(this.currentIndex, currentLeaf());
+			// read straight from the cached leaf value array - no per-element ThreadLocal accessor call
+			final V value = this.leafValues[this.currentIndex];
 			advance();
 			return value;
 		}
@@ -3553,10 +3639,6 @@ public class TransactionalIntBPlusTree<V> implements
 	 * @param <V> the type of the values stored in the tree
 	 */
 	static class ReverseTreeValueIterator<V> extends AbstractReverseTreeIterator<V> implements Iterator<V> {
-		/**
-		 * Function allowing to extract the iterator output from the current index and leaf node.
-		 */
-		@Nonnull private final IntObjBiFunction<BPlusLeafTreeNode<V>, V> outputExtractor;
 
 		/**
 		 * Creates a reverse value iterator starting from the rightmost value.
@@ -3565,7 +3647,6 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		public ReverseTreeValueIterator(@Nonnull Cursor<V> cursor) {
 			super(cursor);
-			this.outputExtractor = (index, leafNode) -> leafNode.getValues()[index];
 		}
 
 		/**
@@ -3576,7 +3657,6 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		public ReverseTreeValueIterator(@Nonnull Cursor<V> cursor, int key) {
 			super(cursor, key);
-			this.outputExtractor = (index, leafNode) -> leafNode.getValues()[index];
 		}
 
 		@Override
@@ -3584,7 +3664,8 @@ public class TransactionalIntBPlusTree<V> implements
 			if (!this.hasNextElement) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			final V value = this.outputExtractor.apply(this.currentIndex, currentLeaf());
+			// read straight from the cached leaf value array - no per-element ThreadLocal accessor call
+			final V value = this.leafValues[this.currentIndex];
 			advance();
 			return value;
 		}
@@ -3596,10 +3677,6 @@ public class TransactionalIntBPlusTree<V> implements
 	 * @param <V> the type of the values stored in the tree
 	 */
 	static class ForwardTreeEntryIterator<V> extends AbstractForwardTreeIterator<V> implements Iterator<Entry<V>> {
-		/**
-		 * Function allowing to extract the iterator output from the current index and leaf node.
-		 */
-		@Nonnull private final IntObjBiFunction<BPlusLeafTreeNode<V>, Entry<V>> outputExtractor;
 
 		/**
 		 * Creates a forward entry iterator starting from the leftmost entry.
@@ -3608,8 +3685,6 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		public ForwardTreeEntryIterator(@Nonnull Cursor<V> cursor) {
 			super(cursor);
-			this.outputExtractor = (index, leafNode) -> new Entry<>(
-				leafNode.getKeys()[index], leafNode.getValues()[index]);
 		}
 
 		/**
@@ -3620,8 +3695,6 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		public ForwardTreeEntryIterator(@Nonnull Cursor<V> cursor, int key) {
 			super(cursor, key);
-			this.outputExtractor = (index, leafNode) -> new Entry<>(
-				leafNode.getKeys()[index], leafNode.getValues()[index]);
 		}
 
 		@Override
@@ -3629,7 +3702,8 @@ public class TransactionalIntBPlusTree<V> implements
 			if (!this.hasNextElement) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			final Entry<V> entry = this.outputExtractor.apply(this.currentIndex, currentLeaf());
+			// build straight from the cached leaf arrays - no per-element ThreadLocal accessor call
+			final Entry<V> entry = new Entry<>(this.leafKeys[this.currentIndex], this.leafValues[this.currentIndex]);
 			advance();
 			return entry;
 		}
@@ -3641,10 +3715,6 @@ public class TransactionalIntBPlusTree<V> implements
 	 * @param <V> the type of the values stored in the tree
 	 */
 	static class ReverseTreeEntryIterator<V> extends AbstractReverseTreeIterator<V> implements Iterator<Entry<V>> {
-		/**
-		 * Function allowing to extract the iterator output from the current index and leaf node.
-		 */
-		@Nonnull private final IntObjBiFunction<BPlusLeafTreeNode<V>, Entry<V>> outputExtractor;
 
 		/**
 		 * Creates a reverse entry iterator starting from the rightmost entry.
@@ -3653,8 +3723,6 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		public ReverseTreeEntryIterator(@Nonnull Cursor<V> cursor) {
 			super(cursor);
-			this.outputExtractor = (index, leafNode) -> new Entry<>(
-				leafNode.getKeys()[index], leafNode.getValues()[index]);
 		}
 
 		/**
@@ -3665,8 +3733,6 @@ public class TransactionalIntBPlusTree<V> implements
 		 */
 		public ReverseTreeEntryIterator(@Nonnull Cursor<V> cursor, int key) {
 			super(cursor, key);
-			this.outputExtractor = (index, leafNode) -> new Entry<>(
-				leafNode.getKeys()[index], leafNode.getValues()[index]);
 		}
 
 		@Override
@@ -3674,7 +3740,8 @@ public class TransactionalIntBPlusTree<V> implements
 			if (!this.hasNextElement) {
 				throw new NoSuchElementException("No more elements available");
 			}
-			final Entry<V> entry = this.outputExtractor.apply(this.currentIndex, currentLeaf());
+			// build straight from the cached leaf arrays - no per-element ThreadLocal accessor call
+			final Entry<V> entry = new Entry<>(this.leafKeys[this.currentIndex], this.leafValues[this.currentIndex]);
 			advance();
 			return entry;
 		}

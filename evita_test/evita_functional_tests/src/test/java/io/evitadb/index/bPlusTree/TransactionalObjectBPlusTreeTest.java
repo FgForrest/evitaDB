@@ -30,6 +30,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.Entry;
+import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.EntryCursor;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.list.TransactionalList;
@@ -1851,6 +1852,129 @@ class TransactionalObjectBPlusTreeTest {
 			final TreeTuple testTree = prepareRandomTree(42, 100);
 			final Iterator<Entry<Integer, String>> it = testTree.bPlusTree().lesserOrEqualEntryIterator(-1000);
 			assertFalse(it.hasNext());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Entry cursor (allocation-free)")
+	class EntryCursorTest {
+
+		@Test
+		@DisplayName("forward cursor traverses the whole tree across many leaves")
+		void shouldTraverseEntireTreeForwardViaCursor() {
+			final TreeTuple testTree = prepareRandomTree(42, 200);
+			final int[] keys = testTree.plainArray();
+
+			final EntryCursor<Integer, String> cursor = testTree.bPlusTree().entryCursor();
+			int index = 0;
+			while (cursor.hasNext()) {
+				final Integer key = cursor.next();
+				// value() must stay paired with the key just returned, even right after a leaf transition
+				assertEquals(keys[index], (int) key);
+				assertEquals("Value" + keys[index], cursor.value());
+				index++;
+			}
+			assertEquals(keys.length, index);
+			assertThrows(NoSuchElementException.class, cursor::next);
+		}
+
+		@Test
+		@DisplayName("reverse cursor traverses the whole tree across many leaves")
+		void shouldTraverseEntireTreeReverseViaCursor() {
+			final TreeTuple testTree = prepareRandomTree(42, 200);
+			final int[] keys = testTree.plainArray();
+
+			final EntryCursor<Integer, String> cursor = testTree.bPlusTree().entryReverseCursor();
+			int index = keys.length - 1;
+			while (cursor.hasNext()) {
+				final Integer key = cursor.next();
+				assertEquals(keys[index], (int) key);
+				assertEquals("Value" + keys[index], cursor.value());
+				index--;
+			}
+			assertEquals(-1, index);
+			assertThrows(NoSuchElementException.class, cursor::next);
+		}
+
+		@Test
+		@DisplayName("value() stays paired with key across leaf boundaries at minimal block size")
+		void shouldKeepValuePairedAcrossLeafBoundaries() {
+			// block size 3 forces a leaf transition roughly every three elements, exercising the per-leaf
+			// array caching and the value() pairing right after the cursor crosses into the next leaf
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, 1, 3, 1, Integer.class, String.class);
+			for (int i = 0; i < 64; i++) {
+				tree.insert(i, "Value" + i);
+			}
+
+			final EntryCursor<Integer, String> cursor = tree.entryCursor();
+			int expected = 0;
+			while (cursor.hasNext()) {
+				final int key = cursor.next();
+				assertEquals(expected, key);
+				assertEquals("Value" + expected, cursor.value());
+				expected++;
+			}
+			assertEquals(64, expected);
+		}
+
+		@Test
+		@DisplayName("forward and reverse cursors agree on a larger tuned-block tree")
+		void shouldMatchForwardAndReverseCursorAtLargerBlockSize() {
+			// a non-default leaf block size (the kind SortIndex configures) with enough elements to span many
+			// leaves, verifying the cached-array traversal is block-size independent in both directions
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(16, 7, 15, 6, Integer.class, String.class);
+			for (int i = 0; i < 500; i++) {
+				tree.insert(i, "Value" + i);
+			}
+
+			final EntryCursor<Integer, String> forward = tree.entryCursor();
+			final EntryCursor<Integer, String> reverse = tree.entryReverseCursor();
+			for (int i = 0; i < 500; i++) {
+				assertTrue(forward.hasNext());
+				assertTrue(reverse.hasNext());
+				assertEquals(i, (int) forward.next());
+				assertEquals("Value" + i, forward.value());
+				assertEquals(499 - i, (int) reverse.next());
+				assertEquals("Value" + (499 - i), reverse.value());
+			}
+			assertFalse(forward.hasNext());
+			assertFalse(reverse.hasNext());
+		}
+
+		@Test
+		@DisplayName("empty tree yields an empty cursor in both directions")
+		void shouldReturnEmptyCursorOnEmptyTree() {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			final EntryCursor<Integer, String> forward = tree.entryCursor();
+			final EntryCursor<Integer, String> reverse = tree.entryReverseCursor();
+			assertFalse(forward.hasNext());
+			assertFalse(reverse.hasNext());
+			assertThrows(NoSuchElementException.class, forward::next);
+			assertThrows(NoSuchElementException.class, reverse::next);
+		}
+
+		@Test
+		@DisplayName("single element tree is traversed by both cursors")
+		void shouldTraverseSingleElementViaCursor() {
+			final TransactionalObjectBPlusTree<Integer, String> tree =
+				new TransactionalObjectBPlusTree<>(3, Integer.class, String.class);
+			tree.insert(7, "Value7");
+
+			final EntryCursor<Integer, String> forward = tree.entryCursor();
+			assertTrue(forward.hasNext());
+			assertEquals(7, (int) forward.next());
+			assertEquals("Value7", forward.value());
+			assertFalse(forward.hasNext());
+
+			final EntryCursor<Integer, String> reverse = tree.entryReverseCursor();
+			assertTrue(reverse.hasNext());
+			assertEquals(7, (int) reverse.next());
+			assertEquals("Value7", reverse.value());
+			assertFalse(reverse.hasNext());
 		}
 
 	}
