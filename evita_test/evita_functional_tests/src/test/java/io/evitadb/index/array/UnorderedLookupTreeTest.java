@@ -25,6 +25,7 @@ package io.evitadb.index.array;
 
 import com.carrotsearch.hppc.IntLongHashMap;
 import com.carrotsearch.hppc.IntLongMap;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,7 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -299,6 +301,44 @@ class UnorderedLookupTreeTest {
 			// the tree's permutation must match the array delegate operation for operation
 			assertArrayEquals(array.getArray(), tested.tree.getArray(), "permutation mismatch at op " + op);
 		}
+	}
+
+	@Test
+	void shouldThrowWhenAddressingPositionOutOfBounds() {
+		final TreeWithIndex empty = new TreeWithIndex();
+		// any position on an empty tree is out of bounds
+		assertThrows(GenericEvitaInternalError.class, () -> empty.tree.getRecordAt(0));
+
+		final TreeWithIndex tested = new TreeWithIndex();
+		tested.bulkLoad(new int[]{4, 2, 3, 1});
+		assertThrows(GenericEvitaInternalError.class, () -> tested.tree.getRecordAt(-1));
+		// position == size is just past the last valid index
+		assertThrows(GenericEvitaInternalError.class, () -> tested.tree.getRecordAt(4));
+	}
+
+	@Test
+	void shouldThrowWhenGettingLastRecordIdOfEmptyTree() {
+		final TreeWithIndex empty = new TreeWithIndex();
+		assertThrows(ArrayIndexOutOfBoundsException.class, () -> empty.tree.getLastRecordId());
+	}
+
+	@Test
+	void shouldRejectBulkLoadOnNonEmptyTree() {
+		final TreeWithIndex tested = new TreeWithIndex();
+		tested.bulkLoad(new int[]{1, 2, 3});
+		// bulk-load is only legal on a pristine, empty tree
+		assertThrows(GenericEvitaInternalError.class, () -> tested.bulkLoad(new int[]{4, 5}));
+	}
+
+	@Test
+	void shouldThrowWhenLocatingRecordMissingFromRoutedContainer() {
+		final TreeWithIndex tested = new TreeWithIndex();
+		// a handful of records all live in the single root container with order-key 0
+		tested.bulkLoad(new int[]{1, 2, 3});
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> tested.tree.findPositionByOrderKey(0L, 999)
+		);
 	}
 
 }

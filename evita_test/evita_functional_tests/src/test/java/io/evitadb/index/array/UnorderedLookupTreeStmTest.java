@@ -42,6 +42,8 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -374,6 +376,52 @@ class UnorderedLookupTreeStmTest {
 						expected[i] = oracle.get(i);
 					}
 					assertArrayEquals(expected, committed.getArray());
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Identity")
+	class IdentityTest {
+
+		@Test
+		@DisplayName("returns stable and unique id across instances")
+		void shouldReturnStableAndUniqueId() {
+			final UnorderedLookupTree tree1 = new UnorderedLookupTree();
+			final UnorderedLookupTree tree2 = new UnorderedLookupTree();
+
+			final long id1 = tree1.getId();
+			final long id2 = tree2.getId();
+
+			// id is stable on repeated calls
+			assertEquals(id1, tree1.getId());
+			assertEquals(id2, tree2.getId());
+			// ids are unique across instances
+			assertNotEquals(id1, id2);
+		}
+
+		@Test
+		@DisplayName("no-op commit yields a distinct, independently usable copy")
+		void shouldProduceDistinctUsableInstanceOnNoOpCommit() {
+			final TreeWithIndex driver = committedTreeOfSize(3);
+
+			assertStateAfterCommit(
+				driver.tree,
+				tested -> {
+					// no mutations at all
+				},
+				(original, committed) -> {
+					// commit always materialises a fresh instance with its own identity
+					assertNotSame(original, committed);
+					assertNotEquals(original.getId(), committed.getId());
+					// both views hold the same contents
+					assertArrayEquals(expectedArrayOfSize(3), original.getArray());
+					assertArrayEquals(expectedArrayOfSize(3), committed.getArray());
+					assertEquals(3, committed.size());
+					// the committed copy is independently addressable
+					assertEquals(1000, committed.getRecordAt(0));
+					assertEquals(1002, committed.getRecordAt(2));
 				}
 			);
 		}
