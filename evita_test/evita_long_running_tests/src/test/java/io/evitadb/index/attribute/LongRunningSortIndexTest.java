@@ -31,10 +31,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
@@ -139,14 +141,25 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 							) + "\n\n" + ops
 						);
 
+						// rebuild the (array + sparse-cardinality-map) form from the consolidated value→cardinality tree;
+						// the (array, map) constructor follows the legacy convention where cardinality 1 is implied, so
+						// only entries greater than one go into the map
+						final Serializable[] committedValues = committed.getSortedRecordValues();
+						final Map<Serializable, Integer> committedCardinalities = new HashMap<>();
+						for (final Serializable value : committedValues) {
+							final int cardinality = committed.getValueCardinality(value);
+							if (cardinality > 1) {
+								committedCardinalities.put(value, cardinality);
+							}
+						}
 						committedResult.set(
 							new SortIndex(
 								committed.comparatorBase,
 								null,
 								committed.getAttributeIndexKey(),
 								committed.sortedRecords.getArray(),
-								committed.sortedRecordsValues.getArray(),
-								new HashMap<>(committed.valueCardinalities)
+								committedValues,
+								committedCardinalities
 							)
 						);
 					}

@@ -41,6 +41,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -78,21 +79,21 @@ class SortIndexTest {
 	@Test
 	void shouldCreateIndexWithDifferentCardinalities() {
 		final SortIndex sortIndex = createIndexWithBaseCardinalities();
-		assertNull(sortIndex.valueCardinalities.get("Z"));
-		assertNull(sortIndex.valueCardinalities.get("A"));
-		assertEquals(2, sortIndex.valueCardinalities.get("B"));
-		assertEquals(4, sortIndex.valueCardinalities.get("C"));
-		assertArrayEquals(new String[]{"A", "B", "C", "E"}, sortIndex.sortedRecordsValues.getArray());
+		assertTrue(sortIndex.getRecordsEqualTo("Z").isEmpty());
+		assertEquals(1, sortIndex.getValueCardinality("A"));
+		assertEquals(2, sortIndex.getValueCardinality("B"));
+		assertEquals(4, sortIndex.getValueCardinality("C"));
+		assertArrayEquals(new String[]{"A", "B", "C", "E"}, sortIndex.getSortedRecordValues());
 		assertArrayEquals(new int[]{6, 4, 5, 1, 2, 3, 7, 9}, sortIndex.sortedRecords.getArray());
 	}
 
 	@Test
 	void shouldCreateCompoundIndexWithDifferentCardinalities() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"Z", 1})));
-		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"A", 2})));
-		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"B", 1})));
-		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Serializable[]{"C", 9})));
+		assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"Z", 1}).isEmpty());
+		assertTrue(sortIndex.getRecordsEqualTo(new Serializable[]{"A", 2}).isEmpty());
+		assertEquals(2, sortIndex.getValueCardinality(new ComparableArray(new Serializable[]{"B", 1})));
+		assertEquals(2, sortIndex.getValueCardinality(new ComparableArray(new Serializable[]{"C", 9})));
 		assertArrayEquals(
 			new ComparableArray[]{
 				new ComparableArray(new Serializable[]{null, 3}),
@@ -103,7 +104,7 @@ class SortIndexTest {
 				new ComparableArray(new Serializable[]{"C", null}),
 				new ComparableArray(new Serializable[]{"E", null})
 			},
-			sortIndex.sortedRecordsValues.getArray()
+			sortIndex.getSortedRecordValues()
 		);
 		assertArrayEquals(new int[]{8, 6, 4, 5, 1, 7, 3, 2, 9}, sortIndex.sortedRecords.getArray());
 	}
@@ -139,11 +140,11 @@ class SortIndexTest {
 		sortIndex.removeRecord("A", 6);
 		sortIndex.removeRecord("B", 4);
 		sortIndex.removeRecord("C", 1);
-		assertNull(sortIndex.valueCardinalities.get("Z"));
-		assertNull(sortIndex.valueCardinalities.get("A"));
-		assertNull(sortIndex.valueCardinalities.get("B"));
-		assertEquals(3, sortIndex.valueCardinalities.get("C"));
-		assertArrayEquals(new String[]{"B", "C", "E"}, sortIndex.sortedRecordsValues.getArray());
+		assertTrue(sortIndex.getRecordsEqualTo("Z").isEmpty());
+		assertTrue(sortIndex.getRecordsEqualTo("A").isEmpty());
+		assertEquals(1, sortIndex.getValueCardinality("B"));
+		assertEquals(3, sortIndex.getValueCardinality("C"));
+		assertArrayEquals(new String[]{"B", "C", "E"}, sortIndex.getSortedRecordValues());
 		assertArrayEquals(new int[]{5, 2, 3, 7, 9}, sortIndex.sortedRecords.getArray());
 	}
 
@@ -343,7 +344,7 @@ class SortIndexTest {
 				normalize("T", Form.NFD),
 				normalize("Ž", Form.NFD)
 			},
-			sortIndex.sortedRecordsValues.getArray()
+			sortIndex.getSortedRecordValues()
 		);
 		assertArrayEquals(new int[]{1, 4, 7, 6, 2, 3, 5}, sortIndex.sortedRecords.getArray());
 	}
@@ -421,7 +422,7 @@ class SortIndexTest {
 				original -> {
 					// no mutations
 				},
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 
@@ -712,11 +713,11 @@ class SortIndexTest {
 			sortIndex.addRecord("X", 2);
 
 			// cardinality is 2
-			assertEquals(2, sortIndex.valueCardinalities.get("X"));
+			assertEquals(2, sortIndex.getValueCardinality("X"));
 
-			// remove one -- cardinality drops to 1, entry removed
+			// remove one -- cardinality drops to 1 (still present, just no longer multi-record)
 			sortIndex.removeRecord("X", 1);
-			assertNull(sortIndex.valueCardinalities.get("X"));
+			assertEquals(1, sortIndex.getValueCardinality("X"));
 
 			// still one record remains
 			assertEquals(1, sortIndex.size());

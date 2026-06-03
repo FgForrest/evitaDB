@@ -23,7 +23,8 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.index.array.TransactionalObjArray;
+import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.EntryCursor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
@@ -37,8 +38,6 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
 
 import static io.evitadb.index.attribute.SortIndex.invert;
@@ -67,10 +66,11 @@ public class SortIndexChanges implements Serializable {
 	@SuppressWarnings("rawtypes") private final Comparator valueComparator;
 
 	/**
-	 * Contains information about indexes of the record chunks that belong to {@link SortIndex#sortedRecordsValues}.
-	 * This intermediate structure is used only when contents of the {@link SortIndex} are modified.
-	 * The sort index itself avoids holding this data for memory optimization. The {@link SortIndex#valueCardinalities}
-	 * only hold cardinalities larger than one, and this field expands that data into a full form.
+	 * Contains start indexes of the record id chunks (blocks) within {@link SortIndex#sortedRecords} - one entry per
+	 * distinct value, in value order. This intermediate structure is used only when contents of the {@link SortIndex}
+	 * are modified. The sort index itself avoids holding this data for memory optimization. It expands the per-value
+	 * cardinalities stored inline in {@link SortIndex#sortedValues} (each `>= 1`) into a full prefix-sum of block start
+	 * offsets - see {@link #getValueIndex(TransactionalObjectBPlusTree)}.
 	 */
 	private ValueStartIndex[] valueLocationIndex;
 
@@ -148,7 +148,7 @@ public class SortIndexChanges implements Serializable {
 	 * with {@link io.evitadb.index.array.TransactionalUnorderedIntArray#add(int, int)} contract.
 	 */
 	public int computePreviousRecord(@Nonnull Serializable value, int recordId) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedValues);
 		// compute index of the value in the value index
 		//noinspection unchecked
 		final InsertionPosition valueInsertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
@@ -188,7 +188,7 @@ public class SortIndexChanges implements Serializable {
 	 * Method alters internal data structures when new value (that was not present before) is inserted in the {@link SortIndex}.
 	 */
 	public void valueAdded(@Nonnull Serializable value) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedValues);
 		// compute the insertion position in value index
 		@SuppressWarnings({"unchecked"}) final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			new ValueStartIndex(value, this.valueComparator, -1), valueIndex,
@@ -208,13 +208,8 @@ public class SortIndexChanges implements Serializable {
 	 * Method alters internal data structures when existing value cardinality is incremented in the {@link SortIndex}.
 	 */
 	public void valueCardinalityIncreased(@Nonnull Serializable value) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
-		// find the value in the index
-		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
-			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
-		);
-		assertNotPresent(position >= 0, value);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedValues);
+		final int position = findExistingValuePosition(valueIndex, value);
 		// update this and all values after it - their index should be greater by exactly one inserted record
 		for (int i = position + 1; i < valueIndex.length; i++) {
 			valueIndex[i].increment();
@@ -227,20 +222,15 @@ public class SortIndexChanges implements Serializable {
 	 */
 	public void prepare() {
 		// force computation of the value index
-		getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
+		getValueIndex(this.sortIndex.sortedValues);
 	}
 
 	/**
 	 * Method alters internal data structures when existing value is removed entirely from the {@link SortIndex}.
 	 */
 	public void valueRemoved(@Nonnull Serializable value) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
-		// find the value in the index
-		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
-			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
-		);
-		assertNotPresent(position >= 0, value);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedValues);
+		final int position = findExistingValuePosition(valueIndex, value);
 		// remove it from the value location index
 		this.valueLocationIndex = ArrayUtils.removeRecordFromArrayOnIndex(valueIndex, position);
 		// update all values after it - their index should be lesser by exactly one inserted record
@@ -253,47 +243,55 @@ public class SortIndexChanges implements Serializable {
 	 * Method alters internal data structures when existing value cardinality is decremented in the {@link SortIndex}.
 	 */
 	public void valueCardinalityDecreased(@Nonnull Serializable value) {
-		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedRecordsValues, this.sortIndex.valueCardinalities);
-		// find the value in the index
-		@SuppressWarnings({"unchecked"}) final int position = Arrays.binarySearch(
-			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
-			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
-		);
-		assertNotPresent(position >= 0, value);
+		final ValueStartIndex[] valueIndex = getValueIndex(this.sortIndex.sortedValues);
+		final int position = findExistingValuePosition(valueIndex, value);
 		// update it and all values after it - their index should be lesser by exactly one inserted record
 		for (int i = position + 1; i < valueIndex.length; i++) {
 			valueIndex[i].decrement();
 		}
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	/**
 	 * Computes value index if it hasn't exist yet. Result of this method is memoized. Method computes starting index
-	 * (position) of the record ids block that belongs to specific value from {@link SortIndex#sortedRecordsValues} and
-	 * {@link SortIndex#valueCardinalities} information.
+	 * (position) of the record ids block that belongs to specific value by iterating {@link SortIndex#sortedValues} in
+	 * key order and accumulating each value's inline cardinality.
 	 */
 	@Nonnull
-	ValueStartIndex[] getValueIndex(
-		@Nonnull TransactionalObjArray<? extends Serializable> sortedRecordsValues,
-		@Nonnull Map<?, Integer> valueCardinalities
-	) {
+	@SuppressWarnings("rawtypes")
+	ValueStartIndex[] getValueIndex(@Nonnull TransactionalObjectBPlusTree sortedValues) {
 		if (this.valueLocationIndex == null) {
-			final int valueCount = sortedRecordsValues.getLength();
+			final int valueCount = sortedValues.size();
 			final ValueStartIndex[] theValueLocationIndex = new ValueStartIndex[valueCount];
-			final Iterator<? extends Serializable> it = sortedRecordsValues.iterator();
+			final EntryCursor cursor = sortedValues.entryCursor();
 			int index = 0;
 			int accumulator = 0;
-			while (it.hasNext()) {
-				final Serializable value = it.next();
+			while (cursor.hasNext()) {
+				final Serializable value = (Serializable) cursor.next();
 				theValueLocationIndex[index++] = new ValueStartIndex(value, this.valueComparator, accumulator);
-				accumulator += ofNullable(valueCardinalities.get(value)).orElse(1);
+				accumulator += (Integer) cursor.value();
 			}
 			this.valueLocationIndex = theValueLocationIndex;
 		}
 		return this.valueLocationIndex;
+	}
+
+	/**
+	 * Finds the position of an already-present `value` within the memoized value index via binary search, asserting it
+	 * is indeed present. Shared by the mutation methods that locate an existing value before shifting the block start
+	 * offsets of the values that follow it.
+	 *
+	 * @param valueIndex the memoized value index to search (obtained from {@link #getValueIndex})
+	 * @param value      the value expected to be present in the index
+	 * @return the index of `value` within `valueIndex`
+	 */
+	@SuppressWarnings("unchecked")
+	private int findExistingValuePosition(@Nonnull ValueStartIndex[] valueIndex, @Nonnull Serializable value) {
+		final int position = Arrays.binarySearch(
+			valueIndex, new ValueStartIndex(value, this.valueComparator, -1),
+			(o1, o2) -> this.valueComparator.compare(o1.getValue(), o2.getValue())
+		);
+		assertNotPresent(position >= 0, value);
+		return position;
 	}
 
 	/**
@@ -306,7 +304,7 @@ public class SortIndexChanges implements Serializable {
 		} else {
 			final ValueStartIndex previousPosition = valueIndex[position - 1];
 			final int previousPositionStart = previousPosition.getIndex();
-			final Integer cardinality = ofNullable(this.sortIndex.valueCardinalities.get(previousPosition.getValue())).orElse(1);
+			final int cardinality = this.sortIndex.getValueCardinality(previousPosition.getValue());
 			return previousPositionStart + cardinality;
 		}
 	}
