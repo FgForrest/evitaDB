@@ -2462,4 +2462,333 @@ class TransactionalIntToLongBPlusTreeTest {
 
 	}
 
+	@Nested
+	@DisplayName("STM invariants")
+	class StmInvariantsTest {
+
+		@Test
+		@DisplayName("returns stable and unique id across instances")
+		void shouldReturnStableAndUniqueId() {
+			final TransactionalIntToLongBPlusTree tree1 = new TransactionalIntToLongBPlusTree(3);
+			final TransactionalIntToLongBPlusTree tree2 = new TransactionalIntToLongBPlusTree(3);
+
+			final long id1 = tree1.getId();
+			final long id2 = tree2.getId();
+
+			// id is stable on repeated calls
+			assertEquals(id1, tree1.getId());
+			assertEquals(id2, tree2.getId());
+			// ids are unique across instances
+			assertNotEquals(id1, id2);
+		}
+
+		@Test
+		@DisplayName("commit with leaf-only tree exercises leaf branch")
+		void shouldCommitTreeWithSingleLeafRoot() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+
+			// insert only 1 element so root remains a leaf
+			assertStateAfterCommit(
+				tree,
+				tested -> tested.insert(42, valueOf(42)),
+				(original, committed) -> {
+					assertEquals(0, original.size());
+					assertEquals(1, committed.size());
+					assertEquals(valueOf(42), committed.search(42).orElseThrow());
+					verifyTreeConsistency(committed, 42);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("committed tree is a different instance than original")
+		void shouldReturnDifferentInstanceAfterCommit() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+
+			assertStateAfterCommit(
+				tree,
+				tested -> tested.insert(1, valueOf(1)),
+				(original, committed) -> {
+					assertNotSame(original, committed);
+					assertNotEquals(original.getId(), committed.getId());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("commit with zero mutations yields structurally equivalent copy")
+		void shouldProduceEquivalentCopyOnNoOpCommit() {
+			final TreeTuple testTree = prepareRandomTree(42, 30);
+			final int[] originalArray = testTree.plainArray();
+
+			assertStateAfterCommit(
+				testTree.bPlusTree(),
+				tested -> {
+					// no mutations at all
+				},
+				(original, committed) -> {
+					assertNotSame(original, committed);
+					// both trees should have the same contents
+					assertEquals(original.size(), committed.size());
+					verifyTreeConsistency(original, originalArray);
+					verifyTreeConsistency(committed, originalArray);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("committed tree has no dangling layers")
+		void shouldNotHaveDanglingLayersAfterCommit() {
+			final TreeTuple testTree = prepareRandomTree(42, 30);
+			final int[] originalArray = testTree.plainArray();
+
+			assertStateAfterCommit(
+				testTree.bPlusTree(),
+				tested -> {
+					tested.insert(5555, valueOf(5555));
+					tested.delete(originalArray[0]);
+				},
+				(original, committed) -> {
+					// after commit, the committed tree should be consistent
+					// and independently usable (no dangling tx layers)
+					final int[] expectedArray = ArrayUtils.insertIntIntoOrderedArray(
+						5555, ArrayUtils.removeIntFromOrderedArray(originalArray[0], originalArray)
+					);
+					verifyTreeConsistency(committed, expectedArray);
+
+					// the committed tree should be further modifiable
+					// in a new transaction
+					assertStateAfterCommit(
+						committed,
+						tested2 -> tested2.insert(6666, valueOf(6666)),
+						(original2, committed2) -> {
+							verifyTreeConsistency(original2, expectedArray);
+							assertEquals(valueOf(6666), committed2.search(6666).orElseThrow());
+						}
+					);
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Extended constructor validation")
+	class ExtendedConstructorValidationTest {
+
+		@Test
+		@DisplayName("rejects minValueBlockSize less than one")
+		void shouldRejectMinValueBlockSizeLessThanOne() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new TransactionalIntToLongBPlusTree(3, 0, 3, 1)
+			);
+		}
+
+		@Test
+		@DisplayName("rejects minValueBlockSize greater than ceil(valueBlockSize/2) - 1")
+		void shouldRejectMinValueBlockSizeTooLarge() {
+			// valueBlockSize=3, ceil(3/2)-1 = 1, so minValueBlockSize=2 is invalid
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new TransactionalIntToLongBPlusTree(3, 2, 3, 1)
+			);
+		}
+
+		@Test
+		@DisplayName("rejects minInternalNodeBlockSize less than one")
+		void shouldRejectMinInternalNodeBlockSizeLessThanOne() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new TransactionalIntToLongBPlusTree(3, 1, 3, 0)
+			);
+		}
+
+		@Test
+		@DisplayName("rejects minInternalNodeBlockSize greater than ceil(internalNodeBlockSize/2) - 1")
+		void shouldRejectMinInternalNodeBlockSizeTooLarge() {
+			// internalNodeBlockSize=3, ceil(3/2)-1 = 1, so minInternal=2 is invalid
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new TransactionalIntToLongBPlusTree(3, 1, 3, 2)
+			);
+		}
+
+		@Test
+		@DisplayName("rejects internalNodeBlockSize less than three")
+		void shouldRejectInternalNodeBlockSizeLessThanThree() {
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new TransactionalIntToLongBPlusTree(3, 1, 1, 0)
+			);
+		}
+
+		@Test
+		@DisplayName("default block sizes are applied by the no-arg constructor")
+		void shouldSetDefaultBlockSizesWithNoArgConstructor() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree();
+			assertEquals(64, tree.getValueBlockSize());
+			assertEquals(31, tree.getMinValueBlockSize());
+			assertEquals(31, tree.getInternalNodeBlockSize());
+			assertEquals(15, tree.getMinInternalNodeBlockSize());
+			assertEquals(0, tree.size());
+
+			tree.insert(1, valueOf(1));
+			assertEquals(1, tree.size());
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Non-transactional mode")
+	class NonTransactionalModeTest {
+
+		@Test
+		@DisplayName("insert, search, upsert and delete work without a transaction")
+		void shouldExerciseCrudWithoutTransaction() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+
+			// insert
+			tree.insert(10, valueOf(10));
+			tree.insert(20, valueOf(20));
+			tree.insert(30, valueOf(30));
+			assertEquals(3, tree.size());
+
+			// search
+			assertEquals(valueOf(10), tree.search(10).orElseThrow());
+			assertEquals(valueOf(20), tree.search(20).orElseThrow());
+			assertEquals(valueOf(30), tree.search(30).orElseThrow());
+			assertTrue(tree.search(99).isEmpty());
+
+			// verify consistency before mutation
+			verifyTreeConsistency(tree, 10, 20, 30);
+
+			// upsert -- update existing value (changes value, not key)
+			tree.upsert(20, existing -> 999L);
+			assertEquals(999L, tree.search(20).orElseThrow());
+			assertEquals(3, tree.size());
+
+			// upsert -- insert new entry
+			tree.upsert(25, existing -> valueOf(25));
+			assertEquals(valueOf(25), tree.search(25).orElseThrow());
+			assertEquals(4, tree.size());
+
+			// delete
+			tree.delete(10);
+			assertEquals(3, tree.size());
+			assertTrue(tree.search(10).isEmpty());
+
+			// verify consistency -- cannot use verifyTreeConsistency because value for key 20 is now 999L
+			final ConsistencyReport report = tree.getConsistencyReport();
+			assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+		}
+
+		@Test
+		@DisplayName("insert triggers split without a transaction")
+		void shouldSplitLeafNodeWithoutTransaction() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+			for (int i = 1; i <= 10; i++) {
+				tree.insert(i, valueOf(i));
+			}
+			assertEquals(10, tree.size());
+			verifyTreeConsistency(tree, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Iterator transactional consistency")
+	class IteratorTransactionalConsistencyTest {
+
+		@Test
+		@DisplayName("iterators reflect uncommitted inserts and deletes")
+		void shouldReflectUncommittedChangesInIterators() {
+			final TreeTuple testTree = prepareRandomTree(42, 30);
+			final int[] originalArray = testTree.plainArray();
+
+			assertStateAfterCommit(
+				testTree.bPlusTree(),
+				tested -> {
+					// insert a new key at the end
+					tested.insert(9999, valueOf(9999));
+					// delete the first key
+					tested.delete(originalArray[0]);
+
+					// build expected array
+					final int[] expected = ArrayUtils.insertIntIntoOrderedArray(
+						9999,
+						ArrayUtils.removeIntFromOrderedArray(
+							originalArray[0], originalArray
+						)
+					);
+
+					// forward value iterator should reflect changes
+					verifyForwardValueIterator(tested, expected);
+					// reverse value iterator should also reflect changes
+					verifyReverseValueIterator(tested, expected);
+				},
+				(original, committed) -> {
+					verifyTreeConsistency(original, originalArray);
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Rollback scenarios")
+	class RollbackScenariosTest {
+
+		@Test
+		@DisplayName("rollback after split restores original structure")
+		void shouldRestoreOriginalAfterSplitCausingRollback() {
+			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(3);
+			tree.insert(1, valueOf(1));
+			tree.insert(2, valueOf(2));
+
+			assertStateAfterRollback(
+				tree,
+				tested -> {
+					// these inserts will trigger splits
+					tested.insert(3, valueOf(3));
+					tested.insert(4, valueOf(4));
+					tested.insert(5, valueOf(5));
+					tested.insert(6, valueOf(6));
+					assertEquals(6, tested.size());
+				},
+				(original, committed) -> {
+					// original should be unmodified
+					assertEquals(2, original.size());
+					assertEquals(valueOf(1), original.search(1).orElseThrow());
+					assertEquals(valueOf(2), original.search(2).orElseThrow());
+					assertTrue(original.search(3).isEmpty());
+					verifyTreeConsistency(original, 1, 2);
+					assertNull(committed);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("after rollback, iterators produce pre-transaction sequence")
+		void shouldIteratePreTransactionSequenceAfterRollback() {
+			final TreeTuple testTree = prepareRandomTree(42, 50);
+			final int[] originalArray = testTree.plainArray();
+
+			assertStateAfterRollback(
+				testTree.bPlusTree(),
+				tested -> {
+					tested.insert(8888, valueOf(8888));
+					tested.delete(originalArray[0]);
+				},
+				(original, committed) -> {
+					assertNull(committed);
+					// iterators on the original should still produce the pre-transaction sequence
+					verifyForwardValueIterator(original, originalArray);
+					verifyReverseValueIterator(original, originalArray);
+				}
+			);
+		}
+
+	}
+
 }

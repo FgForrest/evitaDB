@@ -730,6 +730,46 @@ class TransactionalObjectBPlusTreeTest {
 			);
 		}
 
+		@Test
+		@DisplayName("keeps separator keys and occupancy consistent through randomized insert and delete churn")
+		void shouldKeepConsistentThroughRandomizedChurn() {
+			for (long seed = 0; seed < 50; seed++) {
+				final Random random = new Random(seed);
+				final TransactionalObjectBPlusTree<Integer, String> tree =
+					new TransactionalObjectBPlusTree<>(3, 1, 3, 1, Integer.class, String.class);
+				final TreeMap<Integer, String> reference = new TreeMap<>();
+
+				for (int op = 0; op < 400; op++) {
+					final int key = random.nextInt(60);
+					// bias towards delete once the tree has grown so merges and borrows are exercised heavily
+					final boolean delete = reference.size() > 20
+						? random.nextInt(3) > 0
+						: random.nextBoolean();
+					if (delete) {
+						tree.delete(key);
+						reference.remove(key);
+					} else {
+						tree.insert(key, "Value" + key);
+						reference.put(key, "Value" + key);
+					}
+
+					// the consistency report validates separator keys (each internal key equals the left
+					// boundary of its child) and minimal node occupancy after every structural change
+					final ConsistencyReport report = tree.getConsistencyReport();
+					assertEquals(
+						ConsistencyState.CONSISTENT, report.state(),
+						"Inconsistent at seed " + seed + " op " + op + ": " + report.report()
+					);
+					assertEquals(reference.size(), tree.size(), "Size mismatch at seed " + seed + " op " + op);
+				}
+
+				// final contents must match the reference exactly, in order
+				final int[] expectedKeys = reference.keySet().stream().mapToInt(Integer::intValue).toArray();
+				verifyForwardValueIterator(tree, expectedKeys);
+				verifyReverseValueIterator(tree, expectedKeys);
+			}
+		}
+
 	}
 
 	@Nested
@@ -1496,6 +1536,31 @@ class TransactionalObjectBPlusTreeTest {
 			assertFalse(it.hasNext());
 		}
 
+		@Test
+		@DisplayName("matches sorted reference for arbitrary gap start keys across many leaves")
+		void shouldMatchReferenceForGapStartKeysForward() {
+			final TreeTuple testTree = prepareRandomTree(913, 200);
+			final int[] keys = testTree.plainArray();
+
+			// probe every possible start key from below the minimum to above the maximum
+			for (int startKey = keys[0] - 2; startKey <= keys[keys.length - 1] + 2; startKey++) {
+				final InsertionPosition position =
+					ArrayUtils.computeInsertPositionOfIntInOrderedArray(startKey, keys);
+				final int from = position.position();
+
+				final Iterator<Integer> it = testTree.bPlusTree().greaterOrEqualKeyIterator(startKey);
+				int index = from;
+				while (it.hasNext()) {
+					assertTrue(
+						index < keys.length, "Iterator returned more keys than reference for key " + startKey);
+					assertEquals(
+						keys[index], (int) it.next(), "Mismatch at key " + startKey + ", index " + index);
+					index++;
+				}
+				assertEquals(keys.length, index, "Iterator stopped early for start key " + startKey);
+			}
+		}
+
 	}
 
 	@Nested
@@ -1715,6 +1780,32 @@ class TransactionalObjectBPlusTreeTest {
 			assertTrue(it.hasNext());
 			assertEquals("Value" + firstKey, it.next());
 			assertFalse(it.hasNext());
+		}
+
+		@Test
+		@DisplayName("matches sorted reference for arbitrary gap start keys across many leaves")
+		void shouldMatchReferenceForGapStartKeysReverse() {
+			final TreeTuple testTree = prepareRandomTree(913, 200);
+			final int[] keys = testTree.plainArray();
+
+			// probe every possible start key from below the minimum to above the maximum
+			for (int startKey = keys[0] - 2; startKey <= keys[keys.length - 1] + 2; startKey++) {
+				final InsertionPosition position =
+					ArrayUtils.computeInsertPositionOfIntInOrderedArray(startKey, keys);
+				// the reverse iterator yields every key <= startKey in descending order; when startKey is
+				// already present the matching index is included, otherwise the insertion point is exclusive
+				final int from = position.alreadyPresent() ? position.position() : position.position() - 1;
+
+				final Iterator<String> it = testTree.bPlusTree().lesserOrEqualValueIterator(startKey);
+				int index = from;
+				while (it.hasNext()) {
+					assertTrue(index >= 0, "Iterator returned more values than reference for key " + startKey);
+					assertEquals(
+						"Value" + keys[index], it.next(), "Mismatch at key " + startKey + ", index " + index);
+					index--;
+				}
+				assertEquals(-1, index, "Iterator stopped early for start key " + startKey);
+			}
 		}
 
 	}
