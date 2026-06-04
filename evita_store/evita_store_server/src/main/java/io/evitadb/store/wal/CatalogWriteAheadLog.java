@@ -292,11 +292,14 @@ public class CatalogWriteAheadLog extends AbstractMutationLog<CatalogBoundMutati
 
 	@Override
 	protected void updateFirstVersionKept(long firstVersionToBeKept) {
+		// clamp the version by the active-reader floor so that neither the bootstrap-record trimming nor the catalog
+		// data file purge ever removes data still needed by an active reader (time-travel invariant)
+		final long effectiveVersionToBeKept = this.onWalPurgeCallback.effectivePurgeVersion(firstVersionToBeKept);
 		// first trim the bootstrap record file
-		this.bootstrapFileTrimmer.accept(firstVersionToBeKept);
+		this.bootstrapFileTrimmer.accept(effectiveVersionToBeKept);
 		// call the listener to remove the obsolete files
-		if (firstVersionToBeKept > -1) {
-			this.onWalPurgeCallback.purgeFilesUpTo(firstVersionToBeKept);
+		if (effectiveVersionToBeKept > -1) {
+			this.onWalPurgeCallback.purgeFilesUpTo(effectiveVersionToBeKept);
 		}
 	}
 
