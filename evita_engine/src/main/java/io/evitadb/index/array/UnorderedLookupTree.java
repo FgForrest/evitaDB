@@ -296,7 +296,9 @@ public class UnorderedLookupTree implements
 	 * Returns the logical position of `recordId`, known to live in the container routed by `orderKey`.
 	 *
 	 * @return the prefix count of the container plus the record's in-container offset
-	 * @throws GenericEvitaInternalError when the record is not found in the routed container
+	 * @throws GenericEvitaInternalError when the record is not found in the routed container, or when the
+	 *                                   routed key resolves into an empty tree (internal-consistency failure,
+	 *                                   since the caller guarantees the record lives in a routed container)
 	 */
 	public int findPositionByOrderKey(long orderKey, int recordId) {
 		int prefix = 0;
@@ -312,6 +314,13 @@ public class UnorderedLookupTree implements
 				childIndex++;
 			}
 			node = children[childIndex];
+		}
+		if (node == null) {
+			// the caller guarantees the record lives in a routed container, so the tree can never be empty here
+			throw new GenericEvitaInternalError(
+				"Order-key " + orderKey + " could not be routed in an empty tree!",
+				"Inconsistent lookup state!"
+			);
 		}
 		return prefix + indexInContainer((LeafNode) node, recordId);
 	}
@@ -343,7 +352,8 @@ public class UnorderedLookupTree implements
 	 * Inserts `recordId` immediately after `previousRecordId` inside the container routed by `previousOrderKey`.
 	 * Reports the resulting `recordId → orderKey` assignment(s) through `assignments`.
 	 *
-	 * @throws GenericEvitaInternalError when `previousRecordId` is not found in the routed container
+	 * @throws GenericEvitaInternalError when `previousRecordId` is not found in the routed container, or when
+	 *                                   the descent is attempted on an empty tree (internal-consistency failure)
 	 */
 	public void insertAfter(long previousOrderKey, int previousRecordId, int recordId, @Nonnull OrderKeyConsumer assignments) {
 		final Cursor cursor = new Cursor();
@@ -357,7 +367,8 @@ public class UnorderedLookupTree implements
 	 * Removes `recordId` from the container routed by `orderKey`. Reports any order-key re-stamps caused by container
 	 * collapse through `reassignments` (currently none — empty containers are simply unlinked).
 	 *
-	 * @throws GenericEvitaInternalError when the record is not found in the routed container
+	 * @throws GenericEvitaInternalError when the record is not found in the routed container, or when the
+	 *                                   descent is attempted on an empty tree (internal-consistency failure)
 	 */
 	public void removeByOrderKey(long orderKey, int recordId, @Nonnull OrderKeyConsumer reassignments) {
 		final Cursor cursor = new Cursor();
@@ -526,11 +537,21 @@ public class UnorderedLookupTree implements
 	/**
 	 * Descends from the root to the container holding logical `position`, capturing the cursor path and storing the
 	 * in-container offset in {@link Cursor#leafOffset}.
+	 *
+	 * @throws GenericEvitaInternalError when invoked on an empty tree (callers must handle the empty case before
+	 *                                   descending)
 	 */
 	@Nonnull
 	private LeafNode descendByPosition(int position, @Nonnull Cursor cursor) {
 		cursor.depth = 0;
 		Node<?> node = getRoot();
+		if (node == null) {
+			// positional descent is only invoked on a non-empty tree (the empty case is handled by the caller)
+			throw new GenericEvitaInternalError(
+				"Cannot descend by position " + position + " into an empty tree!",
+				"Inconsistent lookup state!"
+			);
+		}
 		int remaining = position;
 		while (node instanceof final InternalNode internal) {
 			final int childCount = internal.getChildCount();
@@ -551,11 +572,21 @@ public class UnorderedLookupTree implements
 
 	/**
 	 * Descends from the root to the container routed by `orderKey`, capturing the cursor path.
+	 *
+	 * @throws GenericEvitaInternalError when invoked on an empty tree (descent is only valid for records known to
+	 *                                   live in the tree)
 	 */
 	@Nonnull
 	private LeafNode descendByKey(long orderKey, @Nonnull Cursor cursor) {
 		cursor.depth = 0;
 		Node<?> node = getRoot();
+		if (node == null) {
+			// key descent is only invoked for records known to live in the tree, so it is never empty here
+			throw new GenericEvitaInternalError(
+				"Cannot descend by order-key " + orderKey + " into an empty tree!",
+				"Inconsistent lookup state!"
+			);
+		}
 		while (node instanceof final InternalNode internal) {
 			final int childCount = internal.getChildCount();
 			final long[] separators = internal.getSeparators();
@@ -619,6 +650,9 @@ public class UnorderedLookupTree implements
 	/**
 	 * Propagates a node split up the cursor: inserts `newRight` (with `newRightMinKey` / `newRightCount`) into the
 	 * parent at `level`, creating a new root when the split reaches the top and splitting parents on overflow.
+	 *
+	 * @throws GenericEvitaInternalError when the split reaches the top yet the root is missing (a split can only
+	 *                                   propagate up from an existing leaf)
 	 */
 	private void propagateSplit(@Nonnull Cursor cursor, int level, @Nonnull Node<?> newRight, long newRightMinKey, int newRightCount) {
 		Node<?> right = newRight;
@@ -628,6 +662,13 @@ public class UnorderedLookupTree implements
 			if (level < 0) {
 				// the split reached the root - grow a new root above the two halves
 				final Node<?> oldRoot = getRoot();
+				if (oldRoot == null) {
+					// a split can only propagate up from an existing leaf, so the root is necessarily present
+					throw new GenericEvitaInternalError(
+						"Split propagated above a missing root!",
+						"Inconsistent lookup state!"
+					);
+				}
 				final InternalNode newRoot = new InternalNode(!Transaction.isTransactionAvailable());
 				final Node<?>[] children = newRoot.getChildrenForUpdate();
 				final int[] counts = newRoot.getCountsForUpdate();
@@ -685,7 +726,11 @@ public class UnorderedLookupTree implements
 	 * out-parameters) the promoted separator key and the right node's subtree count.
 	 */
 	@Nonnull
-	private InternalNode splitInternal(@Nonnull InternalNode node, @Nonnull long[] promotedKey, @Nonnull int[] promotedCount) {
+	private static InternalNode splitInternal(
+		@Nonnull InternalNode node,
+		@Nonnull long[] promotedKey,
+		@Nonnull int[] promotedCount
+	) {
 		final int total = node.getChildCount();
 		final int leftCount = total / 2;
 		final int rightCount = total - leftCount;
@@ -720,6 +765,10 @@ public class UnorderedLookupTree implements
 	/**
 	 * Mints a fresh order-key for a new right container inserted immediately after the container at the bottom of the
 	 * cursor, re-spacing the whole key space when the gap to the next container is exhausted.
+	 *
+	 * @throws GenericEvitaInternalError when the configured order-key gap is too small to subdivide between two
+	 *                                   adjacent containers even after a full re-spacing (a misconfiguration that
+	 *                                   would otherwise mint a colliding order-key)
 	 */
 	private long mintOrderKey(@Nonnull LeafNode container, @Nonnull Cursor cursor, @Nonnull OrderKeyConsumer assignments) {
 		final long nextKey = nextContainerKey(cursor);
@@ -736,6 +785,14 @@ public class UnorderedLookupTree implements
 		if (gap < 2) {
 			respaceOrderKeys(assignments);
 			gap = nextContainerKey(cursor) - container.getOrderKey();
+			if (gap < 2) {
+				// even an evenly re-spaced key space cannot subdivide a single gap - the configured order-key gap
+				// is too small to host another container between two neighbours, which would mint a colliding key
+				throw new GenericEvitaInternalError(
+					"Order-key gap " + this.orderKeyGap + " is too small to subdivide between adjacent containers!",
+					"Inconsistent lookup state!"
+				);
+			}
 		}
 		return container.getOrderKey() + gap / 2;
 	}
@@ -1009,6 +1066,7 @@ public class UnorderedLookupTree implements
 		 *
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
+		@SuppressWarnings("CheckForOutOfMemoryOnLargeArrayAllocation")
 		LeafNode(boolean transactionalLayer) {
 			this.recordIds = new int[BLOCK_SIZE + 1];
 			this.count = 0;
@@ -1118,10 +1176,9 @@ public class UnorderedLookupTree implements
 		@Nonnull
 		@Override
 		public LeafNode createCopyWithMergedTransactionalMemory(
-			@Nullable LeafNode layer,
+			@Nullable LeafNode leafLayer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
-			final LeafNode leafLayer = layer;
 			final long theOrderKey;
 			final int[] theRecordIds;
 			final int theCount;
@@ -1151,7 +1208,7 @@ public class UnorderedLookupTree implements
 		public String toString() {
 			final int[] theRecordIds = getRecordIds();
 			final int theCount = getCount();
-			final StringBuilder sb = new StringBuilder(8 + theCount * 4);
+			final StringBuilder sb = new StringBuilder(8 + (theCount << 2));
 			sb.append('[');
 			for (int i = 0; i < theCount; i++) {
 				if (i > 0) {
@@ -1203,6 +1260,7 @@ public class UnorderedLookupTree implements
 		 *
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
+		@SuppressWarnings("CheckForOutOfMemoryOnLargeArrayAllocation")
 		InternalNode(boolean transactionalLayer) {
 			this.children = new Node<?>[BLOCK_SIZE + 1];
 			this.separators = new long[BLOCK_SIZE];
@@ -1353,10 +1411,9 @@ public class UnorderedLookupTree implements
 		@Nonnull
 		@Override
 		public InternalNode createCopyWithMergedTransactionalMemory(
-			@Nullable InternalNode layer,
+			@Nullable InternalNode internalLayer,
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
-			final InternalNode internalLayer = layer;
 			final Node<?>[] theChildren;
 			final long[] theSeparators;
 			final int[] theCounts;
@@ -1403,10 +1460,7 @@ public class UnorderedLookupTree implements
 
 		@Override
 		public String toString() {
-			final int theChildCount = getChildCount();
-			final StringBuilder sb = new StringBuilder(16 + theChildCount * 8);
-			sb.append("Internal(children=").append(theChildCount).append(')');
-			return sb.toString();
+			return "Internal(children=" + getChildCount() + ')';
 		}
 	}
 
