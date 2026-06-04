@@ -442,7 +442,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		@Nonnull Path walFilePath,
 		@Nonnull WalKind walKind
 	) throws IOException {
-		final byte[] buffer = new byte[8192];
+		@SuppressWarnings("CheckForOutOfMemoryOnLargeArrayAllocation") final byte[] buffer = new byte[8192];
 		int transactionSize = 0;
 		int previousTransactionSize = 0;
 		long previousOffset = 0;
@@ -2075,6 +2075,18 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		WalPurgeCallback NO_OP = __ -> {
 			// do nothing
 		};
+
+		/**
+		 * Clamps the requested first-version-to-be-kept so that neither the bootstrap-record trimming nor the catalog
+		 * data file purge ever removes data still needed by an active reader. The default implementation performs no
+		 * clamping; implementations that track active readers narrow the version down to the active-reader floor.
+		 *
+		 * @param requestedFirstVersionToBeKept the first catalog version that WAL retention would keep
+		 * @return the first catalog version that may actually be kept once active readers are taken into account
+		 */
+		default long effectivePurgeVersion(long requestedFirstVersionToBeKept) {
+			return requestedFirstVersionToBeKept;
+		}
 
 		/**
 		 * Purges the files up to the given active files.
