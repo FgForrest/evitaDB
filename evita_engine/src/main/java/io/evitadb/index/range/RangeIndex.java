@@ -96,6 +96,20 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		o -> (TransactionalRangePoint) o;
 
 	/**
+	 * Leaf block size of the threshold → range-point tree. Unlike the comparator-keyed inverted index, this tree is
+	 * `long`-keyed with a single-reference value, so an in-leaf insert is a cheap primitive/reference arraycopy and there
+	 * is no read-vs-write block-size conflict. Benchmarking (`RangeIndexBlockSizeBenchmark`; results and analysis under
+	 * `documentation/performance/individual/RangeIndexBlockSizeBenchmark/`) shows every access pattern — point lookup,
+	 * bounded range, full sweep, and both write paths (commit, bulk load) — improves (or is flat within noise) as the
+	 * block grows, all the way to `512`: versus the tree default `64` it cuts range and full-sweep latency by ~30% at
+	 * scale with no write cost, and the gains have flattened by `512`. It is a runtime-only parameter — it does not affect
+	 * the persisted form, which is rebuilt into the tree on load.
+	 */
+	private static final int VALUE_BLOCK_SIZE = 512;
+	private static final int MIN_VALUE_BLOCK_SIZE = VALUE_BLOCK_SIZE / 2 - 1;
+	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
+
+	/**
 	 * Predicate will return true if point has no sense because it contains no data (no starts, no ends). Predicate will
 	 * never return true for full range border points (MIN/MAX) even if empty.
 	 */
@@ -184,6 +198,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	@Nonnull
 	private static TransactionalLongBPlusTree<TransactionalRangePoint> createEmptyTree() {
 		final TransactionalLongBPlusTree<TransactionalRangePoint> tree = new TransactionalLongBPlusTree<>(
+			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 			TransactionalRangePoint.class, RANGE_POINT_WRAPPER
 		);
 		tree.insert(Long.MIN_VALUE, new TransactionalRangePoint(Long.MIN_VALUE));
@@ -197,6 +212,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		Assert.isTrue(ranges[ranges.length - 1].getThreshold() == Long.MAX_VALUE, "Last range should have threshold Long.MAX_VALUE!");
 		assertThresholdIsMonotonic(ranges);
 		final TransactionalLongBPlusTree<TransactionalRangePoint> tree = new TransactionalLongBPlusTree<>(
+			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 			TransactionalRangePoint.class, RANGE_POINT_WRAPPER
 		);
 		// rebuild the tree from the deserialized snapshot by inserting all points (thresholds are unique & monotonic)

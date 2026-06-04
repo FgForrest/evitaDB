@@ -108,6 +108,21 @@ public class InvertedIndex implements
 	private static final Function<Object, ValueToRecord> VALUE_TO_RECORD_WRAPPER = ValueToRecord.class::cast;
 
 	/**
+	 * Leaf block size of the value → record-set tree. The inverted-index workload is point-lookup + bounded-range +
+	 * write heavy, so block size is a read-vs-write trade-off: larger leaves give fewer, more sequential scans (and a
+	 * shallower tree) but a larger array to copy on every in-leaf insert. Benchmarking
+	 * (`InvertedIndexBlockSizeBenchmark`; results and analysis under
+	 * `documentation/performance/individual/InvertedIndexBlockSizeBenchmark/`) puts the knee at `256` — versus the tree
+	 * default `64` it cuts bounded-range and full-sweep latency by ~25% at scale, while the point-lookup cost stays flat
+	 * and neither commit nor bulk-load regresses; `512`+ only helps the full-ordered sweep, which is not this index's
+	 * dominant pattern. It is a runtime-only parameter — it does not affect the persisted form, which is rebuilt into the
+	 * tree on load.
+	 */
+	private static final int VALUE_BLOCK_SIZE = 256;
+	private static final int MIN_VALUE_BLOCK_SIZE = VALUE_BLOCK_SIZE / 2 - 1;
+	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
+
+	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
 	private final TransactionalBoolean dirty;
@@ -182,6 +197,7 @@ public class InvertedIndex implements
 	private static TransactionalObjectBPlusTree createEmptyTree(@Nonnull Comparator comparator) {
 		//noinspection unchecked
 		return new TransactionalObjectBPlusTree<>(
+			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 			Comparable.class,
 			ValueToRecord.class,
 			VALUE_TO_RECORD_WRAPPER,
