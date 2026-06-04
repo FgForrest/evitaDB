@@ -52,6 +52,7 @@ import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
@@ -106,7 +107,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	 * references, so we need to track how many times each entity PK was added and only actually
 	 * add/remove from the bitmap when the cardinality transitions to/from zero.
 	 */
-	@Nonnull private final TransactionalMap<Integer, Integer> pkCardinalities;
+	@Nonnull private final PersistentTransactionalMap<Integer, Integer> pkCardinalities;
 	/**
 	 * Index that for each referenced entity primary key keeps the bitmap of all entity primary keys
 	 * that reference it within this group.
@@ -144,7 +145,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 				entityIndexKey.type()
 		);
 		this.cardinalityDirty = new TransactionalBoolean();
-		this.pkCardinalities = new TransactionalMap<>(CollectionUtils.createHashMap(16));
+		this.pkCardinalities = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
 			CollectionUtils.createHashMap(16), TransactionalBitmap.class, TransactionalBitmap::new
 		);
@@ -198,7 +199,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 			attributeIndex, priceIndex, hierarchyIndex, facetIndex
 		);
 		this.cardinalityDirty = new TransactionalBoolean();
-		this.pkCardinalities = new TransactionalMap<>(pkCardinalities);
+		this.pkCardinalities = new PersistentTransactionalMap<>(pkCardinalities);
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
 			referencedPrimaryKeysIndex, TransactionalBitmap.class, TransactionalBitmap::new
 		);
@@ -310,7 +311,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Set<String> originalFacetIndexes,
 		@Nonnull Set<HistogramIndexStorageKey> originalHistogramKeys,
 		@Nonnull PriceRefIndex priceIndex,
-		@Nonnull TransactionalMap<Integer, Integer> pkCardinalities,
+		@Nonnull PersistentTransactionalMap<Integer, Integer> pkCardinalities,
 		@Nonnull TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
 		@Nonnull TransactionalMap<AttributeIndexKey, AttributeCardinalityIndex> cardinalityIndexes,
 		@Nonnull TransactionalMap<String, HistogramIndex> histogramIndexes

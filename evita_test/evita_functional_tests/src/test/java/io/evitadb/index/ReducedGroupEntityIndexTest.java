@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -34,6 +35,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -1378,6 +1380,74 @@ class ReducedGroupEntityIndexTest
 			assertFalse(after.contains(5),
 				"Referenced PK 5 must drop from the reverse lookup after all its references are removed");
 			assertTrue(after.contains(6));
+		}
+	}
+
+	/**
+	 * Verifies that the catalog re-attachment copy preserves the per-owner-PK cardinality
+	 * tracking. The copy is produced by {@link ReducedGroupEntityIndex#createCopyForNewCatalogAttachment}
+	 * which hands the live `pkCardinalities` map straight to the preserve-originals constructor,
+	 * so the copy must report the same tracked primary keys and keep the boundary-crossing
+	 * semantics intact: an owner PK reachable through two references stays in the index until the
+	 * second reference is removed.
+	 */
+	@Nested
+	@DisplayName("Catalog re-attachment")
+	class CatalogReattachmentTest {
+
+		@Test
+		@DisplayName("should preserve tracked primary keys in the re-attachment copy")
+		void shouldPreserveTrackedPrimaryKeysInCopy() {
+			// entity 10 is reachable through two references (categories 1 and 2) within the group,
+			// so its cardinality is 2; entity 20 is reachable through a single reference (category 3)
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 2);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(20, 3);
+
+			final ReducedGroupEntityIndex copy =
+				ReducedGroupEntityIndexTest.this.index.createCopyForNewCatalogAttachment(
+					CatalogState.ALIVE
+				);
+
+			assertNotSame(ReducedGroupEntityIndexTest.this.index, copy);
+			// the copy must expose the same owner PKs and referenced (facet) PKs as the source
+			final Bitmap copyPks = copy.getAllPrimaryKeys();
+			assertEquals(2, copyPks.size());
+			assertTrue(copyPks.contains(10));
+			assertTrue(copyPks.contains(20));
+			assertEquals(
+				Set.of(1, 2, 3),
+				copy.getReferencedEntityPrimaryKeys()
+			);
+		}
+
+		@Test
+		@DisplayName("should keep boundary-crossing semantics on the re-attachment copy")
+		void shouldKeepBoundaryCrossingSemanticsOnCopy() {
+			// entity 10 reachable through two references -> cardinality 2 in the source group
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 1);
+			ReducedGroupEntityIndexTest.this.index.insertPrimaryKeyIfMissing(10, 2);
+
+			final ReducedGroupEntityIndex copy =
+				ReducedGroupEntityIndexTest.this.index.createCopyForNewCatalogAttachment(
+					CatalogState.ALIVE
+				);
+
+			// removing the first reference must NOT evict the owner PK: cardinality drops 2 -> 1
+			assertEquals(
+				CardinalityChange.NO_BOUNDARY_CROSSING,
+				copy.removePrimaryKey(10, 1)
+			);
+			assertTrue(copy.getAllPrimaryKeys().contains(10),
+				"Owner PK must survive while a second reference still points at the group");
+
+			// removing the last reference crosses the 1 -> 0 boundary and evicts the owner PK
+			assertEquals(
+				CardinalityChange.BOUNDARY_CROSSED,
+				copy.removePrimaryKey(10, 2)
+			);
+			assertTrue(copy.getAllPrimaryKeys().isEmpty(),
+				"Owner PK must be evicted once its last reference is removed");
 		}
 	}
 

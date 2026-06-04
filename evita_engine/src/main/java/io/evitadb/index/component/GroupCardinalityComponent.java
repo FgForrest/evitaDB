@@ -27,6 +27,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GroupCardinalityIndexStoragePart;
 
@@ -57,7 +58,7 @@ public final class GroupCardinalityComponent implements IndexComponent {
 	 * Per-owner-entity-PK cardinality map: tracks how many references currently resolve to the
 	 * owning group for each entity primary key.
 	 */
-	@Nonnull private final TransactionalMap<Integer, Integer> pkCardinalities;
+	@Nonnull private final PersistentTransactionalMap<Integer, Integer> pkCardinalities;
 	/**
 	 * Per-referenced-entity-PK reverse-mapping bitmap: for each facet PK, the set of owner entity
 	 * PKs that reference it within the owning group.
@@ -77,7 +78,7 @@ public final class GroupCardinalityComponent implements IndexComponent {
 	 */
 	public GroupCardinalityComponent(
 		@Nonnull TransactionalBoolean cardinalityDirty,
-		@Nonnull TransactionalMap<Integer, Integer> pkCardinalities,
+		@Nonnull PersistentTransactionalMap<Integer, Integer> pkCardinalities,
 		@Nonnull TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex,
 		@Nonnull String referenceName
 	) {

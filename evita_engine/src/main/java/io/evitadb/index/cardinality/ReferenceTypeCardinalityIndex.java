@@ -36,6 +36,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.core.expression.trigger.DependencyType;
@@ -84,11 +85,14 @@ public class ReferenceTypeCardinalityIndex
 	/**
 	 * A variable that holds the cardinalities of different entities.
 	 *
-	 * The TransactionalMap is a map-like data structure that allows concurrent access and modification
-	 * of the cardinalities in a transactional manner. Each cardinality is associated with a composed
-	 * long key, which uniquely identifies the entity for which the cardinality is being stored.
+	 * The {@link PersistentTransactionalMap} is a map-like data structure that allows concurrent access and
+	 * modification of the cardinalities in a transactional manner. Each cardinality is associated with a composed
+	 * long key, which uniquely identifies the entity for which the cardinality is being stored. The map is
+	 * plain-valued and mutated exclusively through `compute`/`computeIfPresent`/`remove`, so commit folds only
+	 * the changed keys onto the persistent snapshot in `O(Δ·log N)` instead of rebuilding the whole map on every
+	 * transaction.
 	 */
-	private final TransactionalMap<Long, Integer> cardinalities;
+	private final PersistentTransactionalMap<Long, Integer> cardinalities;
 	/**
 	 * Index that for each referenced entity primary key keeps the bitmap of all reduced entity index primary keys that
 	 * contains entity primary keys referencing this entity.
@@ -102,7 +106,7 @@ public class ReferenceTypeCardinalityIndex
 
 	public ReferenceTypeCardinalityIndex() {
 		this.dirty = new TransactionalBoolean();
-		this.cardinalities = new TransactionalMap<>(CollectionUtils.createHashMap(16));
+		this.cardinalities = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
 			CollectionUtils.createHashMap(16), TransactionalBitmap.class, TransactionalBitmap::new);
 	}
@@ -112,7 +116,7 @@ public class ReferenceTypeCardinalityIndex
 		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeys
 	) {
 		this.dirty = new TransactionalBoolean();
-		this.cardinalities = new TransactionalMap<>(cardinalities);
+		this.cardinalities = new PersistentTransactionalMap<>(cardinalities);
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
 			referencedPrimaryKeys, TransactionalBitmap.class, TransactionalBitmap::new);
 	}

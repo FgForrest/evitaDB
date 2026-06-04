@@ -28,7 +28,7 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -67,16 +67,19 @@ public class AttributeCardinalityIndex
 	/**
 	 * A variable that holds the cardinalities of different entities.
 	 *
-	 * The TransactionalMap is a map-like data structure that allows concurrent access and modification
-	 * of the cardinalities in a transactional manner. Each cardinality is associated with a AttributeCardinalityKey,
-	 * which uniquely identifies the entity for which the cardinality is being stored.
+	 * The {@link PersistentTransactionalMap} is a map-like data structure that allows concurrent access and
+	 * modification of the cardinalities in a transactional manner. Each cardinality is associated with a
+	 * AttributeCardinalityKey, which uniquely identifies the entity for which the cardinality is being stored.
+	 * The map is plain-valued and mutated exclusively through `compute`/`computeIfPresent`/`remove`, so commit
+	 * folds only the changed keys onto the persistent snapshot in `O(Δ·log N)` instead of rebuilding the whole
+	 * map on every transaction.
 	 */
-	private final TransactionalMap<AttributeCardinalityKey, Integer> cardinalities;
+	private final PersistentTransactionalMap<AttributeCardinalityKey, Integer> cardinalities;
 
 	public AttributeCardinalityIndex(@Nonnull Class<? extends Serializable> valueType) {
 		this.valueType = valueType;
 		this.dirty = new TransactionalBoolean();
-		this.cardinalities = new TransactionalMap<>(CollectionUtils.createHashMap(16));
+		this.cardinalities = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
 	}
 
 	public AttributeCardinalityIndex(
@@ -85,7 +88,7 @@ public class AttributeCardinalityIndex
 	) {
 		this.valueType = valueType;
 		this.dirty = new TransactionalBoolean();
-		this.cardinalities = new TransactionalMap<>(cardinalities);
+		this.cardinalities = new PersistentTransactionalMap<>(cardinalities);
 	}
 
 	/**
