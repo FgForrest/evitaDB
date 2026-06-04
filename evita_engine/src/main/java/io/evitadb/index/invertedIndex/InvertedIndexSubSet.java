@@ -27,24 +27,70 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.function.BiFunction;
 
 /**
- * Histogram subset is a slice of the original histogram that references all key data. Slices can be combined together,
- * provide useful statistical information such as min/max or can output all record ids in the entire subset.
+ * Represents the immutable, query-time result of slicing an {@link InvertedIndex}: a contiguous run of
+ * {@link ValueToRecord} buckets selected by a range or predicate lookup, together with the strategy that folds those
+ * buckets into a single record-id {@link Formula}.
+ *
+ * Lookup methods on {@link InvertedIndex} (range, exclusive, predicate matching, sorted/unsorted) hand the matching
+ * buckets to this class instead of materializing record ids eagerly. Consumers then either inspect the slice
+ * statistically (min/max value, emptiness) or ask for the aggregated record ids - subsets covering different value
+ * ranges of the same index can be combined downstream because they all share the same index transactional id.
+ *
+ * The aggregation is lazy and memoized: the {@link Formula} (and therefore the computed record ids) is built on first
+ * access via {@link #getFormula()} and reused on every subsequent call, so an instance is intended to be short-lived
+ * and consumed within a single query evaluation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 public class InvertedIndexSubSet {
+	/**
+	 * Identity of the source {@link InvertedIndex} at the time this slice was taken; propagated into the aggregated
+	 * {@link Formula} as its transactional id so that formula-level caching can detect staleness across index mutations.
+	 */
 	private final long indexTransactionId;
-	@Getter private final ValueToRecordBitmap[] histogramBuckets;
-	private final BiFunction<Long, ValueToRecordBitmap[], Formula> aggregationLambda;
+	/**
+	 * The selected slice of buckets in their polymorphic form, ordered by ascending {@link ValueToRecord#getValue()}
+	 * with no duplicate or gap relative to the source index. Each element may be either the multi-record
+	 * {@link ValueToRecordBitmap} or the compact single-record {@link ValueToRecordPrimitive}; see
+	 * {@link #getHistogramBuckets()} for the materialized read-out.
+	 */
+	private final ValueToRecord[] histogramBuckets;
+	/**
+	 * Strategy that folds {@link #histogramBuckets} into one record-id {@link Formula}, parameterized by the
+	 * {@link #indexTransactionId}. The supplied implementation dictates the record ordering of the result (e.g. laid
+	 * out bucket-by-bucket versus natural ascending order).
+	 */
+	private final BiFunction<Long, ValueToRecord[], Formula> aggregationLambda;
+	/**
+	 * Lazily computed and cached output of {@link #aggregationLambda}; `null` until the first {@link #getFormula()}
+	 * call, then reused for the lifetime of this subset.
+	 */
 	private Formula memoizedResult;
+
+	/**
+	 * Returns the buckets of this subset in their {@link ValueToRecordBitmap} form. Compact single-record
+	 * {@link ValueToRecordPrimitive} buckets are materialized to a fresh single-record bitmap on the fly - this is the
+	 * read-out boundary for the transient query-time consumers that still operate on the concrete bitmap type. The
+	 * conversion is allocation-bearing but cache-neutral: these consumers key their own staleness on the index-level
+	 * transactional id, not on per-bucket bitmap ids.
+	 */
+	@Nonnull
+	public ValueToRecordBitmap[] getHistogramBuckets() {
+		final ValueToRecordBitmap[] result = new ValueToRecordBitmap[this.histogramBuckets.length];
+		for (int i = 0; i < this.histogramBuckets.length; i++) {
+			result[i] = ValueToRecordBitmap.materialize(this.histogramBuckets[i]);
+		}
+		return result;
+	}
 
 	/**
 	 * Returns record ids of all buckets in this histogram subset as single bitmap (ordered distinct array).
@@ -78,6 +124,7 @@ public class InvertedIndexSubSet {
 	/**
 	 * Returns minimal {@link ValueToRecordBitmap#getValue()} of buckets in this histogram subset.
 	 */
+	@Nullable
 	public Serializable getMinimalValue() {
 		return isEmpty() ? null : this.histogramBuckets[0].getValue();
 	}
@@ -85,6 +132,7 @@ public class InvertedIndexSubSet {
 	/**
 	 * Returns maximal {@link ValueToRecordBitmap#getValue()} of buckets in this histogram subset.
 	 */
+	@Nullable
 	public Serializable getMaximalValue() {
 		return isEmpty() ? null : this.histogramBuckets[this.histogramBuckets.length - 1].getValue();
 	}

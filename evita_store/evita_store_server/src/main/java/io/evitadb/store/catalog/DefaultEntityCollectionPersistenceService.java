@@ -25,7 +25,6 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.query.require.EntityFetch;
@@ -43,7 +42,6 @@ import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSer
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
@@ -57,8 +55,6 @@ import io.evitadb.core.metric.event.storage.FileType;
 import io.evitadb.core.metric.event.storage.OffsetIndexHistoryKeptEvent;
 import io.evitadb.core.metric.event.storage.OffsetIndexNonFlushedEvent;
 import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -72,7 +68,6 @@ import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
@@ -82,7 +77,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodySt
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -104,7 +100,6 @@ import io.evitadb.store.shared.kryo.SharedClassesConfigurer;
 import io.evitadb.store.shared.kryo.VersionedKryoFactory;
 import io.evitadb.store.shared.model.PersistentStorageDescriptor;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
-import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -115,10 +110,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.File;
-import java.math.BigDecimal;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -816,42 +809,22 @@ public class DefaultEntityCollectionPersistenceService
 
 		final EntityIndexKey entityIndexKey = manifest.getEntityIndexKey();
 		final RepresentativeReferenceKey referenceKey;
-		// build the attribute-type fallback resolver — used by AttributeIndexLoader to recover
-		// the runtime Class for null-attributeType filter-index storage parts; see #538
-		final Function<AttributeIndexKey, Class<? extends Serializable>> attributeTypeFetcher;
 		if (entityIndexKey.type() == EntityIndexType.GLOBAL) {
 			referenceKey = null;
-			attributeTypeFetcher = attributeKey -> entitySchema
-				.getAttribute(attributeKey.attributeName())
-				.map(AttributeSchemaContract::getType)
-				.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), entitySchema));
 		} else {
-			final String referenceName;
 			if (
 				entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
 					entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE
 			) {
 				referenceKey = null;
-				referenceName = Objects.requireNonNull((String) entityIndexKey.discriminator());
 			} else {
-				referenceKey = Objects.requireNonNull(
-					(RepresentativeReferenceKey) entityIndexKey.discriminator()
-				);
-				referenceName = referenceKey.referenceName();
+				referenceKey = Objects.requireNonNull((RepresentativeReferenceKey) entityIndexKey.discriminator());
 			}
-			final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-			attributeTypeFetcher = attributeKey -> referenceSchema
-				.getAttribute(attributeKey.attributeName())
-				.or(() -> entitySchema.getAttribute(attributeKey.attributeName()))
-				.map(AttributeSchemaContract::getType)
-				.orElseThrow(() -> new AttributeNotFoundException(
-					attributeKey.attributeName(), referenceSchema, entitySchema
-				));
 		}
 
 		final LoadContext context = new LoadContext(
 			catalogVersion, entityIndexId, entitySchema, entityIndexKey, manifest,
-			this.storagePartPersistenceService, attributeTypeFetcher, referenceKey
+			this.storagePartPersistenceService, referenceKey
 		);
 
 		return resolvePlanFor(entityIndexKey.type()).run(context);

@@ -35,7 +35,6 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedException;
 import io.evitadb.store.index.serializer.InvertedIndexSerializer;
 import io.evitadb.store.index.serializer.TransactionalIntegerBitmapSerializer;
 import io.evitadb.store.index.serializer.ValueToRecordBitmapSerializer;
@@ -111,22 +110,6 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			assertEquals(3, index.getBucketCount());
 			assertEquals(5, index.getLength());
 			assertFalse(index.isEmpty());
-		}
-
-		@Test
-		@DisplayName("Pre-populated constructor with out-of-order buckets throws")
-		void shouldThrowWhenBucketsAreOutOfOrder() {
-			final ValueToRecordBitmap[] buckets = new ValueToRecordBitmap[]{
-				new ValueToRecordBitmap(10, 1),
-				new ValueToRecordBitmap(5, 2)
-			};
-
-			assertThrows(
-				MonotonicRowCorruptedException.class,
-				() -> new InvertedIndex(
-					buckets, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder()
-				)
-			);
 		}
 
 		@Test
@@ -342,7 +325,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("getValueIteratorFrom anchors at the first bucket >= the given value")
 		void shouldIterateBucketsFromGivenValue() {
 			// buckets are 5, 10, 15, 20; starting from 10 should yield 10, 15, 20
-			final Iterator<ValueToRecordBitmap> it = InvertedIndexTest.this.tested.getValueIteratorFrom(10);
+			final Iterator<ValueToRecord> it = InvertedIndexTest.this.tested.getValueIteratorFrom(10);
 			final List<Serializable> values = new ArrayList<>();
 			while (it.hasNext()) {
 				values.add(it.next().getValue());
@@ -350,7 +333,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			assertEquals(List.of(10, 15, 20), values);
 
 			// a value between buckets (12) should anchor at the next greater bucket (15)
-			final Iterator<ValueToRecordBitmap> it2 = InvertedIndexTest.this.tested.getValueIteratorFrom(12);
+			final Iterator<ValueToRecord> it2 = InvertedIndexTest.this.tested.getValueIteratorFrom(12);
 			assertEquals(15, it2.next().getValue());
 		}
 
@@ -367,7 +350,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			index.addRecord("auto", 4);
 
 			// under cs-CZ collation "ch" sorts after "h" so the run from "hora" is [hora, chladný]
-			final Iterator<ValueToRecordBitmap> it = index.getValueIteratorFrom("hora");
+			final Iterator<ValueToRecord> it = index.getValueIteratorFrom("hora");
 			final List<Serializable> values = new ArrayList<>();
 			while (it.hasNext()) {
 				values.add(it.next().getValue());
@@ -1343,29 +1326,6 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			assertEquals(index1.hashCode(), index2.hashCode());
 		}
 
-		@Test
-		@DisplayName("getConsistencyReport returns BROKEN for non-monotonic index")
-		void shouldReturnBrokenReportForNonMonotonicIndex() {
-			final ValueToRecordBitmap[] brokenBuckets =
-				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap(10, 1),
-					new ValueToRecordBitmap(5, 2)
-				};
-
-			// The public constructor validates monotonicity and throws for broken ordering.
-			final MonotonicRowCorruptedException ex = assertThrows(
-				MonotonicRowCorruptedException.class,
-				() -> new InvertedIndex(
-					brokenBuckets,
-					FilterIndex.NO_NORMALIZATION,
-					Comparator.naturalOrder()
-				)
-			);
-			assertTrue(
-				ex.getMessage().contains("not monotonic"),
-				"Exception should mention non-monotonic values"
-			);
-		}
 	}
 
 	@Nested

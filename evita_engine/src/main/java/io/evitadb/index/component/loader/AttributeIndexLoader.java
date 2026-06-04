@@ -94,7 +94,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
 			switch (key.indexType()) {
 				case UNIQUE -> fetchUnique(catalogVersion, entityIndexId, entityName, service, uniqueIndexes, key);
-				case FILTER -> fetchFilter(catalogVersion, entityIndexId, service, filterIndexes, key, context);
+				case FILTER -> fetchFilter(catalogVersion, entityIndexId, service, filterIndexes, key);
 				case SORT -> fetchSort(catalogVersion, entityIndexId, service, sortIndexes, key, context);
 				case CHAIN -> fetchChain(catalogVersion, entityIndexId, service, chainIndexes, key, context);
 				case CARDINALITY -> {
@@ -146,8 +146,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		int entityIndexId,
 		@Nonnull StoragePartPersistenceService<?> service,
 		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndexes,
-		@Nonnull AttributeIndexStorageKey key,
-		@Nonnull LoadContext context
+		@Nonnull AttributeIndexStorageKey key
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(
 			entityIndexId, AttributeIndexType.FILTER, key.attribute(), service.getReadOnlyKeyCompressor()
@@ -161,19 +160,13 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				" was not found in persistent storage!"
 		);
 		final AttributeIndexKey attributeIndexKey = part.getAttributeIndexKey();
-		// TOBEDONE #538 - remove when null-attributeType storage parts are gone
-		final Class<?> storedType = part.getAttributeType();
-		final Class<?> attributeType = storedType != null
-			? storedType
-			: context.attributeTypeFetcher().apply(attributeIndexKey);
 		filterIndexes.put(
 			attributeIndexKey,
 			new FilterIndex(
 				part.getAttributeIndexKey(),
 				part.getHistogramPoints(),
 				part.getRangeIndex(),
-				attributeType,
-				part.getAttributeType() == null
+				part.getAttributeType()
 			)
 		);
 	}

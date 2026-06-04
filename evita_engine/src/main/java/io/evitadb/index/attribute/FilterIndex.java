@@ -45,8 +45,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedException;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
@@ -103,7 +103,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * `recordIds` is the correct distinct-union aggregator. Empty / single-bucket inputs short-circuit to avoid
 	 * spurious formula tree allocations.
 	 */
-	private static final BiFunction<Long, ValueToRecordBitmap[], Formula> RANGE_HISTOGRAM_AGGREGATION_LAMBDA =
+	private static final BiFunction<Long, ValueToRecord[], Formula> RANGE_HISTOGRAM_AGGREGATION_LAMBDA =
 		(indexTransactionId, histogramBuckets) -> {
 			if (histogramBuckets.length == 0) {
 				return EmptyFormula.INSTANCE;
@@ -362,46 +362,6 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		this.invertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
 	}
 
-	//	TOBEDONE #538 - remove unnecessary constructor
-	public FilterIndex(
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull ValueToRecordBitmap[] valueToRecords,
-		@Nullable RangeIndex rangeIndex,
-		@Nonnull Class<?> attributeType,
-		boolean updateSortedValues
-	) {
-		this.attributeIndexKey = attributeIndexKey;
-		this.attributeType = attributeType;
-		this.dirty = new TransactionalBoolean();
-		this.rangeIndex = rangeIndex;
-		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		this.comparator = getComparator(attributeIndexKey, plainType);
-		this.normalizer = getNormalizer(plainType);
-		if (updateSortedValues) {
-			if (this.normalizer != NO_NORMALIZATION) {
-				for (int i = 0; i < valueToRecords.length; i++) {
-					final ValueToRecordBitmap valueToRecord = valueToRecords[i];
-					valueToRecords[i] = new ValueToRecordBitmap(this.normalizer.apply(valueToRecord.getValue()), valueToRecord.getRecordIds());
-				}
-			}
-			if (this.comparator != DEFAULT_COMPARATOR) {
-				ArrayUtils.sortArray((o1, o2) -> ((Comparator) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
-			}
-		}
-		InvertedIndex theInvertedIndex;
-		try {
-			theInvertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
-		} catch (MonotonicRowCorruptedException ex) {
-			if (this.comparator != DEFAULT_COMPARATOR) {
-				ArrayUtils.sortArray((o1, o2) -> ((Comparator) this.comparator).compare(o1.getValue(), o2.getValue()), valueToRecords);
-				theInvertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
-			} else {
-				throw ex;
-			}
-		}
-		this.invertedIndex = theInvertedIndex;
-	}
-
 	private FilterIndex(
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<?> attributeType,
@@ -441,9 +401,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
 		final LinkedList<Formula> formulas = new LinkedList<>();
 		// anchor at the first bucket whose value sorts >= prefix and walk forward while the prefix still matches
-		final Iterator<ValueToRecordBitmap> it = this.invertedIndex.getValueIteratorFrom(prefix);
+		final Iterator<ValueToRecord> it = this.invertedIndex.getValueIteratorFrom(prefix);
 		while (it.hasNext()) {
-			final ValueToRecordBitmap bucket = it.next();
+			final ValueToRecord bucket = it.next();
 			final String value = String.valueOf(bucket.getValue());
 			if (value.startsWith(prefix)) {
 				formulas.add(new ConstantFormula(bucket.getRecordIds()));

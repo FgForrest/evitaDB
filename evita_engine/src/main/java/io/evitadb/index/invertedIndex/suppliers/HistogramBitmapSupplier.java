@@ -30,7 +30,7 @@ import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -47,7 +47,7 @@ import java.util.stream.Stream;
  */
 public class HistogramBitmapSupplier implements BitmapSupplier {
 	private static final long CLASS_ID = 516692463222738021L;
-	private final ValueToRecordBitmap[] histogramBuckets;
+	private final ValueToRecord[] histogramBuckets;
 	/**
 	 * Contains memoized result once {@link #get()} is invoked for the first time. Additional calls of
 	 * {@link #get()} will return this memoized result without paying the computational costs
@@ -82,24 +82,24 @@ public class HistogramBitmapSupplier implements BitmapSupplier {
 	 */
 	private final Long transactionalIdHash;
 
-	public HistogramBitmapSupplier(@Nonnull ValueToRecordBitmap[] histogramBuckets) {
+	public HistogramBitmapSupplier(@Nonnull ValueToRecord[] histogramBuckets) {
 		this.histogramBuckets = histogramBuckets;
 		this.hash = HASH_FUNCTION.hashLongs(
 			Stream.of(
 					LongStream.of(CLASS_ID),
-					Arrays.stream(histogramBuckets).mapToLong(it -> it.getRecordIds().getId()).sorted()
+					Arrays.stream(histogramBuckets).mapToLong(ValueToRecord::getRecordSetId).sorted()
 				)
 				.flatMapToLong(it -> it)
 				.toArray()
 		);
 		this.estimatedCardinality = Arrays.stream(histogramBuckets)
-			.mapToInt(it -> it.getRecordIds().size())
+			.mapToInt(ValueToRecord::size)
 			.sum();
 		this.estimatedCost = this.estimatedCardinality * getOperationCost();
 		this.cost = this.estimatedCost;
 		this.costToPerformance = getCost() / (get().size() * getOperationCost());
 		this.transactionalIds = Arrays.stream(histogramBuckets)
-			.mapToLong(it -> it.getRecordIds().getId())
+			.mapToLong(ValueToRecord::getRecordSetId)
 			.toArray();
 		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
 			Arrays.stream(this.transactionalIds)
@@ -167,7 +167,7 @@ public class HistogramBitmapSupplier implements BitmapSupplier {
 		if (this.memoizedResult == null) {
 			final CompositeIntArray result = new CompositeIntArray();
 			Arrays.stream(this.histogramBuckets)
-				.map(ValueToRecordBitmap::getRecordIds)
+				.map(ValueToRecord::getRecordIds)
 				.map(Bitmap::getArray)
 				.forEach(it -> result.addAll(it, 0, it.length));
 			this.memoizedResult = new ArrayBitmap(result);

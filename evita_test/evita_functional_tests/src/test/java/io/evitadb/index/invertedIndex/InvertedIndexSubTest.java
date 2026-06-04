@@ -29,14 +29,14 @@ import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link InvertedIndexSubSet}.
@@ -57,7 +57,8 @@ class InvertedIndexSubTest {
 			new ValueToRecordBitmap(5, 8, 9),
 		},
 		(indexTransactionId, histogramBuckets) -> new OrFormula(
-			new long[]{indexTransactionId}, Arrays.stream(histogramBuckets).map(ValueToRecordBitmap::getRecordIds).toArray(RoaringBitmapBackedBitmap[]::new)
+			new long[]{indexTransactionId},
+			Arrays.stream(histogramBuckets).map(ValueToRecord::getRecordIds).toArray(RoaringBitmapBackedBitmap[]::new)
 		)
 	);
 
