@@ -320,9 +320,14 @@ public final class Catalog
 	@Getter private final TrafficRecordingEngine trafficRecordingEngine;
 	/**
 	 * Contains reference to the archived catalog index that allows fast lookups for entities across all types.
+	 *
+	 * The archived index is initialized lazily on the first archived-scope access (see
+	 * {@link #getCatalogIndex(Scope)}). It is held in an {@link AtomicReference} so that the lazy
+	 * transition is safe against concurrent read queries - the reference stays {@code null} until the
+	 * first archived-scope query, which preserves the "null means no archived data" semantics relied
+	 * upon by the copy and persistence paths.
 	 */
-	@Nullable
-	private CatalogIndex archiveCatalogIndex;
+	private final AtomicReference<CatalogIndex> archiveCatalogIndex = new AtomicReference<>();
 	/**
 	 * Last persisted schema version of the catalog.
 	 */
@@ -607,7 +612,6 @@ public final class Catalog
 		);
 		this.catalogIndex = new CatalogIndex(Scope.LIVE);
 		this.catalogIndex.attachToCatalog(null, this);
-		this.archiveCatalogIndex = null;
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -692,11 +696,12 @@ public final class Catalog
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this, Scope.LIVE)
 			.orElseGet(() -> new CatalogIndex(Scope.LIVE));
 		this.catalogIndex.attachToCatalog(null, this);
-		this.archiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
+		final CatalogIndex loadedArchiveCatalogIndex = this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.orElse(null);
-		if (this.archiveCatalogIndex != null) {
-			this.archiveCatalogIndex.attachToCatalog(null, this);
+		if (loadedArchiveCatalogIndex != null) {
+			loadedArchiveCatalogIndex.attachToCatalog(null, this);
+			this.archiveCatalogIndex.set(loadedArchiveCatalogIndex);
 		}
 		this.cacheSupervisor = cacheSupervisor;
 		this.trafficRecordingEngine = new TrafficRecordingEngine(
@@ -767,7 +772,7 @@ public final class Catalog
 		this.versionId = new TransactionalReference<>(catalogVersion);
 		this.state = catalogState;
 		this.catalogIndex = catalogIndex;
-		this.archiveCatalogIndex = archiveCatalogIndex;
+		this.archiveCatalogIndex.set(archiveCatalogIndex);
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
 		this.trafficRecordingEngine = previousCatalogVersion.trafficRecordingEngine;
@@ -780,8 +785,8 @@ public final class Catalog
 		this.transactionManager = previousCatalogVersion.transactionManager;
 
 		this.catalogIndex.attachToCatalog(null, this);
-		if (this.archiveCatalogIndex != null) {
-			this.archiveCatalogIndex.attachToCatalog(null, this);
+		if (archiveCatalogIndex != null) {
+			archiveCatalogIndex.attachToCatalog(null, this);
 		}
 		final StoragePartPersistenceService<StorageDescriptor> storagePartPersistenceService =
 			persistenceService.getStoragePartPersistenceService(catalogVersion);
@@ -1146,9 +1151,9 @@ public final class Catalog
 					catalogVersionAfterRename,
 					catalogState,
 					this.catalogIndex.createCopyForNewCatalogAttachment(catalogState),
-					this.archiveCatalogIndex == null ?
+					this.archiveCatalogIndex.get() == null ?
 						null :
-						this.archiveCatalogIndex.createCopyForNewCatalogAttachment(catalogState),
+						this.archiveCatalogIndex.get().createCopyForNewCatalogAttachment(catalogState),
 					newCollections,
 					newIoService,
 					this,
@@ -1198,9 +1203,9 @@ public final class Catalog
 				1L,
 				CatalogState.ALIVE,
 				this.catalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
-				this.archiveCatalogIndex == null ?
+				this.archiveCatalogIndex.get() == null ?
 					null :
-					this.archiveCatalogIndex.createCopyForNewCatalogAttachment(CatalogState.ALIVE),
+					this.archiveCatalogIndex.get().createCopyForNewCatalogAttachment(CatalogState.ALIVE),
 				newCollections,
 				this.persistenceService,
 				this,
@@ -1459,7 +1464,7 @@ public final class Catalog
 	 */
 	@Nonnull
 	public Optional<CatalogIndex> getCatalogIndexIfExits(@Nonnull Scope scope) {
-		return scope == Scope.ARCHIVED ? ofNullable(this.archiveCatalogIndex) : of(this.catalogIndex);
+		return scope == Scope.ARCHIVED ? ofNullable(this.archiveCatalogIndex.get()) : of(this.catalogIndex);
 	}
 
 	/**
@@ -1468,11 +1473,19 @@ public final class Catalog
 	@Nonnull
 	public CatalogIndex getCatalogIndex(@Nonnull Scope scope) {
 		if (scope == Scope.ARCHIVED) {
-			if (this.archiveCatalogIndex == null) {
-				this.archiveCatalogIndex = new CatalogIndex(Scope.ARCHIVED);
-				this.archiveCatalogIndex.attachToCatalog(null, this);
+			// The archived index is lazily initialized on first archived-scope access. Guard the
+			// transition against concurrent read queries: create and attach the candidate before
+			// publishing it, then CAS it in. A candidate that loses the race is discarded (and GC'd)
+			// having been attached exactly once - so attachToCatalog is never invoked twice on the
+			// same instance, which would otherwise trip its "already attached" premise check
+			CatalogIndex existing = this.archiveCatalogIndex.get();
+			if (existing == null) {
+				final CatalogIndex candidate = new CatalogIndex(Scope.ARCHIVED);
+				candidate.attachToCatalog(null, this);
+				existing = this.archiveCatalogIndex.compareAndSet(null, candidate) ?
+					candidate : this.archiveCatalogIndex.get();
 			}
-			return this.archiveCatalogIndex;
+			return existing;
 		} else {
 			return this.catalogIndex;
 		}
@@ -1571,8 +1584,9 @@ public final class Catalog
 		this.schema.removeLayer(transactionalLayer);
 		this.entityCollections.removeLayer(transactionalLayer);
 		this.catalogIndex.removeLayer(transactionalLayer);
-		if (this.archiveCatalogIndex != null) {
-			this.archiveCatalogIndex.removeLayer(transactionalLayer);
+		final CatalogIndex theArchiveCatalogIndex = this.archiveCatalogIndex.get();
+		if (theArchiveCatalogIndex != null) {
+			theArchiveCatalogIndex.removeLayer(transactionalLayer);
 		}
 		this.entityCollectionsByPrimaryKey.removeLayer(transactionalLayer);
 		this.entitySchemaIndex.removeLayer(transactionalLayer);
@@ -1646,9 +1660,10 @@ public final class Catalog
 			this.entityCollections);
 		final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(
 			this.catalogIndex);
-		final CatalogIndex possiblyUpdatedArchiveCatalogIndex = this.archiveCatalogIndex == null ?
+		final CatalogIndex theArchiveCatalogIndex = this.archiveCatalogIndex.get();
+		final CatalogIndex possiblyUpdatedArchiveCatalogIndex = theArchiveCatalogIndex == null ?
 			null :
-			of(transactionalLayer.getStateCopyWithCommittedChanges(this.archiveCatalogIndex))
+			of(transactionalLayer.getStateCopyWithCommittedChanges(theArchiveCatalogIndex))
 				.filter(it -> !it.isEmpty())
 				.orElse(null);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
@@ -1676,7 +1691,7 @@ public final class Catalog
 			);
 		} else {
 			if (possiblyUpdatedCatalogIndex != this.catalogIndex ||
-				possiblyUpdatedArchiveCatalogIndex != this.archiveCatalogIndex ||
+				possiblyUpdatedArchiveCatalogIndex != theArchiveCatalogIndex ||
 				possiblyUpdatedCollections
 					.entrySet()
 					.stream()
@@ -2573,7 +2588,7 @@ public final class Catalog
 		@Override
 		public CatalogIndex getIndexIfExists(@Nonnull CatalogIndexKey catalogIndexKey) {
 			return catalogIndexKey.scope() == Scope.ARCHIVED ?
-				Catalog.this.archiveCatalogIndex : Catalog.this.catalogIndex;
+				Catalog.this.archiveCatalogIndex.get() : Catalog.this.catalogIndex;
 		}
 
 		/**

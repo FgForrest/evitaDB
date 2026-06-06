@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.base;
 
+import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.bitmap.Bitmap;
@@ -48,6 +49,19 @@ public class EmptyFormula extends AbstractFormula {
 
 	private EmptyFormula() {
 		this.initFields();
+	}
+
+	/**
+	 * {@link #INSTANCE} is a shared, application-wide singleton. {@link AbstractFormula#initialize}
+	 * stores the per-query {@link QueryExecutionContext} in a field - doing so on this shared instance
+	 * would pin that query's execution context (and the whole {@link io.evitadb.core.catalog.Catalog}
+	 * snapshot reachable from it) in a static field for the entire JVM lifetime, leaking catalog
+	 * versions. This formula never reads the execution context ({@link #computeInternal()} returns
+	 * {@link EmptyBitmap#INSTANCE}), so initialization is intentionally a no-op.
+	 */
+	@Override
+	public void initialize(@Nonnull QueryExecutionContext executionContext) {
+		// intentionally empty - see JavaDoc
 	}
 
 	@Nonnull
