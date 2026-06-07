@@ -1537,8 +1537,11 @@ public class TransactionalIntToLongBPlusTree implements
 				Transaction.getOrCreateTransactionalMemoryLayer(this) :
 				null;
 			if (layer == null) {
-				// we move all the children
-				final BPlusTreeNode<?>[] nextNodeChildren = nextNode.getChildren();
+				// the right sibling may be a committed (shared) node while `this` is a transaction-local node
+				// (transactionalLayer == false): steal-from-right SHIFTS the sibling's arrays in place, so it must
+				// decouple them first or it would corrupt the shared committed state. The ...ForUpdate accessors
+				// decouple a committed sibling inside a transaction and are in-place no-ops outside one.
+				final BPlusTreeNode<?>[] nextNodeChildren = nextNode.getChildrenForUpdate();
 				System.arraycopy(nextNodeChildren, 0, this.children, this.peek + 1, numberOfHeadValues);
 				System.arraycopy(
 					nextNodeChildren, numberOfHeadValues, nextNodeChildren, 0, nextNode.size() - numberOfHeadValues);
@@ -1547,7 +1550,7 @@ public class TransactionalIntToLongBPlusTree implements
 				this.keys[this.peek] = this.children[this.peek + 1].getLeftBoundaryKey();
 
 				// we move the keys from the next node for all copied children
-				final int[] nextNodeKeys = nextNode.getKeys();
+				final int[] nextNodeKeys = nextNode.getKeysForUpdate();
 				System.arraycopy(nextNodeKeys, 0, this.keys, this.peek + 1, numberOfHeadValues - 1);
 				// we need to shift the keys in the next node
 				System.arraycopy(
@@ -2262,14 +2265,21 @@ public class TransactionalIntToLongBPlusTree implements
 				Transaction.getOrCreateTransactionalMemoryLayer(this) :
 				null;
 			if (layer == null) {
-				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues);
-				System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, numberOfHeadValues);
+				// the right sibling may be a committed (shared) node while `this` is a transaction-local node
+				// (transactionalLayer == false): steal-from-right SHIFTS the sibling's arrays in place, so it must
+				// decouple them first or it would corrupt the shared committed state. getKeysForUpdate /
+				// getValuesForUpdate decouple a committed sibling inside a transaction and are in-place no-ops outside
+				// one, so they are correct in both the warm-up and the transactional case.
+				final int[] nextNodeKeys = nextNode.getKeysForUpdate();
+				final long[] nextNodeValues = nextNode.getValuesForUpdate();
+				System.arraycopy(nextNodeKeys, 0, this.keys, this.peek + 1, numberOfHeadValues);
+				System.arraycopy(nextNodeValues, 0, this.values, this.peek + 1, numberOfHeadValues);
 				System.arraycopy(
-					nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0,
+					nextNodeKeys, numberOfHeadValues, nextNodeKeys, 0,
 					nextNode.size() - numberOfHeadValues
 				);
 				System.arraycopy(
-					nextNode.getValues(), numberOfHeadValues, nextNode.getValues(), 0,
+					nextNodeValues, numberOfHeadValues, nextNodeValues, 0,
 					nextNode.size() - numberOfHeadValues
 				);
 				nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);

@@ -883,7 +883,13 @@ public class UnorderedLookupTree implements
 		while (level >= 0) {
 			final InternalNode parent = cursor.path[level];
 			final int ci = cursor.idx[level];
+			// capture the child about to be unlinked before the structural mutation; once detached from the tree it
+			// is no longer reachable from the committed root, so its transactional layer (touched while emptying it)
+			// would never be visited by the commit sweep and would be flagged stale - drop it here (INV-5), exactly
+			// as the reference B+ tree does on node merge
+			final Node<?> removedChild = parent.getChildren()[ci];
 			removeChildAt(parent, ci);
+			dropLayerIfPresent(removedChild);
 			if (parent.getChildCount() == 0) {
 				if (level == 0) {
 					setRoot(null);
@@ -894,15 +900,28 @@ public class UnorderedLookupTree implements
 			}
 			if (parent.getChildCount() == 1) {
 				if (level == 0) {
-					// collapse a single-child root to reduce tree height
+					// collapse a single-child root to reduce tree height (setRoot drops the old root's layer)
 					setRoot(parent.getChildren()[0]);
 				} else {
 					// splice a single-child internal out of its parent (keep internals >= 2 children)
 					final InternalNode grandParent = cursor.path[level - 1];
 					grandParent.getChildrenForUpdate()[cursor.idx[level - 1]] = parent.getChildren()[0];
+					// the spliced-out internal is detached from the tree - drop its (touched) layer too
+					dropLayerIfPresent(parent);
 				}
 			}
 			return;
+		}
+	}
+
+	/**
+	 * Drops the transactional diff layer of `node` when one is currently open. Used when a node is detached from the
+	 * tree mid-transaction (container emptied, internal node collapsed or spliced out): the node is no longer reachable
+	 * from the committed root, so its layer would never be swept by the commit walk and would be reported stale.
+	 */
+	private static void dropLayerIfPresent(@Nonnull Node<?> node) {
+		if (Transaction.getTransactionalMemoryLayerIfExists(node) != null) {
+			node.removeLayer();
 		}
 	}
 

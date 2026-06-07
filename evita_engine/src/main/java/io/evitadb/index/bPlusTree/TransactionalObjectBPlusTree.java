@@ -1895,7 +1895,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				: null;
 			if (layer == null) {
 				// we move all the children
-				final BPlusTreeNode<M, ?>[] nextNodeChildren = nextNode.getChildren();
+				final BPlusTreeNode<M, ?>[] nextNodeChildren = nextNode.getChildrenForUpdate();
 				System.arraycopy(nextNodeChildren, 0, this.children, this.peek + 1, numberOfHeadValues);
 				System.arraycopy(
 					nextNodeChildren, numberOfHeadValues, nextNodeChildren, 0, nextNode.size() - numberOfHeadValues);
@@ -1903,8 +1903,10 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				// set the key for the first child of the next node
 				this.keys[this.peek] = this.children[this.peek + 1].getLeftBoundaryKey();
 
-				// we move the keys from the next node for all copied children
-				final M[] nextNodeKeys = nextNode.getKeys();
+				// the right sibling may be a committed (shared) node while `this` is a transaction-local node
+				// (transactionalLayer == false): steal-from-right SHIFTS the sibling keys in place, so it must
+				// decouple them first (...ForUpdate) or it would corrupt the shared committed state.
+				final M[] nextNodeKeys = nextNode.getKeysForUpdate();
 				System.arraycopy(nextNodeKeys, 0, this.keys, this.peek + 1, numberOfHeadValues - 1);
 				// we need to shift the keys in the next node
 				System.arraycopy(
@@ -2666,14 +2668,18 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
 			if (layer == null) {
-				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, numberOfHeadValues);
-				System.arraycopy(nextNode.getValues(), 0, this.values, this.peek + 1, numberOfHeadValues);
+				// the right sibling may be a committed (shared) node while `this` is a transaction-local node
+				// (transactionalLayer == false): steal-from-right SHIFTS the sibling arrays in place, so it must
+				// decouple them first (...ForUpdate) or it would corrupt the shared committed state. The
+				// ...ForUpdate accessors decouple a committed sibling inside a transaction, in-place no-op outside.
+				System.arraycopy(nextNode.getKeysForUpdate(), 0, this.keys, this.peek + 1, numberOfHeadValues);
+				System.arraycopy(nextNode.getValuesForUpdate(), 0, this.values, this.peek + 1, numberOfHeadValues);
 				System.arraycopy(
-					nextNode.getKeys(), numberOfHeadValues, nextNode.getKeys(), 0,
+					nextNode.getKeysForUpdate(), numberOfHeadValues, nextNode.getKeysForUpdate(), 0,
 					nextNode.size() - numberOfHeadValues
 				);
 				System.arraycopy(
-					nextNode.getValues(), numberOfHeadValues, nextNode.getValues(), 0,
+					nextNode.getValuesForUpdate(), numberOfHeadValues, nextNode.getValuesForUpdate(), 0,
 					nextNode.size() - numberOfHeadValues
 				);
 				nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
