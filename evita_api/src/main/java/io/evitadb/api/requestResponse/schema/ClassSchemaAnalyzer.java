@@ -394,13 +394,14 @@ public class ClassSchemaAnalyzer {
 			}
 		};
 
-		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+		// An attribute is promoted to a (catalog-level) global attribute only when global uniqueness is requested -
+		// either via `global=true`, the default-scope `uniqueGlobally`, or a per-scope `uniqueGlobally`. A per-scope
+		// plain `unique` (within-collection) is an entity-level property and must NOT make the attribute global,
+		// otherwise its uniqueness mutation is emitted at the catalog level and silently no-ops on the entity attribute.
 		if (attributeAnnotation.global() ||
 			attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE ||
 			Arrays.stream(attributeAnnotation.scope()).anyMatch(
-				it -> it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) ||
-			(!ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition) && Arrays.stream(scopedDefinition).anyMatch(
-				it -> it.unique() != AttributeUniquenessType.NOT_UNIQUE || it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE))
+				it -> it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE)
 		) {
 			Assert.notNull(
 				catalogBuilder,
