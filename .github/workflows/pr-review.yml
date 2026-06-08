@@ -62,7 +62,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: anthropics/claude-code-action@36a69b6a90b850823f86de06fdfd56264772ad98 # v1.0.134
+      - uses: anthropics/claude-code-action@fbda2eb1bdc90d319b8d853f5deb53bca199a7c1 # v1.0.140
         with:
           claude_code_oauth_token: ${{ secrets.ANTHROPIC_API_KEY }}
           show_full_output: true
