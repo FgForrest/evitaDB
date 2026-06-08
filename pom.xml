@@ -139,7 +139,7 @@
 		<grpc.version>1.80.0</grpc.version>
 		<bouncyCastle.version>1.84</bouncyCastle.version>
 		<swagger.version>2.2.43</swagger.version>
-		<armeria.version>1.39.0</armeria.version>
+		<armeria.version>1.39.1</armeria.version>
 		<prometheus.version>1.6.1</prometheus.version>
 		<micrometer.version>1.16.5</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
