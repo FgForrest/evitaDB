@@ -77,8 +77,12 @@ jobs:
       uses: advanced-security/maven-dependency-submission-action@b275d12641ac2d2108b2cbb7598b154ad2f2cee8 # v5.0.0
 
     - name: Deploy with Maven       # deploy SNAPSHOTS to Maven repository (`full` includes the all-in-one driver)
+      # `evita_long_running_tests` is excluded from the reactor: it depends on the `test-jar` of
+      # `evita_functional_tests`, which is not produced under `-Dmaven.test.skip=true` (test compilation
+      # is skipped), so it would fail dependency resolution and abort the whole `deployAtEnd` upload.
+      # It is a non-published leaf test module, so dropping it from the deploy reactor is safe.
       run: |
-        mvn -T 1C -B -P full javadoc:jar source:jar deploy -DdeployAtEnd=true -Dmaven.test.skip=true --file pom.xml
+        mvn -T 1C -B -P full javadoc:jar source:jar deploy -DdeployAtEnd=true -Dmaven.test.skip=true -pl '!:evita_long_running_tests' --file pom.xml
       continue-on-error: true
       env:
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}

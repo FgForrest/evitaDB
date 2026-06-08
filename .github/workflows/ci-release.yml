@@ -161,7 +161,10 @@ jobs:
         # version rewritten too — otherwise the deploy below fails resolving
         # the now-mismatched -SNAPSHOT parent reference.
         mvn -P full versions:set -DnewVersion=$NEW_VERSION
-        mvn -T 1C -B -P release-sign-artifacts,full -Dmaven.test.skip=true javadoc:jar source:jar deploy --file pom.xml
+        # `evita_long_running_tests` is excluded from the release deploy: it depends on the `test-jar` of
+        # `evita_functional_tests`, which is not produced under `-Dmaven.test.skip=true`, so it would fail
+        # dependency resolution. It is a non-published leaf test module, so excluding it is safe.
+        mvn -T 1C -B -P release-sign-artifacts,full -Dmaven.test.skip=true javadoc:jar source:jar deploy -pl '!:evita_long_running_tests' --file pom.xml
       env:
         EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
