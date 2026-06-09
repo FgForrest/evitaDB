@@ -394,6 +394,15 @@ $entity.references['brand'].attributes['brandTag'] ?? 'new'
 // returns the brandTag, or 'new' if it is null
 ```
 
+The `??` operator binds tighter than the comparison operators, so parentheses around the
+coalesced value are optional — the following two expressions are equivalent:
+
+```
+$entity.attributes['isActive'] ?? false == true
+($entity.attributes['isActive'] ?? false) == true
+// both parse as (isActive ?? false) == true
+```
+
 The `??` operator can be used inside spread expressions as well:
 
 ```

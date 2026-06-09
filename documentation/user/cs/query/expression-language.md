@@ -331,6 +331,15 @@ $entity.references['brand'].attributes['brandTag'] ?? 'new'
 // vrátí brandTag, nebo 'new', pokud je null
 ```
 
+Operátor `??` má vyšší prioritu než porovnávací operátory, takže závorky kolem koalescované
+hodnoty jsou nepovinné — následující dva výrazy jsou ekvivalentní:
+
+```
+$entity.attributes['isActive'] ?? false == true
+($entity.attributes['isActive'] ?? false) == true
+// obě se vyhodnotí jako (isActive ?? false) == true
+```
+
 Operátor `??` lze použít i uvnitř rozšiřovacích výrazů:
 
 ```
