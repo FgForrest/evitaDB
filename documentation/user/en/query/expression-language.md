@@ -394,6 +394,15 @@ $entity.references['brand'].attributes['brandTag'] ?? 'new'
 // returns the brandTag, or 'new' if it is null
 ```
 
+The `??` operator binds tighter than the comparison operators, so parentheses around the
+coalesced value are optional — the following two expressions are equivalent:
+
+```
+$entity.attributes['isActive'] ?? false == true
+($entity.attributes['isActive'] ?? false) == true
+// both parse as (isActive ?? false) == true
+```
+
 The `??` operator can be used inside spread expressions as well:
 
 ```
@@ -451,10 +460,10 @@ Operators are listed from highest to lowest precedence:
 | 3 | `!` `+` (unary) `-` (unary) | Negation, unary plus/minus |
 | 4 | `*` `/` `%` | Multiplication, division, modulo |
 | 5 | `+` `-` | Addition, subtraction |
-| 6 | `>` `>=` `<` `<=` | Relational comparisons |
-| 7 | `==` `!=` | Equality comparisons |
-| 8 | `^` | Logical XOR |
-| 9 | `&&` | Logical AND |
-| 10 | `\|\|` | Logical OR |
-| 11 | `*?` `?*?` | Spread null coalescing |
-| 12 | `??` | Null coalescing |
+| 6 | `??` | Null coalescing |
+| 7 | `>` `>=` `<` `<=` | Relational comparisons |
+| 8 | `==` `!=` | Equality comparisons |
+| 9 | `^` | Logical XOR |
+| 10 | `&&` | Logical AND |
+| 11 | `\|\|` | Logical OR |
+| 12 | `*?` `?*?` | Spread null coalescing |
