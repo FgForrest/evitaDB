@@ -97,6 +97,7 @@ public class ExpressionTest {
 	@Nonnull
 	static Stream<Arguments> expressions() {
 		return Stream.of(
+			// expression | variables | result | range
 			/* 1 */ Arguments.of("true", Map.of(), true, BigDecimalNumberRange.INFINITE),
 			/* 2 */ Arguments.of("!true", Map.of(), false, BigDecimalNumberRange.INFINITE),
 			/* 3 */ Arguments.of("true || false", Map.of(), true, BigDecimalNumberRange.INFINITE),
@@ -237,7 +238,33 @@ public class ExpressionTest {
 			/* Map `size` method */
 			/* 129 */ Arguments.of("$obj.map.size()", Map.of("obj", new TestObject()), 4, BigDecimalNumberRange.INFINITE),
 			/* 130 */ Arguments.of("$obj.mapWithPrimitiveValues.size()", Map.of("obj", new TestObject()), 4, BigDecimalNumberRange.INFINITE),
-			/* 131 */ Arguments.of("$obj.mapWithMissingValues.size()", Map.of("obj", new TestObject()), 2, BigDecimalNumberRange.INFINITE)
+			/* 131 */ Arguments.of("$obj.mapWithMissingValues.size()", Map.of("obj", new TestObject()), 2, BigDecimalNumberRange.INFINITE),
+			/* Null coalescing operator - basic behavior */
+			/* 132 */ Arguments.of("$obj.optionalProp ?? 'default'", Map.of("obj", new TestObject()), "default", BigDecimalNumberRange.INFINITE),
+			/* 133 */ Arguments.of("$obj.prop ?? 'default'", Map.of("obj", new TestObject()), "basic property", BigDecimalNumberRange.INFINITE),
+			/* 134 */ Arguments.of("$obj.optionalBooleanProp ?? false", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 135 */ Arguments.of("$obj.optionalProp ?? $obj.optionalProp ?? 'final'", Map.of("obj", new TestObject()), "final", BigDecimalNumberRange.INFINITE),
+			/* 136 */ Arguments.of("$obj.optionalNested?.attribute ?? 'missing'", Map.of("obj", new TestObject()), "missing", BigDecimalNumberRange.INFINITE),
+			/* Null coalescing operator precedence - ?? should bind tighter than == */
+			/* 137 */ Arguments.of("$val ?? 0 == 5", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.INFINITE),
+			/* 138 */ Arguments.of("$val ?? 0 == 5", Map.of("val", BigDecimal.valueOf(3)), false, BigDecimalNumberRange.INFINITE),
+			/* 139 */ Arguments.of("$obj.nested.map['c'].prop ?? 'fallback' == 'basic property'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 140 */ Arguments.of("$obj.optionalProp ?? 'default' == 'default'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 141 */ Arguments.of("$obj.optionalProp ?? 'default' != 'other'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* Null coalescing operator precedence - ?? should bind tighter than comparison operators */
+			/* 142 */ Arguments.of("$val ?? 0 > 3", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.from(new BigDecimal("3.0000000000000001"))),
+			/* 143 */ Arguments.of("$val ?? 0 < 3", Map.of("val", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.to(new BigDecimal("2.9999999999999999"))),
+			/* 144 */ Arguments.of("$val ?? 0 >= 5", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.from(new BigDecimal("5"))),
+			/* 145 */ Arguments.of("$val ?? 0 <= 5", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.to(new BigDecimal("5"))),
+			/* Null coalescing operator precedence - ?? should bind tighter than logical operators */
+			/* 146 */ Arguments.of("$obj.optionalBooleanProp ?? true && false", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
+			/* 147 */ Arguments.of("$obj.optionalBooleanProp ?? false || true", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* Null coalescing operator precedence - arithmetic should bind tighter than ?? */
+			/* 148 */ Arguments.of("$val ?? 1 + 2 == 3", Map.of("val", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
+			/* 149 */ Arguments.of("$val ?? 1 + 2 == 3", Map.of("val", BigDecimal.valueOf(3)), true, BigDecimalNumberRange.INFINITE),
+			/* Null coalescing operator with explicit parentheses */
+			/* 150 */ Arguments.of("($obj.optionalProp ?? 'default') == 'default'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 151 */ Arguments.of("($val ?? 0) == 5", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.INFINITE)
 		);
 	}
 
@@ -279,6 +306,11 @@ public class ExpressionTest {
 
 		@Nullable
 		public String optionalProp() {
+			return null;
+		}
+
+		@Nullable
+		public Boolean optionalBooleanProp() {
 			return null;
 		}
 
@@ -409,6 +441,7 @@ public class ExpressionTest {
 			return switch (propertyIdentifier) {
 				case "prop" -> testObject.prop();
 				case "optionalProp" -> testObject.optionalProp();
+				case "optionalBooleanProp" -> testObject.optionalBooleanProp();
 				case "arr" -> testObject.arr();
 				case "optionalArr" -> testObject.optionalArr();
 				case "arrWithMissingValues" -> testObject.arrWithMissingValues();
