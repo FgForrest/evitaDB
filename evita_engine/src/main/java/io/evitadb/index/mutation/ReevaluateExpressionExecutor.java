@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -430,10 +431,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			(depType == DependencyType.REFERENCED_ENTITY_ATTRIBUTE
 				|| depType == DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE)
 				&& affected.groups().stream().anyMatch(g -> g.groupPK() != null)
-				&& FinderVisitor.findConstraint(
+				&& !FinderVisitor.findConstraints(
 					trigger.getFilterByConstraint(),
 					GroupHaving.class::isInstance
-				) != null;
+				).isEmpty();
 
 		if (needsPerGroupEvaluation) {
 			return evaluateConditionPerGroup(trigger, mutation, target, affected);
@@ -526,21 +527,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (groupPK == null) {
 			return parameterize(triggerFilterBy, referenceName, mutatedEntityPK, dependencyType);
 		}
-		// inject group PK scope into the ORIGINAL filter first (before entity PK injection),
-		// so that injectPkScope can find the GroupHaving at the top of ReferenceHaving's children
+		// Inject group PK scope into the ORIGINAL filter first (before entity PK injection); the
+		// recursive rewrite reaches every matching ReferenceHaving regardless of nesting (Or/And/Not),
+		// and injectPkScope merges the PK into every GroupHaving sibling in each match.
 		final EntityPrimaryKeyInSet groupPkConstraint = new EntityPrimaryKeyInSet(groupPK);
-		final FilterConstraint[] topChildren = triggerFilterBy.getChildren();
-		final FilterConstraint[] newTopChildren = new FilterConstraint[topChildren.length];
-		for (int i = 0; i < topChildren.length; i++) {
-			if (topChildren[i] instanceof ReferenceHaving rh
-				&& rh.getReferenceName().equals(referenceName)
-			) {
-				newTopChildren[i] = injectPkScope(rh, referenceName, groupPkConstraint, true);
-			} else {
-				newTopChildren[i] = topChildren[i];
-			}
-		}
-		final FilterBy groupScoped = new FilterBy(newTopChildren);
+		final FilterBy groupScoped = rewriteMatchingReferenceHavings(
+			triggerFilterBy, referenceName, groupPkConstraint, true
+		);
 		// then apply the standard entity PK scoping
 		return parameterize(groupScoped, referenceName, mutatedEntityPK, dependencyType);
 	}
@@ -1752,25 +1745,58 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final EntityPrimaryKeyInSet pkConstraint = new EntityPrimaryKeyInSet(mutatedEntityPK);
 		final boolean isGroupScope = dependencyType == DependencyType.GROUP_ENTITY_ATTRIBUTE
 			|| dependencyType == DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
-		// Walk the top-level children and inject the PK-scope into the matching referenceHaving clause.
-		final FilterConstraint[] topChildren = triggerFilterBy.getChildren();
-		final FilterConstraint[] newTopChildren = new FilterConstraint[topChildren.length];
-		for (int i = 0; i < topChildren.length; i++) {
-			if (topChildren[i] instanceof ReferenceHaving rh
-				&& rh.getReferenceName().equals(referenceName)) {
-				newTopChildren[i] = injectPkScope(rh, referenceName, pkConstraint, isGroupScope);
-			} else {
-				newTopChildren[i] = topChildren[i];
-			}
-		}
-		return new FilterBy(newTopChildren);
+		return rewriteMatchingReferenceHavings(triggerFilterBy, referenceName, pkConstraint, isGroupScope);
 	}
 
 	/**
-	 * Injects the given PK constraint into the matching {@link ReferenceHaving} clause. If the clause already
-	 * contains an {@link EntityHaving} (or {@link GroupHaving} for group-scoped dependencies), the PK constraint
-	 * is merged into that existing scope container so that only a single scope shift is used. Otherwise, a new
-	 * scope container wrapping the PK constraint is appended as an additional And-sibling.
+	 * Rewrites every owner-scope {@link ReferenceHaving} whose reference name matches `referenceName`
+	 * anywhere in `filterBy` by passing it through {@link #injectPkScope}. The traversal is full-tree
+	 * (handles `Or`, `And`, `Not`, and any other container the constraint model defines), so the
+	 * rewrite reaches every owner-scope match regardless of nesting depth — not just top-level direct
+	 * children of the {@link FilterBy}.
+	 *
+	 * The translator can emit nested `referenceHaving(otherRef, ...)` inside an enclosing
+	 * `entityHaving(...)` / `groupHaving(...)` (paths `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` and
+	 * `GROUP_ENTITY_REFERENCE_ATTRIBUTE`). Those inner clauses live in a *different* entity scope
+	 * (the referenced entity, not the owner), so their PK constraints must NOT be merged with the
+	 * owner-scope mutation's PK. The guard `!visitor.isWithin(EntityHaving.class)
+	 * && !visitor.isWithin(GroupHaving.class)` skips such inner clauses even when they happen to
+	 * carry the same `referenceName` as the owner-scope reference (e.g. self-referencing schemas).
+	 *
+	 * @param filterBy       the filter to rewrite
+	 * @param referenceName  the reference whose `ReferenceHaving` instances receive the PK scope
+	 * @param pkConstraint   the PK constraint to merge into each matching `ReferenceHaving`
+	 * @param isGroupScope   `true` for {@link GroupHaving}-scoped injection, `false` for
+	 *                       {@link EntityHaving}-scoped injection
+	 * @return the rewritten filter; structurally identical when no owner-scope `ReferenceHaving`
+	 *         matched
+	 */
+	@Nonnull
+	private static FilterBy rewriteMatchingReferenceHavings(
+		@Nonnull FilterBy filterBy,
+		@Nonnull String referenceName,
+		@Nonnull EntityPrimaryKeyInSet pkConstraint,
+		boolean isGroupScope
+	) {
+		return (FilterBy) ConstraintCloneVisitor.clone(
+			filterBy,
+			(visitor, constraint) -> constraint instanceof final ReferenceHaving rh
+				&& rh.getReferenceName().equals(referenceName)
+				&& !visitor.isWithin(EntityHaving.class)
+				&& !visitor.isWithin(GroupHaving.class)
+				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope)
+				: constraint
+		);
+	}
+
+	/**
+	 * Injects the given PK constraint into the matching {@link ReferenceHaving} clause. Every existing
+	 * {@link GroupHaving} (or {@link EntityHaving} for entity-scoped dependencies) child receives the
+	 * PK constraint merged into its body, so a {@link ReferenceHaving} carrying multiple sibling
+	 * scope containers (produced by the expression translator when the same reference declares more
+	 * than one `groupEntity?.…` / `entity?.…` predicate) is correctly constrained on every branch.
+	 * When no scope container is present, a new one wrapping the PK constraint is appended as an
+	 * And-sibling.
 	 *
 	 * @param rh            the original referenceHaving clause
 	 * @param referenceName the reference name for the new ReferenceHaving
@@ -1787,38 +1813,33 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		boolean isGroupScope
 	) {
 		final FilterConstraint[] rhChildren = rh.getChildren();
-		// Find an existing EntityHaving or GroupHaving to merge the PK constraint into.
-		int scopeIndex = -1;
+		final FilterConstraint[] updatedChildren = new FilterConstraint[rhChildren.length];
+		boolean scopeContainerFound = false;
 		for (int j = 0; j < rhChildren.length; j++) {
-			if (isGroupScope ? rhChildren[j] instanceof GroupHaving : rhChildren[j] instanceof EntityHaving) {
-				scopeIndex = j;
-				break;
+			final FilterConstraint child = rhChildren[j];
+			if (isGroupScope && child instanceof final GroupHaving existing) {
+				updatedChildren[j] = new GroupHaving(new And(existing.getChild(), pkConstraint));
+				scopeContainerFound = true;
+			} else if (!isGroupScope && child instanceof final EntityHaving existing) {
+				updatedChildren[j] = new EntityHaving(new And(existing.getChild(), pkConstraint));
+				scopeContainerFound = true;
+			} else {
+				updatedChildren[j] = child;
 			}
 		}
-		if (scopeIndex >= 0) {
-			// Merge PK constraint into the existing scope container to avoid multiple scope shifts.
-			final FilterConstraint[] updatedChildren = new FilterConstraint[rhChildren.length];
-			System.arraycopy(rhChildren, 0, updatedChildren, 0, rhChildren.length);
-			if (isGroupScope) {
-				final GroupHaving existing = (GroupHaving) rhChildren[scopeIndex];
-				updatedChildren[scopeIndex] = new GroupHaving(new And(existing.getChild(), pkConstraint));
-			} else {
-				final EntityHaving existing = (EntityHaving) rhChildren[scopeIndex];
-				updatedChildren[scopeIndex] = new EntityHaving(new And(existing.getChild(), pkConstraint));
-			}
+		if (scopeContainerFound) {
 			return updatedChildren.length == 1
 				? new ReferenceHaving(referenceName, updatedChildren[0])
 				: new ReferenceHaving(referenceName, new And(updatedChildren));
-		} else {
-			// No existing scope container — wrap PK in a new one and add as an And-sibling.
-			final FilterConstraint pkScope = isGroupScope
-				? new GroupHaving(pkConstraint)
-				: new EntityHaving(pkConstraint);
-			final FilterConstraint[] andChildren = new FilterConstraint[rhChildren.length + 1];
-			System.arraycopy(rhChildren, 0, andChildren, 0, rhChildren.length);
-			andChildren[rhChildren.length] = pkScope;
-			return new ReferenceHaving(referenceName, new And(andChildren));
 		}
+		// No existing scope container — wrap PK in a new one and add as an And-sibling.
+		final FilterConstraint pkScope = isGroupScope
+			? new GroupHaving(pkConstraint)
+			: new EntityHaving(pkConstraint);
+		final FilterConstraint[] andChildren = new FilterConstraint[rhChildren.length + 1];
+		System.arraycopy(rhChildren, 0, andChildren, 0, rhChildren.length);
+		andChildren[rhChildren.length] = pkScope;
+		return new ReferenceHaving(referenceName, new And(andChildren));
 	}
 
 	/**
