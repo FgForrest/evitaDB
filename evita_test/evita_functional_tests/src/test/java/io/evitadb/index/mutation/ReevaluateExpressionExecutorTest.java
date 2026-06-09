@@ -1017,6 +1017,90 @@ class ReevaluateExpressionExecutorTest {
 				);
 			}
 		}
+
+		/**
+		 * Review safeguard (Copilot, PR #1235): the recursive PK-scope rewrite must only target
+		 * **owner-scope** `ReferenceHaving` clauses. The expression translator emits nested
+		 * `referenceHaving(otherRef, …)` inside an enclosing `entityHaving(…)` for
+		 * `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` paths (and inside `groupHaving(…)` for
+		 * `GROUP_ENTITY_REFERENCE_ATTRIBUTE`). Those inner clauses live in a *different* entity
+		 * scope — the referenced entity's own references — and their PK constraints must not be
+		 * merged with the owner-scope mutation's PK. When the inner reference happens to share
+		 * the same name as the mutation's owner reference (e.g. self-referencing schemas), the
+		 * rewrite must skip the inner clause.
+		 *
+		 * Without the `isWithin(EntityHaving.class)` guard, the inner `ReferenceHaving`'s body
+		 * would be silently augmented with `entityPrimaryKeyInSet(...)` of the owner-entity PK,
+		 * matching a wrong scope.
+		 */
+		@Test
+		@DisplayName("PK injection skips nested ReferenceHaving inside EntityHaving even on name match")
+		void shouldSkipNestedReferenceHavingUnderEntityHavingEvenOnNameMatch() {
+			final String outerReference = "otherReferenceWithDifferentName";
+			final FilterBy triggerFilter = new FilterBy(
+				new ReferenceHaving(
+					outerReference,
+					new EntityHaving(
+						new ReferenceHaving(
+							REFERENCE_NAME,
+							new AttributeEquals("attr", "X")
+						)
+					)
+				)
+			);
+
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+
+			// groupPK is non-null so the resolution-index mock fixtures fire, but the trigger
+			// filter has no GroupHaving — so `needsPerGroupEvaluation` is still false and the
+			// global path runs (which is where the recursive rewrite traverses arbitrary nesting).
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(
+				3, 1, new BaseBitmap(100)
+			);
+			final AffectedEntityResolution affected = new AffectedEntityResolution(List.of(group));
+
+			final TestTarget testTarget = createTestTarget(affected, ReferenceIndexType.FOR_FILTERING);
+			final IndexMutationTarget target = testTarget.target();
+			final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			);
+
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+				.thenReturn(new BaseBitmap());
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+
+			ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target);
+
+			final ArgumentCaptor<FilterBy> filterCaptor = ArgumentCaptor.forClass(FilterBy.class);
+			verify(target).evaluateFilter(filterCaptor.capture(), eq(Scope.LIVE));
+
+			// Find the inner ReferenceHaving (the one for REFERENCE_NAME, nested inside EntityHaving).
+			// Its children must remain exactly the original attributeEquals — no entityPrimaryKeyInSet
+			// sibling appended by an over-eager rewrite.
+			final List<ReferenceHaving> matches = FinderVisitor.findConstraints(
+				filterCaptor.getValue(),
+				c -> c instanceof final ReferenceHaving rh && REFERENCE_NAME.equals(rh.getReferenceName())
+			);
+			assertEquals(
+				1, matches.size(),
+				"Exactly one ReferenceHaving for REFERENCE_NAME (the inner, cross-scope one) must exist"
+			);
+			final ReferenceHaving inner = matches.get(0);
+			final FilterConstraint[] innerChildren = inner.getChildren();
+			assertEquals(
+				1, innerChildren.length,
+				"Inner ReferenceHaving must remain with its single original child — not PK-injected"
+			);
+			assertTrue(
+				innerChildren[0] instanceof AttributeEquals,
+				"Inner ReferenceHaving's only child must remain the original AttributeEquals"
+			);
+		}
 	}
 
 	/**

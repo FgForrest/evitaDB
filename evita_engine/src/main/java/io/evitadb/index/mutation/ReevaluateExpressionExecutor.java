@@ -1749,18 +1749,27 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
-	 * Rewrites every {@link ReferenceHaving} whose reference name matches `referenceName` anywhere in
-	 * `filterBy` by passing it through {@link #injectPkScope}. The traversal is full-tree (handles
-	 * `Or`, `And`, `Not`, and any other container the constraint model defines), so the rewrite is
-	 * applied to every match regardless of nesting depth — not just to top-level direct children of
-	 * the {@link FilterBy}.
+	 * Rewrites every owner-scope {@link ReferenceHaving} whose reference name matches `referenceName`
+	 * anywhere in `filterBy` by passing it through {@link #injectPkScope}. The traversal is full-tree
+	 * (handles `Or`, `And`, `Not`, and any other container the constraint model defines), so the
+	 * rewrite reaches every owner-scope match regardless of nesting depth — not just top-level direct
+	 * children of the {@link FilterBy}.
+	 *
+	 * The translator can emit nested `referenceHaving(otherRef, ...)` inside an enclosing
+	 * `entityHaving(...)` / `groupHaving(...)` (paths `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` and
+	 * `GROUP_ENTITY_REFERENCE_ATTRIBUTE`). Those inner clauses live in a *different* entity scope
+	 * (the referenced entity, not the owner), so their PK constraints must NOT be merged with the
+	 * owner-scope mutation's PK. The guard `!visitor.isWithin(EntityHaving.class)
+	 * && !visitor.isWithin(GroupHaving.class)` skips such inner clauses even when they happen to
+	 * carry the same `referenceName` as the owner-scope reference (e.g. self-referencing schemas).
 	 *
 	 * @param filterBy       the filter to rewrite
 	 * @param referenceName  the reference whose `ReferenceHaving` instances receive the PK scope
 	 * @param pkConstraint   the PK constraint to merge into each matching `ReferenceHaving`
 	 * @param isGroupScope   `true` for {@link GroupHaving}-scoped injection, `false` for
 	 *                       {@link EntityHaving}-scoped injection
-	 * @return the rewritten filter; structurally identical when no `ReferenceHaving` matched
+	 * @return the rewritten filter; structurally identical when no owner-scope `ReferenceHaving`
+	 *         matched
 	 */
 	@Nonnull
 	private static FilterBy rewriteMatchingReferenceHavings(
@@ -1773,6 +1782,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			filterBy,
 			(visitor, constraint) -> constraint instanceof final ReferenceHaving rh
 				&& rh.getReferenceName().equals(referenceName)
+				&& !visitor.isWithin(EntityHaving.class)
+				&& !visitor.isWithin(GroupHaving.class)
 				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope)
 				: constraint
 		);
