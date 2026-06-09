@@ -387,10 +387,10 @@ Operátory jsou seřazeny od nejvyšší po nejnižší prioritu:
 | 3 | `!` `+` (unární) `-` (unární) | Negace, unární plus/mínus |
 | 4 | `*` `/` `%` | Násobení, dělení, modulo |
 | 5 | `+` `-` | Sčítání, odčítání |
-| 6 | `>` `>=` `<` `<=` | Relační porovnání |
-| 7 | `==` `!=` | Porovnání rovnosti |
-| 8 | `^` | Logické XOR |
-| 9 | `&&` | Logické AND |
-| 10 | `\|\|` | Logické OR |
-| 11 | `*?` `?*?` | Rozšiřovací null-koalescence |
-| 12 | `??` | Null-koalescence |
+| 6 | `??` | Null-koalescence |
+| 7 | `>` `>=` `<` `<=` | Relační porovnání |
+| 8 | `==` `!=` | Porovnání rovnosti |
+| 9 | `^` | Logické XOR |
+| 10 | `&&` | Logické AND |
+| 11 | `\|\|` | Logické OR |
+| 12 | `*?` `?*?` | Rozšiřovací null-koalescence |

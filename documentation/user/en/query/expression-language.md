@@ -451,10 +451,10 @@ Operators are listed from highest to lowest precedence:
 | 3 | `!` `+` (unary) `-` (unary) | Negation, unary plus/minus |
 | 4 | `*` `/` `%` | Multiplication, division, modulo |
 | 5 | `+` `-` | Addition, subtraction |
-| 6 | `>` `>=` `<` `<=` | Relational comparisons |
-| 7 | `==` `!=` | Equality comparisons |
-| 8 | `^` | Logical XOR |
-| 9 | `&&` | Logical AND |
-| 10 | `\|\|` | Logical OR |
-| 11 | `*?` `?*?` | Spread null coalescing |
-| 12 | `??` | Null coalescing |
+| 6 | `??` | Null coalescing |
+| 7 | `>` `>=` `<` `<=` | Relational comparisons |
+| 8 | `==` `!=` | Equality comparisons |
+| 9 | `^` | Logical XOR |
+| 10 | `&&` | Logical AND |
+| 11 | `\|\|` | Logical OR |
+| 12 | `*?` `?*?` | Spread null coalescing |
