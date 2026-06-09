@@ -256,9 +256,14 @@ public class ExpressionTest {
 			/* 143 */ Arguments.of("$val ?? 0 < 3", Map.of("val", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.to(new BigDecimal("2.9999999999999999"))),
 			/* 144 */ Arguments.of("$val ?? 0 >= 5", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.from(new BigDecimal("5"))),
 			/* 145 */ Arguments.of("$val ?? 0 <= 5", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.to(new BigDecimal("5"))),
-			/* Null coalescing operator precedence - ?? should bind tighter than logical operators */
-			/* 146 */ Arguments.of("$obj.optionalBooleanProp ?? true && false", Map.of("obj", new TestObject()), false, BigDecimalNumberRange.INFINITE),
-			/* 147 */ Arguments.of("$obj.optionalBooleanProp ?? false || true", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* Null coalescing operator precedence - ?? should bind tighter than logical operators.
+			   The coalesced (left) value must be non-null here, otherwise `(a ?? b) op c` and
+			   `a ?? (b op c)` evaluate to the same result and the assertion could not detect a
+			   precedence regression. With a non-null left value the two parses diverge:
+			   146: `(true ?? false) && false` = false, whereas `true ?? (false && false)` = true.
+			   147: `(false ?? true) || true` = true, whereas `false ?? (true || true)` = false. */
+			/* 146 */ Arguments.of("true ?? false && false", Map.of(), false, BigDecimalNumberRange.INFINITE),
+			/* 147 */ Arguments.of("false ?? true || true", Map.of(), true, BigDecimalNumberRange.INFINITE),
 			/* Null coalescing operator precedence - arithmetic should bind tighter than ?? */
 			/* 148 */ Arguments.of("$val ?? 1 + 2 == 3", Map.of("val", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.INFINITE),
 			/* 149 */ Arguments.of("$val ?? 1 + 2 == 3", Map.of("val", BigDecimal.valueOf(3)), true, BigDecimalNumberRange.INFINITE),
