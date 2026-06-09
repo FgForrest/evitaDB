@@ -838,6 +838,30 @@ class ExpressionToQueryTranslatorTest {
 	}
 
 	@Test
+	@DisplayName("unparenthesized `... ?? false == true` parses as `(a ?? b) == c` (#1232 trap)")
+	void shouldTranslateUnparenthesizedNullCoalesceWithEqualityComparison() {
+		// Regression guard for the #1232 precedence trap: now that `??` binds tighter than `==`,
+		// `a ?? b == c` parses as `(a ?? b) == c`, so the parentheses are optional. Before the fix
+		// it parsed as `a ?? (b == c)` — a bare coalesce the translator cannot turn into a predicate
+		// (it throws NonTranslatableExpressionException). Asserting equality with the already-tested
+		// parenthesized form proves the unparenthesized form both translates and groups identically,
+		// without re-stating the expected FilterBy here.
+		assertEquals(
+			translate("($entity.attributes['isActive'] ?? false) == true"),
+			translate("$entity.attributes['isActive'] ?? false == true")
+		);
+	}
+
+	@Test
+	@DisplayName("unparenthesized groupEntity `... ?? false == true` parses as `(a ?? b) == c` (#1232 trap)")
+	void shouldTranslateUnparenthesizedNullCoalesceOnGroupEntity() {
+		assertEquals(
+			translate("($reference.groupEntity?.attributes['hasRangeBasicUnitValue'] ?? false) == true"),
+			translate("$reference.groupEntity?.attributes['hasRangeBasicUnitValue'] ?? false == true")
+		);
+	}
+
+	@Test
 	@DisplayName("groupEntity ?? coalesce -> referenceHaving(groupHaving(eq(...)))")
 	void shouldTranslateNullCoalesceOnGroupEntityAttribute() {
 		final FilterBy result = translate(
