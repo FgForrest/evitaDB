@@ -58,6 +58,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramI
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaFacetedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
@@ -85,6 +86,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -4342,6 +4344,34 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				assertNotNull(
 					bucketedPartially[0].expression(),
 					"bucketedPartially expression must not be null"
+				);
+			}
+		);
+	}
+
+	@DisplayName("indexedDecimalPlaces is propagated for a BigDecimalNumberRange attribute")
+	@Tag(ATTRIBUTE)
+	@Test
+	void shouldApplyIndexedDecimalPlacesForBigDecimalNumberRangeAttribute() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithBigDecimalNumberRangeAttribute.class);
+
+				final AttributeSchemaContract priceRangeAttr = session
+					.getEntitySchema("BigDecimalRangeEntity")
+					.orElseThrow()
+					.getAttribute("priceRange")
+					.orElseThrow();
+
+				assertSame(
+					BigDecimalNumberRange.class, priceRangeAttr.getType(),
+					"Attribute `priceRange` must be of type BigDecimalNumberRange"
+				);
+				assertEquals(
+					2, priceRangeAttr.getIndexedDecimalPlaces(),
+					"indexedDecimalPlaces must be 2 for BigDecimalNumberRange attribute; " +
+						"was dropped to 0 due to missing type check"
 				);
 			}
 		);

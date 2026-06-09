@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.Refl
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
@@ -387,8 +388,10 @@ public class ClassSchemaAnalyzer {
 			} else if (!attributeAnnotation.localized() && editor.isLocalized()) {
 				editor.nonLocalized();
 			}
-			// indexed decimal places - only set if different
-			if (BigDecimal.class.equals(attributeType) &&
+			// indexed decimal places - applies to BigDecimal and BigDecimalNumberRange (incl. array variants),
+			// whose values are scaled to comparable longs using this decimal-places count for filtering/sorting
+			final Class<?> indexedBaseType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+			if ((BigDecimal.class.equals(indexedBaseType) || BigDecimalNumberRange.class.equals(indexedBaseType)) &&
 				editor.getIndexedDecimalPlaces() != attributeAnnotation.indexedDecimalPlaces()) {
 				editor.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
 			}
