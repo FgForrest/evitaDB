@@ -249,8 +249,11 @@ public class ExpressionTest {
 			/* 137 */ Arguments.of("$val ?? 0 == 5", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.INFINITE),
 			/* 138 */ Arguments.of("$val ?? 0 == 5", Map.of("val", BigDecimal.valueOf(3)), false, BigDecimalNumberRange.INFINITE),
 			/* 139 */ Arguments.of("$obj.nested.map['c'].prop ?? 'fallback' == 'basic property'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			/* 140 */ Arguments.of("$obj.optionalProp ?? 'default' == 'default'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
-			/* 141 */ Arguments.of("$obj.optionalProp ?? 'default' != 'other'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 140/141 use a non-null left operand ($obj.prop = "basic property"), so the two parses
+			   diverge and act as regression guards: with ?? bound tighter the result is a boolean,
+			   whereas `value ?? (literal == literal)` would short-circuit to the non-null string. */
+			/* 140 */ Arguments.of("$obj.prop ?? 'default' == 'basic property'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
+			/* 141 */ Arguments.of("$obj.prop ?? 'default' != 'other'", Map.of("obj", new TestObject()), true, BigDecimalNumberRange.INFINITE),
 			/* Null coalescing operator precedence - ?? should bind tighter than comparison operators */
 			/* 142 */ Arguments.of("$val ?? 0 > 3", Map.of("val", BigDecimal.valueOf(5)), true, BigDecimalNumberRange.from(new BigDecimal("3.0000000000000001"))),
 			/* 143 */ Arguments.of("$val ?? 0 < 3", Map.of("val", BigDecimal.valueOf(5)), false, BigDecimalNumberRange.to(new BigDecimal("2.9999999999999999"))),
