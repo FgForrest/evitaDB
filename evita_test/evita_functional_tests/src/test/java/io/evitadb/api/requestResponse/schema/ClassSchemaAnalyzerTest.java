@@ -4377,6 +4377,34 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("indexedDecimalPlaces is propagated for a BigDecimal array attribute")
+	@Tag(ATTRIBUTE)
+	@Test
+	void shouldApplyIndexedDecimalPlacesForBigDecimalArrayAttribute() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchemaFromModelClass(GetterBasedEntityWithBigDecimalNumberRangeAttribute.class);
+
+				final AttributeSchemaContract pricesAttr = session
+					.getEntitySchema("BigDecimalRangeEntity")
+					.orElseThrow()
+					.getAttribute("prices")
+					.orElseThrow();
+
+				assertSame(
+					BigDecimal[].class, pricesAttr.getType(),
+					"Attribute `prices` must be of type BigDecimal[]"
+				);
+				assertEquals(
+					3, pricesAttr.getIndexedDecimalPlaces(),
+					"indexedDecimalPlaces must be 3 for BigDecimal[] attribute; " +
+						"the array component type must be unwrapped before the type check"
+				);
+			}
+		);
+	}
+
 	@DisplayName("Reflected reference faceted tri-state is propagated into mutations")
 	@Nested
 	class ReflectedReferenceFacetedTriState {

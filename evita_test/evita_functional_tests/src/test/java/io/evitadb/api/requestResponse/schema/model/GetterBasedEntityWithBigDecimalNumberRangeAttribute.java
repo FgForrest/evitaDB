@@ -29,12 +29,14 @@ import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.dataType.BigDecimalNumberRange;
 
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 
 /**
  * Minimal entity model used to verify that {@code indexedDecimalPlaces} declared on a
- * {@link BigDecimalNumberRange} attribute is correctly propagated to the schema mutation.
+ * {@link BigDecimalNumberRange} attribute — and on a {@link BigDecimal} array attribute —
+ * is correctly propagated to the schema.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Entity(name = "BigDecimalRangeEntity")
 public interface GetterBasedEntityWithBigDecimalNumberRangeAttribute {
@@ -49,5 +51,13 @@ public interface GetterBasedEntityWithBigDecimalNumberRangeAttribute {
 	@Attribute(indexedDecimalPlaces = 2, filterable = true, nullable = true)
 	@Nullable
 	BigDecimalNumberRange getPriceRange();
+
+	/**
+	 * An array attribute over BigDecimal values. The {@code indexedDecimalPlaces = 3} exercises the
+	 * array-component-type branch of the schema analyzer's decimal-places propagation.
+	 */
+	@Attribute(indexedDecimalPlaces = 3, filterable = true, nullable = true)
+	@Nullable
+	BigDecimal[] getPrices();
 
 }
