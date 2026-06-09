@@ -27,12 +27,18 @@ import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.APITestConstants;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
@@ -41,9 +47,14 @@ import io.evitadb.index.attribute.AttributeScope;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.FilterIndexView;
+import io.evitadb.index.attribute.OwnerFilterIndex;
+import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
@@ -72,11 +83,11 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndC
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -85,6 +96,7 @@ import java.util.ArrayList;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -96,13 +108,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins the storage-part round-trip contract of every concrete `EntityIndex` subclass —
@@ -156,20 +162,39 @@ class EntityIndexRoundTripTest {
 	private static final String HISTOGRAM_NAME = "priceHistogram";
 
 	/**
-	 * Builds an entity schema mock that admits the given locales and disallows evolution. Used
-	 * by language-tracking calls (`upsertLanguage`) which validate locale membership against
-	 * the schema.
-	 *
-	 * @param allowedLocales the set of locales the schema accepts
-	 * @return a mocked entity schema fixed to the supplied locales
+	 * Catalog + product schema scaffolding used to assemble {@link #SCHEMA} through the real
+	 * {@link InternalEntitySchemaBuilder} (rather than Mockito stubs). The builder runs the production
+	 * schema-assembly path, so the schema is one the engine could actually receive.
 	 */
-	@Nonnull
-	private static EntitySchemaContract createSchema(@Nonnull Set<Locale> allowedLocales) {
-		final EntitySchemaContract schema = mock(EntitySchemaContract.class);
-		when(schema.getLocales()).thenReturn(allowedLocales);
-		when(schema.getEvolutionMode()).thenReturn(EnumSet.noneOf(EvolutionMode.class));
-		return schema;
-	}
+	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
+		APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
+	);
+	private static final EntitySchema ENTITY_SCHEMA = EntitySchema._internalBuild(ENTITY_TYPE);
+
+	/**
+	 * The real product schema shared by these round-trips. It admits {@link Locale#ENGLISH} (so the
+	 * `upsertLanguage(Locale.ENGLISH, …)` calls pass locale validation) and carries the `CATEGORY` reference
+	 * indexed for filtering AND partitioning — the index type the reduced/partitioned reference paths require
+	 * (this is what the former {@code refSchema} mock hand-stubbed via `getReferenceIndexType`).
+	 */
+	private static final EntitySchemaContract SCHEMA = new InternalEntitySchemaBuilder(
+		CATALOG_SCHEMA, ENTITY_SCHEMA
+	)
+		.withLocale(Locale.ENGLISH)
+		.withReferenceToEntity(
+			REFERENCE_NAME, REFERENCE_NAME, Cardinality.ZERO_OR_MORE,
+			ReferenceSchemaEditor::indexedForFilteringAndPartitioning
+		)
+		.toInstance();
+
+	/**
+	 * The real `CATEGORY` {@link ReferenceSchemaContract}; its name flows into
+	 * {@link AttributeIndex#createAttributeKey(ReferenceSchemaContract, AttributeSchemaContract, Locale)}
+	 * and its index type is FOR_FILTERING_AND_PARTITIONING.
+	 */
+	private static final ReferenceSchemaContract CATEGORY_REFERENCE =
+		SCHEMA.getReference(REFERENCE_NAME).orElseThrow();
 
 	/**
 	 * Builds a non-localized, filterable {@link AttributeSchemaContract} with the given name
@@ -392,41 +417,71 @@ class EntityIndexRoundTripTest {
 		@Nullable RepresentativeReferenceKey referenceKey,
 		boolean referenceScoped
 	) {
+		// AttributeIndex owns the shared value→ValueToRecord trees; FilterIndex is a view and a both-flagged
+		// SortIndex runs in view mode. UNIQUE is a STANDALONE structure. Mirror
+		// AttributeIndexLoader: build the shared trees + filter views from FILTER parts, the standalone unique map from
+		// UNIQUE parts, then view-mode sort (when a FILTER part exists) or owner mode.
 		final Map<AttributeIndexKey, UniqueIndex> uniqueIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, FilterIndex> filterIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, SortIndex> sortIndexes = new HashMap<>(8);
 		final Map<AttributeIndexKey, ChainIndex> chainIndexes = new HashMap<>(8);
+		final Map<AttributeIndexKey, InvertedIndex> sharedValueIndexes = new HashMap<>(8);
+		final Map<AttributeIndexKey, RangeIndex> sharedRangeIndexes = new HashMap<>(8);
+		final Map<AttributeIndexKey, UniqueIndex> uniqueViewIndexes = new HashMap<>(8);
+		// first pass: FILTER parts -> shared trees + filter views
+		for (final AttributeIndexStoragePart part : storage.attributeParts) {
+			final AttributeIndexKey attrKey = part.getAttributeIndexKey();
+			if (part instanceof FilterIndexStoragePart filterPart) {
+				final Class<?> attributeType = filterPart.getAttributeType();
+				final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+				final InvertedIndex shared = new InvertedIndex(
+					filterPart.getHistogramPoints(),
+					FilterIndex.getNormalizer(plainType),
+					FilterIndex.getComparator(attrKey, plainType)
+				);
+				sharedValueIndexes.put(attrKey, shared);
+				final RangeIndex rangeIndex = filterPart.getRangeIndex();
+				if (rangeIndex != null) {
+					sharedRangeIndexes.put(attrKey, rangeIndex);
+				}
+				filterIndexes.put(attrKey, new FilterIndexView(attrKey, shared, rangeIndex, attributeType));
+			}
+		}
+		// second pass: SORT (view mode iff a FILTER part exists for the key) + CHAIN
 		for (final AttributeIndexStoragePart part : storage.attributeParts) {
 			final AttributeIndexKey attrKey = part.getAttributeIndexKey();
 			if (part instanceof UniqueIndexStoragePart uniquePart) {
-				uniqueIndexes.put(
-					attrKey,
-					new UniqueIndex(
-						entityType, attrKey, uniquePart.getType(),
-						uniquePart.getUniqueValueToRecordId(),
-						uniquePart.getRecordIds()
-					)
-				);
-			} else if (part instanceof FilterIndexStoragePart filterPart) {
-				filterIndexes.put(
-					attrKey,
-					new FilterIndex(
+				// folded VIEW when a FILTER (shared) tree exists for the key; otherwise a standalone owner
+				if (sharedValueIndexes.containsKey(attrKey)) {
+					uniqueViewIndexes.put(
 						attrKey,
-						filterPart.getHistogramPoints(),
-						filterPart.getRangeIndex(),
-						filterPart.getAttributeType()
-					)
-				);
+						UniqueIndex.createView(
+							entityType, attrKey, uniquePart.getType(), filterIndexes.get(attrKey)
+						)
+					);
+				} else {
+					uniqueIndexes.put(
+						attrKey,
+						new OwnerUniqueIndex(
+							entityType, attrKey, uniquePart.getType(),
+							Objects.requireNonNull(uniquePart.getUniqueValueToRecordId()),
+							Objects.requireNonNull(uniquePart.getRecordIds())
+						)
+					);
+				}
 			} else if (part instanceof SortIndexStoragePart sortPart) {
 				sortIndexes.put(
 					attrKey,
-					new SortIndex(
+					SortIndex.create(
 						sortPart.getComparatorBase(),
 						referenceKey,
 						attrKey,
 						sortPart.getSortedRecords(),
 						sortPart.getSortedRecordsValues(),
-						sortPart.getValueCardinalities()
+						sortPart.getValueCardinalities(),
+						sharedValueIndexes.containsKey(attrKey)
+							? () -> sharedValueIndexes.get(attrKey)
+							: null
 					)
 				);
 			} else if (part instanceof ChainIndexStoragePart chainPart) {
@@ -443,10 +498,10 @@ class EntityIndexRoundTripTest {
 		}
 		return referenceScoped
 			? new ReferenceAttributeIndex(
-				entityType, referenceKey, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				entityType, referenceKey, uniqueIndexes, filterIndexes, uniqueViewIndexes, sortIndexes, chainIndexes, sharedValueIndexes, sharedRangeIndexes
 			)
 			: new EntityAttributeIndex(
-				entityType, uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				entityType, uniqueIndexes, filterIndexes, uniqueViewIndexes, sortIndexes, chainIndexes, sharedValueIndexes, sharedRangeIndexes
 			);
 	}
 
@@ -566,7 +621,7 @@ class EntityIndexRoundTripTest {
 					part.getHistogramName(),
 					referenceName,
 					valueType,
-					new FilterIndex(
+					new OwnerFilterIndex(
 						new AttributeIndexKey(referenceName, part.getHistogramName(), null),
 						part.getHistogramPoints(),
 						part.getRangeIndex(),
@@ -591,10 +646,9 @@ class EntityIndexRoundTripTest {
 		 * @return a populated `GlobalEntityIndex`
 		 */
 		@Nonnull
-		private GlobalEntityIndex buildPopulatedIndex() {
+		private static GlobalEntityIndex buildPopulatedIndex() {
 			final EntityIndexKey key = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
 			final GlobalEntityIndex index = new GlobalEntityIndex(INDEX_PK, ENTITY_TYPE, key);
-			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
 			final AttributeSchemaContract codeSchema = createAttributeSchema(ATTRIBUTE_CODE, String.class);
 			final AttributeSchemaContract nameSchema = createAttributeSchema(ATTRIBUTE_NAME, String.class);
 			final AttributeSchemaContract prioritySchema =
@@ -606,11 +660,14 @@ class EntityIndexRoundTripTest {
 			// PKs and language tracking
 			index.insertPrimaryKeyIfMissing(10);
 			index.insertPrimaryKeyIfMissing(20);
-			index.upsertLanguage(Locale.ENGLISH, 10, schema);
+			index.upsertLanguage(Locale.ENGLISH, 10, SCHEMA);
 
-			// one of each attribute index type
+			// one of each attribute index type. `code` is a foldable unique attribute, so — exactly as the mutator
+			// does for a unique-not-separately-filterable attribute — its value is also shadowed into the shared filter
+			// tree; this is what backs the folded unique VIEW and lets the slim UNIQUE part round-trip.
 			index.insertUniqueAttribute(null, codeSchema, allowedLocales, Scope.LIVE, null, "ABC", 10);
-			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Phone", 10);
+			index.insertFilterAttribute(null, codeSchema, allowedLocales, null, "ABC", 10, false);
+			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Phone", 10, false);
 			index.insertSortAttribute(null, prioritySchema, allowedLocales, null, 42, 10);
 			index.insertSortAttribute(null, orderSchema, allowedLocales, null, Predecessor.HEAD, 10);
 
@@ -641,7 +698,7 @@ class EntityIndexRoundTripTest {
 		 * @return a freshly-loaded `GlobalEntityIndex`
 		 */
 		@Nonnull
-		private GlobalEntityIndex reload(@Nonnull CapturedStorage storage) {
+		private static GlobalEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			// GlobalEntityIndex is entity-scoped — uses EntityAttributeIndex
 			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null, false);
@@ -722,12 +779,12 @@ class EntityIndexRoundTripTest {
 
 			// AttributeIndex subclass identity must survive reload: GlobalEntityIndex carries
 			// an EntityAttributeIndex with ENTITY scope
-			assertTrue(
-				original.attributeIndex instanceof EntityAttributeIndex,
+			assertInstanceOf(
+				EntityAttributeIndex.class, original.attributeIndex,
 				"GlobalEntityIndex must construct an EntityAttributeIndex"
 			);
-			assertTrue(
-				reloaded.attributeIndex instanceof EntityAttributeIndex,
+			assertInstanceOf(
+				EntityAttributeIndex.class, reloaded.attributeIndex,
 				"Reloaded GlobalEntityIndex must reconstruct an EntityAttributeIndex"
 			);
 			assertEquals(AttributeScope.ENTITY, reloaded.attributeIndex.getScope());
@@ -750,22 +807,16 @@ class EntityIndexRoundTripTest {
 		 * @return a populated `ReducedEntityIndex`
 		 */
 		@Nonnull
-		private ReducedEntityIndex buildPopulatedIndex() {
+		private static ReducedEntityIndex buildPopulatedIndex() {
 			final RepresentativeReferenceKey rrk =
 				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, 5));
 			final EntityIndexKey key =
 				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.LIVE, rrk);
 			final ReducedEntityIndex index = new ReducedEntityIndex(INDEX_PK, ENTITY_TYPE, key);
-			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
-			// AbstractReducedEntityIndex.assertPartitioningIndex requires a non-null reference
-			// schema; configure FOR_FILTERING_AND_PARTITIONING so attribute/price/facet paths pass.
-			// The schema name flows into AttributeIndex.createAttributeKey, so configure
-			// getName() to return REFERENCE_NAME — otherwise filter keys collapse to (null, name, null)
-			// and the post-reload lookup against (REFERENCE_NAME, name, null) returns null.
-			final ReferenceSchemaContract refSchema = mock(ReferenceSchemaContract.class);
-			when(refSchema.getName()).thenReturn(REFERENCE_NAME);
-			when(refSchema.getReferenceIndexType(ArgumentMatchers.any(Scope.class)))
-				.thenReturn(ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING);
+			// AbstractReducedEntityIndex.assertPartitioningIndex requires a reference indexed
+			// FOR_FILTERING_AND_PARTITIONING; the reference name flows into AttributeIndex.createAttributeKey
+			// (filter keys must be (REFERENCE_NAME, name, null) so the post-reload lookup resolves).
+			final ReferenceSchemaContract refSchema = CATEGORY_REFERENCE;
 			final AttributeSchemaContract codeSchema = createAttributeSchema(ATTRIBUTE_CODE, String.class);
 			final AttributeSchemaContract nameSchema = createAttributeSchema(ATTRIBUTE_NAME, String.class);
 			final AttributeSchemaContract prioritySchema =
@@ -776,12 +827,15 @@ class EntityIndexRoundTripTest {
 
 			index.insertPrimaryKeyIfMissing(11);
 			index.insertPrimaryKeyIfMissing(22);
-			index.upsertLanguage(Locale.ENGLISH, 11, schema);
+			index.upsertLanguage(Locale.ENGLISH, 11, SCHEMA);
 
+			// `code` is a foldable unique attribute, so its value is also shadowed into the shared filter tree exactly as
+			// the mutator does for a unique-not-separately-filterable attribute (backs the folded unique VIEW + slim part)
 			index.insertUniqueAttribute(
 				refSchema, codeSchema, allowedLocales, Scope.LIVE, null, "ABC-R", 11
 			);
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Tablet", 11);
+			index.insertFilterAttribute(refSchema, codeSchema, allowedLocales, null, "ABC-R", 11, false);
+			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Tablet", 11, false);
 			index.insertSortAttribute(refSchema, prioritySchema, allowedLocales, null, 7, 11);
 			index.insertSortAttribute(refSchema, orderSchema, allowedLocales, null, Predecessor.HEAD, 11);
 
@@ -806,7 +860,7 @@ class EntityIndexRoundTripTest {
 		 * @return a freshly-loaded `ReducedEntityIndex`
 		 */
 		@Nonnull
-		private ReducedEntityIndex reload(@Nonnull CapturedStorage storage) {
+		private static ReducedEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			final RepresentativeReferenceKey rrk =
 				(RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator();
@@ -879,12 +933,12 @@ class EntityIndexRoundTripTest {
 
 			// AttributeIndex subclass identity must survive reload: ReducedEntityIndex carries
 			// a ReferenceAttributeIndex with REFERENCE scope
-			assertTrue(
-				original.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, original.attributeIndex,
 				"ReducedEntityIndex must construct a ReferenceAttributeIndex"
 			);
-			assertTrue(
-				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, reloaded.attributeIndex,
 				"Reloaded ReducedEntityIndex must reconstruct a ReferenceAttributeIndex"
 			);
 			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());
@@ -909,22 +963,17 @@ class EntityIndexRoundTripTest {
 		 * @return a populated `ReducedGroupEntityIndex`
 		 */
 		@Nonnull
-		private ReducedGroupEntityIndex buildPopulatedIndex() {
+		private static ReducedGroupEntityIndex buildPopulatedIndex() {
 			final RepresentativeReferenceKey rrk =
 				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, GROUP_PK));
 			final EntityIndexKey key =
 				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk);
 			final ReducedGroupEntityIndex index =
 				new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key);
-			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
-			// the 1-arg assertPartitioningIndex (used by addFacet / addPrice) inspects
-			// getReferenceIndexType — configure FOR_FILTERING_AND_PARTITIONING so the facet
-			// path passes the precondition; getName() flows into AttributeIndex.createAttributeKey
-			// so configure it to REFERENCE_NAME for consistency with the manifest discriminator
-			final ReferenceSchemaContract refSchema = mock(ReferenceSchemaContract.class);
-			when(refSchema.getName()).thenReturn(REFERENCE_NAME);
-			when(refSchema.getReferenceIndexType(ArgumentMatchers.any(Scope.class)))
-				.thenReturn(ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING);
+			// the 1-arg assertPartitioningIndex (used by addFacet / addPrice) inspects getReferenceIndexType
+			// (FOR_FILTERING_AND_PARTITIONING here); the reference name flows into AttributeIndex.createAttributeKey
+			// as the manifest discriminator
+			final ReferenceSchemaContract refSchema = CATEGORY_REFERENCE;
 			final AttributeSchemaContract nameSchema = createAttributeSchema(ATTRIBUTE_NAME, String.class);
 			final Set<Locale> allowedLocales = Set.of(Locale.ENGLISH);
 
@@ -932,11 +981,11 @@ class EntityIndexRoundTripTest {
 			index.insertPrimaryKeyIfMissing(13, 1);
 			index.insertPrimaryKeyIfMissing(13, 2);
 			index.insertPrimaryKeyIfMissing(14, 3);
-			index.upsertLanguage(Locale.ENGLISH, 13, schema);
+			index.upsertLanguage(Locale.ENGLISH, 13, SCHEMA);
 
 			// filter attribute with cardinality tracking — drives the CARDINALITY storage part
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13);
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13);
+			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
+			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
 
 			// histogram — must round-trip via the manifest
 			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class);
@@ -960,7 +1009,7 @@ class EntityIndexRoundTripTest {
 		 * @return a freshly-loaded `ReducedGroupEntityIndex`
 		 */
 		@Nonnull
-		private ReducedGroupEntityIndex reload(@Nonnull CapturedStorage storage) {
+		private static ReducedGroupEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			final RepresentativeReferenceKey rrk =
 				(RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator();
@@ -1042,12 +1091,12 @@ class EntityIndexRoundTripTest {
 
 			// AttributeIndex subclass identity must survive reload: ReducedGroupEntityIndex
 			// carries a ReferenceAttributeIndex with REFERENCE scope
-			assertTrue(
-				original.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, original.attributeIndex,
 				"ReducedGroupEntityIndex must construct a ReferenceAttributeIndex"
 			);
-			assertTrue(
-				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, reloaded.attributeIndex,
 				"Reloaded ReducedGroupEntityIndex must reconstruct a ReferenceAttributeIndex"
 			);
 			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());
@@ -1069,26 +1118,27 @@ class EntityIndexRoundTripTest {
 		 * @return a populated `ReferencedTypeEntityIndex`
 		 */
 		@Nonnull
-		private ReferencedTypeEntityIndex buildPopulatedIndex() {
+		private static ReferencedTypeEntityIndex buildPopulatedIndex() {
 			final EntityIndexKey key = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME
 			);
 			final ReferencedTypeEntityIndex index =
 				new ReferencedTypeEntityIndex(INDEX_PK, ENTITY_TYPE, key);
-			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
-			final ReferenceSchemaContract refSchema = mock(ReferenceSchemaContract.class);
 			final AttributeSchemaContract nameSchema = createAttributeSchema(ATTRIBUTE_NAME, String.class);
 			final Set<Locale> allowedLocales = Set.of(Locale.ENGLISH);
 
+			// A ReferencedTypeEntityIndex is reference-scoped via its index key, not via the attribute key: the
+			// AttributeIndex receives a null reference schema, so filter keys are (null, name, null). Passing null
+			// here (rather than a named reference) is the faithful shape — matching the addFacet(null, …) below.
 			// cardinality-aware PK insertion: entity 15 has two refs to referenced entity 50;
 			// entity 16 has one ref to referenced entity 51
 			index.insertPrimaryKeyIfMissing(15, 50);
 			index.insertPrimaryKeyIfMissing(15, 50);
 			index.insertPrimaryKeyIfMissing(16, 51);
-			index.upsertLanguage(Locale.ENGLISH, 15, schema);
+			index.upsertLanguage(Locale.ENGLISH, 15, SCHEMA);
 
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Lamp", 15);
-			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Lamp", 15);
+			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Lamp", 15, false);
+			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Lamp", 15, false);
 
 			index.insertHistogramValue(HISTOGRAM_NAME, null, 11, 15, Integer.class);
 			index.insertHistogramValue(HISTOGRAM_NAME, null, 22, 16, Integer.class);
@@ -1105,13 +1155,12 @@ class EntityIndexRoundTripTest {
 		 * @return a freshly-loaded `ReferencedTypeEntityIndex`
 		 */
 		@Nonnull
-		private ReferencedTypeEntityIndex reload(@Nonnull CapturedStorage storage) {
+		private static ReferencedTypeEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			// ReferencedTypeEntityIndex is reference-scoped even though the AttributeIndex receives a
 			// null representative key — its discriminator is a String reference name
 			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null, true);
-			final ReferenceTypeCardinalityIndexStoragePart refTypePart =
-				storage.referenceTypeCardinalityPart;
+			final ReferenceTypeCardinalityIndexStoragePart refTypePart = storage.referenceTypeCardinalityPart;
 			assertNotNull(refTypePart, "ReferencedTypeEntityIndex must emit a ref-type cardinality part");
 			final Map<String, HistogramIndex> histogramIndexes =
 				reloadHistogramIndexes(storage, REFERENCE_NAME);
@@ -1171,12 +1220,12 @@ class EntityIndexRoundTripTest {
 			// AttributeIndex subclass identity must survive reload: ReferencedTypeEntityIndex
 			// carries a ReferenceAttributeIndex with REFERENCE scope even though it has no
 			// RepresentativeReferenceKey
-			assertTrue(
-				original.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, original.attributeIndex,
 				"ReferencedTypeEntityIndex must construct a ReferenceAttributeIndex"
 			);
-			assertTrue(
-				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, reloaded.attributeIndex,
 				"Reloaded ReferencedTypeEntityIndex must reconstruct a ReferenceAttributeIndex"
 			);
 			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());

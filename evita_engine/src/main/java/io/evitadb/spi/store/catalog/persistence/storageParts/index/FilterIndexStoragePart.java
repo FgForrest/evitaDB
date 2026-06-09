@@ -62,9 +62,10 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Getter private final AttributeIndexKey attributeIndexKey;
 	/**
-	 * Contains the type of the objects kept as values in this particular filter index.
+	 * Contains the type of the objects kept as values in this particular filter index. Always present: the only format
+	 * that ever stored a `null` type was the 2024.5 filter serializer, whose support has been dropped.
 	 */
-	@Getter private final Class<?> attributeType;
+	@Nonnull @Getter private final Class<?> attributeType;
 	/**
 	 * Histogram is the main data structure that holds the information about value to record ids relation.
 	 */

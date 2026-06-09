@@ -78,12 +78,12 @@ import static io.evitadb.test.TestTags.FILTER;
 @Tag(ATTRIBUTE)
 @Tag(FILTER)
 class FilterIndexTest {
-	private final FilterIndex stringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", null), String.class);
-	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeIndexKey(null, "b", null), NumberRange.class);
+	private final OwnerFilterIndex stringAttribute = new OwnerFilterIndex(new AttributeIndexKey(null, "a", null), String.class);
+	private final OwnerFilterIndex rangeAttribute = new OwnerFilterIndex(new AttributeIndexKey(null, "b", null), NumberRange.class);
 
 	@Test
 	void filterIndexValidNowDelegatesToRangeIndexCachedPath() {
-		final FilterIndex filterIndex = new FilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+		final OwnerFilterIndex filterIndex = new OwnerFilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
 		filterIndex.addRecord(1, DateTimeRange.between(
 			OffsetDateTime.parse("2026-01-01T00:00:00Z"),
 			OffsetDateTime.parse("2026-12-31T23:59:59Z")
@@ -105,7 +105,7 @@ class FilterIndexTest {
 
 	@Test
 	void filterIndexValidInUncachedPathProducesFreshBitmapEachCall() {
-		final FilterIndex filterIndex = new FilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
+		final OwnerFilterIndex filterIndex = new OwnerFilterIndex(new AttributeIndexKey(null, "validity", null), DateTimeRange.class);
 		filterIndex.addRecord(1, DateTimeRange.between(
 			OffsetDateTime.parse("2026-01-01T00:00:00Z"),
 			OffsetDateTime.parse("2026-12-31T23:59:59Z")
@@ -324,7 +324,7 @@ class FilterIndexTest {
 
 	@Test
 	void shouldReturnRecordsLesserThanLocaleSpecific_Czech() {
-		FilterIndex czechStringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", new Locale("cs", "CZ")), String.class);
+		OwnerFilterIndex czechStringAttribute = new OwnerFilterIndex(new AttributeIndexKey(null, "a", new Locale("cs", "CZ")), String.class);
 		czechStringAttribute.addRecord(1, "CH");
 		czechStringAttribute.addRecord(2, "E");
 		czechStringAttribute.addRecord(3, "K");
@@ -336,7 +336,7 @@ class FilterIndexTest {
 
 	@Test
 	void shouldReturnRecordsLesserThanLocaleSpecific_English() {
-		FilterIndex czechStringAttribute = new FilterIndex(new AttributeIndexKey(null, "a", Locale.ENGLISH), String.class);
+		OwnerFilterIndex czechStringAttribute = new OwnerFilterIndex(new AttributeIndexKey(null, "a", Locale.ENGLISH), String.class);
 		czechStringAttribute.addRecord(1, "CH");
 		czechStringAttribute.addRecord(2, "E");
 		czechStringAttribute.addRecord(3, "K");
@@ -432,10 +432,10 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("each instance has a unique id")
 		void shouldHaveUniqueIdAcrossInstances() {
-			final FilterIndex first = new FilterIndex(
+			final OwnerFilterIndex first = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "x", null), String.class
 			);
-			final FilterIndex second = new FilterIndex(
+			final OwnerFilterIndex second = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "y", null), String.class
 			);
 
@@ -445,7 +445,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("committed copy is a new instance")
 		void shouldReturnNewInstanceOnCommit() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Alpha");
@@ -466,7 +466,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("original unchanged after commit")
 		void shouldLeaveOriginalUnchangedAfterCommit() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Alpha");
@@ -487,7 +487,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("rollback discards transactional mutations")
 		void shouldDiscardMutationsOnRollback() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Alpha");
@@ -518,7 +518,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("memoized formula is invalidated on non-tx write")
 		void shouldInvalidateMemoizedFormulaOnNonTransactionalWrite() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -547,7 +547,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getAllRecordsFormula returns same instance when no writes")
 		void shouldReturnSameFormulaInstanceWhenNoWrites() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -564,7 +564,7 @@ class FilterIndexTest {
 			"getAllRecordsFormula bypasses cache in dirty transaction"
 		)
 		void shouldBypassCacheInDirtyTransaction() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -594,7 +594,7 @@ class FilterIndexTest {
 			"getRecordsEqualToFormula returns EmptyFormula for missing value"
 		)
 		void shouldReturnEmptyFormulaForMissingValue() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -612,7 +612,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getRecordsWhoseValuesEndsWith finds matching records")
 		void shouldReturnRecordsEndingWithSuffix() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Hello");
@@ -633,7 +633,7 @@ class FilterIndexTest {
 			"getRecordsWhoseValuesEndsWith returns EmptyFormula when no match"
 		)
 		void shouldReturnEmptyFormulaForNoEndsWithMatch() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Hello");
@@ -646,7 +646,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getRecordsWhoseValuesContains finds matching records")
 		void shouldReturnRecordsContainingText() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Alphabet");
@@ -668,7 +668,7 @@ class FilterIndexTest {
 			"getRecordsWhoseValuesContains returns EmptyFormula when no match"
 		)
 		void shouldReturnEmptyFormulaForNoContainsMatch() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Hello");
@@ -684,7 +684,7 @@ class FilterIndexTest {
 			"getRecordsWhoseValuesStartWith returns EmptyFormula for no match"
 		)
 		void shouldReturnEmptyFormulaForNoStartsWithMatch() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "Hello");
@@ -704,7 +704,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getRecordsOverlapping finds overlapping ranges")
 		void shouldReturnRecordsOverlappingRange() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -721,7 +721,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("getRecordsOverlappingFormula finds overlapping ranges")
 		void shouldReturnOverlappingFormula() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -743,7 +743,7 @@ class FilterIndexTest {
 			"getRecordsValidIn on non-range index throws exception"
 		)
 		void shouldThrowWhenValidInCalledOnNonRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -758,7 +758,7 @@ class FilterIndexTest {
 			"getRecordsValidInFormula on non-range index throws exception"
 		)
 		void shouldThrowWhenValidInFormulaCalledOnNonRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -773,7 +773,7 @@ class FilterIndexTest {
 			"getRecordsOverlapping on non-range index throws exception"
 		)
 		void shouldThrowWhenOverlappingCalledOnNonRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -788,7 +788,7 @@ class FilterIndexTest {
 			"getRecordsOverlappingFormula on non-range index throws"
 		)
 		void shouldThrowWhenOverlappingFormulaCalledOnNonRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -808,7 +808,7 @@ class FilterIndexTest {
 			"addRecord with non-Range value on range index throws"
 		)
 		void shouldThrowWhenAddingNonRangeValueToRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -824,7 +824,7 @@ class FilterIndexTest {
 			"removeRecord with non-Range value on range index throws"
 		)
 		void shouldThrowWhenRemovingNonRangeValueFromRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -841,7 +841,7 @@ class FilterIndexTest {
 			"addRecordDelta with non-Range array on range index throws"
 		)
 		void shouldThrowWhenAddingNonRangeDeltaToRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -860,7 +860,7 @@ class FilterIndexTest {
 			"removeRecordDelta with non-Range array on range index throws"
 		)
 		void shouldThrowWhenRemovingNonRangeDeltaFromRangeIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "r", null),
 				NumberRange.class
 			);
@@ -875,6 +875,7 @@ class FilterIndexTest {
 		}
 	}
 
+	@SuppressWarnings("rawtypes")
 	@Nested
 	@DisplayName("Normalizer and comparator")
 	class NormalizerComparatorTest {
@@ -994,7 +995,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("isEmpty returns true for newly created index")
 		void shouldReturnTrueForEmptyIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -1004,7 +1005,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("size returns zero for newly created index")
 		void shouldReturnZeroSizeForEmptyIndex() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -1014,7 +1015,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("isEmpty returns false after adding a record")
 		void shouldReturnFalseAfterAddingRecord() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -1025,7 +1026,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("size returns correct count after adding records")
 		void shouldReturnCorrectSizeAfterAddingRecords() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -1042,7 +1043,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("createStoragePart returns null when not dirty")
 		void shouldReturnNullStoragePartWhenNotDirty() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
@@ -1056,7 +1057,7 @@ class FilterIndexTest {
 			"createStoragePart returns FilterIndexStoragePart when dirty"
 		)
 		void shouldReturnStoragePartWhenDirty() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -1077,7 +1078,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("resetDirty clears the dirty flag")
 		void shouldResetDirtyFlag() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
@@ -1133,7 +1134,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("empty range index emits no buckets and skips sentinels")
 		void shouldReturnEmptyArrayWhenRangeIndexHasNoRecords() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 
@@ -1145,7 +1146,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("single multi-bucket sweep covers every endpoint and respects closed intervals")
 		void shouldProduceClosedIntervalBucketsForOverlappingRanges() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			index.addRecord(1, IntegerNumberRange.between(10, 20));
@@ -1174,7 +1175,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("point ranges (from == to) emit a bucket containing the record")
 		void shouldEmitBucketContainingRecordForPointRange() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			index.addRecord(1, IntegerNumberRange.between(7, 7));
@@ -1200,7 +1201,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("Byte/Short/Long inner numeric types materialize matching bucket keys")
 		void shouldEmitBucketKeysOfMatchingNumericType() {
-			final FilterIndex longIndex = new FilterIndex(
+			final OwnerFilterIndex longIndex = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "value", null), LongNumberRange.class
 			);
 			longIndex.addRecord(1, LongNumberRange.between(1_000_000_000_000L, 2_000_000_000_000L));
@@ -1216,7 +1217,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("BigDecimal inner numeric type recovers scaled decimal bucket keys")
 		void shouldEmitScaledBigDecimalBucketKeys() {
-			final FilterIndex bdIndex = new FilterIndex(
+			final OwnerFilterIndex bdIndex = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "price", null), BigDecimalNumberRange.class
 			);
 			// BigDecimalNumberRange encodes the threshold as `value.scaleByPowerOfTen(scale).longValueExact()`;
@@ -1240,7 +1241,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("memoization returns the same subset until a non-tx mutation invalidates it")
 		void shouldMemoizeUntilNonTxMutation() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			index.addRecord(1, IntegerNumberRange.between(10, 20));
@@ -1258,7 +1259,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("invocation on a non-range FilterIndex throws GenericEvitaInternalError")
 		void shouldThrowOnNonRangeFilterIndex() {
-			final FilterIndex scalarIndex = new FilterIndex(
+			final OwnerFilterIndex scalarIndex = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "name", null), String.class
 			);
 			assertThrows(
@@ -1270,7 +1271,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("unbounded-from range (IntegerNumberRange.to(X)) participates in every bucket V <= X")
 		void shouldIncludeUnboundedFromRangeInAllBucketsUpToUpperBound() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			// record 1: range [null, 50] — `getFrom()` returns `Long.MIN_VALUE`, so its
@@ -1301,7 +1302,7 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("unbounded-to range (IntegerNumberRange.from(X)) participates in every bucket V >= X")
 		void shouldIncludeUnboundedToRangeInAllBucketsFromLowerBound() {
-			final FilterIndex index = new FilterIndex(
+			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "score", null), IntegerNumberRange.class
 			);
 			// record 1: range [50, null] — `getTo()` returns `Long.MAX_VALUE`, so its

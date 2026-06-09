@@ -29,7 +29,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.LocalizedHistogramIndex;
 import io.evitadb.index.SimpleHistogramIndex;
-import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -61,20 +61,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 		if (histogramKeys.isEmpty()) {
 			return new LoadedComponentBundle.Histograms(CollectionUtils.createHashMap(0));
 		}
-		final EntityIndexKey entityIndexKey = context.entityIndexKey();
-		final String referenceName;
-		final Serializable discriminator = entityIndexKey.discriminator();
-		if (discriminator instanceof String strDiscriminator) {
-			referenceName = strDiscriminator;
-		} else if (discriminator instanceof RepresentativeReferenceKey rrk) {
-			referenceName = rrk.referenceName();
-		} else {
-			throw new GenericEvitaInternalError(
-				"Unexpected discriminator type for histogram-bearing entity index: " +
-					(discriminator == null ? "null" : discriminator.getClass().getName())
-			);
-		}
-
+		final String referenceName = getReferenceName(context);
 		final StoragePartPersistenceService<?> service = context.storagePartService();
 		final int entityIndexId = context.entityIndexId();
 		final long catalogVersion = context.catalogVersion();
@@ -106,7 +93,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 				result.put(histogramName, new SimpleHistogramIndex(
 					histogramName, referenceName,
 					(Class<? extends Serializable>) part.getValueType(),
-					new FilterIndex(
+					new OwnerFilterIndex(
 						new AttributeIndexKey(referenceName, histogramName, null),
 						part.getHistogramPoints(), part.getRangeIndex(), part.getValueType()
 					),
@@ -114,7 +101,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 				));
 			} else {
 				// localized histogram — collect per-locale filter and cardinality children
-				final Map<Locale, FilterIndex> filterIndexes = CollectionUtils.createHashMap(parts.size());
+				final Map<Locale, OwnerFilterIndex> filterIndexes = CollectionUtils.createHashMap(parts.size());
 				final Map<Locale, AttributeCardinalityIndex> cardinalities =
 					CollectionUtils.createHashMap(parts.size());
 				Class<? extends Serializable> valueType = null;
@@ -127,7 +114,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 					if (valueType == null) {
 						valueType = (Class<? extends Serializable>) part.getValueType();
 					}
-					filterIndexes.put(locale, new FilterIndex(
+					filterIndexes.put(locale, new OwnerFilterIndex(
 						new AttributeIndexKey(referenceName, histogramName, locale),
 						part.getHistogramPoints(), part.getRangeIndex(), part.getValueType()
 					));
@@ -141,6 +128,33 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 			}
 		}
 		return new LoadedComponentBundle.Histograms(result);
+	}
+
+	/**
+	 * Retrieves the reference name from the provided {@code LoadContext}. The method uses the discriminator
+	 * from the {@link EntityIndexKey} associated with the context to determine the reference name.
+	 * In the case of an unexpected discriminator type, a runtime exception is thrown.
+	 *
+	 * @param context the load context containing the {@link EntityIndexKey} from which the reference name is extracted.
+	 * @return the reference name as a {@link String}.
+	 * @throws GenericEvitaInternalError if the discriminator type is unexpected or unsupported.
+	 */
+	@Nonnull
+	private static String getReferenceName(@Nonnull LoadContext context) {
+		final EntityIndexKey entityIndexKey = context.entityIndexKey();
+		final String referenceName;
+		final Serializable discriminator = entityIndexKey.discriminator();
+		if (discriminator instanceof String strDiscriminator) {
+			referenceName = strDiscriminator;
+		} else if (discriminator instanceof RepresentativeReferenceKey rrk) {
+			referenceName = rrk.referenceName();
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unexpected discriminator type for histogram-bearing entity index: " +
+					(discriminator == null ? "null" : discriminator.getClass().getName())
+			);
+		}
+		return referenceName;
 	}
 
 }

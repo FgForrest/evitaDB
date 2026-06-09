@@ -798,8 +798,7 @@ public interface ReferenceIndexMutator {
 					attributeValue.key(),
 					Objects.requireNonNull(attributeValue.value()),
 					false,
-					false,
-					undoActionConsumer
+					false
 				))
 		);
 
@@ -984,8 +983,7 @@ public interface ReferenceIndexMutator {
 					referenceTypeIndex,
 					attributeValue.key(),
 					false,
-					false,
-					undoActionConsumer
+					false
 				))
 		);
 
@@ -1473,8 +1471,6 @@ public interface ReferenceIndexMutator {
 	 * configured for {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
 	 * - **Reference-level** compound schemas (from the reference schema) — always, regardless of index type.
 	 *
-	 * If `undoActionConsumer` is provided, the inverse removal operations are registered for each compound.
-	 *
 	 * @param executor                    the mutation executor providing entity schema and index access
 	 * @param referenceSchema             the schema describing the reference (determines attribute scope and index level)
 	 * @param targetIndex                 the reduced entity index into which compounds are inserted
@@ -1482,7 +1478,6 @@ public interface ReferenceIndexMutator {
 	 *                                    index discriminator, which may contain the group PK for group-level indexes)
 	 * @param locale                      if non-null, restrict insertion to compounds for this locale only
 	 * @param existingDataSupplierFactory factory for reading existing attribute values from storage
-	 * @param undoActionConsumer          if non-null, receives inverse compound removal operations for rollback
 	 */
 	static void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -1490,14 +1485,12 @@ public interface ReferenceIndexMutator {
 		@Nonnull AbstractReducedEntityIndex targetIndex,
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Locale locale,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		applySortableAttributeCompoundSuite(
 			executor, referenceSchema, targetIndex, referenceKey, locale,
-			existingDataSupplierFactory, undoActionConsumer,
-			AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds,
-			AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds
+			existingDataSupplierFactory,
+			AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds
 		);
 	}
 
@@ -1505,7 +1498,7 @@ public interface ReferenceIndexMutator {
 	 * Removes the full suite of sortable attribute compounds for the entity–reference combination represented by
 	 * `targetIndex`. This is the exact inverse of
 	 * {@link #insertInitialSuiteOfSortableAttributeCompounds(EntityIndexLocalMutationExecutor, ReferenceSchemaContract,
-	 * AbstractReducedEntityIndex, ReferenceKey, Locale, ExistingDataSupplierFactory, Consumer)}.
+	 * AbstractReducedEntityIndex, ReferenceKey, Locale, ExistingDataSupplierFactory)}.
 	 *
 	 * When `locale` is non-null, only compounds that include at least one attribute for that locale are removed.
 	 * When `locale` is `null`, only locale-independent (non-localized) compounds are removed.
@@ -1517,7 +1510,6 @@ public interface ReferenceIndexMutator {
 	 *                                    index discriminator, which may contain the group PK for group-level indexes)
 	 * @param locale                      if non-null, restrict removal to compounds for this locale only
 	 * @param existingDataSupplierFactory factory for reading existing attribute values from storage
-	 * @param undoActionConsumer          if non-null, receives inverse compound insertion operations for rollback
 	 */
 	static void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -1525,14 +1517,12 @@ public interface ReferenceIndexMutator {
 		@Nonnull AbstractReducedEntityIndex targetIndex,
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Locale locale,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		applySortableAttributeCompoundSuite(
 			executor, referenceSchema, targetIndex, referenceKey, locale,
-			existingDataSupplierFactory, undoActionConsumer,
-			AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds,
-			AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds
+			existingDataSupplierFactory,
+			AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds
 		);
 	}
 
@@ -2189,8 +2179,7 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Common skeleton for both inserting and removing sortable attribute compound suites.
-	 * Applies `primaryOp` to both entity-level and reference-level attribute compound schemas,
-	 * and registers `undoOp` as the inverse for each.
+	 * Applies `primaryOp` to both entity-level and reference-level attribute compound schemas.
 	 */
 	private static void applySortableAttributeCompoundSuite(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2199,9 +2188,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Locale locale,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer,
-		@Nonnull SortableCompoundOperation primaryOp,
-		@Nonnull SortableCompoundOperation undoOp
+		@Nonnull SortableCompoundOperation primaryOp
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final RepresentativeReferenceKey indexRrk = extractRepresentativeReferenceKey(targetIndex);
@@ -2219,16 +2206,8 @@ public interface ReferenceIndexMutator {
 
 			primaryOp.apply(
 				executor, referenceSchema, targetIndex, locale, attributeSchemaProvider,
-				entitySchema, entityAttributeValueSupplier, undoActionConsumer
+				entitySchema, entityAttributeValueSupplier
 			);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> undoOp.apply(
-						executor, referenceSchema, targetIndex, locale, attributeSchemaProvider,
-						entitySchema, entityAttributeValueSupplier, undoActionConsumer
-					)
-				);
-			}
 		}
 
 		// then apply to reference-level attributes and sortable compounds
@@ -2239,16 +2218,8 @@ public interface ReferenceIndexMutator {
 
 		primaryOp.apply(
 			executor, referenceSchema, targetIndex, locale, referenceSchemaAttributeProvider,
-			referenceSchema, referenceAttributeValueSupplier, undoActionConsumer
+			referenceSchema, referenceAttributeValueSupplier
 		);
-		if (undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> undoOp.apply(
-					executor, referenceSchema, targetIndex, locale, referenceSchemaAttributeProvider,
-					referenceSchema, referenceAttributeValueSupplier, undoActionConsumer
-				)
-			);
-		}
 	}
 
 	/**
@@ -2333,8 +2304,7 @@ public interface ReferenceIndexMutator {
 			executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory, undoActionConsumer
 		);
 		insertInitialSuiteOfSortableAttributeCompounds(
-			executor, referenceSchema, targetIndex, referenceKey, null, existingDataSupplierFactory,
-			undoActionConsumer
+			executor, referenceSchema, targetIndex, referenceKey, null, existingDataSupplierFactory
 		);
 
 		// entity-level data (locales, prices, entity attributes) is shared across all references
@@ -2518,8 +2488,7 @@ public interface ReferenceIndexMutator {
 							attribute.key(),
 							Objects.requireNonNull(attribute.value()),
 							false,
-							false,
-							undoActionConsumer
+							false
 						)
 				);
 		}
@@ -2575,8 +2544,7 @@ public interface ReferenceIndexMutator {
 						         attribute.key(),
 						         Objects.requireNonNull(attribute.value()),
 						         false,
-						         false,
-						         undoActionConsumer
+						         false
 					         )
 				         )
 			);
@@ -2633,8 +2601,7 @@ public interface ReferenceIndexMutator {
 			executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory, undoActionConsumer
 		);
 		removeEntireSuiteOfSortableAttributeCompounds(
-			executor, referenceSchema, targetIndex, referenceKey, null, existingDataSupplierFactory,
-			undoActionConsumer
+			executor, referenceSchema, targetIndex, referenceKey, null, existingDataSupplierFactory
 		);
 
 		// entity-level data (locales, prices, entity attributes) is shared across all references
@@ -2824,8 +2791,7 @@ public interface ReferenceIndexMutator {
 						         targetIndex,
 						         attribute.key(),
 						         false,
-						         false,
-						         undoActionConsumer
+						         false
 					         )
 				);
 		}
@@ -2876,8 +2842,7 @@ public interface ReferenceIndexMutator {
 						         targetIndex,
 						         attribute.key(),
 						         false,
-						         false,
-						         undoActionConsumer
+						         false
 					         )
 				         )
 			);
@@ -3338,7 +3303,6 @@ public interface ReferenceIndexMutator {
 		 * @param attributeSchemaProvider provides attribute and compound schemas for the relevant scope
 		 * @param compoundProvider        provides the sortable attribute compound schemas to operate on
 		 * @param attributeValueSupplier  supplies the current attribute values needed to build/remove compounds
-		 * @param undoActionConsumer      if non-null, receives inverse operations to undo this compound change
 		 */
 		void apply(
 			@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -3347,8 +3311,7 @@ public interface ReferenceIndexMutator {
 			@Nullable Locale locale,
 			@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 			@Nonnull SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> compoundProvider,
-			@Nonnull ExistingAttributeValueSupplier attributeValueSupplier,
-			@Nullable Consumer<Runnable> undoActionConsumer
+			@Nonnull ExistingAttributeValueSupplier attributeValueSupplier
 		);
 
 	}

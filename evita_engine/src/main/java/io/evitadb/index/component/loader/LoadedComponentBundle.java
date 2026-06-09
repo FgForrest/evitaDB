@@ -29,6 +29,8 @@ import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
@@ -73,16 +75,22 @@ public sealed interface LoadedComponentBundle
 	 * {@link AttributeCardinalityIndexes} bundle so that the two subclass plans without
 	 * cardinalities don't have to declare the empty map.
 	 *
-	 * @param uniqueIndexes UNIQUE-typed entries keyed by attribute name/locale
-	 * @param filterIndexes FILTER-typed entries keyed by attribute name/locale
+	 * @param uniqueIndexes UNIQUE-typed entries for standalone (owner) unique attributes, keyed by the unique key
+	 * @param filterIndexes FILTER VIEW entries keyed by attribute name/locale (carry attributeType)
+	 * @param uniqueViewIndexes folded-unique VIEW entries (view-mode {@link UniqueIndex}) keyed by the foldable key
 	 * @param sortIndexes   SORT-typed entries keyed by attribute name/locale
 	 * @param chainIndexes  CHAIN-typed entries keyed by attribute name/locale
+	 * @param sharedValueIndexes shared value→ValueToRecord trees keyed by the FILTER attribute key
+	 * @param sharedRangeIndexes shared range structures keyed by the FILTER attribute key
 	 */
 	record AttributeIndexes(
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndexes,
 		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndexes,
+		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueViewIndexes,
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndexes,
-		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndexes
+		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndexes,
+		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndexes,
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndexes
 	) implements LoadedComponentBundle {
 	}
 

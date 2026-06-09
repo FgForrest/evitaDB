@@ -150,7 +150,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldIndexRecordsAndReturnInAscendingOrder() {
-		final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -174,7 +174,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldIndexRecordsAndReturnInDescendingOrder() {
-		final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord(7, 2);
 		sortIndex.addRecord(3, 4);
 		sortIndex.addRecord(4, 3);
@@ -189,7 +189,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldCorrectlyOrderLocalizedStrings() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord("c", 2);
 		sortIndex.addRecord("č", 3);
 		sortIndex.addRecord("a", 1);
@@ -213,7 +213,7 @@ class SortIndexTest {
 	@Test
 	void shouldCorrectlyOrderBigDecimals() {
 		// values are pre-normalized (stripTrailingZeros) as they would be by EntityIndexLocalMutationExecutor
-		final SortIndex sortIndex = new SortIndex(BigDecimal.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(BigDecimal.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord(new BigDecimal("0"), 1);
 		sortIndex.addRecord(new BigDecimal("0"), 2);
 		sortIndex.addRecord(new BigDecimal("0"), 3);
@@ -305,7 +305,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldPassGenerationalTest1() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 		sortIndex.addRecord("W", 49);
 		sortIndex.addRecord("Z", 150);
 		sortIndex.addRecord("[", 175);
@@ -325,7 +325,7 @@ class SortIndexTest {
 
 	@Test
 	void shouldSortNationalCharactersCorrectly() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", CZECH_LOCALE));
 		sortIndex.addRecord("A", 1);
 		sortIndex.addRecord("Š", 2);
 		sortIndex.addRecord("T", 3);
@@ -351,7 +351,7 @@ class SortIndexTest {
 
 	@Nonnull
 	private static SortIndex createIndexWithBaseCardinalities() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
 		sortIndex.addRecord("B", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("C", 3);
@@ -365,7 +365,7 @@ class SortIndexTest {
 
 	@Nonnull
 	private static SortIndex createIndexWithSingleCardinality() {
-		final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
+		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", Locale.ENGLISH));
 		sortIndex.addRecord("A", 5);
 		sortIndex.addRecord("A", 6);
 		sortIndex.addRecord("A", 3);
@@ -379,7 +379,7 @@ class SortIndexTest {
 
 	@Nonnull
 	private static SortIndex createCompoundIndexWithBaseCardinalities() {
-		final SortIndex sortIndex = new SortIndex(
+		final SortIndex sortIndex = new OwnerSortIndex(
 			new ComparatorSource[]{
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
@@ -406,8 +406,8 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should assign unique id to each instance")
 		void shouldAssignUniqueIdToEachInstance() {
-			final SortIndex first = new SortIndex(Integer.class, new AttributeIndexKey(null, "x", null));
-			final SortIndex second = new SortIndex(Integer.class, new AttributeIndexKey(null, "y", null));
+			final SortIndex first = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "x", null));
+			final SortIndex second = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "y", null));
 
 			assertNotEquals(first.getId(), second.getId());
 		}
@@ -415,7 +415,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return same instance when no mutations applied")
 		void shouldReturnSameInstanceWhenNoMutationsApplied() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			assertStateAfterCommit(
 				sortIndex,
@@ -429,7 +429,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return new instance when dirty after commit")
 		void shouldReturnNewInstanceWhenDirtyAfterCommit() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			assertStateAfterCommit(
 				sortIndex,
@@ -445,7 +445,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should leave original unchanged after commit")
 		void shouldLeaveOriginalUnchangedAfterCommit() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 
 			assertStateAfterCommit(
@@ -467,7 +467,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should discard changes after rollback")
 		void shouldDiscardChangesAfterRollback() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("X", 10);
 
 			assertStateAfterRollback(
@@ -489,7 +489,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should deterministically commit add and remove")
 		void shouldDeterministicallyCommitAddAndRemove() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 			sortIndex.addRecord("B", 2);
 			sortIndex.addRecord("C", 3);
@@ -518,7 +518,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should report empty index correctly")
 		void shouldReportEmptyIndexCorrectly() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			assertTrue(sortIndex.isEmpty());
 			assertEquals(0, sortIndex.size());
@@ -527,7 +527,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return null from createStoragePart when not dirty")
 		void shouldReturnNullFromCreateStoragePartWhenNotDirty() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			final StoragePart storagePart = sortIndex.createStoragePart(1);
 			assertNull(storagePart);
@@ -536,7 +536,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return SortIndexStoragePart when dirty")
 		void shouldReturnStoragePartWhenDirty() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "name", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "name", null));
 			sortIndex.addRecord("Alpha", 1);
 			sortIndex.addRecord("Beta", 2);
 
@@ -557,7 +557,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should reset dirty flag via resetDirty()")
 		void shouldResetDirtyFlag() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("X", 1);
 
 			// dirty after add
@@ -572,7 +572,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should cache sortIndexChanges in non-transactional mode")
 		void shouldCacheSortIndexChangesNonTransactional() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 
 			// first call to ascending supplier creates changes
@@ -595,7 +595,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw on duplicate recordId in scalar addRecord")
 		void shouldThrowOnDuplicateRecordIdScalar() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -608,7 +608,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw on duplicate recordId in array addRecord")
 		void shouldThrowOnDuplicateRecordIdArray() {
-			final SortIndex sortIndex = new SortIndex(
+			final SortIndex sortIndex = new OwnerSortIndex(
 				new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
@@ -627,7 +627,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when array passed as scalar value")
 		void shouldThrowWhenArrayPassedAsScalarValue() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 
 			// cast to Serializable to force the scalar overload
 			final Serializable arrayValue = new String[]{"A", "B"};
@@ -641,7 +641,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when wrong type passed to addRecord")
 		void shouldThrowWhenWrongTypePassed() {
-			final SortIndex sortIndex = new SortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
 			final IllegalArgumentException ex = assertThrows(
 				IllegalArgumentException.class,
@@ -653,7 +653,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when removing non-existent scalar value")
 		void shouldThrowOnRemoveNonExistentScalarValue() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("A", 1);
 
 			final IllegalArgumentException ex = assertThrows(
@@ -666,7 +666,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should throw when removing non-existent array value")
 		void shouldThrowOnRemoveNonExistentArrayValue() {
-			final SortIndex sortIndex = new SortIndex(
+			final SortIndex sortIndex = new OwnerSortIndex(
 				new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
@@ -708,7 +708,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should handle cardinality exactly 2 removal correctly")
 		void shouldHandleCardinalityExactly2Removal() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
 			sortIndex.addRecord("X", 1);
 			sortIndex.addRecord("X", 2);
 
@@ -880,7 +880,7 @@ class SortIndexTest {
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
 			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source).orElseThrow();
 
-			final Serializable result = normalizer.apply("\u00e9"); // e-acute
+			final Serializable result = normalizer.apply("é"); // e-acute
 			assertNotNull(result);
 			assertNull(normalizer.apply(null));
 		}
@@ -893,7 +893,7 @@ class SortIndexTest {
 			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
 		}
 
-		@SuppressWarnings("rawtypes")
+		@SuppressWarnings({"rawtypes", "unchecked"})
 		@Test
 		@DisplayName("should create NULLS_FIRST ASC comparator")
 		void shouldCreateNullsFirstAscComparator() {
@@ -906,7 +906,7 @@ class SortIndexTest {
 			assertTrue(comparator.compare(null, "A") < 0);
 		}
 
-		@SuppressWarnings("rawtypes")
+		@SuppressWarnings("unchecked")
 		@Test
 		@DisplayName("should create NULLS_LAST DESC comparator")
 		void shouldCreateNullsLastDescComparator() {
@@ -921,7 +921,7 @@ class SortIndexTest {
 			assertTrue(comparator.compare("B", "A") < 0);
 		}
 
-		@SuppressWarnings("rawtypes")
+		@SuppressWarnings({"rawtypes", "unchecked"})
 		@Test
 		@DisplayName("should create NULLS_FIRST DESC comparator")
 		void shouldCreateNullsFirstDescComparator() {
@@ -936,7 +936,7 @@ class SortIndexTest {
 			assertTrue(comparator.compare("B", "A") < 0);
 		}
 
-		@SuppressWarnings("rawtypes")
+		@SuppressWarnings({"rawtypes", "unchecked"})
 		@Test
 		@DisplayName("should create NULLS_LAST ASC comparator")
 		void shouldCreateNullsLastAscComparator() {
@@ -965,7 +965,7 @@ class SortIndexTest {
 		void shouldThrowWhenSingleComparatorPassedToMultiField() {
 			assertThrows(
 				IllegalArgumentException.class,
-				() -> new SortIndex(
+				() -> new OwnerSortIndex(
 					new ComparatorSource[]{
 						new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 					},
@@ -983,7 +983,7 @@ class SortIndexTest {
 			final Map<Serializable, Integer> cardinalities = new HashMap<>(4);
 			cardinalities.put("B", 2);
 
-			final SortIndex sortIndex = new SortIndex(
+			final SortIndex sortIndex = new OwnerSortIndex(
 				base, null,
 				new AttributeIndexKey(null, "a", null),
 				new int[]{1, 2, 3},
@@ -1001,7 +1001,7 @@ class SortIndexTest {
 		@DisplayName("should return reference key from referenceKey constructor")
 		void shouldReturnReferenceKeyFromConstructor() {
 			final RepresentativeReferenceKey refKey = new RepresentativeReferenceKey(new ReferenceKey("brand", 1));
-			final SortIndex sortIndex = new SortIndex(
+			final SortIndex sortIndex = new OwnerSortIndex(
 				String.class, refKey, new AttributeIndexKey(null, "name", null)
 			);
 
@@ -1012,7 +1012,7 @@ class SortIndexTest {
 		@Test
 		@DisplayName("should return null referenceKey for non-reference constructor")
 		void shouldReturnNullReferenceKeyForNonReference() {
-			final SortIndex sortIndex = new SortIndex(String.class, new AttributeIndexKey(null, "name", null));
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "name", null));
 
 			assertNull(sortIndex.getReferenceKey());
 		}

@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -36,6 +37,7 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
 import io.evitadb.utils.ArrayUtils;
@@ -67,7 +69,7 @@ import java.util.function.UnaryOperator;
  *
  * The buckets are stored in a {@link TransactionalObjectBPlusTree} keyed by the (normalized) bucket value and ordered
  * by the supplied {@link Comparator}. A write therefore touches only the affected leaf and its ancestors (path-copying)
- * instead of reallocating the whole structure - this is the key write-latency improvement targeted by issue #760.
+ * instead of reallocating the whole structure - this is the key write-latency improvement of this representation.
  *
  * Each bucket is a {@link ValueToRecord}: single-record buckets (the long tail of any filterable attribute) are stored
  * as the compact, immutable {@link ValueToRecordPrimitive} (a bare `int`, no {@link org.roaringbitmap.RoaringBitmap}),
@@ -122,6 +124,16 @@ public class InvertedIndex implements
 	private static final int MIN_VALUE_BLOCK_SIZE = VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
 
+	/**
+	 * Unique transactional id for this tree instance. Overrides the {@link VoidTransactionMemoryProducer} default
+	 * (the constant `1L`) so that a consumer keying a cache on the tree's identity — notably a
+	 * {@link io.evitadb.index.attribute.FilterIndexView} folded over this tree, whose `getId()` delegates here — gets a
+	 * value that is UNIQUE per tree yet STABLE across commits that did not touch the tree: an untouched tree is carried
+	 * forward by reference from {@link #createCopyWithMergedTransactionalMemory} (preserving its id), while a mutated
+	 * tree becomes a fresh instance with a fresh id (correctly invalidating the dependent cache). This is a runtime-only
+	 * field, regenerated on load — it is never persisted.
+	 */
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
@@ -445,6 +457,35 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Returns the number of records associated with the given already-normalized value, read directly from the bucket
+	 * via {@link ValueToRecord#size()} — without materializing the record bitmap. This is the allocation-free
+	 * cardinality read used on hot sort paths: {@link #getRecordsEqualTo} on a single-record
+	 * {@link SingleRecordBitmap}-backed bucket would otherwise allocate a bitmap per probe
+	 * (`ValueToRecordPrimitive.getRecordIds()`), whereas {@link ValueToRecord#size()} is resolved inline on the bucket
+	 * (the allocation-free cardinality read used by the both-flagged sort view).
+	 *
+	 * @param normalizedValue the value already normalized by the caller (via the shared normalizer)
+	 * @return cardinality of the bucket, or {@code 0} when no such bucket exists
+	 */
+	public int cardinalityOf(@Nullable Serializable normalizedValue) {
+		if (normalizedValue == null) {
+			return 0;
+		}
+		final ValueToRecord bucket = searchBucket((Comparable) normalizedValue);
+		return bucket == null ? 0 : bucket.size();
+	}
+
+	/**
+	 * Returns the normalizer this inverted index applies to incoming values before they become bucket keys. Exposed so
+	 * co-owning role-views (the unique check and the both-flagged sort view) can assert they read/write the shared tree
+	 * through the very same normalizer instance — a normalizer asymmetry would cause silent lookup misses.
+	 */
+	@Nonnull
+	public Function<Object, Serializable> getNormalizer() {
+		return this.normalizer;
+	}
+
+	/**
 	 * Returns array of "buckets" ordered by {@link ValueToRecord#getValue()} that contain record ids assigned in them.
 	 * Single-record primitive buckets are materialized to {@link ValueToRecordBitmap} at this boundary so the
 	 * serialization / external-consumer surface stays unchanged.
@@ -473,6 +514,27 @@ public class InvertedIndex implements
 	@Nonnull
 	public Iterator<ValueToRecord> getValueIteratorFrom(@Nonnull Serializable normalizedValue) {
 		return bucketIteratorFrom((Comparable) normalizedValue);
+	}
+
+	/**
+	 * Returns a transaction-aware iterator over ALL buckets ordered ascending by {@link #comparator}. Used by the
+	 * both-flagged sort view to derive the ordered `(value, cardinality)` stream that segments the sort index's
+	 * record blocks — each bucket yields its value via {@link ValueToRecord#getValue()} and its cardinality via the
+	 * allocation-free {@link ValueToRecord#size()}.
+	 */
+	@Nonnull
+	public Iterator<ValueToRecord> getValueIterator() {
+		return bucketIterator();
+	}
+
+	/**
+	 * Returns a transaction-aware iterator over ALL buckets ordered descending by {@link #comparator}. Reverse
+	 * counterpart of {@link #getValueIterator()} used by the both-flagged sort view's reversed seeker.
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	public Iterator<ValueToRecord> getValueReverseIterator() {
+		return this.buckets.valueReverseIterator();
 	}
 
 	/**
@@ -617,6 +679,15 @@ public class InvertedIndex implements
 		}
 		sb.append("]}");
 		return sb.toString();
+	}
+
+	/**
+	 * Returns `true` when this inverted index has unflushed mutations. Exposed so a {@link io.evitadb.index.attribute.FilterIndex}
+	 * VIEW can drive its persistence decision off the shared tree it wraps instead of its own (non-committed)
+	 * dirty flag, which keeps the view free of transactional state.
+	 */
+	public boolean isDirty() {
+		return this.dirty.isTrue();
 	}
 
 	@Override

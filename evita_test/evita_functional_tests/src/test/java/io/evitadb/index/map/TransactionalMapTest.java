@@ -26,7 +26,6 @@ package io.evitadb.index.map;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -1311,7 +1310,7 @@ class TransactionalMapTest {
 	 * themselves {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}s). They focus on the
 	 * lifecycle of a value's nested transactional layer when the holding key is mutated and then removed within
 	 * one transaction. A leaked (never-released) inner layer surfaces as a
-	 * {@link io.evitadb.core.transaction.memory.StaleTransactionMemoryException} thrown by the layer-sweep
+	 * {@link io.evitadb.core.exception.StaleTransactionMemoryException} thrown by the layer-sweep
 	 * verification performed inside {@link io.evitadb.utils.AssertionUtils#assertStateAfterCommit}.
 	 *
 	 * The decision whether a removed value's layer must be released has to be made by **instance identity** (is
@@ -1328,7 +1327,9 @@ class TransactionalMapTest {
 		 * `EntityIndex#entityIdsByLanguage` does in production.
 		 */
 		@Nonnull
-		private TransactionalMap<String, TransactionalBitmap> producerMap(@Nonnull Map<String, TransactionalBitmap> delegate) {
+		private static TransactionalMap<String, TransactionalBitmap> producerMap(
+			@Nonnull Map<String, TransactionalBitmap> delegate
+		) {
 			return new TransactionalMap<>(delegate, TransactionalBitmap.class, TransactionalBitmap::new);
 		}
 
@@ -1393,10 +1394,6 @@ class TransactionalMapTest {
 		}
 
 		@Test
-		@Disabled("TODO JNO - the eager layer release in MapChanges.remove (commit 8c952d194) was reverted because it "
-			+ "regressed ChainIndex's read-after-remove (see the detailed TODO in MapChanges.remove). That revert "
-			+ "re-opens this narrow create-modify-remove orphaned-layer leak, which the commit-time sweep does not "
-			+ "cover. Re-enable once the proper fix (defer the release to commit time) is implemented.")
 		@DisplayName("create-then-modify-then-remove a fresh key within one transaction sweeps cleanly")
 		void shouldReleaseLayerWhenFreshlyCreatedValueIsModifiedThenRemoved() {
 			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
@@ -1425,25 +1422,29 @@ class TransactionalMapTest {
 		}
 
 		@Test
-		@DisplayName("removing one of two keys sharing the same value instance does not release the surviving layer")
-		void shouldNotReleaseLayerWhenRemovedValueInstanceIsStillReferenced() {
+		@DisplayName("an in-transaction surviving alias of a removed value keeps that value's layer")
+		void shouldNotReleaseLayerWhenRemovedValueInstanceIsAliasedByInTransactionKey() {
+			// Cross-key aliasing of a producer instance is only supported when introduced *within* the transaction
+			// (the committed delegate mints one instance per key — see MapChanges#isInstanceNotReferencedBySurvivingKey).
+			// Here the delegate value held under "a" is aliased under a fresh key "b" during the transaction, then "a"
+			// is removed: the survivor scan must find the in-transaction alias and keep the shared layer alive.
 			final TransactionalBitmap shared = new TransactionalBitmap(7);
 			final Map<String, TransactionalBitmap> delegate = new LinkedHashMap<>();
-			// the very same instance is stored under two keys
 			delegate.put("a", shared);
-			delegate.put("b", shared);
 			final TransactionalMap<String, TransactionalBitmap> map = producerMap(delegate);
 
 			assertStateAfterCommit(
 				map,
 				original -> {
-					// mutate the shared instance (opens its layer), then remove only key a
-					original.get("a").add(8);
+					// alias the same instance under a new key within the transaction
+					original.put("b", shared);
+					// mutate it (opens its layer), then remove the original key
+					shared.add(8);
 					original.remove("a");
 				},
 				(original, committed) -> {
-					assertEquals(2, original.size());
-					// b survives and must carry the committed (merged) content of the shared instance
+					assertEquals(1, original.size());
+					// b survives and must carry the committed (merged) content of the shared instance — not released
 					assertEquals(1, committed.size());
 					assertTrue(committed.containsKey("b"));
 					assertFalse(committed.containsKey("a"));

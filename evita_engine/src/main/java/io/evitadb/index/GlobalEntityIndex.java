@@ -274,8 +274,13 @@ public class GlobalEntityIndex extends EntityIndex
 				manifest.getEntityIdsByLanguage(),
 				new EntityAttributeIndex(
 					context.entitySchema().getName(),
-					attributes.uniqueIndexes(), attributes.filterIndexes(),
-					attributes.sortIndexes(), attributes.chainIndexes()
+					attributes.uniqueIndexes(),
+					attributes.filterIndexes(),
+					attributes.uniqueViewIndexes(),
+					attributes.sortIndexes(),
+					attributes.chainIndexes(),
+					attributes.sharedValueIndexes(),
+					attributes.sharedRangeIndexes()
 				),
 				new PriceSuperIndex(prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),

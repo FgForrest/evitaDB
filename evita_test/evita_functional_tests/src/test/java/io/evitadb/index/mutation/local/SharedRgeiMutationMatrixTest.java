@@ -306,7 +306,7 @@ class SharedRgeiMutationMatrixTest {
 			);
 			final Set<Locale> noLocales = Collections.emptySet();
 			SharedRgeiMutationMatrixTest.this.sharedRgei.insertFilterAttribute(
-				referenceSchema, entityAttrSchema, noLocales, null, "ACTIVE", ENTITY_PK
+				referenceSchema, entityAttrSchema, noLocales, null, "ACTIVE", ENTITY_PK, false
 			);
 
 			// when the entity attribute value transitions ACTIVE -> ARCHIVED
@@ -316,7 +316,7 @@ class SharedRgeiMutationMatrixTest {
 				referenceSchema, entityAttrSchema, noLocales, null, "ACTIVE", ENTITY_PK
 			);
 			SharedRgeiMutationMatrixTest.this.sharedRgei.insertFilterAttribute(
-				referenceSchema, entityAttrSchema, noLocales, null, "ARCHIVED", ENTITY_PK
+				referenceSchema, entityAttrSchema, noLocales, null, "ARCHIVED", ENTITY_PK, false
 			);
 
 			// then the filter index reflects only ARCHIVED for the entity — and exactly one record entry
@@ -350,7 +350,7 @@ class SharedRgeiMutationMatrixTest {
 			);
 			final Set<Locale> noLocales = Collections.emptySet();
 			SharedRgeiMutationMatrixTest.this.sharedRgei.insertFilterAttribute(
-				referenceSchema, entityAttrSchema, noLocales, null, "ACTIVE", ENTITY_PK
+				referenceSchema, entityAttrSchema, noLocales, null, "ACTIVE", ENTITY_PK, false
 			);
 			// first remove drops cardinality 1 -> 0 and dismantles the filter index entry
 			SharedRgeiMutationMatrixTest.this.sharedRgei.removeFilterAttribute(
@@ -388,13 +388,13 @@ class SharedRgeiMutationMatrixTest {
 			);
 			final Set<Locale> noLocales = Collections.emptySet();
 			SharedRgeiMutationMatrixTest.this.sharedRgei.insertFilterAttribute(
-				referenceSchema, refAttrSchema, noLocales, null, 1, ENTITY_PK
+				referenceSchema, refAttrSchema, noLocales, null, 1, ENTITY_PK, false
 			);
 			SharedRgeiMutationMatrixTest.this.sharedRgei.removeFilterAttribute(
 				referenceSchema, refAttrSchema, noLocales, null, 1, ENTITY_PK
 			);
 			SharedRgeiMutationMatrixTest.this.sharedRgei.insertFilterAttribute(
-				referenceSchema, refAttrSchema, noLocales, null, 2, ENTITY_PK
+				referenceSchema, refAttrSchema, noLocales, null, 2, ENTITY_PK, false
 			);
 
 			// then the filter index reflects the new value, the old value is gone, and the
@@ -573,7 +573,7 @@ class SharedRgeiMutationMatrixTest {
 				"R1 add must be the 0->1 transition"
 			);
 			SharedRgeiMutationMatrixTest.this.sharedRgei.insertFilterAttribute(
-				referenceSchema, codeSchema, noLocales, null, "A", ENTITY_PK
+				referenceSchema, codeSchema, noLocales, null, "A", ENTITY_PK, false
 			);
 
 			// 2) add R2 — entity already present (no transition)
@@ -589,7 +589,7 @@ class SharedRgeiMutationMatrixTest {
 				referenceSchema, codeSchema, noLocales, null, "A", ENTITY_PK
 			);
 			SharedRgeiMutationMatrixTest.this.sharedRgei.insertFilterAttribute(
-				referenceSchema, codeSchema, noLocales, null, "B", ENTITY_PK
+				referenceSchema, codeSchema, noLocales, null, "B", ENTITY_PK, false
 			);
 
 			// 4) add an entity-level price

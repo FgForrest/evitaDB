@@ -679,12 +679,17 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	class StmInvariantsTest {
 
 		@Test
-		@DisplayName("INV-1: getId() returns constant 1L")
-		void shouldReturnConstantIdOfOne() {
-			assertEquals(
-				1L,
-				InvertedIndexTest.this.tested.getId()
-			);
+		@DisplayName("INV-1: getId() returns a stable id, unique per instance")
+		void shouldReturnStableUniqueId() {
+			final long id = InvertedIndexTest.this.tested.getId();
+			// stable across repeated calls on the same instance
+			assertEquals(id, InvertedIndexTest.this.tested.getId());
+			// unique per instance (INV-1): the tree overrides the VoidTransactionMemoryProducer constant `1L` default so
+			// a FilterIndexView folded over it gets a distinct, non-colliding id — otherwise the attribute-histogram
+			// cache key (which is derived from FilterIndex#getId) would collapse across all attributes
+			final InvertedIndex other = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			assertNotEquals(id, other.getId());
+			assertNotEquals(1L, id);
 		}
 
 		@Test

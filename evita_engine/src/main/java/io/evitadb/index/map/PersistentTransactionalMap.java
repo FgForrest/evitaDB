@@ -147,7 +147,7 @@ public class PersistentTransactionalMap<K, V> implements Map<K, V>,
 	 * @return the sealed snapshot
 	 */
 	@Nonnull
-	private ChampMap<K, V> sealed() {
+	protected ChampMap<K, V> sealed() {
 		final Map<K, V> current = this.state;
 		if (current instanceof ChampMap) {
 			return (ChampMap<K, V>) current;

@@ -23,17 +23,20 @@
 
 package io.evitadb.index.map;
 
+import io.evitadb.core.exception.StaleTransactionMemoryException;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
-import org.junit.jupiter.api.Disabled;
+import io.evitadb.utils.AssertionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,20 +52,20 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Generational randomized proof test for {@link TransactionalMap} parameterised with values that are themselves
- * {@link TransactionalBitmap} ({@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}s) — the exact
- * shape used in production by `EntityIndex#entityIdsByLanguage`
- * (`new TransactionalMap<>(map, TransactionalBitmap.class, TransactionalBitmap::new)`).
+ * {@link TransactionalBitmap} ({@link TransactionalLayerProducer}s) — the exact shape used in production by
+ * `EntityIndex#entityIdsByLanguage` (`new TransactionalMap<>(map, TransactionalBitmap.class, TransactionalBitmap::new)`).
  *
  * Unlike {@link LongRunningTransactionalMapTest}, which holds plain {@link Integer} values, this sentinel mutates the
  * inner state of producer values inside a transaction (opening an `ALIVE` nested diff layer) and then removes the key
  * — the modify-then-delete pattern that orphans the value's transactional layer if the container does not release it.
- * Each generation runs inside {@link io.evitadb.utils.AssertionUtils#assertStateAfterCommit}, which verifies the full
+ * Each generation runs inside {@link AssertionUtils#assertStateAfterCommit}, which verifies the full
  * transactional-memory layer was swept on commit; a leaked layer surfaces as a
- * {@link io.evitadb.core.transaction.memory.StaleTransactionMemoryException} and fails the run. This guards the
+ * {@link StaleTransactionMemoryException} and fails the run. This guards the
  * STM invariants INV-10 / INV-12 across thousands of chained commit cycles.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
@@ -71,10 +74,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(INDEXING)
 @Tag(DATA_TYPE)
 @Tag(TRANSACTION)
-@Disabled("TODO JNO - depends on the eager layer release in MapChanges.remove (commit 8c952d194) that was reverted "
-	+ "because it regressed ChainIndex's read-after-remove (see the detailed TODO in MapChanges.remove). The revert "
-	+ "re-opens the create-modify-remove orphaned-layer leak this soak sentinel guards. Re-enable once the proper "
-	+ "fix (defer the release to commit time) is implemented.")
 class LongRunningTransactionalMapWithBitmapValuesTest implements TimeBoundedTestSupport {
 
 	/**
@@ -255,7 +254,7 @@ class LongRunningTransactionalMapWithBitmapValuesTest implements TimeBoundedTest
 		assertEquals(reference.size(), committed.size(), codeBuffer::toString);
 		for (Entry<String, TreeSet<Integer>> entry : reference.entrySet()) {
 			final TransactionalBitmap committedValue = committed.get(entry.getKey());
-			assertTrue(committedValue != null, codeBuffer::toString);
+			assertNotNull(committedValue, codeBuffer::toString);
 			assertArrayEquals(toArray(entry.getValue()), committedValue.getArray(), codeBuffer::toString);
 		}
 	}
@@ -263,7 +262,7 @@ class LongRunningTransactionalMapWithBitmapValuesTest implements TimeBoundedTest
 	/**
 	 * Picks a random key that is currently present in the reference model, or {@code null} if it is empty.
 	 */
-	@javax.annotation.Nullable
+	@Nullable
 	private static String pickPresentKey(@Nonnull Random random, @Nonnull Map<String, TreeSet<Integer>> reference) {
 		if (reference.isEmpty()) {
 			return null;
@@ -281,7 +280,7 @@ class LongRunningTransactionalMapWithBitmapValuesTest implements TimeBoundedTest
 	/**
 	 * Picks a random key that existed at transaction start and is still present, or {@code null} if none qualifies.
 	 */
-	@javax.annotation.Nullable
+	@Nullable
 	private static String pickRemovableKey(
 		@Nonnull Random random,
 		@Nonnull Map<String, TreeSet<Integer>> reference,

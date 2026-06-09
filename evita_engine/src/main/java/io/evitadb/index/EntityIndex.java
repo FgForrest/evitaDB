@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -36,9 +37,10 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.locale.LocaleFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeIndexContract;
-import io.evitadb.index.attribute.AttributeIndexScopeSpecificContract;
+import io.evitadb.index.attribute.AttributeIndexEditorContract;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -66,6 +68,7 @@ import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -76,6 +79,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import static io.evitadb.core.transaction.Transaction.removeTransactionalMemoryLayerIfExists;
 import static io.evitadb.utils.Assert.isTrue;
@@ -95,6 +99,7 @@ import static java.util.Optional.ofNullable;
  */
 public abstract class EntityIndex implements
 	Index<EntityIndexKey>,
+	AttributeIndexEditorContract,
 	PriceIndexContract,
 	Versioned,
 	IndexDataStructure
@@ -106,7 +111,7 @@ public abstract class EntityIndex implements
 	 * data that are necessary for constructing {@link Formula} tree for the constraints
 	 * related to the attributes.
 	 */
-	@Delegate(types = AttributeIndexContract.class, excludes = AttributeIndexScopeSpecificContract.class)
+	@Delegate(types = AttributeIndexContract.class)
 	protected final AttributeIndex attributeIndex;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
@@ -465,6 +470,310 @@ public abstract class EntityIndex implements
 		@Nullable Locale locale
 	) {
 		return this.attributeIndex.getUniqueIndex(referenceSchema, attributeSchema, this.indexKey.scope(), locale);
+	}
+
+	// Granular per-structure attribute write primitives. These are intentionally NOT part of the public
+	// AttributeIndexEditorContract — the mutation layer drives the index through the coarse upsert / remove /
+	// applyDelta operations below. They are exposed as concrete, overridable methods purely so those coarse operations
+	// can dispatch through `this`, letting the referenced-type / group subclasses override them to gate writes on a
+	// cardinality boundary or to no-op the structures they do not maintain. Each one forwards to the attribute sub-index.
+
+	/**
+	 * Registers `value` for `recordId` in the unique structure of `attributeSchema`. Overridable primitive — see the
+	 * note above. Returns where this value's uniqueness is enforced (an index that does not maintain unique attributes
+	 * overrides this to return {@link AttributeIndex.UniquenessEnforcement#NONE}).
+	 *
+	 * @return where this value's uniqueness is enforced
+	 * @throws io.evitadb.api.exception.UniqueValueViolationException when value is not unique
+	 */
+	public AttributeIndex.UniquenessEnforcement insertUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		return this.attributeIndex.insertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+	}
+
+	/**
+	 * Drops `value` for `recordId` from the unique structure of `attributeSchema`. Overridable primitive — see the
+	 * note above.
+	 */
+	public void removeUniqueAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		this.attributeIndex.removeUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+	}
+
+	/**
+	 * Adds `value` for `recordId` to the filter structure of `attributeSchema`. Overridable primitive — see the note
+	 * above. When `foldedUnique` is set the write enforces folded per-value uniqueness and registers the folded view.
+	 */
+	public void insertFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId,
+		boolean foldedUnique
+	) {
+		this.attributeIndex.insertFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
+	}
+
+	/**
+	 * Removes `value` for `recordId` from the filter structure of `attributeSchema`. Overridable primitive — see the
+	 * note above.
+	 */
+	public void removeFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		this.attributeIndex.removeFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	/**
+	 * Adds the array delta `value` for `recordId` to the filter structure (array attributes only). Overridable
+	 * primitive — see the note above. When `foldedUnique` is set every new element is verified and the view registered.
+	 */
+	public void addDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId,
+		boolean foldedUnique
+	) {
+		this.attributeIndex.addDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
+	}
+
+	/**
+	 * Removes the array delta `value` for `recordId` from the filter structure (array attributes only). Overridable
+	 * primitive — see the note above.
+	 */
+	public void removeDeltaFilterAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		this.attributeIndex.removeDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	/**
+	 * Adds `value` for `recordId` to the sort structure of `attributeSchema`. Overridable primitive — see the note
+	 * above.
+	 */
+	public void insertSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		this.attributeIndex.insertSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	/**
+	 * Removes `value` for `recordId` from the sort structure of `attributeSchema`. Overridable primitive — see the
+	 * note above.
+	 */
+	public void removeSortAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		this.attributeIndex.removeSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+	}
+
+	/**
+	 * Adds the compound `value` for `recordId` to the sort structure described by `compoundSchema`. Overridable
+	 * primitive — see the note above.
+	 */
+	public void insertSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		this.attributeIndex.insertSortAttributeCompound(entitySchema, referenceSchema, compoundSchema, attributeTypeProvider, locale, value, recordId);
+	}
+
+	/**
+	 * Removes the compound `value` for `recordId` from the sort structure described by `compoundSchema`. Overridable
+	 * primitive — see the note above.
+	 */
+	public void removeSortAttributeCompound(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nullable Locale locale,
+		@Nonnull Serializable[] value,
+		int recordId
+	) {
+		this.attributeIndex.removeSortAttributeCompound(entitySchema, referenceSchema, compoundSchema, locale, value, recordId);
+	}
+
+	/**
+	 * Inserts the attribute `value` for `recordId` into every index structure the `attributeSchema` enables in
+	 * `scope` — the unique, filter and sort sub-indexes — in one schema-driven operation. This is the insert half
+	 * of an attribute upsert: callers pair it with {@link #removeAttribute} for the previous value (the two halves
+	 * may target different index instances during a reference group reassignment).
+	 *
+	 * The per-structure primitives ({@link #insertUniqueAttribute}, {@link #insertFilterAttribute},
+	 * {@link #insertSortAttribute}) are invoked on `this`, so subclass overrides (cardinality gating in the
+	 * referenced-type / group indexes, no-op suppression of sort and unique there) compose automatically without
+	 * the caller needing to know which structures a particular index maintains.
+	 *
+	 * A unique attribute that is not separately filterable still shadows its value into the filter index, because
+	 * the shared value tree that backs unique reads is the filter structure.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the attribute being inserted
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param scope           the scope of the target index, deciding which structures are maintained
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param value           the attribute value to insert (a `Serializable[]` for array attributes)
+	 * @param recordId        the primary key the value is attributed to
+	 */
+	@Override
+	public void upsertAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		final boolean unique = attributeSchema.isUniqueInScope(scope);
+		final boolean filterable = attributeSchema.isFilterableInScope(scope);
+		final boolean sortable = attributeSchema.isSortableInScope(scope);
+		// SORT before FILTER: a view-mode sort index reads the shared value tree in its pre-insert state to compute
+		// the new record's position, so the FILTER write (which mutates that tree) must run afterwards
+		if (sortable) {
+			insertSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		}
+		// account for the value's uniqueness (standalone owner store, or — for a folded unique — nothing here) and learn
+		// WHERE it is enforced: the primitive reports this explicitly (a sub-index that suppresses unique maintenance
+		// returns NONE), so the decision flows by data, not by shared-map state
+		AttributeIndex.UniquenessEnforcement uniqueEnforcement = AttributeIndex.UniquenessEnforcement.NONE;
+		if (unique) {
+			uniqueEnforcement = insertUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+		}
+		if (unique || filterable) {
+			// a unique attribute that is not separately filterable still shadows its value into the filter index, because
+			// the shared value tree that backs unique reads IS the filter structure. The filter write owns folded-unique
+			// enforcement + view registration iff the uniqueness is enforced BY_FILTER_WRITE (the folded representation)
+			insertFilterAttribute(
+				referenceSchema, attributeSchema, allowedLocales, locale, value, recordId,
+				uniqueEnforcement == AttributeIndex.UniquenessEnforcement.BY_FILTER_WRITE
+			);
+		}
+	}
+
+	/**
+	 * Removes the attribute `value` for `recordId` from every index structure the `attributeSchema` enables in
+	 * `scope` — the unique, filter and sort sub-indexes — in one schema-driven operation. This is both the remove
+	 * half of an attribute upsert and the operation used for outright attribute removal.
+	 *
+	 * Like {@link #upsertAttribute}, the per-structure primitives are invoked on `this` so subclass overrides
+	 * compose automatically. The catalog-level global-unique index is intentionally NOT touched here — it is a
+	 * separate index object maintained directly by the mutation executor.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the attribute being removed
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param scope           the scope of the target index, deciding which structures are maintained
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param value           the attribute value to remove (a `Serializable[]` for array attributes)
+	 * @param recordId        the primary key the value was attributed to
+	 */
+	@Override
+	public void removeAttribute(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int recordId
+	) {
+		final boolean unique = attributeSchema.isUniqueInScope(scope);
+		final boolean filterable = attributeSchema.isFilterableInScope(scope);
+		final boolean sortable = attributeSchema.isSortableInScope(scope);
+		// SORT before FILTER: a view-mode sort index reads the shared value tree in its pre-removal state (the
+		// record is still present), so the FILTER removal (which drops it from that tree) must run afterwards
+		if (sortable) {
+			removeSortAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		}
+		if (unique) {
+			removeUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
+		}
+		if (unique || filterable) {
+			// mirror of the upsert shadow: drop the value (real or shadowed) from the filter index last
+			removeFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		}
+	}
+
+	/**
+	 * Transitions the attribute for `recordId` from `oldValue` to `newValue` across every index structure the
+	 * `attributeSchema` enables in `scope`. Unlike an upsert, a delta mutation never reassigns the record between
+	 * index instances, so the old-value removal and new-value insertion always target the same index and primary
+	 * key and can be applied as one operation.
+	 *
+	 * The per-structure primitives are invoked on `this` so subclass overrides compose automatically. As in
+	 * {@link #upsertAttribute}, a unique attribute that is not separately filterable shadows the transition into
+	 * the filter index.
+	 *
+	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
+	 * @param attributeSchema the schema of the attribute being modified
+	 * @param allowedLocales  the set of locales permitted by the entity schema
+	 * @param scope           the scope of the target index, deciding which structures are maintained
+	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
+	 * @param oldValue        the current attribute value to remove
+	 * @param newValue        the new attribute value to insert
+	 * @param recordId        the primary key the value is attributed to
+	 */
+	@Override
+	public void applyAttributeDelta(
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nonnull Scope scope,
+		@Nullable Locale locale,
+		@Nonnull Serializable oldValue,
+		@Nonnull Serializable newValue,
+		int recordId
+	) {
+		// a delta is a same-index, same-pk transition: remove the old value from every structure (sort-before-filter)
+		// then insert the new value the same way. Composing the two coarse halves keeps the ordering invariant and
+		// the shadow/uniqueness handling in one place.
+		removeAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, oldValue, recordId);
+		upsertAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, newValue, recordId);
 	}
 
 	/**

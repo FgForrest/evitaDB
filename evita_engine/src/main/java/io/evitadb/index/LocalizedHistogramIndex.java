@@ -27,6 +27,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.result.CardinalityChange;
@@ -79,7 +80,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	/**
 	 * Per-locale filter index storing bucketed histogram values mapped to owner entity primary keys.
 	 */
-	@Nonnull private final TransactionalMap<Locale, FilterIndex> filterIndexes;
+	@Nonnull private final TransactionalMap<Locale, OwnerFilterIndex> filterIndexes;
 
 	/**
 	 * Per-locale cardinality index tracking how many references contribute a given histogram value
@@ -101,7 +102,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	) {
 		super(histogramName, referenceName, valueType);
 		this.filterIndexes = new TransactionalMap<>(
-			CollectionUtils.createHashMap(4), FilterIndex.class, Function.identity()
+			CollectionUtils.createHashMap(4), OwnerFilterIndex.class, Function.identity()
 		);
 		this.cardinalities = new TransactionalMap<>(
 			CollectionUtils.createHashMap(4), AttributeCardinalityIndex.class, Function.identity()
@@ -121,12 +122,12 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
 		@Nonnull Class<? extends Serializable> valueType,
-		@Nonnull Map<Locale, FilterIndex> filterIndexes,
+		@Nonnull Map<Locale, OwnerFilterIndex> filterIndexes,
 		@Nonnull Map<Locale, AttributeCardinalityIndex> cardinalities
 	) {
 		super(histogramName, referenceName, valueType);
 		this.filterIndexes = new TransactionalMap<>(
-			filterIndexes, FilterIndex.class, Function.identity()
+			filterIndexes, OwnerFilterIndex.class, Function.identity()
 		);
 		this.cardinalities = new TransactionalMap<>(
 			cardinalities, AttributeCardinalityIndex.class, Function.identity()
@@ -147,9 +148,9 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 			k -> new AttributeCardinalityIndex(theValueType)
 		);
 		if (cardinalityIdx.addRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
-			final FilterIndex filterIdx = this.filterIndexes.computeIfAbsent(
+			final OwnerFilterIndex filterIdx = this.filterIndexes.computeIfAbsent(
 				theLocale,
-				k -> new FilterIndex(
+				k -> new OwnerFilterIndex(
 					new AttributeIndexKey(getReferenceName(), getHistogramName(), theLocale),
 					theValueType
 				)
@@ -174,7 +175,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 			);
 		}
 		if (cardinalityIdx.removeRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
-			final FilterIndex filterIdx = this.filterIndexes.get(theLocale);
+			final OwnerFilterIndex filterIdx = this.filterIndexes.get(theLocale);
 			if (filterIdx != null) {
 				filterIdx.removeRecord(ownerPK, value);
 				if (filterIdx.isEmpty()) {
@@ -217,7 +218,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	 * Removes the {@link FilterIndex} entry for the given locale and cleans up its transactional layer.
 	 */
 	private void removeFilterIndex(@Nonnull Locale locale) {
-		final FilterIndex removedFilter = this.filterIndexes.remove(locale);
+		final OwnerFilterIndex removedFilter = this.filterIndexes.remove(locale);
 		if (removedFilter == null) {
 			throw new GenericEvitaInternalError(
 				"FilterIndex for locale " + locale + " doesn't exists!"
@@ -269,7 +270,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 			this.deferredLocaleRemovals.remove();
 			if (!deferred.isEmpty()) {
 				for (Locale locale : deferred) {
-					final FilterIndex filterIdx = this.filterIndexes.get(locale);
+					final OwnerFilterIndex filterIdx = this.filterIndexes.get(locale);
 					if (filterIdx != null && filterIdx.isEmpty()) {
 						removeFilterIndex(locale);
 					}
@@ -299,9 +300,9 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 		@Nonnull TrappedChanges trappedChanges
 	) {
 		final String histogramName = getHistogramName();
-		for (Entry<Locale, FilterIndex> filterEntry : this.filterIndexes.entrySet()) {
+		for (Entry<Locale, OwnerFilterIndex> filterEntry : this.filterIndexes.entrySet()) {
 			final Locale locale = filterEntry.getKey();
-			final FilterIndex filterIndex = filterEntry.getValue();
+			final OwnerFilterIndex filterIndex = filterEntry.getValue();
 			final AttributeCardinalityIndex cardinalityIndex = this.cardinalities.get(locale);
 			if (filterIndex.isDirty() || (cardinalityIndex != null && cardinalityIndex.isDirty())) {
 				trappedChanges.addChangeToStore(

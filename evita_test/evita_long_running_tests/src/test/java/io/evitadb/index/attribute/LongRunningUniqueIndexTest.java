@@ -73,11 +73,11 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 			new TestState(
 				new StringBuilder(256),
 				1,
-				new UniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class)
+				new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
-				codeBuffer.append("final UniqueIndex uniqueIndex = new UniqueIndex(\"code\", String.class);\n")
+				codeBuffer.append("final UniqueIndex uniqueIndex = new OwnerUniqueIndex(\"code\", String.class);\n")
 					.append(mapToCompare.entrySet().stream().map(it -> "uniqueIndex.registerUniqueKey(\"" + it.getKey() + "\"," + it.getValue() + ");").collect(Collectors.joining("\n")));
 				codeBuffer.append("\nOps:\n");
 				final UniqueIndex transactionalUniqueIndex = testState.initialState();
@@ -131,7 +131,7 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 						);
 
 						committedResult.set(
-							new UniqueIndex(
+							new OwnerUniqueIndex(
 								committed.getEntityType(),
 								committed.getAttributeIndexKey(),
 								committed.getType(),

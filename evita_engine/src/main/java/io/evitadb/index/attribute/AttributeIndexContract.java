@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,174 +23,36 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.dataType.Scope;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
- * AttributeIndexContract describes the API of {@link AttributeIndex} that maintains data structures for fast accessing
- * filtered, unique and sorted entity attribute data. Interface describes both read and write access to the index.
+ * AttributeIndexContract is the read surface of the attribute index — it prescribes the retrievers that expose the
+ * filtered, unique, sorted and chainable attribute data structures maintained for the entities. The mutable surface
+ * that creates and updates this data lives on {@link AttributeIndexEditorContract}, which extends this contract (the
+ * same read-only / editor split used by {@link io.evitadb.api.requestResponse.data.AttributesContract} and
+ * {@link io.evitadb.api.requestResponse.data.AttributesEditor}).
  *
  * Purpose of this contract interface is to ease using {@link @lombok.experimental.Delegate} annotation
  * in {@link io.evitadb.index.EntityIndex} and minimize the amount of the code in this complex class by automatically
- * delegating all {@link AttributeIndexContract} methods to the {@link AttributeIndex} implementation that is part
- * of this index.
+ * delegating all {@link AttributeIndexContract} retrievers to the {@link AttributeIndex} implementation that is part
+ * of this index. The scope-aware unique lookup is intentionally kept OUT of this surface — in the separate
+ * {@link AttributeIndexScopeSpecificContract}, which only {@link AttributeIndex} implements — so that it is never
+ * auto-forwarded to {@link io.evitadb.index.EntityIndex}; the entity index exposes only a scope-locked variant that
+ * resolves the scope from its own index key.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface AttributeIndexContract extends AttributeIndexScopeSpecificContract {
-
-	/**
-	 * Method inserts new unique attribute to the index.
-	 *
-	 * @throws UniqueValueViolationException when value is not unique
-	 */
-	void insertUniqueAttribute(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
-		@Nonnull Scope scope,
-		@Nullable Locale locale,
-		@Nonnull Serializable value,
-		int recordId
-	);
-
-	/**
-	 * Method removes existing unique attribute from the index.
-	 *
-	 * @throws IllegalArgumentException when passed value doesn't match the unique value associated with the record key
-	 */
-	void removeUniqueAttribute(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
-		@Nonnull Scope scope,
-		@Nullable Locale locale,
-		@Nonnull Serializable value,
-		int recordId
-	);
-
-	/**
-	 * Method inserts new filterable attribute to the index.
-	 */
-	void insertFilterAttribute(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
-		@Nullable Locale locale,
-		@Nonnull Serializable value,
-		int recordId
-	);
-
-	/**
-	 * Method removes existing filterable attribute from the index.
-	 *
-	 * @throws IllegalArgumentException when passed value doesn't match the filterable value associated with the record key
-	 */
-	void removeFilterAttribute(
-		@Nullable ReferenceSchemaContract referenceSchemaContract,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
-		@Nullable Locale locale,
-		@Nonnull Serializable value,
-		int recordId
-	);
-
-	/**
-	 * Method inserts or updates existing filterable attribute in the index. The method is used only for array type
-	 * attributes and allows to extend existing array with new values without the need to remove the whole array and
-	 * insert it again.
-	 */
-	void addDeltaFilterAttribute(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
-		@Nullable Locale locale,
-		@Nonnull Serializable[] value,
-		int recordId
-	);
-
-	/**
-	 * Method updates existing filterable attribute and removes the values from the index. The method is used only for
-	 * array type attributes and allows to extend existing array with new values without the need to remove the whole
-	 * array and insert it again.
-	 */
-	void removeDeltaFilterAttribute(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
-		@Nullable Locale locale,
-		@Nonnull Serializable[] value,
-		int recordId
-	);
-
-	/**
-	 * Method inserts new sortable attribute to the index.
-	 */
-	void insertSortAttribute(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
-		@Nullable Locale locale,
-		@Nonnull Serializable value,
-		int recordId
-	);
-
-	/**
-	 * Method removes existing sortable attribute from the index.
-	 *
-	 * @throws IllegalArgumentException when passed value doesn't match the filterable value associated with the record key
-	 */
-	void removeSortAttribute(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull Set<Locale> allowedLocales,
-		@Nullable Locale locale,
-		@Nonnull Serializable value,
-		int recordId
-	);
-
-	/**
-	 * Method inserts new sortable attribute compound to the index. Compound is an array of existing attribute values
-	 * that are sorted according to {@link SortableAttributeCompoundSchemaContract#getAttributeElements()} descriptor.
-	 */
-	void insertSortAttributeCompound(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
-		@Nonnull Function<String, Class<?>> attributeTypeProvider,
-		@Nullable Locale locale,
-		@Nonnull Serializable[] value,
-		int recordId
-	);
-
-	/**
-	 * Method removes existing sortable attribute compound from the index. Compound is an array of existing attribute
-	 * values that are sorted according to {@link SortableAttributeCompoundSchemaContract#getAttributeElements()}
-	 * descriptor.
-	 *
-	 * @throws IllegalArgumentException when passed value doesn't match the value associated with the record key
-	 */
-	void removeSortAttributeCompound(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
-		@Nullable Locale locale,
-		@Nonnull Serializable[] value,
-		int recordId
-	);
+public interface AttributeIndexContract {
 
 	/**
 	 * Returns collection of all unique indexes in this {@link AttributeIndex} instance.

@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
-import java.util.Random;
 import java.util.Set;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
@@ -57,8 +56,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * plain-value-only STM map. Covers construction, non-transactional operations, transactional commit and
  * rollback semantics, iterator contracts, the {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}
  * contract, and the constraints specific to the persistent backing: null fail-fast, the inherited
- * `compute`-family routed through `get`/`put`/`remove` (never {@link ChampMap}'s throwing mutators), that the
- * committed snapshot is a {@link ChampMap}, and a fuzz oracle comparing committed state against a {@link HashMap}.
+ * `compute`-family routed through `get`/`put`/`remove` (never {@link ChampMap}'s throwing mutators), and that the
+ * committed snapshot is a {@link ChampMap}. The generational randomized (fuzz) proof lives in
+ * `LongRunningPersistentTransactionalMapTest` in the long-running test module.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -629,60 +629,6 @@ class PersistentTransactionalMapTest {
 				},
 				(original, committedVersion) -> assertMapContains(committedVersion, new Tuple("x", 42))
 			);
-		}
-
-	}
-
-	/**
-	 * Randomised oracle test: a long pseudo-random sequence of put/remove operations committed in batches must
-	 * leave the committed {@link ChampMap} snapshot equal to a {@link HashMap} oracle after every commit.
-	 */
-	@Nested
-	@DisplayName("Fuzz oracle")
-	class FuzzOracleTest {
-
-		@Test
-		@DisplayName("committed snapshot equals a HashMap oracle after every commit batch")
-		void shouldMatchOracleAcrossManyCommits() {
-			final Random random = new Random(42L);
-			final Map<String, Integer> oracle = new HashMap<>();
-			final int[] holder = {0};
-			PersistentTransactionalMap<String, Integer> map = new PersistentTransactionalMap<>(new HashMap<>());
-
-			for (int batch = 0; batch < 40; batch++) {
-				final PersistentTransactionalMap<String, Integer> current = map;
-				final int operations = 1 + random.nextInt(20);
-				final Map<String, Integer> committed = new HashMap<>();
-				assertStateAfterCommit(
-					current,
-					original -> {
-						for (int op = 0; op < operations; op++) {
-							final String key = "k" + random.nextInt(30);
-							if (random.nextInt(3) == 0) {
-								original.remove(key);
-								oracle.remove(key);
-							} else {
-								final int value = random.nextInt(1000) + 1;
-								original.put(key, value);
-								oracle.put(key, value);
-							}
-						}
-					},
-					(original, committedVersion) -> {
-						assertInstanceOf(ChampMap.class, committedVersion);
-						assertEquals(oracle, committedVersion);
-						assertEquals(oracle.size(), committedVersion.size());
-						committed.putAll(committedVersion);
-						holder[0]++;
-					}
-				);
-				// adopt the committed snapshot as the base for the next batch (mirrors how the enclosing
-				// producer rewraps the merged map after each commit)
-				map = new PersistentTransactionalMap<>(committed);
-			}
-
-			assertEquals(40, holder[0]);
-			assertEquals(oracle, map);
 		}
 
 	}

@@ -3351,6 +3351,13 @@ public class DefaultCatalogPersistenceService
 							);
 						}
 					);
+				} else if (catalogStorageProtocolVersion == 5) {
+					Migration_2026_2.upgradeFromStorageProtocolVersion_5_to_6(
+						catalogHeader,
+						currentService,
+						this::createEntityCollectionPersistenceService,
+						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 6)
+					);
 				}
 				// try to initialize the persistence service again - it should now have the correct storage protocol version
 				storagePartPersistenceService = storagePartPersistenceFactory.get();

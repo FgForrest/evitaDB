@@ -37,6 +37,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
+import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -93,7 +94,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * therefore an identity cast is sufficient here — unlike value types that merge to a different class.
 	 */
 	private static final Function<Object, TransactionalRangePoint> RANGE_POINT_WRAPPER =
-		o -> (TransactionalRangePoint) o;
+		TransactionalRangePoint.class::cast;
 
 	/**
 	 * Leaf block size of the threshold → range-point tree. Unlike the comparator-keyed inverted index, this tree is
@@ -124,17 +125,22 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	final TransactionalLongBPlusTree<TransactionalRangePoint> ranges;
 
 	/**
+	 * Tracks whether this index was mutated within the current transaction. It mirrors
+	 * {@link io.evitadb.index.invertedIndex.InvertedIndex}'s dirty flag and serves a single purpose:
+	 * {@link #createCopyWithMergedTransactionalMemory} returns `this` (preserving instance identity, and sparing the
+	 * full B+ tree rebuild) when the flag is clean, and only rebuilds when it is dirty. Identity preservation lets the
+	 * enclosing transactional map structurally share an untouched range structure across commits.
+	 */
+	private final TransactionalBoolean dirty;
+
+	/**
 	 * Memoized result for the "valid at now" query produced by {@link #getRecordsValidNowFormula(long)}.
-	 * Read only outside transactions; nulled on non-transactional mutation. Across commits, a fresh
-	 * {@link RangeIndex} is produced by {@link #createCopyWithMergedTransactionalMemory} so this field
-	 * starts {@code null} automatically.
+	 * Read only outside transactions; nulled on non-transactional mutation. A mutated {@link RangeIndex} produces a
+	 * fresh instance at commit (so this field starts {@code null} automatically); an untouched one keeps its identity
+	 * and its cache, which stays valid because the underlying data is unchanged.
 	 */
 	@Nullable transient volatile EnvelopingNowCache envelopingNowCache;
 
-	/**
-	 * Method collects all starts and ends from the range points between `fromIndex` and `toIndex` (inclusive) of the
-	 * passed materialized snapshot and returns them collected in a simple DTO.
-	 */
 	/**
 	 * Collects all starts and ends of every range point currently held in the passed index (transactional view) into a
 	 * simple DTO. Intended for tests that need to assert the full internal state of the index.
@@ -151,6 +157,10 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		return result;
 	}
 
+	/**
+	 * Collects all starts and ends from the range points between `fromIndex` and `toIndex` (inclusive) of the passed
+	 * materialized snapshot array and returns them collected in a simple DTO.
+	 */
 	@Nonnull
 	static StartsEndsDTO collectsStartsAndEnds(int fromIndex, int toIndex, @Nonnull TransactionalRangePoint[] ranges) {
 		final StartsEndsDTO result = new StartsEndsDTO();
@@ -220,14 +230,19 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			tree.insert(point.getThreshold(), point);
 		}
 		this.ranges = tree;
+		// rebuilt from a persisted snapshot - a freshly loaded index is clean
+		this.dirty = new TransactionalBoolean(false);
 	}
 
 	public RangeIndex() {
 		this.ranges = createEmptyTree();
+		this.dirty = new TransactionalBoolean(false);
 	}
 
 	public RangeIndex(long from, long to, @Nonnull int[] recordIds) {
 		this.ranges = createEmptyTree();
+		// dirty must be initialized before addRecord (which raises it)
+		this.dirty = new TransactionalBoolean(false);
 		for (int recordId : recordIds) {
 			addRecord(from, to, recordId);
 		}
@@ -240,6 +255,8 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	private RangeIndex(@Nonnull TransactionalLongBPlusTree<TransactionalRangePoint> committedTree) {
 		this.ranges = committedTree;
+		// a committed copy starts clean - its diff layer has just been folded into committedTree
+		this.dirty = new TransactionalBoolean(false);
 	}
 
 	/**
@@ -287,6 +304,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * {@link TransactionalRangePoint} instance (never swaps it) so the value's transactional diff layer is preserved.
 	 */
 	public void addRecord(long from, long to, int recordId) {
+		this.dirty.setToTrue();
 		this.ranges.upsert(
 			from,
 			point -> {
@@ -318,6 +336,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * its transactional layer.
 	 */
 	public void removeRecord(long start, long end, int recordId) {
+		this.dirty.setToTrue();
 		removeFromPoint(start, recordId, true);
 		removeFromPoint(end, recordId, false);
 		if (!Transaction.isTransactionAvailable()) {
@@ -614,18 +633,23 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		return getAllRecords().size();
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
-
 	@Nonnull
 	@Override
 	public RangeIndex createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		return new RangeIndex(transactionalLayer.getStateCopyWithCommittedChanges(this.ranges));
+		// consume the dirty layer first (mirrors InvertedIndex): when this index was not touched in the transaction,
+		// return THIS instance unchanged - preserving identity so the enclosing map can structurally share it, and
+		// sparing the full B+ tree rebuild that getStateCopyWithCommittedChanges(this.ranges) would otherwise perform.
+		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		if (isDirty) {
+			return new RangeIndex(transactionalLayer.getStateCopyWithCommittedChanges(this.ranges));
+		} else {
+			return this;
+		}
 	}
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		this.dirty.removeLayer(transactionalLayer);
 		this.ranges.removeLayer(transactionalLayer);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 	}

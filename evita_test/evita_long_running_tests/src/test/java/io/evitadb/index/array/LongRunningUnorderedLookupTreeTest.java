@@ -25,6 +25,8 @@ package io.evitadb.index.array;
 
 import com.carrotsearch.hppc.IntLongHashMap;
 import com.carrotsearch.hppc.IntLongMap;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -130,6 +132,9 @@ class LongRunningUnorderedLookupTreeTest implements TimeBoundedTestSupport {
 						final int index = random.nextInt(size);
 						tested.remove(currentOracle.remove(index));
 					}
+					// the structural report (balance, augmentation, separators, sizing) must hold after EVERY op,
+					// not just at generation boundaries
+					assertConsistent(tested.tree);
 				}
 
 				// after each generation the whole permutation and every per-record position must match the oracle
@@ -166,7 +171,9 @@ class LongRunningUnorderedLookupTreeTest implements TimeBoundedTestSupport {
 				assertStateAfterCommit(
 					driver.tree,
 					tested -> {
-						final int operationsInTransaction = random.nextInt(100);
+						// a wide per-commit op count drives deep path-copy within a single transaction (subsuming
+						// the former fixed-seed single-transaction churn smoke that lived in the functional module)
+						final int operationsInTransaction = random.nextInt(1_000);
 						for (int i = 0; i < operationsInTransaction; i++) {
 							final int size = generationOracle.size();
 							final boolean insert = size == 0 || random.nextInt(100) < 60;
@@ -179,6 +186,8 @@ class LongRunningUnorderedLookupTreeTest implements TimeBoundedTestSupport {
 								final int index = random.nextInt(size);
 								driver.remove(generationOracle.remove(index));
 							}
+							// the in-transaction (path-copied) view must stay structurally consistent after EVERY op
+							assertConsistent(driver.tree);
 						}
 					},
 					(original, committed) -> {
@@ -196,6 +205,9 @@ class LongRunningUnorderedLookupTreeTest implements TimeBoundedTestSupport {
 								"getRecordAt mismatch at " + position
 							);
 						}
+						// both the still-committed and the merged view must be structurally consistent
+						assertConsistent(original);
+						assertConsistent(committed);
 					}
 				);
 
@@ -217,6 +229,21 @@ class LongRunningUnorderedLookupTreeTest implements TimeBoundedTestSupport {
 			assertEquals(recordId, tested.tree.getRecordAt(position), "getRecordAt mismatch at " + position);
 			assertEquals(position, tested.findPosition(recordId), "findPosition mismatch for " + recordId);
 		}
+		assertConsistent(tested.tree);
+	}
+
+	/**
+	 * Asserts the structural consistency report of the passed tree is CONSISTENT, surfacing the report message on
+	 * failure so a production steal/merge or augmentation bug is pinpointed exactly. The report independently enforces
+	 * balance (equal leaf depth), subtree-count augmentation, exact order-key separators and tracked-size accuracy that
+	 * the flattened-array oracle would not surface on its own.
+	 */
+	private static void assertConsistent(@Nonnull UnorderedLookupTree tree) {
+		final ConsistencyReport report = tree.getConsistencyReport();
+		assertEquals(
+			ConsistencyState.CONSISTENT, report.state(),
+			"Tree reported structural inconsistency:\n" + report.report()
+		);
 	}
 
 	/**

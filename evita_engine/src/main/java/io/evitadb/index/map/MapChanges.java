@@ -37,6 +37,7 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -77,6 +78,20 @@ public class MapChanges<K, V> implements Serializable {
 	 */
 	private int createdKeyCount;
 	/**
+	 * Identity set of {@link TransactionalLayerProducer} values that were both CREATED and REMOVED within this same
+	 * transaction. Such a key ends up in neither {@link #mapDelegate} nor {@link #modifiedKeys} (and
+	 * {@link #createdKeyCount} is decremented back), so the commit-time sweep in
+	 * {@link #createMergedMap(TransactionalLayerMaintainer)} (and {@link ProducerMapChanges#createMergedChampMap}) would
+	 * never visit it — leaving its nested diff layer orphaned and failing the commit with
+	 * `StaleTransactionMemoryException`. These instances are stashed here on removal and released at commit by
+	 * {@link #releaseOrphanedCreatedThenRemovedLayers(TransactionalLayerMaintainer)} (survivor-guarded), which keeps the
+	 * value's layer ALIVE for the rest of the transaction so read-after-remove callers still see their in-transaction
+	 * state. Identity-based (`==`) on purpose: a producer owns its layer per-instance, so two content-equal instances
+	 * (e.g. two empty bitmaps) are independent layer owners. Lazily allocated — null until the first such removal, so
+	 * the common (no created-then-removed) path stays allocation-free.
+	 */
+	@Nullable private Set<Object> createdThenRemovedProducers;
+	/**
 	 * Function used to wrap result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
 	 * to a {@link TransactionalLayerProducer} instance.
 	 */
@@ -104,6 +119,15 @@ public class MapChanges<K, V> implements Serializable {
 		this.mapDelegate = mapDelegate;
 		//noinspection unchecked
 		this.transactionalLayerWrapper = (Function<Object, V>) transactionalLayerWrapper;
+	}
+
+	/**
+	 * Exposes the value wrapper to producer-valued subclasses (see {@link ProducerMapChanges}) so they can commit nested
+	 * {@link TransactionalLayerProducer} values. Null for the plain (non-producer) diff layer.
+	 */
+	@Nullable
+	protected Function<Object, V> getTransactionalLayerWrapper() {
+		return this.transactionalLayerWrapper;
 	}
 
 	/**
@@ -153,35 +177,23 @@ public class MapChanges<K, V> implements Serializable {
 			return null;
 		}
 		if (containsCreatedOrModified((K) key)) {
-			// TODO JNO - reverted the eager transactional-layer release from commit 8c952d194 ("fix: release
-			// orphaned transactional layers of removed producer values").
-			//
-			// WHAT 8c952d194 DID HERE: for a key that was created (and possibly mutated) earlier in the SAME
-			// transaction and is now removed before commit, it eagerly called removeLayer() on the dropped
-			// producer value (identity-guarded), reasoning that createMergedMap never visits such a key (it is in
-			// neither the delegate nor modifiedKeys after removal), so its diff layer would otherwise orphan and
-			// fail the commit with StaleTransactionMemoryException.
-			//
-			// WHY IT WAS REVERTED: remove() RETURNS the value, and some callers legitimately read it AFTER removing
-			// it from the map - e.g. ChainIndex.findFirstSuccessorChainAndMergeToElementChain and
-			// removeHeadElement do `chain = chains.remove(headPk); chain.getArray()/removeRange(...)`. The eager
-			// release stripped the value's transactional layer while the caller still needed it, so the chain read
-			// back empty and ChainIndex.reclassifyChain hit an NPE on a primary key missing from elementStates
-			// (ChainIndexTest.shouldExecuteOperationsInTransactionAndStayConsistent / shouldGenerateConsistencyReport).
-			//
-			// KNOWN REGRESSION FROM THIS REVERT: the narrow "freshly created -> modified -> removed -> discarded"
-			// case again orphans a layer and is NOT covered by the commit-time sweep (createMergedMap only walks
-			// mapDelegate + modifiedKeys, neither of which contains a created-then-removed key). The matching
-			// regression test TransactionalMapTest.shouldReleaseLayerWhenFreshlyCreatedValueIsModifiedThenRemoved
-			// (and the LongRunningTransactionalMapWithBitmapValuesTest soak sentinel) is @Disabled with a pointer
-			// back here. Parts of 8c952d194 that fixed SEPARATE bugs (the put-re-insert release guard and the
-			// createMergedMap identity-based release) are intentionally KEPT.
-			//
-			// PROPER FIX (for a future agent): DEFER the release from remove() to commit time - stash
-			// created-then-removed producer instances and release the layer of each one not referenced by a
-			// surviving key inside createMergedMap (reuse isInstanceReferencedBySurvivingKey). That keeps the layer
-			// intact during the transaction (so read-after-remove works) yet releases it at commit (no leak).
-			originalValue = existing ? removeModifiedKey((K) key) : removeCreatedKey((K) key);
+			if (existing) {
+				originalValue = removeModifiedKey((K) key);
+			} else {
+				// the key was CREATED and is now REMOVED within this same transaction: after removal it lives in
+				// neither the delegate nor the modified set, so the commit-time sweep would never visit it and its
+				// nested diff layer would orphan. We do NOT release the layer eagerly here, because remove() returns
+				// the value and callers legitimately read its live in-transaction state afterwards (e.g.
+				// HierarchyIndex.makeOrphansRecursively iterates the removed TransactionalIntArray, then releases the
+				// layer itself). Instead the discarded producer instance is stashed and released at commit time by
+				// releaseOrphanedCreatedThenRemovedLayers - keeping the layer ALIVE for the rest of the transaction
+				// while still guaranteeing it is swept (releaseLayer is idempotent, so a caller's explicit release is
+				// harmless).
+				originalValue = removeCreatedKey((K) key);
+				if (originalValue instanceof TransactionalLayerProducer) {
+					stashCreatedThenRemovedProducer(originalValue);
+				}
+			}
 		} else {
 			originalValue = this.mapDelegate.get(key);
 		}
@@ -214,7 +226,8 @@ public class MapChanges<K, V> implements Serializable {
 			// identity-based: keep the layer if some surviving key still references the very same instance.
 			if (originalValue instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer
 				&& originalValue != value
-				&& !isInstanceReferencedBySurvivingKey(key, originalValue)) {
+				&& isInstanceNotReferencedBySurvivingKey(key, originalValue)
+			) {
 				transactionalLayerProducer.removeLayer();
 			}
 		}
@@ -264,30 +277,75 @@ public class MapChanges<K, V> implements Serializable {
 	 * instances with equal content are independent layer owners. Relying on {@link Object#equals(Object)} here would
 	 * conflate ownership with content and either orphan a layer or release one that is still needed.
 	 *
-	 * @param removedKey the key being removed (excluded from the survivor scan)
+	 * **Why only the in-transaction diff layer ({@link #modifiedKeys}) is scanned — not {@link #mapDelegate}.** A
+	 * producer value is owned by exactly one key; a committed/constructed map never aliases the same instance across
+	 * keys:
+	 *
+	 * 1. Every producer value in {@link #mapDelegate} was minted as a fresh per-key copy — by a prior
+	 *    {@link #createMergedMap}/{@link ProducerMapChanges#createMergedChampMap}
+	 *    (`wrapper.apply(getStateCopyWithCommittedChanges(...))`) or by a from-storage constructor that builds one
+	 *    instance per key — so two delegate keys can never share a reference.
+	 * 2. Two *surviving* aliases would already fail the commit hard: the second
+	 *    {@link TransactionalLayerMaintainer#getStateCopyWithCommittedChanges} on the same instance discards an
+	 *    already-discarded layer (a premise-invalid assertion).
+	 *
+	 * The only place a surviving alias of `instance` can therefore appear is the in-transaction diff layer — a caller
+	 * that stored the same instance under another key this transaction — which lives in {@link #modifiedKeys}. Scanning
+	 * just that set is both correct and `O(modifiedKeys)` rather than `O(mapDelegate)`; the latter would silently
+	 * degrade producer-map removals to `O(removed · N)` and defeat {@link ProducerMapChanges#createMergedChampMap}'s
+	 * intended `O(Δ·log₃₂N)` commit.
+	 *
+	 * @param removedKey the key being removed (excluded from the survivor scan); pass `null` to exclude nothing
+	 *                   (used by the created-then-removed stash sweep, where the instance no longer lives under any
+	 *                   single key)
 	 * @param instance   the producer instance whose continued reference is being tested
-	 * @return `true` if some surviving key references the very same instance
+	 * @return `true` if no surviving key references the very same instance (i.e. its layer is safe to release)
 	 */
-	private boolean isInstanceReferencedBySurvivingKey(@Nonnull K removedKey, @Nullable Object instance) {
-		// any created/modified key holds a value that will be present in the committed map
+	protected boolean isInstanceNotReferencedBySurvivingKey(@Nullable K removedKey, @Nullable Object instance) {
+		// a surviving alias of `instance` can only live in the in-transaction diff layer (see method contract):
+		// committed/constructed maps mint one producer instance per key, so mapDelegate never holds a cross-key alias
 		for (Entry<K, V> modifiedEntry : this.modifiedKeys.entrySet()) {
 			if (modifiedEntry.getValue() == instance && !Objects.equals(modifiedEntry.getKey(), removedKey)) {
-				return true;
+				return false;
 			}
 		}
-		// any delegate key (other than the removed one) that is neither removed nor overridden survives the commit
-		for (Entry<K, V> delegateEntry : this.mapDelegate.entrySet()) {
-			final K delegateKey = delegateEntry.getKey();
-			if (Objects.equals(delegateKey, removedKey)) {
-				continue;
-			}
-			if (delegateEntry.getValue() == instance
-				&& !containsRemoved(delegateKey)
-				&& !containsCreatedOrModified(delegateKey)) {
-				return true;
+		return true;
+	}
+
+	/**
+	 * Stashes a {@link TransactionalLayerProducer} value that was created and then removed within the same transaction,
+	 * so its (possibly ALIVE) nested diff layer can be released at commit by
+	 * {@link #releaseOrphanedCreatedThenRemovedLayers(TransactionalLayerMaintainer)}. See {@link #createdThenRemovedProducers}.
+	 *
+	 * @param producer the discarded producer instance to track for commit-time release
+	 */
+	private void stashCreatedThenRemovedProducer(@Nonnull Object producer) {
+		if (this.createdThenRemovedProducers == null) {
+			this.createdThenRemovedProducers = Collections.newSetFromMap(new IdentityHashMap<>(32));
+		}
+		this.createdThenRemovedProducers.add(producer);
+	}
+
+	/**
+	 * Releases the nested diff layers of producer values that were CREATED and then REMOVED within this transaction (see
+	 * {@link #createdThenRemovedProducers}). A stashed instance is released only when no surviving key still references
+	 * the very same instance (identity-based), so a value re-inserted under another key — or shared with a surviving key
+	 * — keeps its layer and is swept normally. Invoked at the end of both commit paths
+	 * ({@link #createMergedMap(TransactionalLayerMaintainer)} and {@link ProducerMapChanges#createMergedChampMap}). The
+	 * release is idempotent, so it is harmless if a caller already released the layer explicitly.
+	 *
+	 * @param transactionalLayer the maintainer used to drop the orphaned layers
+	 */
+	protected void releaseOrphanedCreatedThenRemovedLayers(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		if (this.createdThenRemovedProducers == null) {
+			return;
+		}
+		for (final Object instance : this.createdThenRemovedProducers) {
+			if (instance instanceof TransactionalLayerProducer<?, ?> transactionalLayerProducer
+				&& isInstanceNotReferencedBySurvivingKey(null, instance)) {
+				transactionalLayerProducer.removeLayer(transactionalLayer);
 			}
 		}
-		return false;
 	}
 
 	/**
@@ -341,7 +399,7 @@ public class MapChanges<K, V> implements Serializable {
 						// (e.g. two empty bitmaps) are independent layer owners. Using content equality here
 						// would either orphan the removed instance's layer (when a content-equal instance
 						// survives) or release a layer that a surviving key still needs.
-						if (!isInstanceReferencedBySurvivingKey(key, value)) {
+						if (isInstanceNotReferencedBySurvivingKey(key, value)) {
 							transactionalLayerProducer.removeLayer(transactionalLayer);
 						}
 					} else {
@@ -372,6 +430,9 @@ public class MapChanges<K, V> implements Serializable {
 			// update the value
 			copy.put(key, value);
 		}
+
+		// release the layers of producers created-then-removed within this transaction (invisible to both loops above)
+		releaseOrphanedCreatedThenRemovedLayers(transactionalLayer);
 
 		return copy;
 	}
@@ -456,6 +517,12 @@ public class MapChanges<K, V> implements Serializable {
 		layer.createdKeyCount = this.createdKeyCount;
 		layer.removedKeys.addAll(this.removedKeys);
 		layer.modifiedKeys.putAll(this.modifiedKeys);
+		if (this.createdThenRemovedProducers != null) {
+			layer.createdThenRemovedProducers = Collections.newSetFromMap(
+				new IdentityHashMap<>(this.createdThenRemovedProducers.size())
+			);
+			layer.createdThenRemovedProducers.addAll(this.createdThenRemovedProducers);
+		}
 	}
 
 	/**
@@ -470,6 +537,15 @@ public class MapChanges<K, V> implements Serializable {
 				transactionalLayerCreator.removeLayer(transactionalLayer);
 			}
 			it.remove();
+		}
+		// drop the layers of any created-then-removed producers stashed for the deferred commit-time release
+		if (this.createdThenRemovedProducers != null) {
+			for (final Object instance : this.createdThenRemovedProducers) {
+				if (instance instanceof TransactionalLayerCreator<?> transactionalLayerCreator) {
+					transactionalLayerCreator.removeLayer(transactionalLayer);
+				}
+			}
+			this.createdThenRemovedProducers = null;
 		}
 		this.removedKeys.addAll(this.mapDelegate.keySet());
 	}

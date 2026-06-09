@@ -37,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import java.io.Serializable;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -59,13 +60,21 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 
 		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
 		kryo.writeClass(output, plainType);
-		kryo.writeObject(output, uniqueIndex.getRecordIds());
 
-		final Map<Serializable, Integer> uniqueValueToRecordId = uniqueIndex.getUniqueValueToRecordId();
-		output.writeVarInt(uniqueValueToRecordId.size(), true);
-		for (Entry<Serializable, Integer> entry : uniqueValueToRecordId.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			output.writeInt(entry.getValue());
+		// a folded (view-mode) unique index derives its value-to-record map and record-id bitmap from the shared
+		// FilterIndexStoragePart, so a slim part carries neither. The marker records whether the record-id bitmap +
+		// value map sections follow; only owner-mode (standalone) parts write them.
+		final boolean dataPresent = uniqueIndex.isDataPresent();
+		output.writeBoolean(dataPresent);
+		if (dataPresent) {
+			kryo.writeObject(output, Objects.requireNonNull(uniqueIndex.getRecordIds()));
+
+			final Map<Serializable, Integer> uniqueValueToRecordId = Objects.requireNonNull(uniqueIndex.getUniqueValueToRecordId());
+			output.writeVarInt(uniqueValueToRecordId.size(), true);
+			for (Entry<Serializable, Integer> entry : uniqueValueToRecordId.entrySet()) {
+				kryo.writeObject(output, entry.getKey());
+				output.writeInt(entry.getValue());
+			}
 		}
 	}
 
@@ -75,19 +84,29 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
-		final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
 
-		final int uniqueValueCount = input.readVarInt(true);
-		final Map<Serializable, Integer> uniqueIndex = createHashMap(uniqueValueCount);
-		for (int i = 0; i < uniqueValueCount; i++) {
-			final Serializable key = kryo.readObject(input, attributeType);
-			final int value = input.readInt();
-			uniqueIndex.put(key, value);
+		// the record-id bitmap + value map sections are present only for owner-mode parts; a slim (view-mode) part
+		// wrote a `false` marker and omitted them — they are re-derived from the shared FilterIndexStoragePart on load.
+		final boolean dataPresent = input.readBoolean();
+		if (dataPresent) {
+			final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
+
+			final int uniqueValueCount = input.readVarInt(true);
+			final Map<Serializable, Integer> uniqueIndex = createHashMap(uniqueValueCount);
+			for (int i = 0; i < uniqueValueCount; i++) {
+				final Serializable key = kryo.readObject(input, attributeType);
+				final int value = input.readInt();
+				uniqueIndex.put(key, value);
+			}
+
+			return new UniqueIndexStoragePart(
+				entityIndexPrimaryKey, attributeIndexKey, attributeType, uniqueIndex, recordIds, uniquePartId
+			);
+		} else {
+			return new UniqueIndexStoragePart(
+				entityIndexPrimaryKey, attributeIndexKey, attributeType, uniquePartId
+			);
 		}
-
-		return new UniqueIndexStoragePart(
-			entityIndexPrimaryKey, attributeIndexKey, attributeType, uniqueIndex, recordIds, uniquePartId
-		);
 	}
 
 }

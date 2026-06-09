@@ -26,15 +26,14 @@ package io.evitadb.index.array;
 import com.carrotsearch.hppc.IntLongHashMap;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -98,10 +97,6 @@ class UnorderedLookupTreeStmTest {
 			this.tree.insertAtPosition(0, recordId, this);
 		}
 
-		void addAfter(int previousRecordId, int recordId) {
-			this.tree.insertAfter(this.valueIndex.get(previousRecordId), previousRecordId, recordId, this);
-		}
-
 		void remove(int recordId) {
 			this.tree.removeByOrderKey(this.valueIndex.get(recordId), recordId, this);
 			this.valueIndex.remove(recordId);
@@ -136,6 +131,20 @@ class UnorderedLookupTreeStmTest {
 		return expected;
 	}
 
+	/**
+	 * Asserts the structural consistency report of the passed tree view is CONSISTENT, surfacing the report message on
+	 * failure. Run against both the still-committed `original` view and the merged `committed` copy so that the
+	 * path-copy / commit merge is verified to preserve balance, augmentation and order-key invariants — not just the
+	 * flattened contents.
+	 */
+	private static void assertConsistent(@Nonnull UnorderedLookupTree tree) {
+		final ConsistencyReport report = tree.getConsistencyReport();
+		assertEquals(
+			ConsistencyState.CONSISTENT, report.state(),
+			"Tree reported structural inconsistency:\n" + report.report()
+		);
+	}
+
 	@Nested
 	@DisplayName("Commit")
 	class CommitTest {
@@ -162,6 +171,8 @@ class UnorderedLookupTreeStmTest {
 					assertArrayEquals(new int[]{10, 20, 30}, committed.getArray());
 					assertEquals(10, committed.getRecordAt(0));
 					assertEquals(30, committed.getRecordAt(2));
+					assertConsistent(original);
+					assertConsistent(committed);
 				}
 			);
 		}
@@ -183,6 +194,8 @@ class UnorderedLookupTreeStmTest {
 
 					assertEquals(4, committed.size());
 					assertArrayEquals(new int[]{1001, 1003, 1004, 1005}, committed.getArray());
+					assertConsistent(original);
+					assertConsistent(committed);
 				}
 			);
 		}
@@ -191,7 +204,7 @@ class UnorderedLookupTreeStmTest {
 		@DisplayName("persists inserts that split containers and grow the tree height")
 		void shouldCommitInsertsThatSplitAndGrow() {
 			final TreeWithIndex driver = new TreeWithIndex(new UnorderedLookupTree());
-			final int count = UnorderedLookupTree.BLOCK_SIZE * 5;
+			final int count = UnorderedLookupTree.DEFAULT_BLOCK_SIZE * 5;
 
 			assertStateAfterCommit(
 				driver.tree,
@@ -207,6 +220,8 @@ class UnorderedLookupTreeStmTest {
 					for (int position = 0; position < count; position++) {
 						assertEquals(1000 + position, committed.getRecordAt(position));
 					}
+					assertConsistent(original);
+					assertConsistent(committed);
 				}
 			);
 		}
@@ -239,6 +254,8 @@ class UnorderedLookupTreeStmTest {
 					// after commit the merged copy carries the changes
 					assertEquals(5, committed.size());
 					assertArrayEquals(new int[]{7, 1000, 1001, 1002, 8}, committed.getArray());
+					assertConsistent(original);
+					assertConsistent(committed);
 				}
 			);
 		}
@@ -278,6 +295,8 @@ class UnorderedLookupTreeStmTest {
 			// the committed tree must be byte-for-byte unchanged
 			assertEquals(4, tree.size());
 			assertArrayEquals(expectedBefore, tree.getArray());
+			// and structurally intact - the rolled-back path copies must not have leaked into the committed view
+			assertConsistent(tree);
 		}
 	}
 
@@ -289,7 +308,7 @@ class UnorderedLookupTreeStmTest {
 		@DisplayName("sweeps the whole node graph cleanly after mutating a tree within a transaction")
 		void shouldSweepLayerFullyAfterMutation() {
 			// a tree large enough that the touched path spans several internal levels
-			final int initial = UnorderedLookupTree.BLOCK_SIZE * 4;
+			final int initial = UnorderedLookupTree.DEFAULT_BLOCK_SIZE << 2;
 			final TreeWithIndex driver = committedTreeOfSize(initial);
 
 			// assertStateAfterCommit invokes verifyLayerWasFullySwept() inside its commit; reaching the verify
@@ -298,7 +317,7 @@ class UnorderedLookupTreeStmTest {
 				driver.tree,
 				tested -> {
 					for (int i = 0; i < 30; i++) {
-						driver.addAtPosition(i * 2, 5000 + i);
+						driver.addAtPosition(i << 1, 5000 + i);
 					}
 					driver.remove(1000);
 					driver.remove(1010);
@@ -306,6 +325,8 @@ class UnorderedLookupTreeStmTest {
 				(original, committed) -> {
 					assertEquals(initial, original.size());
 					assertEquals(initial + 30 - 2, committed.size());
+					assertConsistent(original);
+					assertConsistent(committed);
 				}
 			);
 		}
@@ -324,7 +345,7 @@ class UnorderedLookupTreeStmTest {
 					// in removeLayer the sub-tree's size/root references and node graph would remain ALIVE and trip
 					// StaleTransactionMemoryException during the commit sweep.
 					final TreeWithIndex driver = new TreeWithIndex(new UnorderedLookupTree());
-					for (int i = 0; i < UnorderedLookupTree.BLOCK_SIZE * 3; i++) {
+					for (int i = 0; i < UnorderedLookupTree.DEFAULT_BLOCK_SIZE * 3; i++) {
 						driver.addAtPosition(i, 7000 + i);
 					}
 					// remove a handful to open additional node layers along the delete path
@@ -335,48 +356,6 @@ class UnorderedLookupTreeStmTest {
 					driver.tree.removeLayer(maintainer);
 				},
 				(original, committed) -> assertEquals(0, committed.size())
-			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Randomized churn")
-	class RandomizedChurnTest {
-
-		@Test
-		@DisplayName("commits randomized insert and remove churn matching an in-memory oracle")
-		void shouldCommitRandomizedChurnAgainstOracle() {
-			final TreeWithIndex driver = new TreeWithIndex(new UnorderedLookupTree());
-			final Random random = new Random(2025);
-			final List<Integer> oracle = new ArrayList<>();
-			final int[] nextRecordId = {1};
-
-			assertStateAfterCommit(
-				driver.tree,
-				tested -> {
-					for (int op = 0; op < 5_000; op++) {
-						final int size = oracle.size();
-						final boolean insert = size == 0 || random.nextInt(100) < 60;
-						if (insert) {
-							final int index = random.nextInt(size + 1);
-							final int recordId = nextRecordId[0]++;
-							driver.addAtPosition(index, recordId);
-							oracle.add(index, recordId);
-						} else {
-							final int index = random.nextInt(size);
-							driver.remove(oracle.remove(index));
-						}
-					}
-				},
-				(original, committed) -> {
-					assertEquals(0, original.size());
-					assertEquals(oracle.size(), committed.size());
-					final int[] expected = new int[oracle.size()];
-					for (int i = 0; i < oracle.size(); i++) {
-						expected[i] = oracle.get(i);
-					}
-					assertArrayEquals(expected, committed.getArray());
-				}
 			);
 		}
 	}
@@ -422,6 +401,8 @@ class UnorderedLookupTreeStmTest {
 					// the committed copy is independently addressable
 					assertEquals(1000, committed.getRecordAt(0));
 					assertEquals(1002, committed.getRecordAt(2));
+					assertConsistent(original);
+					assertConsistent(committed);
 				}
 			);
 		}

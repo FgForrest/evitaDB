@@ -55,7 +55,7 @@ sealed public interface PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 5;
+	int STORAGE_PROTOCOL_VERSION = 6;
 
 	/**
 	 * File suffix for the bootstrap file that records the last known catalog header location. The bootstrap file uses

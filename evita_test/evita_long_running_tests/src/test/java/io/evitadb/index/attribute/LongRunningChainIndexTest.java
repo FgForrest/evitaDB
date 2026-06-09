@@ -26,11 +26,14 @@ package io.evitadb.index.attribute;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.test.TestTags;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.ArrayUtils;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
@@ -372,6 +375,124 @@ class LongRunningChainIndexTest implements TimeBoundedTestSupport {
 		}
 		ArrayUtils.shuffleArray(random, initialState, initialCount);
 		return initialState;
+	}
+
+	/**
+	 * Workload-validation harness for the {@link ChainIndex} used behind a `Predecessor`-ordered attribute.
+	 *
+	 * `ChainIndex` models a single-linked chain of elements ordered by their predecessor pointers; it is built to keep
+	 * an "unordered" ordering in a form where **moving an individual element perturbs only a constant number of
+	 * neighbours** (the moved element plus its old and new successors), never renumbering the whole tail. It is
+	 * therefore the wrong structure for purely-random insert/delete churn - random permanent deletes shatter the chain
+	 * into unbounded split subchains and stress the unrelated chain-collapse bookkeeping rather than the move path.
+	 *
+	 * This harness drives the index directly (no engine) with the **realistic** workload: phase 1 builds a single
+	 * chain `1..N`, phase 2 performs coherent local **moves** over a maintained doubly-linked order, keeping the chain
+	 * consistent. It asserts the live subchain count ({@link ChainIndex#chains}) stays bounded (units/tens), and
+	 * reports per-block timing so the move path can be observed to scale (no `O(ops*chains)` cliff).
+	 *
+	 * It is a fixed-size scaling assertion rather than a generational/time-bounded test, so it runs as a plain
+	 * {@code @Test} tagged {@link TestTags#SLOW} - run explicitly, not part of the fast functional loop.
+	 */
+	@DisplayName("Coherent local moves keep the chain bounded and scale with no collapse cliff")
+	@Test
+	@Tag(SLOW)
+	void shouldChurnViaCoherentMoves() {
+		final int initialRecordCount = 1_000_000;
+		final int churnOperations = 200_000;
+		final int block = 10_000;
+		// the chain may fragment transiently while a move is applied, but must stay bounded - never thousands
+		final int maxReasonableChains = 100;
+
+		final ChainIndex chainIndex = new ChainIndex(new AttributeIndexKey(null, "order", null));
+
+		// phase 1 - build a single chain 1..N (record i chained right after record i-1)
+		final long buildStart = System.nanoTime();
+		for (int i = 0; i < initialRecordCount; i++) {
+			final int primaryKey = i + 1;
+			chainIndex.upsertPredecessor(primaryKey == 1 ? Predecessor.HEAD : new Predecessor(primaryKey - 1), primaryKey);
+		}
+		System.out.printf(
+			"Phase 1: built %d-element chain in %d ms; chain count = %d%n",
+			initialRecordCount, (System.nanoTime() - buildStart) / 1_000_000L, chainIndex.chains.size()
+		);
+
+		// maintained doubly-linked order of the (all-live) records: pred[pk]/succ[pk], 0 == HEAD / none
+		final int[] pred = new int[initialRecordCount + 1];
+		final int[] succ = new int[initialRecordCount + 1];
+		for (int pk = 1; pk <= initialRecordCount; pk++) {
+			pred[pk] = pk - 1;
+			succ[pk] = pk == initialRecordCount ? 0 : pk + 1;
+		}
+
+		// phase 2 - coherent local moves: relocate a random element after a random other element (or to HEAD),
+		// updating exactly the three affected predecessors (moved element, old successor, new successor)
+		final Random random = new Random(42);
+		long blockStart = System.nanoTime();
+		int maxChainsObserved = chainIndex.chains.size();
+		int head = 1;
+		for (int op = 0; op < churnOperations; op++) {
+			final int x = 1 + random.nextInt(initialRecordCount);
+			// 10 % of moves promote the element to the chain head, otherwise relocate after a random anchor
+			int anchor = random.nextInt(10) == 0 ? 0 : 1 + random.nextInt(initialRecordCount);
+			if (anchor == x) {
+				anchor = pred[x]; // avoid self-anchor; collapses to a no-op which we skip below
+			}
+			if (anchor == pred[x]) {
+				continue; // element already sits right after the anchor - nothing to do
+			}
+
+			final int pOld = pred[x];
+			final int sOld = succ[x];
+			// detach x from its current position
+			if (pOld == 0) {
+				head = sOld; // x was the head; its successor becomes the new head
+			} else {
+				succ[pOld] = sOld;
+			}
+			if (sOld != 0) {
+				pred[sOld] = pOld;
+			}
+			// insert x right after the anchor (anchor == 0 means promote to head)
+			final int sNew = anchor == 0 ? head : succ[anchor];
+			if (anchor == 0) {
+				head = x;
+			} else {
+				succ[anchor] = x;
+			}
+			pred[x] = anchor;
+			succ[x] = sNew;
+			if (sNew != 0) {
+				pred[sNew] = x;
+			}
+
+			// apply the move to the index as the three affected predecessor updates, in the natural "detach-first"
+			// order: first reconnect x's old successor to x's old predecessor (so x stops dragging a suffix), then
+			// relocate x, then attach x's new successor. This keeps every single mutation a true local move.
+			if (sOld != 0 && sOld != x) {
+				chainIndex.upsertPredecessor(pOld == 0 ? Predecessor.HEAD : new Predecessor(pOld), sOld);
+			}
+			chainIndex.upsertPredecessor(anchor == 0 ? Predecessor.HEAD : new Predecessor(anchor), x);
+			if (sNew != 0 && sNew != x) {
+				chainIndex.upsertPredecessor(new Predecessor(x), sNew);
+			}
+
+			maxChainsObserved = Math.max(maxChainsObserved, chainIndex.chains.size());
+			if ((op + 1) % block == 0) {
+				final long blockMs = (System.nanoTime() - blockStart) / 1_000_000L;
+				System.out.printf(
+					"Moves %d..%d: %d ms (%.3f ms/op); chains now = %d (max seen = %d)%n",
+					op + 1 - block, op, blockMs, blockMs / (double) block, chainIndex.chains.size(), maxChainsObserved
+				);
+				blockStart = System.nanoTime();
+			}
+		}
+
+		assertTrue(chainIndex.isConsistent(), "Index must stay consistent after coherent moves.");
+		assertTrue(
+			maxChainsObserved <= maxReasonableChains,
+			"Coherent moves must keep the chain bounded, but observed up to " + maxChainsObserved + " subchains."
+		);
 	}
 
 }

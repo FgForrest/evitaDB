@@ -33,6 +33,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -260,8 +261,13 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 				new ReferenceAttributeIndex(
 					context.entitySchema().getName(),
 					context.referenceKey(),
-					attributes.uniqueIndexes(), attributes.filterIndexes(),
-					attributes.sortIndexes(), attributes.chainIndexes()
+					attributes.uniqueIndexes(),
+					attributes.filterIndexes(),
+					attributes.uniqueViewIndexes(),
+					attributes.sortIndexes(),
+					attributes.chainIndexes(),
+					attributes.sharedValueIndexes(),
+					attributes.sharedRangeIndexes()
 				),
 				new PriceRefIndex(scope, prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
@@ -589,7 +595,8 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
 		// first retrieve or create the cardinality index for given attribute
@@ -615,14 +622,14 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 					onlyNewItemsValueArray, 0, onlyNewItemsValueArrayIndex
 				);
 				delegateAddDeltaFilterAttribute(
-					referenceSchema, attributeSchema, allowedLocales, locale, delta, recordId
+					referenceSchema, attributeSchema, allowedLocales, locale, delta, recordId, foldedUnique
 				);
 			}
 		} else {
 			// for non-array values we need to call super method only if cardinality was zero
 			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				delegateInsertFilterAttribute(
-					referenceSchema, attributeSchema, allowedLocales, locale, value, recordId
+					referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique
 				);
 			}
 		}
@@ -694,10 +701,11 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable[] value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
-		delegateAddDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId);
+		delegateAddDeltaFilterAttribute(referenceSchema, attributeSchema, allowedLocales, locale, value, recordId, foldedUnique);
 	}
 
 	@Override
@@ -769,7 +777,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	}
 
 	@Override
-	public void insertUniqueAttribute(
+	public AttributeIndex.UniquenessEnforcement insertUniqueAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
@@ -778,8 +786,10 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull Serializable value,
 		int recordId
 	) {
-		// no-op: unique attributes are not maintained in group entity index because multiple
-		// entities can reference the same group, making uniqueness checks inappropriate
+		// no-op: unique attributes are not maintained in group entity index because multiple entities can reference the
+		// same group, making uniqueness checks inappropriate. NONE tells the filter write not to enforce folded
+		// uniqueness (nor register a folded view) here.
+		return AttributeIndex.UniquenessEnforcement.NONE;
 	}
 
 	@Override

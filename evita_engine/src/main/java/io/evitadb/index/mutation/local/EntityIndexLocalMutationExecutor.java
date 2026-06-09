@@ -625,8 +625,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				null,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
-				getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier(),
-				this.undoActionsAppender
+				getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier()
 			);
 
 			if (this.schemaAccessor.get().isWithHierarchy()) {
@@ -800,8 +799,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, existingDataSupplierFactory,
-			this.undoActionsAppender
+			locale, entitySchema, targetIndex, existingDataSupplierFactory
 		);
 	}
 
@@ -824,8 +822,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory,
-			this.undoActionsAppender
+			locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
 		);
 	}
 
@@ -844,8 +841,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, existingDataSupplierFactory,
-			this.undoActionsAppender
+			locale, entitySchema, targetIndex, existingDataSupplierFactory
 		);
 	}
 
@@ -868,8 +864,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory,
-			this.undoActionsAppender
+			locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
 		);
 	}
 
@@ -1126,20 +1121,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final Serializable attributeValue = ((UpsertAttributeMutation) attributeMutation).getAttributeValue();
 			AttributeIndexMutator.executeAttributeUpsert(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds,
-				this.undoActionsAppender
+				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds
 			);
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
 			AttributeIndexMutator.executeAttributeRemoval(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, updateGlobalIndex, updateCompounds,
-				this.undoActionsAppender
+				indexForRemoval, indexForUpsert, affectedAttribute, updateGlobalIndex, updateCompounds
 			);
 		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
 			final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
 			AttributeIndexMutator.executeAttributeDelta(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue, this.undoActionsAppender
+				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
@@ -1765,18 +1758,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *                                    it must not be null
 	 * @param existingDataSupplierFactory the factory to create suppliers that provide existing
 	 *                                    data used during the insert; it must not be null
-	 * @param undoActionConsumer          an optional consumer to store runnable actions for undoing changes;
-	 *                                    may be null if undo actions are not required
 	 */
 	private void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, null, existingDataSupplierFactory, undoActionConsumer
+			locale, entitySchema, targetIndex, null, existingDataSupplierFactory
 		);
 	}
 
@@ -1794,16 +1784,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *                                    when non-null it overrides the key extracted from the index discriminator
 	 * @param existingDataSupplierFactory the factory to create suppliers that provide existing
 	 *                                    data used during the insert; it must not be null
-	 * @param undoActionConsumer          an optional consumer to store runnable actions for undoing changes;
-	 *                                    may be null if undo actions are not required
 	 */
 	private void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityIndex targetIndex,
 		@Nullable ReferenceKey referenceKey,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		if (targetIndex instanceof AbstractReducedEntityIndex reducedEntityIndex &&
 			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
@@ -1818,8 +1805,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					reducedEntityIndex,
 					effectiveReferenceKey,
 					locale,
-					existingDataSupplierFactory,
-					undoActionConsumer
+					existingDataSupplierFactory
 				);
 			}
 		} else {
@@ -1830,8 +1816,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
-				existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier(),
-				undoActionConsumer
+				existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier()
 			);
 		}
 	}
@@ -1846,19 +1831,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param existingDataSupplierFactory A factory for creating suppliers of existing data
 	 *                                    that may be used to assist in the removal process.
 	 *                                    Must not be null.
-	 * @param undoActionConsumer          An optional consumer that can accept a Runnable to perform
-	 *                                    undo actions, if needed. This may be null if undo
-	 *                                    functionality is not required.
 	 */
 	private void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityIndex targetIndex,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, null, existingDataSupplierFactory, undoActionConsumer
+			locale, entitySchema, targetIndex, null, existingDataSupplierFactory
 		);
 	}
 
@@ -1877,17 +1858,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param existingDataSupplierFactory a factory for creating suppliers of existing data
 	 *                                    that may be used to assist in the removal process;
 	 *                                    must not be null
-	 * @param undoActionConsumer          an optional consumer that can accept a Runnable to perform
-	 *                                    undo actions, if needed; this may be null if undo
-	 *                                    functionality is not required
 	 */
 	private void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull EntityIndex targetIndex,
 		@Nullable ReferenceKey referenceKey,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		ReferenceSchemaContract referenceSchema = null;
 		if (targetIndex instanceof AbstractReducedEntityIndex reducedEntityIndex &&
@@ -1904,8 +1881,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					referenceSchema, reducedEntityIndex,
 					effectiveReferenceKey,
 					locale,
-					existingDataSupplierFactory,
-					undoActionConsumer
+					existingDataSupplierFactory
 				);
 			}
 		} else {
@@ -1916,8 +1892,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
-				existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier(),
-				undoActionConsumer
+				existingDataSupplierFactory.getNormalizedEntityAttributeValueSupplier()
 			);
 		}
 	}
@@ -1938,8 +1913,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				null,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
-				getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier(),
-				this.undoActionsAppender
+				getStoragePartExistingDataFactory().getNormalizedEntityAttributeValueSupplier()
 			);
 		}
 	}
@@ -2079,8 +2053,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						globalIndex,
 						key,
 						true,
-						true,
-						this.undoActionsAppender
+						true
 					);
 					existingDataSupplierFactory.registerRemoval(key);
 				}
@@ -2088,7 +2061,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 		// unindex all non-localized attribute compounds
 		removeEntireSuiteOfSortableAttributeCompounds(
-			null, entitySchema, globalIndex, existingDataSupplierFactory, this.undoActionsAppender
+			null, entitySchema, globalIndex, existingDataSupplierFactory
 		);
 	}
 
@@ -2299,15 +2272,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						key,
 						attributeValue.valueOrThrowException(),
 						true,
-						false,
-						this.undoActionsAppender
+						false
 					);
 				}
 			);
 
 		// index all non-localized attribute compounds
 		insertInitialSuiteOfSortableAttributeCompounds(
-			null, entitySchema, globalIndex, existingDataSupplierFactory, this.undoActionsAppender
+			null, entitySchema, globalIndex, existingDataSupplierFactory
 		);
 	}
 

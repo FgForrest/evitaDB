@@ -25,6 +25,10 @@ package io.evitadb.spike;
 
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.EntryCursor;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecord;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -39,6 +43,8 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+import org.roaringbitmap.RoaringBitmap;
+
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -47,10 +53,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
- * Microbenchmark comparing the **read** behaviour of the two {@code SortIndex} value backings introduced under
- * issue #760:
+ * Microbenchmark comparing the **read** behaviour of the two {@code SortIndex} value backings:
  *
  * - the **original** representation — a contiguous, naturally sorted {@code Serializable[]} of distinct values plus a
  *   sparse {@code HashMap<value, cardinality>} that only holds cardinalities greater than one (cardinality `1` is
@@ -77,6 +83,16 @@ import java.util.concurrent.TimeUnit;
  *    walk accumulating cardinalities into a start-offset array. Array = array iteration + per-value map lookup; tree =
  *    a single {@code entryIterator} walk with inline cardinality.
  *
+ * A second gate — the **shared value→ValueToRecord tree** backing both the filter and sort indexes — adds two
+ * candidate-vs-baseline pairs measuring the deltas that design introduces:
+ *
+ * - {@code ascendingSweepFatTree} / {@code descendingSweepFatTree} vs {@code *SweepTree} — the ORDER BY sweep when the
+ *   tree value is a fat {@link ValueToRecord} bucket (cardinality read via {@link ValueToRecord#size()}, one indirection)
+ *   instead of an inline `Integer`. The leaf VALUE slots are object references either way, so this isolates the
+ *   cardinality-access cost, not a leaf-density change.
+ * - {@code pointLookupHashMap} (today's {@code UniqueIndex} O(1) map) vs {@code pointLookupFatTree} (the unified O(log n)
+ *   tree search) — the unique-check-on-write probe, the hot write path this gate must not regress materially.
+ *
  * Each benchmark reports both latency ({@link Mode#AverageTime}) and throughput ({@link Mode#Throughput}) so the two
  * facets the migration is gated on can be read directly. The sweep ops cover a bounded, evenly distributed sample of
  * positions across the whole value range (so the cursor still advances through every distinct value) to keep the
@@ -91,7 +107,7 @@ import java.util.concurrent.TimeUnit;
  * That document is the human-readable counterpart of this class: it holds the measured numbers, the gate arc (an initial
  * ~10× ORDER BY regression, the async-profiler diagnosis that it was cache-miss-bound rather than the suspected
  * per-entry allocation or method dispatch), and the three fixes it motivated — leaf-array caching in
- * {@link TransactionalObjectBPlusTree}, the leaf block size of `256` now in {@code SortIndex#VALUE_BLOCK_SIZE}, and
+ * {@link TransactionalObjectBPlusTree}, the leaf block size of `256` now in {@code OwnerSortIndex#VALUE_BLOCK_SIZE}, and
  * software prefetch — which moved the read gate from FAIL to PASS and justified the consolidated-tree migration. Keep
  * the two in sync: when the tree's read path or block size changes, re-run this benchmark and update that document.
  *
@@ -148,6 +164,88 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 
 	/* =========================================================================================== */
 
+	// ===== shared-tree gate =====================================================================
+	// The unified design backs SortIndex by the FILTER tree, whose value is a fat ValueToRecord
+	// (not an inline Integer). The leaf VALUE slots are object references either way, so leaf density
+	// is unchanged; the only sweep difference is reading cardinality via
+	// ValueToRecord.size() (one indirection through the bucket) instead of unboxing an inline Integer.
+	// These variants measure exactly that delta vs ascending/descendingSweepTree above — a perf
+	// NON-REGRESSION check, not a make-or-break gate (the memory win is independent).
+
+	@Benchmark
+	public void ascendingSweepFatTree(IndexState state, Blackhole bh) {
+		final FatTreeForwardSeeker seeker = new FatTreeForwardSeeker(state.fatTree);
+		final int[] positions = state.sweepPositions;
+		for (int i = 0; i < positions.length; i++) {
+			bh.consume(seeker.getValueToCompareOn(positions[i]));
+		}
+	}
+
+	@Benchmark
+	public void descendingSweepFatTree(IndexState state, Blackhole bh) {
+		final FatTreeReverseSeeker seeker = new FatTreeReverseSeeker(state.fatTree, state.totalCount);
+		final int[] positions = state.sweepPositions;
+		for (int i = 0; i < positions.length; i++) {
+			bh.consume(seeker.getValueToCompareOn(positions[i]));
+		}
+	}
+
+	/* =========================================================================================== */
+
+	// ===== ORDER BY: the ACTUAL design path vs today's sorter ===================================
+	// The *SweepFatTree benchmarks above drive the LEGACY cardinality-accumulation seeker over the
+	// fat tree — a worst-case proxy (it pays TransactionalBitmap.size() per bucket, which the real
+	// design never calls). The two benchmarks below measure the REAL trade-off for "return the
+	// query-result records in sorted order":
+	//
+	//  - orderByMergeJoinFatTree (candidate): walk the shared value→ValueToRecord tree in sort order,
+	//    intersect each bucket's bitmap with the query-result bitmap (RoaringBitmap AND), emit matches
+	//    in order. No flat arrays, no positions, no size(). Pageable in production (omitted here so we
+	//    measure the full-sort case — the one UNFAVOURABLE to merge-join, since it walks every bucket).
+	//  - orderByPositionMaskArray (baseline): today's MergedSortedRecordsSupplierSorter shape — map each
+	//    query-result id to its sorted position via recordPositions[], collect a position bitmap, then
+	//    resolve ids back via the flat sortedRecordIds[] in ascending position order.
+	//
+	// Both emit the identical sorted id sequence. Selectivity is the decisive axis: low selectivity
+	// favours the baseline (it touches only matches); high selectivity / full sort favours merge-join.
+
+	@Benchmark
+	public void orderByMergeJoinFatTree(MergeJoinState state, Blackhole bh) {
+		final RoaringBitmap queryResult = state.queryResult;
+		@SuppressWarnings("rawtypes")
+		final EntryCursor cursor = state.fatTree.entryCursor();
+		while (cursor.hasNext()) {
+			cursor.next();
+			final ValueToRecord bucket = (ValueToRecord) cursor.value();
+			final RoaringBitmap matched = RoaringBitmap.and(
+				queryResult, RoaringBitmapBackedBitmap.getRoaringBitmap(bucket.getRecordIds())
+			);
+			final org.roaringbitmap.IntIterator it = matched.getIntIterator();
+			while (it.hasNext()) {
+				bh.consume(it.next());
+			}
+		}
+	}
+
+	@Benchmark
+	public void orderByPositionMaskArray(MergeJoinState state, Blackhole bh) {
+		final int[] recordPositions = state.recordPositions;
+		final int[] sortedRecordIds = state.sortedRecordIds;
+		// build the position mask for the query-result records (the getMask step)
+		final RoaringBitmap positions = new RoaringBitmap();
+		final org.roaringbitmap.IntIterator queryIt = state.queryResult.getIntIterator();
+		while (queryIt.hasNext()) {
+			positions.add(recordPositions[queryIt.next()]);
+		}
+		// resolve positions back to record ids in ascending sorted order (the fetchSlice step)
+		final org.roaringbitmap.IntIterator posIt = positions.getIntIterator();
+		while (posIt.hasNext()) {
+			bh.consume(sortedRecordIds[posIt.next()]);
+		}
+	}
+
+	/* =========================================================================================== */
+
 	@Benchmark
 	public int pointLookupArray(IndexState state, ValueCursor cursor) {
 		final Integer value = state.lookupValues[cursor.next(state.lookupValues.length)];
@@ -165,6 +263,26 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 		//noinspection unchecked
 		final Integer cardinality = (Integer) state.tree.search((Comparable) value).orElse(null);
 		return cardinality == null ? 0 : cardinality;
+	}
+
+	// ===== unique-check-on-write gate ===========================================================
+	// Today UniqueIndex.uniqueValueToRecordId is a HashMap-backed map → O(1) point lookup. The
+	// unified design replaces it with a search in the shared fat-value tree → O(log n). This pair
+	// measures that O(1) → O(log n) delta directly on the write-time uniqueness probe.
+
+	@Benchmark
+	public int pointLookupHashMap(IndexState state, ValueCursor cursor) {
+		final Integer value = state.lookupValues[cursor.next(state.lookupValues.length)];
+		final ValueToRecord record = state.uniqueMap.get(value);
+		return record == null ? 0 : record.size();
+	}
+
+	@Benchmark
+	@SuppressWarnings("unchecked")
+	public int pointLookupFatTree(IndexState state, ValueCursor cursor) {
+		final Integer value = state.lookupValues[cursor.next(state.lookupValues.length)];
+		final ValueToRecord record = (ValueToRecord) state.fatTree.search((Comparable) value).orElse(null);
+		return record == null ? 0 : record.size();
 	}
 
 	/* =========================================================================================== */
@@ -220,6 +338,11 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 		public Map<Integer, Integer> cardinalityMap;
 		@SuppressWarnings("rawtypes")
 		public TransactionalObjectBPlusTree tree;
+		/** The shared-structure candidate: same keys, but value is a fat {@link ValueToRecord} bucket. */
+		@SuppressWarnings("rawtypes")
+		public TransactionalObjectBPlusTree fatTree;
+		/** Today's {@code UniqueIndex} backing: a plain {@link HashMap} value→bucket (the O(1) point-lookup baseline). */
+		public Map<Integer, ValueToRecord> uniqueMap;
 		public int[] sweepPositions;
 		public Integer[] lookupValues;
 
@@ -231,6 +354,7 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 			// naturally sorted distinct Integer values 0..N-1 (mirrors SortIndex single-attribute NULLS_LAST ASC order)
 			this.sortedValues = new Serializable[this.distinctValues];
 			this.cardinalityMap = new HashMap<>(this.cardinality > 1 ? this.distinctValues : 0);
+			this.uniqueMap = new HashMap<>(this.distinctValues);
 
 			final Comparator comparator = Comparator.naturalOrder();
 			// leaf block size is configurable via -Dsortbench.blockSize=<N> so the read-locality effect of larger
@@ -242,6 +366,13 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 			final TransactionalObjectBPlusTree theTree = new TransactionalObjectBPlusTree<>(
 				blockSize, minBlock, minBlock, minInternal, Comparable.class, Integer.class, comparator
 			);
+			// the fat-value candidate tree: same keys/order, value = ValueToRecord (Primitive for card==1, Bitmap else).
+			// ValueToRecordBitmap implements TransactionalLayerProducer, so the tree needs the same identity value
+			// wrapper InvertedIndex uses (InvertedIndex.VALUE_TO_RECORD_WRAPPER = ValueToRecord.class::cast).
+			final Function<Object, ValueToRecord> valueWrapper = ValueToRecord.class::cast;
+			final TransactionalObjectBPlusTree theFatTree = new TransactionalObjectBPlusTree<>(
+				blockSize, minBlock, minBlock, minInternal, Comparable.class, ValueToRecord.class, valueWrapper, comparator
+			);
 			for (int i = 0; i < this.distinctValues; i++) {
 				this.sortedValues[i] = i;
 				if (this.cardinality > 1) {
@@ -249,8 +380,12 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 					this.cardinalityMap.put(i, this.cardinality);
 				}
 				theTree.insert((Comparable) Integer.valueOf(i), this.cardinality);
+				final ValueToRecord bucket = buildBucket(i, this.cardinality);
+				theFatTree.insert((Comparable) Integer.valueOf(i), bucket);
+				this.uniqueMap.put(i, bucket);
 			}
 			this.tree = theTree;
+			this.fatTree = theFatTree;
 
 			// bounded, strictly increasing sample of record positions spread across the whole [0, totalCount) range
 			final int sampleCount = Math.min(this.totalCount, MAX_SWEEP_SAMPLES);
@@ -266,6 +401,109 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 			this.lookupValues = new Integer[Math.min(this.distinctValues, MAX_SWEEP_SAMPLES)];
 			for (int i = 0; i < this.lookupValues.length; i++) {
 				this.lookupValues[i] = random.nextInt(this.distinctValues);
+			}
+		}
+
+		/**
+		 * Builds the production {@link ValueToRecord} bucket for a value: a lean {@link ValueToRecordPrimitive} when the
+		 * value holds a single record (the unique / cardinality-1 fast path), otherwise a {@link ValueToRecordBitmap}
+		 * over a contiguous block of `cardinality` record ids. Record ids are disjoint across values.
+		 */
+		@Nonnull
+		private static ValueToRecord buildBucket(int value, int cardinality) {
+			if (cardinality == 1) {
+				return new ValueToRecordPrimitive(value, value);
+			}
+			final int[] recordIds = new int[cardinality];
+			final int base = value * cardinality;
+			for (int j = 0; j < cardinality; j++) {
+				recordIds[j] = base + j;
+			}
+			return new ValueToRecordBitmap(value, recordIds);
+		}
+	}
+
+	/**
+	 * State for the ORDER BY merge-join vs position-mask comparison. Builds the shared `value → ValueToRecord` tree
+	 * (multi-record `ValueToRecordBitmap` buckets), the flat `sortedRecordIds` / `recordPositions` arrays the legacy
+	 * sorter needs, and a query-result bitmap of the records to sort. Record ids are **shuffled** across values (so the
+	 * sorted order genuinely differs from id order — the realistic case the `recordPositions` machinery exists for),
+	 * while remaining **ascending within each value** (the within-bucket projection), so both benchmarks emit the
+	 * identical sequence.
+	 */
+	@State(Scope.Benchmark)
+	public static class MergeJoinState {
+
+		@Param({"100000", "1000000"})
+		public int distinctValues;
+
+		/** Records per value. Kept > 1 so buckets are `ValueToRecordBitmap` (stored bitmap, no per-call allocation). */
+		@Param({"4"})
+		public int cardinality;
+
+		/** Percent of records present in the query-result (ORDER BY input). `100` = full sort (worst case for join). */
+		@Param({"100", "10", "1"})
+		public int selectivityPercent;
+
+		public int totalCount;
+		@SuppressWarnings("rawtypes")
+		public TransactionalObjectBPlusTree fatTree;
+		public int[] sortedRecordIds;
+		public int[] recordPositions;
+		public RoaringBitmap queryResult;
+
+		@Setup(Level.Trial)
+		@SuppressWarnings({"rawtypes", "unchecked"})
+		public void setUp() {
+			this.totalCount = this.distinctValues * this.cardinality;
+			final int n = this.totalCount;
+
+			// Fisher-Yates shuffle of [0..n) so a value's records are scattered ids (not contiguous).
+			final int[] shuffled = new int[n];
+			for (int i = 0; i < n; i++) {
+				shuffled[i] = i;
+			}
+			final Random random = new Random(42);
+			for (int i = n - 1; i > 0; i--) {
+				final int j = random.nextInt(i + 1);
+				final int t = shuffled[i];
+				shuffled[i] = shuffled[j];
+				shuffled[j] = t;
+			}
+
+			this.sortedRecordIds = new int[n];
+			this.recordPositions = new int[n];
+
+			final Comparator comparator = Comparator.naturalOrder();
+			final int blockSize = Integer.getInteger("sortbench.blockSize", 64);
+			final int minBlock = blockSize / 2 - 1;
+			final int minInternal = (int) (Math.ceil((float) minBlock / 2.0) - 1);
+			final Function<Object, ValueToRecord> valueWrapper = ValueToRecord.class::cast;
+			final TransactionalObjectBPlusTree theFatTree = new TransactionalObjectBPlusTree<>(
+				blockSize, minBlock, minBlock, minInternal, Comparable.class, ValueToRecord.class, valueWrapper, comparator
+			);
+
+			// each value owns a contiguous chunk of the shuffled array, sorted ascending within the value (projection)
+			for (int value = 0; value < this.distinctValues; value++) {
+				final int from = value * this.cardinality;
+				final int[] ids = Arrays.copyOfRange(shuffled, from, from + this.cardinality);
+				Arrays.sort(ids);
+				for (int s = 0; s < ids.length; s++) {
+					final int pos = from + s;
+					this.sortedRecordIds[pos] = ids[s];
+					this.recordPositions[ids[s]] = pos;
+				}
+				theFatTree.insert((Comparable) Integer.valueOf(value), new ValueToRecordBitmap(value, ids));
+			}
+			this.fatTree = theFatTree;
+
+			// query-result bitmap: selectivityPercent% of records, deterministic
+			this.queryResult = new RoaringBitmap();
+			final Random sel = new Random(7);
+			for (int id = 0; id < n; id++) {
+				if (sel.nextInt(100) < this.selectivityPercent) {
+					this.queryResult.add(id);
+				}
 			}
 		}
 	}
@@ -408,6 +646,58 @@ public class SortIndexArrayVsBPlusTreeBenchmark {
 			while (this.indexPeak > position && this.cursor.hasNext()) {
 				this.currentValue = (Serializable) this.cursor.next();
 				this.indexPeak -= (Integer) this.cursor.value();
+			}
+			return this.currentValue;
+		}
+	}
+
+	/**
+	 * The shared-tree forward seeker: identical traversal to {@link TreeForwardSeeker}, but the tree value is a fat
+	 * {@link ValueToRecord} and the cardinality is read via {@link ValueToRecord#size()} (one indirection through the
+	 * bucket) rather than an inline `Integer`. This is the cardinality-access delta the non-regression gate measures.
+	 */
+	private static final class FatTreeForwardSeeker {
+		@SuppressWarnings("rawtypes")
+		private final EntryCursor cursor;
+		private Serializable currentValue;
+		private int indexPeak = 0;
+
+		@SuppressWarnings("rawtypes")
+		FatTreeForwardSeeker(@Nonnull TransactionalObjectBPlusTree tree) {
+			this.cursor = tree.entryCursor();
+		}
+
+		Serializable getValueToCompareOn(int position) {
+			while (this.indexPeak <= position && this.cursor.hasNext()) {
+				this.currentValue = (Serializable) this.cursor.next();
+				this.indexPeak += ((ValueToRecord) this.cursor.value()).size();
+			}
+			return this.currentValue;
+		}
+	}
+
+	/**
+	 * The shared-tree reverse seeker — counterpart to {@link FatTreeForwardSeeker}.
+	 */
+	private static final class FatTreeReverseSeeker {
+		@SuppressWarnings("rawtypes")
+		private final EntryCursor cursor;
+		private final int totalCount;
+		private Serializable currentValue;
+		private int indexPeak;
+
+		@SuppressWarnings("rawtypes")
+		FatTreeReverseSeeker(@Nonnull TransactionalObjectBPlusTree tree, int totalCount) {
+			this.cursor = tree.entryReverseCursor();
+			this.totalCount = totalCount;
+			this.indexPeak = totalCount;
+		}
+
+		Serializable getValueToCompareOn(int invertedPosition) {
+			final int position = this.totalCount - invertedPosition - 1;
+			while (this.indexPeak > position && this.cursor.hasNext()) {
+				this.currentValue = (Serializable) this.cursor.next();
+				this.indexPeak -= ((ValueToRecord) this.cursor.value()).size();
 			}
 			return this.currentValue;
 		}

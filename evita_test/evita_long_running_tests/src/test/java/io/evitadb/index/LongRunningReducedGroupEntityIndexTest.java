@@ -226,7 +226,7 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 				// insert filter attribute
 				final String value = "VAL_" + (random.nextInt(10) + 1);
 				idx.insertFilterAttribute(
-					refSchema, attrSchema, noLocales, null, value, entityPk
+					refSchema, attrSchema, noLocales, null, value, entityPk, false
 				);
 				refAttributes.add(value + ":" + entityPk);
 			}

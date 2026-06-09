@@ -24,6 +24,8 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
@@ -65,19 +67,25 @@ public final class EntityAttributeIndex extends AttributeIndex {
 	 * persistence reload path in [io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService].
 	 *
 	 * @param entityType   the owning entity type
-	 * @param uniqueIndex  pre-loaded unique sub-index map
-	 * @param filterIndex  pre-loaded filter sub-index map
+	 * @param uniqueIndex  pre-loaded standalone (owner) unique sub-index map
+	 * @param filterIndex  filter VIEW map (carries each key's attributeType; rebuilt over the shared trees)
+	 * @param uniqueViewIndex folded-unique VIEW map (carries each foldable key; rebuilt over the shared trees)
 	 * @param sortIndex    pre-loaded sort sub-index map
 	 * @param chainIndex   pre-loaded chain sub-index map
+	 * @param sharedValueIndex pre-loaded shared value→ValueToRecord tree map
+	 * @param sharedRangeIndex pre-loaded shared range-structure map
 	 */
 	public EntityAttributeIndex(
 		@Nonnull String entityType,
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndex,
 		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndex,
+		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueViewIndex,
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
-		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex
+		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex,
+		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndex,
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex
 	) {
-		super(entityType, null, uniqueIndex, filterIndex, sortIndex, chainIndex);
+		super(entityType, null, uniqueIndex, filterIndex, uniqueViewIndex, sortIndex, chainIndex, sharedValueIndex, sharedRangeIndex);
 	}
 
 	@Nonnull
@@ -93,11 +101,14 @@ public final class EntityAttributeIndex extends AttributeIndex {
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueIndex,
 		@Nonnull Map<AttributeIndexKey, FilterIndex> filterIndex,
+		@Nonnull Map<AttributeIndexKey, UniqueIndex> uniqueViewIndex,
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
-		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex
+		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex,
+		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndex,
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex
 	) {
 		return new EntityAttributeIndex(
-			entityType, uniqueIndex, filterIndex, sortIndex, chainIndex
+			entityType, uniqueIndex, filterIndex, uniqueViewIndex, sortIndex, chainIndex, sharedValueIndex, sharedRangeIndex
 		);
 	}
 

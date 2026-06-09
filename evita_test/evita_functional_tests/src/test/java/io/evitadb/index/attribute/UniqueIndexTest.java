@@ -56,7 +56,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 class UniqueIndexTest {
-	private final UniqueIndex tested = new UniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "whatever", null), String.class, new HashMap<>());
+	private final UniqueIndex tested = new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "whatever", null), String.class, new HashMap<>());
 
 	@Test
 	void shouldRegisterUniqueValueAndRetrieveItBack() {
@@ -102,15 +102,16 @@ class UniqueIndexTest {
 	@DisplayName("STM invariants")
 	class StmInvariantsTest {
 
+		@SuppressWarnings("EqualsWithItself")
 		@Test
 		@DisplayName("getId() returns stable value and unique across instances (INV-1)")
 		void shouldReturnStableAndUniqueId() {
-			final UniqueIndex first = new UniqueIndex(
+			final UniqueIndex first = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
 			);
-			final UniqueIndex second = new UniqueIndex(
+			final UniqueIndex second = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -125,7 +126,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("baseline unchanged after commit (INV-4, T2)")
 		void shouldLeaveBaselineUnchangedAfterCommit() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -155,7 +156,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("removeLayer cleans all three nested producers (INV-5)")
 		void shouldCleanAllNestedProducersOnRollback() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -182,7 +183,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("dirty commit merges all three nested states into new instance (INV-6)")
 		void shouldMergeAllNestedStatesOnDirtyCommit() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -210,7 +211,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("committed is not same instance as original when dirty (INV-7)")
 		void shouldReturnNewInstanceWhenDirty() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -226,7 +227,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("zero mutations returns same instance on commit (INV-8)")
 		void shouldReturnSameInstanceWhenNoMutations() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -244,7 +245,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("committed instance has no stale transactional layer (INV-10)")
 		void shouldHaveNoStaleLayerOnCommittedInstance() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -277,7 +278,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("register + unregister keys are reverted after rollback (T7)")
 		void shouldRevertRegisterAndUnregisterAfterRollback() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -320,7 +321,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("getRecordIdsFormula() caches across calls and invalidates on mutation (T8)")
 		void shouldCacheFormulaAndInvalidateOnMutation() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -341,7 +342,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("getRecordIdsFormula() cache invalidation on unregister")
 		void shouldInvalidateCacheOnUnregister() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -358,7 +359,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("getRecordIdsFormula() during open transaction with dirty flag returns fresh formula")
 		void shouldReturnFreshFormulaInDirtyTransaction() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -402,7 +403,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("isEmpty() and size() on freshly constructed empty index")
 		void shouldReportEmptyOnFreshIndex() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -415,7 +416,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("createStoragePart() returns null when not dirty")
 		void shouldReturnNullStoragePartWhenNotDirty() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -428,7 +429,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("createStoragePart() returns correct part when dirty")
 		void shouldReturnStoragePartWhenDirty() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -451,7 +452,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("resetDirty() clears dirty flag so createStoragePart() returns null")
 		void shouldClearDirtyFlagOnReset() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -471,7 +472,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("array value registration: partial duplicate throws UniqueValueViolationException before any mutation")
 		void shouldThrowOnPartialDuplicateInArrayBeforeMutation() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -495,7 +496,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("getUniqueValueToRecordId() returns unmodifiable map")
 		void shouldReturnUnmodifiableMap() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -521,7 +522,7 @@ class UniqueIndexTest {
 			prePopulated.put("Y", 20);
 			final BaseBitmap bitmap = new BaseBitmap(10, 20);
 
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class,
@@ -542,7 +543,7 @@ class UniqueIndexTest {
 		@Test
 		@DisplayName("unregisterUniqueKey on array with wrong owner throws assertion error")
 		void shouldThrowWhenUnregisteringArrayWithWrongOwner() {
-			final UniqueIndex index = new UniqueIndex(
+			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
@@ -571,6 +572,7 @@ class UniqueIndexTest {
 			);
 		}
 
+		@SuppressWarnings("SerializableInnerClassWithNonSerializableOuterClass")
 		@Test
 		@DisplayName("verifyValue rejects non-Comparable Serializable value")
 		void shouldRejectNonComparableSerializableValue() {

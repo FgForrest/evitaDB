@@ -78,11 +78,11 @@ class LongRunningFilterIndexTest implements TimeBoundedTestSupport {
 			100,
 			new TestState(
 				new StringBuilder(256),
-				new FilterIndex(new AttributeIndexKey(null, "c", null), IntegerNumberRange.class)
+				new OwnerFilterIndex(new AttributeIndexKey(null, "c", null), IntegerNumberRange.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
-				codeBuffer.append("final FilterIndex filterIndex = new FilterIndex(String.class);\n")
+				codeBuffer.append("final FilterIndex filterIndex = new OwnerFilterIndex(String.class);\n")
 					.append(
 						rangeToRecord.entrySet()
 							.stream()
@@ -91,8 +91,8 @@ class LongRunningFilterIndexTest implements TimeBoundedTestSupport {
 					);
 				codeBuffer.append("\nOps:\n");
 
-				final FilterIndex transactionalFilterIndex = testState.filterIndex();
-				final AtomicReference<FilterIndex> committedResult = new AtomicReference<>();
+				final OwnerFilterIndex transactionalFilterIndex = testState.filterIndex();
+				final AtomicReference<OwnerFilterIndex> committedResult = new AtomicReference<>();
 
 				assertStateAfterCommit(
 					transactionalFilterIndex,
@@ -221,7 +221,7 @@ class LongRunningFilterIndexTest implements TimeBoundedTestSupport {
 						);
 
 						committedResult.set(
-							new FilterIndex(
+							new OwnerFilterIndex(
 								new AttributeIndexKey(null, "a", null),
 								committed.getInvertedIndex().getValueToRecordBitmap(),
 								committed.getRangeIndex(),
@@ -239,7 +239,7 @@ class LongRunningFilterIndexTest implements TimeBoundedTestSupport {
 
 	private record TestState(
 		StringBuilder code,
-		FilterIndex filterIndex
+		OwnerFilterIndex filterIndex
 	) {}
 
 }

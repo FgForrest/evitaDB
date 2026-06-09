@@ -56,6 +56,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -134,10 +135,7 @@ class EntityIndexManifestInvariantTest {
 			final StoragePart part = iterator.next();
 			if (part instanceof EntityIndexStoragePart manifest) {
 				// a duplicate manifest would itself be a bug — pin that down explicitly
-				assertTrue(
-					found == null,
-					"More than one EntityIndexStoragePart emitted by getModifiedStorageParts"
-				);
+				assertNull(found, "More than one EntityIndexStoragePart emitted by getModifiedStorageParts");
 				found = manifest;
 			}
 		}
@@ -300,9 +298,6 @@ class EntityIndexManifestInvariantTest {
 			final AttributeSchemaContract codeSchema = createReferenceAttributeSchema(
 				"code", String.class
 			);
-			final AttributeSchemaContract nameSchema = createReferenceAttributeSchema(
-				"name", String.class
-			);
 			final AttributeSchemaContract prioritySchema = createReferenceAttributeSchema(
 				"priority", Integer.class
 			);
@@ -313,12 +308,15 @@ class EntityIndexManifestInvariantTest {
 			// PK insertion makes the index non-empty and ensures the manifest emits
 			this.index.insertPrimaryKeyIfMissing(10);
 
-			// one entry per attribute sub-index type
+			// one entry per attribute sub-index type — the folded-unique "code" contributes both its UNIQUE key and,
+			// via the FILTER shadow the mutator always writes for a folded-unique attribute, its FILTER key
 			this.index.insertUniqueAttribute(
 				null, codeSchema, noLocales, Scope.LIVE, null, "UNIQUE-VAL", 10
 			);
+			// shadow the folded-unique "code" into the FILTER index so its shared tree exists (a unique view with no
+			// shared tree is an impossible state in real operation and would not be advertised in the manifest)
 			this.index.insertFilterAttribute(
-				null, nameSchema, noLocales, null, "FilterVal", 10
+				null, codeSchema, noLocales, null, "UNIQUE-VAL", 10, true
 			);
 			this.index.insertSortAttribute(
 				null, prioritySchema, noLocales, null, 42, 10
@@ -403,9 +401,6 @@ class EntityIndexManifestInvariantTest {
 			final AttributeSchemaContract codeSchema = createReferenceAttributeSchema(
 				"code", String.class
 			);
-			final AttributeSchemaContract nameSchema = createReferenceAttributeSchema(
-				"name", String.class
-			);
 			final AttributeSchemaContract prioritySchema = createReferenceAttributeSchema(
 				"priority", Integer.class
 			);
@@ -418,8 +413,10 @@ class EntityIndexManifestInvariantTest {
 			this.index.insertUniqueAttribute(
 				this.referenceSchema, codeSchema, noLocales, Scope.LIVE, null, "UNIQUE-VAL", 10
 			);
+			// shadow the folded-unique "code" into the FILTER index so its shared tree exists (a unique view with no
+			// shared tree is an impossible state in real operation and would not be advertised in the manifest)
 			this.index.insertFilterAttribute(
-				this.referenceSchema, nameSchema, noLocales, null, "FilterVal", 10
+				this.referenceSchema, codeSchema, noLocales, null, "UNIQUE-VAL", 10, true
 			);
 			this.index.insertSortAttribute(
 				this.referenceSchema, prioritySchema, noLocales, null, 42, 10
@@ -506,10 +503,10 @@ class EntityIndexManifestInvariantTest {
 			// two distinct filter attributes — each gets its own cardinality index entry AND
 			// (on the 0→1 transition) its own FILTER index entry on the base AttributeIndex
 			this.index.insertFilterAttribute(
-				this.referenceSchema, codeSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, codeSchema, noLocales, null, "ABC", 10, false
 			);
 			this.index.insertFilterAttribute(
-				this.referenceSchema, tagsSchema, noLocales, null, "T1", 10
+				this.referenceSchema, tagsSchema, noLocales, null, "T1", 10, false
 			);
 
 			// derive the expected manifest by walking every public sub-index getter that the
@@ -598,10 +595,10 @@ class EntityIndexManifestInvariantTest {
 
 			// two filter attributes — each populates one cardinality entry and one FILTER entry
 			this.index.insertFilterAttribute(
-				this.referenceSchema, codeSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, codeSchema, noLocales, null, "ABC", 10, false
 			);
 			this.index.insertFilterAttribute(
-				this.referenceSchema, tagsSchema, noLocales, null, "T1", 10
+				this.referenceSchema, tagsSchema, noLocales, null, "T1", 10, false
 			);
 
 			final EntityIndexKey indexKey = this.index.getIndexKey();

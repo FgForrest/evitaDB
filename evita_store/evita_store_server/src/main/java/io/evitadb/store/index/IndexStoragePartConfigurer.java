@@ -82,20 +82,21 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			UniqueIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(this.keyCompressor), UniqueIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-4095785894036417656L, new UniqueIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(-4095785894036417656L, new UniqueIndexStoragePartSerializer_2025_5(this.keyCompressor))
+				.addBackwardCompatibleSerializer(-3921198859032670410L, new UniqueIndexStoragePartSerializer_2026_1(this.keyCompressor)),
 			index++
 		);
 		kryo.register(
 			FilterIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(this.keyCompressor), FilterIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(6163295675316818632L, new FilterIndexStoragePartSerializer_2024_5(this.keyCompressor))
 				.addBackwardCompatibleSerializer(-3363238752052021735L, new FilterIndexStoragePartSerializer_2025_5(this.keyCompressor)),
 			index++
 		);
 		kryo.register(
 			SortIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(this.keyCompressor), SortIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(6163295675316818632L, new SortIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(6163295675316818632L, new SortIndexStoragePartSerializer_2025_5(this.keyCompressor))
+				.addBackwardCompatibleSerializer(-7076092972784353868L, new SortIndexStoragePartSerializer_2026_1(this.keyCompressor)),
 			index++
 		);
 		kryo.register(

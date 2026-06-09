@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.reference.TransactionalReference;
 import lombok.Getter;
@@ -36,14 +37,16 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * The **position tree** of the two-tree backing for {@link UnorderedLookup}: a count-augmented (order-statistic) B+
  * tree of distinct `int` record ids, ordered by their **logical position** and routed by a stable `long`
  * **order-key**.
  *
- * The leaves are **containers** holding up to {@link #BLOCK_SIZE} record ids in logical order; each container carries
+ * The leaves are **containers** holding up to {@link #DEFAULT_BLOCK_SIZE} record ids in logical order; each container carries
  * a `long` order-key. Internal nodes route by order-key separators **and** carry the record-id count of each child
  * subtree (the augmentation that makes positions implicit). Because order-key order is identical to logical order, a
  * single tree answers both:
@@ -74,14 +77,17 @@ import java.util.Arrays;
 @NotThreadSafe
 public class UnorderedLookupTree implements
 	TransactionalLayerProducer<Void, UnorderedLookupTree>,
+	ConsistencySensitiveDataStructure,
 	Serializable {
 	@Serial private static final long serialVersionUID = -7242020610200620162L;
 
 	/**
-	 * Fixed capacity of a single node block (both container record slots and internal child slots). A power of two
-	 * keeps the blocks small enough to be TLAB-allocated and cache friendly.
+	 * Default (and maximum) physical capacity of a single node block (both container record slots and internal child
+	 * slots). A power of two keeps the blocks small enough to be TLAB-allocated and cache friendly. Node arrays are
+	 * always allocated to this fixed size; the per-instance {@link #blockSize} is the LOGICAL split threshold (≤ this
+	 * value) so tests can force splits/steals/merges at a small fan-out without changing the physical allocation.
 	 */
-	static final int BLOCK_SIZE = 64;
+	static final int DEFAULT_BLOCK_SIZE = 64;
 	/**
 	 * Default spacing between freshly assigned order-keys. Wide enough that gap subdivision practically never
 	 * exhausts before a tree of realistic height is built; exhaustion is nonetheless handled by re-spacing.
@@ -92,10 +98,12 @@ public class UnorderedLookupTree implements
 	 */
 	private static final long NO_NEXT_KEY = Long.MAX_VALUE;
 	/**
-	 * Upper bound on tree height used to size the descent cursor. Internal nodes keep at least two children (single
-	 * child nodes are spliced out), so height is bounded by `log2(N)`; 40 covers the whole positive `int` range.
+	 * Upper bound on tree height used to size the descent cursor. The tree is kept balanced (all leaves at equal depth)
+	 * by the delete-side steal/merge consolidation, so for the production fan-out (64) height is bounded by
+	 * `log32(N) < 7`. The generous cap of 64 also accommodates the small logical {@link #blockSize} values used in tests
+	 * (a fan-out of 2 still tops out at `log2(Integer.MAX_VALUE) ≈ 31`).
 	 */
-	private static final int MAX_HEIGHT = 40;
+	private static final int MAX_HEIGHT = 64;
 
 	/**
 	 * Stable identity of this tree, used by the transactional memory machinery to key its per-transaction diff layer.
@@ -114,6 +122,20 @@ public class UnorderedLookupTree implements
 	 */
 	private final long orderKeyGap;
 	/**
+	 * Logical maximum number of entries per node before it splits (container record slots / internal child slots). Equal
+	 * to {@link #DEFAULT_BLOCK_SIZE} in production; tests may lower it (≤ {@link #DEFAULT_BLOCK_SIZE}) to force frequent
+	 * splits/steals/merges at small fan-out. The physical node arrays are always {@link #DEFAULT_BLOCK_SIZE}-sized.
+	 */
+	private final int blockSize;
+	/**
+	 * Minimum number of children a NON-ROOT internal node may hold before it underflows and must steal from / merge with
+	 * a sibling. Derived as `max(2, (blockSize + 1) / 2)`, which guarantees two minimally-filled siblings always fit into
+	 * one node on merge (`(minChildren - 1) + minChildren ≤ blockSize`). Leaf containers have NO minimum-occupancy floor:
+	 * the delete side only ever removes EMPTY containers (never merges non-empty ones), so a record never moves between
+	 * containers and never needs its order-key re-stamped — only whole child subtrees are moved during rebalancing.
+	 */
+	private final int minChildren;
+	/**
 	 * Memoized flattened permutation (logical position → record id). Nullified on every mutation. Not transactional —
 	 * it is a pure read-cache derived from the current view and is recomputed lazily; only ever populated outside a
 	 * transaction (mutations inside a transaction never read it back, they always invalidate it on entry).
@@ -121,16 +143,35 @@ public class UnorderedLookupTree implements
 	@Nullable private int[] memoizedArray;
 
 	/**
-	 * Creates a new empty tree with the default order-key gap.
+	 * Creates a new empty tree with the production fan-out and the default order-key gap.
 	 */
 	public UnorderedLookupTree() {
-		this(DEFAULT_ORDER_KEY_GAP);
+		this(DEFAULT_BLOCK_SIZE, DEFAULT_ORDER_KEY_GAP);
 	}
 
 	/**
-	 * Creates a new empty tree with a custom order-key gap (used by tests to force the re-spacing path cheaply).
+	 * Creates a new empty tree with the production fan-out and a custom order-key gap (used by tests to force the
+	 * re-spacing path cheaply).
 	 */
 	UnorderedLookupTree(long orderKeyGap) {
+		this(DEFAULT_BLOCK_SIZE, orderKeyGap);
+	}
+
+	/**
+	 * Creates a new empty tree with a custom logical {@link #blockSize} (≤ {@link #DEFAULT_BLOCK_SIZE}) and order-key
+	 * gap. Used by tests to force splits/steals/merges at a small fan-out.
+	 *
+	 * @param blockSize   logical split threshold; must be in `[3, DEFAULT_BLOCK_SIZE]`
+	 * @param orderKeyGap the order-key spacing
+	 */
+	UnorderedLookupTree(int blockSize, long orderKeyGap) {
+		if (blockSize < 3 || blockSize > DEFAULT_BLOCK_SIZE) {
+			throw new GenericEvitaInternalError(
+				"Block size must be in [3, " + DEFAULT_BLOCK_SIZE + "], got " + blockSize + "!"
+			);
+		}
+		this.blockSize = blockSize;
+		this.minChildren = Math.max(2, (blockSize + 1) / 2);
 		this.orderKeyGap = orderKeyGap;
 		this.root = new TransactionalReference<>(null);
 		this.size = new TransactionalReference<>(0);
@@ -140,11 +181,14 @@ public class UnorderedLookupTree implements
 	 * Internal constructor used by {@link #createCopyWithMergedTransactionalMemory(Void, TransactionalLayerMaintainer)}
 	 * to rebuild a committed tree wrapping the already-merged root and size.
 	 *
+	 * @param blockSize   the logical fan-out to carry over
 	 * @param orderKeyGap the order-key spacing to carry over
 	 * @param root        the committed root node (or `null` for an empty tree)
 	 * @param size        the committed record count
 	 */
-	private UnorderedLookupTree(long orderKeyGap, @Nullable Node<?> root, int size) {
+	private UnorderedLookupTree(int blockSize, long orderKeyGap, @Nullable Node<?> root, int size) {
+		this.blockSize = blockSize;
+		this.minChildren = Math.max(2, (blockSize + 1) / 2);
 		this.orderKeyGap = orderKeyGap;
 		this.root = new TransactionalReference<>(root);
 		this.size = new TransactionalReference<>(size);
@@ -181,7 +225,7 @@ public class UnorderedLookupTree implements
 			return;
 		}
 		// 1. pack records into containers and report their order-keys
-		final int containerCount = (n + BLOCK_SIZE - 1) / BLOCK_SIZE;
+		final int containerCount = (n + this.blockSize - 1) / this.blockSize;
 		Node<?>[] level = new Node<?>[containerCount];
 		long[] minKeys = new long[containerCount];
 		int[] counts = new int[containerCount];
@@ -190,7 +234,7 @@ public class UnorderedLookupTree implements
 			final LeafNode container = new LeafNode(!Transaction.isTransactionAvailable());
 			final long key = (long) c * this.orderKeyGap;
 			container.setOrderKey(key);
-			final int cnt = Math.min(BLOCK_SIZE, n - pos);
+			final int cnt = Math.min(this.blockSize, n - pos);
 			final int[] containerRecordIds = container.getRecordIdsForUpdate();
 			System.arraycopy(recordIds, pos, containerRecordIds, 0, cnt);
 			container.setCount(cnt);
@@ -206,7 +250,7 @@ public class UnorderedLookupTree implements
 		// 2. build internal levels bottom-up until a single root remains
 		int levelSize = containerCount;
 		while (levelSize > 1) {
-			final int parentCount = (levelSize + BLOCK_SIZE - 1) / BLOCK_SIZE;
+			final int parentCount = (levelSize + this.blockSize - 1) / this.blockSize;
 			final int base = levelSize / parentCount;
 			final int remainder = levelSize % parentCount;
 			final Node<?>[] parents = new Node<?>[parentCount];
@@ -451,12 +495,112 @@ public class UnorderedLookupTree implements
 			? null
 			: transactionalLayer.getStateCopyWithCommittedChanges(referencedRoot);
 		final int theSize = transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElse(0);
-		return new UnorderedLookupTree(this.orderKeyGap, theRoot, theSize);
+		return new UnorderedLookupTree(this.blockSize, this.orderKeyGap, theRoot, theSize);
+	}
+
+	@Nonnull
+	@Override
+	public ConsistencyReport getConsistencyReport() {
+		final List<String> errors = new ArrayList<>();
+		final Node<?> theRoot = getRoot();
+		if (theRoot == null) {
+			if (size() != 0) {
+				errors.add("Empty tree (null root) but size() reports " + size() + "!");
+			}
+		} else {
+			final int[] leafDepth = new int[]{-1};
+			final long[] lastKey = new long[]{Long.MIN_VALUE};
+			final long[] recordCount = new long[1];
+			verifyConsistency(theRoot, 0, true, leafDepth, lastKey, errors, recordCount);
+			if (recordCount[0] != size()) {
+				errors.add("Tracked size " + size() + " does not match counted records " + recordCount[0] + "!");
+			}
+		}
+		return errors.isEmpty()
+			? new ConsistencyReport(ConsistencyState.CONSISTENT, "The position tree is balanced and consistent.")
+			: new ConsistencyReport(ConsistencyState.BROKEN, String.join("\n", errors));
 	}
 
 	/*
 		PRIVATE METHODS
 	 */
+
+	/**
+	 * Recursively verifies the subtree rooted at `node`: equal leaf depth (balance), non-root internal min-occupancy,
+	 * block-size bounds, per-child subtree-count augmentation, order-key separators (each separator equals the minimum
+	 * order-key of the child it borders) and global strict order-key monotonicity across containers in logical order.
+	 * Leaf containers are intentionally NOT checked for a minimum occupancy floor — the delete side only removes EMPTY
+	 * containers and never merges non-empty ones, so under-full containers are a legal (memory-only) state. Accumulates
+	 * the total record count into `recordCount` and returns the record count of `node`'s subtree.
+	 */
+	private int verifyConsistency(
+		@Nonnull Node<?> node, int depth, boolean isRoot,
+		@Nonnull int[] leafDepth, @Nonnull long[] lastKey,
+		@Nonnull List<String> errors, @Nonnull long[] recordCount
+	) {
+		if (node instanceof final LeafNode leaf) {
+			if (leafDepth[0] == -1) {
+				leafDepth[0] = depth;
+			} else if (leafDepth[0] != depth) {
+				errors.add("Unbalanced tree: container at depth " + depth + " but expected " + leafDepth[0] + "!");
+			}
+			final int count = leaf.getCount();
+			if (!isRoot && count < 1) {
+				errors.add("Empty non-root container encountered!");
+			}
+			if (count > this.blockSize) {
+				errors.add("Container overflow: " + count + " > block size " + this.blockSize + "!");
+			}
+			final long key = leaf.getOrderKey();
+			if (lastKey[0] != Long.MIN_VALUE && key <= lastKey[0]) {
+				errors.add("Container order-key " + key + " is not strictly greater than its predecessor " + lastKey[0] + "!");
+			}
+			lastKey[0] = key;
+			recordCount[0] += count;
+			return count;
+		}
+		final InternalNode internal = (InternalNode) node;
+		final int childCount = internal.getChildCount();
+		if (isRoot) {
+			if (childCount < 2) {
+				errors.add("Root internal node has fewer than 2 children (" + childCount + ")!");
+			}
+		} else if (childCount < this.minChildren) {
+			errors.add("Internal underflow: " + childCount + " children < minimum " + this.minChildren + "!");
+		}
+		if (childCount > this.blockSize) {
+			errors.add("Internal overflow: " + childCount + " children > block size " + this.blockSize + "!");
+		}
+		final Node<?>[] children = internal.getChildren();
+		final int[] counts = internal.getCounts();
+		final long[] separators = internal.getSeparators();
+		int sum = 0;
+		for (int i = 0; i < childCount; i++) {
+			if (i > 0) {
+				final long childMin = minOrderKey(children[i]);
+				if (separators[i - 1] != childMin) {
+					errors.add("Separator[" + (i - 1) + "]=" + separators[i - 1] + " != child subtree min order-key " + childMin + "!");
+				}
+			}
+			final int childRecords = verifyConsistency(children[i], depth + 1, false, leafDepth, lastKey, errors, recordCount);
+			if (counts[i] != childRecords) {
+				errors.add("Stored subtree count " + counts[i] + " != actual " + childRecords + " at child " + i + "!");
+			}
+			sum += childRecords;
+		}
+		return sum;
+	}
+
+	/**
+	 * Returns the minimum order-key in the subtree rooted at `node` (the order-key of its leftmost container).
+	 */
+	private static long minOrderKey(@Nonnull Node<?> node) {
+		Node<?> current = node;
+		while (current instanceof final InternalNode internal) {
+			current = internal.getChildren()[0];
+		}
+		return ((LeafNode) current).getOrderKey();
+	}
 
 	/**
 	 * Returns the current view of the root node — the transactional view when a layer exists, the committed node
@@ -527,7 +671,7 @@ public class UnorderedLookupTree implements
 		container.setCount(count + 1);
 		propagateCountDelta(cursor, +1);
 		setSize(size() + 1);
-		if (container.getCount() > BLOCK_SIZE) {
+		if (container.getCount() > this.blockSize) {
 			splitContainer(container, offset, recordId, cursor, assignments);
 		} else {
 			assignments.accept(recordId, container.getOrderKey());
@@ -689,7 +833,7 @@ public class UnorderedLookupTree implements
 			// the existing child's stored count was already incremented for the inserted record; shed the moved part
 			parent.getCountsForUpdate()[ci] -= rightCount;
 			insertIntoInternal(parent, ci, right, rightMinKey, rightCount);
-			if (parent.getChildCount() <= BLOCK_SIZE) {
+			if (parent.getChildCount() <= this.blockSize) {
 				return;
 			}
 			// parent overflowed - split it and continue up the cursor
@@ -870,48 +1014,250 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
-	 * Removes an emptied container from the tree, walking up the cursor to collapse emptied ancestors, splice out
-	 * single-child internals and reduce the root height.
+	 * Removes an emptied container from the tree and restores B+ balance. The container is unlinked from its immediate
+	 * parent (keeping separators exact), then internal-node underflow is repaired up the cursor by {@link #consolidate}.
+	 *
+	 * Crucially this performs INTERNAL rebalancing only — it moves whole child SUBTREES between internal siblings (steal)
+	 * or fuses two internal siblings (merge), and never moves records between leaf containers. Container membership is
+	 * therefore untouched, so no record's order-key is ever re-stamped (no {@link OrderKeyConsumer} traffic on delete).
+	 * The price is that under-full (sparse) containers are left in place — a memory-only effect, identical to the legacy
+	 * behaviour, and recompacted whenever the tree is rebuilt from a flat array via {@link #bulkLoad}.
 	 */
 	private void removeEmptyContainer(@Nonnull Cursor cursor) {
 		if (cursor.depth == 0) {
-			// the container was the root and is now empty - the tree is empty
+			// the emptied container was the root - the tree is now empty
 			setRoot(null);
 			return;
 		}
-		int level = cursor.depth - 1;
+		// unlink the emptied container from its immediate parent (separators stay exact - see removeChildAt)
+		final int leafLevel = cursor.depth - 1;
+		final InternalNode parent = cursor.path[leafLevel];
+		final int ci = cursor.idx[leafLevel];
+		// capture the child before the structural mutation; once detached it is unreachable from the committed root, so
+		// its transactional layer (touched while emptying it) must be dropped here or the commit sweep flags it stale
+		final Node<?> removedChild = parent.getChildren()[ci];
+		removeChildAt(parent, ci);
+		dropLayerIfPresent(removedChild);
+		// removing the HEAD child (index 0) raises this subtree's minimum order-key, so the separator that borders this
+		// subtree on its left in some ancestor is now stale - refresh it up the cursor BEFORE rebalancing. This must run
+		// even when no underflow follows, and it also feeds consolidate's merge `bridge` (which reads that separator).
+		if (ci == 0) {
+			propagateNewMinimumUp(cursor, leafLevel);
+		}
+		// repair internal underflow upward
+		consolidate(cursor, leafLevel);
+	}
+
+	/**
+	 * Refreshes the ancestor separator that borders the subtree rooted at `cursor.path[fromLevel]` after that subtree's
+	 * minimum order-key changed (its head child was removed). Walks up the cursor to the first ancestor where the
+	 * subtree is NOT the leftmost child and rewrites that ancestor's bordering separator to the subtree's new minimum;
+	 * if every ancestor was entered through its leftmost child the subtree holds the global minimum and no separator
+	 * borders it on the left. Keeps separators EXACT (the consistency invariant) and feeds the merge bridge separator.
+	 *
+	 * @param cursor    the descent cursor captured to the removed container
+	 * @param fromLevel the level of the internal node whose subtree minimum just rose
+	 */
+	private static void propagateNewMinimumUp(@Nonnull Cursor cursor, int fromLevel) {
+		final long newMinimum = minOrderKey(cursor.path[fromLevel]);
+		for (int level = fromLevel; level >= 1; level--) {
+			final int indexInParent = cursor.idx[level - 1];
+			if (indexInParent > 0) {
+				cursor.path[level - 1].getSeparatorsForUpdate()[indexInParent - 1] = newMinimum;
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Repairs internal-node underflow from `level` upward after a child was removed at that level. Each underflowing
+	 * non-root internal first tries to STEAL a whole child subtree from an adjacent internal sibling that has one to
+	 * spare, and otherwise MERGEs with an adjacent sibling (which removes a child from the grandparent and propagates the
+	 * underflow check one level up). The root is collapsed onto its only child when it drops to a single child — a
+	 * uniform, all-paths height reduction that keeps every leaf at equal depth. Only whole subtrees move between
+	 * internals, so leaf container membership — and hence every record's order-key — is left untouched.
+	 *
+	 * @param cursor the descent cursor captured to the just-removed container
+	 * @param level  the level (internal node `cursor.path[level]`) that just lost a child and may now underflow
+	 */
+	private void consolidate(@Nonnull Cursor cursor, int level) {
 		while (level >= 0) {
-			final InternalNode parent = cursor.path[level];
-			final int ci = cursor.idx[level];
-			// capture the child about to be unlinked before the structural mutation; once detached from the tree it
-			// is no longer reachable from the committed root, so its transactional layer (touched while emptying it)
-			// would never be visited by the commit sweep and would be flagged stale - drop it here (INV-5), exactly
-			// as the reference B+ tree does on node merge
-			final Node<?> removedChild = parent.getChildren()[ci];
-			removeChildAt(parent, ci);
-			dropLayerIfPresent(removedChild);
-			if (parent.getChildCount() == 0) {
-				if (level == 0) {
+			final InternalNode node = cursor.path[level];
+			if (level == 0) {
+				// the root has no minimum-occupancy floor; only collapse it when it degenerates to a single child
+				final int rootChildCount = node.getChildCount();
+				if (rootChildCount == 1) {
+					setRoot(node.getChildren()[0]);
+				} else if (rootChildCount == 0) {
 					setRoot(null);
+				}
+				return;
+			}
+			if (node.getChildCount() >= this.minChildren) {
+				// no underflow - the structure above is unaffected
+				return;
+			}
+			final InternalNode grandParent = cursor.path[level - 1];
+			final int gi = cursor.idx[level - 1];
+			// 1) try to steal a child subtree from the left sibling
+			if (gi > 0) {
+				final InternalNode left = (InternalNode) grandParent.getChildren()[gi - 1];
+				if (left.getChildCount() > this.minChildren) {
+					stealChildFromLeft(node, left, grandParent, gi);
 					return;
 				}
-				level--;
-				continue;
 			}
-			if (parent.getChildCount() == 1) {
-				if (level == 0) {
-					// collapse a single-child root to reduce tree height (setRoot drops the old root's layer)
-					setRoot(parent.getChildren()[0]);
-				} else {
-					// splice a single-child internal out of its parent (keep internals >= 2 children)
-					final InternalNode grandParent = cursor.path[level - 1];
-					grandParent.getChildrenForUpdate()[cursor.idx[level - 1]] = parent.getChildren()[0];
-					// the spliced-out internal is detached from the tree - drop its (touched) layer too
-					dropLayerIfPresent(parent);
+			// 2) try to steal a child subtree from the right sibling
+			if (gi < grandParent.getChildCount() - 1) {
+				final InternalNode right = (InternalNode) grandParent.getChildren()[gi + 1];
+				if (right.getChildCount() > this.minChildren) {
+					stealChildFromRight(node, right, grandParent, gi);
+					return;
 				}
 			}
-			return;
+			// 3) no sibling can spare a child - merge with one (prefer the left), then re-check the grandparent
+			if (gi > 0) {
+				final InternalNode left = (InternalNode) grandParent.getChildren()[gi - 1];
+				mergeInternals(left, node, grandParent, gi);
+				dropLayerIfPresent(node);
+			} else {
+				final InternalNode right = (InternalNode) grandParent.getChildren()[gi + 1];
+				mergeInternals(node, right, grandParent, gi + 1);
+				dropLayerIfPresent(right);
+			}
+			level--;
 		}
+	}
+
+	/**
+	 * Moves the LAST child subtree of `left` to the FRONT of the underflowing `node`, fixing up the bordering separator
+	 * in `grandParent` and the per-child counts. `gi` is the index of `node` within `grandParent` (`> 0`).
+	 */
+	private static void stealChildFromLeft(
+		@Nonnull InternalNode node,
+		@Nonnull InternalNode left,
+		@Nonnull InternalNode grandParent,
+		int gi
+	) {
+		final int nc = node.getChildCount();
+		final int lc = left.getChildCount();
+		final Node<?> moved = left.getChildren()[lc - 1];
+		final int movedCount = left.getCounts()[lc - 1];
+		final long movedMinKey = minOrderKey(moved);
+		// the current separator before `node` is the min order-key of node's old first child
+		final long oldNodeMinKey = grandParent.getSeparators()[gi - 1];
+		// prepend the moved subtree to node
+		final Node<?>[] nodeChildren = node.getChildrenForUpdate();
+		final int[] nodeCounts = node.getCountsForUpdate();
+		final long[] nodeSeparators = node.getSeparatorsForUpdate();
+		System.arraycopy(nodeChildren, 0, nodeChildren, 1, nc);
+		System.arraycopy(nodeCounts, 0, nodeCounts, 1, nc);
+		System.arraycopy(nodeSeparators, 0, nodeSeparators, 1, nc - 1);
+		nodeChildren[0] = moved;
+		nodeCounts[0] = movedCount;
+		nodeSeparators[0] = oldNodeMinKey;
+		node.setChildCount(nc + 1);
+		// drop the moved subtree from left's tail
+		final Node<?>[] leftChildren = left.getChildrenForUpdate();
+		final int[] leftCounts = left.getCountsForUpdate();
+		final long[] leftSeparators = left.getSeparatorsForUpdate();
+		leftChildren[lc - 1] = null;
+		leftCounts[lc - 1] = 0;
+		leftSeparators[lc - 2] = 0L;
+		left.setChildCount(lc - 1);
+		// the separator before node now borders the moved subtree
+		grandParent.getSeparatorsForUpdate()[gi - 1] = movedMinKey;
+		final int[] gpCounts = grandParent.getCountsForUpdate();
+		gpCounts[gi - 1] -= movedCount;
+		gpCounts[gi] += movedCount;
+	}
+
+	/**
+	 * Moves the FIRST child subtree of `right` to the END of the underflowing `node`, fixing up the bordering separator
+	 * in `grandParent` and the per-child counts. `gi` is the index of `node` within `grandParent` (`right` is at `gi+1`).
+	 */
+	private static void stealChildFromRight(
+		@Nonnull InternalNode node,
+		@Nonnull InternalNode right,
+		@Nonnull InternalNode grandParent,
+		int gi
+	) {
+		final int nc = node.getChildCount();
+		final int rc = right.getChildCount();
+		final Node<?> moved = right.getChildren()[0];
+		final int movedCount = right.getCounts()[0];
+		final long movedMinKey = minOrderKey(moved);
+		// after removing right's first child, right's new minimum is the min order-key of its old second child
+		final long newRightMinKey = right.getSeparators()[0];
+		// append the moved subtree to node's tail
+		final Node<?>[] nodeChildren = node.getChildrenForUpdate();
+		final int[] nodeCounts = node.getCountsForUpdate();
+		final long[] nodeSeparators = node.getSeparatorsForUpdate();
+		nodeChildren[nc] = moved;
+		nodeCounts[nc] = movedCount;
+		nodeSeparators[nc - 1] = movedMinKey;
+		node.setChildCount(nc + 1);
+		// drop the moved subtree from right's head (shift the remainder left)
+		final Node<?>[] rightChildren = right.getChildrenForUpdate();
+		final int[] rightCounts = right.getCountsForUpdate();
+		final long[] rightSeparators = right.getSeparatorsForUpdate();
+		System.arraycopy(rightChildren, 1, rightChildren, 0, rc - 1);
+		System.arraycopy(rightCounts, 1, rightCounts, 0, rc - 1);
+		System.arraycopy(rightSeparators, 1, rightSeparators, 0, rc - 2);
+		rightChildren[rc - 1] = null;
+		rightCounts[rc - 1] = 0;
+		rightSeparators[rc - 2] = 0L;
+		right.setChildCount(rc - 1);
+		// the separator after node now borders right's new minimum
+		grandParent.getSeparatorsForUpdate()[gi] = newRightMinKey;
+		final int[] gpCounts = grandParent.getCountsForUpdate();
+		gpCounts[gi] += movedCount;
+		gpCounts[gi + 1] -= movedCount;
+	}
+
+	/**
+	 * Fuses `absorbed` into `survivor` (children appended in logical order) and unlinks `absorbed` (at `absorbedIndex`,
+	 * always `= survivorIndex + 1`) from `grandParent`, folding its subtree count into the survivor's grandparent slot.
+	 * The bridge separator between the two halves is the min order-key of the absorbed subtree (taken from the
+	 * grandparent's exact separator). The caller drops the absorbed node's transactional layer.
+	 */
+	private static void mergeInternals(
+		@Nonnull InternalNode survivor,
+		@Nonnull InternalNode absorbed,
+		@Nonnull InternalNode grandParent,
+		int absorbedIndex
+	) {
+		final int sc = survivor.getChildCount();
+		final int ac = absorbed.getChildCount();
+		final long bridge = grandParent.getSeparators()[absorbedIndex - 1];
+		final int absorbedCount = grandParent.getCounts()[absorbedIndex];
+		// append absorbed's children / counts / separators onto the survivor
+		final Node<?>[] sChildren = survivor.getChildrenForUpdate();
+		final int[] sCounts = survivor.getCountsForUpdate();
+		final long[] sSeparators = survivor.getSeparatorsForUpdate();
+		final Node<?>[] aChildren = absorbed.getChildren();
+		final int[] aCounts = absorbed.getCounts();
+		final long[] aSeparators = absorbed.getSeparators();
+		System.arraycopy(aChildren, 0, sChildren, sc, ac);
+		System.arraycopy(aCounts, 0, sCounts, sc, ac);
+		sSeparators[sc - 1] = bridge;
+		System.arraycopy(aSeparators, 0, sSeparators, sc, ac - 1);
+		survivor.setChildCount(sc + ac);
+		// unlink the absorbed slot from the grandparent, dropping the separator that bordered it on the left and folding
+		// its subtree count into the survivor's slot
+		final int gcc = grandParent.getChildCount();
+		final Node<?>[] gChildren = grandParent.getChildrenForUpdate();
+		final int[] gCounts = grandParent.getCountsForUpdate();
+		final long[] gSeparators = grandParent.getSeparatorsForUpdate();
+		gCounts[absorbedIndex - 1] += absorbedCount;
+		System.arraycopy(gChildren, absorbedIndex + 1, gChildren, absorbedIndex, gcc - absorbedIndex - 1);
+		System.arraycopy(gCounts, absorbedIndex + 1, gCounts, absorbedIndex, gcc - absorbedIndex - 1);
+		System.arraycopy(gSeparators, absorbedIndex, gSeparators, absorbedIndex - 1, gcc - absorbedIndex - 1);
+		final int newGcc = gcc - 1;
+		grandParent.setChildCount(newGcc);
+		gChildren[newGcc] = null;
+		gCounts[newGcc] = 0;
+		gSeparators[newGcc - 1] = 0L;
 	}
 
 	/**
@@ -926,7 +1272,11 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
-	 * Removes the child at index `ci` from `internal`, dropping the adjacent separator.
+	 * Removes the child at index `ci` from `internal`, keeping every remaining separator EXACT. The separator dropped is
+	 * the one on the LEFT of the removed child (`ci - 1`, equal to the removed child's own min order-key), so the
+	 * separator that was on its right slides over to border the surviving left neighbour — which is precisely that
+	 * neighbour's correct min-key boundary. When removing the head child (`ci == 0`) the head separator (`0`) is dropped
+	 * instead (the new head child needs no separator before it).
 	 */
 	private static void removeChildAt(@Nonnull InternalNode internal, int ci) {
 		final int childCount = internal.getChildCount();
@@ -935,9 +1285,8 @@ public class UnorderedLookupTree implements
 		final long[] separators = internal.getSeparatorsForUpdate();
 		System.arraycopy(children, ci + 1, children, ci, childCount - ci - 1);
 		System.arraycopy(counts, ci + 1, counts, ci, childCount - ci - 1);
-		// drop the separator that bordered the removed child (the one after it, or the last one when removing the tail)
-		final int separatorIndex = ci < childCount - 1 ? ci : ci - 1;
-		if (separatorIndex >= 0) {
+		if (childCount >= 2) {
+			final int separatorIndex = ci > 0 ? ci - 1 : 0;
 			System.arraycopy(separators, separatorIndex + 1, separators, separatorIndex, childCount - separatorIndex - 2);
 		}
 		final int newChildCount = childCount - 1;
@@ -1049,7 +1398,7 @@ public class UnorderedLookupTree implements
 	}
 
 	/**
-	 * Leaf node = a **container** holding up to {@link #BLOCK_SIZE} record ids in logical order, identified by a
+	 * Leaf node = a **container** holding up to {@link #DEFAULT_BLOCK_SIZE} record ids in logical order, identified by a
 	 * `long` order-key.
 	 *
 	 * Mirrors `BPlusLeafTreeNode`: each mutable field (`orderKey`, `recordIds`, `count`) is copied-on-write into the
@@ -1087,7 +1436,7 @@ public class UnorderedLookupTree implements
 		 */
 		@SuppressWarnings("CheckForOutOfMemoryOnLargeArrayAllocation")
 		LeafNode(boolean transactionalLayer) {
-			this.recordIds = new int[BLOCK_SIZE + 1];
+			this.recordIds = new int[DEFAULT_BLOCK_SIZE + 1];
 			this.count = 0;
 			this.orderKey = 0L;
 			this.transactionalLayer = transactionalLayer;
@@ -1242,7 +1591,7 @@ public class UnorderedLookupTree implements
 
 	/**
 	 * Internal node routing by `long` order-key separators and carrying the record-id count of each child subtree.
-	 * Holds up to {@link #BLOCK_SIZE} children and `childCount - 1` separators (`separators[i]` is the minimum
+	 * Holds up to {@link #DEFAULT_BLOCK_SIZE} children and `childCount - 1` separators (`separators[i]` is the minimum
 	 * order-key found in `children[i + 1]`).
 	 *
 	 * Mirrors `BPlusInternalTreeNode`: each mutable field (`children`, `separators`, `counts`, `childCount`) is
@@ -1281,9 +1630,9 @@ public class UnorderedLookupTree implements
 		 */
 		@SuppressWarnings("CheckForOutOfMemoryOnLargeArrayAllocation")
 		InternalNode(boolean transactionalLayer) {
-			this.children = new Node<?>[BLOCK_SIZE + 1];
-			this.separators = new long[BLOCK_SIZE];
-			this.counts = new int[BLOCK_SIZE + 1];
+			this.children = new Node<?>[DEFAULT_BLOCK_SIZE + 1];
+			this.separators = new long[DEFAULT_BLOCK_SIZE];
+			this.counts = new int[DEFAULT_BLOCK_SIZE + 1];
 			this.childCount = 0;
 			this.transactionalLayer = transactionalLayer;
 		}

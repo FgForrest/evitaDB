@@ -1,0 +1,210 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.attribute;
+
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.Range;
+import io.evitadb.index.bool.TransactionalBoolean;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.range.RangeIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import lombok.Getter;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.Comparator;
+import java.util.function.Function;
+
+/**
+ * Owner variant of {@link FilterIndex}. It OWNS its {@link InvertedIndex} (and optional {@link RangeIndex}) and its own
+ * transactional {@link #dirty} flag, fully participating in the commit cycle as a
+ * {@link VoidTransactionMemoryProducer}. Used by the histogram subsystem ({@link io.evitadb.index.SimpleHistogramIndex},
+ * {@link io.evitadb.index.LocalizedHistogramIndex}) and any standalone owner that is the sole writer of its data.
+ *
+ * Contrast with {@link FilterIndexView}, which is a stateless flyweight over an {@link AttributeIndex}-owned shared
+ * tree and owns no transactional lifecycle.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@SuppressWarnings("rawtypes")
+public final class OwnerFilterIndex extends FilterIndex implements VoidTransactionMemoryProducer<OwnerFilterIndex> {
+	@Serial private static final long serialVersionUID = -6813305126746774103L;
+
+	/**
+	 * Unique transactional id minted once per owner instance — feeds the query-planner formula cache.
+	 */
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/**
+	 * Internal flag that tracks whether the index contents became dirty and need to be persisted.
+	 */
+	@Nonnull private final TransactionalBoolean dirty;
+
+	/**
+	 * Creates a new empty owner filter index for the given attribute, allocating its own value→ValueToRecord tree
+	 * (and a {@link RangeIndex} for range-typed attributes).
+	 *
+	 * @param attributeIndexKey key identifying the attribute
+	 * @param attributeType     the declared attribute type (array-aware)
+	 */
+	public OwnerFilterIndex(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
+		this(
+			attributeIndexKey,
+			attributeType,
+			getNormalizer(plainTypeOf(attributeType)),
+			getComparator(attributeIndexKey, plainTypeOf(attributeType))
+		);
+	}
+
+	/**
+	 * Telescoping helper that builds the owned {@link InvertedIndex} and {@link RangeIndex} from the already-derived
+	 * comparator / normalizer (so each is computed exactly once).
+	 */
+	private OwnerFilterIndex(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<?> attributeType,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator<? extends Comparable> comparator
+	) {
+		this(
+			attributeIndexKey,
+			attributeType,
+			new InvertedIndex(normalizer, comparator),
+			Range.class.isAssignableFrom(plainTypeOf(attributeType)) ? new RangeIndex() : null,
+			comparator,
+			normalizer
+		);
+	}
+
+	/**
+	 * Creates an owner filter index restored from persisted histogram points.
+	 *
+	 * @param attributeIndexKey key identifying the attribute
+	 * @param valueToRecords    persisted value→ValueToRecord buckets
+	 * @param rangeIndex        persisted range structure, or `null` for non-range attributes
+	 * @param attributeType     the declared attribute type (array-aware)
+	 */
+	public OwnerFilterIndex(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ValueToRecordBitmap[] valueToRecords,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull Class<?> attributeType
+	) {
+		this(
+			attributeIndexKey,
+			valueToRecords,
+			rangeIndex,
+			attributeType,
+			getNormalizer(plainTypeOf(attributeType)),
+			getComparator(attributeIndexKey, plainTypeOf(attributeType))
+		);
+	}
+
+	/**
+	 * Telescoping helper that builds the owned {@link InvertedIndex} from persisted buckets and the already-derived
+	 * comparator / normalizer.
+	 */
+	private OwnerFilterIndex(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ValueToRecordBitmap[] valueToRecords,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull Class<?> attributeType,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator<? extends Comparable> comparator
+	) {
+		this(
+			attributeIndexKey,
+			attributeType,
+			new InvertedIndex(valueToRecords, normalizer, comparator),
+			rangeIndex,
+			comparator,
+			normalizer
+		);
+	}
+
+	/**
+	 * Canonical constructor wiring the owned tree / range / comparator / normalizer and a fresh transactional dirty
+	 * flag. Also reused by {@link #createCopyWithMergedTransactionalMemory} to assemble the committed copy.
+	 */
+	OwnerFilterIndex(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<?> attributeType,
+		@Nonnull InvertedIndex invertedIndex,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull Comparator<? extends Comparable> comparator,
+		@Nonnull Function<Object, Serializable> normalizer
+	) {
+		super(attributeIndexKey, attributeType, invertedIndex, rangeIndex, comparator, normalizer);
+		this.dirty = new TransactionalBoolean();
+	}
+
+	@Override
+	public boolean isDirty() {
+		return this.dirty.isTrue();
+	}
+
+	@Override
+	protected void markDirty() {
+		this.dirty.setToTrue();
+	}
+
+	@Override
+	public void resetDirty() {
+		this.dirty.reset();
+	}
+
+	@Nonnull
+	@Override
+	public OwnerFilterIndex createCopyWithMergedTransactionalMemory(
+		@Nullable Void layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
+		final RangeIndex theRangeIndex = getRangeIndex();
+		return new OwnerFilterIndex(
+			getAttributeIndexKey(),
+			getAttributeType(),
+			transactionalLayer.getStateCopyWithCommittedChanges(getInvertedIndex()),
+			theRangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(theRangeIndex),
+			getComparator(),
+			getNormalizer()
+		);
+	}
+
+	@Override
+	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		getInvertedIndex().removeLayer(transactionalLayer);
+		final RangeIndex theRangeIndex = getRangeIndex();
+		if (theRangeIndex != null) {
+			theRangeIndex.removeLayer(transactionalLayer);
+		}
+		this.dirty.removeLayer(transactionalLayer);
+	}
+
+}

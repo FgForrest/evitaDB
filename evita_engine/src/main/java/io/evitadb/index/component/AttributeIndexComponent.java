@@ -25,21 +25,22 @@ package io.evitadb.index.component;
 
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 
 import javax.annotation.Nonnull;
 
 /**
  * Thin adapter that wraps the existing {@link AttributeIndex} as an {@link IndexComponent} so the
- * parent {@link io.evitadb.index.EntityIndex} can drive it through the uniform component loop. An
- * adapter is used (rather than implementing the interface on `AttributeIndex` directly) because
- * the concrete `AttributeIndex` is already heavily annotated with `@Delegate` for its
- * `AttributeIndexContract` surface, and bolting another interface onto it would entangle two
- * unrelated concerns.
+ * parent {@link EntityIndex} can drive it through the uniform component loop. An adapter is used (rather than
+ * implementing the interface on `AttributeIndex` directly) because the concrete `AttributeIndex` is already
+ * the `@Delegate` target for its `AttributeIndexContract` read surface, and bolting another interface onto it would
+ * entangle two unrelated concerns.
  *
  * The adapter holds the parent {@link EntityIndexKey} so it can synthesize the per-attribute
- * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey}
+ * {@link AttributeIndexStorageKey}
  * entries when announcing keys into the {@link EntityIndexManifest}.
  */
 public final class AttributeIndexComponent implements IndexComponent {
@@ -51,8 +52,7 @@ public final class AttributeIndexComponent implements IndexComponent {
 	 */
 	@Nonnull private final AttributeIndex attributeIndex;
 	/**
-	 * The parent {@link EntityIndexKey} used as the prefix for every synthesized
-	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey}.
+	 * The parent {@link EntityIndexKey} used as the prefix for every synthesized {@link AttributeIndexStorageKey}.
 	 */
 	@Nonnull private final EntityIndexKey entityIndexKey;
 

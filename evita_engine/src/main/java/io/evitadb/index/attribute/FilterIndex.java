@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,9 +30,6 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
-import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
@@ -43,7 +40,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecord;
@@ -64,6 +60,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -80,16 +77,27 @@ import java.util.function.Function;
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.StringUtils.unknownToString;
-import static java.util.Optional.ofNullable;
 
 /**
  * Filter index maintains information about single filterable attribute - its value to record id relation.
  * It uses several data structures to allow filtration - see fields description.
  *
+ * This is the abstract, sealed base of the owner/view hierarchy. It holds the shared read/write query algebra
+ * over the {@link #invertedIndex} (and optional {@link #rangeIndex}) but owns no transactional lifecycle of its
+ * own. Two concrete shapes exist:
+ *
+ * - {@link OwnerFilterIndex} — owns its {@link InvertedIndex} and participates in the commit cycle as a
+ *   {@link io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer}. Used by the histogram subsystem and
+ *   any standalone owner.
+ * - {@link FilterIndexView} — a stateless flyweight wrapping an {@link AttributeIndex}-owned shared
+ *   {@link InvertedIndex}. It is NOT a transactional producer; its dirtiness, persistence and transactional id are
+ *   all derived from the shared tree it wraps.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, IndexDataStructure, Serializable {
+public abstract sealed class FilterIndex implements IndexDataStructure, Serializable
+	permits OwnerFilterIndex, FilterIndexView {
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
 	private static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
 	static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
@@ -120,22 +128,17 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			return new OrFormula(new long[] {indexTransactionId}, bitmaps);
 		};
 
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains key identifying the attribute.
 	 */
 	@Getter private final AttributeIndexKey attributeIndexKey;
-	/**
-	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
-	 */
-	@Nonnull private final TransactionalBoolean dirty;
 	/**
 	 * Histogram is the main data structure that holds the information about value to record ids relation.
 	 */
 	@Nonnull @Getter private final InvertedIndex invertedIndex;
 	/**
 	 * Range index is used only for attribute types that are assignable to {@link Range} and can answer questions like:
-	 * <p>
+	 *
 	 * - what records are valid at precise moment
 	 * - what records are valid until certain moment
 	 * - what records are valid after certain moment
@@ -172,6 +175,17 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * {@link #getRangeHistogramOfAllRecords(Class, int)} guards against schema/index drift.
 	 */
 	@Nullable private transient InvertedIndexSubSet memoizedRangeHistogramSubSet;
+
+	/**
+	 * Resolves the plain (array-unwrapped) attribute type that drives the comparator / normalizer / range decisions.
+	 *
+	 * @param attributeType the declared (possibly array) attribute type
+	 * @return the array component type for array attributes, otherwise the type itself
+	 */
+	@Nonnull
+	static Class<?> plainTypeOf(@Nonnull Class<?> attributeType) {
+		return attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+	}
 
 	/**
 	 * Verifies that the provided value is an array of Serializable objects and
@@ -240,6 +254,14 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			return comparable -> comparable instanceof Currency currency ? new ComparableCurrency(currency) : (Serializable) comparable;
 		} else if (Locale.class.isAssignableFrom(attributeType)) {
 			return comparable -> comparable instanceof Locale locale ? new ComparableLocale(locale) : (Serializable) comparable;
+		} else if (String.class.isAssignableFrom(attributeType)) {
+			// String keys are normalized to Unicode NFD so the shared value tree holds one canonical form across the
+			// unique / filter / sort role-views. This matches SortIndex.createNormalizerFor's NFD
+			// form verbatim, so a both-flagged attribute reads and writes the very same key bytes on every path. ASCII
+			// (`code`, `ean`) is unaffected; non-ASCII filter `=` gains canonical equivalence (accepted release-note).
+			return text -> text == null
+				? null
+				: Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD);
 		} else if (Comparable.class.isAssignableFrom(attributeType)) {
 			return NO_NORMALIZATION;
 		} else {
@@ -335,34 +357,19 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		);
 	}
 
-	public FilterIndex(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
-		this.attributeIndexKey = attributeIndexKey;
-		this.attributeType = attributeType;
-		this.dirty = new TransactionalBoolean();
-		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		this.rangeIndex = Range.class.isAssignableFrom(plainType) ? new RangeIndex() : null;
-		this.comparator = getComparator(attributeIndexKey, plainType);
-		this.normalizer = getNormalizer(plainType);
-		this.invertedIndex = new InvertedIndex(this.normalizer, this.comparator);
-	}
-
-	public FilterIndex(
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull ValueToRecordBitmap[] valueToRecords,
-		@Nullable RangeIndex rangeIndex,
-		@Nonnull Class<?> attributeType
-	) {
-		this.attributeIndexKey = attributeIndexKey;
-		this.attributeType = attributeType;
-		this.dirty = new TransactionalBoolean();
-		this.rangeIndex = rangeIndex;
-		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		this.comparator = getComparator(attributeIndexKey, plainType);
-		this.normalizer = getNormalizer(plainType);
-		this.invertedIndex = new InvertedIndex(valueToRecords, this.normalizer, this.comparator);
-	}
-
-	private FilterIndex(
+	/**
+	 * Shared base constructor wiring the immutable fields common to every owner / view. Concrete subclasses are
+	 * responsible for sourcing the {@link InvertedIndex} (owned vs shared), the comparator / normalizer (derived from
+	 * the attribute type vs delegated to the wrapped tree) and the transactional lifecycle.
+	 *
+	 * @param attributeIndexKey key identifying the attribute
+	 * @param attributeType     the declared attribute type (array-aware)
+	 * @param invertedIndex     the value→ValueToRecord tree backing this index (owned or shared)
+	 * @param rangeIndex        the range structure for range-typed attributes, or `null`
+	 * @param comparator        the value comparator
+	 * @param normalizer        the value normalizer
+	 */
+	protected FilterIndex(
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<?> attributeType,
 		@Nonnull InvertedIndex invertedIndex,
@@ -372,11 +379,57 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	) {
 		this.attributeIndexKey = attributeIndexKey;
 		this.attributeType = attributeType;
-		this.dirty = new TransactionalBoolean();
 		this.invertedIndex = invertedIndex;
 		this.rangeIndex = rangeIndex;
 		this.comparator = comparator;
 		this.normalizer = normalizer;
+	}
+
+	/**
+	 * Returns a stable transactional id for this index. Owners mint their own sequence id; views derive it from the
+	 * wrapped shared {@link InvertedIndex} so it stays stable across commits that did not touch the tree (keeping the
+	 * query-planner formula cache warm).
+	 */
+	public abstract long getId();
+
+	/**
+	 * Returns `true` if the index contents have been modified and need persistence. Owners track their own dirty flag;
+	 * views delegate to the shared tree's dirty flag.
+	 */
+	public abstract boolean isDirty();
+
+	/**
+	 * Marks the index as dirty after a mutation. Owners flip their own transactional dirty flag; views are no-ops
+	 * (the shared tree they wrap tracks its own dirtiness — a view never participates in a commit, so engaging a
+	 * private dirty flag would leak an undischarged transactional layer).
+	 */
+	protected abstract void markDirty();
+
+	/**
+	 * Returns the declared attribute type backing this filter index (array-aware). Exposed so {@link AttributeIndex} can
+	 * rebuild the stateless filter views and produce the {@link FilterIndexStoragePart} from the shared tree.
+	 */
+	@Nonnull
+	public Class<?> getAttributeType() {
+		return this.attributeType;
+	}
+
+	/**
+	 * Returns the normalizer applied to values before they enter the inverted index. Exposed so subclasses can wire
+	 * the merged-transactional copy without re-deriving it.
+	 */
+	@Nonnull
+	protected Function<Object, Serializable> getNormalizer() {
+		return this.normalizer;
+	}
+
+	/**
+	 * Returns the comparator used to order values inside the inverted index. Exposed so subclasses can wire the
+	 * merged-transactional copy without re-deriving it.
+	 */
+	@Nonnull
+	protected Comparator<? extends Comparable> getComparator() {
+		return this.comparator;
 	}
 
 	/**
@@ -476,7 +529,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
-		this.dirty.setToTrue();
+		markDirty();
 	}
 
 	/**
@@ -514,7 +567,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
-		this.dirty.setToTrue();
+		markDirty();
 	}
 
 	/**
@@ -556,7 +609,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
-		this.dirty.setToTrue();
+		markDirty();
 	}
 
 	/**
@@ -595,7 +648,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			this.memoizedAllRecordsFormula = null;
 			this.memoizedRangeHistogramSubSet = null;
 		}
-		this.dirty.setToTrue();
+		markDirty();
 	}
 
 	/**
@@ -606,7 +659,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns bitmap of all record ids connected with the value in the argument
+	 * Returns bitmap of all record ids connected with the value in the argument. The lookup value is funneled
+	 * through the same canonicalization the write path uses — `BigDecimal` scale stripping via
+	 * {@link NumberUtils#normalizeIfBigDecimal} followed by {@link #normalizer} — so the probe key matches the
+	 * form the bucket was stored under (e.g. NFD-folded strings, instant-normalized `OffsetDateTime`).
 	 */
 	@Nonnull
 	public <T extends Serializable> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
@@ -615,7 +671,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns bitmap of all record ids connected with the value in the argument
+	 * Formula-returning counterpart of {@link #getRecordsEqualTo(Serializable)} for the query-planner: yields a
+	 * {@link ConstantFormula} over the matching record ids, or {@link EmptyFormula#INSTANCE} when none match. The
+	 * lookup value is canonicalized identically (see {@link #getRecordsEqualTo(Serializable)}).
 	 */
 	@Nonnull
 	public <T extends Serializable> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
@@ -753,7 +811,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 */
 	public Formula getAllRecordsFormula() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
-		if (isTransactionAvailable() && this.dirty.isTrue()) {
+		if (isTransactionAvailable() && isDirty()) {
 			final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
 			return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 		} else {
@@ -918,7 +976,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records which range overlaps the passed range in the form of {@link Bitmap}.
 	 * This method can be used only when the attribute type is of the {@link Range} type.
 	 *
-	 * @param from * @param to
+	 * @param from the inclusive lower bound of the overlap query, as a `RangeIndex` long threshold
+	 * @param to   the inclusive upper bound of the overlap query, as a `RangeIndex` long threshold
 	 */
 	@Nonnull
 	public Bitmap getRecordsOverlapping(long from, long to) {
@@ -938,18 +997,12 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns `true` if the index contents have been modified and need persistence.
-	 */
-	public boolean isDirty() {
-		return this.dirty.isTrue();
-	}
-
-	/**
-	 * Method creates container for storing filter index from memory to the persistent storage.
+	 * Method creates container for storing filter index from memory to the persistent storage. The dirtiness decision
+	 * is delegated to the concrete subclass via {@link #isDirty()} (owner flag vs shared-tree flag).
 	 */
 	@Nullable
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
-		if (this.dirty.isTrue()) {
+		if (isDirty()) {
 			return new FilterIndexStoragePart(
 				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
 				this.invertedIndex.getValueToRecordBitmap(),
@@ -959,45 +1012,6 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 			return null;
 		}
 	}
-
-	@Override
-	public void resetDirty() {
-		this.dirty.reset();
-	}
-
-	@Nonnull
-	@Override
-	public FilterIndex createCopyWithMergedTransactionalMemory(
-		@Nullable Void layer,
-		@Nonnull TransactionalLayerMaintainer transactionalLayer
-	) {
-		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
-		return new FilterIndex(
-			this.attributeIndexKey,
-			this.attributeType,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.invertedIndex),
-			this.rangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(this.rangeIndex),
-			this.comparator,
-			this.normalizer
-		);
-	}
-
-	/*
-		TransactionalLayerProducer implementation
-	 */
-
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		this.invertedIndex.removeLayer(transactionalLayer);
-		ofNullable(this.rangeIndex).ifPresent(it -> it.removeLayer(transactionalLayer));
-		this.dirty.removeLayer(transactionalLayer);
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	/**
 	 * Adds the given ranges to the range index for the specified record ID.
@@ -1025,6 +1039,24 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		}
 	}
 
+	/**
+	 * Drops a single value→record association from the backing {@link #invertedIndex}. This is the shared
+	 * removal primitive behind both {@link #removeRecord(int, Object)} (whole value) and
+	 * {@link #removeRecordDelta(int, Object[])} (partial array contents), invoked once per scalar value item.
+	 *
+	 * Before touching the tree it asserts the record really is registered for this value's bucket: the value is
+	 * run through {@link #normalizer} (so the lookup key matches the canonical form the bucket was stored under,
+	 * e.g. NFD-folded strings) and {@link InvertedIndex#getRecordsEqualTo} must contain `recordId`. The actual
+	 * {@link InvertedIndex#removeRecord} call then uses the RAW (un-normalized) value, because the tree applies
+	 * its own comparator-driven normalization during removal — normalizing here as well would double-fold the key
+	 * and miss the bucket. The normalizer's output therefore feeds the sanity check only, never the write.
+	 *
+	 * @param recordId the record id to detach from the value's bucket
+	 * @param value    the raw attribute value whose association is removed
+	 * @param <T>      the attribute value type
+	 * @throws EvitaInvalidUsageException when the record is not registered for the (normalized) value — signals a
+	 *                                    mismatch between the mutation being applied and the index state
+	 */
 	private <T extends Serializable> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
 		// sanity check first - the record must currently be assigned to this value's bucket
 		final Serializable normalizedValue = this.normalizer.apply(value);

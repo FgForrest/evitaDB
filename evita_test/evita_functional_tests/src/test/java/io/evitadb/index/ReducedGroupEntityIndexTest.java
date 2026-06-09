@@ -369,7 +369,7 @@ class ReducedGroupEntityIndexTest
 			final Set<Locale> noLocales = Collections.emptySet();
 
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10, false
 			);
 
 			// the filter index should now contain the attribute value
@@ -387,10 +387,10 @@ class ReducedGroupEntityIndexTest
 
 			// same attribute value "ABC" for record 10 from two different references in same group
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10, false
 			);
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10, false
 			);
 
 			// should still have exactly one record
@@ -407,10 +407,10 @@ class ReducedGroupEntityIndexTest
 
 			// add same attribute value twice (from two references)
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10, false
 			);
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10, false
 			);
 
 			// remove one occurrence
@@ -433,10 +433,10 @@ class ReducedGroupEntityIndexTest
 
 			// add twice, remove twice
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10, false
 			);
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10, false
 			);
 
 			ReducedGroupEntityIndexTest.this.index.removeFilterAttribute(
@@ -464,14 +464,14 @@ class ReducedGroupEntityIndexTest
 			// first reference adds tags ["A", "B"]
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
 				this.referenceSchema, arrayAttrSchema, noLocales, null,
-				new String[]{"A", "B"}, 10
+				new String[]{"A", "B"}, 10, false
 			);
 
 			// second reference adds tags ["B", "C"] -- "B" already has cardinality 1,
 			// only "C" should be newly added to the filter index
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
 				this.referenceSchema, arrayAttrSchema, noLocales, null,
-				new String[]{"B", "C"}, 10
+				new String[]{"B", "C"}, 10, false
 			);
 
 			// all three values should be in the filter index
@@ -520,11 +520,11 @@ class ReducedGroupEntityIndexTest
 
 			// reference 1 sets code="ABC" for record 10
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "ABC", 10, false
 			);
 			// reference 2 sets code="XYZ" for record 10
 			ReducedGroupEntityIndexTest.this.index.insertFilterAttribute(
-				this.referenceSchema, this.stringAttrSchema, noLocales, null, "XYZ", 10
+				this.referenceSchema, this.stringAttrSchema, noLocales, null, "XYZ", 10, false
 			);
 
 			// both values should be in the filter index
@@ -761,7 +761,7 @@ class ReducedGroupEntityIndexTest
 				ReducedGroupEntityIndexTest.this.index,
 				original -> original.insertFilterAttribute(
 					refSchema, attrSchema, noLocales, null, "ABC", 10
-				),
+				, false),
 				(original, committed) -> {
 					// original should have no filter index for "code"
 					assertNull(
@@ -794,10 +794,10 @@ class ReducedGroupEntityIndexTest
 					original.insertPrimaryKeyIfMissing(20, 2);
 					original.insertPrimaryKeyIfMissing(30, 3);
 					original.insertFilterAttribute(
-						refSchema, attrSchema, noLocales, null, "ABC", 10
+						refSchema, attrSchema, noLocales, null, "ABC", 10, false
 					);
 					original.insertFilterAttribute(
-						refSchema, attrSchema, noLocales, null, "XYZ", 20
+						refSchema, attrSchema, noLocales, null, "XYZ", 20, false
 					);
 				},
 				(original, committed) -> {
@@ -890,7 +890,7 @@ class ReducedGroupEntityIndexTest
 				ReducedGroupEntityIndexTest.this.index,
 				original -> original.insertFilterAttribute(
 					refSchema, attrSchema, noLocales, null, "ABC", 10
-				),
+				, false),
 				(original, committed) -> {
 					assertNull(
 						original.getFilterIndex(new AttributeIndexKey(null, "code", null))

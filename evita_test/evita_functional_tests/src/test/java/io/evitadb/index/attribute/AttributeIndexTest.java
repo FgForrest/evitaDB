@@ -23,11 +23,20 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.EntityLocaleMissingException;
-import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
@@ -35,30 +44,31 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * Tests for {@link AttributeIndex} covering construction, non-transactional
@@ -75,88 +85,149 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 
 	private static final String ENTITY_TYPE = "product";
 	private static final String ATTRIBUTE_CODE = "code";
+	private static final String ATTRIBUTE_GLOBAL_CODE = "globalCode";
 	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_LOCALIZED_NAME = "localizedName";
+	private static final String ATTRIBUTE_LOCALE_UNIQUE_NAME = "localeUniqueName";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
 	private static final String ATTRIBUTE_ORDER = "order";
 	private static final String REFERENCE_NAME = "brand";
 	private static final Set<Locale> ALLOWED_LOCALES = Set.of(Locale.ENGLISH, new Locale("cs"));
+	/**
+	 * Catalog + product schema scaffolding used to assemble {@link #SCHEMA} below through the real
+	 * {@link InternalEntitySchemaBuilder} (rather than Mockito stubs). The builder runs the production
+	 * schema-assembly path, so every fixture is a schema the engine could actually receive — there is no risk of
+	 * an inconsistent flag combination that a hand-stubbed mock could express but the database never would.
+	 */
+	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
+		APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+		EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
+	);
+	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(ENTITY_TYPE);
+	/**
+	 * A single product schema carrying every attribute shape the tests need. The default shape keeps the plain
+	 * attribute name (`code`, `name`, `priority`, `order`); the variant shapes get a descriptive name so the
+	 * attribute name itself documents the behaviour:
+	 *
+	 * - `code` — non-localized, collection-unique (uniqueness implies filterable ⇒ FOLDABLE: shadowed into the filter tree)
+	 * - `globalCode` — localized + collection-unique ACROSS locales (the only NON-foldable unique case)
+	 * - `name` — non-localized, filterable
+	 * - `localizedName` — localized
+	 * - `localeUniqueName` — localized + unique WITHIN a locale
+	 * - `priority` — {@link Integer} sortable (sort index)
+	 * - `order` — {@link Predecessor} sortable (chain index)
+	 * - reference `brand` — indexed, with a filterable `code` and a {@link ReferencedEntityPredecessor} `order`
+	 * (that type is valid only on a reference, so it must live here rather than at entity level)
+	 */
+	private static final EntitySchemaContract SCHEMA = new InternalEntitySchemaBuilder(
+		CATALOG_SCHEMA, PRODUCT_SCHEMA
+	)
+		.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+		.withAttribute(ATTRIBUTE_GLOBAL_CODE, String.class, thatIs -> thatIs.localized().unique())
+		.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
+		.withAttribute(ATTRIBUTE_LOCALIZED_NAME, String.class, AttributeSchemaEditor::localized)
+		.withAttribute(ATTRIBUTE_LOCALE_UNIQUE_NAME, String.class, thatIs -> thatIs.localized().uniqueWithinLocale())
+		.withAttribute(ATTRIBUTE_PRIORITY, Integer.class, AttributeSchemaEditor::sortable)
+		.withAttribute(ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
+		.withReferenceToEntity(
+			REFERENCE_NAME, REFERENCE_NAME, Cardinality.ZERO_OR_ONE,
+			ref -> {
+				// a reference must be indexed before it may carry filterable / sortable attributes
+				ref.indexed();
+				ref.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::filterable);
+				ref.withAttribute(ATTRIBUTE_ORDER, ReferencedEntityPredecessor.class, AttributeSchemaEditor::sortable);
+			}
+		)
+		.toInstance();
+	/**
+	 * Non-localized, collection-unique `code` — FOLDABLE: the mutator shadows it into the shared filter tree.
+	 */
+	private static final EntityAttributeSchemaContract FOLDABLE_UNIQUE_CODE = entityAttr(ATTRIBUTE_CODE);
+
+	// === Named schema fixtures (all pulled out of the single SCHEMA above) ========================================
+	/**
+	 * Localized `code` that is unique ACROSS locales — the only NON-foldable unique case (standalone owner).
+	 */
+	private static final EntityAttributeSchemaContract GLOBAL_UNIQUE_LOCALIZED_CODE = entityAttr(ATTRIBUTE_GLOBAL_CODE);
+	/**
+	 * Non-localized, filterable `name` — exercised only through the filter path.
+	 */
+	private static final EntityAttributeSchemaContract FILTERABLE_NAME = entityAttr(ATTRIBUTE_NAME);
+	/**
+	 * Localized `name` — used by the {@code createAttributeKey} locale-handling tests.
+	 */
+	private static final EntityAttributeSchemaContract LOCALIZED_NAME = entityAttr(ATTRIBUTE_LOCALIZED_NAME);
+	/**
+	 * Localized `name` that is unique WITHIN a locale — drives the unique-within-locale error path.
+	 */
+	private static final EntityAttributeSchemaContract UNIQUE_WITHIN_LOCALE_NAME = entityAttr(
+		ATTRIBUTE_LOCALE_UNIQUE_NAME);
+	/**
+	 * Sortable `priority` of an {@link Integer} type — routed to the sort index.
+	 */
+	private static final EntityAttributeSchemaContract SORTABLE_PRIORITY = entityAttr(ATTRIBUTE_PRIORITY);
+	/**
+	 * Sortable `order` of a {@link Predecessor} type — routed to the chain index.
+	 */
+	private static final EntityAttributeSchemaContract CHAIN_ORDER = entityAttr(ATTRIBUTE_ORDER);
+	/**
+	 * The real `brand` {@link ReferenceSchemaContract}.
+	 */
+	private static final ReferenceSchemaContract BRAND_REFERENCE =
+		SCHEMA.getReference(REFERENCE_NAME).orElseThrow();
+	/**
+	 * Reference-level `code` {@link AttributeSchemaContract} genuinely attached to {@link #BRAND_REFERENCE}; it is
+	 * NOT an {@link EntityAttributeSchemaContract}, so {@code createAttributeKey} keeps the reference name.
+	 */
+	private static final AttributeSchemaContract BRAND_CODE_ATTRIBUTE =
+		BRAND_REFERENCE.getAttribute(ATTRIBUTE_CODE).orElseThrow();
+	/**
+	 * Sortable reference-level `order` attribute of a {@link ReferencedEntityPredecessor} type — routed to the chain
+	 * index by value. Lives on {@link #BRAND_REFERENCE}; pass that reference schema alongside it.
+	 */
+	private static final AttributeSchemaContract REFERENCED_CHAIN_ORDER =
+		BRAND_REFERENCE.getAttribute(ATTRIBUTE_ORDER).orElseThrow();
 
 	/**
-	 * Creates a non-localized, non-unique entity attribute schema mock for the given attribute name and type.
+	 * Builds a single-entry shared value index + filter view for the given key/type/records and returns a
+	 * fully-wired {@link EntityAttributeIndex} via the from-maps constructor. Mirrors the loader's view-rebuild wiring so
+	 * the test exercises the real owner/view structure rather than removed standalone sub-indexes.
 	 */
 	@Nonnull
-	private static EntityAttributeSchemaContract createEntityAttributeSchema(
-		@Nonnull String attributeName,
-		@Nonnull Class<? extends Serializable> type
+	private static AttributeIndex buildFilterBackedIndex(
+		@Nonnull AttributeIndexKey filterKey,
+		@Nonnull Class<?> attributeType,
+		@Nonnull int[] recordIds,
+		@Nonnull Serializable[] values
 	) {
-		final EntityAttributeSchemaContract schema = mock(EntityAttributeSchemaContract.class);
-		when(schema.getName()).thenReturn(attributeName);
-		doReturn(type).when(schema).getType();
-		doReturn(type).when(schema).getPlainType();
-		when(schema.isLocalized()).thenReturn(false);
-		when(schema.isUniqueWithinLocaleInScope(Scope.LIVE)).thenReturn(false);
-		return schema;
+		final InvertedIndex shared = new InvertedIndex(
+			FilterIndex.getNormalizer(attributeType),
+			FilterIndex.getComparator(filterKey, attributeType)
+		);
+		final FilterIndex view = new FilterIndexView(filterKey, shared, null, attributeType);
+		// add through the view so it mutates the shared tree AND raises the view's dirty flag (mirrors AttributeIndex)
+		for (int i = 0; i < recordIds.length; i++) {
+			view.addRecord(recordIds[i], values[i]);
+		}
+		final Map<AttributeIndexKey, InvertedIndex> sharedValues = new HashMap<>();
+		sharedValues.put(filterKey, shared);
+		final Map<AttributeIndexKey, FilterIndex> filters = new HashMap<>();
+		filters.put(filterKey, view);
+		return new EntityAttributeIndex(
+			ENTITY_TYPE, Collections.emptyMap(), filters, Collections.emptyMap(), Collections.emptyMap(),
+			Collections.emptyMap(), sharedValues, new HashMap<>()
+		);
 	}
 
 	/**
-	 * Creates a localized entity attribute schema mock.
+	 * Pulls the entity-level attribute schema with the given name out of the shared {@link #SCHEMA}.
+	 *
+	 * @param name the attribute name declared on {@link #SCHEMA}
+	 * @return the assembled {@link EntityAttributeSchemaContract}
 	 */
 	@Nonnull
-	private static EntityAttributeSchemaContract createLocalizedEntityAttributeSchema(
-		@Nonnull String attributeName,
-		@Nonnull Class<? extends Serializable> type
-	) {
-		final EntityAttributeSchemaContract schema = mock(EntityAttributeSchemaContract.class);
-		when(schema.getName()).thenReturn(attributeName);
-		doReturn(type).when(schema).getType();
-		doReturn(type).when(schema).getPlainType();
-		when(schema.isLocalized()).thenReturn(true);
-		when(schema.isUniqueWithinLocaleInScope(Scope.LIVE)).thenReturn(false);
-		return schema;
-	}
-
-	/**
-	 * Creates a unique-within-locale entity attribute schema mock.
-	 */
-	@Nonnull
-	private static EntityAttributeSchemaContract createUniqueWithinLocaleSchema(
-		@Nonnull String attributeName,
-		@Nonnull Class<? extends Serializable> type
-	) {
-		final EntityAttributeSchemaContract schema = mock(EntityAttributeSchemaContract.class);
-		when(schema.getName()).thenReturn(attributeName);
-		doReturn(type).when(schema).getType();
-		doReturn(type).when(schema).getPlainType();
-		when(schema.isLocalized()).thenReturn(true);
-		when(schema.isUniqueWithinLocaleInScope(Scope.LIVE)).thenReturn(true);
-		return schema;
-	}
-
-	/**
-	 * Creates a reference attribute schema mock (not entity-level).
-	 */
-	@Nonnull
-	private static AttributeSchemaContract createReferenceAttributeSchema(
-		@Nonnull String attributeName,
-		@Nonnull Class<? extends Serializable> type
-	) {
-		final AttributeSchemaContract schema = mock(AttributeSchemaContract.class);
-		when(schema.getName()).thenReturn(attributeName);
-		doReturn(type).when(schema).getType();
-		doReturn(type).when(schema).getPlainType();
-		when(schema.isLocalized()).thenReturn(false);
-		when(schema.isUniqueWithinLocaleInScope(Scope.LIVE)).thenReturn(false);
-		return schema;
-	}
-
-	/**
-	 * Creates a reference schema mock with a given name.
-	 */
-	@Nonnull
-	private static ReferenceSchemaContract createReferenceSchema(@Nonnull String referenceName) {
-		final ReferenceSchemaContract schema = mock(ReferenceSchemaContract.class);
-		when(schema.getName()).thenReturn(referenceName);
-		return schema;
+	private static EntityAttributeSchemaContract entityAttr(@Nonnull String name) {
+		return SCHEMA.getAttribute(name).orElseThrow();
 	}
 
 	@Nested
@@ -177,30 +248,40 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("six-arg deserialization constructor populates maps")
+		@DisplayName("from-maps constructor populates maps: unique is standalone, filter is a shared-tree view")
 		void shouldCreateWithPrePopulatedMaps() {
+			// unique is a STANDALONE structure; filter is backed by the shared value index; sort/chain are owners
 			final AttributeIndexKey uniqueKey = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
-			final UniqueIndex uniqueIdx = new UniqueIndex(ENTITY_TYPE, uniqueKey, String.class);
+			final UniqueIndex uniqueIdx = new OwnerUniqueIndex(ENTITY_TYPE, uniqueKey, String.class);
 			uniqueIdx.registerUniqueKey("ABC", 1);
 
 			final AttributeIndexKey filterKey = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
-			final FilterIndex filterIdx = new FilterIndex(filterKey, String.class);
-			filterIdx.addRecord(1, "TestProduct");
+			final InvertedIndex shared = new InvertedIndex(
+				FilterIndex.getNormalizer(String.class),
+				FilterIndex.getComparator(filterKey, String.class)
+			);
+			shared.addRecord("TestProduct", 1);
+			final FilterIndex filterIdx = new FilterIndexView(filterKey, shared, null, String.class);
 
 			final AttributeIndexKey sortKey = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
-			final SortIndex sortIdx = new SortIndex(Integer.class, sortKey);
+			final SortIndex sortIdx = new OwnerSortIndex(Integer.class, sortKey);
 			sortIdx.addRecord(10, 1);
 
 			final AttributeIndexKey chainKey = new AttributeIndexKey(null, ATTRIBUTE_ORDER, null);
 			final ChainIndex chainIdx = new ChainIndex(chainKey);
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
+			final Map<AttributeIndexKey, InvertedIndex> sharedValues = new HashMap<>();
+			sharedValues.put(filterKey, shared);
 			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE,
 				Map.of(uniqueKey, uniqueIdx),
 				Map.of(filterKey, filterIdx),
+				Collections.emptyMap(),
 				Map.of(sortKey, sortIdx),
-				Map.of(chainKey, chainIdx)
+				Map.of(chainKey, chainIdx),
+				sharedValues,
+				new HashMap<>()
 			);
 
 			assertFalse(index.isAttributeIndexEmpty());
@@ -230,30 +311,22 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("removeLayer cleans all four nested TransactionalMaps")
 		void shouldCleanAllMapsOnRemoveLayer() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract codeSchema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
-			final EntityAttributeSchemaContract nameSchema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
-			final EntityAttributeSchemaContract prioritySchema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
-			final EntityAttributeSchemaContract orderSchema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
 			// insert into all four indexes, then rollback -- all transactional layers should be cleaned
 			assertStateAfterRollback(
 				index,
 				original -> {
 					original.insertUniqueAttribute(
-						null, codeSchema, ALLOWED_LOCALES, Scope.LIVE, null, "X", 1
+						null, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, Scope.LIVE, null, "X", 1
 					);
 					original.insertFilterAttribute(
-						null, nameSchema, ALLOWED_LOCALES, null, "Product", 1
+						null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "Product", 1, false
 					);
 					original.insertSortAttribute(
-						null, prioritySchema, ALLOWED_LOCALES, null, 10, 1
+						null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 10, 1
 					);
 					original.insertSortAttribute(
-						null, orderSchema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1
+						null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1
 					);
 				},
 				(original, committed) -> {
@@ -268,13 +341,11 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("committed copy is new instance (assertNotSame)")
 		void shouldReturnNewInstanceAfterCommit() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract codeSchema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
 			assertStateAfterCommit(
 				index,
 				original -> original.insertUniqueAttribute(
-					null, codeSchema, ALLOWED_LOCALES, Scope.LIVE, null, "A", 1
+					null, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, Scope.LIVE, null, "A", 1
 				),
 				(original, committed) -> {
 					assertNotNull(committed);
@@ -284,35 +355,28 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("commit merges state from all four maps (INV-6)")
+		@DisplayName("commit merges state from all four maps")
 		void shouldMergeAllFourMapsOnCommit() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract codeSchema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
-			final EntityAttributeSchemaContract nameSchema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
-			final EntityAttributeSchemaContract prioritySchema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
-			final EntityAttributeSchemaContract orderSchema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
 			assertStateAfterCommit(
 				index,
 				original -> {
 					original.insertUniqueAttribute(
-						null, codeSchema, ALLOWED_LOCALES, Scope.LIVE, null, "MERGED", 1
+						null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "MERGED", 1
 					);
 					original.insertFilterAttribute(
-						null, nameSchema, ALLOWED_LOCALES, null, "FilterVal", 1
+						null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "FilterVal", 1, false
 					);
 					original.insertSortAttribute(
-						null, prioritySchema, ALLOWED_LOCALES, null, 7, 1
+						null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 7, 1
 					);
 					original.insertSortAttribute(
-						null, orderSchema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1
+						null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1
 					);
 				},
 				(original, committed) -> {
+					// unique is standalone — `code` in the unique map, `name` in the filter map (each 1)
 					assertEquals(1, committed.getUniqueIndexes().size());
 					assertEquals(1, committed.getFilterIndexes().size());
 					assertEquals(1, committed.getSortIndexes().size());
@@ -325,11 +389,9 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("commit with null layer returns valid copy")
 		void shouldHandleNullLayerOnCommit() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
 			// insert outside tx first so state is populated
-			index.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "hello", 1);
+			index.insertFilterAttribute(null, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, null, "hello", 1, false);
 
 			// now commit with changes -- this exercises createCopyWithMergedTransactionalMemory
 			assertStateAfterCommit(
@@ -353,14 +415,12 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("unique index insertion and removal visible after commit")
 		void shouldCommitUniqueIndexInsertionAndRemoval() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
 			// commit insertion
 			assertStateAfterCommit(
 				index,
 				original -> original.insertUniqueAttribute(
-					null, schema, ALLOWED_LOCALES, Scope.LIVE, null, "ABC", 1
+					null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "ABC", 1
 				),
 				(original, committed) -> {
 					assertFalse(committed.isAttributeIndexEmpty());
@@ -373,14 +433,12 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("filter index insertion and removal visible after commit")
 		void shouldCommitFilterIndexInsertionAndRemoval() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
 			assertStateAfterCommit(
 				index,
 				original -> original.insertFilterAttribute(
-					null, schema, ALLOWED_LOCALES, null, "Product", 1
-				),
+					null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "Product", 1
+				, false),
 				(original, committed) -> {
 					assertFalse(committed.isAttributeIndexEmpty());
 					assertEquals(1, committed.getFilterIndexes().size());
@@ -392,13 +450,11 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("sort index insertion visible after commit")
 		void shouldCommitSortIndexInsertionAndRemoval() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
 			assertStateAfterCommit(
 				index,
 				original -> original.insertSortAttribute(
-					null, schema, ALLOWED_LOCALES, null, 42, 1
+					null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 42, 1
 				),
 				(original, committed) -> {
 					assertFalse(committed.isAttributeIndexEmpty());
@@ -411,13 +467,11 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("chain index upsert via Predecessor visible after commit")
 		void shouldCommitChainIndexViaPredecessor() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
 			assertStateAfterCommit(
 				index,
 				original -> original.insertSortAttribute(
-					null, schema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1
+					null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1
 				),
 				(original, committed) -> {
 					assertFalse(committed.isAttributeIndexEmpty());
@@ -432,13 +486,11 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("chain index upsert via ReferencedEntityPredecessor")
 		void shouldCommitChainIndexViaReferencedEntityPredecessor() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, ReferencedEntityPredecessor.class);
 
 			assertStateAfterCommit(
 				index,
 				original -> original.insertSortAttribute(
-					null, schema, ALLOWED_LOCALES, null, ReferencedEntityPredecessor.HEAD, 1
+					BRAND_REFERENCE, REFERENCED_CHAIN_ORDER, ALLOWED_LOCALES, null, ReferencedEntityPredecessor.HEAD, 1
 				),
 				(original, committed) -> {
 					assertFalse(committed.isAttributeIndexEmpty());
@@ -452,15 +504,15 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldLeaveOriginalUnchangedAfterCommit() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
+				FOLDABLE_UNIQUE_CODE;
 
 			assertStateAfterCommit(
 				index,
 				original -> {
-					original.insertUniqueAttribute(
+					final boolean foldedUnique = original.insertUniqueAttribute(
 						null, schema, ALLOWED_LOCALES, Scope.LIVE, null, "X", 1
-					);
-					original.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "X", 1);
+					) == AttributeIndex.UniquenessEnforcement.BY_FILTER_WRITE;
+					original.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "X", 1, foldedUnique);
 				},
 				(original, committed) -> {
 					// original stays empty
@@ -480,13 +532,11 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("unique index insertion rolled back")
 		void shouldRollbackUniqueIndexInsertion() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
 			assertStateAfterRollback(
 				index,
 				original -> original.insertUniqueAttribute(
-					null, schema, ALLOWED_LOCALES, Scope.LIVE, null, "Z", 1
+					null, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, Scope.LIVE, null, "Z", 1
 				),
 				(original, committed) -> {
 					assertNull(committed);
@@ -499,14 +549,12 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("filter index insertion rolled back")
 		void shouldRollbackFilterIndexInsertion() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
 			assertStateAfterRollback(
 				index,
 				original -> original.insertFilterAttribute(
-					null, schema, ALLOWED_LOCALES, null, "RolledBack", 1
-				),
+					null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "RolledBack", 1
+				, false),
 				(original, committed) -> {
 					assertNull(committed);
 					assertTrue(original.isAttributeIndexEmpty());
@@ -518,13 +566,11 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("sort index insertion rolled back")
 		void shouldRollbackSortIndexInsertion() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
 			assertStateAfterRollback(
 				index,
 				original -> original.insertSortAttribute(
-					null, schema, ALLOWED_LOCALES, null, 99, 1
+					null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 99, 1
 				),
 				(original, committed) -> {
 					assertNull(committed);
@@ -537,13 +583,11 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("chain index insertion rolled back")
 		void shouldRollbackChainIndexInsertion() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
 			assertStateAfterRollback(
 				index,
 				original -> original.insertSortAttribute(
-					null, schema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1
+					null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1
 				),
 				(original, committed) -> {
 					assertNull(committed);
@@ -562,20 +606,19 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldInsertOutsideTransaction() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract codeSchema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
-			final EntityAttributeSchemaContract nameSchema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
-			final EntityAttributeSchemaContract prioritySchema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
-			final EntityAttributeSchemaContract orderSchema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
+				FOLDABLE_UNIQUE_CODE;
 
-			index.insertUniqueAttribute(null, codeSchema, ALLOWED_LOCALES, Scope.LIVE, null, "UNIQUE1", 1);
-			index.insertFilterAttribute(null, nameSchema, ALLOWED_LOCALES, null, "Filter1", 1);
-			index.insertSortAttribute(null, prioritySchema, ALLOWED_LOCALES, null, 10, 1);
-			index.insertSortAttribute(null, orderSchema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
+			final boolean foldedUnique = index.insertUniqueAttribute(null, codeSchema, ALLOWED_LOCALES, Scope.LIVE, null, "UNIQUE1", 1)
+				== AttributeIndex.UniquenessEnforcement.BY_FILTER_WRITE;
+			// `code` is a (non-localized) FOLDABLE unique attribute — the mutator shadows it into the FILTER index, so
+			// it lives in both the folded-unique view map and the shared filter tree; replicate that shadow here
+			index.insertFilterAttribute(null, codeSchema, ALLOWED_LOCALES, null, "UNIQUE1", 1, foldedUnique);
+			index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 10, 1);
+			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
 			assertFalse(index.isAttributeIndexEmpty());
+			// `code` is folded-unique (its UNIQUE key + its FILTER shadow share one tree); a stale folded-unique with no
+			// shared tree is not advertised, so the single unique key here must be backed by a real shared tree
 			assertEquals(1, index.getUniqueIndexes().size());
 			assertEquals(1, index.getFilterIndexes().size());
 			assertEquals(1, index.getSortIndexes().size());
@@ -587,17 +630,17 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldRemoveOutsideTransaction() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract codeSchema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
+				FOLDABLE_UNIQUE_CODE;
 			final EntityAttributeSchemaContract nameSchema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
+				FILTERABLE_NAME;
 			final EntityAttributeSchemaContract prioritySchema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
+				SORTABLE_PRIORITY;
 			final EntityAttributeSchemaContract orderSchema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
+				CHAIN_ORDER;
 
-			// insert first
+			// insert first — UNIQUE is a standalone structure, so the unique insert/remove fully owns its entry
 			index.insertUniqueAttribute(null, codeSchema, ALLOWED_LOCALES, Scope.LIVE, null, "UNIQUE1", 1);
-			index.insertFilterAttribute(null, nameSchema, ALLOWED_LOCALES, null, "Filter1", 1);
+			index.insertFilterAttribute(null, nameSchema, ALLOWED_LOCALES, null, "Filter1", 1, false);
 			index.insertSortAttribute(null, prioritySchema, ALLOWED_LOCALES, null, 10, 1);
 			index.insertSortAttribute(null, orderSchema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
@@ -620,11 +663,9 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("non-localized entity attribute produces key without locale")
 		void shouldCreateKeyForNonLocalizedAttribute() {
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
 			final AttributeIndexKey key =
-				AttributeIndex.createAttributeKey(null, schema, ALLOWED_LOCALES, null, "testValue");
+				AttributeIndex.createAttributeKey(null, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, null, "testValue");
 
 			assertNull(key.referenceName());
 			assertEquals(ATTRIBUTE_CODE, key.attributeName());
@@ -634,49 +675,41 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("localized entity attribute produces key with locale")
 		void shouldCreateKeyForLocalizedAttribute() {
-			final EntityAttributeSchemaContract schema =
-				createLocalizedEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
 			final AttributeIndexKey key =
-				AttributeIndex.createAttributeKey(null, schema, ALLOWED_LOCALES, Locale.ENGLISH, "testValue");
+				AttributeIndex.createAttributeKey(null, LOCALIZED_NAME, ALLOWED_LOCALES, Locale.ENGLISH, "testValue");
 
 			assertNull(key.referenceName());
-			assertEquals(ATTRIBUTE_NAME, key.attributeName());
+			assertEquals(ATTRIBUTE_LOCALIZED_NAME, key.attributeName());
 			assertEquals(Locale.ENGLISH, key.locale());
 		}
 
 		@Test
 		@DisplayName("localized schema with null locale throws exception")
 		void shouldThrowWhenLocalizedSchemaGivenNullLocale() {
-			final EntityAttributeSchemaContract schema =
-				createLocalizedEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> AttributeIndex.createAttributeKey(null, schema, ALLOWED_LOCALES, null, "testValue")
+				() -> AttributeIndex.createAttributeKey(null, LOCALIZED_NAME, ALLOWED_LOCALES, null, "testValue")
 			);
 		}
 
 		@Test
 		@DisplayName("locale not in allowed locales throws exception")
 		void shouldThrowWhenLocaleNotAllowed() {
-			final EntityAttributeSchemaContract schema =
-				createLocalizedEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> AttributeIndex.createAttributeKey(null, schema, ALLOWED_LOCALES, Locale.JAPANESE, "testValue")
+				() -> AttributeIndex.createAttributeKey(null, LOCALIZED_NAME, ALLOWED_LOCALES, Locale.JAPANESE, "testValue")
 			);
 		}
 
 		@Test
 		@DisplayName("reference attribute produces key with reference name")
 		void shouldCreateKeyForReferenceAttribute() {
-			final AttributeSchemaContract schema = createReferenceAttributeSchema(ATTRIBUTE_CODE, String.class);
-			final ReferenceSchemaContract refSchema = createReferenceSchema(REFERENCE_NAME);
 
 			final AttributeIndexKey key =
-				AttributeIndex.createAttributeKey(refSchema, schema, ALLOWED_LOCALES, null, "val");
+				AttributeIndex.createAttributeKey(BRAND_REFERENCE, BRAND_CODE_ATTRIBUTE, ALLOWED_LOCALES, null, "val");
 
 			assertEquals(REFERENCE_NAME, key.referenceName());
 			assertEquals(ATTRIBUTE_CODE, key.attributeName());
@@ -686,12 +719,9 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("entity-level attribute with reference schema still produces null reference name")
 		void shouldCreateKeyForEntityAttrWithRefSchema() {
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
-			final ReferenceSchemaContract refSchema = createReferenceSchema(REFERENCE_NAME);
 
 			final AttributeIndexKey key =
-				AttributeIndex.createAttributeKey(refSchema, schema, ALLOWED_LOCALES, null, "val");
+				AttributeIndex.createAttributeKey(BRAND_REFERENCE, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, null, "val");
 
 			// entity-level attribute ignores reference name
 			assertNull(key.referenceName());
@@ -714,10 +744,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("only unique index has data returns false")
 		void shouldReturnFalseWhenOnlyUniqueHasData() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
-			index.insertUniqueAttribute(null, schema, ALLOWED_LOCALES, Scope.LIVE, null, "X", 1);
+			index.insertUniqueAttribute(null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "X", 1);
 
 			assertFalse(index.isAttributeIndexEmpty());
 		}
@@ -726,10 +754,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("only filter index has data returns false")
 		void shouldReturnFalseWhenOnlyFilterHasData() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
-			index.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "Y", 1);
+			index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "Y", 1, false);
 
 			assertFalse(index.isAttributeIndexEmpty());
 		}
@@ -738,10 +764,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("only sort index has data returns false")
 		void shouldReturnFalseWhenOnlySortHasData() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
-			index.insertSortAttribute(null, schema, ALLOWED_LOCALES, null, 5, 1);
+			index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 5, 1);
 
 			assertFalse(index.isAttributeIndexEmpty());
 		}
@@ -750,10 +774,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("only chain index has data returns false")
 		void shouldReturnFalseWhenOnlyChainHasData() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
-			index.insertSortAttribute(null, schema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
+			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
 			assertFalse(index.isAttributeIndexEmpty());
 		}
@@ -767,10 +789,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("Predecessor value routes to chain index")
 		void shouldRoutePredecessorToChainIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
-			index.insertSortAttribute(null, schema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
+			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
 			assertEquals(1, index.getChainIndexes().size());
 			assertTrue(index.getSortIndexes().isEmpty());
@@ -780,10 +800,9 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("ReferencedEntityPredecessor routes to chain index")
 		void shouldRouteReferencedEntityPredecessorToChainIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, ReferencedEntityPredecessor.class);
 
-			index.insertSortAttribute(null, schema, ALLOWED_LOCALES, null, ReferencedEntityPredecessor.HEAD, 1);
+			index.insertSortAttribute(
+				BRAND_REFERENCE, REFERENCED_CHAIN_ORDER, ALLOWED_LOCALES, null, ReferencedEntityPredecessor.HEAD, 1);
 
 			assertEquals(1, index.getChainIndexes().size());
 			assertTrue(index.getSortIndexes().isEmpty());
@@ -793,10 +812,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("Integer value routes to sort index")
 		void shouldRouteIntegerToSortIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
-			index.insertSortAttribute(null, schema, ALLOWED_LOCALES, null, 100, 1);
+			index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 100, 1);
 
 			assertEquals(1, index.getSortIndexes().size());
 			assertTrue(index.getChainIndexes().isEmpty());
@@ -808,10 +825,10 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	class StoragePartsTest {
 
 		@Test
-		@DisplayName("createStoragePart dispatches for UNIQUE type")
+		@DisplayName("createStoragePart dispatches for UNIQUE type (standalone UniqueIndex)")
 		void shouldCreateStoragePartForUniqueType() {
 			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
-			final UniqueIndex uniqueIdx = new UniqueIndex(ENTITY_TYPE, key, String.class);
+			final UniqueIndex uniqueIdx = new OwnerUniqueIndex(ENTITY_TYPE, key, String.class);
 			uniqueIdx.registerUniqueKey("ABC", 1);
 
 			final AttributeIndex index = new EntityAttributeIndex(
@@ -819,7 +836,10 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				Map.of(key, uniqueIdx),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				Collections.emptyMap(),
+				new HashMap<>(),
+				new HashMap<>()
 			);
 
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
@@ -833,15 +853,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("createStoragePart dispatches for FILTER type")
 		void shouldCreateStoragePartForFilterType() {
 			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
-			final FilterIndex filterIdx = new FilterIndex(key, String.class);
-			filterIdx.addRecord(1, "Test");
-
-			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE,
-				Collections.emptyMap(),
-				Map.of(key, filterIdx),
-				Collections.emptyMap(),
-				Collections.emptyMap()
+			final AttributeIndex index = buildFilterBackedIndex(
+				key, String.class, new int[]{1}, new Serializable[]{"Test"}
 			);
 
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
@@ -855,15 +868,18 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("createStoragePart dispatches for SORT type")
 		void shouldCreateStoragePartForSortType() {
 			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
-			final SortIndex sortIdx = new SortIndex(Integer.class, key);
+			final SortIndex sortIdx = new OwnerSortIndex(Integer.class, key);
 			sortIdx.addRecord(10, 1);
 
 			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE,
 				Collections.emptyMap(),
 				Collections.emptyMap(),
+				Collections.emptyMap(),
 				Map.of(key, sortIdx),
-				Collections.emptyMap()
+				Collections.emptyMap(),
+				new HashMap<>(),
+				new HashMap<>()
 			);
 
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
@@ -885,7 +901,10 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				Collections.emptyMap(),
 				Collections.emptyMap(),
 				Collections.emptyMap(),
-				Map.of(key, chainIdx)
+				Collections.emptyMap(),
+				Map.of(key, chainIdx),
+				new HashMap<>(),
+				new HashMap<>()
 			);
 
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
@@ -910,34 +929,44 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getModifiedStorageParts collects from all dirty sub-indexes")
 		void shouldCollectModifiedStorageParts() {
-			final AttributeIndexKey uniqueKey = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
-			final UniqueIndex uniqueIdx = new UniqueIndex(ENTITY_TYPE, uniqueKey, String.class);
-			uniqueIdx.registerUniqueKey("ABC", 1);
-
 			final AttributeIndexKey filterKey = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
-			final FilterIndex filterIdx = new FilterIndex(filterKey, String.class);
-			filterIdx.addRecord(1, "Product");
+			final InvertedIndex shared = new InvertedIndex(
+				FilterIndex.getNormalizer(String.class),
+				FilterIndex.getComparator(filterKey, String.class)
+			);
+			shared.addRecord("Product", 1);
+			final FilterIndex filterIdx = new FilterIndexView(filterKey, shared, null, String.class);
+			filterIdx.addRecord(2, "Product2");
 
 			final AttributeIndexKey sortKey = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
-			final SortIndex sortIdx = new SortIndex(Integer.class, sortKey);
+			final SortIndex sortIdx = new OwnerSortIndex(Integer.class, sortKey);
 			sortIdx.addRecord(10, 1);
 
 			final AttributeIndexKey chainKey = new AttributeIndexKey(null, ATTRIBUTE_ORDER, null);
 			final ChainIndex chainIdx = new ChainIndex(chainKey);
 			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
 
+			final AttributeIndexKey uniqueKey = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
+			final UniqueIndex uniqueIdx = new OwnerUniqueIndex(ENTITY_TYPE, uniqueKey, String.class);
+			uniqueIdx.registerUniqueKey("ABC", 1);
+
+			final Map<AttributeIndexKey, InvertedIndex> sharedValues = new HashMap<>();
+			sharedValues.put(filterKey, shared);
 			final AttributeIndex index = new EntityAttributeIndex(
 				ENTITY_TYPE,
 				Map.of(uniqueKey, uniqueIdx),
 				Map.of(filterKey, filterIdx),
+				Collections.emptyMap(),
 				Map.of(sortKey, sortIdx),
-				Map.of(chainKey, chainIdx)
+				Map.of(chainKey, chainIdx),
+				sharedValues,
+				new HashMap<>()
 			);
 
 			final TrappedChanges trappedChanges = new TrappedChanges();
 			index.getModifiedStorageParts(1, trappedChanges);
 
-			// all four sub-indexes are dirty after population, so we expect at least 4 storage parts
+			// unique + filter + sort + chain are all dirty → at least 4 storage parts
 			final int count = trappedChanges.getTrappedChangesCount();
 			assertTrue(count >= 4, "Expected at least 4 storage parts but got " + count);
 		}
@@ -945,22 +974,15 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("resetDirty clears dirty flags; createStoragePart returns null after reset")
 		void shouldResetDirtyOnAllSubIndexes() {
-			final AttributeIndexKey uniqueKey = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
-			final UniqueIndex uniqueIdx = new UniqueIndex(ENTITY_TYPE, uniqueKey, String.class);
-			uniqueIdx.registerUniqueKey("ABC", 1);
-
-			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE,
-				Map.of(uniqueKey, uniqueIdx),
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				Collections.emptyMap()
+			final AttributeIndexKey filterKey = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
+			final AttributeIndex index = buildFilterBackedIndex(
+				filterKey, String.class, new int[]{1}, new Serializable[]{"ABC"}
 			);
 
-			// first call to createStoragePart should return non-null because index is dirty
+			// first call to createStoragePart should return non-null because the filter view is dirty
 			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
 			final AttributeIndexStorageKey storageKey =
-				new AttributeIndexStorageKey(entityIndexKey, AttributeIndexType.UNIQUE, uniqueKey);
+				new AttributeIndexStorageKey(entityIndexKey, AttributeIndexType.FILTER, filterKey);
 			assertNotNull(index.createStoragePart(1, storageKey));
 
 			// reset dirty on all sub-indexes
@@ -979,12 +1001,10 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("getUniqueIndex with unique-within-locale schema and null locale throws EntityLocaleMissingException")
 		void shouldThrowWhenUniqueWithinLocaleWithoutLocale() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createUniqueWithinLocaleSchema(ATTRIBUTE_NAME, String.class);
 
 			assertThrows(
 				EntityLocaleMissingException.class,
-				() -> index.getUniqueIndex(null, schema, Scope.LIVE, null)
+				() -> index.getUniqueIndex(null, UNIQUE_WITHIN_LOCALE_NAME, Scope.LIVE, null)
 			);
 		}
 
@@ -992,12 +1012,10 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("remove non-existent unique attribute throws")
 		void shouldThrowWhenRemovingNonExistentUnique() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> index.removeUniqueAttribute(null, schema, ALLOWED_LOCALES, Scope.LIVE, null, "X", 1)
+				() -> index.removeUniqueAttribute(null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "X", 1)
 			);
 		}
 
@@ -1005,12 +1023,10 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("remove non-existent filter attribute throws")
 		void shouldThrowWhenRemovingNonExistentFilter() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> index.removeFilterAttribute(null, schema, ALLOWED_LOCALES, null, "Foo", 1)
+				() -> index.removeFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "Foo", 1)
 			);
 		}
 
@@ -1018,12 +1034,10 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("remove non-existent sort attribute throws")
 		void shouldThrowWhenRemovingNonExistentSort() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> index.removeSortAttribute(null, schema, ALLOWED_LOCALES, null, 99, 1)
+				() -> index.removeSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 99, 1)
 			);
 		}
 
@@ -1031,12 +1045,10 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("remove non-existent chain attribute throws")
 		void shouldThrowWhenRemovingNonExistentChain() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> index.removeSortAttribute(null, schema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1)
+				() -> index.removeSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1)
 			);
 		}
 	}
@@ -1050,7 +1062,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldCleanCreatedThenRemovedUniqueIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
+				FOLDABLE_UNIQUE_CODE;
 
 			assertStateAfterRollback(
 				index,
@@ -1074,12 +1086,12 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldCleanCreatedThenRemovedFilterIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
+				FILTERABLE_NAME;
 
 			assertStateAfterRollback(
 				index,
 				original -> {
-					original.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "TEMP", 1);
+					original.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "TEMP", 1, false);
 					original.removeFilterAttribute(null, schema, ALLOWED_LOCALES, null, "TEMP", 1);
 				},
 				(original, committed) -> {
@@ -1094,7 +1106,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldCleanCreatedThenRemovedSortIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
+				SORTABLE_PRIORITY;
 
 			assertStateAfterRollback(
 				index,
@@ -1114,7 +1126,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldCleanCreatedThenRemovedChainIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
+				CHAIN_ORDER;
 
 			assertStateAfterRollback(
 				index,
@@ -1139,9 +1151,12 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldReturnExistingUniqueIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
+				FOLDABLE_UNIQUE_CODE;
 
+			// a folded-unique value is fully indexed by the filter write (which registers the folded view); the
+			// unique-insert itself stores nothing for a folded attribute
 			index.insertUniqueAttribute(null, schema, ALLOWED_LOCALES, Scope.LIVE, null, "ABC", 1);
+			index.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "ABC", 1, true);
 
 			final UniqueIndex result = index.getUniqueIndex(null, schema, Scope.LIVE, null);
 
@@ -1152,10 +1167,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("getUniqueIndex returns null for missing index")
 		void shouldReturnNullForMissingUniqueIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_CODE, String.class);
 
-			final UniqueIndex result = index.getUniqueIndex(null, schema, Scope.LIVE, null);
+			final UniqueIndex result = index.getUniqueIndex(null, FOLDABLE_UNIQUE_CODE, Scope.LIVE, null);
 
 			assertNull(result);
 		}
@@ -1164,10 +1177,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("getFilterIndex by key returns existing index")
 		void shouldReturnExistingFilterIndexByKey() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
 
-			index.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "Test", 1);
+			index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "Test", 1, false);
 
 			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
 			final FilterIndex result = index.getFilterIndex(key);
@@ -1180,9 +1191,9 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldReturnExistingFilterIndexBySchema() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_NAME, String.class);
+				FILTERABLE_NAME;
 
-			index.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "Test", 1);
+			index.insertFilterAttribute(null, schema, ALLOWED_LOCALES, null, "Test", 1, false);
 
 			final FilterIndex result = index.getFilterIndex(null, schema, null);
 
@@ -1194,7 +1205,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldReturnExistingSortIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_PRIORITY, Integer.class);
+				SORTABLE_PRIORITY;
 
 			index.insertSortAttribute(null, schema, ALLOWED_LOCALES, null, 42, 1);
 
@@ -1208,7 +1219,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldReturnExistingChainIndex() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
 			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
+				CHAIN_ORDER;
 
 			index.insertSortAttribute(null, schema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
@@ -1221,10 +1232,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("getChainIndex by key returns existing index")
 		void shouldReturnExistingChainIndexByKey() {
 			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final EntityAttributeSchemaContract schema =
-				createEntityAttributeSchema(ATTRIBUTE_ORDER, Predecessor.class);
 
-			index.insertSortAttribute(null, schema, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
+			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
 			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_ORDER, null);
 			final ChainIndex result = index.getChainIndex(key);

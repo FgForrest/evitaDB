@@ -74,11 +74,11 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 			1_000,
 			new TestState(
 				new StringBuilder(256),
-				new SortIndex(String.class, new AttributeIndexKey(null, "whatever", null))
+				new OwnerSortIndex(String.class, new AttributeIndexKey(null, "whatever", null))
 			),
 			(random, testState) -> {
 				final StringBuilder ops = testState.code();
-				ops.append("final SortIndex sortIndex = new SortIndex(String.class);\n")
+				ops.append("final SortIndex sortIndex = new OwnerSortIndex(String.class);\n")
 					.append(
 						setToCompare.stream()
 							.map(it -> "sortIndex.addRecord(\"" + it.value() + "\"," + it.recordId() + ");")
@@ -153,7 +153,7 @@ class LongRunningSortIndexTest implements TimeBoundedTestSupport {
 							}
 						}
 						committedResult.set(
-							new SortIndex(
+							new OwnerSortIndex(
 								committed.comparatorBase,
 								null,
 								committed.getAttributeIndexKey(),

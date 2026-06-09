@@ -325,8 +325,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				new ReferenceAttributeIndex(
 					context.entitySchema().getName(),
 					null,
-					attributes.uniqueIndexes(), attributes.filterIndexes(),
-					attributes.sortIndexes(), attributes.chainIndexes()
+					attributes.uniqueIndexes(),
+					attributes.filterIndexes(),
+					attributes.uniqueViewIndexes(),
+					attributes.sortIndexes(),
+					attributes.chainIndexes(),
+					attributes.sharedValueIndexes(),
+					attributes.sharedRangeIndexes()
 				),
 				hierarchy.hierarchyIndex(),
 				facet.facetIndex(),
@@ -500,7 +505,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	}
 
 	/**
-	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(ReferenceSchemaContract, AttributeSchemaContract, Set, Locale, Serializable, int)}
+	 * This method delegates call to {@link EntityIndex#insertFilterAttribute(ReferenceSchemaContract, AttributeSchemaContract, Set, Locale, Serializable, int, boolean)}
 	 * but tracks the cardinality of the referenced primary key in {@link #cardinalityIndexes}.
 	 */
 	@Override
@@ -510,7 +515,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int recordId
+		int recordId,
+		boolean foldedUnique
 	) {
 		// first retrieve or create the cardinality index for given attribute
 		final AttributeCardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
@@ -530,7 +536,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 				final Serializable[] delta = Arrays.copyOfRange(onlyNewItemsValueArray, 0, onlyNewItemsValueArrayIndex);
 				super.addDeltaFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
-					delta, recordId
+					delta, recordId, foldedUnique
 				);
 			}
 		} else {
@@ -538,7 +544,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			if (theCardinalityIndex.addRecord(value, recordId) == CardinalityChange.BOUNDARY_CROSSED) {
 				super.insertFilterAttribute(
 					referenceSchema, attributeSchema, allowedLocales, locale,
-					value, recordId
+					value, recordId, foldedUnique
 				);
 			}
 		}

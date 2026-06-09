@@ -26,6 +26,7 @@ package io.evitadb.index;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -54,7 +55,7 @@ public class SimpleHistogramIndex extends HistogramIndex {
 	/**
 	 * The single filter index holding bucketed histogram data for non-localized attributes.
 	 */
-	@Nonnull private final FilterIndex filterIndex;
+	@Nonnull private final OwnerFilterIndex filterIndex;
 
 	/**
 	 * The single cardinality index tracking how many references contribute a given histogram value.
@@ -74,7 +75,7 @@ public class SimpleHistogramIndex extends HistogramIndex {
 		@Nonnull Class<? extends Serializable> valueType
 	) {
 		super(histogramName, referenceName, valueType);
-		this.filterIndex = new FilterIndex(
+		this.filterIndex = new OwnerFilterIndex(
 			new AttributeIndexKey(referenceName, histogramName, null),
 			valueType
 		);
@@ -94,7 +95,7 @@ public class SimpleHistogramIndex extends HistogramIndex {
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
 		@Nonnull Class<? extends Serializable> valueType,
-		@Nonnull FilterIndex filterIndex,
+		@Nonnull OwnerFilterIndex filterIndex,
 		@Nonnull AttributeCardinalityIndex cardinality
 	) {
 		super(histogramName, referenceName, valueType);

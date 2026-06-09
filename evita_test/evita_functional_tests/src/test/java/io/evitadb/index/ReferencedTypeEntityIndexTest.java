@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -630,7 +631,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index
@@ -641,17 +642,36 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		}
 
 		@Test
+		@DisplayName("folded-unique view registers through the cardinality-gated filter write (boundary cross)")
+		void shouldRegisterFoldedUniqueViewThroughGatedFilterWrite() {
+			final Set<Locale> noLocales = Collections.emptySet();
+
+			// foldedUnique=true exercises a folded unique reference-attribute write. This index gates the shared-tree
+			// write on a cardinality boundary, so the folded view must be registered there — the first occurrence
+			// crosses the boundary, forwards to the base filter write, and that write self-registers the view.
+			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
+				getReferenceSchema(), getStringAttrSchema(), noLocales, null, "ABC", 10, true
+			);
+
+			final UniqueIndex view = ReferencedTypeEntityIndexTest.this.index.getUniqueIndex(
+				getReferenceSchema(), getStringAttrSchema(), null
+			);
+			assertNotNull(view, "the gated filter write must register the folded unique view on boundary cross");
+			assertEquals(10, view.getRecordIdByUniqueValue("ABC"));
+		}
+
+		@Test
 		@DisplayName("should not duplicate attribute on second occurrence with same value")
 		void shouldNotDuplicateAttributeOnSecondOccurrence() {
 			final Set<Locale> noLocales = Collections.emptySet();
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 
 			final Bitmap result = ReferencedTypeEntityIndexTest.this.index
@@ -667,11 +687,11 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 
 			ReferencedTypeEntityIndexTest.this.index.removeFilterAttribute(
@@ -693,11 +713,11 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 
 			ReferencedTypeEntityIndexTest.this.index.removeFilterAttribute(
@@ -724,14 +744,14 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			// first reference adds tags ["A", "B"]
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), arrayAttrSchema, noLocales, null,
-				new String[]{"A", "B"}, 10
+				new String[]{"A", "B"}, 10, false
 			);
 
 			// second reference adds tags ["B", "C"] -- "B" already has cardinality,
 			// only "C" should be newly added to the filter index
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), arrayAttrSchema, noLocales, null,
-				new String[]{"B", "C"}, 10
+				new String[]{"B", "C"}, 10, false
 			);
 
 			final AttributeIndexKey tagKey =
@@ -771,11 +791,11 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "ABC", 10
+				noLocales, null, "ABC", 10, false
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertFilterAttribute(
 				getReferenceSchema(), getStringAttrSchema(),
-				noLocales, null, "XYZ", 10
+				noLocales, null, "XYZ", 10, false
 			);
 
 			final AttributeIndexKey codeKey =
@@ -986,7 +1006,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 				ReferencedTypeEntityIndexTest.this.index,
 				original -> original.insertFilterAttribute(
 					refSchema, attrSchema, noLocales, null, "ABC", 10
-				),
+				, false),
 				(original, committed) -> {
 					// original should not have the attribute
 					assertNull(
@@ -1074,7 +1094,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 				ReferencedTypeEntityIndexTest.this.index,
 				original -> original.insertFilterAttribute(
 					refSchema, attrSchema, noLocales, null, "ABC", 10
-				),
+				, false),
 				(original, committed) -> {
 					assertNull(
 						original.getFilterIndex(

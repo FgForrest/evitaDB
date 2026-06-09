@@ -89,9 +89,12 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	}
 
 	@Tag(SLOW)
+	// 2024.5 (and older) is intentionally absent: the type-less 2024.5 filter-index storage format is no longer
+	// supported (its backward-compatible serializer was removed). Such catalogs must be upgraded through an
+	// intermediate 2025.x release first; attempting a direct load now fails fast with StoredVersionNotSupportedException.
 	@ParameterizedTest
 	@ValueSource(
-		strings = {"2024.5", "2025.1", "2025.3", "2025.6", "2026.1"}
+		strings = {"2025.1", "2025.3", "2025.6", "2026.1"}
 	)
 	void verifyBackwardCompatibilityTo(String version) throws IOException {
 		final Path targetDirectory = this.mainDirectory.resolve(version);

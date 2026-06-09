@@ -52,7 +52,7 @@ import java.util.Map;
 @AllArgsConstructor
 @ToString(of = "attributeIndexKey")
 public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = -7076092972784353868L;
+	@Serial private static final long serialVersionUID = 8847301119284756203L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.

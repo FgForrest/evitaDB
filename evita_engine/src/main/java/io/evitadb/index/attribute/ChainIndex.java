@@ -45,6 +45,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -52,12 +53,11 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.PrimitiveIterator.OfInt;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.dataType.ChainableType.HEAD_PK;
@@ -66,7 +66,7 @@ import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
 /**
- * This is a special index for data type of {@link io.evitadb.dataType.ChainableType}.
+ * This is a special index for data type of {@link ChainableType}.
  * Semi-consistent orders by:
  *
  * - the longest chain of elements starting with the head element
@@ -108,6 +108,7 @@ public class ChainIndex implements
 	Serializable
 {
 	@Serial private static final long serialVersionUID = 6633952268102524794L;
+	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
 	/**
 	 * Single global order-statistic array holding **all** elements of the attribute in their materialized
@@ -124,7 +125,6 @@ public class ChainIndex implements
 	 * to {@link ChainableType#HEAD_PK} when it is a true head, or to the external/absent predecessor it points at.
 	 */
 	final TransactionalMap<Integer, Integer> predecessors;
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
@@ -153,8 +153,8 @@ public class ChainIndex implements
 		this.attributeIndexKey = attributeIndexKey;
 		this.dirty = new TransactionalBoolean();
 		this.elements = new TransactionalUnorderedIntArray();
-		this.chains = new TransactionalMap<>(new java.util.HashMap<>(32));
-		this.predecessors = new TransactionalMap<>(new java.util.HashMap<>(64));
+		this.chains = new TransactionalMap<>(CollectionUtils.createHashMap(32));
+		this.predecessors = new TransactionalMap<>(CollectionUtils.createHashMap(64));
 	}
 
 	public ChainIndex(
@@ -182,7 +182,7 @@ public class ChainIndex implements
 		}
 		final int[] flattened = new int[total];
 		int offset = 0;
-		final Map<Integer, ChainDescriptor> descriptors = new java.util.HashMap<>(chains.length * 2);
+		final Map<Integer, ChainDescriptor> descriptors = CollectionUtils.createHashMap(chains.length << 1);
 		for (final int[] chain : chains) {
 			if (chain.length == 0) {
 				continue;
@@ -199,7 +199,7 @@ public class ChainIndex implements
 		this.chains = new TransactionalMap<>(descriptors);
 
 		// mirror the per-element predecessor primary keys
-		final Map<Integer, Integer> predecessorMap = new java.util.HashMap<>(elementStates.size() * 2);
+		final Map<Integer, Integer> predecessorMap = CollectionUtils.createHashMap(elementStates.size() << 1);
 		for (final Entry<Integer, ChainElementState> entry : elementStates.entrySet()) {
 			predecessorMap.put(entry.getKey(), entry.getValue().predecessorPrimaryKey());
 		}
@@ -453,12 +453,23 @@ public class ChainIndex implements
 	 */
 	@Nullable
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
+		//TODO JNO (#760): the persisted format still mirrors the pre-split fat per-element shape and is
+		// ~5x larger than necessary. The `chains` runs already encode everything except one datum per chain,
+		// so a second-phase slim format should write, per chain, only: the run PKs (once) + the head's
+		// predecessor PK (HEAD_PK for a true head) + the head's ElementState (1 byte). Everything else is
+		// redundant: `inChainOfHeadWithPrimaryKey` == the run's head (chain[0]); a non-head element's
+		// predecessor == its previous element in the run (the invariant getConsistencyReport() enforces);
+		// non-head state is always SUCCESSOR. On read, rebuild the same ChainElementState map this method
+		// emits (so ChainIndexStoragePart and the load constructor need no change) — the change is confined
+		// to a new versioned ChainIndexStoragePartSerializer, registering the current one as the
+		// backward-compatible reader (same pattern as ChainIndexStoragePartSerializer_2025_5). This also
+		// removes the drift-prone redundancy of persisting state/inChainOfHead that can disagree with the runs.
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.chainIndexChanges = null;
 
 			final int[][] chainArrays = new int[this.chains.size()][];
-			final Map<Integer, ChainElementState> elementStates = new java.util.HashMap<>(this.predecessors.size() * 2);
+			final Map<Integer, ChainElementState> elementStates = CollectionUtils.createHashMap(this.predecessors.size() << 1);
 			int chainIndex = 0;
 			for (final Entry<Integer, ChainDescriptor> entry : this.chains.entrySet()) {
 				final int headPk = entry.getKey();
@@ -468,11 +479,16 @@ public class ChainIndex implements
 				chainArrays[chainIndex++] = run;
 				for (int i = 0; i < run.length; i++) {
 					final int elementId = run[i];
+					final Integer predecessor = this.predecessors.get(elementId);
+					isPremiseValid(
+						predecessor != null,
+						"Index damaged! The element `" + elementId + "` has no predecessor entry!"
+					);
 					elementStates.put(
 						elementId,
 						new ChainElementState(
 							headPk,
-							this.predecessors.get(elementId),
+							predecessor,
 							i == 0 ? descriptor.state() : ElementState.SUCCESSOR
 						)
 					);
@@ -494,10 +510,6 @@ public class ChainIndex implements
 	public void resetDirty() {
 		this.dirty.reset();
 	}
-
-	/*
-		Implementation of TransactionalLayerProducer
-	 */
 
 	@Override
 	public ChainIndexChanges createLayer() {
@@ -537,7 +549,7 @@ public class ChainIndex implements
 		for (final Entry<Integer, ChainDescriptor> entry : orderedChains) {
 			final int headPos = this.elements.indexOf(entry.getKey());
 			final int[] run = this.elements.getSubArray(headPos, headPos + entry.getValue().length());
-			chainsDump.append("\n      - ").append(java.util.Arrays.toString(run));
+			chainsDump.append("\n      - ").append(Arrays.toString(run));
 		}
 		final List<Integer> orderedElements = new ArrayList<>(this.predecessors.keySet());
 		orderedElements.sort(Comparator.naturalOrder());
@@ -550,10 +562,6 @@ public class ChainIndex implements
 			"   - chains:" + chainsDump + "\n" +
 			"   - elementStates:" + statesDump;
 	}
-
-	/*
-		PRIVATE METHODS
-	 */
 
 	/**
 	 * Retrieves or creates temporary data structure. When transaction exists, it is created in the transactional memory
@@ -628,6 +636,10 @@ public class ChainIndex implements
 			// append right after the predecessor, extending its run
 			this.elements.addOnIndex(predecessorPos + 1, primaryKey);
 			final ChainDescriptor descriptor = this.chains.get(predecessorRun.headPk());
+			isPremiseValid(
+				descriptor != null,
+				"Index damaged! The run head `" + predecessorRun.headPk() + "` has no descriptor!"
+			);
 			final int newLength = descriptor.length() + 1;
 			this.chains.put(
 				predecessorRun.headPk(),
@@ -659,7 +671,6 @@ public class ChainIndex implements
 		final int headPk = run.headPk();
 		final int headPos = run.headPos();
 		final int length = run.length();
-		final ChainDescriptor descriptor = this.chains.get(headPk);
 
 		this.elements.remove(primaryKey);
 
@@ -699,7 +710,12 @@ public class ChainIndex implements
 					// HEAD and CIRCULAR runs never follow another run
 					continue;
 				}
-				final int headPredecessor = this.predecessors.get(headPk);
+				final Integer headPredecessorRef = this.predecessors.get(headPk);
+				isPremiseValid(
+					headPredecessorRef != null,
+					"Index damaged! The chain head `" + headPk + "` has no predecessor entry!"
+				);
+				final int headPredecessor = headPredecessorRef;
 				if (headPredecessor == HEAD_PK) {
 					continue;
 				}
@@ -733,10 +749,17 @@ public class ChainIndex implements
 	 * @param followerHeadPk head of the run being merged in
 	 */
 	private void mergeRunAfter(int targetHeadPk, int followerHeadPk) {
+		final ChainDescriptor targetDescriptor = this.chains.get(targetHeadPk);
+		final ChainDescriptor followerDescriptor = this.chains.get(followerHeadPk);
+		isPremiseValid(
+			targetDescriptor != null && followerDescriptor != null,
+			"Index damaged! The run head `" +
+				(targetDescriptor == null ? targetHeadPk : followerHeadPk) + "` has no descriptor!"
+		);
 		final int targetPos = this.elements.indexOf(targetHeadPk);
-		final int targetLength = this.chains.get(targetHeadPk).length();
+		final int targetLength = targetDescriptor.length();
 		final int followerPos = this.elements.indexOf(followerHeadPk);
-		final int followerLength = this.chains.get(followerHeadPk).length();
+		final int followerLength = followerDescriptor.length();
 
 		final boolean adjacent = targetPos + targetLength == followerPos;
 		if (!adjacent) {
@@ -831,7 +854,12 @@ public class ChainIndex implements
 	 */
 	@Nonnull
 	private ElementState computeHeadState(int headPk, int length) {
-		final int headPredecessor = this.predecessors.get(headPk);
+		final Integer headPredecessorRef = this.predecessors.get(headPk);
+		isPremiseValid(
+			headPredecessorRef != null,
+			"Index damaged! The chain head `" + headPk + "` has no predecessor entry!"
+		);
+		final int headPredecessor = headPredecessorRef;
 		if (headPredecessor == HEAD_PK) {
 			return ElementState.HEAD;
 		}
@@ -869,10 +897,23 @@ public class ChainIndex implements
 	private ChainElementState reconstructState(int elementId) {
 		final int position = this.elements.indexOf(elementId);
 		final RunRef run = findRun(position);
-		final ElementState state = elementId == run.headPk()
-			? this.chains.get(run.headPk()).state()
-			: ElementState.SUCCESSOR;
-		return new ChainElementState(run.headPk(), this.predecessors.get(elementId), state);
+		final ElementState state;
+		if (elementId == run.headPk()) {
+			final ChainDescriptor descriptor = this.chains.get(run.headPk());
+			isPremiseValid(
+				descriptor != null,
+				"Index damaged! The run head `" + run.headPk() + "` has no descriptor!"
+			);
+			state = descriptor.state();
+		} else {
+			state = ElementState.SUCCESSOR;
+		}
+		final Integer predecessor = this.predecessors.get(elementId);
+		isPremiseValid(
+			predecessor != null,
+			"Index damaged! The element `" + elementId + "` has no predecessor entry!"
+		);
+		return new ChainElementState(run.headPk(), predecessor, state);
 	}
 
 	/**
@@ -923,17 +964,6 @@ public class ChainIndex implements
 		int predecessorPrimaryKey,
 		@Nonnull ElementState state
 	) {
-
-		/**
-		 * Constructor allowing to override all settings of the element.
-		 */
-		public ChainElementState(
-			int inChainOfHeadWithPrimaryKey,
-			@Nonnull ChainableType predecessor,
-			@Nonnull ElementState elementState
-		) {
-			this(inChainOfHeadWithPrimaryKey, predecessor.predecessorPk(), elementState);
-		}
 
 		@Nonnull
 		@Override
