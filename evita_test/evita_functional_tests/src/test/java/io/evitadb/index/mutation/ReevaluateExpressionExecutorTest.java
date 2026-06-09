@@ -1019,15 +1019,14 @@ class ReevaluateExpressionExecutorTest {
 		}
 
 		/**
-		 * Review safeguard (Copilot, PR #1235): the recursive PK-scope rewrite must only target
-		 * **owner-scope** `ReferenceHaving` clauses. The expression translator emits nested
-		 * `referenceHaving(otherRef, …)` inside an enclosing `entityHaving(…)` for
-		 * `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` paths (and inside `groupHaving(…)` for
-		 * `GROUP_ENTITY_REFERENCE_ATTRIBUTE`). Those inner clauses live in a *different* entity
-		 * scope — the referenced entity's own references — and their PK constraints must not be
-		 * merged with the owner-scope mutation's PK. When the inner reference happens to share
-		 * the same name as the mutation's owner reference (e.g. self-referencing schemas), the
-		 * rewrite must skip the inner clause.
+		 * The recursive PK-scope rewrite must only target **owner-scope** `ReferenceHaving` clauses.
+		 * The expression translator emits nested `referenceHaving(otherRef, …)` inside an enclosing
+		 * `entityHaving(…)` for `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` paths (and inside
+		 * `groupHaving(…)` for `GROUP_ENTITY_REFERENCE_ATTRIBUTE`). Those inner clauses live in a
+		 * *different* entity scope — the referenced entity's own references — and their PK
+		 * constraints must not be merged with the owner-scope mutation's PK. When the inner
+		 * reference happens to share the same name as the mutation's owner reference (e.g.
+		 * self-referencing schemas), the rewrite must skip the inner clause.
 		 *
 		 * Without the `isWithin(EntityHaving.class)` guard, the inner `ReferenceHaving`'s body
 		 * would be silently augmented with `entityPrimaryKeyInSet(...)` of the owner-entity PK,
