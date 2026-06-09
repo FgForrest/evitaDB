@@ -30,7 +30,9 @@ import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
+import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -805,6 +807,215 @@ class ReevaluateExpressionExecutorTest {
 			// Product 100 faceted, product 200 not
 			assertFacetPresent(testTarget.globalIndex(), REFERENCE_NAME, 1, 3, 100);
 			assertFacetAbsent(testTarget.globalIndex(), REFERENCE_NAME, 3, 200);
+		}
+
+		/**
+		 * Reproduces production `INVALID_ARGUMENT` failure (issue #1233): catalog `senesi`,
+		 * `ParameterValue` upsert blowing up with `A total of 2 constraints were found in a query,
+		 * but expected is only one!`.
+		 *
+		 * `ReevaluateExpressionExecutor.evaluateCondition` decides whether per-group evaluation is
+		 * required by calling `FinderVisitor.findConstraint(filter, GroupHaving.class::isInstance)`.
+		 * The singular variant throws `MoreThanSingleResultException` when more than one match is
+		 * found in the constraint tree — but the caller only wants an existence check.
+		 *
+		 * `ExpressionToQueryTranslator` wraps each sibling `$reference.groupEntity?.…` predicate in
+		 * its own `groupHaving(...)`. When a reference declares two such predicates (e.g.
+		 * `bucketedPartially` and `assignedWhen` both probing group attributes), the resulting
+		 * `FilterBy` contains two `GroupHaving` siblings and the existence check incorrectly throws.
+		 */
+		@Test
+		@DisplayName("evaluateCondition must not throw when filter has multiple GroupHaving siblings")
+		void shouldNotThrowWhenFilterHasMultipleGroupHavingConstraints() {
+			// Simulates ExpressionToQueryTranslator output: two GroupHaving siblings inside the same
+			// ReferenceHaving — exactly the production shape that triggered the INVALID_ARGUMENT.
+			final FilterBy triggerFilter = new FilterBy(
+				new ReferenceHaving(
+					REFERENCE_NAME,
+					new GroupHaving(
+						new AttributeEquals("inputWidgetType", "INTERVAL")
+					),
+					new GroupHaving(
+						new AttributeEquals("bucketedPartially", true)
+					)
+				)
+			);
+
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(
+				3, 1, new BaseBitmap(100)
+			);
+			final AffectedEntityResolution affected = new AffectedEntityResolution(List.of(group));
+
+			final TestTarget testTarget = createTestTarget(affected, ReferenceIndexType.FOR_FILTERING);
+			final IndexMutationTarget target = testTarget.target();
+			final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			);
+
+			// Pre-stub evaluateFilter so the per-group code path (reachable once the fix lands)
+			// has a deterministic empty result and does not NPE on a missing stub.
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+				.thenReturn(new BaseBitmap());
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+
+			// Before the fix this call propagates `MoreThanSingleResultException` with message
+			// "A total of `2` constraints were found in a query, but expected is only one!"
+			assertDoesNotThrow(() ->
+				ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target)
+			);
+		}
+
+		/**
+		 * Companion regression for issue #1233: once the existence check stops throwing on multiple
+		 * sibling `GroupHaving` constraints, the per-group evaluation must still produce a
+		 * **correctly scoped** filter — i.e. the group PK must be injected into **every** sibling
+		 * `GroupHaving`, not just the first one. Otherwise the unscoped sibling would match across
+		 * all groups, producing the same cross-reference false positive that
+		 * `shouldPreventCrossReferenceFalsePositive` proves the per-group path must prevent.
+		 */
+		@Test
+		@DisplayName("per-group evaluation injects group PK into every sibling GroupHaving")
+		void shouldInjectGroupPkIntoEverySiblingGroupHaving() {
+			final FilterBy triggerFilter = new FilterBy(
+				new ReferenceHaving(
+					REFERENCE_NAME,
+					new GroupHaving(
+						new AttributeEquals("inputWidgetType", "INTERVAL")
+					),
+					new GroupHaving(
+						new AttributeEquals("bucketedPartially", true)
+					)
+				)
+			);
+
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(
+				3, 1, new BaseBitmap(100)
+			);
+			final AffectedEntityResolution affected = new AffectedEntityResolution(List.of(group));
+
+			final TestTarget testTarget = createTestTarget(affected, ReferenceIndexType.FOR_FILTERING);
+			final IndexMutationTarget target = testTarget.target();
+			final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			);
+
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+				.thenReturn(new BaseBitmap());
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+
+			// Act
+			ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target);
+
+			// Capture the parameterized filter sent to evaluateFilter.
+			final ArgumentCaptor<FilterBy> filterCaptor = ArgumentCaptor.forClass(FilterBy.class);
+			verify(target).evaluateFilter(filterCaptor.capture(), eq(Scope.LIVE));
+
+			// Both sibling GroupHaving constraints must contain entityPrimaryKeyInSet(groupPK=1).
+			final List<GroupHaving> groupHavings = FinderVisitor.findConstraints(
+				filterCaptor.getValue(), GroupHaving.class::isInstance
+			);
+			assertEquals(
+				2, groupHavings.size(),
+				"Parameterized filter should preserve both sibling GroupHaving constraints"
+			);
+			for (final GroupHaving groupHaving : groupHavings) {
+				assertTrue(
+					containsPKInSet(groupHaving.getChildren(), 1),
+					"GroupHaving must contain entityPrimaryKeyInSet(1) after per-group injection"
+				);
+			}
+		}
+
+		/**
+		 * Pre-existing limitation surfaced while fixing issue #1233: `parameterize` /
+		 * `parameterizeWithGroupScope` previously walked only the top-level direct children of
+		 * `FilterBy`. When the trigger filter wrapped its `ReferenceHaving` instances in an
+		 * `Or` (e.g. expression `attrA == X || attrB == Y` on the same reference), neither inner
+		 * `ReferenceHaving` was reached and PK scope injection was silently skipped — producing
+		 * cross-reference false positives identical to the in-group sibling case.
+		 *
+		 * The fix routes PK injection through `ConstraintCloneVisitor`, which recurses through
+		 * any container (`Or`, `And`, `Not`, ...) so every matching `ReferenceHaving` is rewritten
+		 * regardless of nesting depth.
+		 */
+		@Test
+		@DisplayName("per-group evaluation injects group PK into every Or-branch ReferenceHaving")
+		void shouldInjectGroupPkIntoEveryOrBranchReferenceHaving() {
+			final FilterBy triggerFilter = new FilterBy(
+				new Or(
+					new ReferenceHaving(
+						REFERENCE_NAME,
+						new GroupHaving(
+							new AttributeEquals("inputWidgetType", "INTERVAL")
+						)
+					),
+					new ReferenceHaving(
+						REFERENCE_NAME,
+						new GroupHaving(
+							new AttributeEquals("bucketedPartially", true)
+						)
+					)
+				)
+			);
+
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(
+				3, 1, new BaseBitmap(100)
+			);
+			final AffectedEntityResolution affected = new AffectedEntityResolution(List.of(group));
+
+			final TestTarget testTarget = createTestTarget(affected, ReferenceIndexType.FOR_FILTERING);
+			final IndexMutationTarget target = testTarget.target();
+			final ReevaluateExpressionMutation mutation = ReevaluateExpressionMutation.withoutOldValues(
+				REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+			);
+
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+				.thenReturn(new BaseBitmap());
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+
+			// Act
+			ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target);
+
+			// Capture the parameterized filter sent to evaluateFilter.
+			final ArgumentCaptor<FilterBy> filterCaptor = ArgumentCaptor.forClass(FilterBy.class);
+			verify(target).evaluateFilter(filterCaptor.capture(), eq(Scope.LIVE));
+
+			// Both ReferenceHavings nested under the Or must have been rewritten so their inner
+			// GroupHaving contains the group PK (=1). Before the fix, neither was touched.
+			final List<GroupHaving> groupHavings = FinderVisitor.findConstraints(
+				filterCaptor.getValue(), GroupHaving.class::isInstance
+			);
+			assertEquals(
+				2, groupHavings.size(),
+				"Parameterized filter should preserve both Or-branch GroupHaving constraints"
+			);
+			for (final GroupHaving groupHaving : groupHavings) {
+				assertTrue(
+					containsPKInSet(groupHaving.getChildren(), 1),
+					"GroupHaving must contain entityPrimaryKeyInSet(1) after per-group injection"
+				);
+			}
 		}
 	}
 
