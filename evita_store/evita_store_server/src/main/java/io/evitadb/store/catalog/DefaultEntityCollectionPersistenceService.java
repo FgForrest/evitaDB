@@ -109,6 +109,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -145,6 +146,13 @@ public class DefaultEntityCollectionPersistenceService
 	CatalogConsumersListener
 {
 	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
+	/**
+	 * Buffer size for the {@link BufferedOutputStream} that wraps the raw compaction output file. The snapshot
+	 * copy emits three tiny writes per record (header, payload, tail); without buffering a multi-million-record
+	 * collection turns the copy into millions of write syscalls. Batching them through this buffer collapses it
+	 * into far fewer, larger writes.
+	 */
+	private static final int COMPACTION_OUTPUT_BUFFER_SIZE = 65_536;
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
 	 */
@@ -916,7 +924,9 @@ public class DefaultEntityCollectionPersistenceService
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
 		final Path newFilePath = newReference.toFilePath(catalogStoragePath);
 		final OffsetIndexDescriptor offsetIndexDescriptor;
-		try (final FileOutputStream fos = new FileOutputStream(newFilePath.toFile())) {
+		try (final OutputStream fos = new BufferedOutputStream(
+			new FileOutputStream(newFilePath.toFile()), COMPACTION_OUTPUT_BUFFER_SIZE
+		)) {
 			offsetIndexDescriptor = this.storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
 		} catch (IOException e) {
 			throw new UnexpectedIOException(

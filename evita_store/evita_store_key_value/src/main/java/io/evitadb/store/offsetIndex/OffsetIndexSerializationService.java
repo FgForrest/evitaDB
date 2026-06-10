@@ -49,9 +49,11 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -259,11 +261,26 @@ public class OffsetIndexSerializationService {
 		);
 		// the registry resolves the exact living data set as of catalogVersion, so each entry already carries the
 		// location valid for that version - no per-key historical reconstruction is needed
-		final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries(catalogVersion);
+		// the live set is iterated in ChampMap hash order, which bears no relation to the physical file layout;
+		// copying in that order forces a random seek (and an input-buffer refill) for every record. Sorting the
+		// entries by their source position turns the read side into a single forward scan, so the input read buffer
+		// amortizes across many records and the OS can prefetch the source file sequentially - the dominant cost on
+		// large collections.
+		final Collection<Entry<RecordKey, FileLocation>> liveEntries = offsetIndex.getEntries(catalogVersion);
+		final List<Entry<RecordKey, FileLocation>> entries = new ArrayList<>(liveEntries);
+		entries.sort(Comparator.comparingLong(entry -> entry.getValue().startingPosition()));
 		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
 		// Single scratch buffer reused across every storage-record fragment in this snapshot copy.
 		// Per-fragment recordLength is bounded by `outputBufferSize`, so a single buffer of that size is always enough.
 		final byte[] rawCopyScratchBuffer = new byte[outputBufferSize];
+		// position in the source file where the input cursor currently sits (i.e. the byte right after the last
+		// record copied so far); `-1` means the cursor position is unknown and a seek is mandatory. Because
+		// `entries` is sorted by source position, the common case is that the next record begins exactly here -
+		// then `seek` (which discards the whole read buffer and forces a fresh `outputBufferSize` refill for the
+		// next few-hundred-byte header) can be skipped entirely and the input read buffer is reused across many
+		// consecutive records. This turns the read side of a large compaction from one buffer-refill-per-record
+		// into a single sequential scan.
+		long nextContiguousSourcePosition = -1;
 		int counter = 0;
 		final Iterator<Entry<RecordKey, FileLocation>> it = entries.iterator();
 		while (it.hasNext()) {
@@ -273,7 +290,15 @@ public class OffsetIndexSerializationService {
 			final byte[] overriddenValue = valuesToOverride.get(entry.getKey());
 			final FileLocation copiedRecordLocation;
 			if (overriddenValue == null) {
-				inputStream.seekWithUnknownLength(fileLocation.startingPosition());
+				// only pay for a seek when the record does not start exactly where the cursor
+				// already is
+				if (fileLocation.startingPosition() != nextContiguousSourcePosition) {
+					inputStream.seekWithUnknownLength(fileLocation.startingPosition());
+				}
+				// the live FileLocation spans every continuation fragment, so its end is where the cursor lands
+				// once the do/while below has consumed the whole record - record it for the next iteration's
+				// contiguity check
+				nextContiguousSourcePosition = fileLocation.endPosition();
 				long startPosition = -1;
 				int recordLength = 0;
 				byte control;
@@ -303,7 +328,10 @@ public class OffsetIndexSerializationService {
 
 				copiedRecordLocation = new FileLocation(startPosition, recordLength);
 			} else {
-				// write overridden value
+				// write overridden value - this branch does not touch the source input stream, so the cursor
+				// stays put and we can no longer assume the following record is contiguous with it; force a
+				// seek next time
+				nextContiguousSourcePosition = -1;
 				copiedRecordLocation = new StorageRecord<>(
 					output, catalogVersion, !it.hasNext(),
 					theOutput -> {

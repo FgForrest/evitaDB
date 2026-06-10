@@ -577,6 +577,192 @@ class OffsetIndexTest implements EvitaTestSupport {
 			}
 		}
 
+		@DisplayName("Fully-live (gap-free) file offset index copied to different file and reconstructed.")
+		@ParameterizedTest
+		@MethodSource("io.evitadb.store.offsetIndex.OffsetIndexTest#combineSettings")
+		void shouldCopySnapshotOfTheFullyLiveFileOffsetIndexAndReconstruct(ChecksumCheck crc32Check, Compression compression) {
+			final Random random = new Random(42);
+			final StorageSettings limitedBufferSettings = buildOptionsWithLimitedBuffer(crc32Check, compression);
+			final Map<Integer, EntityBodyStoragePart> parts = new HashMap<>();
+			final InsertionOutput insertionOutput = serializeAndReconstructBigFileOffsetIndex(
+				limitedBufferSettings,
+				pk -> parts.computeIfAbsent(
+					pk, thePk -> createEntityBodyStoragePartOfRandomSize(limitedBufferSettings, random, thePk))
+			);
+			final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionOutput.descriptor();
+			final StorageSettings storageSettings = configure(StorageOptions.temporary(), crc32Check, compression);
+			IOUtils.closeQuietly(insertionOutput.fileOffsetIndex()::close);
+
+			Path snapshotPath = null;
+			OffsetIndex sourceOffsetIndex = null;
+			OffsetIndex loadedFileOffsetIndex = null;
+			try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+				sourceOffsetIndex = loadOffsetIndex(
+					insertionOutput.catalogVersion(),
+					fileOffsetIndexDescriptor,
+					limitedBufferSettings,
+					createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+
+				final int recordCount = sourceOffsetIndex.count(insertionOutput.catalogVersion());
+				// no record is removed, so every live record sits physically adjacent to the next one. The
+				// position-sorted snapshot copy must therefore take the contiguity fast-path (skip the per-record
+				// seek) for every record after the first and still reconstruct each payload byte-perfectly - the
+				// complement of the gap-heavy test above, which forces a seek before every record.
+				snapshotPath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "snapshot-fully-live.kryo");
+				final long finalCatalogVersion = insertionOutput.catalogVersion() + 1;
+				final OffsetIndexDescriptor snapshotBootstrapDescriptor;
+				try (final FileOutputStream fos = new FileOutputStream(snapshotPath.toFile())) {
+					snapshotBootstrapDescriptor = sourceOffsetIndex.copySnapshotTo(fos, null, finalCatalogVersion);
+				} catch (IOException e) {
+					throw new AssertionFailedError("IO exception!", e);
+				}
+
+				loadedFileOffsetIndex = new OffsetIndex(
+					snapshotBootstrapDescriptor.version(),
+					snapshotBootstrapDescriptor,
+					limitedBufferSettings.outputBufferSize(),
+					limitedBufferSettings.maxOpenedReadHandlesOrDefault(),
+					limitedBufferSettings.lockTimeoutSeconds(),
+					limitedBufferSettings.waitOnCloseSeconds(),
+					limitedBufferSettings,
+					limitedBufferSettings,
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry,
+					createWriteOnlyFileHandle(snapshotPath, storageSettings, observableOutputKeeper),
+					NO_OP_NON_FLUSHED_BLOCK_CALLBACK,
+					NO_OP_OLDEST_RECORD_CALLBACK
+				);
+
+				assertEquals(
+					sourceOffsetIndex.count(finalCatalogVersion), loadedFileOffsetIndex.count(finalCatalogVersion));
+				assertEquals(sourceOffsetIndex.getTotalSizeBytes(), loadedFileOffsetIndex.getTotalSizeBytes());
+				for (int i = 1; i <= recordCount; i++) {
+					final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(
+						finalCatalogVersion, i, EntityBodyStoragePart.class);
+					assertEquals(
+						parts.get(i),
+						actual
+					);
+				}
+			} finally {
+				if (sourceOffsetIndex != null) {
+					IOUtils.closeQuietly(sourceOffsetIndex::close);
+				}
+				if (loadedFileOffsetIndex != null) {
+					IOUtils.closeQuietly(loadedFileOffsetIndex::close);
+				}
+				if (snapshotPath != null) {
+					snapshotPath.toFile().delete();
+				}
+			}
+		}
+
+		@DisplayName("Partially-live (interleaved gaps) file offset index copied to different file and reconstructed.")
+		@ParameterizedTest
+		@MethodSource("io.evitadb.store.offsetIndex.OffsetIndexTest#combineSettings")
+		void shouldCopySnapshotOfThePartiallyLiveFileOffsetIndexAndReconstruct(ChecksumCheck crc32Check, Compression compression) {
+			final Random random = new Random(42);
+			final StorageSettings limitedBufferSettings = buildOptionsWithLimitedBuffer(crc32Check, compression);
+			final Map<Integer, EntityBodyStoragePart> parts = new HashMap<>();
+			final InsertionOutput insertionOutput = serializeAndReconstructBigFileOffsetIndex(
+				limitedBufferSettings,
+				pk -> parts.computeIfAbsent(
+					pk, thePk -> createEntityBodyStoragePartOfRandomSize(limitedBufferSettings, random, thePk))
+			);
+			final OffsetIndexDescriptor fileOffsetIndexDescriptor = insertionOutput.descriptor();
+			final StorageSettings storageSettings = configure(StorageOptions.temporary(), crc32Check, compression);
+			IOUtils.closeQuietly(insertionOutput.fileOffsetIndex()::close);
+
+			Path snapshotPath = null;
+			OffsetIndex sourceOffsetIndex = null;
+			OffsetIndex purgedSourceOffsetIndex = null;
+			OffsetIndex loadedFileOffsetIndex = null;
+			try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+				sourceOffsetIndex = loadOffsetIndex(
+					insertionOutput.catalogVersion(),
+					fileOffsetIndexDescriptor,
+					limitedBufferSettings,
+					createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+
+				final int recordCount = sourceOffsetIndex.count(insertionOutput.catalogVersion());
+				final long nextCatalogVersion = insertionOutput.catalogVersion() + 1;
+				// remove every third record, leaving runs of two contiguous live records separated by
+				// single-record gaps. The position-sorted snapshot copy must therefore alternate between the
+				// contiguity fast-path (within a run) and the per-record seek (across each gap) inside one
+				// copy, mixing both branches the fully-live and gap-heavy tests exercise in isolation.
+				for (int i = 1; i <= recordCount; i = i + 3) {
+					sourceOffsetIndex.remove(nextCatalogVersion, i, EntityBodyStoragePart.class);
+				}
+
+				final OffsetIndexDescriptor updatedOffsetIndexDescriptor = sourceOffsetIndex.flush(nextCatalogVersion);
+				purgedSourceOffsetIndex = loadOffsetIndex(
+					nextCatalogVersion,
+					updatedOffsetIndexDescriptor,
+					limitedBufferSettings,
+					createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+				);
+
+				// now create a snapshot of the file offset index
+				snapshotPath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "snapshot-partial.kryo");
+				final long finalCatalogVersion = nextCatalogVersion + 1;
+				final OffsetIndexDescriptor snapshotBootstrapDescriptor;
+				try (final FileOutputStream fos = new FileOutputStream(snapshotPath.toFile())) {
+					snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(fos, null, finalCatalogVersion);
+				} catch (IOException e) {
+					throw new AssertionFailedError("IO exception!", e);
+				}
+
+				loadedFileOffsetIndex = new OffsetIndex(
+					snapshotBootstrapDescriptor.version(),
+					snapshotBootstrapDescriptor,
+					limitedBufferSettings.outputBufferSize(),
+					limitedBufferSettings.maxOpenedReadHandlesOrDefault(),
+					limitedBufferSettings.lockTimeoutSeconds(),
+					limitedBufferSettings.waitOnCloseSeconds(),
+					limitedBufferSettings,
+					limitedBufferSettings,
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry,
+					createWriteOnlyFileHandle(snapshotPath, storageSettings, observableOutputKeeper),
+					NO_OP_NON_FLUSHED_BLOCK_CALLBACK,
+					NO_OP_OLDEST_RECORD_CALLBACK
+				);
+
+				assertEquals(
+					purgedSourceOffsetIndex.count(finalCatalogVersion), loadedFileOffsetIndex.count(finalCatalogVersion));
+				assertEquals(purgedSourceOffsetIndex.getTotalSizeBytes(), loadedFileOffsetIndex.getTotalSizeBytes());
+				// every surviving record (the two records following each removed one) must reconstruct
+				// byte-perfectly; the removed records are those where (i - 1) % 3 == 0
+				for (int i = 1; i <= recordCount; i++) {
+					if ((i - 1) % 3 == 0) {
+						continue;
+					}
+					final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(
+						finalCatalogVersion, i, EntityBodyStoragePart.class);
+					assertEquals(
+						parts.get(i),
+						actual
+					);
+				}
+			} finally {
+				if (sourceOffsetIndex != null) {
+					IOUtils.closeQuietly(sourceOffsetIndex::close);
+				}
+				if (purgedSourceOffsetIndex != null) {
+					IOUtils.closeQuietly(purgedSourceOffsetIndex::close);
+				}
+				if (loadedFileOffsetIndex != null) {
+					IOUtils.closeQuietly(loadedFileOffsetIndex::close);
+				}
+				if (snapshotPath != null) {
+					snapshotPath.toFile().delete();
+				}
+			}
+		}
+
 		@DisplayName("Existing record can be removed")
 		@ParameterizedTest
 		@MethodSource("io.evitadb.store.offsetIndex.OffsetIndexTest#combineSettings")

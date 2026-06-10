@@ -145,10 +145,12 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -195,6 +197,14 @@ public class DefaultCatalogPersistenceService
 	CatalogPersistenceService<LogFileRecordReference, CollectionFileReference, EntityCollectionFileHeader>,
 	CatalogConsumersListener
 {
+
+	/**
+	 * Buffer size for the {@link BufferedOutputStream} that wraps a raw compaction / snapshot output file. The
+	 * snapshot copy emits three tiny writes per record (header, payload, tail); without buffering a
+	 * multi-million-record collection turns the copy into millions of write syscalls. Batching them through this
+	 * buffer collapses it into far fewer, larger writes.
+	 */
+	private static final int COMPACTION_OUTPUT_BUFFER_SIZE = 65_536;
 
 	/**
 	 * Factory function that configures new instance of the versioned kryo factory.
@@ -2167,7 +2177,9 @@ public class DefaultCatalogPersistenceService
 			// now copy living snapshot of the entity collection to a new file
 			Assert.isPremiseValid(
 				newFile.createNewFile(), "Cannot create new entity collection file: `" + newFilePath + "`!");
-			try (final FileOutputStream fos = new FileOutputStream(newFile)) {
+			try (final OutputStream fos = new BufferedOutputStream(
+				new FileOutputStream(newFile), COMPACTION_OUTPUT_BUFFER_SIZE
+			)) {
 				newEntityCollectionHeader = entityPersistenceService.copySnapshotTo(
 					catalogVersion, newEntityTypeFileIndex, fos, null);
 			}
@@ -2921,8 +2933,10 @@ public class DefaultCatalogPersistenceService
 			final int newCatalogFileIndex = catalogFileIndex + 1;
 			final String compactedFileName = getCatalogDataStoreFileName(newCatalogName, newCatalogFileIndex);
 			final OffsetIndexDescriptor compactedDescriptor;
-			try (final FileOutputStream fos = new FileOutputStream(
-				this.catalogStoragePath.resolve(compactedFileName).toFile())) {
+			try (final OutputStream fos = new BufferedOutputStream(
+				new FileOutputStream(this.catalogStoragePath.resolve(compactedFileName).toFile()),
+				COMPACTION_OUTPUT_BUFFER_SIZE
+			)) {
 				compactedDescriptor = storagePartPersistenceService.copySnapshotTo(catalogVersion, fos, null);
 			} catch (IOException e) {
 				throw new UnexpectedIOException(

@@ -1244,8 +1244,14 @@ public class OffsetIndex {
 	 * of file handles to ensure that resources are released and avoid resource leakage.
 	 */
 	private void clearReadOnlyOpenedHandles() {
-		long start = System.currentTimeMillis();
-		while (!this.readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > this.waitOnCloseSeconds * 1000L) {
+		final long start = System.currentTimeMillis();
+		// Grace-drain loop: wait up to `waitOnCloseSeconds` for clients (most importantly an in-flight snapshot
+		// copy / compaction that has borrowed a read handle) to return their handles, closing each one the moment
+		// it frees up in the pool. The comparison MUST be `<` (still inside the grace window): with the former `>`
+		// it was false on entry (elapsed is ~0), so this loop never ran and close() fell straight through to the
+		// force-close below while the handle was still being read - surfacing as `Stream Closed` mid-compaction on
+		// the reading thread.
+		while (!this.readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start < this.waitOnCloseSeconds * 1000L) {
 			if (this.readOnlyHandlePool.getFree() > 0) {
 				final ReadOnlyHandle handleToClose = this.readOnlyHandlePool.obtain();
 				try {
@@ -1259,6 +1265,10 @@ public class OffsetIndex {
 					log.error("Read handle cannot be closed!", ex);
 					// ignore this - we need to close other files
 				}
+			} else {
+				// every handle is currently borrowed - yield rather than burn a core until one is returned to
+				// the pool
+				Thread.onSpinWait();
 			}
 		}
 		// these handles were not released by the clients within the timeout
