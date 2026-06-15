@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.proxy.mock.*;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -3900,6 +3901,96 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			"After persist+reload only one duplicate must remain");
 		assertEquals(CATEGORY_DIFFERENT,
 			reloaded.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
+	}
+
+	@DisplayName("Should treat @AttributeRef int-convertible parameter as attribute predicate, not referenced id")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldClassifyAttributeRefLongAsAttributePredicateNotReferencedId(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		// Regression: see #1241 (finding A). With the bug, an @AttributeRef parameter of an
+		// int-convertible type was classified as `referencedIdIndex`, so the remove call would
+		// look up `getReferences("CATEGORY", priorityValue)` (treating the attribute value as a
+		// primary key) and remove the wrong reference (or nothing).
+		final SealedEntity mainProduct = originalProducts.get(13);
+		final int mainPk = mainProduct.getPrimaryKey();
+		final int categoryAPk = originalProducts.get(14).getPrimaryKey();
+		final int categoryBPk = originalProducts.get(15).getPrimaryKey();
+		final long priorityToRemove = 1_000_001L;
+		final long priorityToKeep = 1_000_002L;
+
+		// arrange: clear any pre-existing category refs, then add two with distinct priorities
+		final ProductInterfaceEditor setup = evitaSession.getEntity(
+			ProductInterfaceEditor.class, mainPk, entityFetchAllContent()
+		).orElseThrow();
+		setup.removeAllProductCategoriesAndReturnTheirIds();
+		setup.addProductCategory(categoryAPk, pc -> pc
+			.setOrderInCategory(priorityToRemove)
+			.setShadow(false)
+			.setLabel(CZECH_LOCALE, "A")
+			.setLabel(Locale.ENGLISH, "A"));
+		setup.addProductCategory(categoryBPk, pc -> pc
+			.setOrderInCategory(priorityToKeep)
+			.setShadow(false)
+			.setLabel(CZECH_LOCALE, "B")
+			.setLabel(Locale.ENGLISH, "B"));
+		setup.upsertVia(evitaSession);
+
+		// act: remove by the priority attribute predicate; with bug -> no-op (no category PK
+		// equals 1_000_001), so both refs survive and the test catches the regression.
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class, mainPk, entityFetchAllContent()
+		).orElseThrow();
+		editor.removeProductCategoryByPriority(priorityToRemove);
+
+		// in-builder
+		final List<ReferenceContract> remainingInBuilder = editor.entityBuilder()
+			.getReferences(Entities.CATEGORY)
+			.stream().toList();
+		assertEquals(1, remainingInBuilder.size(),
+			"Exactly one category reference must remain - the matching-priority one was removed");
+		assertEquals(categoryBPk, remainingInBuilder.get(0).getReferencedPrimaryKey(),
+			"The surviving reference must point to category B (priorityToKeep)");
+
+		// persisted
+		editor.upsertVia(evitaSession);
+		final SealedEntity reloaded = evitaSession.getEntity(
+			Entities.PRODUCT, mainPk, entityFetchAllContent()
+		).orElseThrow();
+		final List<ReferenceContract> remainingPersisted = reloaded.getReferences(Entities.CATEGORY)
+			.stream().toList();
+		assertEquals(1, remainingPersisted.size());
+		assertEquals(categoryBPk, remainingPersisted.get(0).getReferencedPrimaryKey());
+	}
+
+	@DisplayName("Should throw EvitaInvalidUsageException naming the reference when null Integer id is passed")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldThrowTypedExceptionOnNullReferencedIdArg(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		// Regression: see #1241 (finding B). A null boxed-Integer argument used to surface as
+		// an opaque NullPointerException with no context. The classifier now throws a typed
+		// EvitaInvalidUsageException whose message names the reference schema.
+		final SealedEntity mainProduct = originalProducts.get(16);
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class, mainProduct.getPrimaryKey(), entityFetchAllContent()
+		).orElseThrow();
+
+		final EvitaInvalidUsageException thrown = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> editor.removeRelatedProductByBoxedId(null),
+			"Null Integer referenced primary key must raise a typed EvitaInvalidUsageException"
+		);
+		assertTrue(
+			thrown.getMessage() != null && thrown.getMessage().contains(Entities.PRODUCT),
+			"Exception message must name the reference schema; was: " + thrown.getMessage()
+		);
 	}
 
 	@DisplayName("Should update existing reference on repeat addOrUpdate, not duplicate it")
