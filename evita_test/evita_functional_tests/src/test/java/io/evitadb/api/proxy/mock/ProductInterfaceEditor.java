@@ -43,6 +43,7 @@ import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Currency;
@@ -158,7 +159,7 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	 */
 	@ReferenceRef(Entities.PRODUCT)
 	@RemoveWhenExists
-	void removeRelatedProductByBoxedId(@javax.annotation.Nullable Integer productId);
+	void removeRelatedProductByBoxedId(@Nullable Integer productId);
 
 	@ReferenceRef(Entities.CATEGORY)
 	@RemoveWhenExists

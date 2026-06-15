@@ -29,7 +29,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.proxy.mock.*;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -3903,7 +3902,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			reloaded.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
 	}
 
-	@DisplayName("Should treat @AttributeRef int-convertible parameter as attribute predicate, not referenced id")
+	@DisplayName("Should treat @AttributeRef parameter as attribute predicate, not referenced id")
 	@Order(47)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -3966,7 +3965,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(categoryBPk, remainingPersisted.get(0).getReferencedPrimaryKey());
 	}
 
-	@DisplayName("Should throw EvitaInvalidUsageException naming the reference when null Integer id is passed")
+	@DisplayName("Should throw EvitaInvalidUsageException naming reference on null id")
 	@Order(47)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -3987,8 +3986,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			() -> editor.removeRelatedProductByBoxedId(null),
 			"Null Integer referenced primary key must raise a typed EvitaInvalidUsageException"
 		);
+		assertNotNull(thrown.getMessage(), "Exception must carry a non-null message");
 		assertTrue(
-			thrown.getMessage() != null && thrown.getMessage().contains(Entities.PRODUCT),
+			thrown.getMessage().contains(Entities.PRODUCT),
 			"Exception message must name the reference schema; was: " + thrown.getMessage()
 		);
 	}
