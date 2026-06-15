@@ -1067,9 +1067,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				"Referenced primary key for reference `" + referenceName + "` must not be null!"
 			);
 		}
-		return Objects.requireNonNull(
-			EvitaDataTypes.toTargetType((Serializable) rawArg, int.class)
-		);
+		// EvitaDataTypes.toTargetType only returns null for null input; rawArg is non-null here.
+		return EvitaDataTypes.toTargetType((Serializable) rawArg, int.class);
 	}
 
 	/**
