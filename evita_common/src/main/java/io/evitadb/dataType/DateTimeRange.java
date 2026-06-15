@@ -86,19 +86,9 @@ public final class DateTimeRange implements Range<OffsetDateTime>, Serializable,
 	 */
 	@Nonnull
 	public static DateTimeRange fromString(@Nonnull String string) throws DataTypeParseException {
-		Assert.isTrue(
-			string.startsWith(OPEN_CHAR) && string.endsWith(CLOSE_CHAR),
-			() -> new DataTypeParseException("DateTimeRange must start with " + OPEN_CHAR + " and end with " + CLOSE_CHAR + "!")
-		);
-		final int delimiter = string.indexOf(INTERVAL_JOIN, 1);
-		Assert.isTrue(
-			delimiter > -1,
-			() -> new DataTypeParseException("DateTimeRange must contain " + INTERVAL_JOIN + " to separate since and until dates!")
-		);
-		final OffsetDateTime since = delimiter == 1 ? null : parseDateTime(string.substring(1, delimiter));
-		final OffsetDateTime until = delimiter == string.length() - 2 ? null : parseDateTime(string.substring(delimiter + 1, string.length() - 1));
-		return Range.materializeOpenEndedRange(
-			since, until, DateTimeRange::until, DateTimeRange::since, DateTimeRange::between
+		return Range.parseRange(
+			string, DateTimeRange::parseDateTime,
+			DateTimeRange::until, DateTimeRange::since, DateTimeRange::between
 		);
 	}
 

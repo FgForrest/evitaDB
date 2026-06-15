@@ -175,11 +175,12 @@ public interface AttributeIndexMutator {
 			attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
 
-		final Serializable valueToInsert = NumberUtils.normalizeIfBigDecimal(
+		final Serializable valueToInsert = NumberUtils.normalizeForIndexing(
 			Objects.requireNonNull(
 				EvitaDataTypes.toTargetType(
 					attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
-			)
+			),
+			attributeDefinition.getIndexedDecimalPlaces()
 		);
 
 		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
@@ -197,7 +198,9 @@ public interface AttributeIndexMutator {
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				if (existingValue.isPresent()) {
 					final AttributeValue theValue = existingValue.get();
-					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
+					final Serializable theValueToRemove = NumberUtils.normalizeForIndexing(
+						Objects.requireNonNull(theValue.value()), attributeDefinition.getIndexedDecimalPlaces()
+					);
 					indexForRemoval.removeUniqueAttribute(
 						referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValueToRemove,
 						epkForRemoval
@@ -205,7 +208,7 @@ public interface AttributeIndexMutator {
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(
 							() -> indexForUpsert.insertUniqueAttribute(
-								referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValue.value(),
+								referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValueToRemove,
 								epkForRemoval
 							)
 						);
@@ -213,13 +216,13 @@ public interface AttributeIndexMutator {
 					if (!attributeDefinition.isFilterableInScope(scope)) {
 						// TOBEDONE JNO this should be replaced with RadixTree (for String values)
 						indexForRemoval.removeFilterAttribute(
-							referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(),
+							referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove,
 							epkForRemoval
 						);
 						if (undoActionConsumer != null) {
 							undoActionConsumer.accept(
 								() -> indexForUpsert.insertFilterAttribute(
-									referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(),
+									referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove,
 									epkForRemoval
 								)
 							);
@@ -259,7 +262,9 @@ public interface AttributeIndexMutator {
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				if (existingValue.isPresent()) {
 					final AttributeValue theValue = existingValue.get();
-					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
+					final Serializable theValueToRemove = NumberUtils.normalizeForIndexing(
+						Objects.requireNonNull(theValue.value()), attributeDefinition.getIndexedDecimalPlaces()
+					);
 					indexForRemoval.removeFilterAttribute(
 						referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove,
 						epkForRemoval
@@ -267,7 +272,7 @@ public interface AttributeIndexMutator {
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(
 							() -> indexForUpsert.insertFilterAttribute(
-								referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(),
+								referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove,
 								epkForRemoval
 							)
 						);
@@ -294,7 +299,9 @@ public interface AttributeIndexMutator {
 					final int epkForRemoval = executor.getPrimaryKeyToIndex(
 						IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING
 					);
-					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
+					final Serializable theValueToRemove = NumberUtils.normalizeForIndexing(
+						Objects.requireNonNull(theValue.value()), attributeDefinition.getIndexedDecimalPlaces()
+					);
 					indexForRemoval.removeSortAttribute(
 						referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove,
 						epkForRemoval
@@ -302,7 +309,7 @@ public interface AttributeIndexMutator {
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(
 							() -> indexForUpsert.insertSortAttribute(
-								referenceSchema, attributeDefinition, allowedLocales, locale, theValue.value(),
+								referenceSchema, attributeDefinition, allowedLocales, locale, theValueToRemove,
 								epkForRemoval
 							)
 						);
@@ -334,7 +341,9 @@ public interface AttributeIndexMutator {
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				if (existingValue.isPresent()) {
 					final AttributeValue theValue = existingValue.get();
-					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
+					final Serializable theValueToRemove = NumberUtils.normalizeForIndexing(
+						Objects.requireNonNull(theValue.value()), attributeDefinition.getIndexedDecimalPlaces()
+					);
 					catalogIndex.removeUniqueAttribute(
 						entitySchema, globalAttributeSchema, allowedLocales, locale,
 						theValueToRemove, epkForRemoval
@@ -342,7 +351,7 @@ public interface AttributeIndexMutator {
 					if (undoActionConsumer != null) {
 						undoActionConsumer.accept(
 							() -> catalogIndex.insertUniqueAttribute(
-								entitySchema, globalAttributeSchema, allowedLocales, locale, theValue.value(),
+								entitySchema, globalAttributeSchema, allowedLocales, locale, theValueToRemove,
 								epkForRemoval
 							)
 						);
@@ -446,7 +455,9 @@ public interface AttributeIndexMutator {
 						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.EXISTING) + "!"
 				);
 				//noinspection unchecked
-				return (T) existingValue.value();
+				return (T) NumberUtils.normalizeForIndexing(
+					Objects.requireNonNull(existingValue.value()), attributeDefinition.getIndexedDecimalPlaces()
+				);
 			} else {
 				return alreadyKnownOldValue;
 			}

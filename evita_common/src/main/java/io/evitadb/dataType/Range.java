@@ -137,6 +137,49 @@ public sealed interface Range<T> extends Serializable permits DateTimeRange, Num
 	}
 
 	/**
+	 * Parses a range serialized in the canonical `[from,to]` form (as produced by the range `toString()` methods)
+	 * into a concrete range instance. The textual structure is identical for every range type, so the boundary
+	 * delimiting and open-ended detection are handled here; only the parsing of an individual boundary value and
+	 * the target range factories differ per type and are supplied by the caller.
+	 *
+	 * An empty boundary (e.g. `[,to]` or `[from,]`) is treated as an open end and passed as `null` to
+	 * {@link #materializeOpenEndedRange(Object, Object, Function, Function, BiFunction)}.
+	 *
+	 * @param string          the serialized range, must be wrapped in {@link #OPEN_CHAR} / {@link #CLOSE_CHAR} and
+	 *                        contain a single {@link #INTERVAL_JOIN} boundary separator
+	 * @param boundParser     parses a single boundary substring into a boundary value
+	 * @param toOnlyFactory   builds a range open on the lower end (only the upper boundary is known)
+	 * @param fromOnlyFactory builds a range open on the upper end (only the lower boundary is known)
+	 * @param betweenFactory  builds a range bounded on both ends
+	 * @param <T>             the boundary value type
+	 * @param <R>             the concrete range type
+	 * @return the parsed range instance
+	 * @throws DataTypeParseException if the string is not wrapped correctly or lacks the boundary separator
+	 */
+	@Nonnull
+	static <T, R> R parseRange(
+		@Nonnull String string,
+		@Nonnull Function<String, T> boundParser,
+		@Nonnull Function<T, R> toOnlyFactory,
+		@Nonnull Function<T, R> fromOnlyFactory,
+		@Nonnull BiFunction<T, T, R> betweenFactory
+	) {
+		Assert.isTrue(
+			string.startsWith(OPEN_CHAR) && string.endsWith(CLOSE_CHAR),
+			() -> new DataTypeParseException("Range must start with " + OPEN_CHAR + " and end with " + CLOSE_CHAR + "!")
+		);
+		final int delimiter = string.indexOf(INTERVAL_JOIN, 1);
+		Assert.isTrue(
+			delimiter > -1,
+			() -> new DataTypeParseException("Range must contain " + INTERVAL_JOIN + " to separate its boundaries!")
+		);
+		final T from = delimiter == 1 ? null : boundParser.apply(string.substring(1, delimiter));
+		final T to = delimiter == string.length() - 2 ?
+			null : boundParser.apply(string.substring(delimiter + 1, string.length() - 1));
+		return materializeOpenEndedRange(from, to, toOnlyFactory, fromOnlyFactory, betweenFactory);
+	}
+
+	/**
 	 * Lower bound of the range (inclusive). This value is used for range comparisons.
 	 */
 	long getFrom();
