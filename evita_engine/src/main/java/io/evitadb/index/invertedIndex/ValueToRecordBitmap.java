@@ -47,7 +47,7 @@ import java.util.PrimitiveIterator.OfInt;
 /**
  * Histogram point represents single "bucket" in {@link InvertedIndex} representing single {@link Comparable} {@link #value}
  * and bitmap (ordered and distinct) of record ids. This is the multi-record {@link ValueToRecord} representation - the
- * record set is backed by a mutable {@link TransactionalBitmap} (a {@link io.evitadb.index.bitmap.RoaringBitmap}). The
+ * record set is backed by a mutable {@link TransactionalBitmap} (a {@link RoaringBitmap}). The
  * single-record case is served by the immutable {@link ValueToRecordPrimitive} instead.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
@@ -178,11 +178,6 @@ public class ValueToRecordBitmap implements ValueToRecord,
 	@Override
 	public int size() {
 		return this.recordIds.size();
-	}
-
-	@Override
-	public long getRecordSetId() {
-		return this.recordIds.getId();
 	}
 
 	@Override

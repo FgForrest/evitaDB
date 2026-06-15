@@ -24,7 +24,6 @@
 package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 
@@ -41,32 +40,24 @@ import java.io.Serializable;
  *
  * # Why immutable
  *
- * Buckets are shared by reference across transactional leaf layers (the B+ tree decouples a leaf with a *shallow* array
- * copy). A {@link ValueToRecordBitmap} can be mutated in place safely only because its inner
- * {@link io.evitadb.index.bitmap.TransactionalBitmap} isolates the change in its own transactional layer. This bucket
- * has no such layer, so it must never be mutated in place - any change (adding a second record, removing the only
- * record) is performed by the {@link InvertedIndex} updater, which writes back a *new* instance (a
- * {@link ValueToRecordBitmap} on promotion) or deletes the bucket entirely. The immutability is what makes it a safe,
- * shareable, no-op transactional producer.
+ * This is a transient *flyweight* constructed on demand from a single-record leaf of the columnar
+ * {@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree}: it is a read-only projection of the bucket's
+ * primitive `int` column, never the authoritative storage. It is immutable because the column it reflects is owned by
+ * the tree leaf; a change (adding a second record, removing the only record) is applied to the leaf by the
+ * {@link InvertedIndex}, not to the flyweight, which is simply re-materialized (or promoted to a
+ * {@link ValueToRecordBitmap} once the bucket spills to multiple records).
  *
  * # Transactional behaviour
  *
  * This is a no-op {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}: it owns no transactional
- * layer. {@link #createCopyWithMergedTransactionalMemory(Void, TransactionalLayerMaintainer)} returns `this`, so on
- * commit the leaf slot is not rewritten and an unchanged primitive is free. {@link #removeLayer(TransactionalLayerMaintainer)}
- * is a no-op because there is nothing to discard.
+ * layer (the column it projects is committed by the tree leaf, not by the flyweight).
+ * {@link #createCopyWithMergedTransactionalMemory(Void, TransactionalLayerMaintainer)} returns `this` and
+ * {@link #removeLayer(TransactionalLayerMaintainer)} is a no-op because there is nothing to discard.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 public class ValueToRecordPrimitive implements ValueToRecord {
 	@Serial private static final long serialVersionUID = -2787508697765140172L;
-	/**
-	 * Stable, unique id of this immutable record set, used for formula-cache identity / staleness via
-	 * {@link #getRecordSetId()}. A fresh id is minted per instance, so a structural change (promotion, record add /
-	 * remove all produce a new instance) yields a new id and invalidates the cache exactly like a replaced
-	 * {@link io.evitadb.index.bitmap.TransactionalBitmap} would.
-	 */
-	private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * The value this bucket represents.
 	 */
@@ -109,11 +100,6 @@ public class ValueToRecordPrimitive implements ValueToRecord {
 	@Override
 	public boolean isEmpty() {
 		return false;
-	}
-
-	@Override
-	public long getRecordSetId() {
-		return this.id;
 	}
 
 	@Override

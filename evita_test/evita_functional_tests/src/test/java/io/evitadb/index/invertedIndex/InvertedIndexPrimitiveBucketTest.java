@@ -404,28 +404,29 @@ class InvertedIndexPrimitiveBucketTest {
 	class CacheIdentityTest {
 
 		@Test
-		@DisplayName("A primitive reports a stable record-set id for its lifetime, unique across instances")
-		void shouldMintStablePerInstanceId() {
+		@DisplayName("A primitive bucket round-trips its record set with parity to a one-element bitmap")
+		void shouldExposeRecordSetWithRepresentationParity() {
+			// the surviving record-set contract is that a single-record primitive and a cardinality-1 bitmap are
+			// record-set equal and hash identically regardless of representation
 			final ValueToRecordPrimitive primitive = new ValueToRecordPrimitive(5, 1);
-			// stable across repeated reads of the same instance
-			assertEquals(primitive.getRecordSetId(), primitive.getRecordSetId());
-			// a distinct instance with identical content gets a distinct id (per-instance identity, like a bitmap)
-			final ValueToRecordPrimitive sameContent = new ValueToRecordPrimitive(5, 1);
-			assertNotEquals(primitive.getRecordSetId(), sameContent.getRecordSetId());
+			final ValueToRecordBitmap singletonBitmap = new ValueToRecordBitmap(5, 1);
+			assertTrue(primitive.recordSetEquals(singletonBitmap));
+			assertTrue(singletonBitmap.recordSetEquals(primitive));
+			assertEquals(primitive.recordSetHashCode(), singletonBitmap.recordSetHashCode());
 		}
 
 		@Test
-		@DisplayName("The supplier hash is stable while the bucket instances are unchanged")
+		@DisplayName("The supplier hash is stable while the bucket values are unchanged")
 		void shouldKeepSupplierHashStableForUnchangedBuckets() {
 			final ValueToRecord[] buckets = {
 				new ValueToRecordPrimitive(5, 1),
 				new ValueToRecordBitmap(10, 2, 3)
 			};
 
-			final HistogramBitmapSupplier first = new HistogramBitmapSupplier(buckets);
-			final HistogramBitmapSupplier second = new HistogramBitmapSupplier(buckets);
+			final HistogramBitmapSupplier first = new HistogramBitmapSupplier(1L, buckets);
+			final HistogramBitmapSupplier second = new HistogramBitmapSupplier(1L, buckets);
 
-			// same bucket instances -> identical hash and transactional id hash (warm cache across recompute)
+			// same field id + same bucket values -> identical lookup hash and transactional id hash (warm cache)
 			assertEquals(first.getHash(), second.getHash());
 			assertEquals(first.getTransactionalIdHash(), second.getTransactionalIdHash());
 		}
@@ -434,13 +435,14 @@ class InvertedIndexPrimitiveBucketTest {
 		@DisplayName("A structurally different bucket set yields a different supplier hash")
 		void shouldChangeSupplierHashWhenBucketsDiffer() {
 			final HistogramBitmapSupplier original = new HistogramBitmapSupplier(
-				new ValueToRecord[]{new ValueToRecordPrimitive(5, 1)}
+				1L, new ValueToRecord[]{new ValueToRecordPrimitive(5, 1)}
 			);
-			final HistogramBitmapSupplier promoted = new HistogramBitmapSupplier(
-				new ValueToRecord[]{new ValueToRecordBitmap(5, 1, 20)}
+			final HistogramBitmapSupplier other = new HistogramBitmapSupplier(
+				1L, new ValueToRecord[]{new ValueToRecordPrimitive(7, 1)}
 			);
 
-			assertNotEquals(original.getHash(), promoted.getHash());
+			// the lookup hash now keys on the bucket VALUES, so a different value range yields a different hash
+			assertNotEquals(original.getHash(), other.getHash());
 		}
 
 		@Test
@@ -457,6 +459,66 @@ class InvertedIndexPrimitiveBucketTest {
 				index,
 				original -> { /* read only - no mutation */ },
 				Assertions::assertSame
+			);
+		}
+
+		@Test
+		@DisplayName("Promoting a single bucket to multi on commit refreshes the field-level index id")
+		void shouldRefreshIndexIdWhenSingleBucketPromotedToMultiOnCommit() {
+			final InvertedIndex index = emptyIndex();
+			index.addRecord(5, 1);
+
+			final long originalId = index.getId();
+
+			// a mutating commit (promotion to a bitmap) mints a fresh InvertedIndex whose field-level id differs,
+			// invalidating every cached histogram range of the field at once
+			assertStateAfterCommit(
+				index,
+				original -> original.addRecord(5, 20),
+				(original, committed) -> {
+					assertEquals(originalId, original.getId());
+					assertNotEquals(originalId, committed.getId());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("Removing a bucket down to empty on commit refreshes the field-level index id")
+		void shouldRefreshIndexIdWhenBucketRemovedToEmptyOnCommit() {
+			final InvertedIndex index = emptyIndex();
+			index.addRecord(5, 1);
+
+			final long originalId = index.getId();
+
+			// removing the only record empties the field; this is a mutation, so the committed copy carries a fresh id
+			assertStateAfterCommit(
+				index,
+				original -> original.removeRecord(5, 1),
+				(original, committed) -> {
+					assertTrue(committed.isEmpty());
+					assertEquals(originalId, original.getId());
+					assertNotEquals(originalId, committed.getId());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("A clean read-only commit keeps the same field-level index id")
+		void shouldKeepIndexIdOnCleanCommit() {
+			final InvertedIndex index = emptyIndex();
+			index.addRecord(5, 1);
+			index.resetDirty();
+
+			final long originalId = index.getId();
+
+			// a non-mutating commit returns the very same instance, so its id (and any cached range over it) survives
+			assertStateAfterCommit(
+				index,
+				original -> { /* read only - no mutation */ },
+				(original, committed) -> {
+					assertEquals(originalId, original.getId());
+					assertEquals(originalId, committed.getId());
+				}
 			);
 		}
 	}

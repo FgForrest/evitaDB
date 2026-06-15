@@ -40,19 +40,20 @@ import java.io.Serializable;
  * (exactly one record per value). The two implementations of this interface let the representation degrade *per
  * bucket*:
  *
- * - {@link ValueToRecordBitmap} - the multi-record, {@link io.evitadb.index.bitmap.RoaringBitmap}-backed bucket. It is
+ * - {@link ValueToRecordBitmap} - the multi-record, {@link org.roaringbitmap.RoaringBitmap}-backed bucket. It is
  *   *mutable*: record ids are added / removed in place, isolated transactionally by the inner
  *   {@link TransactionalBitmap}.
  * - {@link ValueToRecordPrimitive} - the single-record bucket. It stores the lone record id as a bare `int` (no
  *   {@code RoaringBitmap}, no inner transactional bitmap) and is therefore *immutable*: any change produces a brand-new
- *   instance written back through the tree updater.
+ *   instance.
  *
- * The buckets live in a {@link io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree} whose leaf-commit path is gated
- * on the value being a {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer}. Both implementations
- * satisfy that gate (this interface extends {@link VoidTransactionMemoryProducer}), so the generic B+ tree needs no
- * changes to host them - commit, path-copying copy-on-write, split / merge / steal and layer discard all keep working
- * unchanged. A {@link ValueToRecordPrimitive} is a no-op producer: it owns no transactional layer, so committing an
- * unchanged primitive returns the very same instance and the leaf slot is not even rewritten.
+ * This hierarchy is **not** how the buckets are stored. They live columnar-ly in a
+ * {@link io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree}: the {@link #getValue() value} is the tree key, the
+ * single-record case keeps its record id in a primitive `int` column, and the multi-record case spills into an overflow
+ * {@link TransactionalBitmap}. A {@code ValueToRecord} is therefore a transient *flyweight* materialized on demand over
+ * a leaf slot - the per-bucket projection that lets callers (serializer DTO, iterator bridge) read a bucket through one
+ * uniform interface while the storage stays decomposed. {@link ValueToRecordPrimitive} is the flyweight over the
+ * `int`-column case, {@link ValueToRecordBitmap} over the overflow-bitmap case.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -82,20 +83,6 @@ public interface ValueToRecord
 	 * Returns true when this bucket holds no record id.
 	 */
 	boolean isEmpty();
-
-	/**
-	 * Returns a transactional id identifying the *record set* of this bucket for formula-cache purposes (the input to
-	 * {@link io.evitadb.core.query.algebra.deferred.BitmapSupplier#getHash()} /
-	 * {@link io.evitadb.core.query.algebra.deferred.BitmapSupplier#gatherTransactionalIds()}). For a
-	 * {@link ValueToRecordBitmap} this is the inner bitmap's {@link TransactionalBitmap#getId()}; for a
-	 * {@link ValueToRecordPrimitive} it is the immutable instance's own stable id. It is distinct from {@link #getId()}
-	 * (the {@link VoidTransactionMemoryProducer} bucket id, which is a meaningless constant).
-	 *
-	 * Each distinct logical record set has a unique id that is stable while the bucket instance lives and changes when
-	 * the bucket is structurally replaced (promotion, record add / remove) - mirroring the existing
-	 * {@link TransactionalBitmap} semantics so the cache invalidates exactly as before.
-	 */
-	long getRecordSetId();
 
 	/**
 	 * Content-based equality of the *record set* of two buckets, independent of representation. A

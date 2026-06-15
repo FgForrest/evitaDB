@@ -34,10 +34,11 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.IndexDataStructure;
-import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
 import io.evitadb.utils.ArrayUtils;
@@ -53,10 +54,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 
 /**
  * Histogram index is based on <a href="https://en.wikipedia.org/wiki/Histogram">Histogram data structure</a>. It's
@@ -67,14 +68,16 @@ import java.util.function.UnaryOperator;
  * are easily available as the set assigned to that value. Range look-ups are also available as boolean OR of all bitmaps
  * from / to looked up value threshold.
  *
- * The buckets are stored in a {@link TransactionalObjectBPlusTree} keyed by the (normalized) bucket value and ordered
+ * The buckets are stored in a {@link TransactionalBucketBPlusTree} keyed by the (normalized) bucket value and ordered
  * by the supplied {@link Comparator}. A write therefore touches only the affected leaf and its ancestors (path-copying)
  * instead of reallocating the whole structure - this is the key write-latency improvement of this representation.
  *
- * Each bucket is a {@link ValueToRecord}: single-record buckets (the long tail of any filterable attribute) are stored
- * as the compact, immutable {@link ValueToRecordPrimitive} (a bare `int`, no {@link org.roaringbitmap.RoaringBitmap}),
- * while multi-record buckets use the mutable {@link ValueToRecordBitmap}. A primitive promotes to a bitmap when a second
- * distinct record id is added; there is no demotion back.
+ * The tree stores each bucket in a columnar leaf: the value is the tree key, single-record buckets keep their lone id
+ * in a primitive `int` column (no {@link org.roaringbitmap.RoaringBitmap}), and multi-record buckets keep a mutable
+ * {@link io.evitadb.index.bitmap.TransactionalBitmap} in a sparse overflow column. A single-record bucket promotes to a
+ * bitmap when a second distinct record id is added; there is no demotion back. The {@link ValueToRecord} hierarchy
+ * survives only as a transient flyweight materialized on demand (serializer DTO + iterator bridge); the tree never
+ * stores a per-bucket {@link ValueToRecord} object.
  *
  * Histogram MUST NOT contain same record id in multiple buckets. This prerequisite is not checked internally by this
  * data structure and client code must this ensure by its internal logic! If this prerequisite is not met, histogram
@@ -91,23 +94,14 @@ import java.util.function.UnaryOperator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-@SuppressWarnings("rawtypes")
+@SuppressWarnings({"rawtypes", "unchecked"})
 @ThreadSafe
 public class InvertedIndex implements
 	IndexDataStructure,
 	ConsistencySensitiveDataStructure,
 	VoidTransactionMemoryProducer<InvertedIndex>,
-	Serializable
-{
+	Serializable {
 	@Serial private static final long serialVersionUID = 3019703951858227807L;
-
-	/**
-	 * Wrapper that adapts a committed value coming out of the B+ tree commit into a {@link ValueToRecord}. Both
-	 * implementations of {@link ValueToRecord} merge to a {@link ValueToRecord} (their
-	 * {@link ValueToRecord#createCopyWithMergedTransactionalMemory} returns a {@link ValueToRecord}), therefore an
-	 * identity cast is sufficient here - unlike value types that merge to a different class.
-	 */
-	private static final Function<Object, ValueToRecord> VALUE_TO_RECORD_WRAPPER = ValueToRecord.class::cast;
 
 	/**
 	 * Leaf block size of the value → record-set tree. The inverted-index workload is point-lookup + bounded-range +
@@ -123,7 +117,28 @@ public class InvertedIndex implements
 	private static final int VALUE_BLOCK_SIZE = 256;
 	private static final int MIN_VALUE_BLOCK_SIZE = VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
-
+	/**
+	 * This lambda lay out records by {@link ValueToRecord#getValue()} one after another.
+	 */
+	private static final BiFunction<Long, ValueToRecord[], Formula> UNSORTED_AGGREGATION_LAMBDA = (indexTransactionId, histogramBuckets) -> new DeferredFormula(
+		new HistogramBitmapSupplier(indexTransactionId, histogramBuckets)
+	);
+	/**
+	 * This lambda lay out records in natural ascending order.
+	 */
+	private static final BiFunction<Long, ValueToRecord[], Formula> SORTED_AGGREGATION_LAMBDA = (indexTransactionId, histogramBuckets) -> {
+		final Bitmap[] bitmaps = new Bitmap[histogramBuckets.length];
+		for (int i = 0; i < histogramBuckets.length; i++) {
+			bitmaps[i] = histogramBuckets[i].getRecordIds();
+		}
+		if (bitmaps.length == 0) {
+			return EmptyFormula.INSTANCE;
+		} else if (bitmaps.length == 1) {
+			return new ConstantFormula(bitmaps[0]);
+		} else {
+			return new OrFormula(new long[]{indexTransactionId}, bitmaps);
+		}
+	};
 	/**
 	 * Unique transactional id for this tree instance. Overrides the {@link VoidTransactionMemoryProducer} default
 	 * (the constant `1L`) so that a consumer keying a cache on the tree's identity — notably a
@@ -140,9 +155,11 @@ public class InvertedIndex implements
 	private final TransactionalBoolean dirty;
 	/**
 	 * The buckets contain ordered comparable values with bitmaps of all records with such value. The tree is keyed by
-	 * the (normalized) bucket value and ordered by {@link #comparator}.
+	 * the (normalized) bucket value and ordered by {@link #comparator}. Each bucket is stored in a columnar leaf (single
+	 * id as a primitive column, multi-record buckets as a sparse overflow bitmap column); the per-bucket
+	 * {@link ValueToRecord} object is never stored, only materialized as a flyweight on demand.
 	 */
-	private final TransactionalObjectBPlusTree buckets;
+	private final TransactionalBucketBPlusTree buckets;
 	/**
 	 * Normalizer is used to convert objects to serializable form.
 	 */
@@ -153,115 +170,110 @@ public class InvertedIndex implements
 	@Nonnull @Getter private final Comparator comparator;
 
 	/**
-	 * This lambda lay out records by {@link ValueToRecord#getValue()} one after another.
-	 */
-	private static final BiFunction<Long, ValueToRecord[], Formula> UNSORTED_AGGREGATION_LAMBDA = (indexTransactionId, histogramBuckets) -> new DeferredFormula(
-		new HistogramBitmapSupplier(histogramBuckets)
-	);
-
-	/**
-	 * This lambda lay out records in natural ascending order.
-	 */
-	private static final BiFunction<Long, ValueToRecord[], Formula> SORTED_AGGREGATION_LAMBDA = (indexTransactionId, histogramBuckets) -> {
-		final Bitmap[] bitmaps = new Bitmap[histogramBuckets.length];
-		for (int i = 0; i < histogramBuckets.length; i++) {
-			bitmaps[i] = histogramBuckets[i].getRecordIds();
-		}
-		if (bitmaps.length == 0) {
-			return EmptyFormula.INSTANCE;
-		} else if (bitmaps.length == 1) {
-			return new ConstantFormula(bitmaps[0]);
-		} else {
-			return new OrFormula(new long[] {indexTransactionId}, bitmaps);
-		}
-	};
-
-	/**
-	 * Method verifies that {@link ValueToRecord#getValue()}s in passed set are monotonically increasing and contain
-	 * no duplicities.
-	 */
-	@Nonnull
-	private static ConsistencyReport checkConsistency(@Nonnull ValueToRecord[] points, @Nonnull Comparator comparator) {
-		final StringBuilder report = new StringBuilder(256);
-		Serializable previous = null;
-		for (ValueToRecord bucket : points) {
-			Serializable finalPrevious = previous;
-			//noinspection unchecked
-			if (!(previous == null || comparator.compare(previous, bucket.getValue()) < 0)) {
-				report.append("Histogram values are not monotonic - ")
-					.append("conflicting values: ")
-					.append(finalPrevious).append(", ")
-					.append(bucket.getValue()).append(".\n");
-			}
-			previous = bucket.getValue();
-		}
-		if (report.isEmpty()) {
-			return new ConsistencyReport(ConsistencyState.CONSISTENT, null);
-		} else {
-			return new ConsistencyReport(ConsistencyState.BROKEN, report.toString());
-		}
-	}
-
-	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator.
 	 */
 	@Nonnull
-	private static TransactionalObjectBPlusTree createEmptyTree(@Nonnull Comparator comparator) {
-		//noinspection unchecked
-		return new TransactionalObjectBPlusTree<>(
+	@SuppressWarnings("unchecked")
+	private static TransactionalBucketBPlusTree createEmptyTree(@Nonnull Comparator comparator) {
+		return new TransactionalBucketBPlusTree<>(
 			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 			Comparable.class,
-			ValueToRecord.class,
-			VALUE_TO_RECORD_WRAPPER,
 			comparator
 		);
 	}
 
 	/**
-	 * Inserts or updates the bucket stored under the passed (already-normalized) key. The unchecked key cast required by
-	 * the genuinely raw {@link Comparable} key type is confined to this single, documented place; the value side stays
-	 * statically `ValueToRecord`-typed so the updater lambda is checked.
-	 */
-	@SuppressWarnings("unchecked")
-	private void upsertBucket(@Nonnull Comparable key, @Nonnull UnaryOperator<ValueToRecord> updater) {
-		this.buckets.upsert(key, updater);
-	}
-
-	/**
-	 * Returns the bucket stored under the passed (already-normalized) key, or `null` when absent. Confines the unchecked
-	 * key cast in the same way as {@link #upsertBucket}.
-	 */
-	@Nullable
-	@SuppressWarnings("unchecked")
-	private ValueToRecord searchBucket(@Nonnull Comparable key) {
-		return (ValueToRecord) this.buckets.search(key).orElse(null);
-	}
-
-	/**
-	 * Deletes the bucket stored under the passed (already-normalized) key.
-	 */
-	@SuppressWarnings("unchecked")
-	private void deleteBucket(@Nonnull Comparable key) {
-		this.buckets.delete(key);
-	}
-
-	/**
-	 * Returns a transaction-aware iterator over all buckets ordered by {@link #comparator}.
+	 * Materializes the bucket at the cursor's CURRENT position into a transient {@link ValueToRecord} flyweight. A
+	 * single-record bucket becomes a compact {@link ValueToRecordPrimitive}; a multi-record bucket becomes a
+	 * {@link ValueToRecordBitmap} sharing the very same {@link io.evitadb.index.bitmap.TransactionalBitmap} instance
+	 * (no copy), which preserves the record-set hash/equals parity the formula cache relies on. Valid only after a
+	 * {@link BucketCursor#next()} that returned true.
+	 *
+	 * @param cursor the cursor positioned at the bucket to materialize
+	 * @return the bucket as a {@link ValueToRecord} flyweight
 	 */
 	@Nonnull
-	@SuppressWarnings("unchecked")
-	private Iterator<ValueToRecord> bucketIterator() {
-		return this.buckets.valueIterator();
+	private static ValueToRecord materializeBucket(@Nonnull BucketCursor cursor) {
+		final Serializable value = (Serializable) cursor.value();
+		if (cursor.isSingle()) {
+			return new ValueToRecordPrimitive(value, cursor.singleRecordId());
+		}
+		// the multi overload shares the same TransactionalBitmap instance (no copy) so record-set identity is preserved
+		return new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records());
 	}
 
 	/**
-	 * Returns a transaction-aware iterator over the buckets whose value is greater than or equal to the passed
-	 * (already-normalized) key.
+	 * Bridges a {@link BucketCursor} into an {@link Iterator} of {@link ValueToRecord} flyweights, materializing each
+	 * bucket lazily as it is consumed. Used by the value-iterator surface, subset building and
+	 * {@link #getValueToRecordBitmap()}; the both-flagged sort view does NOT use this (it reads value/cardinality off
+	 * the cursor directly and so allocates nothing on its hot path).
+	 *
+	 * @param cursor the cursor to bridge
+	 * @return an iterator over the buckets as {@link ValueToRecord} flyweights
 	 */
 	@Nonnull
-	@SuppressWarnings("unchecked")
-	private Iterator<ValueToRecord> bucketIteratorFrom(@Nonnull Comparable key) {
-		return this.buckets.greaterOrEqualValueIterator(key);
+	private static Iterator<ValueToRecord> cursorAsValueToRecordIterator(@Nonnull BucketCursor cursor) {
+		return new Iterator<>() {
+			private boolean advanced;
+			private boolean hasNext;
+
+			@Override
+			public boolean hasNext() {
+				if (!this.advanced) {
+					this.hasNext = cursor.next();
+					this.advanced = true;
+				}
+				return this.hasNext;
+			}
+
+			@Nonnull
+			@Override
+			public ValueToRecord next() {
+				if (!this.hasNext()) {
+					throw new NoSuchElementException();
+				}
+				this.advanced = false;
+				return materializeBucket(cursor);
+			}
+		};
+	}
+
+	/**
+	 * Representation-independent equality of the record sets at the two cursors' CURRENT positions: a single `{5}` bucket
+	 * and a multi `{5}` bucket compare equal. Allocation-free for the single/single case (a bare int compare); the mixed
+	 * / multi case delegates to the flyweight {@link ValueToRecord#recordSetEquals}, which compares the transaction-aware
+	 * (merged) bitmap views and is representation-independent (a direct {@link io.evitadb.index.bitmap.TransactionalBitmap}
+	 * equals is unusable here - it is type-sensitive and ignores in-flight transactional changes).
+	 *
+	 * @param a the first cursor (positioned at a bucket)
+	 * @param b the second cursor (positioned at a bucket)
+	 * @return true if the two record sets are content-equal
+	 */
+	private static boolean recordSetEquals(
+		@Nonnull BucketCursor a,
+		@Nonnull BucketCursor b
+	) {
+		if (a.isSingle() && b.isSingle()) {
+			return a.singleRecordId() == b.singleRecordId();
+		}
+		return materializeBucket(a).recordSetEquals(materializeBucket(b));
+	}
+
+	/**
+	 * Representation-independent record-set hash of the bucket at the cursor's CURRENT position. A single bucket hashes
+	 * `31 + pk`; a multi bucket delegates to its bitmap, which special-cases cardinality 1 to the very same formula so
+	 * cross-representation parity holds.
+	 *
+	 * @param cursor the cursor positioned at a bucket
+	 * @return the record-set hash of the current bucket
+	 */
+	private static int recordSetHashCode(@Nonnull BucketCursor cursor) {
+		if (cursor.isSingle()) {
+			return 31 + cursor.singleRecordId();
+		}
+		// delegate to the flyweight: it hashes the transaction-aware (merged) bitmap and special-cases cardinality 1 to
+		// the same `31 + first` formula as a single bucket, preserving cross-representation parity
+		return materializeBucket(cursor).recordSetHashCode();
 	}
 
 	public InvertedIndex(
@@ -279,12 +291,20 @@ public class InvertedIndex implements
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator
 	) {
-		final TransactionalObjectBPlusTree tree = createEmptyTree(comparator);
+		final TransactionalBucketBPlusTree tree = createEmptyTree(comparator);
 		// rebuild the tree from the deserialized snapshot by inserting all buckets (values are unique & monotonic).
-		// single-record buckets are normalized to the compact primitive form so the heap win survives a reload.
+		// a single-record bucket lands as a primitive column entry, a multi-record bucket as an overflow bitmap entry,
+		// so the columnar heap win survives a reload without ever allocating a ValueToRecord wrapper.
 		for (final ValueToRecordBitmap bucket : buckets) {
-			//noinspection unchecked
-			tree.insert((Comparable) bucket.getValue(), toStoredForm(bucket));
+			final Bitmap recordIds = bucket.getRecordIds();
+			final Comparable value = (Comparable) bucket.getValue();
+			if (recordIds.size() == 1) {
+				//noinspection unchecked
+				tree.addRecord(value, recordIds.getFirst());
+			} else {
+				//noinspection unchecked
+				tree.addRecord(value, recordIds.getArray());
+			}
 		}
 		this.buckets = tree;
 		this.normalizer = normalizer;
@@ -300,7 +320,7 @@ public class InvertedIndex implements
 	 * @param comparator    the comparator of the source index
 	 */
 	private InvertedIndex(
-		@Nonnull TransactionalObjectBPlusTree committedTree,
+		@Nonnull TransactionalBucketBPlusTree committedTree,
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator
 	) {
@@ -313,73 +333,31 @@ public class InvertedIndex implements
 	@Nonnull
 	@Override
 	public ConsistencyReport getConsistencyReport() {
-		return checkConsistency(materializeBuckets(), this.comparator);
+		return this.buckets.getConsistencyReport();
 	}
 
 	/**
-	 * Adds single record id into the bucket with specified `value`. If no bucket with this value exists, it is automatically
-	 * created as a compact {@link ValueToRecordPrimitive}. A primitive bucket promotes to a {@link ValueToRecordBitmap}
-	 * when a second distinct record id is added; an add of the id it already holds is a no-op. A bitmap bucket is mutated
-	 * in place so its transactional diff layer is preserved.
+	 * Adds single record id into the bucket with specified `value`. If no bucket with this value exists, it is
+	 * automatically created as a compact single-record column entry. A single-record bucket promotes to a multi-record
+	 * bitmap when a second distinct record id is added; an add of the id it already holds is a no-op. A bitmap bucket is
+	 * mutated in place so its transactional diff layer is preserved.
 	 */
 	public void addRecord(@Nonnull Serializable value, int recordId) {
-		final Serializable normalizedValue = this.normalizer.apply(value);
-		upsertBucket(
-			(Comparable) normalizedValue,
-			bucket -> {
-				if (bucket == null) {
-					return new ValueToRecordPrimitive(normalizedValue, recordId);
-				}
-				if (bucket instanceof final ValueToRecordBitmap bitmapBucket) {
-					bitmapBucket.addRecord(recordId);
-					return bitmapBucket;
-				}
-				final ValueToRecordPrimitive primitiveBucket = (ValueToRecordPrimitive) bucket;
-				if (primitiveBucket.getRecordId() == recordId) {
-					// already the sole record - nothing to do, keep the compact form
-					return primitiveBucket;
-				}
-				// second distinct record id - promote to the multi-record bitmap representation
-				return new ValueToRecordBitmap(normalizedValue, primitiveBucket.getRecordId(), recordId);
-			}
-		);
+		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
+		this.buckets.addRecord(normalizedValue, recordId);
 		this.dirty.setToTrue();
 	}
 
 	/**
 	 * Adds multiple records id into the bucket with specified `value`. If no bucket with this value exists, it is
-	 * automatically created (a {@link ValueToRecordPrimitive} for a single id, a {@link ValueToRecordBitmap} otherwise).
-	 * A primitive bucket promotes to a bitmap unless the only id being added is the one it already holds. A bitmap bucket
-	 * is mutated in place so its transactional diff layer is preserved.
+	 * automatically created (a single-record column entry for a single id, a multi-record bitmap otherwise). A
+	 * single-record bucket promotes to a bitmap unless the only id being added is the one it already holds. A bitmap
+	 * bucket is mutated in place so its transactional diff layer is preserved.
 	 */
 	public void addRecord(@Nonnull Serializable value, int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
-		final Serializable normalizedValue = this.normalizer.apply(value);
-		upsertBucket(
-			(Comparable) normalizedValue,
-			bucket -> {
-				if (bucket == null) {
-					return recordId.length == 1
-						? new ValueToRecordPrimitive(normalizedValue, recordId[0])
-						: new ValueToRecordBitmap(normalizedValue, recordId);
-				}
-				if (bucket instanceof final ValueToRecordBitmap bitmapBucket) {
-					bitmapBucket.addRecord(recordId);
-					return bitmapBucket;
-				}
-				final ValueToRecordPrimitive primitiveBucket = (ValueToRecordPrimitive) bucket;
-				if (recordId.length == 1 && recordId[0] == primitiveBucket.getRecordId()) {
-					// the only id being added is the one already held - keep the compact form
-					return primitiveBucket;
-				}
-				// promote to a bitmap holding the existing id plus all added ids (BaseBitmap dedupes & orders)
-				final ValueToRecordBitmap promoted = new ValueToRecordBitmap(
-					normalizedValue, primitiveBucket.getRecordId()
-				);
-				promoted.addRecord(recordId);
-				return promoted;
-			}
-		);
+		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
+		this.buckets.addRecord(normalizedValue, recordId);
 		this.dirty.setToTrue();
 	}
 
@@ -387,47 +365,23 @@ public class InvertedIndex implements
 	 * Removes one or multiple record ids from the bucket with specified `value`. If no bucket with this value exists,
 	 * nothing happens. If the bucket contains no record id that match passed record id, nothing happens. If removal
 	 * of the record ids leaves the bucket empty, it's entirely removed (the tree releases the value's transactional
-	 * layer). A bitmap bucket is mutated in place; the immutable primitive bucket can only be deleted (it holds a single
+	 * layer). A bitmap bucket is mutated in place; a single-record bucket can only be deleted (it holds a single
 	 * id, so removing that id empties it). The dirty flag is always raised to mirror the historical behaviour.
 	 */
 	public void removeRecord(@Nonnull Serializable value, int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
+		// historical quirk: the dirty flag is raised unconditionally BEFORE the lookup, even on a no-op remove
 		this.dirty.setToTrue();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
-		final ValueToRecord bucket = searchBucket(normalizedValue);
-		if (bucket == null) {
-			return;
-		}
-		if (bucket instanceof final ValueToRecordBitmap bitmapBucket) {
-			bitmapBucket.removeRecord(recordId);
-			if (bitmapBucket.isEmpty()) {
-				deleteBucket(normalizedValue);
-			}
-		} else {
-			final ValueToRecordPrimitive primitiveBucket = (ValueToRecordPrimitive) bucket;
-			// the immutable primitive holds exactly one id; removing it empties (and so deletes) the bucket
-			for (final int id : recordId) {
-				if (id == primitiveBucket.getRecordId()) {
-					deleteBucket(normalizedValue);
-					return;
-				}
-			}
-			// none of the ids matched the sole record - silent no-op
-		}
+		this.buckets.removeRecord(normalizedValue, recordId);
 	}
 
 	/**
 	 * Method returns ture if histogram contains no records (i.e. no, or empty buckets).
 	 */
 	public boolean isEmpty() {
-		final Iterator<ValueToRecord> it = bucketIterator();
-		while (it.hasNext()) {
-			final ValueToRecord bucket = it.next();
-			if (!bucket.isEmpty()) {
-				return false;
-			}
-		}
-		return true;
+		// the tree deletes a bucket on drain-to-zero, so bucketCount()==0 is equivalent to "no bucket holds records"
+		return this.buckets.bucketCount() == 0;
 	}
 
 	/**
@@ -437,7 +391,7 @@ public class InvertedIndex implements
 		if (value == null) {
 			return false;
 		}
-		return searchBucket((Comparable) this.normalizer.apply(value)) != null;
+		return this.buckets.contains((Comparable) this.normalizer.apply(value));
 	}
 
 	/**
@@ -449,30 +403,22 @@ public class InvertedIndex implements
 	 */
 	@Nonnull
 	public Bitmap getRecordsEqualTo(@Nullable Serializable normalizedValue) {
-		if (normalizedValue == null) {
-			return EmptyBitmap.INSTANCE;
-		}
-		final ValueToRecord bucket = searchBucket((Comparable) normalizedValue);
-		return bucket == null ? EmptyBitmap.INSTANCE : bucket.getRecordIds();
+		// the tree returns EmptyBitmap.INSTANCE for an absent or null key - byte-identical to the historical behaviour
+		return this.buckets.getRecordsEqualTo((Comparable) normalizedValue);
 	}
 
 	/**
 	 * Returns the number of records associated with the given already-normalized value, read directly from the bucket
-	 * via {@link ValueToRecord#size()} — without materializing the record bitmap. This is the allocation-free
-	 * cardinality read used on hot sort paths: {@link #getRecordsEqualTo} on a single-record
-	 * {@link SingleRecordBitmap}-backed bucket would otherwise allocate a bitmap per probe
-	 * (`ValueToRecordPrimitive.getRecordIds()`), whereas {@link ValueToRecord#size()} is resolved inline on the bucket
-	 * (the allocation-free cardinality read used by the both-flagged sort view).
+	 * without materializing the record bitmap. This is the allocation-free cardinality read used on hot sort paths:
+	 * {@link #getRecordsEqualTo} on a single-record {@link SingleRecordBitmap}-backed bucket would otherwise allocate a
+	 * bitmap per probe, whereas the tree resolves the cardinality inline on the leaf column (the allocation-free
+	 * cardinality read used by the both-flagged sort view).
 	 *
 	 * @param normalizedValue the value already normalized by the caller (via the shared normalizer)
 	 * @return cardinality of the bucket, or {@code 0} when no such bucket exists
 	 */
 	public int cardinalityOf(@Nullable Serializable normalizedValue) {
-		if (normalizedValue == null) {
-			return 0;
-		}
-		final ValueToRecord bucket = searchBucket((Comparable) normalizedValue);
-		return bucket == null ? 0 : bucket.size();
+		return this.buckets.cardinalityOf((Comparable) normalizedValue);
 	}
 
 	/**
@@ -495,10 +441,16 @@ public class InvertedIndex implements
 		//TODO JNO (#760): materializes the whole bucket array on every commit only to feed the
 		// serialization route; remove once StorageParts become granular (issue #760 part B — persist
 		// only the changed parts of the index instead of rewriting the entire index per transaction).
-		final List<ValueToRecordBitmap> result = new ArrayList<>(this.buckets.size());
-		final Iterator<ValueToRecord> it = bucketIterator();
-		while (it.hasNext()) {
-			result.add(ValueToRecordBitmap.materialize(it.next()));
+		final List<ValueToRecordBitmap> result = new ArrayList<>(this.buckets.bucketCount());
+		final BucketCursor cursor = this.buckets.cursor();
+		while (cursor.next()) {
+			final Serializable value = (Serializable) cursor.value();
+			if (cursor.isSingle()) {
+				result.add(new ValueToRecordBitmap(value, cursor.singleRecordId()));
+			} else {
+				// share the live TransactionalBitmap (no copy) - this is the serializer's read-only snapshot boundary
+				result.add(new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records()));
+			}
 		}
 		return result.toArray(ValueToRecordBitmap[]::new);
 	}
@@ -513,7 +465,7 @@ public class InvertedIndex implements
 	 */
 	@Nonnull
 	public Iterator<ValueToRecord> getValueIteratorFrom(@Nonnull Serializable normalizedValue) {
-		return bucketIteratorFrom((Comparable) normalizedValue);
+		return cursorAsValueToRecordIterator(this.buckets.cursor((Comparable) normalizedValue));
 	}
 
 	/**
@@ -524,7 +476,7 @@ public class InvertedIndex implements
 	 */
 	@Nonnull
 	public Iterator<ValueToRecord> getValueIterator() {
-		return bucketIterator();
+		return cursorAsValueToRecordIterator(this.buckets.cursor());
 	}
 
 	/**
@@ -532,9 +484,8 @@ public class InvertedIndex implements
 	 * counterpart of {@link #getValueIterator()} used by the both-flagged sort view's reversed seeker.
 	 */
 	@Nonnull
-	@SuppressWarnings("unchecked")
 	public Iterator<ValueToRecord> getValueReverseIterator() {
-		return this.buckets.valueReverseIterator();
+		return cursorAsValueToRecordIterator(this.buckets.reverseCursor());
 	}
 
 	/**
@@ -601,7 +552,8 @@ public class InvertedIndex implements
 	 * @see #getSortedRecords()
 	 */
 	@Nonnull
-	public InvertedIndexSubSet getSortedRecordsExclusive(@Nullable Serializable moreThan, @Nullable Serializable lessThan) {
+	public InvertedIndexSubSet getSortedRecordsExclusive(
+		@Nullable Serializable moreThan, @Nullable Serializable lessThan) {
 		final ValueToRecord[] records = getRecordsInternal(moreThan, lessThan, BoundsHandling.EXCLUSIVE);
 		return convertToSortedResult(records);
 	}
@@ -615,11 +567,11 @@ public class InvertedIndex implements
 	@Nonnull
 	public InvertedIndexSubSet getSortedRecordsMatching(@Nonnull Predicate<Serializable> valuePredicate) {
 		final List<ValueToRecord> result = new ArrayList<>(64);
-		final Iterator<ValueToRecord> it = bucketIterator();
-		while (it.hasNext()) {
-			final ValueToRecord bucket = it.next();
-			if (valuePredicate.test(bucket.getValue()) && !bucket.isEmpty()) {
-				result.add(bucket);
+		final BucketCursor cursor = this.buckets.cursor();
+		while (cursor.next()) {
+			if (valuePredicate.test((Serializable) cursor.value())) {
+				// a bucket in the tree always holds at least one record, so the historical non-empty guard is implicit
+				result.add(materializeBucket(cursor));
 			}
 		}
 		return convertToSortedResult(result.toArray(ValueToRecord[]::new));
@@ -633,13 +585,16 @@ public class InvertedIndex implements
 	 */
 	@Nonnull
 	public <S extends Serializable> S[] getValuesForRecord(int recordId, @Nonnull Class<S> type) {
-		final Iterator<ValueToRecord> it = bucketIterator();
 		final CompositeObjectArray<S> result = new CompositeObjectArray<>(type);
-		while (it.hasNext()) {
-			final ValueToRecord bucket = it.next();
-			if (bucket.getRecordIds().contains(recordId)) {
+		final BucketCursor cursor = this.buckets.cursor();
+		while (cursor.next()) {
+			// allocation-free membership test: a single bucket compares its lone id, a multi bucket probes its bitmap
+			final boolean contains = cursor.isSingle()
+				? cursor.singleRecordId() == recordId
+				: cursor.records().contains(recordId);
+			if (contains) {
 				//noinspection unchecked
-				result.add((S) bucket.getValue());
+				result.add((S) cursor.value());
 			}
 		}
 		return result.toArray();
@@ -649,36 +604,14 @@ public class InvertedIndex implements
 	 * Returns count of the buckets in the histogram.
 	 */
 	public int getBucketCount() {
-		return this.buckets.size();
+		return this.buckets.bucketCount();
 	}
 
 	/**
 	 * Returns count of all record ids in the histogram.
 	 */
 	public int getLength() {
-		int count = 0;
-		final Iterator<ValueToRecord> it = bucketIterator();
-		while (it.hasNext()) {
-			count += it.next().size();
-		}
-		return count;
-	}
-
-	@Override
-	public String toString() {
-		final StringBuilder sb = new StringBuilder(256);
-		sb.append("InvertedIndex{points=[");
-		final Iterator<ValueToRecord> it = bucketIterator();
-		boolean first = true;
-		while (it.hasNext()) {
-			if (!first) {
-				sb.append(", ");
-			}
-			sb.append(it.next());
-			first = false;
-		}
-		sb.append("]}");
-		return sb.toString();
+		return this.buckets.recordCount();
 	}
 
 	/**
@@ -704,8 +637,8 @@ public class InvertedIndex implements
 		final boolean isDirty = transactionalLayer
 			.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
-			@SuppressWarnings("unchecked") final TransactionalObjectBPlusTree committedTree =
-				(TransactionalObjectBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.buckets);
+			final TransactionalBucketBPlusTree committedTree =
+				(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.buckets);
 			return new InvertedIndex(
 				committedTree,
 				this.normalizer,
@@ -724,6 +657,22 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Content-based hash code over the logical bucket sequence `(value, recordIds)`, representation-independent and
+	 * consistent with {@link #equals(Object)}. The single-record hash `31 + pk` matches a cardinality-1 bitmap's hash so
+	 * a primitive and a one-element bitmap of the same id hash identically.
+	 */
+	@Override
+	public int hashCode() {
+		int result = 1;
+		final BucketCursor cursor = this.buckets.cursor();
+		while (cursor.next()) {
+			result = 31 * result + cursor.value().hashCode();
+			result = 31 * result + recordSetHashCode(cursor);
+		}
+		return result;
+	}
+
+	/**
 	 * Content-based equality over the logical bucket sequence `(value, recordIds)`. Record-set comparison is
 	 * representation-independent (see {@link ValueToRecord#recordSetEquals(ValueToRecord)}), so a primitive `{5}` bucket
 	 * and a bitmap `{5}` bucket for the same value compare equal. The `dirty` flag and the `comparator` are intentionally
@@ -738,76 +687,52 @@ public class InvertedIndex implements
 			return false;
 		}
 		final InvertedIndex that = (InvertedIndex) o;
-		final Iterator<ValueToRecord> thisIt = bucketIterator();
-		final Iterator<ValueToRecord> thatIt = that.bucketIterator();
-		while (thisIt.hasNext() && thatIt.hasNext()) {
-			final ValueToRecord thisBucket = thisIt.next();
-			final ValueToRecord thatBucket = thatIt.next();
-			if (!thisBucket.getValue().equals(thatBucket.getValue())
-				|| !thisBucket.recordSetEquals(thatBucket)) {
+		final BucketCursor thisCursor = this.buckets.cursor();
+		final BucketCursor thatCursor = that.buckets.cursor();
+		boolean thisHasNext = thisCursor.next();
+		boolean thatHasNext = thatCursor.next();
+		while (thisHasNext && thatHasNext) {
+			if (!thisCursor.value().equals(thatCursor.value())
+				|| !recordSetEquals(thisCursor, thatCursor)) {
 				return false;
 			}
+			thisHasNext = thisCursor.next();
+			thatHasNext = thatCursor.next();
 		}
-		return thisIt.hasNext() == thatIt.hasNext();
+		return thisHasNext == thatHasNext;
 	}
 
-	/**
-	 * Content-based hash code over the logical bucket sequence `(value, recordIds)`, representation-independent and
-	 * consistent with {@link #equals(Object)}.
-	 */
 	@Override
-	public int hashCode() {
-		int result = 1;
-		final Iterator<ValueToRecord> it = bucketIterator();
-		while (it.hasNext()) {
-			final ValueToRecord bucket = it.next();
-			result = 31 * result + bucket.getValue().hashCode();
-			result = 31 * result + bucket.recordSetHashCode();
+	public String toString() {
+		final StringBuilder sb = new StringBuilder(256);
+		sb.append("InvertedIndex{points=[");
+		final BucketCursor cursor = this.buckets.cursor();
+		boolean first = true;
+		while (cursor.next()) {
+			if (!first) {
+				sb.append(", ");
+			}
+			sb.append(materializeBucket(cursor));
+			first = false;
 		}
-		return result;
+		sb.append("]}");
+		return sb.toString();
 	}
 
 	/**
-	 * Test-support: returns true when the bucket for the given `value` is stored in the compact single-record
-	 * {@link ValueToRecordPrimitive} form (as opposed to the {@link ValueToRecordBitmap} form). Package-private on
-	 * purpose - it exposes the internal representation only to the inverted-index test suite.
+	 * Test-support: returns true when the bucket for the given `value` is stored in the compact single-record form (as
+	 * opposed to the multi-record bitmap form). Package-private on purpose - it exposes the internal representation only
+	 * to the inverted-index test suite.
 	 */
 	boolean isPrimitiveBucket(@Nonnull Serializable value) {
-		return searchBucket((Comparable) this.normalizer.apply(value)) instanceof ValueToRecordPrimitive;
+		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
+		final BucketCursor cursor = this.buckets.cursor(normalizedValue);
+		return cursor.next() && cursor.value().equals(normalizedValue) && cursor.isSingle();
 	}
 
 	/*
 		PRIVATE METHODS
 	 */
-
-	/**
-	 * Returns the form in which a freshly inserted (deserialized) bucket should be stored: a single-record bucket is
-	 * normalized to the compact {@link ValueToRecordPrimitive}, anything else keeps its {@link ValueToRecordBitmap}
-	 * form. This is a one-time build-time normalization (not the runtime churn demotion that is out of scope), so it
-	 * carries no 1↔2 oscillation risk.
-	 */
-	@Nonnull
-	private static ValueToRecord toStoredForm(@Nonnull ValueToRecordBitmap bucket) {
-		final Bitmap recordIds = bucket.getRecordIds();
-		if (recordIds.size() == 1) {
-			return new ValueToRecordPrimitive(bucket.getValue(), recordIds.getFirst());
-		}
-		return bucket;
-	}
-
-	/**
-	 * Materializes the transactional view of all buckets into a positionally addressable array, ordered by the
-	 * comparator. This is the same O(N) scan the array-backed implementation performed; used by consistency checks.
-	 */
-	@Nonnull
-	private ValueToRecord[] materializeBuckets() {
-		final List<ValueToRecord> result = new ArrayList<>(this.buckets.size());
-		final Iterator<ValueToRecord> it = bucketIterator();
-		while (it.hasNext()) {
-			result.add(it.next());
-		}
-		return result.toArray(ValueToRecord[]::new);
-	}
 
 	/**
 	 * Returns subset that aggregates inner record ids by {@link ValueToRecord#getValue()} and thus the result may
@@ -843,9 +768,9 @@ public class InvertedIndex implements
 	 * the {@link BoundsHandling#EXCLUSIVE} mode drops them:
 	 *
 	 * - lower bound: the iterator anchors at the first bucket whose value is greater than or equal to the (normalized)
-	 *   `moreThanEq`; for the exclusive mode the bucket exactly equal to the bound is skipped,
+	 * `moreThanEq`; for the exclusive mode the bucket exactly equal to the bound is skipped,
 	 * - upper bound: the iteration stops (early break) once a bucket value passes `lessThanEq` - strictly greater for the
-	 *   inclusive mode, greater than or equal for the exclusive mode.
+	 * inclusive mode, greater than or equal for the exclusive mode.
 	 */
 	@Nonnull
 	private ValueToRecord[] getRecordsInternal(
@@ -863,13 +788,12 @@ public class InvertedIndex implements
 		);
 
 		final List<ValueToRecord> result = new ArrayList<>(64);
-		// anchor the forward iteration at the first bucket >= lower bound (or at the very start when unbounded)
-		final Iterator<ValueToRecord> it = normalizedMoreThanEq == null
-			? bucketIterator()
-			: bucketIteratorFrom((Comparable) normalizedMoreThanEq);
-		while (it.hasNext()) {
-			final ValueToRecord bucket = it.next();
-			final Serializable value = bucket.getValue();
+		// anchor the forward cursor at the first bucket >= lower bound (or at the very start when unbounded)
+		final BucketCursor cursor = normalizedMoreThanEq == null
+			? this.buckets.cursor()
+			: this.buckets.cursor((Comparable) normalizedMoreThanEq);
+		while (cursor.next()) {
+			final Serializable value = (Serializable) cursor.value();
 			// exclusive lower bound: skip the bucket exactly equal to the lower bound
 			if (boundsHandling == BoundsHandling.EXCLUSIVE && normalizedMoreThanEq != null) {
 				//noinspection unchecked
@@ -885,7 +809,7 @@ public class InvertedIndex implements
 					break;
 				}
 			}
-			result.add(bucket);
+			result.add(materializeBucket(cursor));
 		}
 		return result.toArray(ValueToRecord[]::new);
 	}

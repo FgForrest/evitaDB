@@ -37,6 +37,7 @@ import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.CACHE;
 
 /**
  * Tests for {@link ValueToRecordBitmap} covering construction,
@@ -130,7 +131,7 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 	}
 
 	@Nested
-	@DisplayName("Core mutations — Non-transactional (T8)")
+	@DisplayName("Core mutations — Non-transactional")
 	class NonTransactionalMutationsTest {
 
 		@Test
@@ -227,7 +228,7 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 
 		@Test
 		@DisplayName(
-			"commit with addRecord: committed has new records (T1)"
+			"commit with addRecord: committed has new records"
 		)
 		void shouldCommitAddRecord() {
 			final ValueToRecordBitmap bucket =
@@ -237,7 +238,7 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 				bucket,
 				original -> original.addRecord(2, 3),
 				(original, committed) -> {
-					// original unchanged (INV-4)
+					// original unchanged
 					assertEquals(1, original.getRecordIds().size());
 					assertTrue(original.getRecordIds().contains(1));
 					// committed has all records
@@ -251,7 +252,7 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 
 		@Test
 		@DisplayName(
-			"committed copy is NEW instance (INV-7)"
+			"committed copy is NEW instance"
 		)
 		void shouldReturnNewInstanceOnCommit() {
 			final ValueToRecordBitmap bucket =
@@ -265,7 +266,7 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("baseline unchanged after commit (INV-4)")
+		@DisplayName("baseline unchanged after commit")
 		void shouldPreserveBaselineAfterCommit() {
 			final ValueToRecordBitmap bucket =
 				new ValueToRecordBitmap("val", 1, 2, 3);
@@ -295,7 +296,7 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 
 		@Test
 		@DisplayName(
-			"rollback: original exposes same record IDs as before (T7)"
+			"rollback: original exposes same record IDs as before"
 		)
 		void shouldRollbackRecordChanges() {
 			final ValueToRecordBitmap bucket =
@@ -421,6 +422,57 @@ class ValueToRecordBitmapTest implements TimeBoundedTestSupport {
 			final String result = bucket.toString();
 			assertTrue(result.contains("test"));
 			assertTrue(result.contains("ValueToRecordBitmap"));
+		}
+	}
+
+	@Nested
+	@DisplayName("Representation-independent record-set parity")
+	@Tag(CACHE)
+	class RecordSetParityTest {
+
+		@Test
+		@DisplayName("equal multi-record content matches via the RoaringBitmap fast path")
+		void shouldMatchMultiRecordBitmapViaRoaringFastPath() {
+			final ValueToRecordBitmap a =
+				new ValueToRecordBitmap("val", 1, 2, 3);
+			final ValueToRecordBitmap b =
+				new ValueToRecordBitmap("val", 1, 2, 3);
+
+			// same record set (cardinality > 1) -> RoaringBitmap fast path reports equality and matching content hash
+			assertTrue(a.recordSetEquals(b));
+			assertTrue(b.recordSetEquals(a));
+			assertEquals(a.recordSetHashCode(), b.recordSetHashCode());
+		}
+
+		@Test
+		@DisplayName("multi-record content with differing ids is not record-set equal")
+		void shouldDifferFromMultiRecordBitmapWithDifferentContent() {
+			final ValueToRecordBitmap a =
+				new ValueToRecordBitmap("val", 1, 2, 3);
+			final ValueToRecordBitmap b =
+				new ValueToRecordBitmap("val", 1, 2, 4);
+
+			assertFalse(a.recordSetEquals(b));
+			assertFalse(b.recordSetEquals(a));
+		}
+
+		@Test
+		@DisplayName("a single-record bitmap matches a foreign primitive view of the same id")
+		void shouldUseSlowPathAgainstForeignSingleRecordView() {
+			final ValueToRecordBitmap bitmap =
+				new ValueToRecordBitmap("val", 7);
+			final ValueToRecordPrimitive samePrimitive =
+				new ValueToRecordPrimitive("val", 7);
+			final ValueToRecordPrimitive otherPrimitive =
+				new ValueToRecordPrimitive("val", 8);
+
+			// cardinality-1 buckets compare representation-independently and hash via the canonical 31 + id formula
+			assertTrue(bitmap.recordSetEquals(samePrimitive));
+			assertEquals(31 + 7, bitmap.recordSetHashCode());
+			assertEquals(samePrimitive.recordSetHashCode(), bitmap.recordSetHashCode());
+
+			// a different id breaks the match
+			assertFalse(bitmap.recordSetEquals(otherPrimitive));
 		}
 	}
 }
