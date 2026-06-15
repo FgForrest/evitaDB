@@ -141,6 +141,25 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	@RemoveWhenExists
 	ProductInterfaceEditor removeProductCategoryById(int categoryId);
 
+	/**
+	 * Single-argument `@AttributeRef` of an int-convertible type. The argument is an attribute
+	 * predicate (filter by `ATTRIBUTE_CATEGORY_PRIORITY`), NOT the referenced primary key — see
+	 * #1241. With the bug, the classifier wrongly treated this as `referencedIdIndex` and tried
+	 * to remove the reference to category PK == priority.
+	 */
+	@ReferenceRef(Entities.CATEGORY)
+	@RemoveWhenExists
+	void removeProductCategoryByPriority(@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY) Long priority);
+
+	/**
+	 * Boxed `Integer` referenced primary key — exists so a `null` argument can be passed at
+	 * runtime to verify the classifier raises a typed `EvitaInvalidUsageException` with the
+	 * reference name (instead of an opaque NPE — see #1241).
+	 */
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	void removeRelatedProductByBoxedId(@javax.annotation.Nullable Integer productId);
+
 	@ReferenceRef(Entities.CATEGORY)
 	@RemoveWhenExists
 	List<Integer> removeAllProductCategoriesAndReturnTheirIds();
