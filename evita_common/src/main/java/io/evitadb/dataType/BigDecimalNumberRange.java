@@ -73,7 +73,11 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	 * @param retainedDecimalPlaces defines how many fractional places will be kept for comparison
 	 */
 	@Nonnull
-	public static BigDecimalNumberRange between(@Nonnull BigDecimal from, @Nonnull BigDecimal to, int retainedDecimalPlaces) {
+	public static BigDecimalNumberRange between(
+		@Nonnull BigDecimal from,
+		@Nonnull BigDecimal to,
+		int retainedDecimalPlaces
+	) {
 		return new BigDecimalNumberRange(from, to, retainedDecimalPlaces);
 	}
 
@@ -123,19 +127,9 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	 */
 	@Nonnull
 	public static BigDecimalNumberRange fromString(@Nonnull String string) throws DataTypeParseException {
-		Assert.isTrue(
-			string.startsWith(OPEN_CHAR) && string.endsWith(CLOSE_CHAR),
-			() -> new DataTypeParseException("NumberRange must start with " + OPEN_CHAR + " and end with " + CLOSE_CHAR + "!")
-		);
-		final int delimiter = string.indexOf(INTERVAL_JOIN, 1);
-		Assert.isTrue(
-			delimiter > -1,
-			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to values!")
-		);
-		final BigDecimal from = delimiter == 1 ? null : parseBigDecimal(string.substring(1, delimiter));
-		final BigDecimal to = delimiter == string.length() - 2 ? null : parseBigDecimal(string.substring(delimiter + 1, string.length() - 1));
-		return Range.materializeOpenEndedRange(
-			from, to, BigDecimalNumberRange::to, BigDecimalNumberRange::from, BigDecimalNumberRange::between
+		return Range.parseRange(
+			string, BigDecimalNumberRange::parseBigDecimal,
+			BigDecimalNumberRange::to, BigDecimalNumberRange::from, BigDecimalNumberRange::between
 		);
 	}
 
@@ -146,7 +140,11 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	 * Do not use this method from in the client code!
 	 */
 	@Nonnull
-	public static BigDecimalNumberRange _internalBuild(@Nullable BigDecimal from, @Nullable BigDecimal to, @Nullable Integer retainedDecimalPlaces, long fromToCompare, long toToCompare) {
+	public static BigDecimalNumberRange _internalBuild(
+		@Nullable BigDecimal from, @Nullable BigDecimal to,
+		@Nullable Integer retainedDecimalPlaces,
+		long fromToCompare, long toToCompare
+	) {
 		return new BigDecimalNumberRange(from, to, retainedDecimalPlaces, fromToCompare, toToCompare);
 	}
 
@@ -160,12 +158,19 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	 * @return A new BigDecimalNumberRange representing the union (convex hull) of rangeA and rangeB.
 	 */
 	@Nonnull
-	public static BigDecimalNumberRange union(@Nonnull BigDecimalNumberRange rangeA, @Nonnull BigDecimalNumberRange rangeB) {
+	public static BigDecimalNumberRange union(
+		@Nonnull BigDecimalNumberRange rangeA,
+		@Nonnull BigDecimalNumberRange rangeB
+	) {
 		if (rangeA == INFINITE || rangeB == INFINITE) {
 			return INFINITE;
 		} else {
-			final BigDecimal from = rangeA.from == null ? null : (rangeB.from == null ? null : rangeA.from.min(rangeB.from));
-			final BigDecimal to = rangeA.to == null ? null : (rangeB.to == null ? null : rangeA.to.max(rangeB.to));
+			final BigDecimal from = rangeA.from == null
+				? null
+				: (rangeB.from == null ? null : rangeA.from.min(rangeB.from));
+			final BigDecimal to = rangeA.to == null
+				? null
+				: (rangeB.to == null ? null : rangeA.to.max(rangeB.to));
 			final boolean leftLesserThanRight = from != null && to != null && from.compareTo(to) > 0;
 			final BigDecimal recalculatedFrom = leftLesserThanRight ? to : from;
 			final BigDecimal recalculatedTo = leftLesserThanRight ? from : to;
@@ -176,8 +181,12 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 					recalculatedFrom,
 					recalculatedTo,
 					Math.max(
-						rangeA.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeA.from, rangeA.to) : rangeA.retainedDecimalPlaces,
-						rangeB.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeB.from, rangeB.to) : rangeB.retainedDecimalPlaces
+						rangeA.retainedDecimalPlaces == null
+							? resolveDefaultRetainedDecimalPlaces(rangeA.from, rangeA.to)
+							: rangeA.retainedDecimalPlaces,
+						rangeB.retainedDecimalPlaces == null
+							? resolveDefaultRetainedDecimalPlaces(rangeB.from, rangeB.to)
+							: rangeB.retainedDecimalPlaces
 					)
 				);
 			}
@@ -193,18 +202,29 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	 * @return A new BigDecimalNumberRange representing the intersection of rangeA and rangeB.
 	 */
 	@Nonnull
-	public static BigDecimalNumberRange intersect(@Nonnull BigDecimalNumberRange rangeA, @Nonnull BigDecimalNumberRange rangeB) {
+	public static BigDecimalNumberRange intersect(
+		@Nonnull BigDecimalNumberRange rangeA,
+		@Nonnull BigDecimalNumberRange rangeB
+	) {
 		if (rangeA == INFINITE && rangeB == INFINITE) {
 			return INFINITE;
 		} else {
-			final BigDecimal from = rangeA.from == null ? rangeB.from : (rangeB.from == null ? rangeA.from : rangeA.from.max(rangeB.from));
-			final BigDecimal to = rangeA.to == null ? rangeB.to : (rangeB.to == null ? rangeA.to : rangeA.to.min(rangeB.to));
+			final BigDecimal from = rangeA.from == null
+				? rangeB.from
+				: (rangeB.from == null ? rangeA.from : rangeA.from.max(rangeB.from));
+			final BigDecimal to = rangeA.to == null
+				? rangeB.to
+				: (rangeB.to == null ? rangeA.to : rangeA.to.min(rangeB.to));
 			if (rangeA.overlaps(rangeB) && (from != null || to != null)) {
 				return new BigDecimalNumberRange(
 					from, to,
 					Math.max(
-						rangeA.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeA.from, rangeA.to) : rangeA.retainedDecimalPlaces,
-						rangeB.retainedDecimalPlaces == null ? resolveDefaultRetainedDecimalPlaces(rangeB.from, rangeB.to) : rangeB.retainedDecimalPlaces
+						rangeA.retainedDecimalPlaces == null
+							? resolveDefaultRetainedDecimalPlaces(rangeA.from, rangeA.to)
+							: rangeA.retainedDecimalPlaces,
+						rangeB.retainedDecimalPlaces == null
+							? resolveDefaultRetainedDecimalPlaces(rangeB.from, rangeB.to)
+							: rangeB.retainedDecimalPlaces
 					)
 				);
 			} else {
@@ -212,13 +232,6 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 				return INFINITE;
 			}
 		}
-	}
-
-	@Override
-	public boolean isWithin(@Nonnull BigDecimal valueToCheck) {
-		Assert.notNull(valueToCheck, "Cannot resolve within range with NULL value!");
-		final long valueToCompare = toComparableLong(valueToCheck, ofNullable(this.retainedDecimalPlaces).orElse(0), 0L);
-		return this.fromToCompare <= valueToCompare && valueToCompare <= this.toToCompare;
 	}
 
 	@Nonnull
@@ -230,11 +243,30 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 		}
 	}
 
+	/**
+	 * If no explicit retained places were passed from client, places are resolved from actual numbers.
+	 */
+	private static int resolveDefaultRetainedDecimalPlaces(@Nullable BigDecimal from, @Nullable BigDecimal to) {
+		if (from == null && to == null) {
+			return 0;
+		}
+		if (from == null) {
+			return to.scale();
+		} else if (to == null) {
+			return from.scale();
+		} else {
+			return Math.max(from.scale(), to.scale());
+		}
+	}
+
 	private BigDecimalNumberRange() {
 		super(null, null, 0, Long.MIN_VALUE, Long.MAX_VALUE);
 	}
 
-	private BigDecimalNumberRange(@Nullable BigDecimal from, @Nullable BigDecimal to, @Nullable Integer retainedDecimalPlaces, long fromToCompare, long toToCompare) {
+	private BigDecimalNumberRange(
+		@Nullable BigDecimal from, @Nullable BigDecimal to, @Nullable Integer retainedDecimalPlaces, long fromToCompare,
+		long toToCompare
+	) {
 		super(from, to, retainedDecimalPlaces, fromToCompare, toToCompare);
 	}
 
@@ -256,6 +288,13 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 		);
 		assertEitherBoundaryNotNull(from, to);
 		assertFromLesserThanTo(from, to);
+	}
+
+	@Override
+	public boolean isWithin(@Nonnull BigDecimal valueToCheck) {
+		Assert.notNull(valueToCheck, "Cannot resolve within range with NULL value!");
+		final long valueToCompare = toComparableLong(valueToCheck, getEffectiveRetainedDecimalPlaces(), 0L);
+		return this.fromToCompare <= valueToCompare && valueToCompare <= this.toToCompare;
 	}
 
 	@Nonnull
@@ -288,29 +327,28 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 		}
 	}
 
+	/**
+	 * Returns the scale at which the comparable-long bounds ({@link #fromToCompare} /
+	 * {@link #toToCompare}) of this range are encoded, so probe values can be encoded at the very
+	 * same scale. When an explicit `retainedDecimalPlaces` was supplied it is returned verbatim;
+	 * otherwise the value falls back to the resolved default derived from the bounds' own scales
+	 * (the same scale the constructor used to compute the stored bounds) rather than to `0`.
+	 *
+	 * @return the scale at which both the stored bounds and any probe value must be encoded
+	 */
+	public int getEffectiveRetainedDecimalPlaces() {
+		return this.retainedDecimalPlaces != null
+			? this.retainedDecimalPlaces
+			: resolveDefaultRetainedDecimalPlaces(this.from, this.to);
+	}
+
 	@Override
 	protected long toComparableLong(@Nullable BigDecimal valueToCheck, long defaultValue) {
-		return toComparableLong(valueToCheck, ofNullable(this.retainedDecimalPlaces).orElse(0), defaultValue);
+		return toComparableLong(valueToCheck, getEffectiveRetainedDecimalPlaces(), defaultValue);
 	}
 
 	@Override
 	protected Class<BigDecimal> getSupportedType() {
 		return BigDecimal.class;
-	}
-
-	/**
-	 * If no explicit retained places were passed from client, places are resolved from actual numbers.
-	 */
-	private static int resolveDefaultRetainedDecimalPlaces(@Nullable BigDecimal from, @Nullable BigDecimal to) {
-		if (from == null && to == null) {
-			return 0;
-		}
-		if (from == null) {
-			return to.scale();
-		} else if (to == null) {
-			return from.scale();
-		} else {
-			return Math.max(from.scale(), to.scale());
-		}
 	}
 }

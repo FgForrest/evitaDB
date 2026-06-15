@@ -31,14 +31,16 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 
 /**
  * Test class for the {@link BigDecimalNumberRange} set operations (union, intersection, inverse).
  *
- * @author Jan Novotn\u00fd (novotny@fg.cz), FG Forrest a.s. (c) 2024
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @DisplayName("BigDecimalNumberRange set operations")
 @Tag(CONTRACT)
@@ -213,6 +215,79 @@ class BigDecimalNumberRangeTest {
 			final BigDecimalNumberRange range = BigDecimalNumberRange.INFINITE;
 			final BigDecimalNumberRange result = range.inverse(2);
 			assertEquals(BigDecimalNumberRange.INFINITE, result);
+		}
+	}
+
+	@Nested
+	@DisplayName("Within")
+	class WithinTest {
+
+		@Test
+		@DisplayName("Should contain value strictly inside two-arg range with fractional inputs")
+		void shouldContainValueStrictlyInsideTwoArgRangeWithFractionalInputs() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.between(
+				new BigDecimal("88.10000"), new BigDecimal("118.10000")
+			);
+			assertTrue(range.isWithin(new BigDecimal("90")));
+			assertTrue(range.isWithin((Number) 90));
+		}
+
+		@Test
+		@DisplayName("Should contain both boundaries of two-arg range with fractional inputs")
+		void shouldContainBothBoundariesOfTwoArgRangeWithFractionalInputs() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.between(
+				new BigDecimal("88.10000"), new BigDecimal("118.10000")
+			);
+			assertTrue(range.isWithin(new BigDecimal("88.1")));
+			assertTrue(range.isWithin(new BigDecimal("118.1")));
+			assertTrue(range.isWithin((Number) new BigDecimal("88.1")));
+			assertTrue(range.isWithin((Number) new BigDecimal("118.1")));
+		}
+
+		@Test
+		@DisplayName("Should not contain values just outside two-arg range with fractional inputs")
+		void shouldNotContainValuesJustOutsideTwoArgRangeWithFractionalInputs() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.between(
+				new BigDecimal("88.10000"), new BigDecimal("118.10000")
+			);
+			assertFalse(range.isWithin(new BigDecimal("88.09")));
+			assertFalse(range.isWithin(new BigDecimal("118.11")));
+			assertFalse(range.isWithin((Number) new BigDecimal("88.09")));
+			assertFalse(range.isWithin((Number) new BigDecimal("118.11")));
+		}
+
+		@Test
+		@DisplayName("Should evaluate open-ended from-only range with fractional input")
+		void shouldEvaluateOpenEndedFromOnlyRangeWithFractionalInput() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.from(new BigDecimal("88.10000"));
+			assertTrue(range.isWithin(new BigDecimal("90")));
+			assertTrue(range.isWithin((Number) 90));
+			assertFalse(range.isWithin(new BigDecimal("88.09")));
+			assertFalse(range.isWithin((Number) new BigDecimal("88.09")));
+		}
+
+		@Test
+		@DisplayName("Should evaluate open-ended to-only range with fractional input")
+		void shouldEvaluateOpenEndedToOnlyRangeWithFractionalInput() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.to(new BigDecimal("118.10000"));
+			assertTrue(range.isWithin(new BigDecimal("90")));
+			assertTrue(range.isWithin((Number) 90));
+			assertFalse(range.isWithin(new BigDecimal("118.11")));
+			assertFalse(range.isWithin((Number) new BigDecimal("118.11")));
+		}
+
+		@Test
+		@DisplayName("Should evaluate explicit-scale three-arg range")
+		void shouldEvaluateExplicitScaleThreeArgRange() {
+			final BigDecimalNumberRange range = BigDecimalNumberRange.between(
+				new BigDecimal("88.10000"), new BigDecimal("118.10000"), 4
+			);
+			assertTrue(range.isWithin(new BigDecimal("90")));
+			assertTrue(range.isWithin((Number) 90));
+			assertTrue(range.isWithin(new BigDecimal("88.1")));
+			assertTrue(range.isWithin(new BigDecimal("118.1")));
+			assertFalse(range.isWithin(new BigDecimal("88.09")));
+			assertFalse(range.isWithin(new BigDecimal("118.11")));
 		}
 	}
 

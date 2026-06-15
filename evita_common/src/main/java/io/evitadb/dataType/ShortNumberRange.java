@@ -24,7 +24,6 @@
 package io.evitadb.dataType;
 
 import io.evitadb.dataType.exception.DataTypeParseException;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -81,19 +80,9 @@ public final class ShortNumberRange extends NumberRange<Short> {
 	 */
 	@Nonnull
 	public static ShortNumberRange fromString(@Nonnull String string) throws DataTypeParseException {
-		Assert.isTrue(
-			string.startsWith(OPEN_CHAR) && string.endsWith(CLOSE_CHAR),
-			() -> new DataTypeParseException("NumberRange must start with " + OPEN_CHAR + " and end with " + CLOSE_CHAR + "!")
-		);
-		final int delimiter = string.indexOf(INTERVAL_JOIN, 1);
-		Assert.isTrue(
-			delimiter > -1,
-			() -> new DataTypeParseException("NumberRange must contain " + INTERVAL_JOIN + " to separate from and to values!")
-		);
-		final Short from = delimiter == 1 ? null : parseShort(string.substring(1, delimiter));
-		final Short to = delimiter == string.length() - 2 ? null : parseShort(string.substring(delimiter + 1, string.length() - 1));
-		return Range.materializeOpenEndedRange(
-			from, to, ShortNumberRange::to, ShortNumberRange::from, ShortNumberRange::between
+		return Range.parseRange(
+			string, ShortNumberRange::parseShort,
+			ShortNumberRange::to, ShortNumberRange::from, ShortNumberRange::between
 		);
 	}
 
