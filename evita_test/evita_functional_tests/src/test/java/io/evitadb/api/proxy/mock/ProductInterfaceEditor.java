@@ -186,6 +186,19 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category
 	);
 
+	/**
+	 * Reproduces the production bug shape — `void` return, attribute-first then id —
+	 * matching `WithPublishedMediaEditor.removeMediaById(@AttributeRef gallery, int mediaId)`.
+	 * Expected semantics: remove the reference with id == productId AND attribute == category;
+	 * no-op if no such reference exists.
+	 */
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	void removeRelatedProductByCategoryAndId(
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category,
+		int productId
+	);
+
 	@ReferenceRef(Entities.PRODUCT)
 	@RemoveWhenExists
 	RelatedProductInterface removeRelatedProduct(
