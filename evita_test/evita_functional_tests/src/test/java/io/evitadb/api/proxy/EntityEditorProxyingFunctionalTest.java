@@ -666,6 +666,17 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 		final int referenceCountAfterRemoving = editor2.entityBuilder().getReferences().size();
 		assertEquals(referenceCountAfterAdding - 1, referenceCountAfterRemoving);
+
+		// the surviving ref for the targeted related entity must be the CATEGORY_SIMILAR one
+		// (callers always remove the "accessory"-typed one)
+		final List<ReferenceContract> survivingForRelated = editor2.entityBuilder()
+			.getReferences(Entities.PRODUCT, related.getPrimaryKey());
+		assertEquals(1, survivingForRelated.size(),
+			"Exactly one reference must remain for the targeted related entity after the removal");
+		assertEquals(CATEGORY_SIMILAR,
+			survivingForRelated.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class),
+			"The 'accessory' reference must have been removed and the CATEGORY_SIMILAR one must survive");
+
 		editor2.upsertVia(evitaSession);
 
 		final SealedEntity after = evitaSession.getEntity(
@@ -674,6 +685,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			entityFetchAllContent()
 		).orElseThrow();
 		assertEquals(referenceCountAfterRemoving, after.getReferences().size());
+
+		final List<ReferenceContract> survivingPersistedForRelated = after.getReferences(
+			Entities.PRODUCT, related.getPrimaryKey());
+		assertEquals(1, survivingPersistedForRelated.size());
+		assertEquals(CATEGORY_SIMILAR,
+			survivingPersistedForRelated.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
 	}
 
 	/**
@@ -3710,6 +3727,351 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		));
 	}
 
+	@DisplayName("Should not remove unrelated reference when remove targets id of different ref")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldNotRemoveWrongReferenceWhenIdAndAttributePredicateProvided(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		// Regression: see #1239 — @RemoveWhenExists(int + @AttributeRef) must match BOTH
+		// id AND attribute. Scenario from the bug report:
+		// references of type 'product' on a single main product:
+		//   (refId=A, relationType='similar')
+		//   (refId=B, relationType='different')
+		// then call remove(category='similar', productId=B)
+		//   expected: no-op (no reference matches BOTH id=B AND category='similar')
+		//   actual (bug): removes (A, 'similar') because the attribute predicate matches
+		//                 and the productId argument is silently ignored
+		final SealedEntity mainProduct = originalProducts.get(8);
+		final SealedEntity refA = originalProducts.get(9);
+		final SealedEntity refB = originalProducts.get(10);
+		final int idA = refA.getPrimaryKey();
+		final int idB = refB.getPrimaryKey();
+
+		// --- arrange: persist exactly two related-product references ---
+		final ProductInterfaceEditor setup = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		setup.removeAllRelatedProducts();
+		setup.addOrUpdateRelatedProduct(idA, CATEGORY_SIMILAR, rp -> {
+			rp.setLabel(Locale.ENGLISH, "Similar A");
+			rp.setLabel(CZECH_LOCALE, "Podobné A");
+		});
+		setup.addOrUpdateRelatedProduct(idB, CATEGORY_DIFFERENT, rp -> {
+			rp.setLabel(Locale.ENGLISH, "Different B");
+			rp.setLabel(CZECH_LOCALE, "Jiné B");
+		});
+		setup.upsertVia(evitaSession);
+
+		final SealedEntity persisted = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		assertEquals(2, persisted.getReferences(Entities.PRODUCT).size(),
+			"Precondition: main product must have exactly 2 related-product references");
+		assertEquals(1, persisted.getReferences(Entities.PRODUCT, idA).size());
+		assertEquals(1, persisted.getReferences(Entities.PRODUCT, idB).size());
+
+		// --- act (a): cross-call - attribute of ref A, id of ref B -> MUST be a no-op ---
+		final ProductInterfaceEditor crossEditor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		crossEditor.removeRelatedProductByCategoryAndId(CATEGORY_SIMILAR, idB);
+
+		final List<ReferenceContract> afterCrossA = crossEditor.entityBuilder()
+			.getReferences(Entities.PRODUCT, idA);
+		final List<ReferenceContract> afterCrossB = crossEditor.entityBuilder()
+			.getReferences(Entities.PRODUCT, idB);
+		assertEquals(1, afterCrossA.size(),
+			"BUG: remove(category=SIMILAR, id=B) wrongly removed ref A whose category matches " +
+				"and whose id is NOT the argument B - the int productId argument must be honoured");
+		assertEquals(1, afterCrossB.size(),
+			"Ref B must remain untouched - its category is 'different', not 'similar'");
+
+		crossEditor.upsertVia(evitaSession);
+		final SealedEntity afterCrossPersisted = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		assertEquals(2, afterCrossPersisted.getReferences(Entities.PRODUCT).size(),
+			"Cross-arg remove must persist as a no-op - both references must still exist after reload");
+
+		// --- act (b): matching-call - attribute of ref A, id of ref A -> MUST remove exactly ref A ---
+		final ProductInterfaceEditor matchEditor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		matchEditor.removeRelatedProductByCategoryAndId(CATEGORY_SIMILAR, idA);
+
+		final List<ReferenceContract> afterMatchA = matchEditor.entityBuilder()
+			.getReferences(Entities.PRODUCT, idA);
+		final List<ReferenceContract> afterMatchB = matchEditor.entityBuilder()
+			.getReferences(Entities.PRODUCT, idB);
+		assertEquals(0, afterMatchA.size(), "Ref A (matching both id and category) must be removed");
+		assertEquals(1, afterMatchB.size(), "Ref B must remain untouched");
+
+		matchEditor.upsertVia(evitaSession);
+		final SealedEntity afterMatchPersisted = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		assertEquals(1, afterMatchPersisted.getReferences(Entities.PRODUCT).size(),
+			"Exactly one reference (B) must remain after the matching-arg remove");
+		assertEquals(idB, afterMatchPersisted.getReferences(Entities.PRODUCT).iterator().next()
+			.getReferencedPrimaryKey());
+	}
+
+	@DisplayName("Should remove only the matching duplicate on id+representative-attribute remove")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveCorrectDuplicateWhenIdAndAttributePredicateProvided(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		// Regression: see #1239 — @RemoveWhenExists(int + @AttributeRef) must match BOTH
+		// id AND attribute. Variant locking down the allowDuplicates + representative-attribute path:
+		// two references to the SAME referenced id distinguished by the representative attribute:
+		//   (refId=X, relationType='similar')
+		//   (refId=X, relationType='different')
+		// remove(category='similar', id=X) MUST remove only the 'similar' duplicate.
+		final SealedEntity mainProduct = originalProducts.get(11);
+		final SealedEntity related = originalProducts.get(12);
+		final int idX = related.getPrimaryKey();
+
+		final ProductInterfaceEditor setup = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		setup.removeAllRelatedProducts();
+		setup.addOrUpdateRelatedProduct(idX, CATEGORY_SIMILAR, rp -> {
+			rp.setLabel(Locale.ENGLISH, "Similar X");
+			rp.setLabel(CZECH_LOCALE, "Podobné X");
+		});
+		setup.addOrUpdateRelatedProduct(idX, CATEGORY_DIFFERENT, rp -> {
+			rp.setLabel(Locale.ENGLISH, "Different X");
+			rp.setLabel(CZECH_LOCALE, "Jiné X");
+		});
+		setup.upsertVia(evitaSession);
+
+		final SealedEntity persisted = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		assertEquals(2, persisted.getReferences(Entities.PRODUCT, idX).size(),
+			"Precondition: two duplicates of the same referenced id must exist");
+
+		// --- act: remove only the 'similar' duplicate ---
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		editor.removeRelatedProductByCategoryAndId(CATEGORY_SIMILAR, idX);
+
+		final List<ReferenceContract> remaining = editor.entityBuilder()
+			.getReferences(Entities.PRODUCT, idX);
+		assertEquals(1, remaining.size(),
+			"After remove(category=SIMILAR, id=X) exactly one duplicate (the 'different' one) must remain");
+		assertEquals(CATEGORY_DIFFERENT,
+			remaining.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class),
+			"The surviving duplicate must be the 'different' one - id+category remove must NOT touch it");
+
+		editor.upsertVia(evitaSession);
+		final SealedEntity afterReload = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		final List<ReferenceContract> reloaded = afterReload.getReferences(Entities.PRODUCT, idX);
+		assertEquals(1, reloaded.size(),
+			"After persist+reload only one duplicate must remain");
+		assertEquals(CATEGORY_DIFFERENT,
+			reloaded.get(0).getAttribute(ATTRIBUTE_RELATION_TYPE, String.class));
+	}
+
+	@DisplayName("Should treat @AttributeRef parameter as attribute predicate, not referenced id")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldClassifyAttributeRefLongAsAttributePredicateNotReferencedId(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		// Regression: see #1241 (finding A). With the bug, an @AttributeRef parameter of an
+		// int-convertible type was classified as `referencedIdIndex`, so the remove call would
+		// look up `getReferences("CATEGORY", priorityValue)` (treating the attribute value as a
+		// primary key) and remove the wrong reference (or nothing).
+		final SealedEntity mainProduct = originalProducts.get(13);
+		final int mainPk = mainProduct.getPrimaryKey();
+		final int categoryAPk = originalProducts.get(14).getPrimaryKey();
+		final int categoryBPk = originalProducts.get(15).getPrimaryKey();
+		final long priorityToRemove = 1_000_001L;
+		final long priorityToKeep = 1_000_002L;
+
+		// arrange: clear any pre-existing category refs, then add two with distinct priorities
+		final ProductInterfaceEditor setup = evitaSession.getEntity(
+			ProductInterfaceEditor.class, mainPk, entityFetchAllContent()
+		).orElseThrow();
+		setup.removeAllProductCategoriesAndReturnTheirIds();
+		setup.addProductCategory(categoryAPk, pc -> pc
+			.setOrderInCategory(priorityToRemove)
+			.setShadow(false)
+			.setLabel(CZECH_LOCALE, "A")
+			.setLabel(Locale.ENGLISH, "A"));
+		setup.addProductCategory(categoryBPk, pc -> pc
+			.setOrderInCategory(priorityToKeep)
+			.setShadow(false)
+			.setLabel(CZECH_LOCALE, "B")
+			.setLabel(Locale.ENGLISH, "B"));
+		setup.upsertVia(evitaSession);
+
+		// act: remove by the priority attribute predicate; with bug -> no-op (no category PK
+		// equals 1_000_001), so both refs survive and the test catches the regression.
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class, mainPk, entityFetchAllContent()
+		).orElseThrow();
+		editor.removeProductCategoryByPriority(priorityToRemove);
+
+		// in-builder
+		final List<ReferenceContract> remainingInBuilder = editor.entityBuilder()
+			.getReferences(Entities.CATEGORY)
+			.stream().toList();
+		assertEquals(1, remainingInBuilder.size(),
+			"Exactly one category reference must remain - the matching-priority one was removed");
+		assertEquals(categoryBPk, remainingInBuilder.get(0).getReferencedPrimaryKey(),
+			"The surviving reference must point to category B (priorityToKeep)");
+
+		// persisted
+		editor.upsertVia(evitaSession);
+		final SealedEntity reloaded = evitaSession.getEntity(
+			Entities.PRODUCT, mainPk, entityFetchAllContent()
+		).orElseThrow();
+		final List<ReferenceContract> remainingPersisted = reloaded.getReferences(Entities.CATEGORY)
+			.stream().toList();
+		assertEquals(1, remainingPersisted.size());
+		assertEquals(categoryBPk, remainingPersisted.get(0).getReferencedPrimaryKey());
+	}
+
+	@DisplayName("Should throw EvitaInvalidUsageException naming reference on null id")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldThrowTypedExceptionOnNullReferencedIdArg(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		// Regression: see #1241 (finding B). A null boxed-Integer argument used to surface as
+		// an opaque NullPointerException with no context. The classifier now throws a typed
+		// EvitaInvalidUsageException whose message names the reference schema.
+		final SealedEntity mainProduct = originalProducts.get(16);
+		final ProductInterfaceEditor editor = evitaSession.getEntity(
+			ProductInterfaceEditor.class, mainProduct.getPrimaryKey(), entityFetchAllContent()
+		).orElseThrow();
+
+		final EvitaInvalidUsageException thrown = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> editor.removeRelatedProductByBoxedId(null),
+			"Null Integer referenced primary key must raise a typed EvitaInvalidUsageException"
+		);
+		assertNotNull(thrown.getMessage(), "Exception must carry a non-null message");
+		assertTrue(
+			thrown.getMessage().contains(Entities.PRODUCT),
+			"Exception message must name the reference schema; was: " + thrown.getMessage()
+		);
+	}
+
+	@DisplayName("Should update existing reference on repeat addOrUpdate, not duplicate it")
+	@Order(47)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldUpdateExistingDuplicatedReferenceOnRepeatAddOrUpdate(
+		EvitaSessionContract evitaSession,
+		List<SealedEntity> originalProducts
+	) {
+		// Symmetry lockdown for #1239 — the create/update path already worked;
+		// this guards against regressing it.
+		// Lockdown for the create/update symmetric path: when a reference for (relatedPk, attribute)
+		// is already persisted, a second addOrUpdate call must FIND it and update its attributes
+		// rather than recreate (this path already worked - the test prevents regression).
+		final SealedEntity mainProduct = originalProducts.get(4);
+		final SealedEntity relatedProduct = originalProducts.get(5);
+		final int relatedPk = relatedProduct.getPrimaryKey();
+		final String relationType = CATEGORY_SIMILAR;
+
+		// Phase 1: clear any pre-existing related products and persist a single one
+		final ProductInterfaceEditor firstEditor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		firstEditor.removeAllRelatedProducts();
+		firstEditor.addOrUpdateRelatedProduct(
+			relatedPk,
+			relationType,
+			rp -> {
+				rp.setLabel(Locale.ENGLISH, "Initial");
+				rp.setLabel(CZECH_LOCALE, "Počáteční");
+			}
+		);
+		firstEditor.upsertVia(evitaSession);
+
+		// Phase 2: reload (so the reference is part of the BASE references) and call addOrUpdate again
+		final ProductInterfaceEditor secondEditor = evitaSession.getEntity(
+			ProductInterfaceEditor.class,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		secondEditor.addOrUpdateRelatedProduct(
+			relatedPk,
+			relationType,
+			rp -> rp.setLabel(Locale.ENGLISH, "Updated")
+		);
+
+		final List<ReferenceContract> afterUpdate = secondEditor.entityBuilder()
+			.getReferences(Entities.PRODUCT, relatedPk);
+		assertEquals(1, afterUpdate.size(),
+			"addOrUpdate must FIND the existing persisted reference and update it - not create a duplicate");
+		assertEquals(
+			"Updated",
+			afterUpdate.get(0).getAttribute(ATTRIBUTE_PRODUCT_LABEL, Locale.ENGLISH, String.class),
+			"The new English label must be applied to the existing reference");
+		assertEquals(
+			"Počáteční",
+			afterUpdate.get(0).getAttribute(ATTRIBUTE_PRODUCT_LABEL, CZECH_LOCALE, String.class),
+			"Czech label from phase 1 must be preserved - if it is null, " +
+				"the reference was recreated rather than updated");
+
+		// Persist and verify after reload
+		secondEditor.upsertVia(evitaSession);
+		final SealedEntity reloaded = evitaSession.getEntity(
+			Entities.PRODUCT,
+			mainProduct.getPrimaryKey(),
+			entityFetchAllContent()
+		).orElseThrow();
+		final List<ReferenceContract> reloadedRefs = reloaded.getReferences(Entities.PRODUCT, relatedPk);
+		assertEquals(1, reloadedRefs.size(),
+			"After persistence there must still be exactly one reference for (refId, relationType)");
+		assertEquals(
+			"Updated",
+			reloadedRefs.get(0).getAttribute(ATTRIBUTE_PRODUCT_LABEL, Locale.ENGLISH, String.class));
+		assertEquals(
+			"Počáteční",
+			reloadedRefs.get(0).getAttribute(ATTRIBUTE_PRODUCT_LABEL, CZECH_LOCALE, String.class));
+	}
+
 	@DisplayName("Should update duplicated reference when predicate matches")
 	@Order(47)
 	@Test
@@ -3765,11 +4127,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts
 	) {
+		final int relatedPk = originalProducts.get(6).getPrimaryKey();
 		shouldRemoveRelatedProductInternal(
 			evitaSession,
 			originalProducts,
 			5, 6,
-			editor -> editor.removeRelatedProduct(6, "accessory")
+			editor -> editor.removeRelatedProduct(relatedPk, "accessory")
 		);
 	}
 
@@ -3781,11 +4144,13 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts
 	) {
+		final int relatedPk = originalProducts.get(8).getPrimaryKey();
 		shouldRemoveRelatedProductInternal(
 			evitaSession,
 			originalProducts,
 			7, 8,
-			editor -> editor.removeRelatedProduct(6, ref -> "accessory".equals(ref.getRelationType()))
+			editor -> editor.removeRelatedProduct(
+				relatedPk, ref -> "accessory".equals(ref.getRelationType()))
 		);
 	}
 
