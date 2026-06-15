@@ -43,6 +43,7 @@ import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Currency;
@@ -141,6 +142,25 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	@RemoveWhenExists
 	ProductInterfaceEditor removeProductCategoryById(int categoryId);
 
+	/**
+	 * Single-argument `@AttributeRef` of an int-convertible type. The argument is an attribute
+	 * predicate (filter by `ATTRIBUTE_CATEGORY_PRIORITY`), NOT the referenced primary key — see
+	 * #1241. With the bug, the classifier wrongly treated this as `referencedIdIndex` and tried
+	 * to remove the reference to category PK == priority.
+	 */
+	@ReferenceRef(Entities.CATEGORY)
+	@RemoveWhenExists
+	void removeProductCategoryByPriority(@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY) Long priority);
+
+	/**
+	 * Boxed `Integer` referenced primary key — exists so a `null` argument can be passed at
+	 * runtime to verify the classifier raises a typed `EvitaInvalidUsageException` with the
+	 * reference name (instead of an opaque NPE — see #1241).
+	 */
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	void removeRelatedProductByBoxedId(@Nullable Integer productId);
+
 	@ReferenceRef(Entities.CATEGORY)
 	@RemoveWhenExists
 	List<Integer> removeAllProductCategoriesAndReturnTheirIds();
@@ -184,6 +204,19 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	RelatedProductInterface removeRelatedProduct(
 		int productId,
 		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category
+	);
+
+	/**
+	 * Reproduces the production bug shape — `void` return, attribute-first then id —
+	 * matching `WithPublishedMediaEditor.removeMediaById(@AttributeRef gallery, int mediaId)`.
+	 * Expected semantics: remove the reference with id == productId AND attribute == category;
+	 * no-op if no such reference exists.
+	 */
+	@ReferenceRef(Entities.PRODUCT)
+	@RemoveWhenExists
+	void removeRelatedProductByCategoryAndId(
+		@AttributeRef(ATTRIBUTE_RELATION_TYPE) String category,
+		int productId
 	);
 
 	@ReferenceRef(Entities.PRODUCT)
