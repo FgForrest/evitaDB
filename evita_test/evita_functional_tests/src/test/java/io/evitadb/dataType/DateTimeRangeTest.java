@@ -236,6 +236,7 @@ class DateTimeRangeTest {
 			assertThrows(DataTypeParseException.class, () -> DateTimeRange.fromString("[a,b]"));
 			assertThrows(DataTypeParseException.class, () -> DateTimeRange.fromString("[2021-01-01T12:22:45,2021-01-05T12:22:45]"));
 			assertThrows(DataTypeParseException.class, () -> DateTimeRange.fromString("[2021-01-01T12:22:45-03:00]"));
+			assertThrows(DataTypeParseException.class, () -> DateTimeRange.fromString("[2021-01-01T12:22:45-03:00,2021-01-02T12:22:45-03:00,2021-01-03T12:22:45-03:00]"));
 		}
 
 		@Test

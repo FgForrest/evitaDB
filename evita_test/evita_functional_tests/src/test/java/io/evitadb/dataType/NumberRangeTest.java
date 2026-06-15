@@ -551,6 +551,8 @@ class NumberRangeTest {
 			assertThrows(DataTypeParseException.class, () -> BigDecimalNumberRange.fromString("[,]"));
 			assertThrows(DataTypeParseException.class, () -> BigDecimalNumberRange.fromString("[a,b]"));
 			assertThrows(DataTypeParseException.class, () -> BigDecimalNumberRange.fromString("[5]"));
+			// wrapped correctly but contains more than one , separator
+			assertThrows(DataTypeParseException.class, () -> BigDecimalNumberRange.fromString("[1,2,3]"));
 		}
 
 		@Test
@@ -582,6 +584,8 @@ class NumberRangeTest {
 			assertThrows(DataTypeParseException.class, () -> LongNumberRange.fromString("[a,b]"));
 			// wrapped correctly but missing the , boundary separator
 			assertThrows(DataTypeParseException.class, () -> LongNumberRange.fromString("[5]"));
+			// wrapped correctly but contains more than one , separator
+			assertThrows(DataTypeParseException.class, () -> LongNumberRange.fromString("[1,2,3]"));
 		}
 
 		@Test
@@ -613,6 +617,8 @@ class NumberRangeTest {
 			assertThrows(DataTypeParseException.class, () -> IntegerNumberRange.fromString("[a,b]"));
 			// wrapped correctly but missing the , boundary separator
 			assertThrows(DataTypeParseException.class, () -> IntegerNumberRange.fromString("[5]"));
+			// wrapped correctly but contains more than one , separator
+			assertThrows(DataTypeParseException.class, () -> IntegerNumberRange.fromString("[1,2,3]"));
 		}
 
 		@Test
@@ -644,6 +650,8 @@ class NumberRangeTest {
 			assertThrows(DataTypeParseException.class, () -> ShortNumberRange.fromString("[a,b]"));
 			// wrapped correctly but missing the , boundary separator
 			assertThrows(DataTypeParseException.class, () -> ShortNumberRange.fromString("[5]"));
+			// wrapped correctly but contains more than one , separator
+			assertThrows(DataTypeParseException.class, () -> ShortNumberRange.fromString("[1,2,3]"));
 		}
 
 		@Test
@@ -675,6 +683,8 @@ class NumberRangeTest {
 			assertThrows(DataTypeParseException.class, () -> ByteNumberRange.fromString("[a,b]"));
 			// wrapped correctly but missing the , boundary separator
 			assertThrows(DataTypeParseException.class, () -> ByteNumberRange.fromString("[5]"));
+			// wrapped correctly but contains more than one , separator
+			assertThrows(DataTypeParseException.class, () -> ByteNumberRange.fromString("[1,2,3]"));
 		}
 
 		@Test

@@ -154,7 +154,8 @@ public sealed interface Range<T> extends Serializable permits DateTimeRange, Num
 	 * @param <T>             the boundary value type
 	 * @param <R>             the concrete range type
 	 * @return the parsed range instance
-	 * @throws DataTypeParseException if the string is not wrapped correctly or lacks the boundary separator
+	 * @throws DataTypeParseException if the string is not wrapped correctly, or does not contain exactly one
+	 *                               boundary separator
 	 */
 	@Nonnull
 	static <T, R> R parseRange(
@@ -173,9 +174,14 @@ public sealed interface Range<T> extends Serializable permits DateTimeRange, Num
 			delimiter > -1,
 			() -> new DataTypeParseException("Range must contain " + INTERVAL_JOIN + " to separate its boundaries!")
 		);
+		Assert.isTrue(
+			string.indexOf(INTERVAL_JOIN, delimiter + 1) == -1,
+			() -> new DataTypeParseException("Range must contain only a single " + INTERVAL_JOIN + " to separate its boundaries!")
+		);
 		final T from = delimiter == 1 ? null : boundParser.apply(string.substring(1, delimiter));
-		final T to = delimiter == string.length() - 2 ?
-			null : boundParser.apply(string.substring(delimiter + 1, string.length() - 1));
+		final T to = delimiter == string.length() - 2
+			? null
+			: boundParser.apply(string.substring(delimiter + 1, string.length() - 1));
 		return materializeOpenEndedRange(from, to, toOnlyFactory, fromOnlyFactory, betweenFactory);
 	}
 
