@@ -1036,6 +1036,55 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 				}
 			);
 		}
+
+		@Test
+		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
+		@DisplayName("NONE depth + filterGroupBy selecting one group must drop the other group's histogram")
+		void shouldOnlyEmitHistogramForGroupSelectedByFilterGroupByWithNoneDepth(@Nonnull Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummaryOfReferenceWithHistograms(
+									REF_PARAM_VALUES, FacetStatisticsDepth.NONE,
+									null,                                       // facetFilterBy
+									filterGroupBy(entityPrimaryKeyInSet(1)),    // facetGroupFilterBy: only group 1
+									null, null,                                 // facetOrderBy, facetGroupOrderBy
+									null, null,                                 // entityFetch, entityGroupFetch
+									histogramStatistics(10, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+					// NONE depth strips the reference from the statistics map before histogram injection,
+					// so each surviving group is synthesised purely from histogram data — that synthesis must
+					// still honour filterGroupBy: group 1 emerges (carrying its histogram) and group 2 is gone
+					final ReferenceGroupStatistics group1 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 1
+					);
+					final ReferenceGroupStatistics group2 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 2
+					);
+					assertNotNull(group1, "Group 1 must appear as a histogram-only synthetic group");
+					assertArrayEquals(
+						new String[]{HISTOGRAM_PRICE},
+						group1.getHistogramStatistics().keySet().toArray(new String[0]),
+						"Selected group 1 must expose exactly the requested histogram entry"
+					);
+					assertNull(
+						group2,
+						"Group 2 must be absent — filtered out by filterGroupBy even in NONE depth"
+					);
+					return null;
+				}
+			);
+		}
 	}
 
 	// ==========================================================================================
