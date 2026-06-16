@@ -331,7 +331,9 @@ public class RangeHistogramDataCruncher {
 
 		final int emptyColumns = longestRun;
 		if (bucketCount - emptyColumns <= 2) {
-			return 2;
+			// clamp to the current grid: a span==1 source yields a single bucket, and the heuristic must never
+			// return a larger count than it was given (it can only collapse the grid, never grow it)
+			return Math.min(2, bucketCount);
 		} else if (emptyColumns >= 2) {
 			// widen each operand to double before subtracting so the full int range does not overflow first —
 			// this applies to both the overall span and the empty-gap span bracketed by spanStartKey/spanEndKey

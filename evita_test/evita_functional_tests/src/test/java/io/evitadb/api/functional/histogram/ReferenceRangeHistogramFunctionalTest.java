@@ -341,8 +341,9 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 		// whose overallCount is the DISTINCT seeded-range count (4), whereas the frequency-equalised family
 		// (EQUALIZED/EQUALIZED_OPTIMIZED) accounts each range at every covered stop, yielding the stop-sum (12). The
 		// equalised family additionally satisfies the point-histogram invariant sum(occurrences) == overallCount;
-		// the overlap family does NOT and is intentionally exempt. ADAPTIVE *_OPTIMIZED behaviors may emit fewer
-		// buckets, so only the overallCount rule (not a fixed bucket count) is asserted.
+		// the overlap family does NOT and is intentionally exempt. The gap-dropping *_OPTIMIZED behaviors
+		// (OPTIMIZED / EQUALIZED_OPTIMIZED) may emit fewer buckets, so only the overallCount rule (not a fixed
+		// bucket count) is asserted.
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
