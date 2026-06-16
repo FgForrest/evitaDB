@@ -83,11 +83,11 @@ public class RangeHistogramDataCruncher {
 	/**
 	 * Computed output histogram buckets ordered by ascending threshold. Never empty.
 	 */
-	@Getter private final CacheableBucket[] histogram;
+	@Getter @Nonnull private final CacheableBucket[] histogram;
 	/**
 	 * Inclusive upper bound of the last output bucket, expressed at the requested decimal scale.
 	 */
-	@Getter private final BigDecimal maxValue;
+	@Getter @Nonnull private final BigDecimal maxValue;
 	/**
 	 * Number of distinct records observed across the whole sweep.
 	 */
@@ -362,7 +362,14 @@ public class RangeHistogramDataCruncher {
 			}
 			return converted;
 		} else if (value instanceof BigDecimal bd) {
-			return bd.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).intValue();
+			// mirror the Long branch's overflow guard: surface a clear error instead of the silent
+			// int wrap plain intValue() would produce for an out-of-range scaled value
+			final long scaled = bd.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).longValueExact();
+			final int converted = (int) scaled;
+			if (scaled != (long) converted) {
+				throw new ArithmeticException("int overflow: " + value);
+			}
+			return converted;
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unsupported range histogram threshold type: " + value.getClass().getName() +

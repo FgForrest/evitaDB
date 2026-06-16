@@ -295,7 +295,7 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 					"STANDARD overallCount must equal the " + ALL_RANGES.size() + " distinct seeded ranges"
 				);
 				assertTrue(
-					occurrenceSum(standard) != standard.getOverallCount(),
+					occurrenceSum(standard) > standard.getOverallCount(),
 					"STANDARD overlap bars must inflate the per-bucket sum (" + occurrenceSum(standard)
 						+ ") above the distinct overallCount (" + standard.getOverallCount() + ")"
 				);

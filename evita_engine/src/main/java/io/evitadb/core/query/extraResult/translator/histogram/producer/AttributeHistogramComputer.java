@@ -226,9 +226,18 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				return converted;
 			};
 		} else if (BigDecimal.class.isAssignableFrom(effectiveType)) {
-			converter = value -> ((BigDecimal) value).stripTrailingZeros()
-				.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
-				.intValue();
+			converter = value -> {
+				// mirror the Long branch's overflow guard and the documented int-range contract below:
+				// surface a clear error instead of silently wrapping an out-of-range scaled value
+				final long scaled = ((BigDecimal) value).stripTrailingZeros()
+					.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
+					.longValueExact();
+				final int converted = (int) scaled;
+				if (scaled != (long) converted) {
+					throw new ArithmeticException("int overflow: " + value);
+				}
+				return converted;
+			};
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unsupported histogram number type: " + schemaType +
