@@ -436,7 +436,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				referenceName -> ofNullable(this.referenceSummaryRequests.get(referenceName))
 					.map(ReferenceSummaryRequest::facetSorter)
 					.orElse(null),
-				referenceName -> resolveGroupEntityFetcher(referenceName, context)
+				referenceName -> resolveGroupEntityFetcher(referenceName, context),
+				this::resolveGroupPredicate
 			);
 		}
 		return resultAdapter.createResult(statisticsByReferenceName);
@@ -477,6 +478,40 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		final ReferenceSchemaContract referenceSchema = requests.get(0).referenceSchema();
 		return buildFromDefault(referenceSchema, new AtomicInteger())
 			.getGroupEntityFetcher(context, referenceSchema);
+	}
+
+	/**
+	 * Resolves the `filterGroupBy` predicate for the histogram accumulator, mirroring the
+	 * specific-or-default merge {@link #resolveGroupEntityFetcher} performs. Returns the predicate
+	 * cached on the explicit {@link ReferenceSummaryRequest} when one was registered for the
+	 * reference; otherwise derives it per-schema from {@link #defaultRequest}, the same fallback
+	 * {@link #mergeSpecificWithDefault} and {@link #buildFromDefault} apply during phase 1. This is
+	 * what lets the histogram path drop groups the caller did not select — the facet path already
+	 * applies this predicate in {@code accumulator()}. Returns {@code null} when no `filterGroupBy`
+	 * is in effect for the reference (no group filtering — every group passes).
+	 */
+	@Nullable
+	private IntPredicate resolveGroupPredicate(@Nonnull String referenceName) {
+		final ReferenceSummaryRequest specific = this.referenceSummaryRequests.get(referenceName);
+		if (specific != null) {
+			if (specific.groupPredicate() != null) {
+				return specific.groupPredicate();
+			}
+			return this.defaultRequest == null
+				? null
+				: applyToSchema(this.defaultRequest.groupPredicate(), specific.referenceSchema());
+		}
+		if (this.defaultRequest == null) {
+			return null;
+		}
+		// histogramRequests is the only place this producer keeps the reference schema for
+		// references not registered in referenceSummaryRequests — guaranteed to carry an entry
+		// because the accumulator only reaches this resolver while iterating its own keys.
+		final List<HistogramRequest> requests = this.histogramRequests.get(referenceName);
+		if (requests == null || requests.isEmpty()) {
+			return null;
+		}
+		return applyToSchema(this.defaultRequest.groupPredicate(), requests.get(0).referenceSchema());
 	}
 
 	/**
