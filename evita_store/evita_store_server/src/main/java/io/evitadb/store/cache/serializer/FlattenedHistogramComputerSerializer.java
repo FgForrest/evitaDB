@@ -56,6 +56,9 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		// non-attribute histograms (e.g. price histograms) do not supply raw bounds
 		kryo.writeClassAndObject(output, histogram.getRawMin());
 		kryo.writeClassAndObject(output, histogram.getRawMax());
+		// distinct-entity count stored explicitly — for range (overlap) histograms it differs from the
+		// bucket-occurrence sum, so it must survive the round-trip rather than being recomputed
+		output.writeVarInt(histogram.getOverallCount(), true);
 		final CacheableBucket[] buckets = histogram.getBuckets();
 		output.writeVarInt(buckets.length, true);
 		for (CacheableBucket bucket : buckets) {
@@ -73,6 +76,7 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		final BigDecimal max = kryo.readObject(input, BigDecimal.class);
 		final Serializable rawMin = (Serializable) kryo.readClassAndObject(input);
 		final Serializable rawMax = (Serializable) kryo.readClassAndObject(input);
+		final int overallCount = input.readVarInt(true);
 		final int bucketCount = input.readVarInt(true);
 		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
 		for(int i = 0; i < bucketCount; i++) {
@@ -84,7 +88,7 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 
 		return new FlattenedHistogramComputer(
 			originalHash, transactionalIdHash, bitmapIds,
-			new CacheableHistogram(buckets, max, rawMin, rawMax)
+			new CacheableHistogram(buckets, max, rawMin, rawMax, overallCount)
 		);
 	}
 

@@ -38,7 +38,6 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.Arrays;
 import java.util.function.Predicate;
 
 /**
@@ -83,6 +82,12 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	 * contract.
 	 */
 	@Nullable private final Serializable rawMax;
+	/**
+	 * Number of distinct entities covered by the histogram. For point and price histograms this equals the sum of
+	 * occurrences across all buckets; for range (overlap) histograms a single record may overlap multiple buckets,
+	 * so the distinct count is smaller than the bucket-occurrence sum and must be stored explicitly.
+	 */
+	private final int overallCount;
 
 	/**
 	 * Legacy constructor — delegates to the four-argument form with {@code null} raw bounds. Retained for callers
@@ -107,6 +112,26 @@ public class CacheableHistogram implements CacheableHistogramContract {
 		@Nullable Serializable rawMin,
 		@Nullable Serializable rawMax
 	) {
+		this(buckets, max, rawMin, rawMax, sumOccurrences(buckets));
+	}
+
+	/**
+	 * Constructor variant accepting an explicit `overallCount`. Used by range (overlap) histograms where a single
+	 * record may overlap multiple buckets, so the distinct-record count differs from the bucket-occurrence sum.
+	 *
+	 * @param buckets      non-empty array of buckets with strictly monotonic thresholds
+	 * @param max          inclusive right bound of the last bucket; must be `>= buckets[last].threshold()`
+	 * @param rawMin       native-typed smallest attribute value observed, or {@code null} when unavailable
+	 * @param rawMax       native-typed largest attribute value observed, or {@code null} when unavailable
+	 * @param overallCount number of distinct entities covered by the histogram
+	 */
+	public CacheableHistogram(
+		@Nonnull CacheableBucket[] buckets,
+		@Nonnull BigDecimal max,
+		@Nullable Serializable rawMin,
+		@Nullable Serializable rawMax,
+		int overallCount
+	) {
 		Assert.isTrue(!ArrayUtils.isEmpty(buckets), "Buckets may never be empty!");
 		Assert.isTrue(buckets[buckets.length - 1].threshold().compareTo(max) <= 0, "Last bucket must have threshold lower than max!");
 		CacheableBucket lastBucket = null;
@@ -121,6 +146,18 @@ public class CacheableHistogram implements CacheableHistogramContract {
 		this.max = max;
 		this.rawMin = rawMin;
 		this.rawMax = rawMax;
+		this.overallCount = overallCount;
+	}
+
+	/**
+	 * Sums the occurrences across all buckets — the point/price-histogram definition of overall count.
+	 */
+	private static int sumOccurrences(@Nonnull CacheableBucket[] buckets) {
+		int sum = 0;
+		for (final CacheableBucket bucket : buckets) {
+			sum += bucket.occurrences();
+		}
+		return sum;
 	}
 
 	@Nonnull
@@ -148,12 +185,13 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	}
 
 	/**
-	 * Returns the sum of occurrences across all buckets — the total number of entities covered by this histogram.
-	 * This is the raw cached value, not filtered by any query-time predicate.
+	 * Returns the number of distinct entities covered by this histogram. For point and price histograms this equals
+	 * the sum of bucket occurrences; for range (overlap) histograms it is the distinct-record count carried over from
+	 * the producer. This is the raw cached value, not filtered by any query-time predicate.
 	 */
 	@Override
 	public int getOverallCount() {
-		return Arrays.stream(this.buckets).mapToInt(CacheableBucket::occurrences).sum();
+		return this.overallCount;
 	}
 
 	@Override
@@ -176,11 +214,9 @@ public class CacheableHistogram implements CacheableHistogramContract {
 		@Nullable SealedEntity minReferencedEntity,
 		@Nullable SealedEntity maxReferencedEntity
 	) {
-		if (minReferencedEntity == null && maxReferencedEntity == null) {
-			return new Histogram(buildBuckets(requestedPredicate), this.max);
-		}
 		return new Histogram(
-			buildBuckets(requestedPredicate), this.max, minReferencedEntity, maxReferencedEntity
+			buildBuckets(requestedPredicate), this.max, this.overallCount,
+			minReferencedEntity, maxReferencedEntity
 		);
 	}
 

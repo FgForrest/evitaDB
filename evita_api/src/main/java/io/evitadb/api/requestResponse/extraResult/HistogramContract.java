@@ -112,8 +112,9 @@ public interface HistogramContract extends Serializable {
 	BigDecimal getMax();
 
 	/**
-	 * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
-	 * in the histogram.
+	 * Returns count of all distinct entities that are covered by this histogram. For point and price histograms
+	 * this equals the sum of occurrences across all buckets. For range (overlap) histograms a single record may
+	 * overlap several buckets, so the distinct entity count is smaller than the bucket-occurrence sum.
 	 */
 	int getOverallCount();
 

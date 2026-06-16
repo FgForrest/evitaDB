@@ -411,25 +411,45 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			final ValueToRecordBitmap[] histogramBuckets = computeNarrowedHistogramBuckets(
 				this, this.filterFormula, this.request.comparator()
 			);
-			final HistogramDataCruncherContract<?> histogramCruncher = createHistogramDataCruncher(
-				this, this.bucketCount, this.behavior, histogramBuckets
-			);
 
-			if (histogramCruncher != null) {
+			if (ArrayUtils.isEmpty(histogramBuckets)) {
+				this.memoizedResult = CacheableHistogramContract.EMPTY;
+			} else {
 				// capture raw (native-typed) min/max from the narrowed buckets so downstream callers (e.g.
 				// ReferenceHistogramAccumulator resolving boundary entities via FilterIndex.getRecordsEqualTo)
 				// can look up by the exact stored value without BigDecimal ↔ native-type coercion, which would
 				// lose precision for BigDecimal attributes whose stored scale exceeds indexedDecimalPlaces
 				final Serializable rawMin = histogramBuckets[0].getValue();
 				final Serializable rawMax = histogramBuckets[histogramBuckets.length - 1].getValue();
-				this.memoizedResult = new CacheableHistogram(
-					histogramCruncher.getHistogram(),
-					histogramCruncher.getMaxValue(),
-					rawMin,
-					rawMax
-				);
-			} else {
-				this.memoizedResult = CacheableHistogramContract.EMPTY;
+				// range-typed schemas render overlap histograms: a record whose value-range spans
+				// several buckets must contribute to each of them as a single distinct occurrence, and the
+				// overall count is the distinct-record cardinality — not the inflated per-threshold sum that the
+				// point-oriented HistogramDataCruncher would produce
+				final boolean rangeTyped = EvitaDataTypes.resolveRangeInnerNumericType(
+					this.request.attributeSchema().getType()
+				) != null;
+				if (rangeTyped) {
+					final RangeHistogramDataCruncher rangeCruncher = new RangeHistogramDataCruncher(
+						histogramBuckets, this.bucketCount, this.request.getDecimalPlaces()
+					);
+					this.memoizedResult = new CacheableHistogram(
+						rangeCruncher.getHistogram(),
+						rangeCruncher.getMaxValue(),
+						rawMin,
+						rawMax,
+						rangeCruncher.getOverallCount()
+					);
+				} else {
+					final HistogramDataCruncherContract<?> histogramCruncher = createHistogramDataCruncher(
+						this, this.bucketCount, this.behavior, histogramBuckets
+					);
+					this.memoizedResult = new CacheableHistogram(
+						Objects.requireNonNull(histogramCruncher).getHistogram(),
+						histogramCruncher.getMaxValue(),
+						rawMin,
+						rawMax
+					);
+				}
 			}
 
 			ofNullable(this.onComputationCallback).ifPresent(it -> it.accept(this));
