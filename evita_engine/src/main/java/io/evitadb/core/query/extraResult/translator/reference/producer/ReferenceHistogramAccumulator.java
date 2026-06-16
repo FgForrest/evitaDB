@@ -72,6 +72,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -151,6 +152,10 @@ final class ReferenceHistogramAccumulator {
 	 *                                          facet-bearing groups produced by the first fabrication phase.
 	 *                                          Returns {@code null} when no fetcher is available — the accumulator
 	 *                                          then falls back to a bare {@link EntityReference}.
+	 * @param groupPredicateByReferenceName  resolves the per-reference `filterGroupBy` predicate so the histogram
+	 *                                       path drops groups the caller did not select — mirroring the facet path's
+	 *                                       group filtering. Returns {@code null} when no `filterGroupBy` was supplied
+	 *                                       for the reference, which means "no group filtering" (every group passes).
 	 */
 	@Nonnull
 	static <T extends ReferenceGroupStatistics> Map<String, Collection<T>> injectHistograms(
@@ -160,7 +165,8 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull QueryExecutionContext context,
 		@Nonnull ReferenceSummaryResultAdapter<T> resultAdapter,
 		@Nonnull Function<String, NestedContextSorter> facetSorterByReferenceName,
-		@Nonnull Function<String, Function<int[], EntityClassifier[]>> groupEntityFetcherByReferenceName
+		@Nonnull Function<String, Function<int[], EntityClassifier[]>> groupEntityFetcherByReferenceName,
+		@Nonnull Function<String, IntPredicate> groupPredicateByReferenceName
 	) {
 		final Map<String, Collection<T>> result = createLinkedHashMap(statisticsByReferenceName.size());
 		result.putAll(statisticsByReferenceName);
@@ -175,9 +181,11 @@ final class ReferenceHistogramAccumulator {
 			final Collection<T> existing = result.getOrDefault(referenceName, List.of());
 			final NestedContextSorter facetSorter = facetSorterByReferenceName.apply(referenceName);
 			final Function<int[], EntityClassifier[]> groupEntityFetcher = groupEntityFetcherByReferenceName.apply(referenceName);
+			final IntPredicate groupPredicate = groupPredicateByReferenceName.apply(referenceName);
 			final Collection<T> rebuilt = computeForReference(
 				referenceSchema, requests, existing,
-				attributeHistogramBaselineFormula, context, resultAdapter, facetSorter, groupEntityFetcher
+				attributeHistogramBaselineFormula, context, resultAdapter, facetSorter, groupEntityFetcher,
+				groupPredicate
 			);
 			result.put(referenceName, rebuilt);
 		}
@@ -206,7 +214,8 @@ final class ReferenceHistogramAccumulator {
 		@Nonnull QueryExecutionContext context,
 		@Nonnull ReferenceSummaryResultAdapter<T> resultAdapter,
 		@Nullable NestedContextSorter facetSorter,
-		@Nullable Function<int[], EntityClassifier[]> groupEntityFetcher
+		@Nullable Function<int[], EntityClassifier[]> groupEntityFetcher,
+		@Nullable IntPredicate groupPredicate
 	) {
 		final boolean grouped = referenceSchema.getReferencedGroupType() != null
 			&& referenceSchema.isReferencedGroupTypeManaged();
@@ -260,7 +269,7 @@ final class ReferenceHistogramAccumulator {
 				if (grouped) {
 					collectGroupedPending(
 						resolvedReq, entityType, referenceName, scope,
-						attributeHistogramBaselineFormula, context, facetSorter, pending
+						attributeHistogramBaselineFormula, context, facetSorter, groupPredicate, pending
 					);
 				} else {
 					collectNonGroupedPending(
@@ -299,6 +308,11 @@ final class ReferenceHistogramAccumulator {
 	 * Collects a pending histogram per {@link ReducedGroupEntityIndex} tracked by the reference's
 	 * {@code REFERENCED_GROUP_ENTITY_TYPE} index in the given scope. Iterates all known group PKs
 	 * and their per-group storage indexes.
+	 *
+	 * When a {@code groupPredicate} is supplied (the caller attached a `filterGroupBy` to the
+	 * enclosing `referenceSummaryOfReference`), group PKs that fail the predicate are skipped — the
+	 * same group selection the facet path applies, so the histogram path never emits histograms for
+	 * groups the caller did not request. A {@code null} predicate means "no group filtering".
 	 */
 	private static void collectGroupedPending(
 		@Nonnull ResolvedRequest resolved,
@@ -308,6 +322,7 @@ final class ReferenceHistogramAccumulator {
 		@Nullable Formula attributeHistogramBaselineFormula,
 		@Nonnull QueryExecutionContext context,
 		@Nullable NestedContextSorter facetSorter,
+		@Nullable IntPredicate groupPredicate,
 		@Nonnull List<PendingHistogram> pending
 	) {
 		final EntityIndexKey rteiKey = new EntityIndexKey(
@@ -336,6 +351,11 @@ final class ReferenceHistogramAccumulator {
 					"Group primary key must be non-zero — PK `0` is reserved as the non-grouped " +
 						"sentinel. Got: 0 for reference `" + referenceName + "`."
 				);
+			}
+			// honour the enclosing referenceSummary's `filterGroupBy`: a group failing the predicate
+			// is intentional filtering (the caller did not select it), mirroring the facet path
+			if (groupPredicate != null && !groupPredicate.test(groupPk)) {
+				continue;
 			}
 			final int[] rgeiPks = rtei.getAllReferenceIndexes(groupPk);
 			for (final int rgeiPk : rgeiPks) {
