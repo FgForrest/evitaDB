@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.histogram;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
@@ -35,12 +36,12 @@ import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.NavigableSet;
-import java.util.TreeSet;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -108,6 +109,43 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 		return histogram;
 	}
 
+	/**
+	 * Behavior-aware sibling of {@link #queryGroupHistogram(EvitaSessionContract, String, int)}: threads an explicit
+	 * {@link HistogramBehavior} into the `histogramStatistics(int, HistogramBehavior, String...)` require clause so the
+	 * caller can probe the routing fork inside
+	 * {@code AttributeHistogramComputer} — `STANDARD`/`OPTIMIZED` reach `RangeHistogramDataCruncher` (distinct-overlap
+	 * bars) while `EQUALIZED`/`EQUALIZED_OPTIMIZED` reach `EqualizedHistogramDataCruncher` fed the same range sweep.
+	 */
+	@Nonnull
+	private static HistogramContract queryGroupHistogram(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String histogramName,
+		int requestedBucketCount,
+		@Nonnull HistogramBehavior behavior
+	) {
+		final EvitaResponse<EntityReferenceContract> result = session.query(
+			query(
+				collection(ENTITY_PRODUCT),
+				require(
+					page(1, Integer.MAX_VALUE),
+					referenceSummaryOfReferenceWithHistograms(
+						REF_PARAM_VALUES, null, null, null,
+						histogramStatistics(requestedBucketCount, behavior, histogramName)
+					)
+				)
+			),
+			EntityReferenceContract.class
+		);
+		final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+		assertNotNull(referenceSummary, "ReferenceSummary must be present in the response");
+		final ReferenceGroupStatistics group =
+			referenceSummary.getReferenceGroupStatistics(REF_PARAM_VALUES, RANGE_GROUP_PK);
+		assertNotNull(group, "Group " + RANGE_GROUP_PK + " must exist");
+		final HistogramContract histogram = group.getHistogramStatistics(histogramName);
+		assertNotNull(histogram, "Histogram '" + histogramName + "' must exist for group " + RANGE_GROUP_PK);
+		return histogram;
+	}
+
 	@Test
 	@UseDataSet(REFERENCE_HISTOGRAM_RANGE)
 	@DisplayName("should populate range histogram with bounded totals and monotonic thresholds")
@@ -149,14 +187,15 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 					"max " + histogram.getMax() + " must be <= 35"
 				);
 
-				// Range-overlap accounting: each PV must be counted at every distinct range
-				// endpoint its `[from, to]` covers (four overlapping ranges in `[10, 35]` yield
-				// 12 attributions, not 4). The oracle re-derives the expected per-bucket counts
+				// Range-overlap accounting: each PV's `[from, to]` renders a solid bar —
+				// it contributes a single distinct occurrence to every bucket interval its range
+				// overlaps. The overall count is the number of distinct seeded ranges (4), not the
+				// inflated per-endpoint sum. The oracle re-derives the expected per-bucket counts
 				// independently from the seeded ranges — plain integer math, never the histogram
 				// engine — and asserts the engine matches bucket-for-bucket.
-				assertTrue(
-					histogram.getOverallCount() > 0,
-					"overallCount must be positive when the histogram has buckets"
+				assertEquals(
+					ALL_RANGES.size(), histogram.getOverallCount(),
+					"overallCount must equal the " + ALL_RANGES.size() + " distinct seeded ranges"
 				);
 				assertBucketsMatchOverlapOracle(histogram, ALL_RANGES);
 			}
@@ -198,11 +237,11 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 				// The oracle is fed only the active ranges (PV 4 removed), so the independently
 				// derived per-bucket counts already exclude PV 4. A bucket-for-bucket match proves
 				// the filter removes PV 4's contributions without dropping or double-counting the
-				// surviving PVs — a real check, unlike the former `Σ occurrences == overallCount`
-				// which compared the sum to its own definition.
-				assertTrue(
-					histogram.getOverallCount() > 0,
-					"overallCount must be positive when surviving PVs cover the range"
+				// surviving PVs, and the overall count drops to the 3 distinct surviving ranges.
+				assertEquals(
+					ACTIVE_RANGES.size(), histogram.getOverallCount(),
+					"overallCount must drop to the " + ACTIVE_RANGES.size()
+						+ " distinct surviving ranges after PV 4 is deactivated"
 				);
 				assertBucketsMatchOverlapOracle(histogram, ACTIVE_RANGES);
 			}
@@ -227,6 +266,90 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 						queryGroupHistogram(session, HISTOGRAM_RANGE, requested);
 					assertBucketsMatchOverlapOracle(histogram, ALL_RANGES);
 				}
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(REFERENCE_HISTOGRAM_RANGE)
+	@DisplayName("should report distinct overallCount under STANDARD but stop-sum under EQUALIZED")
+	void shouldReportDistinctOverallCountForRangeStandardButStopSumForEqualized(@Nonnull Evita evita) {
+		// Probes the routing fork in AttributeHistogramComputer over the IDENTICAL source histogram and bucket
+		// count. STANDARD reaches RangeHistogramDataCruncher (overlap bars): overallCount is the count of DISTINCT
+		// seeded ranges (4) and the per-bucket overlap sum exceeds it because every range is counted in each bucket
+		// it spans. EQUALIZED reaches EqualizedHistogramDataCruncher fed the same range sweep: each range is
+		// accounted at every global stop its `[from, to]` covers (the rolling active set), so overallCount is the
+		// stop-sum and equals the per-bucket occurrence sum. The value span `[10, 35]` is identical across both
+		// because both consume the same sweep endpoints.
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HistogramContract standard =
+					queryGroupHistogram(session, HISTOGRAM_RANGE, 10, HistogramBehavior.STANDARD);
+				final HistogramContract equalized =
+					queryGroupHistogram(session, HISTOGRAM_RANGE, 10, HistogramBehavior.EQUALIZED);
+
+				// STANDARD — distinct-overlap contract
+				assertEquals(
+					ALL_RANGES.size(), standard.getOverallCount(),
+					"STANDARD overallCount must equal the " + ALL_RANGES.size() + " distinct seeded ranges"
+				);
+				assertTrue(
+					occurrenceSum(standard) > standard.getOverallCount(),
+					"STANDARD overlap bars must inflate the per-bucket sum (" + occurrenceSum(standard)
+						+ ") above the distinct overallCount (" + standard.getOverallCount() + ")"
+				);
+
+				// EQUALIZED — stop-sum / point contract
+				assertEquals(
+					RANGE_STOP_SUM, equalized.getOverallCount(),
+					"EQUALIZED overallCount must equal the range-sweep stop-sum " + RANGE_STOP_SUM
+				);
+				assertEquals(
+					equalized.getOverallCount(), occurrenceSum(equalized),
+					"EQUALIZED per-bucket occurrences must sum to its stop-sum overallCount"
+				);
+
+				// the value span is identical — both behaviors consume the same sweep endpoints [10, 35]
+				assertEquals(
+					0, standard.getMin().compareTo(equalized.getMin()),
+					"min must be identical across STANDARD and EQUALIZED — both span the same sweep endpoints"
+				);
+				assertEquals(
+					0, standard.getMax().compareTo(equalized.getMax()),
+					"max must be identical across STANDARD and EQUALIZED — both span the same sweep endpoints"
+				);
+				assertEquals(
+					0, standard.getMin().compareTo(BigDecimal.valueOf(10)), "span must start at 10"
+				);
+				assertEquals(
+					0, standard.getMax().compareTo(BigDecimal.valueOf(35)), "span must end at 35"
+				);
+			}
+		);
+	}
+
+	@ParameterizedTest(name = "behavior={0}")
+	@EnumSource(HistogramBehavior.class)
+	@UseDataSet(REFERENCE_HISTOGRAM_RANGE)
+	@DisplayName("should apply the per-behavior overallCount rule for the range source")
+	void shouldApplyPerBehaviorOverallCountRuleForRangeSource(
+		@Nonnull HistogramBehavior behavior, @Nonnull Evita evita
+	) {
+		// Sweeps every HistogramBehavior over the same range source and bucket count, asserting the routing fork's
+		// per-behavior overallCount rule: the equal-width family (STANDARD/OPTIMIZED) renders distinct-overlap bars
+		// whose overallCount is the DISTINCT seeded-range count (4), whereas the frequency-equalised family
+		// (EQUALIZED/EQUALIZED_OPTIMIZED) accounts each range at every covered stop, yielding the stop-sum (12). The
+		// equalised family additionally satisfies the point-histogram invariant sum(occurrences) == overallCount;
+		// the overlap family does NOT and is intentionally exempt. The gap-dropping *_OPTIMIZED behaviors
+		// (OPTIMIZED / EQUALIZED_OPTIMIZED) may emit fewer buckets, so only the overallCount rule (not a fixed
+		// bucket count) is asserted.
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final HistogramContract histogram =
+					queryGroupHistogram(session, HISTOGRAM_RANGE, 10, behavior);
+				assertEqualisedAware(histogram, behavior);
 			}
 		);
 	}
@@ -263,15 +386,35 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 		.toList();
 
 	/**
-	 * Number of supplied ranges whose closed interval `[from, to]` contains {@code endpoint}.
-	 * Mirrors the closed-interval semantics of {@code FilterIndex#getRangeHistogramOfAllRecords}:
-	 * a record's `starts` join the active set before the threshold bucket is snapshotted and its
-	 * `ends` leave only afterwards, so a range is counted at both its lower and upper endpoint.
+	 * Independently re-derived stop-sum for the frequency-equalised range path: the sum, over every distinct
+	 * range-sweep stop, of the number of seeded ranges whose closed interval `[from, to]` covers that stop.
+	 *
+	 * The seeded ranges are `[10, 20]`, `[15, 25]`, `[20, 30]`, `[25, 35]`, giving the distinct stops
+	 * `10, 15, 20, 25, 30, 35` with active-set sizes `1, 2, 3, 3, 2, 1` respectively, so the stop-sum is
+	 * `1 + 2 + 3 + 3 + 2 + 1 = 12`. This is the `overallCount` the EQUALIZED / EQUALIZED_OPTIMIZED behaviors must
+	 * report (each range accounted at every covered stop), as opposed to the distinct-range count `4` reported by
+	 * the STANDARD / OPTIMIZED overlap path. Derived here by hand, never read from the histogram engine.
 	 */
-	private static int overlapCount(int endpoint, @Nonnull List<SeededRange> ranges) {
+	private static final int RANGE_STOP_SUM = 12;
+
+	/**
+	 * Number of supplied ranges whose closed interval `[from, to]` OVERLAPS the bucket interval
+	 * `[lower, upper)` — or, for the last bucket, the closed interval `[lower, max]`.
+	 *
+	 * Overlap semantics: a range `[from, to]` overlaps a half-open bucket `[lower, upper)` iff
+	 * `from < upper AND to >= lower`; it overlaps the closed last bucket `[lower, max]` iff
+	 * `from <= max AND to >= lower`. Each overlapping range contributes exactly one distinct
+	 * occurrence to the bucket regardless of how much of the bucket it covers.
+	 */
+	private static int overlapCount(
+		int lower, int upper, boolean lastBucket, @Nonnull List<SeededRange> ranges
+	) {
 		int count = 0;
 		for (final SeededRange range : ranges) {
-			if (range.from() <= endpoint && endpoint <= range.to()) {
+			final boolean overlaps = lastBucket
+				? range.from() <= upper && range.to() >= lower
+				: range.from() < upper && range.to() >= lower;
+			if (overlaps) {
 				count++;
 			}
 		}
@@ -282,12 +425,13 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 	 * Independently re-derives the expected per-bucket occurrences from the seeded {@code ranges}
 	 * and asserts the histogram the engine produced matches bucket-for-bucket.
 	 *
-	 * The model: each distinct range endpoint `E` carries weight {@link #overlapCount(int, List)}
-	 * (how many ranges cover it); the cruncher sums those weights into whichever emitted bucket
-	 * interval contains `E`. Intervals are half-open `[thresholdᵢ, thresholdᵢ₊₁)`, except the last,
-	 * which is closed `[thresholdₙ₋₁, max]`. The re-bucketing uses only plain integer math and the
-	 * emitted thresholds — it never calls the histogram engine — so a match proves every range was
-	 * accounted into every bucket its endpoints fall in, with no drops and no double-counts.
+	 * The model: each seeded range `[from, to]` renders a solid bar — it contributes a single distinct
+	 * occurrence to every emitted bucket interval its range overlaps. Intervals are half-open
+	 * `[thresholdᵢ, thresholdᵢ₊₁)`, except the last, which is closed `[thresholdₙ₋₁, max]`. The
+	 * re-derivation uses only plain integer math and the emitted thresholds — it never calls the
+	 * histogram engine — so a match proves the engine counts distinct overlapping ranges per bucket
+	 * with no drops and no double-counts. The overall count must equal the number of distinct seeded
+	 * ranges, NOT the sum of per-bucket occurrences.
 	 */
 	private static void assertBucketsMatchOverlapOracle(
 		@Nonnull HistogramContract histogram,
@@ -295,43 +439,73 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 	) {
 		final Bucket[] buckets = histogram.getBuckets();
 		final BigDecimal max = histogram.getMax();
-		// distinct integer endpoints of the surviving ranges, ascending
-		final NavigableSet<Integer> endpoints = new TreeSet<>();
-		for (final SeededRange range : ranges) {
-			endpoints.add(range.from());
-			endpoints.add(range.to());
-		}
-		int independentTotal = 0;
 		for (int i = 0; i < buckets.length; i++) {
 			final BigDecimal lower = buckets[i].threshold();
 			final boolean last = i == buckets.length - 1;
 			final BigDecimal upper = last ? max : buckets[i + 1].threshold();
-			int expected = 0;
-			for (final int endpoint : endpoints) {
-				final BigDecimal value = BigDecimal.valueOf(endpoint);
-				final boolean atOrAboveLower = value.compareTo(lower) >= 0;
-				// half-open upper bound for every bucket but the last, which owns `max` inclusively
-				final boolean belowUpper = last
-					? value.compareTo(upper) <= 0
-					: value.compareTo(upper) < 0;
-				if (atOrAboveLower && belowUpper) {
-					expected += overlapCount(endpoint, ranges);
-				}
-			}
+			// thresholds are integer-valued for the seeded integer ranges; intValueExact guards against
+			// any unexpected fractional grid emitted by the engine
+			final int expected = overlapCount(
+				lower.intValueExact(), upper.intValueExact(), last, ranges
+			);
 			assertEquals(
 				expected, buckets[i].occurrences(),
 				"Bucket " + (last ? "[" + lower + ", " + max + "]" : "[" + lower + ", " + upper + ")")
-					+ " must count every seeded range overlapping each endpoint it contains"
+					+ " must count every distinct seeded range overlapping it"
 			);
-			independentTotal += expected;
 		}
-		// Independent total cross-check. This replaces the former `Σ occurrences == overallCount`
-		// tautology — `getOverallCount()` is *defined* as that sum, so the old assertion compared a
-		// value to itself. Here the total is derived from the seeded ranges, so equality is real.
+		// distinct seeded ranges — the overlap-histogram overall count, independent of the per-bucket sum
 		assertEquals(
-			independentTotal, histogram.getOverallCount(),
-			"overallCount must equal the independently derived total attribution count"
+			ranges.size(), histogram.getOverallCount(),
+			"overallCount must equal the number of distinct seeded ranges"
 		);
+	}
+
+	/**
+	 * Sums the per-bucket occurrences of `histogram`.
+	 */
+	private static int occurrenceSum(@Nonnull HistogramContract histogram) {
+		int sum = 0;
+		for (final Bucket bucket : histogram.getBuckets()) {
+			sum += bucket.occurrences();
+		}
+		return sum;
+	}
+
+	/**
+	 * Asserts the per-behavior `overallCount` rule for the range source, branching on the histogram family rather
+	 * than applying one oracle to both.
+	 *
+	 * - Equal-width family (`STANDARD`, `OPTIMIZED`) — DISTINCT-OVERLAP semantics: `overallCount` equals the number
+	 *   of distinct seeded ranges ({@link #ALL_RANGES}`.size()` = 4) and the per-bucket occurrence sum is allowed
+	 *   to exceed it (each range is counted in every bucket it overlaps). The distinct-overlap bucket oracle
+	 *   {@link #assertBucketsMatchOverlapOracle} is applied here.
+	 * - Frequency-equalised family (`EQUALIZED`, `EQUALIZED_OPTIMIZED`) — STOP-SUM / point semantics: `overallCount`
+	 *   equals {@link #RANGE_STOP_SUM} (12) and the per-bucket occurrences sum exactly to it. The overlap oracle is
+	 *   deliberately NOT applied — it encodes distinct-overlap semantics and would falsely fail the equalised path.
+	 */
+	private static void assertEqualisedAware(
+		@Nonnull HistogramContract histogram, @Nonnull HistogramBehavior behavior
+	) {
+		final boolean equalised = behavior == HistogramBehavior.EQUALIZED
+			|| behavior == HistogramBehavior.EQUALIZED_OPTIMIZED;
+		if (equalised) {
+			assertEquals(
+				RANGE_STOP_SUM, histogram.getOverallCount(),
+				"equalised behavior " + behavior + " overallCount must equal the stop-sum " + RANGE_STOP_SUM
+			);
+			assertEquals(
+				histogram.getOverallCount(), occurrenceSum(histogram),
+				"equalised behavior " + behavior + " per-bucket occurrences must sum to overallCount"
+			);
+		} else {
+			assertEquals(
+				ALL_RANGES.size(), histogram.getOverallCount(),
+				"overlap behavior " + behavior + " overallCount must equal the " + ALL_RANGES.size()
+					+ " distinct seeded ranges"
+			);
+			assertBucketsMatchOverlapOracle(histogram, ALL_RANGES);
+		}
 	}
 
 }

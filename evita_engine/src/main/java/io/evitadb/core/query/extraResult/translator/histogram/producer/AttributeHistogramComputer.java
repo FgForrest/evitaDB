@@ -226,9 +226,18 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				return converted;
 			};
 		} else if (BigDecimal.class.isAssignableFrom(effectiveType)) {
-			converter = value -> ((BigDecimal) value).stripTrailingZeros()
-				.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
-				.intValue();
+			converter = value -> {
+				// mirror the Long branch's overflow guard and the documented int-range contract below:
+				// surface a clear error instead of silently wrapping an out-of-range scaled value
+				final long scaled = ((BigDecimal) value).stripTrailingZeros()
+					.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
+					.longValueExact();
+				final int converted = (int) scaled;
+				if (scaled != (long) converted) {
+					throw new ArithmeticException("int overflow: " + value);
+				}
+				return converted;
+			};
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unsupported histogram number type: " + schemaType +
@@ -411,25 +420,52 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			final ValueToRecordBitmap[] histogramBuckets = computeNarrowedHistogramBuckets(
 				this, this.filterFormula, this.request.comparator()
 			);
-			final HistogramDataCruncherContract<?> histogramCruncher = createHistogramDataCruncher(
-				this, this.bucketCount, this.behavior, histogramBuckets
-			);
 
-			if (histogramCruncher != null) {
+			if (ArrayUtils.isEmpty(histogramBuckets)) {
+				this.memoizedResult = CacheableHistogramContract.EMPTY;
+			} else {
 				// capture raw (native-typed) min/max from the narrowed buckets so downstream callers (e.g.
 				// ReferenceHistogramAccumulator resolving boundary entities via FilterIndex.getRecordsEqualTo)
 				// can look up by the exact stored value without BigDecimal ↔ native-type coercion, which would
 				// lose precision for BigDecimal attributes whose stored scale exceeds indexedDecimalPlaces
 				final Serializable rawMin = histogramBuckets[0].getValue();
 				final Serializable rawMax = histogramBuckets[histogramBuckets.length - 1].getValue();
-				this.memoizedResult = new CacheableHistogram(
-					histogramCruncher.getHistogram(),
-					histogramCruncher.getMaxValue(),
-					rawMin,
-					rawMax
-				);
-			} else {
-				this.memoizedResult = CacheableHistogramContract.EMPTY;
+				// the equal-width range behaviors (STANDARD, OPTIMIZED) render overlap histograms: a record whose
+				// value-range spans several buckets contributes a single distinct occurrence to each, and the overall
+				// count is the distinct-record cardinality — not the inflated per-threshold sum the point-oriented
+				// HistogramDataCruncher would produce. OPTIMIZED additionally widens the grid to drop empty coverage
+				// gaps. The frequency-equalised behaviors (EQUALIZED, EQUALIZED_OPTIMIZED) deliberately fall through
+				// to the point/equalised path below: fed the range sweep, EqualizedHistogramDataCruncher accounts
+				// each record at every global stop its range covers (the sweep's rolling active set), which yields the
+				// fixed total mass cumulative-frequency equalisation requires — something overlap counting, whose
+				// bucket-occurrence sum varies with the grid, cannot provide
+				final boolean rangeTyped = EvitaDataTypes.resolveRangeInnerNumericType(
+					this.request.attributeSchema().getType()
+				) != null;
+				final boolean overlapBehavior = this.behavior == HistogramBehavior.STANDARD
+					|| this.behavior == HistogramBehavior.OPTIMIZED;
+				if (rangeTyped && overlapBehavior) {
+					final RangeHistogramDataCruncher rangeCruncher = new RangeHistogramDataCruncher(
+						histogramBuckets, this.bucketCount, this.request.getDecimalPlaces(), this.behavior
+					);
+					this.memoizedResult = new CacheableHistogram(
+						rangeCruncher.getHistogram(),
+						rangeCruncher.getMaxValue(),
+						rawMin,
+						rawMax,
+						rangeCruncher.getOverallCount()
+					);
+				} else {
+					final HistogramDataCruncherContract<?> histogramCruncher = createHistogramDataCruncher(
+						this, this.bucketCount, this.behavior, histogramBuckets
+					);
+					this.memoizedResult = new CacheableHistogram(
+						Objects.requireNonNull(histogramCruncher).getHistogram(),
+						histogramCruncher.getMaxValue(),
+						rawMin,
+						rawMax
+					);
+				}
 			}
 
 			ofNullable(this.onComputationCallback).ifPresent(it -> it.accept(this));

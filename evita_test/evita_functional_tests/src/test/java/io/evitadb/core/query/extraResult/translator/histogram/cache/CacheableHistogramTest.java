@@ -261,6 +261,52 @@ class CacheableHistogramTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Explicit overall count")
+	class ExplicitOverallCount {
+
+		@Test
+		@DisplayName("should retain an explicit overall count distinct from the bucket sum")
+		void shouldRetainExplicitOverallCountDistinctFromBucketSum() {
+			// buckets sum to 3 + 5 + 2 = 10, but the range (overlap) histogram carries 4 distinct records
+			final CacheableBucket[] buckets = new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal("1"), 3, new BigDecimal("30")),
+				new CacheableBucket(new BigDecimal("5"), 5, new BigDecimal("50")),
+				new CacheableBucket(new BigDecimal("10"), 2, new BigDecimal("20"))
+			};
+			final int explicitOverallCount = 4;
+			final CacheableHistogram histogram = new CacheableHistogram(
+				buckets, new BigDecimal("20"), null, null, explicitOverallCount
+			);
+
+			assertEquals(
+				explicitOverallCount, histogram.getOverallCount(),
+				"explicit overall count must be returned verbatim, not the bucket sum"
+			);
+		}
+
+		@Test
+		@DisplayName("should carry the explicit overall count through convertToHistogram")
+		void shouldCarryExplicitOverallCountThroughConvertToHistogram() {
+			final CacheableBucket[] buckets = new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal("1"), 3, new BigDecimal("30")),
+				new CacheableBucket(new BigDecimal("5"), 5, new BigDecimal("50")),
+				new CacheableBucket(new BigDecimal("10"), 2, new BigDecimal("20"))
+			};
+			final int explicitOverallCount = 4;
+			final CacheableHistogram histogram = new CacheableHistogram(
+				buckets, new BigDecimal("20"), null, null, explicitOverallCount
+			);
+
+			final HistogramContract converted = histogram.convertToHistogram(NEVER_REQUESTED);
+
+			assertEquals(
+				explicitOverallCount, converted.getOverallCount(),
+				"convertToHistogram must propagate the explicit distinct count, not recompute the bucket sum"
+			);
+		}
+	}
+
 	/**
 	 * `CacheableHistogram` is serialized into the extra-result cache. This test pins one invariant:
 	 * Java serialization round-trips preserve equality so cache deserialization reconstructs the

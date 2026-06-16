@@ -168,8 +168,11 @@ public interface CacheableHistogramContract extends Serializable {
 	}
 
 	/**
-	 * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
-	 * in the histogram.
+	 * Returns the number of entities represented by this histogram. For point and price histograms, and for range
+	 * histograms under the frequency-equalised behaviors (`EQUALIZED` / `EQUALIZED_OPTIMIZED`), this equals the sum of
+	 * occurrences across all buckets. For range histograms under the overlap behaviors (`STANDARD` / `OPTIMIZED`) a
+	 * single record may overlap several buckets, so this is the distinct entity count, which is smaller than the
+	 * bucket-occurrence sum.
 	 */
 	int getOverallCount();
 
