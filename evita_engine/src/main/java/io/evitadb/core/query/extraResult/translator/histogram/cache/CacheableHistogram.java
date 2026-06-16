@@ -83,9 +83,11 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	 */
 	@Nullable private final Serializable rawMax;
 	/**
-	 * Number of distinct entities covered by the histogram. For point and price histograms this equals the sum of
-	 * occurrences across all buckets; for range (overlap) histograms a single record may overlap multiple buckets,
-	 * so the distinct count is smaller than the bucket-occurrence sum and must be stored explicitly.
+	 * Number of entities represented by the histogram. For point and price histograms, and for range histograms
+	 * under the frequency-equalised behaviors (`EQUALIZED` / `EQUALIZED_OPTIMIZED`), this equals the sum of
+	 * occurrences across all buckets; for range histograms under the overlap behaviors (`STANDARD` / `OPTIMIZED`) a
+	 * single record may overlap multiple buckets, so this is the distinct count — smaller than the bucket-occurrence
+	 * sum — and must be stored explicitly.
 	 */
 	private final int overallCount;
 
@@ -185,9 +187,11 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	}
 
 	/**
-	 * Returns the number of distinct entities covered by this histogram. For point and price histograms this equals
-	 * the sum of bucket occurrences; for range (overlap) histograms it is the distinct-record count carried over from
-	 * the producer. This is the raw cached value, not filtered by any query-time predicate.
+	 * Returns the number of entities represented by this histogram. For point and price histograms, and for range
+	 * histograms under the frequency-equalised behaviors (`EQUALIZED` / `EQUALIZED_OPTIMIZED`), this equals the sum of
+	 * bucket occurrences; for range histograms under the overlap behaviors (`STANDARD` / `OPTIMIZED`) it is the
+	 * distinct-record count carried over from the producer. This is the raw cached value, not filtered by any
+	 * query-time predicate.
 	 */
 	@Override
 	public int getOverallCount() {

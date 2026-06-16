@@ -606,6 +606,38 @@ class RangeHistogramDataCruncherTest {
 	}
 
 	@Test
+	@DisplayName("OPTIMIZED gap-widening does not overflow for an extreme Integer value span")
+	void shouldNotOverflowGapSpanUnderOptimizedForExtremeIntegerRange() {
+		// R1 occupies the two lowest buckets, R2 the two highest, leaving a six-bucket empty run across the middle
+		// of the full [Integer.MIN_VALUE, Integer.MAX_VALUE] span. That run triggers the OPTIMIZED gap-widening
+		// branch, where the bracketing bucket keys differ by more than Integer.MAX_VALUE: an int subtraction there
+		// would wrap negative, drive recomputedStep below zero and silently collapse the grid to two buckets. With
+		// the operands widened to double the heuristic widens the grid sanely (here to four buckets) instead.
+		final ValueToRecordBitmap[] source = {
+			bucket(Integer.MIN_VALUE, 1),
+			bucket(-1_500_000_000, 1),
+			bucket(1_500_000_000, 2),
+			bucket(Integer.MAX_VALUE, 2)
+		};
+
+		final RangeHistogramDataCruncher optimizedCruncher = new RangeHistogramDataCruncher(
+			source, 10, 0, HistogramBehavior.OPTIMIZED
+		);
+		final CacheableBucket[] optimized = optimizedCruncher.getHistogram();
+
+		assertTrue(
+			optimized.length > 2,
+			"OPTIMIZED must widen the grid sanely, not collapse to two buckets through int overflow — got "
+				+ optimized.length
+		);
+		assertEquals(2, optimizedCruncher.getOverallCount(), "overallCount stays the two distinct records");
+		assertEquals(
+			0, optimizedCruncher.getMaxValue().compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)),
+			"max must equal Integer.MAX_VALUE without truncation"
+		);
+	}
+
+	@Test
 	@DisplayName("OPTIMIZED still emits a single bucket for a degenerate single-value span")
 	void shouldEmitSingleBucketForDegenerateSpanEvenUnderOptimized() {
 		// every threshold collapses onto key 7 (minKey == maxKey); the degenerate-span early return fires before

@@ -333,10 +333,11 @@ public class RangeHistogramDataCruncher {
 		if (bucketCount - emptyColumns <= 2) {
 			return 2;
 		} else if (emptyColumns >= 2) {
-			// widen each operand to double before subtracting so the full int range does not overflow first
+			// widen each operand to double before subtracting so the full int range does not overflow first —
+			// this applies to both the overall span and the empty-gap span bracketed by spanStartKey/spanEndKey
 			final double span = (double) maxKey - (double) minKey;
 			final double optimalStep = span / bucketCount;
-			final double recomputedStep = optimalStep + (spanEndKey - spanStartKey) / 2.0;
+			final double recomputedStep = optimalStep + ((double) spanEndKey - (double) spanStartKey) / 2.0;
 			final int newBucketCount = (int) Math.floor(span / recomputedStep) + 2;
 			return Math.max(2, Math.min(newBucketCount, bucketCount));
 		} else {
