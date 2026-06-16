@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -366,5 +367,285 @@ class RangeHistogramDataCruncherTest {
 			"the closed last bucket must include the record whose interval ends at the max value"
 		);
 		assertEquals(2, cruncher.getOverallCount(), "overallCount must be the two distinct records");
+	}
+
+	@Test
+	@DisplayName("OPTIMIZED widens the grid to collapse a wide empty coverage gap")
+	void shouldCollapseEmptyGapUnderOptimizedBehavior() {
+		// R1 spans keys [0,2], R2 spans keys [18,20]; the whole middle of [0,20] is uncovered. A 10-bucket
+		// STANDARD grid leaves a long run of empty buckets across the gap; OPTIMIZED must widen the grid so the
+		// empty run shrinks, while preserving solid-overlap occurrences and the distinct overall count.
+		final ValueToRecordBitmap[] source = {
+			bucket(0, 1), bucket(1, 1), bucket(2, 1),
+			bucket(18, 2), bucket(19, 2), bucket(20, 2)
+		};
+
+		final CacheableBucket[] standard = new RangeHistogramDataCruncher(
+			source, 10, 0, HistogramBehavior.STANDARD
+		).getHistogram();
+		final RangeHistogramDataCruncher optimizedCruncher = new RangeHistogramDataCruncher(
+			source, 10, 0, HistogramBehavior.OPTIMIZED
+		);
+		final CacheableBucket[] optimized = optimizedCruncher.getHistogram();
+
+		assertTrue(
+			optimized.length < standard.length,
+			"OPTIMIZED must emit fewer buckets than the " + standard.length + "-bucket STANDARD grid"
+		);
+		assertTrue(
+			longestEmptyRun(optimized) < longestEmptyRun(standard),
+			"OPTIMIZED must shrink the longest run of empty buckets (was " + longestEmptyRun(standard) + ")"
+		);
+		// occurrences stay solid-overlap: both records are still present, neither dropped nor double-counted
+		assertEquals(1, optimized[0].occurrences(), "first bucket must still count R1");
+		assertEquals(1, optimized[optimized.length - 1].occurrences(), "last bucket must still count R2");
+		assertEquals(2, optimizedCruncher.getOverallCount(), "overallCount stays the distinct record count");
+		assertEquals(0, optimizedCruncher.getMaxValue().compareTo(BigDecimal.valueOf(20)), "max must stay 20");
+	}
+
+	@Test
+	@DisplayName("OPTIMIZED leaves a gap-free grid identical to STANDARD")
+	void shouldLeaveGapFreeGridUnchangedUnderOptimizedBehavior() {
+		// the four overlapping ranges fill every bucket (occurrences 1,2,3,3,2 — no empties), so OPTIMIZED has
+		// no gap to collapse and must return exactly the STANDARD grid
+		final ValueToRecordBitmap[] source = {
+			bucket(10, 1), bucket(15, 1, 2), bucket(20, 1, 2, 3),
+			bucket(25, 2, 3, 4), bucket(30, 3, 4), bucket(35, 4)
+		};
+
+		final CacheableBucket[] standard = new RangeHistogramDataCruncher(
+			source, 5, 0, HistogramBehavior.STANDARD
+		).getHistogram();
+		final CacheableBucket[] optimized = new RangeHistogramDataCruncher(
+			source, 5, 0, HistogramBehavior.OPTIMIZED
+		).getHistogram();
+
+		assertEquals(standard.length, optimized.length, "gap-free OPTIMIZED grid must match STANDARD bucket count");
+		for (int i = 0; i < standard.length; i++) {
+			assertEquals(
+				0, optimized[i].threshold().compareTo(standard[i].threshold()),
+				"bucket " + i + " threshold must match STANDARD"
+			);
+			assertEquals(
+				standard[i].occurrences(), optimized[i].occurrences(),
+				"bucket " + i + " occurrences must match STANDARD"
+			);
+		}
+	}
+
+	@Test
+	@DisplayName("Frequency-equalised behaviors are rejected — the equaliser serves them instead")
+	void shouldRejectEqualizedBehaviors() {
+		final ValueToRecordBitmap[] source = {bucket(0, 1), bucket(5, 1)};
+		// EQUALIZED / EQUALIZED_OPTIMIZED are handled by EqualizedHistogramDataCruncher over the same sweep;
+		// this cruncher serves only the equal-width family and must reject the equalised behaviors outright
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> new RangeHistogramDataCruncher(source, 5, 0, HistogramBehavior.EQUALIZED),
+			"EQUALIZED must be rejected by the overlap cruncher"
+		);
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> new RangeHistogramDataCruncher(source, 5, 0, HistogramBehavior.EQUALIZED_OPTIMIZED),
+			"EQUALIZED_OPTIMIZED must be rejected by the overlap cruncher"
+		);
+	}
+
+	@Test
+	@DisplayName("The three-arg constructor defaults to STANDARD behavior")
+	void shouldDefaultToStandardBehaviorForThreeArgConstructor() {
+		final ValueToRecordBitmap[] source = {
+			bucket(10, 1), bucket(15, 1, 2), bucket(20, 1, 2, 3),
+			bucket(25, 2, 3, 4), bucket(30, 3, 4), bucket(35, 4)
+		};
+		final CacheableBucket[] threeArg = new RangeHistogramDataCruncher(source, 5, 0).getHistogram();
+		final CacheableBucket[] explicitStandard = new RangeHistogramDataCruncher(
+			source, 5, 0, HistogramBehavior.STANDARD
+		).getHistogram();
+		assertEquals(explicitStandard.length, threeArg.length, "default must equal explicit STANDARD");
+		for (int i = 0; i < explicitStandard.length; i++) {
+			assertEquals(
+				explicitStandard[i].occurrences(), threeArg[i].occurrences(),
+				"bucket " + i + " occurrences must match explicit STANDARD"
+			);
+		}
+	}
+
+	@Test
+	@DisplayName("OPTIMIZED collapses to two buckets when the gap leaves at most two non-empty columns")
+	void shouldCollapseToTwoBucketsWhenGapLeavesAtMostTwoNonEmptyColumns() {
+		// R1 spans keys [0,1], R2 spans keys [20,21]; on a 10-bucket STANDARD grid only the first and last
+		// buckets are non-empty, so the longest empty run leaves at most two non-empty columns and the OPTIMIZED
+		// heuristic collapses the grid to exactly two buckets — one per cluster.
+		final ValueToRecordBitmap[] source = {
+			bucket(0, 1), bucket(1, 1),
+			bucket(20, 2), bucket(21, 2)
+		};
+
+		final RangeHistogramDataCruncher optimizedCruncher = new RangeHistogramDataCruncher(
+			source, 10, 0, HistogramBehavior.OPTIMIZED
+		);
+		final CacheableBucket[] optimized = optimizedCruncher.getHistogram();
+
+		assertEquals(2, optimized.length, "the gap must collapse the grid to exactly two buckets");
+		// each cluster lands in its own bucket, neither dropped
+		assertEquals(1, optimized[0].occurrences(), "first bucket must count R1");
+		assertEquals(1, optimized[1].occurrences(), "second bucket must count R2");
+		assertEquals(2, optimizedCruncher.getOverallCount(), "overallCount stays the distinct record count");
+		assertEquals(0, optimizedCruncher.getMaxValue().compareTo(BigDecimal.valueOf(21)), "max must stay 21");
+	}
+
+	@Test
+	@DisplayName("OPTIMIZED collapses the longest of several empty runs and keeps every cluster")
+	void shouldCollapseLongestOfMultipleEmptyRunsUnderOptimized() {
+		// three clusters separated by two empty runs of different lengths: a short gap between R1[0,2] and
+		// R2[40,42] and a longer gap between R2 and R3[80,82]. OPTIMIZED targets the longest run, so the widened
+		// grid must reduce the longest empty run relative to STANDARD without dropping any cluster.
+		final ValueToRecordBitmap[] source = {
+			bucket(0, 1), bucket(1, 1), bucket(2, 1),
+			bucket(40, 2), bucket(41, 2), bucket(42, 2),
+			bucket(80, 3), bucket(81, 3), bucket(82, 3)
+		};
+
+		final CacheableBucket[] standard = new RangeHistogramDataCruncher(
+			source, 20, 0, HistogramBehavior.STANDARD
+		).getHistogram();
+		final RangeHistogramDataCruncher optimizedCruncher = new RangeHistogramDataCruncher(
+			source, 20, 0, HistogramBehavior.OPTIMIZED
+		);
+		final CacheableBucket[] optimized = optimizedCruncher.getHistogram();
+
+		assertTrue(
+			longestEmptyRun(optimized) < longestEmptyRun(standard),
+			"OPTIMIZED must shrink the longest empty run (was " + longestEmptyRun(standard) + ")"
+		);
+		assertEquals(3, optimizedCruncher.getOverallCount(), "every distinct cluster record must survive");
+		// the three clusters remain represented — first and last buckets stay populated
+		assertTrue(optimized[0].occurrences() >= 1, "first bucket must still count R1");
+		assertTrue(
+			optimized[optimized.length - 1].occurrences() >= 1,
+			"last bucket must still count R3"
+		);
+	}
+
+	@Test
+	@DisplayName("OPTIMIZED collapses a wide empty gap at BigDecimal scale 2")
+	void shouldCollapseEmptyGapAtBigDecimalScaleUnderOptimized() {
+		// two scale-2 clusters around 1.00 and 9.00 with a wide empty middle; decimalPlaces = 2. OPTIMIZED must
+		// emit fewer buckets than STANDARD, shrink the longest empty run, and preserve scale-2, strictly
+		// increasing thresholds with a scale-2 inclusive max.
+		final ValueToRecordBitmap[] source = {
+			bucket(new BigDecimal("1.00"), 1), bucket(new BigDecimal("1.10"), 1),
+			bucket(new BigDecimal("8.90"), 2), bucket(new BigDecimal("9.00"), 2)
+		};
+
+		final CacheableBucket[] standard = new RangeHistogramDataCruncher(
+			source, 20, 2, HistogramBehavior.STANDARD
+		).getHistogram();
+		final RangeHistogramDataCruncher optimizedCruncher = new RangeHistogramDataCruncher(
+			source, 20, 2, HistogramBehavior.OPTIMIZED
+		);
+		final CacheableBucket[] optimized = optimizedCruncher.getHistogram();
+
+		assertTrue(
+			optimized.length < standard.length,
+			"OPTIMIZED must emit fewer buckets than the " + standard.length + "-bucket STANDARD grid"
+		);
+		assertTrue(
+			longestEmptyRun(optimized) < longestEmptyRun(standard),
+			"OPTIMIZED must shrink the longest empty run (was " + longestEmptyRun(standard) + ")"
+		);
+		// thresholds carry scale 2 and strictly increase
+		for (int i = 0; i < optimized.length; i++) {
+			assertEquals(
+				2, optimized[i].threshold().scale(),
+				"bucket " + i + " threshold must carry scale 2 — got " + optimized[i].threshold()
+			);
+			if (i > 0) {
+				assertTrue(
+					optimized[i].threshold().compareTo(optimized[i - 1].threshold()) > 0,
+					"bucket " + i + " threshold must strictly exceed bucket " + (i - 1)
+				);
+			}
+		}
+		assertEquals(2, optimizedCruncher.getMaxValue().scale(), "max must carry scale 2");
+		assertEquals(
+			0, optimizedCruncher.getMaxValue().compareTo(new BigDecimal("9.00")), "max must equal 9.00"
+		);
+		assertEquals(2, optimizedCruncher.getOverallCount(), "overallCount stays the distinct record count");
+	}
+
+	@Test
+	@DisplayName("Extreme Integer value span does not overflow the grid arithmetic")
+	void shouldNotOverflowSpanForExtremeIntegerRange() {
+		// thresholds Integer.MIN_VALUE, 0, Integer.MAX_VALUE — the value span Integer.MAX_VALUE -
+		// Integer.MIN_VALUE exceeds Integer.MAX_VALUE, so an int subtraction wraps to a negative span and
+		// would crash the grid allocation. The span arithmetic must widen to long so the grid builds normally.
+		final ValueToRecordBitmap[] source = {
+			bucket(Integer.MIN_VALUE, 1),
+			bucket(0, 1, 2),
+			bucket(Integer.MAX_VALUE, 2)
+		};
+
+		final RangeHistogramDataCruncher cruncher = new RangeHistogramDataCruncher(source, 5, 0);
+
+		final CacheableBucket[] buckets = cruncher.getHistogram();
+		assertTrue(buckets.length >= 2, "an extreme span must still produce multiple buckets");
+		// flooring the proportional offset in long space must keep the thresholds strictly increasing
+		for (int i = 1; i < buckets.length; i++) {
+			assertTrue(
+				buckets[i].threshold().compareTo(buckets[i - 1].threshold()) > 0,
+				"adjacent thresholds must strictly increase even across the full int range — bucket " + i
+			);
+		}
+		assertEquals(2, cruncher.getOverallCount(), "overallCount must be the two distinct records");
+		assertEquals(
+			0, cruncher.getMaxValue().compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)),
+			"max must equal Integer.MAX_VALUE without truncation"
+		);
+	}
+
+	@Test
+	@DisplayName("OPTIMIZED still emits a single bucket for a degenerate single-value span")
+	void shouldEmitSingleBucketForDegenerateSpanEvenUnderOptimized() {
+		// every threshold collapses onto key 7 (minKey == maxKey); the degenerate-span early return fires before
+		// the OPTIMIZED heuristic, so the result is one full-width bucket regardless of behavior
+		final ValueToRecordBitmap[] source = {
+			bucket(7, 1, 2, 3)
+		};
+
+		final RangeHistogramDataCruncher optimizedCruncher = new RangeHistogramDataCruncher(
+			source, 10, 0, HistogramBehavior.OPTIMIZED
+		);
+		final CacheableBucket[] optimized = optimizedCruncher.getHistogram();
+
+		assertEquals(1, optimized.length, "a single-value span must collapse to exactly one bucket under OPTIMIZED");
+		assertEquals(0, optimized[0].threshold().compareTo(BigDecimal.valueOf(7)), "the sole bucket sits at key 7");
+		assertEquals(3, optimized[0].occurrences(), "the bucket must count every distinct record");
+		assertEquals(3, optimizedCruncher.getOverallCount(), "overallCount must be the distinct record count");
+		assertEquals(
+			0, optimized[0].relativeFrequency().compareTo(new BigDecimal("100")),
+			"the sole populated bucket is by definition full-width (relativeFrequency = 100)"
+		);
+	}
+
+	/**
+	 * Returns the length of the longest run of consecutive empty (zero-occurrence) buckets — the quantity the
+	 * OPTIMIZED behavior is designed to shrink.
+	 */
+	private static int longestEmptyRun(@Nonnull CacheableBucket[] buckets) {
+		int longest = 0;
+		int current = 0;
+		for (final CacheableBucket b : buckets) {
+			if (b.occurrences() == 0) {
+				current++;
+				if (current > longest) {
+					longest = current;
+				}
+			} else {
+				current = 0;
+			}
+		}
+		return longest;
 	}
 }

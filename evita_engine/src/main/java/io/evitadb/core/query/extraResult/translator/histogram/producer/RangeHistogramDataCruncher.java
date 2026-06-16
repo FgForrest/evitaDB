@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -56,11 +57,21 @@ import java.util.Arrays;
  *
  * Output semantics:
  *
- * - the grid is at most `bucketCount` uniform buckets over `[minValue, maxValue]` (the distinct value span),
+ * - the grid is at most `bucketCount` buckets over `[minValue, maxValue]` (the distinct value span); under
+ *   {@link HistogramBehavior#STANDARD} the buckets are uniform-width, under {@link HistogramBehavior#OPTIMIZED} the
+ *   grid is widened to collapse runs of empty (uncovered) buckets — the same adaptive heuristic
+ *   {@link HistogramDataCruncher#createOptimalHistogram} applies to point histograms,
  * - per output bucket `[lo, hi)` (last bucket closed `[lo, max]`): occurrences = distinct records whose
  *   `[fromValue, toValue]` overlaps it (`from < hi AND to >= lo`; last bucket `from <= max AND to >= lo`),
  * - relativeFrequency = `(occurrences / maxBucketOccurrences) * 100`,
  * - {@link #getOverallCount()} = number of distinct records (union cardinality), NOT the bucket-occurrence sum.
+ *
+ * This cruncher serves only the equal-width behaviors ({@link HistogramBehavior#STANDARD},
+ * {@link HistogramBehavior#OPTIMIZED}). The frequency-equalised behaviors ({@link HistogramBehavior#EQUALIZED},
+ * {@link HistogramBehavior#EQUALIZED_OPTIMIZED}) are served by {@link EqualizedHistogramDataCruncher} fed with the
+ * same sweep: there each record is accounted at every global stop its `[from, to]` covers (the sweep's rolling
+ * active set), which yields the fixed total mass cumulative-frequency equalisation requires — a target that overlap
+ * counting, whose bucket-occurrence sum varies with the grid, cannot provide.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -98,11 +109,39 @@ public class RangeHistogramDataCruncher {
 		int bucketCount,
 		int decimalPlaces
 	) {
+		this(sourceData, bucketCount, decimalPlaces, HistogramBehavior.STANDARD);
+	}
+
+	/**
+	 * @param sourceData    ascending-by-threshold range sweep (the rolling active set per threshold) from
+	 *                      {@link io.evitadb.index.attribute.FilterIndex#getRangeHistogramOfAllRecords(Class, int)};
+	 *                      must be non-empty
+	 * @param bucketCount   requested maximum number of output buckets; the effective count may be lower when the value
+	 *                      span has fewer representable integer steps, or when {@code behavior} collapses empty runs.
+	 *                      Must be `> 1`
+	 * @param decimalPlaces decimal scale used to project thresholds to int keys and back to {@link BigDecimal},
+	 *                      mirroring {@link AttributeHistogramComputer}
+	 * @param behavior      must be {@link HistogramBehavior#STANDARD} (uniform grid) or
+	 *                      {@link HistogramBehavior#OPTIMIZED} (uniform grid widened to drop empty coverage gaps); the
+	 *                      frequency-equalised behaviors are not served here — see the class documentation
+	 * @throws InvalidHistogramBucketCountException when `bucketCount <= 1`
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when `sourceData` is empty
+	 */
+	public RangeHistogramDataCruncher(
+		@Nonnull ValueToRecordBitmap[] sourceData,
+		int bucketCount,
+		int decimalPlaces,
+		@Nonnull HistogramBehavior behavior
+	) {
 		Assert.isTrue(
 			bucketCount > 1,
 			() -> new InvalidHistogramBucketCountException("range histogram", bucketCount)
 		);
 		Assert.isTrue(sourceData.length > 0, "Source data for range histogram must not be empty!");
+		Assert.isTrue(
+			behavior == HistogramBehavior.STANDARD || behavior == HistogramBehavior.OPTIMIZED,
+			"RangeHistogramDataCruncher serves only STANDARD and OPTIMIZED behaviors; got " + behavior + "."
+		);
 
 		// 1) project each source threshold to an int key in the requested decimal scale; the keys are
 		// monotonically ascending by the sweep contract
@@ -133,7 +172,7 @@ public class RangeHistogramDataCruncher {
 			final Bitmap active = sourceData[i].getRecordIds();
 			final int[] activeArray = active.getArray();
 			for (final int k : activeArray) {
-				final int idx = indexOf(recordIds, k);
+				final int idx = Arrays.binarySearch(recordIds, k);
 				if (idx < 0) {
 					throw new GenericEvitaInternalError(
 						"Active record " + k + " missing from distinct record set — " +
@@ -167,19 +206,54 @@ public class RangeHistogramDataCruncher {
 			return;
 		}
 
-		// cap the bucket count so each grid threshold is a distinct int key at the requested scale — when the
-		// caller requests more buckets than there are representable integer steps, collapsing to the value span
-		// avoids zero-width / duplicate-threshold buckets
-		final int span = maxKey - minKey;
-		final int effectiveBucketCount = Math.min(bucketCount, span);
+		// 4) build the first-shot uniform grid; STANDARD uses it directly, OPTIMIZED may rebuild it once with a
+		// wider step to collapse the longest run of empty (uncovered) buckets
+		OverlapGrid grid = buildGrid(bucketCount, minKey, maxKey, fromKey, toKey, distinctCount, decimalPlaces);
+		if (behavior == HistogramBehavior.OPTIMIZED) {
+			final int optimizedBucketCount = chooseOptimizedBucketCount(grid, minKey, maxKey);
+			if (optimizedBucketCount != grid.occurrences().length) {
+				grid = buildGrid(optimizedBucketCount, minKey, maxKey, fromKey, toKey, distinctCount, decimalPlaces);
+			}
+		}
+		this.histogram = grid.buckets();
+	}
+
+	/**
+	 * Builds a uniform grid of at most {@code targetBucketCount} buckets over `[minKey, maxKey]` and counts, per
+	 * bucket, the number of distinct records whose `[fromKey, toKey]` interval overlaps it.
+	 *
+	 * The occupancy is computed with a difference array: because the buckets partition the value span contiguously,
+	 * each record overlaps exactly the contiguous run of buckets from the one containing its `fromKey` to the one
+	 * containing its `toKey`, so a single +1/-1 delta pair per record plus one prefix-sum pass yields every bucket's
+	 * occupancy — O(records × log buckets + buckets) rather than the O(buckets × records) pairwise overlap test.
+	 */
+	@Nonnull
+	private static OverlapGrid buildGrid(
+		int targetBucketCount,
+		int minKey,
+		int maxKey,
+		@Nonnull int[] fromKey,
+		@Nonnull int[] toKey,
+		int distinctCount,
+		int decimalPlaces
+	) {
+		// cap the bucket count so each grid threshold is a distinct int key at the requested scale — when more
+		// buckets are requested than there are representable integer steps, collapsing to the value span avoids
+		// zero-width / duplicate-threshold buckets. The span is computed in long because the full int range
+		// (Integer.MAX_VALUE - Integer.MIN_VALUE) overflows a signed int; the degenerate minKey == maxKey case
+		// is handled before this method, so span >= 1 always holds here.
+		final long span = (long) maxKey - (long) minKey;
+		final int effectiveBucketCount = (int) Math.min(targetBucketCount, span);
 		// integer lower-bound key per output bucket; the upper bound of bucket i is the lower bound of bucket i+1,
 		// and the last bucket's inclusive upper bound is maxKey
 		final int[] bucketLowerKey = new int[effectiveBucketCount];
 		for (int i = 0; i < effectiveBucketCount; i++) {
 			// evenly space lower bounds: floor of the proportional offset into the value span; the
-			// strict-increase fixup below resolves any duplicate keys produced by this flooring
-			final long offset = (long) span * i / effectiveBucketCount;
-			bucketLowerKey[i] = minKey + (int) offset;
+			// strict-increase fixup below resolves any duplicate keys produced by this flooring. The offset
+			// stays in long and is added to minKey before the int cast — truncating (int) offset first would
+			// corrupt the key for large spans, whereas minKey + offset always lies within [minKey, maxKey].
+			final long offset = span * i / effectiveBucketCount;
+			bucketLowerKey[i] = (int) (minKey + offset);
 		}
 		// guarantee strictly increasing lower bounds even under rounding collisions
 		for (int i = 1; i < effectiveBucketCount; i++) {
@@ -188,45 +262,86 @@ public class RangeHistogramDataCruncher {
 			}
 		}
 
-		// 4) compute overlap occurrences per output bucket
+		final int[] delta = new int[effectiveBucketCount + 1];
+		for (int r = 0; r < distinctCount; r++) {
+			final int bStart = bucketOf(bucketLowerKey, fromKey[r]);
+			final int bEnd = bucketOf(bucketLowerKey, toKey[r]);
+			delta[bStart]++;
+			delta[bEnd + 1]--;
+		}
 		final int[] occurrences = new int[effectiveBucketCount];
 		int maxOccurrences = 0;
+		int running = 0;
 		for (int b = 0; b < effectiveBucketCount; b++) {
-			final boolean last = b == effectiveBucketCount - 1;
-			final int lo = bucketLowerKey[b];
-			final int hi = last ? maxKey : bucketLowerKey[b + 1];
-			int count = 0;
-			for (int r = 0; r < distinctCount; r++) {
-				final boolean overlaps = last
-					// last bucket is closed [lo, maxKey]: from <= maxKey AND to >= lo
-					? fromKey[r] <= maxKey && toKey[r] >= lo
-					// half-open [lo, hi): from < hi AND to >= lo
-					: fromKey[r] < hi && toKey[r] >= lo;
-				if (overlaps) {
-					count++;
-				}
-			}
-			occurrences[b] = count;
-			if (count > maxOccurrences) {
-				maxOccurrences = count;
+			running += delta[b];
+			occurrences[b] = running;
+			if (running > maxOccurrences) {
+				maxOccurrences = running;
 			}
 		}
 
-		// 5) materialize output buckets with relativeFrequency normalized to the busiest bucket
-		final CacheableBucket[] result = new CacheableBucket[effectiveBucketCount];
+		// materialize output buckets with relativeFrequency normalized to the busiest bucket
+		final CacheableBucket[] buckets = new CacheableBucket[effectiveBucketCount];
 		for (int b = 0; b < effectiveBucketCount; b++) {
 			final BigDecimal relativeFrequency = maxOccurrences > 0
 				? BigDecimal.valueOf(occurrences[b])
 					.multiply(ONE_HUNDRED)
 					.divide(BigDecimal.valueOf(maxOccurrences), 2, RoundingMode.HALF_UP)
 				: BigDecimal.ZERO;
-			result[b] = new CacheableBucket(
+			buckets[b] = new CacheableBucket(
 				toBigDecimal(bucketLowerKey[b], decimalPlaces).setScale(decimalPlaces, RoundingMode.HALF_UP),
 				occurrences[b],
 				relativeFrequency
 			);
 		}
-		this.histogram = result;
+		return new OverlapGrid(buckets, bucketLowerKey, occurrences);
+	}
+
+	/**
+	 * Picks a (possibly smaller) bucket count that collapses the longest run of consecutive empty (uncovered)
+	 * buckets, mirroring {@link HistogramDataCruncher#createOptimalHistogram} in integer key space. When the largest
+	 * empty run would leave at most two non-empty buckets the grid drops to two buckets; when it spans at least two
+	 * buckets the step is widened by half the empty span and a new (smaller) count derived; otherwise the current
+	 * grid is kept. The result is clamped to `[2, current bucket count]`, so it never grows the grid.
+	 */
+	private static int chooseOptimizedBucketCount(@Nonnull OverlapGrid grid, int minKey, int maxKey) {
+		final int[] occurrences = grid.occurrences();
+		final int[] lowerKeys = grid.lowerKeys();
+		final int bucketCount = occurrences.length;
+		int longestRun = 0;
+		int spanStartKey = lowerKeys[0];
+		int spanEndKey = lowerKeys[0];
+		int currentRun = 0;
+		int previousNonEmptyKey = lowerKeys[0];
+		for (int b = 0; b < bucketCount; b++) {
+			if (occurrences[b] == 0) {
+				currentRun++;
+			} else {
+				if (currentRun > longestRun) {
+					// the gap is bracketed by the last non-empty bucket and this one; trailing gaps are ignored,
+					// matching the point-histogram heuristic which only records a gap once a later bar closes it
+					longestRun = currentRun;
+					spanStartKey = previousNonEmptyKey;
+					spanEndKey = lowerKeys[b];
+				}
+				currentRun = 0;
+				previousNonEmptyKey = lowerKeys[b];
+			}
+		}
+
+		final int emptyColumns = longestRun;
+		if (bucketCount - emptyColumns <= 2) {
+			return 2;
+		} else if (emptyColumns >= 2) {
+			// widen each operand to double before subtracting so the full int range does not overflow first
+			final double span = (double) maxKey - (double) minKey;
+			final double optimalStep = span / bucketCount;
+			final double recomputedStep = optimalStep + (spanEndKey - spanStartKey) / 2.0;
+			final int newBucketCount = (int) Math.floor(span / recomputedStep) + 2;
+			return Math.max(2, Math.min(newBucketCount, bucketCount));
+		} else {
+			return bucketCount;
+		}
 	}
 
 	/**
@@ -267,22 +382,25 @@ public class RangeHistogramDataCruncher {
 	}
 
 	/**
-	 * Binary search for `value` in the ascending `sortedArray`; returns the index or `-1` when absent.
+	 * Returns the index of the output bucket containing `value` — the rightmost bucket whose lower bound is
+	 * `<= value`. `bucketLowerKey` is strictly ascending and `value` is always within
+	 * `[bucketLowerKey[0], maxKey]`, so the result is never negative.
 	 */
-	private static int indexOf(@Nonnull int[] sortedArray, int value) {
-		int low = 0;
-		int high = sortedArray.length - 1;
-		while (low <= high) {
-			final int mid = (low + high) >>> 1;
-			final int midValue = sortedArray[mid];
-			if (midValue < value) {
-				low = mid + 1;
-			} else if (midValue > value) {
-				high = mid - 1;
-			} else {
-				return mid;
-			}
-		}
-		return -1;
+	private static int bucketOf(@Nonnull int[] bucketLowerKey, int value) {
+		final int idx = Arrays.binarySearch(bucketLowerKey, value);
+		// exact match → that bucket; miss → insertion point minus one is the floor (the containing bucket)
+		return idx >= 0 ? idx : -idx - 2;
+	}
+
+	/**
+	 * Immutable holder for one computed grid: the output {@code buckets}, their ascending integer lower-bound keys
+	 * ({@code lowerKeys}), and the per-bucket overlap {@code occurrences}. The latter two let the OPTIMIZED pass
+	 * locate empty runs without recomputing them.
+	 */
+	private record OverlapGrid(
+		@Nonnull CacheableBucket[] buckets,
+		@Nonnull int[] lowerKeys,
+		@Nonnull int[] occurrences
+	) {
 	}
 }

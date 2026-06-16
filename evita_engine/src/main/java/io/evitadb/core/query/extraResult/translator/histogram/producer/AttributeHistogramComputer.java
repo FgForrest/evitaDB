@@ -421,16 +421,23 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				// lose precision for BigDecimal attributes whose stored scale exceeds indexedDecimalPlaces
 				final Serializable rawMin = histogramBuckets[0].getValue();
 				final Serializable rawMax = histogramBuckets[histogramBuckets.length - 1].getValue();
-				// range-typed schemas render overlap histograms: a record whose value-range spans
-				// several buckets must contribute to each of them as a single distinct occurrence, and the
-				// overall count is the distinct-record cardinality — not the inflated per-threshold sum that the
-				// point-oriented HistogramDataCruncher would produce
+				// the equal-width range behaviors (STANDARD, OPTIMIZED) render overlap histograms: a record whose
+				// value-range spans several buckets contributes a single distinct occurrence to each, and the overall
+				// count is the distinct-record cardinality — not the inflated per-threshold sum the point-oriented
+				// HistogramDataCruncher would produce. OPTIMIZED additionally widens the grid to drop empty coverage
+				// gaps. The frequency-equalised behaviors (EQUALIZED, EQUALIZED_OPTIMIZED) deliberately fall through
+				// to the point/equalised path below: fed the range sweep, EqualizedHistogramDataCruncher accounts
+				// each record at every global stop its range covers (the sweep's rolling active set), which yields the
+				// fixed total mass cumulative-frequency equalisation requires — something overlap counting, whose
+				// bucket-occurrence sum varies with the grid, cannot provide
 				final boolean rangeTyped = EvitaDataTypes.resolveRangeInnerNumericType(
 					this.request.attributeSchema().getType()
 				) != null;
-				if (rangeTyped) {
+				final boolean overlapBehavior = this.behavior == HistogramBehavior.STANDARD
+					|| this.behavior == HistogramBehavior.OPTIMIZED;
+				if (rangeTyped && overlapBehavior) {
 					final RangeHistogramDataCruncher rangeCruncher = new RangeHistogramDataCruncher(
-						histogramBuckets, this.bucketCount, this.request.getDecimalPlaces()
+						histogramBuckets, this.bucketCount, this.request.getDecimalPlaces(), this.behavior
 					);
 					this.memoizedResult = new CacheableHistogram(
 						rangeCruncher.getHistogram(),
