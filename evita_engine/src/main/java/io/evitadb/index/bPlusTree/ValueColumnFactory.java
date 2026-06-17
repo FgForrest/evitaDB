@@ -32,8 +32,9 @@ import java.util.Comparator;
 
 /**
  * Creates a fresh empty {@link ValueColumn} of the kind chosen for a particular attribute key type, so a
- * {@link TransactionalBucketBPlusTree} leaf can pick the cheapest representation (a primitive {@link LongValueColumn}
- * for integral / temporal keys, otherwise the universal {@link BoxedObjectColumn}).
+ * {@link TransactionalBucketBPlusTree} leaf can pick the cheapest representation (a front-coded
+ * {@link FrontCodedStringColumn} for {@link String} keys, a primitive {@link LongValueColumn} for integral / temporal
+ * keys, otherwise the universal {@link BoxedObjectColumn}).
  *
  * The selection is made once per tree (via {@link #forKey}) and threaded into every empty-leaf creation; split / merge
  * reuse the originating column's {@link ValueColumn#allocate}, so kind-consistency is guaranteed within one tree.
@@ -55,6 +56,11 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 	/**
 	 * Selects the value-column factory for an attribute key.
 	 *
+	 * {@link String} keys (localized or not) select the front-coded {@link FrontCodedStringColumn} first, regardless of
+	 * the comparator: front-coding is order-agnostic — the column stores values in whatever physical order the tree
+	 * imposes and {@link FrontCodedStringColumn#findKeyPosition} decodes each candidate back to a {@link String} and
+	 * compares it through the supplied comparator (natural codepoint order or locale collation).
+	 *
 	 * A primitive column is chosen only when the comparator is natural order. Temporal keys (normalized type
 	 * {@link Instant}, i.e. declared {@code OffsetDateTime} / {@code Instant}) select the parallel-array
 	 * {@link InstantValueColumn}; integral keys with a supported {@link LongKeyCodec} select {@link LongValueColumn}.
@@ -73,6 +79,13 @@ public interface ValueColumnFactory<M extends Comparable<M>> {
 		@Nullable Comparator<?> comparator
 	) {
 		final Class<?> normalizedType = normalizedTypeOf(plainType);
+		if (String.class.isAssignableFrom(plainType)) {
+			// String keys (localized or not) are prefix-compressed into a front-coded byte block. Front-coding is
+			// orthogonal to the key order — the column stores values in whatever physical order the tree imposes and
+			// findKeyPosition decodes each candidate back to a String and compares it through the supplied comparator —
+			// so this column is selected regardless of the comparator (natural codepoint order vs. locale collation).
+			return (ValueColumnFactory) FrontCodedStringColumn::new;
+		}
 		if (isNaturalOrder(comparator)) {
 			if (normalizedType == Instant.class) {
 				// temporal keys (OffsetDateTime / Instant) decompose losslessly into a (seconds, nanos) parallel-array

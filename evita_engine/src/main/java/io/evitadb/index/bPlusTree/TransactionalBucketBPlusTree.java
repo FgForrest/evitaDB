@@ -2389,12 +2389,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				layer.peek = peek;
 				if (peek < originPeek) {
 					if (layer.keys == this.keys) {
-						// decouple by deep-copying the shared base column (mirrors the records branch: the freed
-						// tail slots stay as-copied since they are beyond the new peek and never read)
+						// decouple by deep-copying the shared base column before truncating it below
 						layer.keys = this.keys.duplicate();
-					} else {
-						layer.keys.fillEmpty(peek + 1, originPeek + 1);
 					}
+					// truncate the freed tail in both cases: a fixed-array column nulls/zeroes the released slots
+					// (as before), while a dense front-coded column actually drops them — a no-op for the former,
+					// mandatory for the latter, which has no harmless sentinel tail to leave behind
+					layer.keys.fillEmpty(peek + 1, originPeek + 1);
 					//noinspection ArrayEquality
 					if (layer.records == this.records) {
 						layer.records = new int[this.records.length];

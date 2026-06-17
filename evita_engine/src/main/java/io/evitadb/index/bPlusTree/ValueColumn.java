@@ -38,8 +38,10 @@ import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
 /**
  * Pluggable key (bucket value) column of a {@link TransactionalBucketBPlusTree} leaf. It abstracts the leaf's key
  * storage so a leaf can hold its keys in the cheapest representation for the attribute type — a boxed {@code Object[]}
- * ({@link BoxedObjectColumn}, the universal fallback) or, for numeric / temporal attributes, a primitive column
- * (`long[]` and parallel-array variants). The {@code int[]} single-record column and the lazy
+ * ({@link BoxedObjectColumn}, the universal fallback), for numeric / temporal attributes a primitive column
+ * (`long[]` and parallel-array variants), or for {@link String} attributes a front-coded (prefix-compressed)
+ * variable-length {@code byte[]}-blob column ({@link FrontCodedStringColumn}, selected for every {@link String} key
+ * regardless of comparator). The {@code int[]} single-record column and the lazy
  * {@link io.evitadb.index.bitmap.TransactionalBitmap}{@code []} overflow column stay owned by the leaf and are not part
  * of this abstraction — only the key representation varies.
  *
@@ -60,7 +62,7 @@ import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
  * @param <M> the (boxed) key type as seen by the tree's generic API
  */
 sealed interface ValueColumn<M extends Comparable<M>>
-	permits BoxedObjectColumn, LongValueColumn, InstantValueColumn, IntValueColumn {
+	permits BoxedObjectColumn, LongValueColumn, InstantValueColumn, IntValueColumn, FrontCodedStringColumn {
 
 	/**
 	 * Returns the backing capacity (== the leaf's block size); slots in {@code [size, capacity)} are unused.

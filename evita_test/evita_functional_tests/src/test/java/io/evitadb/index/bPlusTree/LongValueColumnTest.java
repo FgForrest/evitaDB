@@ -33,7 +33,9 @@ import javax.annotation.Nonnull;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -320,19 +322,16 @@ class LongValueColumnTest {
 		@Test
 		@DisplayName("non-integral types and non-natural orders fall back to the boxed column")
 		void shouldFallBackToBoxedColumn() {
-			assertInstanceOf(
-				BoxedObjectColumn.class,
-				ValueColumnFactory.forKey(String.class, null).create(BLOCK_SIZE)
-			);
-			// non-codec plain types (Currency / Locale have no LongKeyCodec) also fall back to the boxed column —
+			// (String routes to the dedicated front-coded column instead — see FrontCodedStringColumnTest.)
+			// non-codec plain types (Currency / Locale have no LongKeyCodec) fall back to the boxed column —
 			// forKey is contracted on the plain element type (callers array-unwrap before invoking it)
 			assertInstanceOf(
 				BoxedObjectColumn.class,
-				ValueColumnFactory.forKey(java.util.Currency.class, null).create(BLOCK_SIZE)
+				ValueColumnFactory.forKey(Currency.class, null).create(BLOCK_SIZE)
 			);
 			assertInstanceOf(
 				BoxedObjectColumn.class,
-				ValueColumnFactory.forKey(java.util.Locale.class, null).create(BLOCK_SIZE)
+				ValueColumnFactory.forKey(Locale.class, null).create(BLOCK_SIZE)
 			);
 			// integral type but a non-natural-order comparator ⇒ boxed (the long order would not match)
 			assertInstanceOf(
