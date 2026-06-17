@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.utils.Assert;
@@ -72,13 +73,19 @@ final class HistogramIndexOperations {
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
 		int ownerPK,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		final HistogramIndex histogramIndex = histograms.computeIfAbsent(
 			histogramName,
 			k -> locale != null
-				? new LocalizedHistogramIndex(histogramName, referenceName, valueType)
-				: new SimpleHistogramIndex(histogramName, referenceName, valueType)
+				? new LocalizedHistogramIndex(histogramName, referenceName, valueType, indexedDecimalPlaces)
+				: new SimpleHistogramIndex(histogramName, referenceName, valueType, indexedDecimalPlaces)
+		);
+		// a pre-existing histogram froze its BigDecimal scale at creation; refuse to feed it a value scaled at a drifted
+		// schema scale rather than silently keep mutating a stale histogram (no-op for non-BigDecimal and a fresh index)
+		FilterIndex.assertIndexedDecimalPlacesUnchanged(
+			histogramIndex.getIndexedDecimalPlaces(), indexedDecimalPlaces, histogramName
 		);
 		histogramIndex.insertValue(locale, value, ownerPK);
 		dirty.setToTrue();
@@ -99,6 +106,8 @@ final class HistogramIndexOperations {
 	 *                                  non-localized
 	 * @param value                     the histogram value to remove
 	 * @param ownerPK                   the primary key of the owner entity
+	 * @param indexedDecimalPlaces      the decimal-places scale the current attribute schema declares (guards against a
+	 *                                  scale change that was not followed by a full index rebuild)
 	 */
 	static void removeHistogramValue(
 		@Nonnull TransactionalMap<String, HistogramIndex> histograms,
@@ -107,12 +116,18 @@ final class HistogramIndexOperations {
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int ownerPK
+		int ownerPK,
+		int indexedDecimalPlaces
 	) {
 		final HistogramIndex histogramIndex = histograms.get(histogramName);
 		Assert.isPremiseValid(
 			histogramIndex != null,
 			() -> "Histogram index for histogram " + histogramName + " not found."
+		);
+		// the histogram froze its BigDecimal scale at creation; refuse to derive a remove probe at a drifted schema scale
+		// rather than silently keep mutating a stale histogram (no-op for non-BigDecimal — both scales are 0)
+		FilterIndex.assertIndexedDecimalPlacesUnchanged(
+			histogramIndex.getIndexedDecimalPlaces(), indexedDecimalPlaces, histogramName
 		);
 		histogramIndex.removeValue(locale, value, ownerPK);
 		dirty.setToTrue();

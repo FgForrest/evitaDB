@@ -824,12 +824,13 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
 		int ownerPK,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		HistogramIndexOperations.insertHistogramValue(
 			this.histogramIndexes, this.dirty,
 			getRepresentativeReferenceKey().referenceName(),
-			histogramName, locale, value, ownerPK, valueType
+			histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces
 		);
 	}
 
@@ -838,11 +839,12 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int ownerPK
+		int ownerPK,
+		int indexedDecimalPlaces
 	) {
 		HistogramIndexOperations.removeHistogramValue(
 			this.histogramIndexes, this.dirty, getTransactionalLayerMaintainer(),
-			histogramName, locale, value, ownerPK
+			histogramName, locale, value, ownerPK, indexedDecimalPlaces
 		);
 	}
 

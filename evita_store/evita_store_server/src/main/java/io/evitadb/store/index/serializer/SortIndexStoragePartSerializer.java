@@ -84,13 +84,16 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			output.writeVarInt(sortedRecordValues.length, true);
 			if (comparatorBase.length == 1) {
 				for (Serializable sortedRecordValue : sortedRecordValues) {
-					kryo.writeObject(output, sortedRecordValue);
+					// self-describing: the stored value is the normalizer's output, whose class may differ from the
+					// declared comparator-base type (e.g. a BigDecimal attribute is scaled to an Integer key), so the
+					// concrete class must travel with the value rather than being assumed on read
+					kryo.writeClassAndObject(output, sortedRecordValue);
 				}
 			} else {
 				for (Serializable sortedRecordValue : sortedRecordValues) {
 					final ComparableArray comparableArray = (ComparableArray) sortedRecordValue;
 					for (int i = 0; i < comparatorBase.length; i++) {
-						kryo.writeObjectOrNull(output, comparableArray.array()[i], comparatorBase[i].type());
+						kryo.writeClassAndObject(output, comparableArray.array()[i]);
 					}
 				}
 			}
@@ -98,16 +101,19 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			output.writeVarInt(cardinalities.size(), true);
 			for (Entry<Serializable, Integer> entry : cardinalities.entrySet()) {
 				if (comparatorBase.length == 1) {
-					kryo.writeObject(output, entry.getKey());
+					kryo.writeClassAndObject(output, entry.getKey());
 				} else {
 					final ComparableArray comparableArray = (ComparableArray) entry.getKey();
 					for (int i = 0; i < comparatorBase.length; i++) {
-						kryo.writeObjectOrNull(output, comparableArray.array()[i], comparatorBase[i].type());
+						kryo.writeClassAndObject(output, comparableArray.array()[i]);
 					}
 				}
 				output.writeVarInt(entry.getValue(), true);
 			}
 		}
+
+		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal and compound sort attributes)
+		output.writeVarInt(sortIndex.getIndexedDecimalPlaces(), true);
 	}
 
 	@Override
@@ -139,13 +145,11 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			sortedRecordValues = new Serializable[sortedValuesCount];
 			for (int i = 0; i < sortedValuesCount; i++) {
 				if (comparatorBaseLength == 1) {
-					//noinspection unchecked
-					sortedRecordValues[i] = (Serializable) kryo.readObject(input, comparatorBase[0].type());
+					sortedRecordValues[i] = (Serializable) kryo.readClassAndObject(input);
 				} else {
 					final Serializable[] comparableArray = new Serializable[comparatorBaseLength];
 					for (int j = 0; j < comparatorBase.length; j++) {
-						//noinspection unchecked
-						comparableArray[j] = (Serializable) kryo.readObjectOrNull(input, comparatorBase[j].type());
+						comparableArray[j] = (Serializable) kryo.readClassAndObject(input);
 					}
 					sortedRecordValues[i] = new ComparableArray(comparableArray);
 				}
@@ -156,13 +160,11 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			for (int i = 0; i < cardinalityCount; i++) {
 				final Serializable value;
 				if (comparatorBaseLength == 1) {
-					//noinspection unchecked
-					value = (Serializable) kryo.readObject(input, comparatorBase[0].type());
+					value = (Serializable) kryo.readClassAndObject(input);
 				} else {
 					final Serializable[] comparableArray = new Serializable[comparatorBaseLength];
 					for (int j = 0; j < comparatorBase.length; j++) {
-						//noinspection unchecked
-						comparableArray[j] = (Serializable) kryo.readObjectOrNull(input, comparatorBase[j].type());
+						comparableArray[j] = (Serializable) kryo.readClassAndObject(input);
 					}
 					value = new ComparableArray(comparableArray);
 				}
@@ -175,8 +177,12 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			cardinalities = Map.of();
 		}
 
+		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal and compound sort attributes)
+		final int indexedDecimalPlaces = input.readVarInt(true);
+
 		return new SortIndexStoragePart(
-			entityIndexPrimaryKey, attributeIndexKey, comparatorBase, sortedRecords, sortedRecordValues, cardinalities, uniquePartId
+			entityIndexPrimaryKey, attributeIndexKey, comparatorBase,
+			sortedRecords, sortedRecordValues, cardinalities, indexedDecimalPlaces, uniquePartId
 		);
 	}
 

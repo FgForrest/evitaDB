@@ -73,10 +73,26 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 	 * @param attributeType     the declared attribute type (array-aware)
 	 */
 	public OwnerFilterIndex(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
+		this(attributeIndexKey, attributeType, 0);
+	}
+
+	/**
+	 * Creates a new empty owner filter index for the given attribute, carrying the `BigDecimal` scaling decimal places.
+	 *
+	 * @param attributeIndexKey    key identifying the attribute
+	 * @param attributeType        the declared attribute type (array-aware)
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 */
+	public OwnerFilterIndex(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces
+	) {
 		this(
 			attributeIndexKey,
 			attributeType,
-			getNormalizer(plainTypeOf(attributeType)),
+			indexedDecimalPlaces,
+			getNormalizer(plainTypeOf(attributeType), indexedDecimalPlaces),
 			getComparator(attributeIndexKey, plainTypeOf(attributeType))
 		);
 	}
@@ -88,13 +104,15 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 	private OwnerFilterIndex(
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces,
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator<? extends Comparable> comparator
 	) {
 		this(
 			attributeIndexKey,
 			attributeType,
-			new InvertedIndex(normalizer, comparator),
+			indexedDecimalPlaces,
+			new InvertedIndex(plainTypeOf(attributeType), normalizer, comparator, indexedDecimalPlaces),
 			Range.class.isAssignableFrom(plainTypeOf(attributeType)) ? new RangeIndex() : null,
 			comparator,
 			normalizer
@@ -115,12 +133,32 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Class<?> attributeType
 	) {
+		this(attributeIndexKey, valueToRecords, rangeIndex, attributeType, 0);
+	}
+
+	/**
+	 * Creates an owner filter index restored from persisted histogram points, carrying the `BigDecimal` scaling places.
+	 *
+	 * @param attributeIndexKey    key identifying the attribute
+	 * @param valueToRecords       persisted value→ValueToRecord buckets
+	 * @param rangeIndex           persisted range structure, or `null` for non-range attributes
+	 * @param attributeType        the declared attribute type (array-aware)
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 */
+	public OwnerFilterIndex(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ValueToRecordBitmap[] valueToRecords,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces
+	) {
 		this(
 			attributeIndexKey,
 			valueToRecords,
 			rangeIndex,
 			attributeType,
-			getNormalizer(plainTypeOf(attributeType)),
+			indexedDecimalPlaces,
+			getNormalizer(plainTypeOf(attributeType), indexedDecimalPlaces),
 			getComparator(attributeIndexKey, plainTypeOf(attributeType))
 		);
 	}
@@ -134,13 +172,15 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 		@Nonnull ValueToRecordBitmap[] valueToRecords,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces,
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator<? extends Comparable> comparator
 	) {
 		this(
 			attributeIndexKey,
 			attributeType,
-			new InvertedIndex(valueToRecords, normalizer, comparator),
+			indexedDecimalPlaces,
+			new InvertedIndex(plainTypeOf(attributeType), valueToRecords, normalizer, comparator, indexedDecimalPlaces),
 			rangeIndex,
 			comparator,
 			normalizer
@@ -154,12 +194,15 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 	OwnerFilterIndex(
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces,
 		@Nonnull InvertedIndex invertedIndex,
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Comparator<? extends Comparable> comparator,
 		@Nonnull Function<Object, Serializable> normalizer
 	) {
-		super(attributeIndexKey, attributeType, invertedIndex, rangeIndex, comparator, normalizer);
+		super(
+			attributeIndexKey, attributeType, indexedDecimalPlaces, invertedIndex, rangeIndex, comparator, normalizer
+		);
 		this.dirty = new TransactionalBoolean();
 	}
 
@@ -189,6 +232,7 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 		return new OwnerFilterIndex(
 			getAttributeIndexKey(),
 			getAttributeType(),
+			getIndexedDecimalPlaces(),
 			transactionalLayer.getStateCopyWithCommittedChanges(getInvertedIndex()),
 			theRangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(theRangeIndex),
 			getComparator(),

@@ -29,15 +29,14 @@ import io.evitadb.dataType.Range;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.RecordWithCompressedId;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Objects;
 
 /**
  * Filter index container stores index for single {@link AttributeSchema} of the single
@@ -47,11 +46,9 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@RequiredArgsConstructor
-@AllArgsConstructor
 @ToString(of = {"attributeIndexKey", "entityIndexPrimaryKey"})
 public class FilterIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = 942367579256351640L;
+	@Serial private static final long serialVersionUID = 3847290165472938104L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -79,9 +76,70 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Nullable @Getter private final RangeIndex rangeIndex;
 	/**
+	 * The `indexedDecimalPlaces` scale frozen at index-creation time and persisted with the index. `BigDecimal` filter
+	 * keys are stored as order-preserving scaled `int`s at this scale; it is `0` for every non-`BigDecimal` attribute.
+	 * The value is frozen into the index (rather than re-derived from the schema at load) so the on-disk scaled keys are
+	 * always interpreted at the scale they were written with; a later schema change to `indexedDecimalPlaces` is detected
+	 * as drift on the next modification instead of silently reinterpreting the persisted keys.
+	 */
+	@Getter private final int indexedDecimalPlaces;
+	/**
 	 * Id used for lookups in file offset index for this particular container.
 	 */
-	@Getter @Setter private Long storagePartPK;
+	@Nullable @Getter @Setter private Long storagePartPK;
+
+	/**
+	 * Creates a fresh filter index part whose storage part PK is not yet assigned (computed before persistence) with a
+	 * `0` decimal-places scale. Retained for the backward-compatible serializers of pre-freeze formats, which never
+	 * carried a persisted scale.
+	 */
+	public FilterIndexStoragePart(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<?> attributeType,
+		@Nonnull ValueToRecordBitmap[] histogramPoints,
+		@Nullable RangeIndex rangeIndex
+	) {
+		this(entityIndexPrimaryKey, attributeIndexKey, attributeType, histogramPoints, rangeIndex, 0, null);
+	}
+
+	/**
+	 * Constructor carrying the already-assigned storage part PK with a `0` decimal-places scale. Retained for the
+	 * backward-compatible serializers of pre-freeze formats, which never carried a persisted scale.
+	 */
+	public FilterIndexStoragePart(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<?> attributeType,
+		@Nonnull ValueToRecordBitmap[] histogramPoints,
+		@Nullable RangeIndex rangeIndex,
+		@Nullable Long storagePartPK
+	) {
+		this(entityIndexPrimaryKey, attributeIndexKey, attributeType, histogramPoints, rangeIndex, 0, storagePartPK);
+	}
+
+	/**
+	 * Canonical constructor carrying every field, including the frozen `indexedDecimalPlaces` scale and the
+	 * already-assigned storage part PK.
+	 */
+	public FilterIndexStoragePart(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<?> attributeType,
+		@Nonnull ValueToRecordBitmap[] histogramPoints,
+		@Nullable RangeIndex rangeIndex,
+		int indexedDecimalPlaces,
+		@Nullable Long storagePartPK
+	) {
+		// the type-less 2024.5 format is unsupported: a null attributeType must fail fast at construction
+		this.attributeType = Objects.requireNonNull(attributeType);
+		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
+		this.attributeIndexKey = attributeIndexKey;
+		this.histogramPoints = histogramPoints;
+		this.rangeIndex = rangeIndex;
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.storagePartPK = storagePartPK;
+	}
 
 	@Nonnull
 	@Override

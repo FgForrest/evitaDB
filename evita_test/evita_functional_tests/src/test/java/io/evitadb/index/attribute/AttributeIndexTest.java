@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Predecessor;
@@ -57,6 +58,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -201,7 +203,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Serializable[] values
 	) {
 		final InvertedIndex shared = new InvertedIndex(
-			FilterIndex.getNormalizer(attributeType),
+			FilterIndex.getNormalizer(attributeType, 0),
 			FilterIndex.getComparator(filterKey, attributeType)
 		);
 		final FilterIndex view = new FilterIndexView(filterKey, shared, null, attributeType);
@@ -257,7 +259,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 
 			final AttributeIndexKey filterKey = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
 			final InvertedIndex shared = new InvertedIndex(
-				FilterIndex.getNormalizer(String.class),
+				FilterIndex.getNormalizer(String.class, 0),
 				FilterIndex.getComparator(filterKey, String.class)
 			);
 			shared.addRecord("TestProduct", 1);
@@ -931,7 +933,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		void shouldCollectModifiedStorageParts() {
 			final AttributeIndexKey filterKey = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
 			final InvertedIndex shared = new InvertedIndex(
-				FilterIndex.getNormalizer(String.class),
+				FilterIndex.getNormalizer(String.class, 0),
 				FilterIndex.getComparator(filterKey, String.class)
 			);
 			shared.addRecord("Product", 1);
@@ -1239,6 +1241,130 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final ChainIndex result = index.getChainIndex(key);
 
 			assertNotNull(result);
+		}
+	}
+
+	@Nested
+	@DisplayName("Indexed decimal places consistency guard")
+	class IndexedDecimalPlacesGuardTest {
+
+		/**
+		 * Builds a filterable + sortable {@link BigDecimal} entity attribute schema with the requested
+		 * `indexedDecimalPlaces`, so two schemas differing only in scale can be fed to the same index to simulate a
+		 * schema change that was not followed by a full index rebuild.
+		 *
+		 * @param indexedDecimalPlaces the decimal-places scale the returned schema declares
+		 * @return a `BigDecimal` attribute schema scaled to `indexedDecimalPlaces`
+		 */
+		@Nonnull
+		private static EntityAttributeSchemaContract decimalAttribute(int indexedDecimalPlaces) {
+			return EntityAttributeSchema._internalBuild(
+				"decimalAttribute", null, null,
+				null,
+				new Scope[]{Scope.LIVE},
+				new Scope[]{Scope.LIVE},
+				false, false, false,
+				BigDecimal.class, null,
+				indexedDecimalPlaces
+			);
+		}
+
+		@Test
+		@DisplayName("filter insert into a scale-drifted index fails loudly")
+		void shouldThrowWhenFilterInsertScaleDrifts() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			// build the shared filter tree frozen at two decimal places
+			index.insertFilterAttribute(
+				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1, false
+			);
+
+			// the schema now declares three decimal places -- modifying the frozen index must refuse rather than mangle
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> index.insertFilterAttribute(
+					null, decimalAttribute(3), ALLOWED_LOCALES, null, new BigDecimal("2.500"), 2, false
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("filter remove from a scale-drifted index fails loudly")
+		void shouldThrowWhenFilterRemoveScaleDrifts() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			index.insertFilterAttribute(
+				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1, false
+			);
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> index.removeFilterAttribute(
+					null, decimalAttribute(3), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("filter modification at the unchanged scale is accepted")
+		void shouldAcceptFilterModificationAtUnchangedScale() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			index.insertFilterAttribute(
+				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1, false
+			);
+
+			// same scale -> no drift -> a second modification is accepted
+			assertDoesNotThrow(
+				() -> index.insertFilterAttribute(
+					null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("2.50"), 2, false
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("sort insert into a scale-drifted index fails loudly")
+		void shouldThrowWhenSortInsertScaleDrifts() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			// build the sort index frozen at two decimal places
+			index.insertSortAttribute(
+				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1
+			);
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> index.insertSortAttribute(
+					null, decimalAttribute(3), ALLOWED_LOCALES, null, new BigDecimal("2.500"), 2
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("sort remove from a scale-drifted index fails loudly")
+		void shouldThrowWhenSortRemoveScaleDrifts() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			index.insertSortAttribute(
+				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1
+			);
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> index.removeSortAttribute(
+					null, decimalAttribute(3), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("sort modification at the unchanged scale is accepted")
+		void shouldAcceptSortModificationAtUnchangedScale() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			index.insertSortAttribute(
+				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1
+			);
+
+			assertDoesNotThrow(
+				() -> index.insertSortAttribute(
+					null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("2.50"), 2
+				)
+			);
 		}
 	}
 }

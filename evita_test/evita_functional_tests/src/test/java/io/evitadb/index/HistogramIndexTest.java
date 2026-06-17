@@ -69,7 +69,7 @@ class HistogramIndexTest {
 
 		@BeforeEach
 		void setUp() {
-			this.histogramIndex = new SimpleHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class);
+			this.histogramIndex = new SimpleHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0);
 		}
 
 		@Test
@@ -441,7 +441,7 @@ class HistogramIndexTest {
 
 		@BeforeEach
 		void setUp() {
-			this.histogramIndex = new LocalizedHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class);
+			this.histogramIndex = new LocalizedHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0);
 		}
 
 		@Test

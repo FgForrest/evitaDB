@@ -82,7 +82,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 				HISTOGRAM_INDEX,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCE_ATTRIBUTE, null, WEIGHT_ATTR,
-					Integer.class, false, false, null, null
+					Integer.class, false, false, null, null,
+					0
 				)
 			);
 			final ExistingAttributeValueSupplier supplier = createSupplier(
@@ -104,7 +105,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 		void shouldApplyDefaultValueWhenAttributeIsNull() {
 			final HistogramValueDescriptor descriptor = new HistogramValueDescriptor(
 				HistogramValueSource.REFERENCE_ATTRIBUTE, null, WEIGHT_ATTR,
-				Integer.class, false, false, 0, null
+				Integer.class, false, false, 0, null,
+				0
 			);
 			final HistogramExpressionTrigger trigger = createUnconditionalTrigger(HISTOGRAM_INDEX, descriptor);
 			final ExistingAttributeValueSupplier supplier = createSupplier(Map.of());
@@ -121,7 +123,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 		void shouldReturnEmptyArrayWhenAttributeIsNullAndNoDefault() {
 			final HistogramValueDescriptor descriptor = new HistogramValueDescriptor(
 				HistogramValueSource.REFERENCE_ATTRIBUTE, null, WEIGHT_ATTR,
-				Integer.class, false, false, null, null
+				Integer.class, false, false, null, null,
+				0
 			);
 			final HistogramExpressionTrigger trigger = createUnconditionalTrigger(HISTOGRAM_INDEX, descriptor);
 			final ExistingAttributeValueSupplier supplier = createSupplier(Map.of());
@@ -145,7 +148,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 				HISTOGRAM_INDEX,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCE_ATTRIBUTE, null, WEIGHT_ATTR,
-					Integer.class, false, true, null, null
+					Integer.class, false, true, null, null,
+					0
 				)
 			);
 			final Map<AttributeKey, Serializable> attributes = new HashMap<>(2);
@@ -177,7 +181,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 				HISTOGRAM_INDEX,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCE_ATTRIBUTE, null, WEIGHT_ATTR,
-					Integer.class, true, false, null, null
+					Integer.class, true, false, null, null,
+					0
 				)
 			);
 			final ExistingAttributeValueSupplier supplier = createSupplier(
@@ -203,7 +208,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 				HISTOGRAM_INDEX,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCE_ATTRIBUTE, null, PRICE_ATTR,
-					Integer.class, false, false, null, null
+					Integer.class, false, false, null, null,
+					0
 				)
 			);
 			final ExistingAttributeValueSupplier supplier = createSupplier(
@@ -224,7 +230,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 				HISTOGRAM_INDEX,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCED_ENTITY_ATTRIBUTE, ENTITY_TYPE, WEIGHT_ATTR,
-					Integer.class, false, false, null, null
+					Integer.class, false, false, null, null,
+					0
 				)
 			);
 			final ExistingAttributeValueSupplier supplier = createSupplier(
@@ -249,7 +256,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 				HISTOGRAM_INDEX,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCE_ATTRIBUTE, null, WEIGHT_ATTR,
-					Integer.class, false, false, null, null
+					Integer.class, false, false, null, null,
+					0
 				)
 			);
 			assertFalse(snapshot.isValueSourceChanged(anyTrigger));
@@ -267,7 +275,8 @@ class PreMutationHistogramSnapshotTest implements EvitaTestSupport {
 				HISTOGRAM_INDEX,
 				new HistogramValueDescriptor(
 					HistogramValueSource.REFERENCE_ATTRIBUTE, null, PRICE_ATTR,
-					Integer.class, false, false, null, null
+					Integer.class, false, false, null, null,
+					0
 				)
 			);
 			final PreMutationHistogramSnapshot snapshot =

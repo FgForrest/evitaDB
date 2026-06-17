@@ -23,17 +23,22 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.component.loader.IndexedDecimalPlacesResolver;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
@@ -43,17 +48,21 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.NumberUtils;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
@@ -61,6 +70,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Migration logic for upgrading the catalog storage protocol from version 5 to version 6.
@@ -73,18 +83,43 @@ import java.util.function.Function;
  * silent non-ASCII lookup misses (and, for naturally-ordered non-localized strings, duplicate buckets on the next
  * write). NFD→raw is not invertible, so the re-key cannot be deferred to a lazy path — it is done once here.
  *
- * This migration therefore performs exactly one transformation: every `FilterIndexStoragePart` whose attribute type is
- * `String` (or `String[]`) has its histogram points re-keyed to NFD, with buckets that collide under NFD merged (their
- * record bitmaps unioned) and the whole point array re-sorted under the index's own comparator so it stays strictly
- * monotone (the invariant `InvertedIndex` asserts on load). ASCII-only parts are left untouched (NFD is the identity on
- * ASCII). Unique and sort storage parts are unchanged: uniqueness keeps its own standalone index, and the sort part's
- * value/cardinality section is redundant for view-mode parts, so it is ignored at load and dropped on the next flush.
+ * This migration therefore performs two value-key re-keyings, both driven by the same protocol bump:
+ *
+ * 1. **`String` filter parts** — every `FilterIndexStoragePart` whose attribute type is `String` (or `String[]`) has its
+ *    histogram points re-keyed to NFD, with buckets that collide under NFD merged (their record bitmaps unioned) and the
+ *    whole point array re-sorted under the index's own comparator so it stays strictly monotone (the invariant
+ *    `InvertedIndex` asserts on load). ASCII-only parts are left untouched (NFD is the identity on ASCII).
+ *
+ * 2. **`BigDecimal` filter / sort parts** — version 6 also stops storing a filterable/sortable `BigDecimal` attribute's
+ *    value keys as raw `BigDecimal` and instead stores the order-preserving scaled `int`
+ *    (`NumberUtils.convertToInt(value, indexedDecimalPlaces)`) that the runtime now uses. The per-attribute
+ *    `indexedDecimalPlaces` is frozen into each rewritten part: a legacy pre-v6 part does not carry it, so it is
+ *    resolved from the entity schema here and persisted into the re-keyed part; every later index load then reads it
+ *    back verbatim (it is no longer re-resolved from the schema on load). A pre-v6 catalog still holds raw `BigDecimal`
+ *    keys, so:
+ *    - every `BigDecimal` (or `BigDecimal[]`) `FilterIndexStoragePart` has its histogram points re-keyed to the scaled
+ *      `Integer` (buckets that collapse to the same scaled int merged, bitmaps unioned, re-sorted under natural
+ *      `Integer` order);
+ *    - a **sort-only** `BigDecimal` attribute (a SORT part with NO FILTER part for the same `AttributeIndexKey` in the
+ *      same entity index) is an `OwnerSortIndex` whose persisted `sortedRecordValues` / `valueCardinalities` ARE read
+ *      back on load, so they are re-scaled to `Integer` and re-bucketed here.
+ *
+ * The decision NOT to touch a both-flagged `BigDecimal` attribute's sort part is taken from `AttributeIndexLoader`:
+ * `fetchSort` runs in **view mode** whenever a FILTER part exists for the same key — the persisted sort
+ * `sortedRecordValues` / `valueCardinalities` are then IGNORED (the slim view part carries none and a legacy full part
+ * is discarded), the sort view being rebuilt from the shared filter tree (already re-keyed by step 2). Re-keying such a
+ * sort part would be wasted work, so it is skipped. Unique parts are unchanged: uniqueness keeps its own standalone
+ * index and stays exact `BigDecimal`.
  *
  * The shape follows {@link Migration_2025_6#upgradeFromStorageProtocolVersion_3_to_4} (the inline index-part rewrite
  * analogue), not the WAL-rewrite {@link Migration_2026_1}: per collection, re-key the affected filter parts, flush the
  * collection, then bump the catalog header to protocol 6. Crash-safety is inherited from the dispatch loop in
  * `DefaultCatalogPersistenceService.verifyAndUpgradeStorageFormat` — the header stays at 5 until the post-upgrade
- * action commits 6, so an interrupted upgrade simply re-runs.
+ * action commits 6, so an interrupted upgrade simply re-runs. The same property makes the `BigDecimal` scaling abort
+ * safely: if a stored value does not fit `int` at the schema's `indexedDecimalPlaces` (`NumberUtils.convertToInt` throws
+ * `ArithmeticException`), the migration fails loudly (wrapping the catalog / attribute / value context in a
+ * `GenericEvitaInternalError`) before the header advances, so the catalog stays at protocol 5 and the upgrade can be
+ * retried after the offending schema scale is corrected.
  *
  * @deprecated removable once no catalog older than the 2026 release that introduced protocol 6 is in use.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -128,13 +163,20 @@ public interface Migration_2026_2 {
 			final OffsetIndexStoragePartPersistenceService collectionStoragePartService =
 				collectionPersistenceService.getStoragePartPersistenceService();
 
+			// the entity schema (loaded once per collection) supplies the per-attribute `indexedDecimalPlaces` that drives
+			// the BigDecimal scaled-int re-key; the schema is always stored under storage-part id 1
+			final EntitySchema entitySchema = Objects.requireNonNull(
+				collectionStoragePartService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class),
+				"Entity schema storage part is missing for collection `" + entityCollectionHeader.entityType() + "`!"
+			).entitySchema();
+
 			// every entity index of the collection (the reduced ones plus the global one)
 			final Set<Integer> indexIds = new HashSet<>(entityCollectionHeader.usedEntityIndexPrimaryKeys());
 			if (entityCollectionHeader.globalEntityIndexPrimaryKey() != null) {
 				indexIds.add(entityCollectionHeader.globalEntityIndexPrimaryKey());
 			}
 
-			int rekeyedFilterIndexes = 0;
+			int rekeyedIndexes = 0;
 			for (final Integer indexPrimaryKey : indexIds) {
 				final EntityIndexStoragePart indexPart = collectionStoragePartService.getStoragePart(
 					catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
@@ -144,15 +186,36 @@ public interface Migration_2026_2 {
 						"Entity index storage part for primary key " + indexPrimaryKey + " is missing!"
 					);
 				}
+				// the reference scope of every attribute indexed under this index is carried by the OWNING index key,
+				// not by the per-attribute key: a legacy-rehydrated AttributeIndexKey has a null reference name (the old
+				// AttributeKey form carried none), so a reference attribute would otherwise be looked up at entity level
+				// and missed. Resolved once per index and threaded into the scale resolver below.
+				final String referenceName = indexPart.getEntityIndexKey().referenceName();
+				// the FILTER attribute keys of this index, used to tell sort-only BigDecimal parts (owner mode, persisted
+				// values read back on load) from both-flagged ones (view mode, persisted values ignored on load)
+				final Set<AttributeIndexKey> filterAttributeKeys = new HashSet<>();
+				for (final AttributeIndexStorageKey attributeIndexKey : indexPart.getAttributeIndexes()) {
+					if (attributeIndexKey.indexType() == AttributeIndexType.FILTER) {
+						filterAttributeKeys.add(attributeIndexKey.attribute());
+					}
+				}
 				for (final AttributeIndexStorageKey attributeIndexKey : indexPart.getAttributeIndexes()) {
 					if (attributeIndexKey.indexType() == AttributeIndexType.FILTER
-						&& rekeyFilterIndexToNfd(catalogVersion, indexPrimaryKey, attributeIndexKey, collectionStoragePartService)) {
-						rekeyedFilterIndexes++;
+						&& rekeyFilterIndex(
+							catalogVersion, indexPrimaryKey, attributeIndexKey,
+							collectionStoragePartService, entitySchema, referenceName)) {
+						rekeyedIndexes++;
+					} else if (attributeIndexKey.indexType() == AttributeIndexType.SORT
+						&& !filterAttributeKeys.contains(attributeIndexKey.attribute())
+						&& rekeySortOnlyIndex(
+							catalogVersion, indexPrimaryKey, attributeIndexKey,
+							collectionStoragePartService, entitySchema, referenceName)) {
+						rekeyedIndexes++;
 					}
 				}
 			}
 
-			if (rekeyedFilterIndexes > 0) {
+			if (rekeyedIndexes > 0) {
 				// at least one filter part of this collection changed - re-persist the collection and pick up its new location
 				final OffsetIndexDescriptor offsetIndexDescriptor = collectionPersistenceService.flush(
 					catalogVersion,
@@ -170,11 +233,11 @@ public interface Migration_2026_2 {
 					)
 				);
 				ConsoleWriter.writeLine(
-					"Entity collection `" + entityCollectionHeader.entityType() + "`: re-keyed " + rekeyedFilterIndexes + " filter index(es) to NFD.",
+					"Entity collection `" + entityCollectionHeader.entityType() + "`: re-keyed " + rekeyedIndexes + " index(es) (NFD strings / scaled BigDecimals).",
 					ConsoleColor.BRIGHT_BLUE
 				);
 			} else {
-				// nothing changed (ASCII-only string keys, or no string filter parts) - keep the existing collection file
+				// nothing changed (ASCII-only string keys, no BigDecimal parts) - keep the existing collection file
 				newCollectionFileIndex.put(entityTypeFileIndex.entityType(), entityTypeFileIndex);
 			}
 		}
@@ -202,22 +265,32 @@ public interface Migration_2026_2 {
 	}
 
 	/**
-	 * Re-keys a single filter index's persisted histogram points to Unicode NFD when the attribute is `String`-typed.
-	 * Points whose NFD form collides are merged (record bitmaps unioned) and the result is re-sorted under the index's
-	 * own comparator so the persisted array stays strictly monotone. A part that does not change (ASCII-only keys, or a
-	 * non-`String` type) is left untouched.
+	 * Re-keys a single FILTER index's persisted histogram points, branching on the stored attribute type:
+	 *
+	 * - `String` / `String[]` → Unicode NFD (points whose NFD form collides merged, bitmaps unioned, re-sorted under the
+	 *   index's own comparator so the array stays strictly monotone). ASCII-only parts are left unchanged.
+	 * - `BigDecimal` / `BigDecimal[]` → the order-preserving scaled `Integer`
+	 *   (`NumberUtils.convertToInt(value, indexedDecimalPlaces)`); points that collapse to the same scaled int merged,
+	 *   bitmaps unioned, re-sorted under natural `Integer` order. The scale itself is not persisted — it is re-resolved
+	 *   from the entity schema on every later index load.
+	 * - any other type → left untouched (already canonical in v5).
 	 *
 	 * @param catalogVersion              the catalog version being migrated
 	 * @param indexPrimaryKey             the owning entity index primary key
 	 * @param attributeIndexKey           the FILTER attribute storage key to re-key
 	 * @param collectionStoragePartService persistence service of the owning entity collection
+	 * @param entitySchema                the collection's entity schema (supplies `indexedDecimalPlaces` per attribute)
+	 * @param referenceName               name of the reference owning this index's attributes (from the owning
+	 *                                    {@link io.evitadb.index.EntityIndexKey}), or `null` for an entity-level index
 	 * @return {@code true} when the part was rewritten, {@code false} when it was left unchanged
 	 */
-	private static boolean rekeyFilterIndexToNfd(
+	private static boolean rekeyFilterIndex(
 		long catalogVersion,
 		int indexPrimaryKey,
 		@Nonnull AttributeIndexStorageKey attributeIndexKey,
-		@Nonnull OffsetIndexStoragePartPersistenceService collectionStoragePartService
+		@Nonnull OffsetIndexStoragePartPersistenceService collectionStoragePartService,
+		@Nonnull EntitySchema entitySchema,
+		@Nullable String referenceName
 	) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(
 			indexPrimaryKey,
@@ -236,30 +309,129 @@ public interface Migration_2026_2 {
 		}
 		final Class<?> attributeType = part.getAttributeType();
 		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
-		// only String keys changed normalization (raw -> NFD); every other type was already canonical in v5
-		if (!String.class.isAssignableFrom(plainType)) {
+
+		if (String.class.isAssignableFrom(plainType)) {
+			// merge points by their NFD key under the SAME comparator the index uses, so the rebuilt array matches the
+			// load-time bucket ordering and identity (canonically-equivalent values already shared a bucket pre-migration)
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			final Comparator<Serializable> comparator =
+				(Comparator) FilterIndex.getComparator(part.getAttributeIndexKey(), plainType);
+			final ValueToRecordBitmap[] rekeyedPoints = rekeyHistogramPointsToNfd(part.getHistogramPoints(), comparator);
+			// null signals "nothing changed" (ASCII-only keys, no NFD collisions, no reordering)
+			if (rekeyedPoints == null) {
+				return false;
+			}
+			collectionStoragePartService.putStoragePart(
+				catalogVersion,
+				new FilterIndexStoragePart(
+					part.getEntityIndexPrimaryKey(),
+					part.getAttributeIndexKey(),
+					attributeType,
+					rekeyedPoints,
+					part.getRangeIndex(),
+					part.getStoragePartPK()
+				)
+			);
+			return true;
+		} else if (BigDecimal.class.isAssignableFrom(plainType)) {
+			final int places = IndexedDecimalPlacesResolver.resolveIndexedDecimalPlaces(
+				entitySchema, referenceName, attributeIndexKey.attribute().attributeName()
+			);
+			final ValueToRecordBitmap[] rekeyedPoints = rekeyHistogramPoints(
+				() -> rekeyHistogramPointsToScaledInt(part.getHistogramPoints(), places),
+				catalogVersion, attributeIndexKey, entitySchema.getName()
+			);
+			collectionStoragePartService.putStoragePart(
+				catalogVersion,
+				new FilterIndexStoragePart(
+					part.getEntityIndexPrimaryKey(),
+					part.getAttributeIndexKey(),
+					attributeType,
+					rekeyedPoints,
+					part.getRangeIndex(),
+					places,
+					part.getStoragePartPK()
+				)
+			);
+			return true;
+		} else {
+			// every other type was already canonical in v5 (no normalization / scaling change)
+			return false;
+		}
+	}
+
+	/**
+	 * Re-keys a single **sort-only** `BigDecimal` SORT index (an `OwnerSortIndex` whose persisted
+	 * `sortedRecordValues` / `valueCardinalities` ARE read back on load) from raw `BigDecimal` to the order-preserving
+	 * scaled `Integer`. The flat `sortedRecords` record-id blocks are kept as-is; only the distinct value side and its
+	 * cardinality map are re-scaled and re-bucketed (cardinalities of values that collapse to the same scaled int are
+	 * summed), and the new `indexedDecimalPlaces` field is populated. A non-`BigDecimal` sort part (or one with no
+	 * BigDecimal values) is left untouched. Compound sort attributes never reach this branch with a bare `BigDecimal`
+	 * value — their values are wrapped `ComparableArray`s — so they pass through unchanged.
+	 *
+	 * @param catalogVersion              the catalog version being migrated
+	 * @param indexPrimaryKey             the owning entity index primary key
+	 * @param attributeIndexKey           the SORT attribute storage key to re-key
+	 * @param collectionStoragePartService persistence service of the owning entity collection
+	 * @param entitySchema                the collection's entity schema (supplies `indexedDecimalPlaces` per attribute)
+	 * @param referenceName               name of the reference owning this index's attributes (from the owning
+	 *                                    {@link io.evitadb.index.EntityIndexKey}), or `null` for an entity-level index
+	 * @return {@code true} when the part was rewritten, {@code false} when it was left unchanged
+	 */
+	private static boolean rekeySortOnlyIndex(
+		long catalogVersion,
+		int indexPrimaryKey,
+		@Nonnull AttributeIndexStorageKey attributeIndexKey,
+		@Nonnull OffsetIndexStoragePartPersistenceService collectionStoragePartService,
+		@Nonnull EntitySchema entitySchema,
+		@Nullable String referenceName
+	) {
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(
+			indexPrimaryKey,
+			AttributeIndexType.SORT,
+			attributeIndexKey.attribute(),
+			collectionStoragePartService.getReadOnlyKeyCompressor()
+		);
+		final SortIndexStoragePart part = collectionStoragePartService.getStoragePart(
+			catalogVersion, primaryKey, SortIndexStoragePart.class
+		);
+		if (part == null) {
+			throw new GenericEvitaInternalError(
+				"Sort index with id " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() +
+					" was not found in persistent storage!"
+			);
+		}
+		final Serializable[] sortedValues = part.getSortedRecordsValues();
+		// only a single-attribute BigDecimal sort index stores bare BigDecimal value keys; everything else (already-scaled
+		// Integers from a re-run, or compound ComparableArray values) is left as-is
+		boolean anyBigDecimal = false;
+		for (final Serializable value : sortedValues) {
+			if (value instanceof BigDecimal) {
+				anyBigDecimal = true;
+				break;
+			}
+		}
+		if (!anyBigDecimal) {
 			return false;
 		}
 
-		// merge points by their NFD key under the SAME comparator the index uses, so the rebuilt array matches the
-		// load-time bucket ordering and identity (canonically-equivalent values already shared a bucket pre-migration)
-		@SuppressWarnings({"unchecked", "rawtypes"})
-		final Comparator<Serializable> comparator =
-			(Comparator) FilterIndex.getComparator(part.getAttributeIndexKey(), plainType);
-		final ValueToRecordBitmap[] rekeyedPoints = rekeyHistogramPointsToNfd(part.getHistogramPoints(), comparator);
-		// null signals "nothing changed" (ASCII-only keys, no NFD collisions, no reordering)
-		if (rekeyedPoints == null) {
-			return false;
-		}
-
+		final int places = IndexedDecimalPlacesResolver.resolveIndexedDecimalPlaces(
+			entitySchema, referenceName, attributeIndexKey.attribute().attributeName()
+		);
+		final ScaledSortValues scaled = rekeyHistogramPoints(
+			() -> rekeySortedValuesToScaledInt(sortedValues, part.getValueCardinalities(), places),
+			catalogVersion, attributeIndexKey, entitySchema.getName()
+		);
 		collectionStoragePartService.putStoragePart(
 			catalogVersion,
-			new FilterIndexStoragePart(
+			new SortIndexStoragePart(
 				part.getEntityIndexPrimaryKey(),
 				part.getAttributeIndexKey(),
-				attributeType,
-				rekeyedPoints,
-				part.getRangeIndex(),
+				part.getComparatorBase(),
+				part.getSortedRecords(),
+				scaled.sortedRecordValues(),
+				scaled.valueCardinalities(),
+				places,
 				part.getStoragePartPK()
 			)
 		);
@@ -267,7 +439,160 @@ public interface Migration_2026_2 {
 	}
 
 	/**
-	 * Pure transform behind {@link #rekeyFilterIndexToNfd}: re-keys a filter histogram's points to Unicode NFD, merging
+	 * Runs a `BigDecimal` re-key transform, translating the `ArithmeticException` that `NumberUtils.convertToInt` throws
+	 * on an `int` overflow into a loud `GenericEvitaInternalError` carrying the catalog / attribute / value context.
+	 * Because the migration aborts before the catalog header advances to protocol 6, the catalog stays at protocol 5 and
+	 * the upgrade can be retried after the offending schema scale is corrected.
+	 *
+	 * @param transform         the pure scaling transform to run
+	 * @param catalogVersion    the catalog version being migrated (for the error context)
+	 * @param attributeIndexKey the attribute being re-keyed (for the error context)
+	 * @param entityType        the entity type being migrated (for the error context)
+	 * @return the transform result
+	 */
+	private static <T> T rekeyHistogramPoints(
+		@Nonnull Supplier<T> transform,
+		long catalogVersion,
+		@Nonnull AttributeIndexStorageKey attributeIndexKey,
+		@Nonnull String entityType
+	) {
+		try {
+			return transform.get();
+		} catch (ArithmeticException ex) {
+			throw new GenericEvitaInternalError(
+				"BigDecimal value of attribute `" + attributeIndexKey.attribute().attributeName() +
+					"` (entity `" + entityType + "`, catalog version " + catalogVersion +
+					") does not fit an int at the schema's decimal places during the v5 to v6 scaled-int re-key: " +
+					ex.getMessage(),
+				ex
+			);
+		}
+	}
+
+	/**
+	 * Pure transform: re-keys a `BigDecimal` filter histogram's points to their order-preserving scaled `Integer`
+	 * (`NumberUtils.convertToInt(value, indexedDecimalPlaces)`), merging points that collapse to the same scaled int
+	 * (their record bitmaps unioned) and re-ordering the result under natural `Integer` order so it stays strictly
+	 * monotone. A point whose value is already an `Integer` (a re-run) passes through unchanged, making the transform
+	 * idempotent; only `BigDecimal` values are scaled.
+	 *
+	 * Exposed for deterministic offline testing of the scaling / merge / ordering logic, which the network-dependent
+	 * end-to-end backward-compatibility test cannot exercise in a sandbox.
+	 *
+	 * @param points               the persisted histogram points (raw `BigDecimal` keys, ordered by natural order)
+	 * @param indexedDecimalPlaces the attribute's decimal-places scale
+	 * @return the re-keyed, merged, re-ordered points (scaled `Integer` keys)
+	 */
+	@Nonnull
+	static ValueToRecordBitmap[] rekeyHistogramPointsToScaledInt(
+		@Nonnull ValueToRecordBitmap[] points,
+		int indexedDecimalPlaces
+	) {
+		final TreeMap<Integer, RoaringBitmapWriter<RoaringBitmap>> mergedByScaledInt = new TreeMap<>();
+		for (final ValueToRecordBitmap point : points) {
+			final Serializable rawValue = point.getValue();
+			// idempotent guard: an already-scaled Integer (re-run) keeps its key; only a real BigDecimal is scaled
+			final int scaledKey;
+			if (rawValue instanceof BigDecimal bd) {
+				scaledKey = NumberUtils.convertToInt(bd, indexedDecimalPlaces);
+			} else if (rawValue instanceof Integer alreadyScaled) {
+				scaledKey = alreadyScaled;
+			} else {
+				throw new GenericEvitaInternalError(
+					"Filter histogram point under a BigDecimal-typed attribute carries a value `" + rawValue +
+						"` of unexpected type " + rawValue.getClass().getName() + "; " +
+						"the v5 to v6 scaled-int re-key cannot proceed."
+				);
+			}
+			final RoaringBitmapWriter<RoaringBitmap> writer = mergedByScaledInt.computeIfAbsent(
+				scaledKey, __ -> RoaringBitmapBackedBitmap.buildWriter()
+			);
+			final OfInt recordIterator = point.getRecordIds().iterator();
+			while (recordIterator.hasNext()) {
+				writer.add(recordIterator.nextInt());
+			}
+		}
+
+		final ValueToRecordBitmap[] rekeyedPoints = new ValueToRecordBitmap[mergedByScaledInt.size()];
+		int i = 0;
+		for (final Entry<Integer, RoaringBitmapWriter<RoaringBitmap>> entry : mergedByScaledInt.entrySet()) {
+			rekeyedPoints[i++] = new ValueToRecordBitmap(
+				entry.getKey(),
+				new BaseBitmap(entry.getValue().get())
+			);
+		}
+		return rekeyedPoints;
+	}
+
+	/**
+	 * Pure transform: re-keys a sort-only `BigDecimal` index's distinct value side to scaled `Integer`. Re-scales every
+	 * `sortedRecordValues` entry (`NumberUtils.convertToInt` for a real `BigDecimal`, an already-scaled `Integer` passing
+	 * through for idempotency) and re-buckets `valueCardinalities`, summing the counts of values that collapse to the
+	 * same scaled int. The result's value array is the distinct scaled ints in natural order, paralleling the unchanged
+	 * `sortedRecords` blocks; the cardinality map carries only the entries whose summed count is greater than one (the
+	 * "cardinality 1 is implied" storage convention).
+	 *
+	 * Exposed for deterministic offline testing alongside the filter transform.
+	 *
+	 * @param sortedRecordValues   the persisted distinct sort values (raw `BigDecimal`, natural order)
+	 * @param valueCardinalities   counts for values shared by more than one record (keyed by the raw values)
+	 * @param indexedDecimalPlaces the attribute's decimal-places scale
+	 * @return the re-scaled distinct values + re-bucketed cardinalities
+	 */
+	@Nonnull
+	static ScaledSortValues rekeySortedValuesToScaledInt(
+		@Nonnull Serializable[] sortedRecordValues,
+		@Nonnull Map<Serializable, Integer> valueCardinalities,
+		int indexedDecimalPlaces
+	) {
+		// insertion order = the natural scaled-int order, because the input values are already sorted and scaling is
+		// monotone; a LinkedHashMap preserves that order while summing cardinalities of colliding values
+		final LinkedHashMap<Integer, Integer> cardinalityByScaledInt = new LinkedHashMap<>(sortedRecordValues.length);
+		for (final Serializable rawValue : sortedRecordValues) {
+			final int scaledKey;
+			if (rawValue instanceof BigDecimal bd) {
+				scaledKey = NumberUtils.convertToInt(bd, indexedDecimalPlaces);
+			} else if (rawValue instanceof Integer alreadyScaled) {
+				scaledKey = alreadyScaled;
+			} else {
+				throw new GenericEvitaInternalError(
+					"Sort value under a BigDecimal-typed attribute carries a value `" + rawValue +
+						"` of unexpected type " + (rawValue == null ? "null" : rawValue.getClass().getName()) +
+						"; the v5 to v6 scaled-int re-key cannot proceed."
+				);
+			}
+			final int cardinality = valueCardinalities.getOrDefault(rawValue, 1);
+			cardinalityByScaledInt.merge(scaledKey, cardinality, Integer::sum);
+		}
+
+		final Serializable[] rekeyedValues = new Serializable[cardinalityByScaledInt.size()];
+		final Map<Serializable, Integer> rekeyedCardinalities =
+			CollectionUtils.createHashMap(cardinalityByScaledInt.size());
+		int i = 0;
+		for (final Entry<Integer, Integer> entry : cardinalityByScaledInt.entrySet()) {
+			rekeyedValues[i++] = entry.getKey();
+			// keep the sparse "cardinality 1 is implied" convention: only values shared by more than one record are mapped
+			if (entry.getValue() > 1) {
+				rekeyedCardinalities.put(entry.getKey(), entry.getValue());
+			}
+		}
+		return new ScaledSortValues(rekeyedValues, rekeyedCardinalities);
+	}
+
+	/**
+	 * Carrier for the re-scaled sort value side produced by {@link #rekeySortedValuesToScaledInt}.
+	 *
+	 * @param sortedRecordValues the distinct scaled `Integer` sort values in natural order
+	 * @param valueCardinalities counts for scaled values shared by more than one record (cardinality `1` implicit)
+	 */
+	record ScaledSortValues(
+		@Nonnull Serializable[] sortedRecordValues,
+		@Nonnull Map<Serializable, Integer> valueCardinalities
+	) {
+	}
+
+	/**
+	 * Pure transform behind {@link #rekeyFilterIndex}: re-keys a filter histogram's points to Unicode NFD, merging
 	 * points that collide under NFD (their record bitmaps unioned) and re-sorting the result under the supplied
 	 * comparator so it stays strictly monotone. Returns {@code null} when nothing changes — every key is already its own
 	 * NFD form (e.g. ASCII) and no two keys collapse into one bucket — so the caller can skip rewriting the part.
@@ -290,15 +615,13 @@ public interface Migration_2026_2 {
 			final Serializable rawValue = point.getValue();
 			// the caller gates this transform to String-typed filter parts, so every persisted key must be a String;
 			// a non-String here would be silently mis-keyed by String.valueOf, so fail fast instead of coercing
-			if (!(rawValue instanceof String)) {
+			if (!(rawValue instanceof String rawString)) {
 				throw new GenericEvitaInternalError(
 					"Filter histogram point under a String-typed attribute carries a non-String value `" +
-						rawValue + "` (type " +
-						(rawValue == null ? "null" : rawValue.getClass().getName()) +
-						"); the v5 to v6 NFD re-key cannot proceed."
+						rawValue + "` (type " + rawValue.getClass().getName() + ");" +
+						" the v5 to v6 NFD re-key cannot proceed."
 				);
 			}
-			final String rawString = (String) rawValue;
 			final String nfdValue = Normalizer.normalize(rawString, Normalizer.Form.NFD);
 			if (!nfdValue.equals(rawString)) {
 				anyKeyChanged = true;

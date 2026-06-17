@@ -1148,7 +1148,7 @@ class ReducedGroupEntityIndexTest
 				ReducedGroupEntityIndexTest.this.index,
 				original -> {
 					original.insertPrimaryKeyIfMissing(10, 1);
-					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
 
 					final FilterIndex filter = original.getHistogramFilterIndex(HISTOGRAM_NAME, null);
 					assertNotNull(filter, "Filter index should be accessible via convenience method");
@@ -1171,7 +1171,7 @@ class ReducedGroupEntityIndexTest
 			assertStateAfterCommit(
 				ReducedGroupEntityIndexTest.this.index,
 				original -> {
-					original.insertHistogramValue(HISTOGRAM_NAME, null, 99, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 99, 10, Integer.class, 0);
 					assertFalse(original.isEmpty(), "Index with histogram data should not be empty");
 				},
 				(original, committed) -> {
@@ -1186,10 +1186,12 @@ class ReducedGroupEntityIndexTest
 		@DisplayName("should isolate histogram filter indexes per locale so values from one locale never leak into another")
 		void shouldIsolateHistogramFilterIndexesPerLocale() {
 			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class
+				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class,
+			0
 			);
 			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.GERMAN, 43, 11, Integer.class
+				HISTOGRAM_NAME, Locale.GERMAN, 43, 11, Integer.class,
+			0
 			);
 
 			final FilterIndex englishFilter = ReducedGroupEntityIndexTest.this.index
@@ -1209,13 +1211,14 @@ class ReducedGroupEntityIndexTest
 		@DisplayName("should dispose the histogram filter index once the last value under a given name/locale is removed")
 		void shouldDisposeHistogramFilterIndexWhenLastValueRemoved() {
 			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, null, 42, 10, Integer.class
+				HISTOGRAM_NAME, null, 42, 10, Integer.class,
+			0
 			);
 			assertNotNull(
 				ReducedGroupEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null)
 			);
 
-			ReducedGroupEntityIndexTest.this.index.removeHistogramValue(HISTOGRAM_NAME, null, 42, 10);
+			ReducedGroupEntityIndexTest.this.index.removeHistogramValue(HISTOGRAM_NAME, null, 42, 10, 0);
 
 			// removing the last value must reclaim the filter-index slot itself (not just empty it) —
 			// downstream accumulators use `null` as the signal that the histogram has no buckets.
@@ -1251,10 +1254,11 @@ class ReducedGroupEntityIndexTest
 			assertStateAfterRollback(
 				ReducedGroupEntityIndexTest.this.index,
 				original -> {
-					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class);
-					original.insertHistogramValue(HISTOGRAM_NAME, null, 43, 11, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 43, 11, Integer.class, 0);
 					original.insertHistogramValue(
-						"other", Locale.ENGLISH, 99, 12, Integer.class
+						"other", Locale.ENGLISH, 99, 12, Integer.class,
+					0
 					);
 				},
 				(original, committed) -> {

@@ -65,6 +65,9 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		if (rangeIndex) {
 			kryo.writeObject(output, filterIndex.getRangeIndex());
 		}
+
+		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal attributes)
+		output.writeVarInt(filterIndex.getIndexedDecimalPlaces(), true);
 	}
 
 	@Override
@@ -81,12 +84,15 @@ public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStor
 		}
 
 		final boolean hasRangeIndex = input.readBoolean();
-		if (hasRangeIndex) {
-			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex, uniquePartId);
-		} else {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, attributeType, points, null, uniquePartId);
-		}
+		final RangeIndex intRangeIndex = hasRangeIndex ? kryo.readObject(input, RangeIndex.class) : null;
+
+		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal attributes)
+		final int indexedDecimalPlaces = input.readVarInt(true);
+
+		return new FilterIndexStoragePart(
+			entityIndexPrimaryKey, attributeKey, attributeType, points, intRangeIndex,
+			indexedDecimalPlaces, uniquePartId
+		);
 	}
 
 }

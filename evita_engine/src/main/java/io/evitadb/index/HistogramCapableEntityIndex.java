@@ -67,28 +67,36 @@ public interface HistogramCapableEntityIndex {
 	 * @param locale        the locale for localized histograms, or `null` for non-localized
 	 * @param value         the histogram value in its original type (a `Number` for plain numeric
 	 *                      attributes or a `Range` instance for Range-typed attributes)
-	 * @param ownerPK       the primary key of the owner entity
-	 * @param valueType     the plain type of the value (used for lazy index creation)
+	 * @param ownerPK              the primary key of the owner entity
+	 * @param valueType            the plain type of the value (used for lazy index creation)
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
 	 */
 	void insertHistogramValue(
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
 		int ownerPK,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	);
 
 	/**
 	 * Removes a histogram value for the given owner entity. Delegates to the appropriate
 	 * {@link HistogramIndex} and removes it from the map if it becomes empty.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param locale        the locale for localized histograms, or `null` for non-localized
-	 * @param value         the histogram value in its original numeric type
-	 * @param ownerPK       the primary key of the owner entity
+	 * @param histogramName        the name of the histogram definition
+	 * @param locale               the locale for localized histograms, or `null` for non-localized
+	 * @param value                the histogram value in its original numeric type
+	 * @param ownerPK              the primary key of the owner entity
+	 * @param indexedDecimalPlaces decimal-places scale the current schema declares (0 for non-`BigDecimal`); guards
+	 *                             against a scale change not followed by a full index rebuild
 	 */
 	void removeHistogramValue(
-		@Nonnull String histogramName, @Nullable Locale locale, @Nonnull Serializable value, int ownerPK
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int ownerPK,
+		int indexedDecimalPlaces
 	);
 
 }

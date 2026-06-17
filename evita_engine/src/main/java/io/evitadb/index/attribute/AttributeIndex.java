@@ -406,7 +406,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			if (previous.getInvertedIndex() == committedTree && previous.getRangeIndex() == committedRange) {
 				views.put(key, previous);
 			} else {
-				views.put(key, new FilterIndexView(key, committedTree, committedRange, previous.getAttributeType()));
+				views.put(
+					key,
+					new FilterIndexView(
+						key, committedTree, committedRange, previous.getAttributeType(),
+						previous.getIndexedDecimalPlaces()
+					)
+				);
 			}
 		}
 		return views;
@@ -805,12 +811,20 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 					// (sort-only) the supplier resolves null and it returns an OwnerSortIndex. Never capture an instance.
 					final SortIndex newSortIndex = SortIndex.create(
 						attributeSchema.getPlainType(), this.referenceKey, lookupKey,
+						attributeSchema.getIndexedDecimalPlaces(),
 						() -> this.sharedValueIndex.get(lookupKey)
 					);
 					ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
 					return newSortIndex;
 				}
+			);
+			// a pre-existing sort index froze its BigDecimal scale at creation; refuse to add a value scaled at a drifted
+			// schema scale rather than silently mix two scales (no-op for non-BigDecimal and for a just-created index)
+			FilterIndex.assertIndexedDecimalPlacesUnchanged(
+				theSortIndex.getIndexedDecimalPlaces(),
+				attributeSchema.getIndexedDecimalPlaces(),
+				attributeSchema.getName()
 			);
 			// addRecord mutates the sort index in place — declare it for the O(Δ) commit walk (a freshly created index
 			// is already in the diff's modified set; the mark is deduplicated)
@@ -859,6 +873,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		} else {
 			final SortIndex theSortIndex = this.sortIndex.get(lookupKey);
 			notNull(theSortIndex, "Sort index for attribute `" + attributeSchema.getName() + "` not found!");
+			// the sort index froze its BigDecimal scale at creation; refuse to derive a remove probe at a drifted schema
+			// scale (which would miss the stored key) rather than silently leave the value behind (no-op for non-BigDecimal)
+			FilterIndex.assertIndexedDecimalPlacesUnchanged(
+				theSortIndex.getIndexedDecimalPlaces(),
+				attributeSchema.getIndexedDecimalPlaces(),
+				attributeSchema.getName()
+			);
 			// removeRecord mutates the sort index in place — declare it for the O(Δ) commit walk
 			this.sortIndex.markValueMutated(lookupKey);
 			theSortIndex.removeRecord(value, recordId);
@@ -1365,7 +1386,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		notNull(shared, "Filter index for `" + attributeSchema.getName() + "` not found!");
 		// reuse the cached view when it still wraps the live shared tree, else wrap it afresh from the schema's
 		// attributeType (the cache may never have been populated for this key, e.g. the representative-reference alias path)
-		return reuseOrRebuildFilterView(lookupKey, shared, attributeSchema.getType());
+		return reuseOrRebuildFilterView(
+			lookupKey, shared, attributeSchema.getType(), attributeSchema.getIndexedDecimalPlaces()
+		);
 	}
 
 	/**
@@ -1375,23 +1398,31 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * Only the mutation paths resolve views this way; the read path builds its own ephemeral view ({@link #resolveFilterView})
 	 * and never mutates the cache.
 	 *
-	 * @param lookupKey     the attribute-index key whose view is resolved
-	 * @param shared        the live shared tree the view must wrap (the source of truth from {@link #sharedValueIndex})
-	 * @param attributeType the attribute type used to wire the view's comparator/normalizer when rebuilding
+	 * @param lookupKey            the attribute-index key whose view is resolved
+	 * @param shared               the live shared tree the view must wrap (the source of truth from {@link #sharedValueIndex})
+	 * @param attributeType        the attribute type used to wire the view's comparator/normalizer when rebuilding
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
 	 * @return the reused or freshly wrapped filter view over `shared`
 	 */
 	@Nonnull
 	private FilterIndex reuseOrRebuildFilterView(
 		@Nonnull AttributeIndexKey lookupKey,
 		@Nonnull InvertedIndex shared,
-		@Nonnull Class<?> attributeType
+		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces
 	) {
+		// refuse to modify a shared value tree whose frozen BigDecimal scale has drifted from the schema's current scale:
+		// the tree (and its range index) already hold keys encoded at the frozen scale, so mixing in a value encoded at a
+		// different scale would silently corrupt equality / range / ordering (no-op for non-BigDecimal — both are 0)
+		FilterIndex.assertIndexedDecimalPlacesUnchanged(
+			shared.getIndexedDecimalPlaces(), indexedDecimalPlaces, lookupKey.attributeName()
+		);
 		final FilterIndex cached = this.filterIndex.get(lookupKey);
 		if (cached != null && cached.getInvertedIndex() == shared) {
 			return cached;
 		}
 		final FilterIndex rebuilt = new FilterIndexView(
-			lookupKey, shared, this.sharedRangeIndex.get(lookupKey), attributeType
+			lookupKey, shared, this.sharedRangeIndex.get(lookupKey), attributeType, indexedDecimalPlaces
 		);
 		this.filterIndex.put(lookupKey, rebuilt);
 		return rebuilt;
@@ -1419,14 +1450,19 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			// SCHEMA's attributeType — the plain `filterIndex` cache is a per-instance hint that may be empty or
 			// stale here (e.g. when a sort view's read was the first transactional access to the key), so we must
 			// not depend on it being populated.
-			return reuseOrRebuildFilterView(lookupKey, existingShared, attributeSchema.getType());
+			return reuseOrRebuildFilterView(
+				lookupKey, existingShared, attributeSchema.getType(), attributeSchema.getIndexedDecimalPlaces()
+			);
 		}
 		// shared tree absent → create it (+ a range index for range-typed attributes) and the wrapping view
 		final Class<?> attributeType = attributeSchema.getType();
 		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
 		final InvertedIndex shared = new InvertedIndex(
-			FilterIndex.getNormalizer(plainType),
-			FilterIndex.getComparator(lookupKey, plainType)
+			plainType,
+			FilterIndex.getNormalizer(plainType, indexedDecimalPlaces),
+			FilterIndex.getComparator(lookupKey, plainType),
+			indexedDecimalPlaces
 		);
 		this.sharedValueIndex.put(lookupKey, shared);
 		ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
@@ -1440,7 +1476,9 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		} else {
 			sharedRange = null;
 		}
-		final FilterIndex view = new FilterIndexView(lookupKey, shared, sharedRange, attributeType);
+		final FilterIndex view = new FilterIndexView(
+			lookupKey, shared, sharedRange, attributeType, indexedDecimalPlaces
+		);
 		this.filterIndex.put(lookupKey, view);
 		return view;
 	}
@@ -1491,10 +1529,6 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			viewKey -> UniqueIndex.createView(this.entityType, viewKey, attributeSchema.getType(), theFilterIndex)
 		);
 	}
-
-	/*
-		TransactionalLayerCreator implementation
-	 */
 
 	/**
 	 * Removes the shared {@link InvertedIndex} / {@link RangeIndex} and the filter view for `lookupKey` once the view's
@@ -1600,7 +1634,10 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			cached != null,
 			() -> new GenericEvitaInternalError("No cached filter view to source attributeType for key `" + key + "`!")
 		);
-		return new FilterIndexView(key, shared, this.sharedRangeIndex.get(key), cached.getAttributeType());
+		return new FilterIndexView(
+			key, shared, this.sharedRangeIndex.get(key), cached.getAttributeType(),
+			cached.getIndexedDecimalPlaces()
+		);
 	}
 
 	/**

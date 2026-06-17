@@ -69,7 +69,7 @@ class UniqueIndexViewTest {
 	@Nonnull
 	private static InvertedIndex newPopulatedSharedTree() {
 		final InvertedIndex shared = new InvertedIndex(
-			FilterIndex.getNormalizer(TYPE),
+			FilterIndex.getNormalizer(TYPE, 0),
 			FilterIndex.getComparator(KEY, TYPE)
 		);
 		shared.addRecord("alpha", 1);
@@ -265,6 +265,6 @@ class UniqueIndexViewTest {
 	 */
 	@Nonnull
 	private static Serializable getNormalized(@Nonnull Serializable value) {
-		return FilterIndex.getNormalizer(TYPE).apply(value);
+		return FilterIndex.getNormalizer(TYPE, 0).apply(value);
 	}
 }

@@ -103,6 +103,31 @@ public record EntityIndexKey(
 		return this;
 	}
 
+	/**
+	 * Derives the name of the reference that owns the attributes indexed under this entity index, or `null` when the
+	 * index is entity-level (`GLOBAL`). The reference name is carried by the index discriminator:
+	 *
+	 * - `GLOBAL` → `null` (the index holds entity-level attributes),
+	 * - `REFERENCED_ENTITY_TYPE` / `REFERENCED_GROUP_ENTITY_TYPE` → the `String` discriminator IS the reference name,
+	 * - `REFERENCED_ENTITY` / `REFERENCED_GROUP_ENTITY` / `REFERENCED_HIERARCHY_NODE` → the
+	 *   {@link RepresentativeReferenceKey} discriminator's {@link RepresentativeReferenceKey#referenceName()}.
+	 *
+	 * This is the single source of truth for the reference scope of indexed attributes: a persisted per-attribute
+	 * `AttributeIndexKey` may carry a `null` reference name (legacy `AttributeKey` rehydration drops it), so the scope
+	 * must be taken from the owning index, not the attribute key.
+	 *
+	 * @return the owning reference name, or `null` for an entity-level (`GLOBAL`) index
+	 */
+	@Nullable
+	public String referenceName() {
+		return switch (this.type) {
+			case GLOBAL -> null;
+			case REFERENCED_ENTITY_TYPE, REFERENCED_GROUP_ENTITY_TYPE -> (String) Objects.requireNonNull(this.discriminator);
+			case REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY, REFERENCED_HIERARCHY_NODE ->
+				((RepresentativeReferenceKey) Objects.requireNonNull(this.discriminator)).referenceName();
+		};
+	}
+
 	@Override
 	public int compareTo(@Nonnull EntityIndexKey o) {
 		final int typeComparison = this.type.compareTo(o.type);

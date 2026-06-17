@@ -128,6 +128,23 @@ class FilterIndexStoragePartSerializerTest {
 	}
 
 	@Test
+	@DisplayName("round-trips a BigDecimal part whose points carry order-preserving scaled Integer keys and the frozen scale")
+	void shouldRoundTripScaledBigDecimalPart() {
+		final AttributeIndexKey key = new AttributeIndexKey(null, "price", null);
+		final ValueToRecordBitmap[] histogramPoints = {new ValueToRecordBitmap(150, 1)};
+		// 150 == 1.50 at the frozen scale of 2 — the scale must survive the round-trip so the reloaded index keeps it
+		final FilterIndexStoragePart part =
+			new FilterIndexStoragePart(42, key, java.math.BigDecimal.class, histogramPoints, null, 2, 1L);
+
+		final FilterIndexStoragePart deserialized = roundTrip(part);
+
+		assertSame(java.math.BigDecimal.class, deserialized.getAttributeType());
+		assertEquals(1, deserialized.getHistogramPoints().length);
+		assertEquals(150, deserialized.getHistogramPoints()[0].getValue());
+		assertEquals(2, deserialized.getIndexedDecimalPlaces(), "The frozen indexedDecimalPlaces must round-trip");
+	}
+
+	@Test
 	@DisplayName("the constructor rejects a null attributeType (the dropped 2024.5 type-less format)")
 	void shouldRejectNullAttributeTypeAtConstruction() {
 		final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);

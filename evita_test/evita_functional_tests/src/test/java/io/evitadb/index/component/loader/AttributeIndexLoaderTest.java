@@ -23,11 +23,19 @@
 
 package io.evitadb.index.component.loader;
 
+import io.evitadb.api.APITestConstants;
+import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -55,7 +63,9 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexSt
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
+import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -63,6 +73,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.OutputStream;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
@@ -255,7 +267,7 @@ class AttributeIndexLoaderTest {
 		final LoadContext context = new LoadContext(
 			CATALOG_VERSION,
 			INDEX_PK,
-			EntitySchema._internalBuild(ENTITY_TYPE),
+			buildSchema(manifest),
 			ENTITY_INDEX_KEY,
 			manifest,
 			storage,
@@ -263,6 +275,36 @@ class AttributeIndexLoaderTest {
 		);
 		final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 		return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
+	}
+
+	/**
+	 * Builds a real {@link EntitySchema} declaring every entity-level attribute name advertised by the manifest, so
+	 * the loader's schema-based `indexedDecimalPlaces` resolution succeeds. The tests index no `BigDecimal` attribute,
+	 * so a plain `String` attribute (scale `0`) is sufficient for each name.
+	 *
+	 * @param manifest the manifest whose attribute keys drive the schema's attribute set
+	 * @return an entity schema declaring all those attributes
+	 */
+	@Nonnull
+	private static EntitySchema buildSchema(@Nonnull EntityIndexStoragePart manifest) {
+		final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
+			APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+			EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
+		);
+		EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(
+			catalogSchema, EntitySchema._internalBuild(ENTITY_TYPE)
+		);
+		final Set<String> declared = new LinkedHashSet<>(8);
+		for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
+			// only entity-level attributes appear in these tests; record each distinct name once
+			final String attributeName = key.attribute().attributeName();
+			if (key.attribute().referenceName() == null && declared.add(attributeName)) {
+				builder = builder.withAttribute(
+					attributeName, String.class, thatIs -> thatIs.filterable().sortable()
+				);
+			}
+		}
+		return (EntitySchema) builder.toInstance();
 	}
 
 	/**
@@ -300,6 +342,27 @@ class AttributeIndexLoaderTest {
 			seed(
 				AttributeIndexType.FILTER, key,
 				new FilterIndexStoragePart(INDEX_PK, key, type, points, null)
+			);
+		}
+
+		/**
+		 * Seeds a FILTER part with an explicit frozen `indexedDecimalPlaces` scale, used to prove the loader reads the
+		 * scale back from the part verbatim rather than re-deriving it from the schema.
+		 *
+		 * @param key                  the attribute key
+		 * @param type                 the attribute value type
+		 * @param value                the indexed value
+		 * @param recordId             the record bearing the value
+		 * @param indexedDecimalPlaces the scale to freeze into the part
+		 */
+		void seedFilter(
+			@Nonnull AttributeIndexKey key, @Nonnull Class<?> type,
+			@Nonnull Serializable value, int recordId, int indexedDecimalPlaces
+		) {
+			final ValueToRecordBitmap[] points = {new ValueToRecordBitmap(value, recordId)};
+			seed(
+				AttributeIndexType.FILTER, key,
+				new FilterIndexStoragePart(INDEX_PK, key, type, points, null, indexedDecimalPlaces, null)
 			);
 		}
 
@@ -350,6 +413,32 @@ class AttributeIndexLoaderTest {
 		}
 
 		/**
+		 * Seeds an owner-mode SORT part with an explicit frozen `indexedDecimalPlaces` scale, used to prove the loader
+		 * reads the scale back from the part verbatim rather than re-deriving it from the schema.
+		 *
+		 * @param key                  the attribute key
+		 * @param type                 the attribute value type
+		 * @param sortedRecords        record ids in sort order
+		 * @param sortedRecordsValues  values aligned with `sortedRecords`
+		 * @param indexedDecimalPlaces the scale to freeze into the part
+		 */
+		void seedSort(
+			@Nonnull AttributeIndexKey key, @Nonnull Class<? extends Comparable<?>> type,
+			@Nonnull int[] sortedRecords, @Nonnull Serializable[] sortedRecordsValues, int indexedDecimalPlaces
+		) {
+			final ComparatorSource[] comparatorBase = {
+				new ComparatorSource(type, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			seed(
+				AttributeIndexType.SORT, key,
+				new SortIndexStoragePart(
+					INDEX_PK, key, comparatorBase, sortedRecords, sortedRecordsValues, new HashMap<>(0),
+					indexedDecimalPlaces, null
+				)
+			);
+		}
+
+		/**
 		 * Registers a manifest key WITHOUT seeding any backing part — used for the CARDINALITY key that
 		 * the loader must skip and never look up.
 		 *
@@ -378,14 +467,27 @@ class AttributeIndexLoaderTest {
 		}
 
 		/**
-		 * Builds the manifest advertising every seeded (and manifest-only) attribute key.
+		 * Builds the manifest advertising every seeded (and manifest-only) attribute key under the default
+		 * {@link AttributeIndexLoaderTest#ENTITY_INDEX_KEY}.
 		 *
 		 * @return a fresh manifest for the seeded storage
 		 */
 		@Nonnull
 		EntityIndexStoragePart buildManifest() {
+			return buildManifest(ENTITY_INDEX_KEY);
+		}
+
+		/**
+		 * Builds the manifest advertising every seeded (and manifest-only) attribute key under the given owning index
+		 * key — the discriminator of which the loader uses to derive a reference attribute's scope.
+		 *
+		 * @param entityIndexKey the owning entity index key carried by the manifest
+		 * @return a fresh manifest for the seeded storage
+		 */
+		@Nonnull
+		EntityIndexStoragePart buildManifest(@Nonnull EntityIndexKey entityIndexKey) {
 			return new EntityIndexStoragePart(
-				INDEX_PK, 1, ENTITY_INDEX_KEY,
+				INDEX_PK, 1, entityIndexKey,
 				new BaseBitmap(), new HashMap<Locale, TransactionalBitmap>(0),
 				this.manifestKeys, Set.of(), false, Set.of(), Set.of()
 			);
@@ -526,6 +628,128 @@ class AttributeIndexLoaderTest {
 		@Override
 		public void close() {
 			throw new UnsupportedOperationException();
+		}
+	}
+
+	/**
+	 * Pins the freeze contract: the `indexedDecimalPlaces` scale a `BigDecimal` index was created with is persisted
+	 * into the storage part and read back by the loader **verbatim** — the schema is NOT consulted at load. This is
+	 * deliberately stronger than a schema lookup: each test seeds a part whose frozen scale DIFFERS from the scale the
+	 * schema declares for the same attribute and asserts the loaded index keeps the part's scale, proving a later
+	 * schema change to `indexedDecimalPlaces` cannot silently reinterpret the on-disk scaled keys (such drift is caught
+	 * on the next modification by {@code FilterIndex.assertIndexedDecimalPlacesUnchanged}, not here).
+	 */
+	@Nested
+	@DisplayName("frozen indexedDecimalPlaces read back from the part")
+	class FrozenScaleReadback {
+
+		private static final String REFERENCE_NAME = "stocks";
+		private static final String REFERENCE_ATTRIBUTE = "quantityOnStock";
+		/** An ENTITY-level BigDecimal attribute (`rating`) whose value copy is held by the reference index. */
+		private static final String ENTITY_ATTRIBUTE = "rating";
+		private static final EntityIndexKey REFERENCED_TYPE_INDEX_KEY =
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME);
+
+		@Test
+		@DisplayName("should read the frozen FILTER scale from the part, not from the schema")
+		void shouldReadFrozenFilterScaleFromPartVerbatim() {
+			// the legacy persisted key has a NULL reference name (the bridge cannot recover it from the old AttributeKey)
+			final AttributeIndexKey legacyKey = new AttributeIndexKey(null, REFERENCE_ATTRIBUTE, null);
+			final SeededStorage storage = new SeededStorage();
+			// freeze a scale (5) that DIFFERS from the schema's declared scale for `quantityOnStock` (2); 150000 == 1.50000
+			storage.seedFilter(legacyKey, BigDecimal.class, 150000, 10, 5);
+
+			final AttributeIndexes bundle = loadReferenced(storage, legacyKey);
+
+			final FilterIndex filterIndex = bundle.filterIndexes().get(legacyKey);
+			assertNotNull(filterIndex, "Filter index for the reference attribute must be reconstructed");
+			// the loader must read the FROZEN scale from the part (5), never the schema's current declaration (2)
+			assertEquals(
+				5, filterIndex.getIndexedDecimalPlaces(),
+				"Scale must be read back from the part verbatim, ignoring the schema's current declaration"
+			);
+		}
+
+		@Test
+		@DisplayName("should read the frozen SORT scale from the part, not from the schema")
+		void shouldReadFrozenSortScaleFromPartVerbatim() {
+			// `rating` is declared at entity level with indexDecimalPlaces(3); freeze a different scale (7) into the part
+			final AttributeIndexKey legacyKey = new AttributeIndexKey(null, ENTITY_ATTRIBUTE, null);
+			final SeededStorage storage = new SeededStorage();
+			// owner-mode sort part (no FILTER part for the key) carrying a single scaled value at the frozen scale 7
+			storage.seedSort(legacyKey, BigDecimal.class, new int[]{11}, new Serializable[]{42}, 7);
+
+			final AttributeIndexes bundle = loadReferenced(storage, legacyKey);
+
+			final SortIndex sortIndex = bundle.sortIndexes().get(legacyKey);
+			assertNotNull(sortIndex, "Sort index for the attribute must be reconstructed");
+			// the loader must read the FROZEN scale from the part (7), never the schema's current declaration (3)
+			assertEquals(
+				7, sortIndex.getIndexedDecimalPlaces(),
+				"Scale must be read back from the part verbatim, ignoring the schema's current declaration"
+			);
+		}
+
+		/**
+		 * Invokes the production loader against a `REFERENCED_ENTITY_TYPE` index whose manifest advertises exactly the
+		 * seeded keys, with a schema declaring the `stocks` reference carrying a scaled `BigDecimal` `quantityOnStock`.
+		 * The schema's scales are deliberately different from the frozen part scales to prove the loader ignores them.
+		 *
+		 * @param storage the pre-seeded in-memory storage
+		 * @param keys    the attribute index keys the manifest should advertise
+		 * @return the reconstructed attribute-index bundle
+		 */
+		@Nonnull
+		private AttributeIndexes loadReferenced(@Nonnull SeededStorage storage, @Nonnull AttributeIndexKey... keys) {
+			for (final AttributeIndexKey key : keys) {
+				assertNotNull(key);
+			}
+			final EntityIndexStoragePart manifest = storage.buildManifest(REFERENCED_TYPE_INDEX_KEY);
+			final LoadContext context = new LoadContext(
+				CATALOG_VERSION,
+				INDEX_PK,
+				buildReferenceSchema(),
+				REFERENCED_TYPE_INDEX_KEY,
+				manifest,
+				storage,
+				// REFERENCED_ENTITY_TYPE indexes carry a String discriminator and a `null` referenceKey, exactly as the
+				// engine's DefaultEntityCollectionPersistenceService builds the context
+				null
+			);
+			final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
+			return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
+		}
+
+		/**
+		 * Builds a real {@link EntitySchema} declaring two distinct scaled `BigDecimal` attributes:
+		 *
+		 * - `quantityOnStock` at `indexDecimalPlaces(2)` on the `stocks` reference (a reference attribute), and
+		 * - `rating` at `indexDecimalPlaces(3)` at the entity level (an entity attribute whose value copy a reference
+		 *   index also holds).
+		 *
+		 * The two scales differ on purpose so a test asserting the resolved scale proves WHICH schema the resolver read.
+		 *
+		 * @return the entity schema with one reference-scoped and one entity-level scaled BigDecimal attribute
+		 */
+		@Nonnull
+		private EntitySchema buildReferenceSchema() {
+			final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
+				APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
+				EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE
+			);
+			final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(
+				catalogSchema, EntitySchema._internalBuild(ENTITY_TYPE)
+			).withAttribute(
+				ENTITY_ATTRIBUTE, BigDecimal.class,
+				whichIs -> whichIs.filterable().indexDecimalPlaces(3)
+			).withReferenceTo(
+				REFERENCE_NAME, "Stock", Cardinality.ZERO_OR_MORE,
+				thatIs -> thatIs.indexed().withAttribute(
+					REFERENCE_ATTRIBUTE, BigDecimal.class,
+					whichIs -> whichIs.filterable().indexDecimalPlaces(2)
+				)
+			);
+			return (EntitySchema) builder.toInstance();
 		}
 	}
 }

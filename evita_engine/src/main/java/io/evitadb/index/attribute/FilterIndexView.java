@@ -57,10 +57,10 @@ public final class FilterIndexView extends FilterIndex {
 	 * Wraps an externally-owned shared {@link InvertedIndex} (and optional shared {@link RangeIndex}) as a stateless
 	 * filter view.
 	 *
-	 * @param attributeIndexKey   key identifying the attribute
-	 * @param sharedInvertedIndex the externally-owned shared value→ValueToRecord tree to wrap
-	 * @param sharedRangeIndex    the externally-owned shared range structure, or `null` for non-range attributes
-	 * @param attributeType       the declared attribute type (array-aware; the plain type drives the comparator)
+	 * @param attributeIndexKey    key identifying the attribute
+	 * @param sharedInvertedIndex  the externally-owned shared value→ValueToRecord tree to wrap
+	 * @param sharedRangeIndex     the externally-owned shared range structure, or `null` for non-range attributes
+	 * @param attributeType        the declared attribute type (array-aware; the plain type drives the comparator)
 	 */
 	public FilterIndexView(
 		@Nonnull AttributeIndexKey attributeIndexKey,
@@ -68,9 +68,30 @@ public final class FilterIndexView extends FilterIndex {
 		@Nullable RangeIndex sharedRangeIndex,
 		@Nonnull Class<?> attributeType
 	) {
+		this(attributeIndexKey, sharedInvertedIndex, sharedRangeIndex, attributeType, 0);
+	}
+
+	/**
+	 * Wraps an externally-owned shared {@link InvertedIndex} (and optional shared {@link RangeIndex}) as a stateless
+	 * filter view, carrying the `BigDecimal` scaling decimal places.
+	 *
+	 * @param attributeIndexKey    key identifying the attribute
+	 * @param sharedInvertedIndex  the externally-owned shared value→ValueToRecord tree to wrap
+	 * @param sharedRangeIndex     the externally-owned shared range structure, or `null` for non-range attributes
+	 * @param attributeType        the declared attribute type (array-aware; the plain type drives the comparator)
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 */
+	public FilterIndexView(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull InvertedIndex sharedInvertedIndex,
+		@Nullable RangeIndex sharedRangeIndex,
+		@Nonnull Class<?> attributeType,
+		int indexedDecimalPlaces
+	) {
 		super(
 			attributeIndexKey,
 			attributeType,
+			indexedDecimalPlaces,
 			sharedInvertedIndex,
 			sharedRangeIndex,
 			getComparator(attributeIndexKey, plainTypeOf(attributeType)),

@@ -65,19 +65,22 @@ public class SimpleHistogramIndex extends HistogramIndex {
 	/**
 	 * Creates a new empty non-localized histogram index with eagerly initialized inner structures.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param referenceName the reference name for storage key construction
-	 * @param valueType     the plain numeric type of the attribute values
+	 * @param histogramName        the name of the histogram definition
+	 * @param referenceName        the reference name for storage key construction
+	 * @param valueType            the plain numeric type of the attribute values
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
 	 */
 	public SimpleHistogramIndex(
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
-		super(histogramName, referenceName, valueType);
+		super(histogramName, referenceName, valueType, indexedDecimalPlaces);
 		this.filterIndex = new OwnerFilterIndex(
 			new AttributeIndexKey(referenceName, histogramName, null),
-			valueType
+			valueType,
+			indexedDecimalPlaces
 		);
 		this.cardinality = new AttributeCardinalityIndex(valueType);
 	}
@@ -85,20 +88,22 @@ public class SimpleHistogramIndex extends HistogramIndex {
 	/**
 	 * Creates a non-localized histogram index from persisted data.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param referenceName the reference name for storage key construction
-	 * @param valueType     the plain numeric type of the attribute values
-	 * @param filterIndex   the persisted filter index
-	 * @param cardinality   the persisted cardinality index
+	 * @param histogramName        the name of the histogram definition
+	 * @param referenceName        the reference name for storage key construction
+	 * @param valueType            the plain numeric type of the attribute values
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param filterIndex          the persisted filter index
+	 * @param cardinality          the persisted cardinality index
 	 */
 	public SimpleHistogramIndex(
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
 		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces,
 		@Nonnull OwnerFilterIndex filterIndex,
 		@Nonnull AttributeCardinalityIndex cardinality
 	) {
-		super(histogramName, referenceName, valueType);
+		super(histogramName, referenceName, valueType, indexedDecimalPlaces);
 		this.filterIndex = filterIndex;
 		this.cardinality = cardinality;
 	}
@@ -109,8 +114,11 @@ public class SimpleHistogramIndex extends HistogramIndex {
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
-		if (this.cardinality.addRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
-			this.filterIndex.addRecord(ownerPK, value);
+		// canonicalize so insert and remove agree on the same key even when the upstream value arrives as a
+		// raw BigDecimal on one path and an already-scaled Integer on another
+		final Serializable normalizedValue = normalizeValue(value);
+		if (this.cardinality.addRecord(normalizedValue, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
+			this.filterIndex.addRecord(ownerPK, normalizedValue);
 		}
 	}
 
@@ -120,8 +128,9 @@ public class SimpleHistogramIndex extends HistogramIndex {
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
-		if (this.cardinality.removeRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
-			this.filterIndex.removeRecord(ownerPK, value);
+		final Serializable normalizedValue = normalizeValue(value);
+		if (this.cardinality.removeRecord(normalizedValue, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
+			this.filterIndex.removeRecord(ownerPK, normalizedValue);
 		}
 	}
 
@@ -164,7 +173,8 @@ public class SimpleHistogramIndex extends HistogramIndex {
 					entityIndexPrimaryKey, getHistogramName(), null, getValueType(),
 					this.filterIndex.getInvertedIndex().getValueToRecordBitmap(),
 					this.filterIndex.getRangeIndex(),
-					this.cardinality
+					this.cardinality,
+					getIndexedDecimalPlaces()
 				)
 			);
 		}
@@ -180,6 +190,7 @@ public class SimpleHistogramIndex extends HistogramIndex {
 			getHistogramName(),
 			getReferenceName(),
 			getValueType(),
+			getIndexedDecimalPlaces(),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.filterIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinality)
 		);

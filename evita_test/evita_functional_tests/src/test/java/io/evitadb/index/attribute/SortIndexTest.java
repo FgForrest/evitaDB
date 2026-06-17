@@ -842,11 +842,26 @@ class SortIndexTest {
 		}
 
 		@Test
-		@DisplayName("should not create normalizer for BigDecimal type (normalization happens at executor level)")
+		@DisplayName("should not scale BigDecimal in the query-comparator normalizer (raw natural order is correct)")
 		void shouldNotCreateNormalizerForBigDecimal() {
 			final ComparatorSource source =
 				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			// the query-side overload leaves BigDecimal unscaled - sorting result rows by raw BigDecimal is order-correct
 			assertTrue(SortIndex.createNormalizerFor(source).isEmpty());
+		}
+
+		@Test
+		@DisplayName("should scale BigDecimal to a scaled int in the places-aware normalizer")
+		void shouldScaleBigDecimalInPlacesAwareNormalizer() {
+			final ComparatorSource source =
+				new ComparatorSource(BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST);
+			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(source, 2).orElseThrow();
+
+			// 1.50 scaled by 2 decimal places becomes the order-preserving int 150
+			assertEquals(150, normalizer.apply(new BigDecimal("1.50")));
+			// the normalizer is idempotent: an already-scaled Integer (and null) passes through unchanged
+			assertEquals(150, normalizer.apply(150));
+			assertNull(normalizer.apply(null));
 		}
 
 		@Test

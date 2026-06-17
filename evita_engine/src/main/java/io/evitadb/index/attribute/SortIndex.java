@@ -52,6 +52,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
@@ -60,6 +61,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -134,6 +136,12 @@ public abstract sealed class SortIndex
 	 */
 	final Comparator<?> comparator;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/**
+	 * Decimal-places scale used to encode `BigDecimal` values to an order-preserving scaled `int` so this index's OWN
+	 * normalizer ({@link #normalizer}) keeps a both-flagged attribute's sort keys identical to the shared filter tree's
+	 * keys. `0` for every non-`BigDecimal` attribute (and for compounds, applied uniformly to BigDecimal elements).
+	 */
+	@Getter private final int indexedDecimalPlaces;
 	/**
 	 * Reference key (discriminator) of the {@link AbstractReducedEntityIndex} this index belongs to. Or null if
 	 * this index is part of the global {@link GlobalEntityIndex}.
@@ -215,11 +223,33 @@ public abstract sealed class SortIndex
 	 */
 	@Nonnull
 	public static UnaryOperator<Serializable> createNormalizerFor(@Nonnull ComparatorSource[] comparatorBase) {
+		return createNormalizerFor(comparatorBase, 0);
+	}
+
+	/**
+	 * Creates a normalizer if any element of the comparator base needs canonicalization (a {@link String},
+	 * {@link Locale}, {@link Currency} or {@link java.math.BigDecimal}). `BigDecimal` elements are scaled to an
+	 * order-preserving `int` using `indexedDecimalPlaces`, applied uniformly to every `BigDecimal` element.
+	 *
+	 * @param comparatorBase       one descriptor per compound element
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` elements (0 for other types)
+	 * @see #normalizer
+	 */
+	@Nonnull
+	public static UnaryOperator<Serializable> createNormalizerFor(
+		@Nonnull ComparatorSource[] comparatorBase,
+		int indexedDecimalPlaces
+	) {
 		//noinspection unchecked
 		final UnaryOperator<Serializable>[] normalizers = new UnaryOperator[comparatorBase.length];
 		boolean atLeastOneNormalizerFound = false;
 		for (int i = 0; i < comparatorBase.length; i++) {
-			final Optional<UnaryOperator<Serializable>> normalizer = createNormalizerFor(comparatorBase[i]);
+			// a sortable attribute compound is always an owner (no shared filter twin), so its `BigDecimal` elements are
+			// NOT scaled to an int — they keep their exact `BigDecimal` natural order. This also matches the migration,
+			// which leaves compound (`ComparableArray`) sort values untouched. A single `indexedDecimalPlaces` could not
+			// represent the distinct per-element scales anyway.
+			final Optional<UnaryOperator<Serializable>> normalizer =
+				createNormalizerFor(comparatorBase[i], indexedDecimalPlaces, false);
 			normalizers[i] = normalizer.orElseGet(UnaryOperator::identity);
 			atLeastOneNormalizerFound = atLeastOneNormalizerFound || normalizer.isPresent();
 		}
@@ -228,12 +258,48 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Creates a normalizer if any part of the comparator base is of type {@link String}.
+	 * Creates a normalizer if the comparator base is of type {@link String}, {@link Locale} or {@link Currency}.
+	 * `BigDecimal` is intentionally NOT normalized here: the query-side comparators that call this overload compare raw
+	 * `BigDecimal` entity values among themselves, where natural order is already correct. The index-side scaling is
+	 * supplied through the {@link #createNormalizerFor(ComparatorSource, int)} overload.
 	 *
 	 * @see #normalizer
 	 */
 	@Nonnull
 	public static Optional<UnaryOperator<Serializable>> createNormalizerFor(@Nonnull ComparatorSource comparatorBase) {
+		return createNormalizerFor(comparatorBase, 0, false);
+	}
+
+	/**
+	 * Creates a normalizer if the comparator base needs canonicalization. In addition to the {@link String} /
+	 * {@link Locale} / {@link Currency} forms, a {@link java.math.BigDecimal} element is scaled to an order-preserving
+	 * `int` using `indexedDecimalPlaces`, matching the shared filter value tree so a both-flagged attribute's sort keys
+	 * never diverge from its filter keys. The scaled-int normalizer is idempotent (an already-scaled `Integer` and
+	 * `null` pass through unchanged).
+	 *
+	 * @param comparatorBase       descriptor of the element
+	 * @param indexedDecimalPlaces decimal-places scale used to encode a `BigDecimal` element
+	 * @see #normalizer
+	 */
+	@Nonnull
+	public static Optional<UnaryOperator<Serializable>> createNormalizerFor(
+		@Nonnull ComparatorSource comparatorBase,
+		int indexedDecimalPlaces
+	) {
+		return createNormalizerFor(comparatorBase, indexedDecimalPlaces, true);
+	}
+
+	/**
+	 * Shared implementation behind the two public `createNormalizerFor(ComparatorSource, …)` overloads. `scaleBigDecimal`
+	 * gates the `BigDecimal` scaled-int branch: the index path enables it (keys must match the shared filter tree); the
+	 * query-comparator path leaves it off (raw `BigDecimal` natural order is already correct for sorting result rows).
+	 */
+	@Nonnull
+	private static Optional<UnaryOperator<Serializable>> createNormalizerFor(
+		@Nonnull ComparatorSource comparatorBase,
+		int indexedDecimalPlaces,
+		boolean scaleBigDecimal
+	) {
 		if (String.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(
 				text -> text == null
@@ -244,6 +310,14 @@ public abstract sealed class SortIndex
 			return Optional.of(value -> value == null ? null : new ComparableLocale((Locale) value));
 		} else if (Currency.class.isAssignableFrom(comparatorBase.type())) {
 			return Optional.of(value -> value == null ? null : new ComparableCurrency((Currency) value));
+		} else if (scaleBigDecimal && BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
+			// scale a real BigDecimal to its order-preserving int; an already-scaled Integer (or null) passes through
+			// so the value may be normalized twice without a ClassCastException (idempotent contract)
+			return Optional.of(
+				value -> value instanceof BigDecimal bd
+					? Integer.valueOf(NumberUtils.convertToInt(bd, indexedDecimalPlaces))
+					: value
+			);
 		} else {
 			return Optional.empty();
 		}
@@ -258,10 +332,11 @@ public abstract sealed class SortIndex
 	 * decision is FIXED at construction — the shared tree can be transiently removed mid-mutation but the mode does not
 	 * flip.
 	 *
-	 * @param attributeType  the comparable type of the indexed attribute
-	 * @param referenceKey   discriminator of the owning {@link AbstractReducedEntityIndex}, or `null` for the global index
-	 * @param key            identifies the indexed attribute (and its locale, if localized)
-	 * @param sharedSupplier parent-bound supplier of the shared tree (view candidate) or `null` (always owner)
+	 * @param attributeType        the comparable type of the indexed attribute
+	 * @param referenceKey         discriminator of the owning {@link AbstractReducedEntityIndex}, or `null` for the global index
+	 * @param key                  identifies the indexed attribute (and its locale, if localized)
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param sharedSupplier       parent-bound supplier of the shared tree (view candidate) or `null` (always owner)
 	 * @return a freshly created {@link OwnerSortIndex} or {@link SortIndexView}
 	 */
 	@Nonnull
@@ -269,14 +344,15 @@ public abstract sealed class SortIndex
 		@Nonnull Class<?> attributeType,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey key,
+		int indexedDecimalPlaces,
 		@Nullable Supplier<InvertedIndex> sharedSupplier
 	) {
 		// resolve the shared tree ONCE at construction (sort runs before filter, so for a brand-new key the tree is still
 		// absent → owner mode; a both-flagged key whose tree already exists → view mode bound directly to that instance)
 		final InvertedIndex sharedTree = sharedSupplier == null ? null : sharedSupplier.get();
 		return sharedTree != null
-			? new SortIndexView(attributeType, referenceKey, key, sharedTree)
-			: new OwnerSortIndex(attributeType, referenceKey, key);
+			? new SortIndexView(attributeType, referenceKey, key, indexedDecimalPlaces, sharedTree)
+			: new OwnerSortIndex(attributeType, referenceKey, key, indexedDecimalPlaces);
 	}
 
 	/**
@@ -285,13 +361,14 @@ public abstract sealed class SortIndex
 	 * {@link SortIndexView} is built; otherwise an {@link OwnerSortIndex} is rebuilt from the persisted arrays.
 	 * `sortedRecords` is always taken as-is.
 	 *
-	 * @param comparatorBase     one descriptor per element (a single entry for plain attributes)
-	 * @param referenceKey       owning reference discriminator, or `null` for the global index
-	 * @param attributeIndexKey  identifies the indexed attribute / compound
-	 * @param sortedRecords      record ids ordered by their associated values, blocked per value
-	 * @param sortedRecordValues the naturally sorted distinct values (ignored in view mode)
-	 * @param cardinalities      counts for values shared by more than one record (ignored in view mode)
-	 * @param sharedSupplier     parent-bound supplier of the shared tree (view mode) or `null` (owner mode)
+	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
+	 * @param referenceKey         owning reference discriminator, or `null` for the global index
+	 * @param attributeIndexKey    identifies the indexed attribute / compound
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param sortedRecords        record ids ordered by their associated values, blocked per value
+	 * @param sortedRecordValues   the naturally sorted distinct values (ignored in view mode)
+	 * @param cardinalities        counts for values shared by more than one record (ignored in view mode)
+	 * @param sharedSupplier       parent-bound supplier of the shared tree (view mode) or `null` (owner mode)
 	 * @return a rehydrated {@link OwnerSortIndex} or {@link SortIndexView}
 	 */
 	@Nonnull
@@ -299,6 +376,7 @@ public abstract sealed class SortIndex
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces,
 		@Nonnull int[] sortedRecords,
 		@Nonnull Serializable[] sortedRecordValues,
 		@Nonnull Map<Serializable, Integer> cardinalities,
@@ -308,9 +386,11 @@ public abstract sealed class SortIndex
 		// rebuilds from its persisted arrays
 		final InvertedIndex sharedTree = sharedSupplier == null ? null : sharedSupplier.get();
 		return sharedTree != null
-			? new SortIndexView(comparatorBase, referenceKey, attributeIndexKey, sortedRecords, sharedTree)
+			? new SortIndexView(
+				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords, sharedTree)
 			: new OwnerSortIndex(
-				comparatorBase, referenceKey, attributeIndexKey, sortedRecords, sortedRecordValues, cardinalities);
+				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
+				sortedRecords, sortedRecordValues, cardinalities);
 	}
 
 	/**
@@ -360,6 +440,27 @@ public abstract sealed class SortIndex
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull TransactionalUnorderedIntArray sortedRecords
 	) {
+		this(comparatorBase, referenceKey, attributeIndexKey, 0, sortedRecords);
+	}
+
+	/**
+	 * Base constructor shared by both variants, carrying the `BigDecimal` scaling decimal places so this index's OWN
+	 * {@link #normalizer} scales `BigDecimal` keys identically to the shared filter value tree (keeping a both-flagged
+	 * attribute's sort and filter keys in lockstep).
+	 *
+	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
+	 * @param referenceKey         owning reference discriminator, or `null` for the global index
+	 * @param attributeIndexKey    identifies the indexed attribute / compound
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param sortedRecords        the sorted-records façade to adopt (fresh empty, rehydrated, or merged)
+	 */
+	protected SortIndex(
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces,
+		@Nonnull TransactionalUnorderedIntArray sortedRecords
+	) {
 		this.dirty = new TransactionalBoolean();
 		this.comparatorBase = comparatorBase;
 		for (final ComparatorSource comparatorSource : comparatorBase) {
@@ -367,11 +468,13 @@ public abstract sealed class SortIndex
 		}
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		if (this.comparatorBase.length == 1) {
-			this.normalizer = createNormalizerFor(this.comparatorBase[0]).orElseGet(UnaryOperator::identity);
+			this.normalizer = createNormalizerFor(this.comparatorBase[0], indexedDecimalPlaces)
+				.orElseGet(UnaryOperator::identity);
 			this.comparator = createComparatorFor(this.attributeIndexKey.locale(), this.comparatorBase[0]);
 		} else {
-			this.normalizer = createNormalizerFor(this.comparatorBase);
+			this.normalizer = createNormalizerFor(this.comparatorBase, indexedDecimalPlaces);
 			this.comparator = createCombinedComparatorFor(this.attributeIndexKey.locale(), this.comparatorBase);
 		}
 		this.sortedRecords = sortedRecords;
@@ -530,7 +633,9 @@ public abstract sealed class SortIndex
 			this.sortIndexChanges = null;
 			return new SortIndexStoragePart(
 				entityIndexPrimaryKey, this.attributeIndexKey, this.comparatorBase,
-				getSortedRecords(), storagePartSortedValues(), storagePartCardinalities()
+				getSortedRecords(), storagePartSortedValues(), storagePartCardinalities(),
+				this.indexedDecimalPlaces,
+				null
 			);
 		} else {
 			return null;

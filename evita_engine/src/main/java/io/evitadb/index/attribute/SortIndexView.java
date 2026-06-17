@@ -94,6 +94,7 @@ public final class SortIndexView extends SortIndex {
 		@Nonnull Class<?> attributeType,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces,
 		@Nonnull InvertedIndex sharedTree
 	) {
 		super(
@@ -102,6 +103,7 @@ public final class SortIndexView extends SortIndex {
 			},
 			referenceKey,
 			attributeIndexKey,
+			indexedDecimalPlaces,
 			new TransactionalUnorderedIntArray()
 		);
 		this.sharedTree = sharedTree;
@@ -122,10 +124,14 @@ public final class SortIndexView extends SortIndex {
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces,
 		@Nonnull int[] sortedRecords,
 		@Nonnull InvertedIndex sharedTree
 	) {
-		super(comparatorBase, referenceKey, attributeIndexKey, new TransactionalUnorderedIntArray(sortedRecords));
+		super(
+			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
+			new TransactionalUnorderedIntArray(sortedRecords)
+		);
 		this.sharedTree = sharedTree;
 	}
 
@@ -137,10 +143,11 @@ public final class SortIndexView extends SortIndex {
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces,
 		@Nonnull TransactionalUnorderedIntArray sortedRecords,
 		@Nullable InvertedIndex sharedTree
 	) {
-		super(comparatorBase, referenceKey, attributeIndexKey, sortedRecords);
+		super(comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords);
 		this.sharedTree = sharedTree;
 	}
 
@@ -183,6 +190,7 @@ public final class SortIndexView extends SortIndex {
 			this.comparatorBase,
 			getReferenceKey(),
 			getAttributeIndexKey(),
+			getIndexedDecimalPlaces(),
 			this.sortedRecords,
 			committedSharedTree
 		);
@@ -309,6 +317,7 @@ public final class SortIndexView extends SortIndex {
 			this.comparatorBase,
 			getReferenceKey(),
 			getAttributeIndexKey(),
+			getIndexedDecimalPlaces(),
 			mergedSortedRecords,
 			this.sharedTree
 		);

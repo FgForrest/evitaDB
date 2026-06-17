@@ -28,6 +28,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -36,6 +37,7 @@ import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -168,17 +170,46 @@ public class InvertedIndex implements
 	 * Instance of comparator that should be used for values in {@link #buckets}
 	 */
 	@Nonnull @Getter private final Comparator comparator;
+	/**
+	 * The plain (non-array) declared type of the indexed attribute. It drives the leaf key-column selection
+	 * ({@link ValueColumnFactory#forKey}): an integral / temporal type under natural order stores its keys in a
+	 * primitive `long[]` column, otherwise the universal boxed column is used.
+	 */
+	@Nonnull private final Class<?> plainType;
+	/**
+	 * The decimal-places scale this tree's `BigDecimal` keys are encoded at, frozen when the tree is created. The scale
+	 * is baked into {@link #normalizer} at construction (see `FilterIndex.getNormalizer`) and the tree is never
+	 * re-scaled in place, so this value records the scale every key already stored in {@link #buckets} was encoded with.
+	 * It exists purely as a consistency witness: a caller that owns the current attribute schema can compare its
+	 * {@link io.evitadb.api.requestResponse.schema.AttributeSchemaContract#getIndexedDecimalPlaces()} against this frozen
+	 * value and refuse to modify a tree whose scale has drifted (which would otherwise silently mix two scales). It is
+	 * `0` for non-`BigDecimal` attributes and a runtime-only field — it is re-resolved from the schema on load, never
+	 * persisted.
+	 */
+	@Getter private final int indexedDecimalPlaces;
 
 	/**
-	 * Creates a fresh, empty tree ordered by the passed comparator.
+	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
+	 * attribute's plain type and the comparator: a numeric / temporal attribute under natural order uses a primitive
+	 * `long[]` column, otherwise the universal boxed column.
+	 *
+	 * @param plainType  the plain (non-array) declared attribute type
+	 * @param comparator the value order
+	 * @return the fresh empty bucket tree
 	 */
 	@Nonnull
-	@SuppressWarnings("unchecked")
-	private static TransactionalBucketBPlusTree createEmptyTree(@Nonnull Comparator comparator) {
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static TransactionalBucketBPlusTree createEmptyTree(
+		@Nonnull Class<?> plainType,
+		@Nonnull Comparator comparator
+	) {
+		// the tree is raw-keyed by Comparable.class here; the factory's wildcard return is fed in as a raw type
+		final ValueColumnFactory factory = ValueColumnFactory.forKey(plainType, comparator);
 		return new TransactionalBucketBPlusTree<>(
 			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 			Comparable.class,
-			comparator
+			comparator,
+			factory
 		);
 	}
 
@@ -276,22 +307,116 @@ public class InvertedIndex implements
 		return materializeBucket(cursor).recordSetHashCode();
 	}
 
+	/**
+	 * Creates a fresh, empty inverted index whose bucket tree uses the boxed key column. Kept for callers that have no
+	 * attribute type at hand (e.g. the generic Kryo deserializer): it behaves exactly like the universal boxed index.
+	 *
+	 * @param normalizer the value normalizer
+	 * @param comparator the value order
+	 */
 	public InvertedIndex(
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator
 	) {
-		this.buckets = createEmptyTree(comparator);
+		this(Comparable.class, normalizer, comparator);
+	}
+
+	/**
+	 * Creates a fresh, empty inverted index, selecting the leaf key-column kind from the attribute's plain type: an
+	 * integral / temporal type under natural order stores its keys in a primitive `long[]` column.
+	 *
+	 * @param plainType  the plain (non-array) declared attribute type
+	 * @param normalizer the value normalizer
+	 * @param comparator the value order
+	 */
+	public InvertedIndex(
+		@Nonnull Class<?> plainType,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator
+	) {
+		this(plainType, normalizer, comparator, 0);
+	}
+
+	/**
+	 * Creates a fresh, empty inverted index, selecting the leaf key-column kind from the attribute's plain type: an
+	 * integral / temporal type under natural order stores its keys in a primitive `long[]` column. The
+	 * `indexedDecimalPlaces` scale is frozen into the index as the consistency witness described on
+	 * {@link #getIndexedDecimalPlaces()}.
+	 *
+	 * @param plainType            the plain (non-array) declared attribute type
+	 * @param normalizer           the value normalizer
+	 * @param comparator           the value order
+	 * @param indexedDecimalPlaces decimal-places scale the `BigDecimal` keys are encoded at (0 for other types)
+	 */
+	public InvertedIndex(
+		@Nonnull Class<?> plainType,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces
+	) {
+		this.plainType = plainType;
+		this.buckets = createEmptyTree(plainType, comparator);
 		this.normalizer = normalizer;
 		this.comparator = comparator;
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.dirty = new TransactionalBoolean(false);
 	}
 
+	/**
+	 * Creates an inverted index rebuilt from persisted buckets, using the boxed key column. Kept for callers (the Kryo
+	 * deserializer) that have no attribute type at hand.
+	 *
+	 * @param buckets    the persisted buckets (unique & monotonic by value)
+	 * @param normalizer the value normalizer
+	 * @param comparator the value order
+	 */
 	public InvertedIndex(
 		@Nonnull ValueToRecordBitmap[] buckets,
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator
 	) {
-		final TransactionalBucketBPlusTree tree = createEmptyTree(comparator);
+		this(Comparable.class, buckets, normalizer, comparator);
+	}
+
+	/**
+	 * Creates an inverted index rebuilt from persisted buckets, selecting the leaf key-column kind from the attribute's
+	 * plain type: an integral / temporal type under natural order stores its keys in a primitive `long[]` column.
+	 *
+	 * @param plainType  the plain (non-array) declared attribute type
+	 * @param buckets    the persisted buckets (unique & monotonic by value)
+	 * @param normalizer the value normalizer
+	 * @param comparator the value order
+	 */
+	public InvertedIndex(
+		@Nonnull Class<?> plainType,
+		@Nonnull ValueToRecordBitmap[] buckets,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator
+	) {
+		this(plainType, buckets, normalizer, comparator, 0);
+	}
+
+	/**
+	 * Creates an inverted index rebuilt from persisted buckets, selecting the leaf key-column kind from the attribute's
+	 * plain type: an integral / temporal type under natural order stores its keys in a primitive `long[]` column. The
+	 * `indexedDecimalPlaces` scale is frozen into the index as the consistency witness described on
+	 * {@link #getIndexedDecimalPlaces()}.
+	 *
+	 * @param plainType            the plain (non-array) declared attribute type
+	 * @param buckets              the persisted buckets (unique & monotonic by value)
+	 * @param normalizer           the value normalizer
+	 * @param comparator           the value order
+	 * @param indexedDecimalPlaces decimal-places scale the `BigDecimal` keys are encoded at (0 for other types)
+	 */
+	public InvertedIndex(
+		@Nonnull Class<?> plainType,
+		@Nonnull ValueToRecordBitmap[] buckets,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces
+	) {
+		this.plainType = plainType;
+		final TransactionalBucketBPlusTree tree = createEmptyTree(plainType, comparator);
 		// rebuild the tree from the deserialized snapshot by inserting all buckets (values are unique & monotonic).
 		// a single-record bucket lands as a primitive column entry, a multi-record bucket as an overflow bitmap entry,
 		// so the columnar heap win survives a reload without ever allocating a ValueToRecord wrapper.
@@ -309,24 +434,32 @@ public class InvertedIndex implements
 		this.buckets = tree;
 		this.normalizer = normalizer;
 		this.comparator = comparator;
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.dirty = new TransactionalBoolean(false);
 	}
 
 	/**
 	 * Private constructor used by {@link #createCopyWithMergedTransactionalMemory} to wrap an already committed tree.
+	 * The committed tree already carries the chosen column kind, so {@code plainType} is only propagated for parity.
 	 *
-	 * @param committedTree the tree obtained from the committed transactional state
-	 * @param normalizer    the normalizer of the source index
-	 * @param comparator    the comparator of the source index
+	 * @param plainType            the plain (non-array) declared attribute type, carried forward from the source index
+	 * @param committedTree        the tree obtained from the committed transactional state
+	 * @param normalizer           the normalizer of the source index
+	 * @param comparator           the comparator of the source index
+	 * @param indexedDecimalPlaces the frozen decimal-places scale carried forward from the source index
 	 */
 	private InvertedIndex(
+		@Nonnull Class<?> plainType,
 		@Nonnull TransactionalBucketBPlusTree committedTree,
 		@Nonnull Function<Object, Serializable> normalizer,
-		@Nonnull Comparator comparator
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces
 	) {
+		this.plainType = plainType;
 		this.buckets = committedTree;
 		this.normalizer = normalizer;
 		this.comparator = comparator;
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.dirty = new TransactionalBoolean(false);
 	}
 
@@ -456,19 +589,6 @@ public class InvertedIndex implements
 	}
 
 	/**
-	 * Returns a transaction-aware iterator over the sorted buckets starting from the first bucket whose value is greater
-	 * than or equal to the passed already-normalized value (the value itself need not be present). The iterator walks the
-	 * transactional view so callers inside an open transaction observe the in-progress state. Intended for prefix lookups
-	 * that scan a contiguous run of buckets starting at an anchor (see `FilterIndex.getRecordsWhoseValuesStartWith`).
-	 *
-	 * @param normalizedValue the value already normalized by the caller (via FilterIndex normalizer) used as lower bound
-	 */
-	@Nonnull
-	public Iterator<ValueToRecord> getValueIteratorFrom(@Nonnull Serializable normalizedValue) {
-		return cursorAsValueToRecordIterator(this.buckets.cursor((Comparable) normalizedValue));
-	}
-
-	/**
 	 * Returns a transaction-aware iterator over ALL buckets ordered ascending by {@link #comparator}. Used by the
 	 * both-flagged sort view to derive the ordered `(value, cardinality)` stream that segments the sort index's
 	 * record blocks — each bucket yields its value via {@link ValueToRecord#getValue()} and its cardinality via the
@@ -559,22 +679,81 @@ public class InvertedIndex implements
 	}
 
 	/**
-	 * Returns subset of this histogram with buckets whose values match the given predicate.
-	 * Records returned by this {@link InvertedIndexSubSet} are sorted by record id value.
+	 * Returns a formula over the record ids of every bucket whose value matches `valuePredicate`, evaluated in a single
+	 * forward pass over all buckets. The matching record-set bitmaps are read straight off the {@link BucketCursor}
+	 * (a single-record bucket yields a {@link SingleRecordBitmap}, a multi-record bucket its live
+	 * {@link TransactionalBitmap}) and folded into one OR formula without ever materializing a {@link ValueToRecord}
+	 * flyweight or an intermediate {@link InvertedIndexSubSet}. The result is the natural ascending union of the matched
+	 * buckets - the allocation-lean equivalent of the former `getSortedRecordsMatching(predicate).getFormula()` path.
 	 *
-	 * @see #getSortedRecords()
+	 * @param valuePredicate tests each (already-normalized) bucket value; a bucket is included when it returns true
+	 * @return OR formula of the matched buckets' record ids (the index id seeds the formula's transactional identity)
 	 */
 	@Nonnull
-	public InvertedIndexSubSet getSortedRecordsMatching(@Nonnull Predicate<Serializable> valuePredicate) {
-		final List<ValueToRecord> result = new ArrayList<>(64);
+	public Formula getRecordsMatchingFormula(@Nonnull Predicate<Serializable> valuePredicate) {
+		final List<Bitmap> bitmaps = new ArrayList<>(64);
 		final BucketCursor cursor = this.buckets.cursor();
 		while (cursor.next()) {
 			if (valuePredicate.test((Serializable) cursor.value())) {
-				// a bucket in the tree always holds at least one record, so the historical non-empty guard is implicit
-				result.add(materializeBucket(cursor));
+				// read the record set straight off the cursor - no ValueToRecord flyweight is materialized
+				bitmaps.add(cursor.records());
 			}
 		}
-		return convertToSortedResult(result.toArray(ValueToRecord[]::new));
+		return toSortedOrFormula(bitmaps);
+	}
+
+	/**
+	 * Returns a formula over the record ids of the contiguous run of buckets that starts at the first bucket whose value
+	 * sorts greater than or equal to `normalizedAnchor` and continues while `matchWhile` holds, stopping (early break) at
+	 * the first bucket that fails it. Intended for orderings under which the matches form one contiguous run from the
+	 * anchor - notably prefix search under the natural codepoint comparator (see
+	 * `FilterIndex.getRecordsWhoseValuesStartWith`). Each matched bucket contributes a {@link ConstantFormula} read
+	 * straight off the {@link BucketCursor}; no {@link ValueToRecord} flyweight or iterator wrapper is allocated.
+	 *
+	 * @param normalizedAnchor the already-normalized lower-bound value to anchor the forward scan at
+	 * @param matchWhile       tests each bucket value; the scan stops at the first bucket that fails it
+	 * @return OR formula of the matched run's record ids, or {@link EmptyFormula#INSTANCE} when nothing matches
+	 */
+	@Nonnull
+	public Formula getRecordsStartingFromWhile(
+		@Nonnull Serializable normalizedAnchor,
+		@Nonnull Predicate<Serializable> matchWhile
+	) {
+		final List<Formula> formulas = new ArrayList<>();
+		// anchor at the first bucket whose value sorts >= the anchor and walk forward while the predicate holds
+		final BucketCursor cursor = this.buckets.cursor((Comparable) normalizedAnchor);
+		while (cursor.next()) {
+			if (matchWhile.test((Serializable) cursor.value())) {
+				formulas.add(new ConstantFormula(cursor.records()));
+			} else {
+				// the matching buckets form a single contiguous run - stop at the first miss
+				break;
+			}
+		}
+		if (formulas.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		}
+		return FormulaFactory.or(formulas.toArray(Formula.EMPTY_FORMULA_ARRAY));
+	}
+
+	/**
+	 * Folds the collected record-set bitmaps into a single disjunction that orders its record ids by natural ascending
+	 * value - the same shape the {@link #SORTED_AGGREGATION_LAMBDA} produces: an empty list yields
+	 * {@link EmptyFormula#INSTANCE}, a single bitmap a bare {@link ConstantFormula}, and several bitmaps an
+	 * {@link OrFormula} seeded with this index's id so the formula cache keys on the tree's transactional identity.
+	 *
+	 * @param bitmaps the matched buckets' record-set bitmaps, in ascending bucket-value order
+	 * @return the disjunction formula over the bitmaps
+	 */
+	@Nonnull
+	private Formula toSortedOrFormula(@Nonnull List<Bitmap> bitmaps) {
+		if (bitmaps.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		} else if (bitmaps.size() == 1) {
+			return new ConstantFormula(bitmaps.get(0));
+		} else {
+			return new OrFormula(new long[]{getId()}, bitmaps.toArray(Bitmap[]::new));
+		}
 	}
 
 	/**
@@ -640,9 +819,11 @@ public class InvertedIndex implements
 			final TransactionalBucketBPlusTree committedTree =
 				(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.buckets);
 			return new InvertedIndex(
+				this.plainType,
 				committedTree,
 				this.normalizer,
-				this.comparator
+				this.comparator,
+				this.indexedDecimalPlaces
 			);
 		} else {
 			return this;

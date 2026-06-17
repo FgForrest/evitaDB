@@ -40,6 +40,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Map;
 
 /**
@@ -112,10 +113,7 @@ public class AttributeCardinalityIndex
 	 */
 	@Nonnull
 	public CardinalityChange addRecord(@Nonnull Serializable value, int recordId) {
-		Assert.isTrue(
-			this.valueType.isInstance(value),
-			"Value of type `" + value.getClass() + "` is not compatible with this index that accepts only values of type `" + this.valueType + "`!"
-		);
+		assertValueCompatible(value);
 		this.dirty.setToTrue();
 		final int newCardinality = this.cardinalities.compute(
 			new AttributeCardinalityKey(recordId, value),
@@ -136,10 +134,7 @@ public class AttributeCardinalityIndex
 	 */
 	@Nonnull
 	public CardinalityChange removeRecord(@Nonnull Serializable value, int recordId) {
-		Assert.isTrue(
-			this.valueType.isInstance(value),
-			"Value of type `" + value.getClass() + "` is not compatible with this index that accepts only values of type `" + this.valueType + "`!"
-		);
+		assertValueCompatible(value);
 		this.dirty.setToTrue();
 		final AttributeCardinalityKey cardinalityKey = new AttributeCardinalityKey(recordId, value);
 		final Integer newValue = this.cardinalities.computeIfPresent(
@@ -154,6 +149,23 @@ public class AttributeCardinalityIndex
 		} else {
 			return CardinalityChange.NO_BOUNDARY_CROSSING;
 		}
+	}
+
+	/**
+	 * Verifies that `value` is storable in this index. A value is compatible when it is an instance of the
+	 * declared {@link #valueType}, or — for a `BigDecimal`-typed index — when it is the order-preserving scaled
+	 * `Integer` surrogate the filter index now uses to encode `BigDecimal` attribute values (the same idempotent
+	 * contract honoured by `FilterIndex.getNormalizer`). Histogram values sourced from a `BigDecimal` attribute's
+	 * filter index arrive already scaled to an `Integer`, so the index records and evicts them in that same form.
+	 *
+	 * @param value the value to validate
+	 */
+	private void assertValueCompatible(@Nonnull Serializable value) {
+		Assert.isTrue(
+			this.valueType.isInstance(value) ||
+				(BigDecimal.class.isAssignableFrom(this.valueType) && value instanceof Integer),
+			"Value of type `" + value.getClass() + "` is not compatible with this index that accepts only values of type `" + this.valueType + "`!"
+		);
 	}
 
 	/**

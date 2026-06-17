@@ -77,7 +77,7 @@ class FilterIndexViewTest {
 	@Nonnull
 	private static InvertedIndex newSharedTree(@Nonnull AttributeIndexKey key, @Nonnull Class<?> type) {
 		return new InvertedIndex(
-			FilterIndex.getNormalizer(type),
+			FilterIndex.getNormalizer(type, 0),
 			FilterIndex.getComparator(key, type)
 		);
 	}

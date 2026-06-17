@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -44,6 +45,7 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
@@ -1123,7 +1125,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 				ReferencedTypeEntityIndexTest.this.index,
 				original -> {
 					original.insertPrimaryKeyIfMissing(10, 1);
-					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
 
 					final FilterIndex filter = original.getHistogramFilterIndex(HISTOGRAM_NAME, null);
 					assertNotNull(filter, "Filter index should be accessible via convenience method");
@@ -1145,7 +1147,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			assertStateAfterCommit(
 				ReferencedTypeEntityIndexTest.this.index,
 				original -> {
-					original.insertHistogramValue(HISTOGRAM_NAME, null, 99, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 99, 10, Integer.class, 0);
 					assertFalse(original.isEmpty(), "Index with histogram data should not be empty");
 				},
 				(original, committed) -> {
@@ -1159,10 +1161,12 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@DisplayName("should isolate histogram values per locale so one locale's records never leak into another")
 		void shouldIsolateHistogramValuesPerLocale() {
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class
+				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class,
+			0
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.GERMAN, 42, 11, Integer.class
+				HISTOGRAM_NAME, Locale.GERMAN, 42, 11, Integer.class,
+			0
 			);
 
 			final FilterIndex englishFilter = ReferencedTypeEntityIndexTest.this.index
@@ -1182,19 +1186,67 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@DisplayName("should dispose the histogram filter index once the last value under a given name/locale is removed")
 		void shouldDisposeHistogramFilterIndexWhenLastValueRemoved() {
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, null, 42, 10, Integer.class
+				HISTOGRAM_NAME, null, 42, 10, Integer.class,
+			0
 			);
 			assertNotNull(
 				ReferencedTypeEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null)
 			);
 
 			ReferencedTypeEntityIndexTest.this.index.removeHistogramValue(
-				HISTOGRAM_NAME, null, 42, 10
+				HISTOGRAM_NAME, null, 42, 10, 0
 			);
 
 			assertNull(
 				ReferencedTypeEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null),
 				"Filter index must be gone once all histogram values are removed"
+			);
+		}
+
+		@Test
+		@DisplayName("histogram insert into a scale-drifted index fails loudly")
+		void shouldThrowWhenHistogramInsertScaleDrifts() {
+			// build the histogram frozen at two decimal places
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, null, new BigDecimal("1.50"), 10, BigDecimal.class, 2
+			);
+
+			// the schema now declares three decimal places -- feeding the frozen histogram must refuse rather than mangle
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+					HISTOGRAM_NAME, null, new BigDecimal("2.500"), 11, BigDecimal.class, 3
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("histogram remove from a scale-drifted index fails loudly")
+		void shouldThrowWhenHistogramRemoveScaleDrifts() {
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, null, new BigDecimal("1.50"), 10, BigDecimal.class, 2
+			);
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferencedTypeEntityIndexTest.this.index.removeHistogramValue(
+					HISTOGRAM_NAME, null, new BigDecimal("1.50"), 10, 3
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("histogram modification at the unchanged scale is accepted")
+		void shouldAcceptHistogramModificationAtUnchangedScale() {
+			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+				HISTOGRAM_NAME, null, new BigDecimal("1.50"), 10, BigDecimal.class, 2
+			);
+
+			// same scale -> no drift -> a second modification is accepted
+			assertDoesNotThrow(
+				() -> ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
+					HISTOGRAM_NAME, null, new BigDecimal("2.50"), 11, BigDecimal.class, 2
+				)
 			);
 		}
 	}

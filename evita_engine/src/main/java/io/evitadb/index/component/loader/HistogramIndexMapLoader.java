@@ -62,6 +62,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 			return new LoadedComponentBundle.Histograms(CollectionUtils.createHashMap(0));
 		}
 		final String referenceName = getReferenceName(context);
+		//noinspection resource
 		final StoragePartPersistenceService<?> service = context.storagePartService();
 		final int entityIndexId = context.entityIndexId();
 		final long catalogVersion = context.catalogVersion();
@@ -87,24 +88,36 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 		for (final Map.Entry<String, Map<Locale, HistogramIndexStoragePart>> entry : partsByName.entrySet()) {
 			final String histogramName = entry.getKey();
 			final Map<Locale, HistogramIndexStoragePart> parts = entry.getValue();
+			// the indexedDecimalPlaces scale is frozen into each histogram part at write time and read back from THAT part
+			// verbatim (0 for non-BigDecimal source types). It must NOT be re-derived from the schema by histogram name: the
+			// histogram name is a free-form definition name, not the source attribute name — its value expression may read a
+			// differently-named attribute, possibly on another entity's schema — so a by-name owner-schema lookup would be
+			// wrong. See the freeze rationale on HistogramIndexStoragePart#indexedDecimalPlaces.
 			if (parts.containsKey(null) && parts.size() == 1) {
 				// non-localized histogram
 				final HistogramIndexStoragePart part = parts.get(null);
+				final int indexedDecimalPlaces = part.getIndexedDecimalPlaces();
 				result.put(histogramName, new SimpleHistogramIndex(
 					histogramName, referenceName,
 					(Class<? extends Serializable>) part.getValueType(),
+					indexedDecimalPlaces,
 					new OwnerFilterIndex(
 						new AttributeIndexKey(referenceName, histogramName, null),
-						part.getHistogramPoints(), part.getRangeIndex(), part.getValueType()
+						part.getHistogramPoints(), part.getRangeIndex(), part.getValueType(),
+						indexedDecimalPlaces
 					),
 					part.getCardinalityIndex()
 				));
 			} else {
-				// localized histogram — collect per-locale filter and cardinality children
+				// localized histogram — collect per-locale filter and cardinality children. The value type and the frozen
+				// scale are histogram-wide invariants (the same source attribute backs every locale); they are captured
+				// once from the first locale part for the LocalizedHistogramIndex, while each OwnerFilterIndex still reads
+				// its own part's scale directly.
 				final Map<Locale, OwnerFilterIndex> filterIndexes = CollectionUtils.createHashMap(parts.size());
 				final Map<Locale, AttributeCardinalityIndex> cardinalities =
 					CollectionUtils.createHashMap(parts.size());
 				Class<? extends Serializable> valueType = null;
+				int indexedDecimalPlaces = 0;
 				for (final Map.Entry<Locale, HistogramIndexStoragePart> partEntry : parts.entrySet()) {
 					final Locale locale = partEntry.getKey();
 					if (locale == null) {
@@ -113,16 +126,19 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 					final HistogramIndexStoragePart part = partEntry.getValue();
 					if (valueType == null) {
 						valueType = (Class<? extends Serializable>) part.getValueType();
+						indexedDecimalPlaces = part.getIndexedDecimalPlaces();
 					}
 					filterIndexes.put(locale, new OwnerFilterIndex(
 						new AttributeIndexKey(referenceName, histogramName, locale),
-						part.getHistogramPoints(), part.getRangeIndex(), part.getValueType()
+						part.getHistogramPoints(), part.getRangeIndex(), part.getValueType(),
+						part.getIndexedDecimalPlaces()
 					));
 					cardinalities.put(locale, part.getCardinalityIndex());
 				}
 				if (valueType != null) {
 					result.put(histogramName, new LocalizedHistogramIndex(
-						histogramName, referenceName, valueType, filterIndexes, cardinalities
+						histogramName, referenceName, valueType, indexedDecimalPlaces,
+						filterIndexes, cardinalities
 					));
 				}
 			}

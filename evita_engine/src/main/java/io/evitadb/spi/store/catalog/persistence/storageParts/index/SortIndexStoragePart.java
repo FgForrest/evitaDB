@@ -27,13 +27,12 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.RecordWithCompressedId;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -48,11 +47,9 @@ import java.util.Map;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-@RequiredArgsConstructor
-@AllArgsConstructor
 @ToString(of = "attributeIndexKey")
 public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = 8847301119284756203L;
+	@Serial private static final long serialVersionUID = 5192847362910473829L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -81,9 +78,80 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	 */
 	@Getter private final Map<Serializable, Integer> valueCardinalities;
 	/**
+	 * The `indexedDecimalPlaces` scale frozen at index-creation time and persisted with the index. `BigDecimal` sort
+	 * values are stored as order-preserving scaled `int`s at this scale; it is `0` for every non-`BigDecimal` attribute
+	 * (and for compound sort attributes, which are not scaled). The value is frozen into the index (rather than
+	 * re-derived from the schema at load) so the on-disk scaled values are always interpreted at the scale they were
+	 * written with; a later schema change to `indexedDecimalPlaces` is detected as drift on the next modification instead
+	 * of silently reinterpreting the persisted values.
+	 */
+	@Getter private final int indexedDecimalPlaces;
+	/**
 	 * Id used for lookups in persistent data storage for this particular container.
 	 */
-	@Getter @Setter private Long storagePartPK;
+	@Nullable @Getter @Setter private Long storagePartPK;
+
+	/**
+	 * Creates a fresh sort index part whose storage part PK is not yet assigned (computed before persistence) with a `0`
+	 * decimal-places scale. Retained for the backward-compatible serializers of pre-freeze formats, which never carried a
+	 * persisted scale.
+	 */
+	public SortIndexStoragePart(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nonnull int[] sortedRecords,
+		@Nonnull Serializable[] sortedRecordsValues,
+		@Nonnull Map<Serializable, Integer> valueCardinalities
+	) {
+		this(
+			entityIndexPrimaryKey, attributeIndexKey, comparatorBase,
+			sortedRecords, sortedRecordsValues, valueCardinalities, 0, null
+		);
+	}
+
+	/**
+	 * Constructor carrying the already-assigned storage part PK with a `0` decimal-places scale. Retained for the
+	 * backward-compatible serializers of pre-freeze formats, which never carried a persisted scale.
+	 */
+	public SortIndexStoragePart(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nonnull int[] sortedRecords,
+		@Nonnull Serializable[] sortedRecordsValues,
+		@Nonnull Map<Serializable, Integer> valueCardinalities,
+		@Nullable Long storagePartPK
+	) {
+		this(
+			entityIndexPrimaryKey, attributeIndexKey, comparatorBase,
+			sortedRecords, sortedRecordsValues, valueCardinalities, 0, storagePartPK
+		);
+	}
+
+	/**
+	 * Canonical constructor carrying every field, including the frozen `indexedDecimalPlaces` scale and the
+	 * already-assigned storage part PK.
+	 */
+	public SortIndexStoragePart(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nonnull int[] sortedRecords,
+		@Nonnull Serializable[] sortedRecordsValues,
+		@Nonnull Map<Serializable, Integer> valueCardinalities,
+		int indexedDecimalPlaces,
+		@Nullable Long storagePartPK
+	) {
+		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
+		this.attributeIndexKey = attributeIndexKey;
+		this.comparatorBase = comparatorBase;
+		this.sortedRecords = sortedRecords;
+		this.sortedRecordsValues = sortedRecordsValues;
+		this.valueCardinalities = valueCardinalities;
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.storagePartPK = storagePartPK;
+	}
 
 	@Nonnull
 	@Override

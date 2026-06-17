@@ -30,9 +30,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
@@ -52,12 +50,10 @@ import java.io.Serial;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @NotThreadSafe
-@RequiredArgsConstructor
-@AllArgsConstructor
 @ToString(of = {"histogramName", "locale", "entityIndexPrimaryKey"})
 public class HistogramIndexStoragePart implements StoragePart {
 
-	@Serial private static final long serialVersionUID = 7294816253748291063L;
+	@Serial private static final long serialVersionUID = 8204715639284710553L;
 
 	/**
 	 * Unique id that identifies the owning {@link io.evitadb.index.EntityIndex}.
@@ -95,9 +91,82 @@ public class HistogramIndexStoragePart implements StoragePart {
 	@Getter @Nonnull private final AttributeCardinalityIndex cardinalityIndex;
 
 	/**
+	 * The `indexedDecimalPlaces` scale frozen at histogram-creation time and persisted with the index. `BigDecimal`
+	 * source values are stored as order-preserving scaled `int`s at this scale; it is `0` for every non-`BigDecimal`
+	 * source type. The value is frozen into the index (rather than re-derived from the source attribute's schema at load)
+	 * so the on-disk scaled keys are always interpreted at the scale they were written with; a later schema change to
+	 * `indexedDecimalPlaces` is detected as drift on the next modification instead of silently reinterpreting them.
+	 */
+	@Getter private final int indexedDecimalPlaces;
+
+	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
-	@Getter @Setter private Long storagePartPK;
+	@Nullable @Getter @Setter private Long storagePartPK;
+
+	/**
+	 * Creates a fresh histogram index part whose storage part PK is not yet assigned (computed before persistence).
+	 *
+	 * @param entityIndexPrimaryKey primary key of the owning entity index
+	 * @param histogramName         name of the histogram definition
+	 * @param locale                locale for localized histograms, or `null`
+	 * @param valueType             plain numeric type of the stored histogram values
+	 * @param histogramPoints       bucketed histogram data
+	 * @param rangeIndex            optional range index for range-type attributes, or `null`
+	 * @param cardinalityIndex      cardinality tracking index
+	 * @param indexedDecimalPlaces  frozen decimal-places scale (0 for non-`BigDecimal` source types)
+	 */
+	public HistogramIndexStoragePart(
+		int entityIndexPrimaryKey,
+		@Nonnull String histogramName,
+		@Nullable java.util.Locale locale,
+		@Nonnull Class<?> valueType,
+		@Nonnull ValueToRecordBitmap[] histogramPoints,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull AttributeCardinalityIndex cardinalityIndex,
+		int indexedDecimalPlaces
+	) {
+		this(
+			entityIndexPrimaryKey, histogramName, locale, valueType, histogramPoints, rangeIndex,
+			cardinalityIndex, indexedDecimalPlaces, null
+		);
+	}
+
+	/**
+	 * Canonical constructor carrying every field, including the frozen `indexedDecimalPlaces` scale and the
+	 * already-assigned storage part PK.
+	 *
+	 * @param entityIndexPrimaryKey primary key of the owning entity index
+	 * @param histogramName         name of the histogram definition
+	 * @param locale                locale for localized histograms, or `null`
+	 * @param valueType             plain numeric type of the stored histogram values
+	 * @param histogramPoints       bucketed histogram data
+	 * @param rangeIndex            optional range index for range-type attributes, or `null`
+	 * @param cardinalityIndex      cardinality tracking index
+	 * @param indexedDecimalPlaces  frozen decimal-places scale (0 for non-`BigDecimal` source types)
+	 * @param storagePartPK         the already-assigned storage part PK, or `null`
+	 */
+	public HistogramIndexStoragePart(
+		int entityIndexPrimaryKey,
+		@Nonnull String histogramName,
+		@Nullable java.util.Locale locale,
+		@Nonnull Class<?> valueType,
+		@Nonnull ValueToRecordBitmap[] histogramPoints,
+		@Nullable RangeIndex rangeIndex,
+		@Nonnull AttributeCardinalityIndex cardinalityIndex,
+		int indexedDecimalPlaces,
+		@Nullable Long storagePartPK
+	) {
+		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
+		this.histogramName = histogramName;
+		this.locale = locale;
+		this.valueType = valueType;
+		this.histogramPoints = histogramPoints;
+		this.rangeIndex = rangeIndex;
+		this.cardinalityIndex = cardinalityIndex;
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.storagePartPK = storagePartPK;
+	}
 
 	/**
 	 * Computes the unique storage part primary key by bit-joining the entity index primary key (high 32 bits) with

@@ -217,7 +217,7 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 	@Override
 	public boolean isWithin(@Nonnull BigDecimal valueToCheck) {
 		Assert.notNull(valueToCheck, "Cannot resolve within range with NULL value!");
-		final long valueToCompare = toComparableLong(valueToCheck, ofNullable(this.retainedDecimalPlaces).orElse(0), 0L);
+		final long valueToCompare = toComparableLong(valueToCheck, effectiveRetainedDecimalPlaces(), 0L);
 		return this.fromToCompare <= valueToCompare && valueToCompare <= this.toToCompare;
 	}
 
@@ -290,7 +290,23 @@ public final class BigDecimalNumberRange extends NumberRange<BigDecimal> {
 
 	@Override
 	protected long toComparableLong(@Nullable BigDecimal valueToCheck, long defaultValue) {
-		return toComparableLong(valueToCheck, ofNullable(this.retainedDecimalPlaces).orElse(0), defaultValue);
+		return toComparableLong(valueToCheck, effectiveRetainedDecimalPlaces(), defaultValue);
+	}
+
+	/**
+	 * Resolves the decimal-places scale this range actually compares its bounds at. When the range was built
+	 * with an explicit `retainedDecimalPlaces` that value is used verbatim; otherwise the scale is resolved
+	 * from the bounds the very same way the precomputed `fromToCompare` / `toToCompare` thresholds were
+	 * (see `resolveDefaultRetainedDecimalPlaces`). Comparing a probe at this scale keeps membership checks
+	 * consistent with the stored thresholds — coercing the probe at scale `0` while the bounds were scaled
+	 * at their natural precision would otherwise mismatch by a power of ten.
+	 *
+	 * @return the decimal-places scale the stored `from` / `to` thresholds were encoded at
+	 */
+	private int effectiveRetainedDecimalPlaces() {
+		return this.retainedDecimalPlaces != null
+			? this.retainedDecimalPlaces
+			: resolveDefaultRetainedDecimalPlaces(this.from, this.to);
 	}
 
 	@Override

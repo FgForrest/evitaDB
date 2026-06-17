@@ -436,7 +436,7 @@ class EntityIndexRoundTripTest {
 				final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
 				final InvertedIndex shared = new InvertedIndex(
 					filterPart.getHistogramPoints(),
-					FilterIndex.getNormalizer(plainType),
+					FilterIndex.getNormalizer(plainType, 0),
 					FilterIndex.getComparator(attrKey, plainType)
 				);
 				sharedValueIndexes.put(attrKey, shared);
@@ -476,6 +476,8 @@ class EntityIndexRoundTripTest {
 						sortPart.getComparatorBase(),
 						referenceKey,
 						attrKey,
+						// the scale is no longer persisted; these round-trips index no BigDecimal attribute, so it is 0
+						0,
 						sortPart.getSortedRecords(),
 						sortPart.getSortedRecordsValues(),
 						sortPart.getValueCardinalities(),
@@ -621,11 +623,14 @@ class EntityIndexRoundTripTest {
 					part.getHistogramName(),
 					referenceName,
 					valueType,
+					// the scale is no longer persisted; these round-trips index no BigDecimal histogram, so it is 0
+					0,
 					new OwnerFilterIndex(
 						new AttributeIndexKey(referenceName, part.getHistogramName(), null),
 						part.getHistogramPoints(),
 						part.getRangeIndex(),
-						part.getValueType()
+						part.getValueType(),
+						0
 					),
 					freshCardinality
 				)
@@ -988,8 +993,8 @@ class EntityIndexRoundTripTest {
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13, false);
 
 			// histogram — must round-trip via the manifest
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class);
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 200, 14, Integer.class);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class, 0);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 200, 14, Integer.class, 0);
 
 			// price ref-index intentionally NOT populated here for the same reason as in
 			// ReducedEntityIndexRoundTripTest: PriceListAndCurrencyPriceRefIndex requires a
@@ -1140,8 +1145,8 @@ class EntityIndexRoundTripTest {
 			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Lamp", 15, false);
 			index.insertFilterAttribute(null, nameSchema, allowedLocales, null, "Lamp", 15, false);
 
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 11, 15, Integer.class);
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 22, 16, Integer.class);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 11, 15, Integer.class, 0);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 22, 16, Integer.class, 0);
 
 			index.addFacet(null, new ReferenceKey(REFERENCE_NAME, 50), GROUP_PK, 15);
 			return index;

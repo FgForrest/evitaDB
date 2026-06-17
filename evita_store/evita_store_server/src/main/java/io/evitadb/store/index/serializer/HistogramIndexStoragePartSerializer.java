@@ -73,12 +73,17 @@ public class HistogramIndexStoragePartSerializer extends Serializer<HistogramInd
 			kryo.writeObject(output, part.getRangeIndex());
 		}
 
+		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal source types)
+		output.writeVarInt(part.getIndexedDecimalPlaces(), true);
+
 		// cardinality data
 		final AttributeCardinalityIndex cardinalityIndex = part.getCardinalityIndex();
 		final Map<AttributeCardinalityKey, Integer> cardinalities = cardinalityIndex.getCardinalities();
 		output.writeVarInt(cardinalities.size(), true);
 		for (Map.Entry<AttributeCardinalityKey, Integer> entry : cardinalities.entrySet()) {
-			kryo.writeObject(output, entry.getKey().value());
+			// the key value is self-describing: a BigDecimal value type stores an order-preserving scaled
+			// Integer here, so the concrete runtime type is written alongside the value
+			kryo.writeClassAndObject(output, entry.getKey().value());
 			output.writeVarInt(entry.getKey().recordId(), false);
 			output.writeVarInt(entry.getValue(), true);
 		}
@@ -103,12 +108,15 @@ public class HistogramIndexStoragePartSerializer extends Serializer<HistogramInd
 		final boolean hasRangeIndex = input.readBoolean();
 		final RangeIndex rangeIndex = hasRangeIndex ? kryo.readObject(input, RangeIndex.class) : null;
 
+		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal source types)
+		final int indexedDecimalPlaces = input.readVarInt(true);
+
 		// cardinality data
 		final int cardinalityCount = input.readVarInt(true);
 		final Map<AttributeCardinalityKey, Integer> cardinalities =
 			CollectionUtils.createHashMap(cardinalityCount);
 		for (int i = 0; i < cardinalityCount; i++) {
-			final Serializable value = kryo.readObject(input, valueType);
+			final Serializable value = (Serializable) kryo.readClassAndObject(input);
 			final int recordId = input.readVarInt(false);
 			final int cardinality = input.readVarInt(true);
 			cardinalities.put(new AttributeCardinalityKey(recordId, value), cardinality);
@@ -118,6 +126,7 @@ public class HistogramIndexStoragePartSerializer extends Serializer<HistogramInd
 			entityIndexPrimaryKey, histogramName, locale, valueType,
 			histogramPoints, rangeIndex,
 			new AttributeCardinalityIndex(valueType, cardinalities),
+			indexedDecimalPlaces,
 			uniquePartId
 		);
 	}

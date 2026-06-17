@@ -50,6 +50,9 @@ import java.io.Serializable;
  * @param innerNumericType    when `plainType` is a `NumberRange` subtype, the matching inner numeric type
  *                            (e.g., `IntegerNumberRange.class` -> `Integer.class`); null for non-Range
  *                            `plainType` values
+ * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` source values into the
+ *                            order-preserving scaled `int` the source filter index stores; `0` for every
+ *                            other source type
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record HistogramValueDescriptor(
@@ -60,7 +63,8 @@ public record HistogramValueDescriptor(
 	boolean arrayType,
 	boolean localized,
 	@Nullable Number defaultValue,
-	@Nullable Class<? extends Number> innerNumericType
+	@Nullable Class<? extends Number> innerNumericType,
+	int indexedDecimalPlaces
 ) {
 
 }

@@ -81,7 +81,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 			50,
 			new SimpleTestState(
 				new StringBuilder(256),
-				new SimpleHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class)
+				new SimpleHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0)
 			),
 			(random, testState) -> {
 				final StringBuilder code = testState.code();
@@ -148,7 +148,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 			50,
 			new LocalizedTestState(
 				new StringBuilder(256),
-				new LocalizedHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class)
+				new LocalizedHistogramIndex(HISTOGRAM_NAME, REFERENCE_NAME, Integer.class, 0)
 			),
 			(random, testState) -> {
 				final StringBuilder code = testState.code();
@@ -219,7 +219,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Counts total (value, ownerPK) pairs with cardinality > 0 in the reference model.
 	 */
-	private int countEntries(@Nonnull Map<Integer, Map<Integer, Integer>> model) {
+	private static int countEntries(@Nonnull Map<Integer, Map<Integer, Integer>> model) {
 		int count = 0;
 		for (Map<Integer, Integer> ownerMap : model.values()) {
 			for (int cardinality : ownerMap.values()) {
@@ -240,7 +240,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	 * different replay on different machines and prevent local reproduction of CI failures.
 	 */
 	@Nullable
-	private int[] pickRandomEntry(
+	private static int[] pickRandomEntry(
 		@Nonnull Random random,
 		@Nonnull Map<Integer, Map<Integer, Integer>> model
 	) {
@@ -262,7 +262,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Decrements cardinality for (value, ownerPK) and cleans up zero-cardinality entries.
 	 */
-	private void decrementCardinality(
+	private static void decrementCardinality(
 		@Nonnull Map<Integer, Map<Integer, Integer>> model,
 		int value,
 		int ownerPK
@@ -282,7 +282,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Verifies committed histogram state matches the reference model for a given locale.
 	 */
-	private void verifyHistogramState(
+	private static void verifyHistogramState(
 		@Nonnull HistogramIndex committed,
 		@Nullable Locale locale,
 		@Nonnull Map<Integer, Map<Integer, Integer>> model,
@@ -335,7 +335,7 @@ class LongRunningHistogramIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Appends reference model state to the debug code buffer.
 	 */
-	private void appendReferenceState(
+	private static void appendReferenceState(
 		@Nonnull StringBuilder code,
 		@Nonnull Map<Integer, Map<Integer, Integer>> model
 	) {

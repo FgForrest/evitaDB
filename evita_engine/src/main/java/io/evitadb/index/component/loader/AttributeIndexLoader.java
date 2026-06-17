@@ -125,7 +125,10 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		// FIRST pass: build the shared trees + filter views from FILTER parts (so SORT can discover view mode)
 		for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
 			if (key.indexType() == AttributeIndexType.FILTER) {
-				fetchFilter(catalogVersion, entityIndexId, service, filterIndexes, sharedValueIndexes, sharedRangeIndexes, key);
+				fetchFilter(
+					catalogVersion, entityIndexId, service, filterIndexes,
+					sharedValueIndexes, sharedRangeIndexes, key
+				);
 			}
 		}
 		// SECOND pass: UNIQUE (owner standalone, or folded VIEW when a FILTER part exists for the key) + SORT (view mode
@@ -258,12 +261,19 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		final AttributeIndexKey attributeIndexKey = part.getAttributeIndexKey();
 		final Class<?> attributeType = part.getAttributeType();
 		final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+		// the scale is frozen into the part at write time and read back verbatim (0 for non-BigDecimal attributes), so
+		// reloaded keys are always interpreted at the scale they were written with — no schema re-derivation at load (see
+		// the freeze rationale on FilterIndexStoragePart#indexedDecimalPlaces). A later schema change to the scale is
+		// surfaced as drift on the next modification rather than silently reinterpreting the persisted keys.
+		final int indexedDecimalPlaces = part.getIndexedDecimalPlaces();
 		// build the OWNED shared value→ValueToRecord tree from the persisted histogram points; the normalizer is the
-		// shared NFD/Instant one so keys are canonical
+		// shared NFD/Instant/scaled-int one so keys are canonical
 		final InvertedIndex shared = new InvertedIndex(
+			plainType,
 			part.getHistogramPoints(),
-			FilterIndex.getNormalizer(plainType),
-			FilterIndex.getComparator(attributeIndexKey, plainType)
+			FilterIndex.getNormalizer(plainType, indexedDecimalPlaces),
+			FilterIndex.getComparator(attributeIndexKey, plainType),
+			indexedDecimalPlaces
 		);
 		sharedValueIndexes.put(attributeIndexKey, shared);
 		final RangeIndex rangeIndex = part.getRangeIndex();
@@ -273,7 +283,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		// the filter view wraps the shared tree (and shared range)
 		filterIndexes.put(
 			attributeIndexKey,
-			new FilterIndexView(attributeIndexKey, shared, rangeIndex, attributeType)
+			new FilterIndexView(attributeIndexKey, shared, rangeIndex, attributeType, indexedDecimalPlaces)
 		);
 	}
 
@@ -308,14 +318,20 @@ public final class AttributeIndexLoader implements ComponentLoader {
 				" was not found in persistent storage!"
 		);
 		final AttributeIndexKey attributeIndexKey = part.getAttributeIndexKey();
+		// the scale is frozen into the part at write time and read back verbatim — 0 for non-BigDecimal attributes and
+		// for compound sorts (which keep their exact BigDecimal natural order and are never scaled). No schema
+		// re-derivation at load (see the freeze rationale on SortIndexStoragePart#indexedDecimalPlaces).
+		final SortIndex.ComparatorSource[] comparatorBase = part.getComparatorBase();
+		final int indexedDecimalPlaces = part.getIndexedDecimalPlaces();
 		// view mode when a FILTER part exists for the same key (both-flagged single attribute): ignore the persisted
 		// values/cardinalities (the slim part omits them) and resolve cardinality from the shared tree.
 		// The supplier is resolved ONCE here to bind the view's direct shared-tree reference; the loaded map is stable and
 		// AttributeIndex's constructor re-binds every view to its committed shared tree anyway (deriveSortViews).
 		final SortIndex sortIndex = SortIndex.create(
-			part.getComparatorBase(),
+			comparatorBase,
 			context.referenceKey(),
 			attributeIndexKey,
+			indexedDecimalPlaces,
 			part.getSortedRecords(),
 			part.getSortedRecordsValues(),
 			part.getValueCardinalities(),

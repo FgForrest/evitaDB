@@ -689,7 +689,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					for (int ownerPK : matched) {
 						removeHistogramValue(
 							histogramName, locale, value, ownerPK,
-							group, rtei, isGrouped, target
+							group, rtei, isGrouped, target, resolution.indexedDecimalPlaces()
 						);
 					}
 				}
@@ -938,7 +938,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 						for (int ownerPK : matched) {
 							insertHistogramValue(
 								histogramName, locale, emittedValue, ownerPK, group, rtei, isGrouped,
-								target, plainType
+								target, plainType, resolution.indexedDecimalPlaces()
 							);
 						}
 					}
@@ -957,7 +957,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 						for (int ownerPK : matched) {
 							insertHistogramValue(
 								histogramName, locale, defaultValue, ownerPK, group, rtei, isGrouped,
-								target, plainType
+								target, plainType, resolution.indexedDecimalPlaces()
 							);
 						}
 					}
@@ -1097,7 +1097,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			resolution, filterIndex, shouldBeIndexedBitmap, group,
 			(value, ownerPK) -> insertHistogramValue(
 				histogramName, locale, value, ownerPK, group, rtei, isGrouped,
-				target, plainType
+				target, plainType, resolution.indexedDecimalPlaces()
 			)
 		);
 	}
@@ -1276,7 +1276,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		processRefAttrFilterIndexBuckets(
 			resolution, filterIndex, ownerPKsToRemove, group,
 			(value, ownerPK) -> removeHistogramValue(
-				histogramName, locale, value, ownerPK, group, rtei, isGrouped, target
+				histogramName, locale, value, ownerPK, group, rtei, isGrouped, target,
+				resolution.indexedDecimalPlaces()
 			)
 		);
 	}
@@ -1294,7 +1295,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
-		@Nonnull IndexMutationTarget target
+		@Nonnull IndexMutationTarget target,
+		int indexedDecimalPlaces
 	) {
 		if (isGrouped && group.groupPK() != null) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
@@ -1303,12 +1305,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
 				);
 				if (histogramContainsOwner(rgei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
-					rgei.removeHistogramValue(histogramName, locale, value, ownerPK);
+					rgei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 				}
 			}
 		}
 		if (histogramContainsOwner(rtei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
-			rtei.removeHistogramValue(histogramName, locale, value, ownerPK);
+			rtei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 		}
 	}
 
@@ -1334,9 +1336,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (filterIndex == null) {
 			return false;
 		}
+		// buckets store the canonicalized key (e.g. a scaled Integer for a BigDecimal value type), so the raw
+		// probe must be normalized through the same path before comparing
+		final Serializable normalizedValue = histogramIndex.normalizeValue(value);
 		final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
 		for (final ValueToRecordBitmap bucket : buckets) {
-			if (bucket.getValue().equals(value)) {
+			if (bucket.getValue().equals(normalizedValue)) {
 				return bucket.getRecordIds().contains(ownerPK);
 			}
 		}
@@ -1367,7 +1372,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		if (isGrouped && group.groupPK() != null) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
@@ -1375,10 +1381,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
 					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
 				);
-				rgei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+				rgei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 			}
 		}
-		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 	}
 
 	/**

@@ -89,7 +89,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			FilterIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(this.keyCompressor), FilterIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-3363238752052021735L, new FilterIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(-3363238752052021735L, new FilterIndexStoragePartSerializer_2025_5(this.keyCompressor))
+				.addBackwardCompatibleSerializer(942367579256351640L, new FilterIndexStoragePartSerializer_2026_1(this.keyCompressor)),
 			index++
 		);
 		kryo.register(
@@ -152,6 +153,10 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(GroupCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new GroupCardinalityIndexStoragePartSerializer(this.keyCompressor), GroupCardinalityIndexStoragePart.class), index++);
 		kryo.register(
 			HistogramIndexStoragePart.class,
+			// the reference bucketed-histogram feature is unreleased (absent from every release branch), so no released
+			// catalog carries a histogram part — there is nothing to be backward-compatible with. The UID bump on
+			// HistogramIndexStoragePart makes any stale unreleased-dev catalog fail loud (and be regenerated) rather than
+			// mis-read the added frozen-scale field.
 			new SerialVersionBasedSerializer<>(new HistogramIndexStoragePartSerializer(this.keyCompressor), HistogramIndexStoragePart.class),
 			index++
 		);

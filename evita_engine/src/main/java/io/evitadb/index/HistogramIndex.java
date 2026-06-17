@@ -38,6 +38,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 
 /**
  * Abstract transactional data structure encapsulating a single named histogram definition.
@@ -81,14 +82,46 @@ public abstract class HistogramIndex
 	 */
 	@Nonnull @Getter private final Class<? extends Serializable> valueType;
 
+	/**
+	 * Decimal-places scale used by a `BigDecimal` source attribute's filter index to encode values into the
+	 * order-preserving scaled `int` it stores; `0` for every other value type. Carried so the histogram index
+	 * canonicalizes raw `BigDecimal` values into the very same key form the source buckets hold.
+	 */
+	@Getter private final int indexedDecimalPlaces;
+
+	/**
+	 * Canonicalizes a histogram value into the exact key form the inner {@link FilterIndex} stores. For a
+	 * `BigDecimal` value type this scales the value into the order-preserving `Integer` the source filter index
+	 * uses at its `indexedDecimalPlaces` (matching `FilterIndex.getNormalizer`); every other type passes through
+	 * unchanged. This lets insert and remove agree on the same key regardless of whether the upstream value
+	 * arrived already scaled (`Integer`) or as a raw `BigDecimal`. The user-facing `BigDecimal` boundaries are
+	 * reconstructed from the source attribute's real `indexedDecimalPlaces` at query time.
+	 */
+	@Nonnull private final transient Function<Object, Serializable> valueNormalizer;
+
 	protected HistogramIndex(
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		this.histogramName = histogramName;
 		this.referenceName = referenceName;
 		this.valueType = valueType;
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.valueNormalizer = FilterIndex.getNormalizer(valueType, indexedDecimalPlaces);
+	}
+
+	/**
+	 * Canonicalizes a raw histogram value into the key form the inner filter / cardinality indexes store, so
+	 * insert and remove always agree on the same key (see {@link #valueNormalizer}).
+	 *
+	 * @param value the raw histogram value
+	 * @return the canonicalized value
+	 */
+	@Nonnull
+	public final Serializable normalizeValue(@Nonnull Serializable value) {
+		return this.valueNormalizer.apply(value);
 	}
 
 	/**

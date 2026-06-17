@@ -79,13 +79,13 @@ class SortIndexViewModeTest {
 
 		Harness(@Nonnull Class<?> type, @Nonnull AttributeIndexKey key) {
 			this.owner = new OwnerSortIndex(type, null, key);
-			this.sharedNormalizer = FilterIndex.getNormalizer(type);
+			this.sharedNormalizer = FilterIndex.getNormalizer(type, 0);
 			this.shared = new InvertedIndex(
 				this.sharedNormalizer,
 				FilterIndex.getComparator(key, type)
 			);
 			final Supplier<InvertedIndex> supplier = () -> this.shared;
-			this.view = SortIndex.create(type, null, key, supplier);
+			this.view = SortIndex.create(type, null, key, 0, supplier);
 			// the factory must route a present shared tree to a view and an absent one to an owner
 			assertInstanceOf(OwnerSortIndex.class, this.owner, "owner-mode factory must produce an OwnerSortIndex!");
 			assertInstanceOf(SortIndexView.class, this.view, "view-mode factory must produce a SortIndexView!");

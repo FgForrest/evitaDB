@@ -24,14 +24,18 @@
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.Comparator;
+import java.util.function.ToIntFunction;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.HISTOGRAM;
@@ -154,6 +158,44 @@ class AttributeHistogramProducerTest {
 			},
 			output
 		);
+	}
+
+	/**
+	 * Verifies the integer-domain histogram math for a `BigDecimal` attribute whose filter index now stores
+	 * already-scaled `int` keys (a value with `indexDecimalPlaces = 2` is held as `value * 100`). The cruncher
+	 * is wired exactly like {@link AttributeHistogramComputer} does for the `STANDARD` behaviour: an identity
+	 * threshold retriever (the bucket value is already the integer-domain key) and a
+	 * `BigDecimal.valueOf(scaledInt, places)` reconstruction. The user-facing thresholds / max must restore the
+	 * original magnitudes 1.50 / 2.00 / 2.50.
+	 */
+	@Test
+	void shouldReconstructBigDecimalBoundariesFromScaledIntegerBuckets() {
+		final int places = 2;
+		// scaled integer keys as stored by the filter index for BigDecimal values 1.50, 2.00, 2.50
+		final ValueToRecordBitmap[] buckets = {
+			new ValueToRecordBitmap(150, 1),
+			new ValueToRecordBitmap(200, 2),
+			new ValueToRecordBitmap(250, 3)
+		};
+		// identity converter: the bucket value is an already-scaled Integer in the integer domain
+		final ToIntFunction<ValueToRecordBitmap> thresholdRetriever = bucket -> (Integer) bucket.getValue();
+
+		final HistogramDataCruncher<ValueToRecordBitmap> cruncher = new HistogramDataCruncher<>(
+			"test histogram",
+			3,
+			places,
+			buckets,
+			thresholdRetriever,
+			bucket -> bucket.getRecordIds().size(),
+			value -> BigDecimal.valueOf(value, places),
+			value -> value.stripTrailingZeros().scaleByPowerOfTen(places).intValueExact()
+		);
+
+		final CacheableBucket[] histogram = cruncher.getHistogram();
+		// the left bound of the first bucket is the restored minimum 1.50
+		assertEquals(0, new BigDecimal("1.50").compareTo(histogram[0].threshold()));
+		// the right bound of the last bucket is the restored maximum 2.50
+		assertEquals(0, new BigDecimal("2.50").compareTo(cruncher.getMaxValue()));
 	}
 
 }

@@ -226,9 +226,19 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				return converted;
 			};
 		} else if (BigDecimal.class.isAssignableFrom(effectiveType)) {
-			converter = value -> ((BigDecimal) value).stripTrailingZeros()
-				.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
-				.intValue();
+			// the filter index now stores `BigDecimal` attribute values as a scaled `int` (the magnitude
+			// `BigDecimal.valueOf(scaledInt, indexedDecimalPlaces)` restores), so the bucket value handed to
+			// the converter is already an `Integer` in the integer domain — use it as identity. A genuine
+			// `BigDecimal` is still accepted defensively (e.g. an externally-built probe) and scaled here.
+			final int places = histogramRequest.getDecimalPlaces();
+			converter = value -> {
+				if (value instanceof Integer scaledInt) {
+					return scaledInt;
+				}
+				return ((BigDecimal) value).stripTrailingZeros()
+					.scaleByPowerOfTen(places)
+					.intValue();
+			};
 		} else {
 			throw new GenericEvitaInternalError(
 				"Unsupported histogram number type: " + schemaType +

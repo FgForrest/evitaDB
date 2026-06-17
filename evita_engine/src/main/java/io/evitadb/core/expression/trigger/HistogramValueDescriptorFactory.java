@@ -49,6 +49,7 @@ import lombok.NoArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -197,9 +198,17 @@ public class HistogramValueDescriptorFactory {
 					"Unexpected Range subtype: " + plainType.getName()
 				);
 			}
+			// a BigDecimal-backed range (`BigDecimalNumberRange`) canonicalizes to the source attribute's
+			// `indexedDecimalPlaces` exactly like a plain BigDecimal attribute: the histogram normalizer rescales
+			// its raw bounds to that scale so the `RangeIndex` thresholds — and the bucket keys reconstructed from
+			// them at query time — line up with the source filter index. Integral inner types (Byte/Short/Integer/
+			// Long) carry no fractional scale, so they keep 0 decimal places.
+			final int rangeIndexedDecimalPlaces = innerNumericType == BigDecimal.class
+				? attributeSchema.getIndexedDecimalPlaces()
+				: 0;
 			return new HistogramValueDescriptor(
 				source, sourceEntityType, attributeName, plainType, arrayType, localized,
-				null, innerNumericType
+				null, innerNumericType, rangeIndexedDecimalPlaces
 			);
 		}
 
@@ -218,9 +227,15 @@ public class HistogramValueDescriptorFactory {
 			valueExpression, referenceName, histogramName, plainType
 		);
 
+		// for a BigDecimal source the filter index stores order-preserving scaled ints, so the histogram
+		// index must canonicalize raw BigDecimal values by the same decimal-places count; 0 for every other type
+		final int indexedDecimalPlaces = BigDecimal.class.isAssignableFrom(plainType)
+			? attributeSchema.getIndexedDecimalPlaces()
+			: 0;
+
 		return new HistogramValueDescriptor(
 			source, sourceEntityType, attributeName, plainType, arrayType, localized,
-			defaultValue, null
+			defaultValue, null, indexedDecimalPlaces
 		);
 	}
 

@@ -91,16 +91,18 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	/**
 	 * Creates a new empty localized histogram index.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param referenceName the reference name for storage key construction
-	 * @param valueType     the plain numeric type of the attribute values
+	 * @param histogramName        the name of the histogram definition
+	 * @param referenceName        the reference name for storage key construction
+	 * @param valueType            the plain numeric type of the attribute values
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
 	 */
 	public LocalizedHistogramIndex(
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
-		super(histogramName, referenceName, valueType);
+		super(histogramName, referenceName, valueType, indexedDecimalPlaces);
 		this.filterIndexes = new TransactionalMap<>(
 			CollectionUtils.createHashMap(4), OwnerFilterIndex.class, Function.identity()
 		);
@@ -112,20 +114,22 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 	/**
 	 * Creates a localized histogram index from persisted data.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param referenceName the reference name for storage key construction
-	 * @param valueType     the plain numeric type of the attribute values
-	 * @param filterIndexes persisted filter indexes by locale
-	 * @param cardinalities persisted cardinality indexes by locale
+	 * @param histogramName        the name of the histogram definition
+	 * @param referenceName        the reference name for storage key construction
+	 * @param valueType            the plain numeric type of the attribute values
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param filterIndexes        persisted filter indexes by locale
+	 * @param cardinalities        persisted cardinality indexes by locale
 	 */
 	public LocalizedHistogramIndex(
 		@Nonnull String histogramName,
 		@Nonnull String referenceName,
 		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces,
 		@Nonnull Map<Locale, OwnerFilterIndex> filterIndexes,
 		@Nonnull Map<Locale, AttributeCardinalityIndex> cardinalities
 	) {
-		super(histogramName, referenceName, valueType);
+		super(histogramName, referenceName, valueType, indexedDecimalPlaces);
 		this.filterIndexes = new TransactionalMap<>(
 			filterIndexes, OwnerFilterIndex.class, Function.identity()
 		);
@@ -143,19 +147,23 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 		final Locale theLocale = Objects.requireNonNull(
 			locale, "Locale must not be null for localized histogram!");
 		final Class<? extends Serializable> theValueType = getValueType();
+		// canonicalize so insert and remove agree on the same key regardless of whether the upstream value
+		// arrived as a raw BigDecimal or an already-scaled Integer
+		final Serializable normalizedValue = normalizeValue(value);
 		final AttributeCardinalityIndex cardinalityIdx = this.cardinalities.computeIfAbsent(
 			theLocale,
 			k -> new AttributeCardinalityIndex(theValueType)
 		);
-		if (cardinalityIdx.addRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
+		if (cardinalityIdx.addRecord(normalizedValue, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
 			final OwnerFilterIndex filterIdx = this.filterIndexes.computeIfAbsent(
 				theLocale,
 				k -> new OwnerFilterIndex(
 					new AttributeIndexKey(getReferenceName(), getHistogramName(), theLocale),
-					theValueType
+					theValueType,
+					getIndexedDecimalPlaces()
 				)
 			);
-			filterIdx.addRecord(ownerPK, value);
+			filterIdx.addRecord(ownerPK, normalizedValue);
 		}
 	}
 
@@ -174,10 +182,11 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 				"Cannot remove value from localized histogram — no data exists for locale `" + theLocale + "`!"
 			);
 		}
-		if (cardinalityIdx.removeRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
+		final Serializable normalizedValue = normalizeValue(value);
+		if (cardinalityIdx.removeRecord(normalizedValue, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
 			final OwnerFilterIndex filterIdx = this.filterIndexes.get(theLocale);
 			if (filterIdx != null) {
-				filterIdx.removeRecord(ownerPK, value);
+				filterIdx.removeRecord(ownerPK, normalizedValue);
 				if (filterIdx.isEmpty()) {
 					if (localeRemovalDeferred(theLocale)) {
 						removeFilterIndex(theLocale);
@@ -310,7 +319,8 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 						entityIndexPrimaryKey, histogramName, locale, getValueType(),
 						filterIndex.getInvertedIndex().getValueToRecordBitmap(),
 						filterIndex.getRangeIndex(),
-						cardinalityIndex != null ? cardinalityIndex : new AttributeCardinalityIndex(getValueType())
+						cardinalityIndex != null ? cardinalityIndex : new AttributeCardinalityIndex(getValueType()),
+						getIndexedDecimalPlaces()
 					)
 				);
 			}
@@ -327,6 +337,7 @@ public class LocalizedHistogramIndex extends HistogramIndex {
 			getHistogramName(),
 			getReferenceName(),
 			getValueType(),
+			getIndexedDecimalPlaces(),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.filterIndexes),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities)
 		);

@@ -163,12 +163,31 @@ public final class OwnerSortIndex extends SortIndex {
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey
 	) {
+		this(attributeType, referenceKey, attributeIndexKey, 0);
+	}
+
+	/**
+	 * Creates an empty owner sort index for a single attribute, carrying the `BigDecimal` scaling decimal places so the
+	 * index's own normalizer scales `BigDecimal` keys identically to the shared filter value tree.
+	 *
+	 * @param attributeType        the comparable type of the indexed attribute
+	 * @param referenceKey         discriminator of the owning {@link io.evitadb.index.AbstractReducedEntityIndex}, or `null`
+	 * @param attributeIndexKey    identifies the indexed attribute (and its locale, if localized)
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 */
+	public OwnerSortIndex(
+		@Nonnull Class<?> attributeType,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces
+	) {
 		super(
 			new ComparatorSource[]{
 				new ComparatorSource(attributeType, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 			},
 			referenceKey,
 			attributeIndexKey,
+			indexedDecimalPlaces,
 			new TransactionalUnorderedIntArray()
 		);
 		this.sortedValues = createEmptyTree(this.comparator);
@@ -234,7 +253,37 @@ public final class OwnerSortIndex extends SortIndex {
 		@Nonnull Serializable[] sortedRecordValues,
 		@Nonnull Map<Serializable, Integer> cardinalities
 	) {
-		super(comparatorBase, referenceKey, attributeIndexKey, new TransactionalUnorderedIntArray(sortedRecords));
+		this(
+			comparatorBase, referenceKey, attributeIndexKey, 0,
+			sortedRecords, sortedRecordValues, cardinalities
+		);
+	}
+
+	/**
+	 * Rehydrates an owner sort index carrying the persisted `BigDecimal` scaling decimal places (see the no-places
+	 * overload for the array-consistency contract).
+	 *
+	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
+	 * @param referenceKey         owning reference discriminator, or `null` for the global index
+	 * @param attributeIndexKey    identifies the indexed attribute / compound
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param sortedRecords        record ids ordered by their associated values, blocked per value
+	 * @param sortedRecordValues   the naturally sorted distinct values backing `sortedRecords`
+	 * @param cardinalities        counts for values shared by more than one record (cardinality 1 is implicit)
+	 */
+	public OwnerSortIndex(
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces,
+		@Nonnull int[] sortedRecords,
+		@Nonnull Serializable[] sortedRecordValues,
+		@Nonnull Map<Serializable, Integer> cardinalities
+	) {
+		super(
+			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
+			new TransactionalUnorderedIntArray(sortedRecords)
+		);
 		this.sortedValues = buildTree(sortedRecordValues, cardinalities, this.comparator);
 	}
 
@@ -247,10 +296,11 @@ public final class OwnerSortIndex extends SortIndex {
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces,
 		@Nonnull TransactionalUnorderedIntArray sortedRecords,
 		@SuppressWarnings("rawtypes") @Nonnull TransactionalObjectBPlusTree sortedValues
 	) {
-		super(comparatorBase, referenceKey, attributeIndexKey, sortedRecords);
+		super(comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords);
 		this.sortedValues = sortedValues;
 	}
 
@@ -374,6 +424,7 @@ public final class OwnerSortIndex extends SortIndex {
 			this.comparatorBase,
 			getReferenceKey(),
 			getAttributeIndexKey(),
+			getIndexedDecimalPlaces(),
 			mergedSortedRecords,
 			committedValues
 		);

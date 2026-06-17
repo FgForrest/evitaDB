@@ -138,6 +138,28 @@ class SortIndexStoragePartSerializerTest {
 	}
 
 	@Test
+	@DisplayName("round-trips a scaled-int sort value under a BigDecimal comparator base")
+	void shouldRoundTripScaledIntegerSortValueUnderBigDecimalComparator() {
+		// reproduces the runtime shape of a sort-only BigDecimal attribute: the comparator base reflects the declared
+		// BigDecimal type, but the stored value (and cardinality key) is the scaled Integer the normalizer produced
+		final ComparatorSource[] base = {
+			new ComparatorSource(java.math.BigDecimal.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+		};
+		final Map<Serializable, Integer> cardinalities = Map.of(150, 3);
+		// 150 == 1.50 at the frozen scale of 2 — the scale must survive the round-trip alongside the scaled values
+		final SortIndexStoragePart part = new SortIndexStoragePart(
+			42, new AttributeIndexKey(null, "price", null), base,
+			new int[]{1}, new Serializable[]{150}, cardinalities, 2, 1L
+		);
+
+		final SortIndexStoragePart deserialized = roundTrip(part);
+
+		assertArrayEquals(new Serializable[]{150}, deserialized.getSortedRecordsValues());
+		assertEquals(3, deserialized.getValueCardinalities().get(150));
+		assertEquals(2, deserialized.getIndexedDecimalPlaces(), "The frozen indexedDecimalPlaces must round-trip");
+	}
+
+	@Test
 	@DisplayName("round-trips a slim view-mode part (no values / cardinalities)")
 	void shouldRoundTripSlimViewModePart() {
 		final SortIndexStoragePart deserialized = roundTrip(viewPart());

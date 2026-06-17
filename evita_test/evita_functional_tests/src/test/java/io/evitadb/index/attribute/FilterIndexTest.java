@@ -52,6 +52,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Currency;
@@ -123,6 +124,69 @@ class FilterIndexTest {
 		assertArrayEquals(new int[]{1, 2}, secondBitmap.getArray());
 		// uncached path builds a fresh formula tree and bitmap each call
 		assertNotSame(firstBitmap, secondBitmap);
+	}
+
+	@Test
+	@DisplayName("range index thresholds of a scale-mismatched BigDecimal range honor the index scale")
+	void rangeIndexHonorsIndexScaleForScaleMismatchedBigDecimalRange() {
+		// `validRange` is indexed at scale 2 but the range is built without a places argument, so its bounds keep
+		// their intrinsic scale of 1; the range-index thresholds must still be derived at the index scale so a
+		// probe coerced to that scale lands inside the stored envelope
+		final OwnerFilterIndex filterIndex = new OwnerFilterIndex(
+			new AttributeIndexKey(null, "validRange", null), BigDecimalNumberRange.class, 2
+		);
+		filterIndex.addRecord(
+			1, BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"))
+		);
+
+		// probe 2.0 coerces to 200 at the index scale; the stored envelope [150, 250] must contain it
+		final long probeInside = BigDecimalNumberRange.toComparableLong(new BigDecimal("2.0"), 2);
+		assertArrayEquals(
+			new int[]{1}, filterIndex.getRecordsValidInFormula(probeInside).compute().getArray()
+		);
+
+		// inclusive boundaries 1.5 -> 150 and 2.5 -> 250 both match
+		assertArrayEquals(
+			new int[]{1},
+			filterIndex.getRecordsValidInFormula(
+				BigDecimalNumberRange.toComparableLong(new BigDecimal("1.5"), 2)
+			).compute().getArray()
+		);
+		assertArrayEquals(
+			new int[]{1},
+			filterIndex.getRecordsValidInFormula(
+				BigDecimalNumberRange.toComparableLong(new BigDecimal("2.5"), 2)
+			).compute().getArray()
+		);
+
+		// a probe outside the envelope (3.0 -> 300) matches nothing
+		assertArrayEquals(
+			new int[0],
+			filterIndex.getRecordsValidInFormula(
+				BigDecimalNumberRange.toComparableLong(new BigDecimal("3.0"), 2)
+			).compute().getArray()
+		);
+	}
+
+	@Test
+	@DisplayName("removing a scale-mismatched BigDecimal range clears its range-index envelope without a sanity throw")
+	void removingScaleMismatchedBigDecimalRangeClearsEnvelope() {
+		final OwnerFilterIndex filterIndex = new OwnerFilterIndex(
+			new AttributeIndexKey(null, "validRange", null), BigDecimalNumberRange.class, 2
+		);
+		final BigDecimalNumberRange range =
+			BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"));
+		filterIndex.addRecord(1, range);
+		final long probeInside = BigDecimalNumberRange.toComparableLong(new BigDecimal("2.0"), 2);
+		assertArrayEquals(
+			new int[]{1}, filterIndex.getRecordsValidInFormula(probeInside).compute().getArray()
+		);
+
+		// remove uses the same raw intrinsic-scale range; the symmetric canonicalization must clear the envelope
+		filterIndex.removeRecord(1, range);
+		assertArrayEquals(
+			new int[0], filterIndex.getRecordsValidInFormula(probeInside).compute().getArray()
+		);
 	}
 
 	@Test
@@ -695,6 +759,125 @@ class FilterIndexTest {
 
 			assertSame(EmptyFormula.INSTANCE, result);
 		}
+
+		/**
+		 * The index stores String keys in Unicode NFD (decomposed) form, but a user naturally types the search
+		 * term in NFC (precomposed) form. `startsWith` must match across these canonically-equivalent encodings,
+		 * exactly as the `=` operator already does. A pure-ASCII prefix on the same data is asserted alongside to
+		 * guard the common path against regression.
+		 */
+		@Test
+		@DisplayName("getRecordsWhoseValuesStartWith matches a precomposed (NFC) prefix")
+		void shouldReturnRecordsStartingWithPrecomposedPrefix() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", null), String.class
+			);
+			// "Pâté" supplied in NFC (precomposed â = U+00E2, é = U+00E9)
+			final String precomposedValue = Normalizer.normalize("Pâté", Normalizer.Form.NFC);
+			index.addRecord(1, precomposedValue);
+			index.addRecord(2, "Pasta");
+
+			// user types the precomposed prefix "Pâ"
+			final String precomposedPrefix = Normalizer.normalize("Pâ", Normalizer.Form.NFC);
+			assertArrayEquals(
+				new int[]{1},
+				index.getRecordsWhoseValuesStartWith(precomposedPrefix).compute().getArray()
+			);
+
+			// pure-ASCII prefix still works on the same index
+			assertArrayEquals(
+				new int[]{1, 2},
+				index.getRecordsWhoseValuesStartWith("P").compute().getArray()
+			);
+		}
+
+		/**
+		 * The index stores String keys in Unicode NFD (decomposed) form, but a user naturally types the search
+		 * term in NFC (precomposed) form. `endsWith` must match across these canonically-equivalent encodings. A
+		 * pure-ASCII suffix on the same data is asserted alongside to guard the common path against regression.
+		 */
+		@Test
+		@DisplayName("getRecordsWhoseValuesEndsWith matches a precomposed (NFC) suffix")
+		void shouldReturnRecordsEndingWithPrecomposedSuffix() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", null), String.class
+			);
+			final String precomposedValue = Normalizer.normalize("Pâté", Normalizer.Form.NFC);
+			index.addRecord(1, precomposedValue);
+			index.addRecord(2, "Latte");
+
+			// user types the precomposed suffix "âté"
+			final String precomposedSuffix = Normalizer.normalize("âté", Normalizer.Form.NFC);
+			assertArrayEquals(
+				new int[]{1},
+				index.getRecordsWhoseValuesEndsWith(precomposedSuffix).compute().getArray()
+			);
+
+			// pure-ASCII suffix still works on the same index
+			assertArrayEquals(
+				new int[]{2},
+				index.getRecordsWhoseValuesEndsWith("tte").compute().getArray()
+			);
+		}
+
+		/**
+		 * The index stores String keys in Unicode NFD (decomposed) form, but a user naturally types the search
+		 * term in NFC (precomposed) form. `contains` must match across these canonically-equivalent encodings. A
+		 * pure-ASCII substring on the same data is asserted alongside to guard the common path against regression.
+		 */
+		@Test
+		@DisplayName("getRecordsWhoseValuesContains matches a precomposed (NFC) substring")
+		void shouldReturnRecordsContainingPrecomposedText() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", null), String.class
+			);
+			final String precomposedValue = Normalizer.normalize("Pâté", Normalizer.Form.NFC);
+			index.addRecord(1, precomposedValue);
+			index.addRecord(2, "Plate");
+
+			// user types the precomposed substring "ât"
+			final String precomposedText = Normalizer.normalize("ât", Normalizer.Form.NFC);
+			assertArrayEquals(
+				new int[]{1},
+				index.getRecordsWhoseValuesContains(precomposedText).compute().getArray()
+			);
+
+			// pure-ASCII substring still works on the same index
+			assertArrayEquals(
+				new int[]{2},
+				index.getRecordsWhoseValuesContains("lat").compute().getArray()
+			);
+		}
+
+		/**
+		 * For a localized String attribute the inverted index is ordered by collation
+		 * ({@link LocalizedStringComparator}), not by codepoint. Under collation order a codepoint-`startsWith`
+		 * match may sort after non-matching values (a capitalized term collates together with its lowercase form,
+		 * so it interleaves with the matches), so the contiguous forward-run assumption that lets
+		 * `getRecordsWhoseValuesStartWith` early-break drops matches. Here the buckets collate in the order
+		 * `apple`, `Apple pie`, `applesauce`, `banana`, `Banana split`; an early break stops at the non-matching
+		 * `Apple pie` and never reaches `applesauce`, so the full predicate scan is required. `startsWith` is
+		 * case-sensitive, hence `Apple pie` itself never matches the lowercase `app` prefix.
+		 */
+		@Test
+		@DisplayName("getRecordsWhoseValuesStartWith finds all matches under collation ordering")
+		void shouldReturnAllRecordsStartingWithUnderCollationOrdering() {
+			final OwnerFilterIndex index = new OwnerFilterIndex(
+				new AttributeIndexKey(null, "a", Locale.ENGLISH), String.class
+			);
+			// under English collation case is a tertiary difference so "Apple pie" collates between "apple" and
+			// "applesauce", breaking the codepoint-order contiguity of the lowercase "app" matches
+			index.addRecord(1, "apple");
+			index.addRecord(2, "Apple pie");
+			index.addRecord(3, "banana");
+			index.addRecord(4, "applesauce");
+			index.addRecord(5, "Banana split");
+
+			assertArrayEquals(
+				new int[]{1, 4},
+				index.getRecordsWhoseValuesStartWith("app").compute().getArray()
+			);
+		}
 	}
 
 	@Nested
@@ -886,7 +1069,7 @@ class FilterIndexTest {
 		)
 		void shouldNormalizeOffsetDateTimeToInstant() {
 			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(OffsetDateTime.class);
+				FilterIndex.getNormalizer(OffsetDateTime.class, 0);
 			final OffsetDateTime odt =
 				OffsetDateTime.of(2025, 1, 15, 10, 30, 0, 0, ZoneOffset.UTC);
 
@@ -902,7 +1085,7 @@ class FilterIndexTest {
 		)
 		void shouldNormalizeCurrencyToComparableCurrency() {
 			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(Currency.class);
+				FilterIndex.getNormalizer(Currency.class, 0);
 			final Currency usd = Currency.getInstance("USD");
 
 			final Serializable result = normalizer.apply(usd);
@@ -916,7 +1099,7 @@ class FilterIndexTest {
 		)
 		void shouldNormalizeLocaleToComparableLocale() {
 			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(Locale.class);
+				FilterIndex.getNormalizer(Locale.class, 0);
 
 			final Serializable result = normalizer.apply(Locale.ENGLISH);
 
@@ -929,7 +1112,7 @@ class FilterIndexTest {
 		)
 		void shouldReturnNoNormalizationForComparableType() {
 			final Function<Object, Serializable> normalizer =
-				FilterIndex.getNormalizer(Integer.class);
+				FilterIndex.getNormalizer(Integer.class, 0);
 
 			assertSame(FilterIndex.NO_NORMALIZATION, normalizer);
 		}
@@ -941,8 +1124,57 @@ class FilterIndexTest {
 		void shouldThrowForUnsupportedType() {
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> FilterIndex.getNormalizer(Object.class)
+				() -> FilterIndex.getNormalizer(Object.class, 0)
 			);
+		}
+
+		@Test
+		@DisplayName("getNormalizer for BigDecimal scales to an order-preserving int and is idempotent")
+		void shouldScaleBigDecimalToInt() {
+			final Function<Object, Serializable> normalizer =
+				FilterIndex.getNormalizer(BigDecimal.class, 2);
+
+			// 1.50 with two decimal places becomes the scaled int 150
+			assertEquals(150, normalizer.apply(new BigDecimal("1.50")));
+			// two BigDecimals equal under the schema's decimal places normalize to the same scaled int (same bucket)
+			assertEquals(normalizer.apply(new BigDecimal("1.5")), normalizer.apply(new BigDecimal("1.50")));
+			// idempotent: an already-scaled Integer (and null) passes through unchanged
+			assertEquals(150, normalizer.apply(150));
+			assertNull(normalizer.apply(null));
+		}
+
+		@Test
+		@DisplayName("getNormalizer for BigDecimalNumberRange rescales thresholds to the schema's decimal places")
+		void shouldRescaleBigDecimalNumberRangeToIndexedDecimalPlaces() {
+			final Function<Object, Serializable> normalizer =
+				FilterIndex.getNormalizer(BigDecimalNumberRange.class, 2);
+
+			// a range whose bounds carry an intrinsic scale of 1 must be rebuilt at the schema's two decimal places,
+			// so its comparable thresholds line up with what the source filter / range index stores (15/25 -> 150/250)
+			final BigDecimalNumberRange raw =
+				BigDecimalNumberRange.between(new BigDecimal("1.5"), new BigDecimal("2.5"));
+			assertEquals(15L, raw.getFrom(), "precondition: raw range encodes at its intrinsic scale of 1");
+			assertEquals(25L, raw.getTo(), "precondition: raw range encodes at its intrinsic scale of 1");
+
+			final Serializable normalized = normalizer.apply(raw);
+			final BigDecimalNumberRange rescaled = assertInstanceOf(BigDecimalNumberRange.class, normalized);
+			assertEquals(2, rescaled.getRetainedDecimalPlaces());
+			assertEquals(150L, rescaled.getFrom());
+			assertEquals(250L, rescaled.getTo());
+
+			// open-ended bounds survive the rescale
+			final BigDecimalNumberRange toOnly =
+				(BigDecimalNumberRange) normalizer.apply(BigDecimalNumberRange.to(new BigDecimal("9.9")));
+			assertEquals(990L, toOnly.getTo());
+
+			// idempotent: a range already at the target scale rescales to an equal range
+			final BigDecimalNumberRange reNormalized = (BigDecimalNumberRange) normalizer.apply(rescaled);
+			assertEquals(rescaled.getFrom(), reNormalized.getFrom());
+			assertEquals(rescaled.getTo(), reNormalized.getTo());
+
+			// a non-range value (and null) passes through untouched
+			assertEquals("untouched", normalizer.apply("untouched"));
+			assertNull(normalizer.apply(null));
 		}
 
 		@Test
@@ -1217,8 +1449,11 @@ class FilterIndexTest {
 		@Test
 		@DisplayName("BigDecimal inner numeric type recovers scaled decimal bucket keys")
 		void shouldEmitScaledBigDecimalBucketKeys() {
+			// the index scale must match the range scale: the filter index canonicalizes every incoming range to
+			// its own `indexedDecimalPlaces` before deriving the range-index thresholds, so an index built at
+			// scale 2 keeps a scale-2 range's thresholds intact
 			final OwnerFilterIndex bdIndex = new OwnerFilterIndex(
-				new AttributeIndexKey(null, "price", null), BigDecimalNumberRange.class
+				new AttributeIndexKey(null, "price", null), BigDecimalNumberRange.class, 2
 			);
 			// BigDecimalNumberRange encodes the threshold as `value.scaleByPowerOfTen(scale).longValueExact()`;
 			// passing retainedDecimalPlaces=2 here reproduces the exact stored thresholds.
