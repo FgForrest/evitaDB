@@ -23,10 +23,12 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.component.loader.IndexedDecimalPlacesResolver;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
@@ -65,6 +67,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.TreeMap;
@@ -334,7 +337,7 @@ public interface Migration_2026_2 {
 			);
 			return true;
 		} else if (BigDecimal.class.isAssignableFrom(plainType)) {
-			final int places = IndexedDecimalPlacesResolver.resolveIndexedDecimalPlaces(
+			final int places = resolveIndexedDecimalPlaces(
 				entitySchema, referenceName, attributeIndexKey.attribute().attributeName()
 			);
 			final ValueToRecordBitmap[] rekeyedPoints = rekeyHistogramPoints(
@@ -415,7 +418,7 @@ public interface Migration_2026_2 {
 			return false;
 		}
 
-		final int places = IndexedDecimalPlacesResolver.resolveIndexedDecimalPlaces(
+		final int places = resolveIndexedDecimalPlaces(
 			entitySchema, referenceName, attributeIndexKey.attribute().attributeName()
 		);
 		final ScaledSortValues scaled = rekeyHistogramPoints(
@@ -436,6 +439,65 @@ public interface Migration_2026_2 {
 			)
 		);
 		return true;
+	}
+
+	/**
+	 * Resolves the `indexedDecimalPlaces` scale for the attribute identified by `referenceName` + `attributeName` from
+	 * the supplied entity schema, returning `0` for every non-`BigDecimal` attribute type. This is used **only** while
+	 * re-keying pre-v6 raw-`BigDecimal` filter/sort parts into the frozen scaled-int form; once a part carries the frozen
+	 * `indexedDecimalPlaces`, the steady-state loader reads that scale verbatim from the storage part instead of
+	 * re-resolving it from the schema.
+	 *
+	 * The `referenceName` is the scope of the OWNING entity index (see
+	 * {@link io.evitadb.index.EntityIndexKey#referenceName()}), not the per-attribute storage key — a legacy-rehydrated
+	 * `AttributeIndexKey` carries a `null` reference name, so the scope must be taken from the owning index. A
+	 * reference-scoped entity index (`REFERENCED_ENTITY_TYPE` / `REFERENCED_ENTITY` / `…_GROUP_…`) holds BOTH the
+	 * reference's own attributes AND copies of the source entity's entity-level attributes; once the per-attribute key
+	 * has lost its reference name the two are indistinguishable, so the lookup tries the **reference scope first** and
+	 * **falls back to the entity level**. A reflected reference whose target is not wired up yet at migration time cannot
+	 * answer attribute queries (its inherited attributes come from the unavailable target), so its reference-scope lookup
+	 * is skipped and the resolution falls back to the entity level.
+	 *
+	 * @param entitySchema  the collection's entity schema
+	 * @param referenceName name of the reference owning this index's attributes, or `null` for an entity-level index
+	 * @param attributeName name of the indexed attribute
+	 * @return the schema's `indexedDecimalPlaces` for that attribute
+	 * @throws GenericEvitaInternalError when the attribute is missing from both the reference and the entity schema
+	 */
+	private static int resolveIndexedDecimalPlaces(
+		@Nonnull EntitySchema entitySchema,
+		@Nullable String referenceName,
+		@Nonnull String attributeName
+	) {
+		// reference-scoped index: prefer the reference's own attribute, then fall back to the entity-level attribute
+		// (the reference index also holds copies of the source entity's entity-level attributes)
+		if (referenceName != null) {
+			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
+				.orElseThrow(() -> new GenericEvitaInternalError(
+					"Reference `" + referenceName + "` referenced by attribute index `" + attributeName +
+						"` is missing from entity schema `" + entitySchema.getName() + "`!"
+				));
+			// a reflected reference whose target is not yet available throws on getAttribute (its attributes are
+			// inherited from the unavailable target); skip the reference-scope lookup and resolve at entity level
+			final boolean referenceAttributesAvailable =
+				!(referenceSchema instanceof ReflectedReferenceSchemaContract reflected)
+					|| reflected.isReflectedReferenceAvailable();
+			if (referenceAttributesAvailable) {
+				final Optional<? extends AttributeSchemaContract> referenceAttribute =
+					referenceSchema.getAttribute(attributeName);
+				if (referenceAttribute.isPresent()) {
+					return referenceAttribute.get().getIndexedDecimalPlaces();
+				}
+			}
+		}
+		// entity-level attribute (a GLOBAL index, or an entity-attribute copy held by a reference index)
+		return entitySchema.getAttribute(attributeName)
+			.orElseThrow(() -> new GenericEvitaInternalError(
+				"Attribute `" + attributeName + "`" +
+					(referenceName == null ? "" : " of reference `" + referenceName + "` (nor at entity level)") +
+					" is missing from entity schema `" + entitySchema.getName() + "`!"
+			))
+			.getIndexedDecimalPlaces();
 	}
 
 	/**
