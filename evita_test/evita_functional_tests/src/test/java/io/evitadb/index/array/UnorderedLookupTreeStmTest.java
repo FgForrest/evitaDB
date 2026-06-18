@@ -52,8 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link UnorderedLookupTree#getArray()}, {@link UnorderedLookupTree#size()} and
  * {@link UnorderedLookupTree#getRecordAt(int)}.
  *
- * Modelled on the transactional-memory tests in `TransactionalIntToLongBPlusTreeTest` /
- * `TransactionalIntBPlusTreeTest`: the {@link io.evitadb.utils.AssertionUtils#assertStateAfterCommit} harness opens a
+ * Modelled on the transactional-memory tests in `TransactionalIntToLongBPlusTreeTest`: the {@link io.evitadb.utils.AssertionUtils#assertStateAfterCommit} harness opens a
  * real {@link Transaction}, executes the mutation inside it, commits the transactional memory layer (calling
  * `verifyLayerWasFullySwept()` internally) and hands back both the still-committed `original` view (a fresh, no-layer
  * read - the "other thread") and the merged `committed` copy.

@@ -57,7 +57,7 @@ import java.util.List;
  *
  * Descent is **cursor based** (the root → leaf path is captured during descent) — there are **no parent pointers and
  * no sibling links** — so the very same structure path-copies cleanly under the transactional layer (mirroring
- * {@link io.evitadb.index.bPlusTree.TransactionalIntBPlusTree}). Mutations touch only the cursor path: `O(log N)`
+ * {@link io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree}). Mutations touch only the cursor path: `O(log N)`
  * count re-stamps, no suffix renumber, and small fixed-capacity blocks instead of the `O(N)` humongous arrays of the
  * array delegate.
  *

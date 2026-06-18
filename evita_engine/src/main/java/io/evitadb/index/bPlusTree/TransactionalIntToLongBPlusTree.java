@@ -56,7 +56,7 @@ import static io.evitadb.utils.ArrayUtils.*;
  * Represents a B+ Tree data structure specifically designed for integer keys and primitive `long` values.
  * The tree is balanced and allows for efficient insertion, deletion, and search operations.
  *
- * This is a faithful, zero-boxing primitive specialization of {@link TransactionalIntBPlusTree} with the generic
+ * This is a faithful, zero-boxing primitive B+ tree for `int` keys with the generic
  * value type fixed to primitive `long`. The value blocks are stored as `long[]`, search returns {@link OptionalLong},
  * the value iterators are {@link OfLong} primitive iterators and the upsert updater is a {@link LongUnaryOperator}.
  *
@@ -287,10 +287,10 @@ public class TransactionalIntToLongBPlusTree implements
 	}
 
 	/**
-	 * Verifies the reverse key iterator of an IntBPlusTree by checking if the keys are
+	 * Verifies the reverse key iterator of the tree by checking if the keys are
 	 * returned in strictly decreasing order and the size of elements matches the expected size.
 	 *
-	 * @param tree the IntBPlusTree whose reverse key iterator is to be verified
+	 * @param tree the tree whose reverse key iterator is to be verified
 	 * @param size the expected number of elements in the tree
 	 * @throws IllegalStateException if the iterator returns non-decreasing keys or if the number of
 	 *                               keys returned by the iterator does not match the expected size
