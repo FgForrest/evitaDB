@@ -338,6 +338,41 @@ class FrontCodedStringColumnTest {
 		}
 
 		@Test
+		@DisplayName("copyRangeTo right-shifting past the live end (merge with a larger left sibling) matches the boxed column")
+		void shouldRightShiftPastLiveEndForMerge() {
+			// mergeWithLeft opens room at the front for a LARGER left sibling: it right-shifts this node's keys to
+			// [leftSize, leftSize + thisSize) with dstPos == leftSize > thisSize, leaving a transient gap in
+			// [thisSize, leftSize) that the follow-up front-fill overwrites. The boxed column carries the gap as null
+			// sentinels; the dense blob has no null slot, so before the fix this NPE'd in encode (keys[i] == null).
+			final String[] thisKeys = {"m1", "m2", "m3"};               // this node: 3 keys
+			final String[] leftKeys = {"l1", "l2", "l3", "l4", "l5"};   // left sibling: 5 keys (leftSize > thisSize)
+			final int thisSize = thisKeys.length;
+			final int leftSize = leftKeys.length;
+
+			final ValueColumn<String> front = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> boxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			final ValueColumn<String> leftFront = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final ValueColumn<String> leftBoxed = new BoxedObjectColumn<>(String.class, BLOCK_SIZE);
+			for (int i = 0; i < thisSize; i++) {
+				front.insertKeyAt(i, thisKeys[i]);
+				boxed.insertKeyAt(i, thisKeys[i]);
+			}
+			for (int i = 0; i < leftSize; i++) {
+				leftFront.insertKeyAt(i, leftKeys[i]);
+				leftBoxed.insertKeyAt(i, leftKeys[i]);
+			}
+
+			// step 1 — right-shift this node's keys to [leftSize, leftSize + thisSize); gap opens in [thisSize, leftSize)
+			front.copyRangeTo(0, front, leftSize, thisSize);
+			boxed.copyRangeTo(0, boxed, leftSize, thisSize);
+			// step 2 — front-fill the left sibling's keys into [0, leftSize), overwriting the transient gap
+			leftFront.copyRangeTo(0, front, 0, leftSize);
+			leftBoxed.copyRangeTo(0, boxed, 0, leftSize);
+
+			assertColumnsEqual(front, boxed, leftSize + thisSize);
+		}
+
+		@Test
 		@DisplayName("fillEmpty is a no-op at the size boundary and truncates to empty from zero")
 		void shouldHandleFillEmptyBoundaries() {
 			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);

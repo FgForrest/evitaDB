@@ -225,6 +225,14 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		final int newSize = Math.max(target.size, dstPos + length);
 		final String[] result = dstAll.length >= newSize ? dstAll : Arrays.copyOf(dstAll, newSize);
 		System.arraycopy(slice, 0, result, dstPos, length);
+		// A right-shift (dstPos > target.size, used by the leaf steal/merge rebalance to open room at the front)
+		// leaves the slots between the old live end and dstPos logically empty; the caller always fills them with a
+		// second copy before the column is read. A fixed-slot array carries those as harmless null sentinels, but the
+		// dense front-coded blob has no null-slot representation and encode() would NPE on them, so stamp transient
+		// empty-string placeholders into the gap here — they are guaranteed to be overwritten by that follow-up copy.
+		for (int i = target.size; i < dstPos; i++) {
+			result[i] = "";
+		}
 		target.encode(result, newSize);
 	}
 
