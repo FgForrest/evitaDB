@@ -1441,4 +1441,100 @@ class TransactionalBucketBPlusTreeTest {
 			}
 		}
 	}
+
+	@Nested
+	@DisplayName("Merge overflow-aliasing regression (#760)")
+	class MergeOverflowAliasingRegressionTest {
+
+		@Test
+		@DisplayName("never aliases one overflow bitmap across two buckets when a multi-bucket leaf merges a single-only sibling")
+		void shouldNotAliasOverflowBitmapWhenMergingSingleOnlySibling() {
+			// Regression for the transactional leaf-merge aliasing bug. When an underflowing leaf merges a sibling it
+			// first shifts its own buckets aside with a plain arraycopy (a copy, not a move) and then pulls the donor
+			// sibling's overflow column over the vacated range. When the donor carried NO overflow column (all single
+			// buckets) that pull was skipped, so the survivor's own moved multi-bucket bitmap stayed ALIASED at two
+			// slots. The single TransactionalBitmap was then committed - and discarded - twice during the layer sweep,
+			// failing with "Item has been already discarded!" (or, when it carried no layer, silently giving two values
+			// the same record set). Surfacing it needs minValueBlockSize >= 2 so an underflowing leaf can still hold a
+			// multi bucket - the pre-existing churn used the 2-arg constructor whose derived minimum is 1 for the swept
+			// block sizes, so an underflowing leaf was always empty and the multi-bucket-survivor merge never occurred.
+			final int[][] configs = {{5, 2}, {7, 2}, {7, 3}, {9, 3}, {9, 4}};
+			for (final int[] config : configs) {
+				// vary which key becomes the lone multi bucket (front / middle / back leaf) and the collapse direction
+				// so both mergeWithLeft / stealFromLeft and mergeWithRight / stealFromRight are exercised
+				for (final int multiKey : new int[]{3, 30, 56}) {
+					runMultiSurvivorMergeChurn(config[0], config[1], multiKey, true);
+					runMultiSurvivorMergeChurn(config[0], config[1], multiKey, false);
+				}
+			}
+		}
+
+		/**
+		 * Deterministically reproduces the leaf-merge overflow-aliasing bug. Builds an all-single-bucket tree (so NO
+		 * leaf has an overflow column yet), then inside one transaction promotes exactly one key to a multi bucket -
+		 * allocating an overflow column on that one leaf only - and collapses the rest of the tree so that leaf keeps
+		 * underflowing and rebalancing (steal / merge) against neighbours that still carry a null overflow column. That
+		 * null-donor rebalance is the path that left the survivor's moved bitmap aliased at two slots. The multi bucket
+		 * is grown on every step so its bitmap holds a transactional layer (the "already discarded" crash arm); a
+		 * silent alias is caught instead by the per-key record comparison against the oracle.
+		 *
+		 * @param valueBlockSize  the leaf block size
+		 * @param minBlockSize    the minimum leaf block size (`>= 2`, so an underflowing leaf can still hold a bucket)
+		 * @param multiKey        the single key that is promoted to a multi bucket
+		 * @param deleteAscending whether the surrounding buckets are deleted low-to-high or high-to-low
+		 */
+		private void runMultiSurvivorMergeChurn(
+			int valueBlockSize, int minBlockSize, int multiKey, boolean deleteAscending
+		) {
+			// internal-node block size is a fixed odd value (its own constraint, must not exceed the leaf block size);
+			// only the leaf block size + minimum vary, since the bug lives entirely in the leaf overflow column
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				valueBlockSize, minBlockSize, 3, 1, Integer.class, null
+			);
+			final int n = 60;
+			final TreeMap<Integer, TreeSet<Integer>> oracle = new TreeMap<>();
+			// build phase (non-transactional): every bucket is single, so NO leaf allocates an overflow column
+			for (int k = 0; k < n; k++) {
+				tree.addRecord(k, 1000 + k);
+				oracle.computeIfAbsent(k, x -> new TreeSet<>()).add(1000 + k);
+			}
+			final String tag =
+				"vbs=" + valueBlockSize + " min=" + minBlockSize + " multiKey=" + multiKey + " asc=" + deleteAscending;
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					// promote exactly ONE key to a multi bucket: only its leaf gains an overflow column, so every
+					// rebalance that leaf later performs pulls from a still-null-overflow donor leaf
+					tested.addRecord(multiKey, 9000);
+					oracle.get(multiKey).add(9000);
+					// collapse the rest of the tree, forcing the multi-bearing leaf to repeatedly underflow and
+					// steal / merge with its single-only neighbours
+					for (int i = 0; i < n; i++) {
+						final int k = deleteAscending ? i : (n - 1 - i);
+						if (k == multiKey || oracle.get(k) == null) {
+							continue;
+						}
+						tested.removeRecord(k, oracle.get(k).stream().mapToInt(Integer::intValue).toArray());
+						oracle.remove(k);
+						// keep the surviving bucket multi and mutate its bitmap so the aliased instance carries a
+						// transactional layer (double-discarded at commit) rather than aliasing silently
+						tested.addRecord(multiKey, 9000 + i + 1);
+						oracle.get(multiKey).add(9000 + i + 1);
+					}
+				},
+				(original, committed) -> {
+					final ConsistencyReport report = committed.getConsistencyReport();
+					assertEquals(ConsistencyState.CONSISTENT, report.state(), tag + ": " + report.report());
+					assertEquals(oracle.size(), committed.bucketCount(), tag + " bucket count mismatch");
+					for (final var entry : oracle.entrySet()) {
+						final int[] expected = entry.getValue().stream().mapToInt(Integer::intValue).toArray();
+						assertArrayEquals(
+							expected, recordsOf(committed, entry.getKey()),
+							tag + " records mismatch for value " + entry.getKey()
+						);
+					}
+				}
+			);
+		}
+	}
 }

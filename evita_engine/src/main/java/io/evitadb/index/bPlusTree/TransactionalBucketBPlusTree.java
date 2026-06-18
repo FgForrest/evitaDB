@@ -2218,9 +2218,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Copies a range of overflow entries from `src` into `dst` when both are present; a no-op when either is null
-		 * (single-only ranges carry no overflow entries). Used by steal/merge to move multi buckets in lockstep with the
-		 * key/record columns.
+		 * Copies a range of overflow entries from `src` into `dst`. When `dst` is present but `src` is null (the donor
+		 * sibling has no overflow column, i.e. every donated bucket is a single record) the destination range is cleared
+		 * to null rather than left untouched - the caller has shifted `dst`'s own buckets aside with a plain arraycopy,
+		 * so the vacated range still aliases the shifted-from references and must be wiped. A no-op only when `dst` is
+		 * null (the destination leaf has no overflow column either). Used by steal/merge to move multi buckets in
+		 * lockstep with the key/record columns.
 		 *
 		 * @param src    the source overflow column (may be null)
 		 * @param srcPos the start index in the source
@@ -2232,8 +2235,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nullable TransactionalBitmap[] src, int srcPos,
 			@Nullable TransactionalBitmap[] dst, int dstPos, int length
 		) {
-			if (src != null && dst != null) {
-				System.arraycopy(src, srcPos, dst, dstPos, length);
+			if (dst != null) {
+				if (src != null) {
+					System.arraycopy(src, srcPos, dst, dstPos, length);
+				} else {
+					// The sibling carries no overflow column (every bucket it donates is a single record), but `dst`
+					// does. The caller has just shifted `dst`'s own buckets aside with a plain arraycopy - which is a
+					// copy, not a move, so the vacated destination range still holds those shifted-from references.
+					// Clear that range so the donated single buckets are correctly marked single. Skipping it would
+					// leave a moved multi bucket's bitmap aliased at two slots, and that single instance would then be
+					// committed (and discarded) twice during the transactional merge sweep - an "already discarded".
+					Arrays.fill(dst, dstPos, dstPos + length, null);
+				}
 			}
 		}
 
