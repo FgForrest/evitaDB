@@ -225,7 +225,7 @@ class LongRunningFilterIndexTest implements TimeBoundedTestSupport {
 								new AttributeIndexKey(null, "a", null),
 								committed.getInvertedIndex().getValueToRecordBitmap(),
 								committed.getRangeIndex(),
-								Integer.class
+								IntegerNumberRange.class
 							)
 						);
 					}
