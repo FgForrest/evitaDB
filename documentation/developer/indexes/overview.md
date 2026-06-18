@@ -155,6 +155,15 @@ new immutable snapshot of each modified index
 | `HistogramExpressionTriggerFactory` | evita_engine | Builds histogram triggers from `bucketedPartially` expressions |
 | `ReevaluateExpressionMutation` | evita_engine | Unified cross-entity re-evaluation mutation for both facets and histograms |
 | `HistogramIndex` | evita_engine | Abstract base for named histogram indexes (`SimpleHistogramIndex`, `LocalizedHistogramIndex`) |
+| `FilterIndex` / `OwnerFilterIndex` / `FilterIndexView` | evita_engine | Sealed owner/view split for filter indexes (see [bplus-tree-bucket-store.md](bplus-tree-bucket-store.md)) |
+| `SortIndex` / `OwnerSortIndex` / `SortIndexView` | evita_engine | Sealed owner/view split; owner holds the value→cardinality tree, view shares the filter tree |
+| `UniqueIndex` / `OwnerUniqueIndex` / `UniqueIndexView` | evita_engine | Sealed owner/view split; view folds uniqueness onto the filter index |
+| `TransactionalBucketBPlusTree` | evita_engine | Columnar inverted-index bucket store (B+ tree with pluggable `ValueColumn`) |
+| `TransactionalLongBPlusTree` | evita_engine | Primitive-long-keyed B+ tree backing `RangeIndex` |
+| `TransactionalObjectBPlusTree` | evita_engine | Generic comparator-ordered B+ tree backing `OwnerSortIndex` |
+| `ValueColumn` / `ValueColumnFactory` | evita_engine | Sealed columnar key storage (`Long`/`Int`/`Instant`/`FrontCodedString`/`BoxedObject`) |
+| `CumulativeWeightBPlusTree` | evita_common | Order-statistic tree powering `SortIndexChanges` rank queries |
+| `PersistentTransactionalMap` / `PersistentTransactionalProducerMap` | evita_engine | ChampMap-backed transactional maps with `O(Δ·log N)` commit |
 
 
 ## Three-Axis Mental Model
@@ -191,6 +200,10 @@ Each `EntityIndex` composes several inner data structures:
   in ReferencedType (see [data-structures.md](data-structures.md#cardinality-indexes))
 - **HistogramIndex** -- `FilterIndex`-based bucketed histogram data in ReducedGroupEntityIndex
   and ReferencedTypeEntityIndex (see [data-structures.md](data-structures.md#histogram-indexes))
+
+The `FilterIndex`, `SortIndex`, and `UniqueIndex` are themselves built on a shared low-level
+data-structure engine -- a family of transactional B+ trees with columnar value columns -- documented
+separately in [bplus-tree-bucket-store.md](bplus-tree-bucket-store.md).
 
 ### Axis 3 -- Schema Settings & Scope (what controls index creation)
 
@@ -350,6 +363,7 @@ See [schema-settings.md](schema-settings.md#reference-index-type) for the full i
 |----------|-------------|
 | [Index Hierarchy](index-hierarchy.md) | `EntityIndexType`, <Term name="Entity Index Key">`EntityIndexKey`</Term>, and the three concrete index classes |
 | [Data Structures](data-structures.md) | Attribute, price, hierarchy, facet, and cardinality indexes |
+| [B+ Trees & Bucket Store](bplus-tree-bucket-store.md) | The transactional B+ tree family, columnar value columns, and scaled-int decimal keys that back the attribute indexes |
 | [Schema Settings](schema-settings.md) | How schema configuration controls index creation and lifecycle |
 | [Mutation Flow](mutation-flow.md) | How entity mutations propagate into index updates |
 | [Query Mapping](query-mapping.md) | Which EvitaQL constraints read from which indexes |

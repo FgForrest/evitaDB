@@ -63,13 +63,32 @@ entries -- one per locale. Non-localised attributes produce a single key with `l
 
 ### Container Fields
 
+`AttributeIndex` separates **source-of-truth** sub-index maps from **derived view caches**. The
+authoritative data lives in five `PersistentTransactionalProducerMap`s (ChampMap-backed,
+`O(Δ·log N)` commit -- see
+[bplus-tree-bucket-store.md](bplus-tree-bucket-store.md#persistent-maps-for-plain-valued-and-producer-valued-index-maps)):
+
 ```java
 // io.evitadb.index.attribute.AttributeIndex (simplified)
-TransactionalMap<AttributeIndexKey, UniqueIndex> uniqueIndex;
-TransactionalMap<AttributeIndexKey, FilterIndex> filterIndex;
-TransactionalMap<AttributeIndexKey, SortIndex> sortIndex;
-TransactionalMap<AttributeIndexKey, ChainIndex> chainIndex;
+// --- source of truth (producer maps) ---
+PersistentTransactionalProducerMap<AttributeIndexKey, InvertedIndex> sharedValueIndex; // value→records tree
+PersistentTransactionalProducerMap<AttributeIndexKey, RangeIndex>    sharedRangeIndex; // interval points
+PersistentTransactionalProducerMap<AttributeIndexKey, UniqueIndex>   uniqueIndex;      // OwnerUniqueIndex
+PersistentTransactionalProducerMap<AttributeIndexKey, SortIndex>     sortIndex;        // Owner or View
+PersistentTransactionalProducerMap<AttributeIndexKey, ChainIndex>    chainIndex;
+
+// --- derived view caches (carried forward O(Δ) at commit) ---
+TransactionalMap<AttributeIndexKey, FilterIndex> filterIndex;     // FilterIndexView over sharedValueIndex
+TransactionalMap<AttributeIndexKey, UniqueIndex> uniqueViewIndex; // UniqueIndexView over filter views
 ```
+
+The `FilterIndex` and most `UniqueIndex` instances are **not** stored directly -- they are
+lightweight views derived from the shared `InvertedIndex` (`sharedValueIndex`) and `RangeIndex`
+(`sharedRangeIndex`) via `buildFilterViews`, so a both-filterable-and-sortable attribute keeps a
+single value tree shared between its filter and sort indexes. The owner/view split is summarised
+in [FilterIndex](#filterindex), [SortIndex](#sortindex), and [UniqueIndex](#uniqueindex) below and
+detailed in
+[bplus-tree-bucket-store.md](bplus-tree-bucket-store.md#owner--view-split).
 
 The `referenceKey` field (nullable
 <Term location="/documentation/developer/indexes/overview.md" name="Representative Reference Key">
@@ -82,68 +101,95 @@ is present when the `AttributeIndex` belongs to a `ReducedEntityIndex`. It is `n
 ```mermaid
 graph TD
     AI["AttributeIndex"]
-    UIM["TransactionalMap&lt;AttributeIndexKey, UniqueIndex&gt;"]
-    FIM["TransactionalMap&lt;AttributeIndexKey, FilterIndex&gt;"]
-    SIM["TransactionalMap&lt;AttributeIndexKey, SortIndex&gt;"]
-    CIM["TransactionalMap&lt;AttributeIndexKey, ChainIndex&gt;"]
+    SVM["sharedValueIndex<br/>ProducerMap&lt;…, InvertedIndex&gt;"]
+    SRM["sharedRangeIndex<br/>ProducerMap&lt;…, RangeIndex&gt;"]
+    UIM["uniqueIndex<br/>ProducerMap&lt;…, UniqueIndex&gt;"]
+    SIM["sortIndex<br/>ProducerMap&lt;…, SortIndex&gt;"]
+    CIM["chainIndex<br/>ProducerMap&lt;…, ChainIndex&gt;"]
+    FVM["filterIndex (derived)<br/>TransactionalMap&lt;…, FilterIndexView&gt;"]
+    AI --> SVM
+    AI --> SRM
     AI --> UIM
-    AI --> FIM
     AI --> SIM
     AI --> CIM
-    UI["UniqueIndex<br/>HashMap&lt;Serializable, Integer&gt;<br/>+ TransactionalBitmap recordIds"]
-    FI["FilterIndex<br/>InvertedIndex&lt;Serializable&gt;<br/>+ optional RangeIndex"]
-    SI["SortIndex<br/>sortedRecords (int[])<br/>sortedRecordsValues (Serializable[])<br/>valueCardinalities Map"]
+    AI --> FVM
+    IV["InvertedIndex<br/>TransactionalBucketBPlusTree<br/>(columnar value→records)"]
+    RI["RangeIndex<br/>TransactionalLongBPlusTree"]
+    UI["UniqueIndex<br/>OwnerUniqueIndex: PersistentTransactionalMap&lt;Serializable, Integer&gt;<br/>UniqueIndexView: folded over filter view"]
+    SI["SortIndex<br/>OwnerSortIndex: sortedRecords + value→cardinality tree<br/>SortIndexView: sortedRecords over shared tree"]
     CI["ChainIndex<br/>predecessor chains<br/>SortedRecordsSupplier"]
+    SVM --> IV
+    SRM --> RI
     UIM --> UI
-    FIM --> FI
     SIM --> SI
     CIM --> CI
+    FVM -. "view over" .-> IV
+    SI -. "view shares" .-> IV
+    UI -. "folded over" .-> FVM
 ```
 
 ### UniqueIndex
 
 ```
-io.evitadb.index.attribute.UniqueIndex
+io.evitadb.index.attribute.UniqueIndex       (abstract sealed)
+io.evitadb.index.attribute.OwnerUniqueIndex  (owns the value→record map)
+io.evitadb.index.attribute.UniqueIndexView   (folded over the filter view)
 ```
 
-Enforces attribute uniqueness and provides O(1) value-to-record-id lookups.
+Enforces attribute uniqueness and provides O(1) value-to-record-id lookups. `UniqueIndex` is an
+**abstract sealed** base permitting two variants:
 
-**Core fields:**
+| Variant            | Storage / role                                                                                       |
+|--------------------|-------------------------------------------------------------------------------------------------------|
+| `OwnerUniqueIndex` | Full owner: `PersistentTransactionalMap<Serializable, Integer> uniqueValueToRecordId` + `TransactionalBitmap recordIds`. Used where uniqueness cannot be folded into a filter tree (e.g. global-unique localized attributes). |
+| `UniqueIndexView`  | Stateless flyweight holding only a rebound reference to the shared `FilterIndex` view. Zero commit participation; every read delegates to the filter view. Uniqueness is enforced by `AttributeIndex` **on filter insert**, not by this view. |
 
-| Field                   | Type                                      | Purpose                                     |
-|-------------------------|-------------------------------------------|---------------------------------------------|
-| `uniqueValueToRecordId` | `TransactionalMap<Serializable, Integer>` | Value to owning entity PK; O(1) lookup      |
-| `recordIds`             | `TransactionalBitmap`                     | All entity PKs present in this unique index |
-| `type`                  | `Class<? extends Serializable>`           | Declared attribute type                     |
-| `entityType`            | `String`                                  | Owning entity collection name               |
+**Shared identity fields:** `entityType` (owning collection), `attributeIndexKey`, `type` (declared
+attribute type).
 
 **Behaviour:** Inserting a value that already maps to a different record id throws
 `UniqueValueViolationException`. Array-valued attributes are supported -- each element of the array is
-inserted as a separate unique entry pointing to the same record id.
+inserted as a separate unique entry pointing to the same record id. The value-to-record map in
+`OwnerUniqueIndex` is a `PersistentTransactionalMap` (ChampMap-backed, `O(Δ·log N)` commit). Unlike the
+`FilterIndex`, `OwnerUniqueIndex` keeps the **exact, unscaled** value -- `BigDecimal` is not scaled to
+an int here, because uniqueness is enforced on the canonical value.
 
 **Supported queries:** `attributeEquals` (exact match), `attributeIs NULL/NOT_NULL`.
 
 ### FilterIndex
 
 ```
-io.evitadb.index.attribute.FilterIndex
+io.evitadb.index.attribute.FilterIndex          (abstract sealed)
+io.evitadb.index.attribute.OwnerFilterIndex     (producer)
+io.evitadb.index.attribute.FilterIndexView      (read flyweight)
 ```
 
-Answers range, equality, and string-matching filter queries.
+Answers range, equality, and string-matching filter queries. `FilterIndex` is an **abstract sealed**
+base permitting `OwnerFilterIndex` (the `TransactionalLayerProducer` that mints its own id and owns a
+dirty flag) and `FilterIndexView` (a stateless flyweight that wraps the `InvertedIndex` shared from
+`AttributeIndex.sharedValueIndex` and derives its id / dirtiness from that shared tree). See
+[Owner / View split](bplus-tree-bucket-store.md#owner--view-split).
 
-**Core fields:**
+**Core fields (shared by both variants):**
 
-| Field           | Type                          | Purpose                                              |
-|-----------------|-------------------------------|------------------------------------------------------|
-| `invertedIndex` | `InvertedIndex<Serializable>` | Value to `Bitmap` of record ids (inverted posting)   |
-| `rangeIndex`    | `RangeIndex` (nullable)       | Present only for `Range` subtypes; interval queries  |
-| `normalizer`    | `UnaryOperator<Serializable>` | Unicode normalization for locale-aware string search |
-| `comparator`    | `Comparator<?>`               | Locale-aware or natural ordering                     |
+| Field           | Type                            | Purpose                                                       |
+|-----------------|---------------------------------|---------------------------------------------------------------|
+| `invertedIndex` | `InvertedIndex`                 | Value → record set (owned by the owner, shared into the view) |
+| `rangeIndex`    | `RangeIndex` (nullable)         | Present only for `Range` subtypes; interval queries           |
+| `normalizer`    | `Function<Object, Serializable>`| Canonicalizes values (Unicode normalize, **BigDecimal → scaled int**) |
+| `comparator`    | `Comparator<? extends Comparable>` | Locale-aware or natural ordering                           |
 
-The `InvertedIndex` stores `ValueToRecordBitmap<Serializable>` entries sorted by value, enabling binary
-search for range scans. When the attribute type is a `Range` subtype (e.g. `DateTimeRange`,
-`BigDecimalNumberRange`) a `RangeIndex` is built in addition, supporting `validIn` / `overlapping`
-queries.
+The `InvertedIndex` is **not** an array of boxed `ValueToRecordBitmap` wrappers any more -- it is
+backed by a `TransactionalBucketBPlusTree` whose leaves store the values in a packed columnar form
+(structure of arrays) and compact single-record buckets to a bare `int`. Binary search over the tree
+serves range scans. `BigDecimal` keys are stored as an order-preserving **scaled `int`** at the
+attribute's frozen `indexedDecimalPlaces`; the `normalizer` performs the conversion idempotently. See
+[bplus-tree-bucket-store.md](bplus-tree-bucket-store.md) for the columnar bucket store and
+[scaled-int decimal keys](bplus-tree-bucket-store.md#scaled-int-decimal-keys-and-frozen-indexeddecimalplaces).
+
+When the attribute type is a `Range` subtype (e.g. `DateTimeRange`, `BigDecimalNumberRange`) a
+`RangeIndex` (backed by a `TransactionalLongBPlusTree`) is built in addition, supporting `validIn` /
+`overlapping` queries.
 
 **Supported queries:** `attributeEquals`, `attributeGreaterThan`, `attributeLessThan`,
 `attributeBetween`, `attributeStartsWith`, `attributeEndsWith`, `attributeContains`,
@@ -152,25 +198,41 @@ queries.
 ### SortIndex
 
 ```
-io.evitadb.index.attribute.SortIndex
+io.evitadb.index.attribute.SortIndex        (abstract sealed)
+io.evitadb.index.attribute.OwnerSortIndex   (owns value→cardinality tree)
+io.evitadb.index.attribute.SortIndexView    (shares the filter tree)
 ```
 
-Provides pre-sorted entity primary key arrays for ORDER BY clauses.
+Provides pre-sorted entity primary key arrays for ORDER BY clauses. `SortIndex` is an **abstract
+sealed** `TransactionalLayerProducer<SortIndexChanges, SortIndex>` permitting `OwnerSortIndex` and
+`SortIndexView`.
 
-**Core fields:**
+**Core fields (shared by both variants):**
 
-| Field                 | Type                                      | Purpose                                              |
-|-----------------------|-------------------------------------------|------------------------------------------------------|
-| `sortedRecords`       | `TransactionalUnorderedIntArray`          | Entity PKs in sort order                             |
-| `sortedRecordsValues` | `TransactionalObjArray<Serializable>`     | Corresponding attribute values (parallel array)      |
-| `valueCardinalities`  | `TransactionalMap<Serializable, Integer>` | Tracks values with cardinality > 1                   |
-| `comparatorBase`      | `ComparatorSource[]`                      | Describes type, order direction, null behaviour      |
-| `normalizer`          | `UnaryOperator<Serializable>`             | Unicode normalizer for String-typed attributes       |
-| `comparator`          | `Comparator<?>`                           | Built from `comparatorBase`; locale-aware for String |
+| Field            | Type                             | Purpose                                                 |
+|------------------|----------------------------------|----------------------------------------------------------|
+| `sortedRecords`  | `TransactionalUnorderedIntArray` | Entity PKs in sort order, blocked by value               |
+| `comparatorBase` | `ComparatorSource[]`             | Describes type, order direction, null behaviour          |
+| `normalizer`     | `UnaryOperator<Serializable>`    | Unicode normalizer for String-typed attributes           |
+| `comparator`     | `Comparator<?>`                  | Built from `comparatorBase`; locale-aware for String     |
 
-The parallel-array design avoids per-record object allocation. `sortedRecords[i]` is the entity PK and
-`sortedRecordsValues[j]` is its attribute value, where `j` is determined by binary searching the values
-array. Records sharing the same value are sorted naturally (ascending PK) within their block.
+**Where the values live (owner vs view):**
+
+| Variant         | Value storage                                                                                  |
+|-----------------|------------------------------------------------------------------------------------------------|
+| `OwnerSortIndex`| `TransactionalObjectBPlusTree sortedValues` -- a single **value → cardinality** B+ tree (block 256) |
+| `SortIndexView` | `InvertedIndex sharedTree` -- a direct reference to the **shared filter tree**; values/cardinality read from it |
+
+`OwnerSortIndex` keeps the distinct values and their cardinalities in one comparator-ordered B+ tree,
+so each value is stored exactly once (not once per record block plus once in a cardinality map).
+`SortIndexView` keeps **no** value side at all and reads values/cardinalities from the `InvertedIndex`
+it shares with the attribute's `FilterIndex` (bound at commit via `bindSharedTree`), so a
+both-filterable-and-sortable attribute stores its value set exactly once across both indexes. `sortedRecords` (the record-ids-blocked-by-value array) is itself backed by the
+two-tree `UnorderedLookupTree`; placing a record at the right block offset needs the **rank** of its
+value, which `SortIndexChanges` answers in `O(log V)` with a `CumulativeWeightBPlusTree`
+(order-statistic tree -- see
+[bplus-tree-bucket-store.md](bplus-tree-bucket-store.md#order-statistic-ranking-for-sortindexchanges)).
+Records sharing the same value are sorted naturally (ascending PK) within their block.
 
 **Sortable attribute compounds.** There is no separate `SortableAttributeCompoundIndex` class.
 Compound sorts are handled by `SortIndex` itself: each compound value is wrapped in a `ComparableArray`
@@ -227,9 +289,11 @@ contribute the same attribute value (see [Cardinality Indexes](#cardinality-inde
    a `ValueToRecordBitmap` entry whose bitmap includes the inserted record id. After removal the bitmap
    must no longer contain that id; if the bitmap becomes empty the entire entry must be evicted.
 
-3. **Sort parallel-array consistency.** `sortedRecords.length` must always equal the sum of all
-   `valueCardinalities` entries (or the count of values when cardinality is 1). Inserting a record with
-   a new value must increase `sortedRecordsValues.length` by exactly one.
+3. **Sort value-tree consistency.** `sortedRecords.length` must always equal the sum of all
+   cardinalities held in the value tree (`OwnerSortIndex.sortedValues`, or the shared filter tree for a
+   `SortIndexView`). Inserting a record with a previously-unseen value must add exactly one entry to
+   that value tree; inserting a record with an existing value must increment that value's cardinality by
+   one without adding a tree entry.
 
 4. **Compound sort ordering.** A `SortIndex` with `comparatorBase.length > 1` must sort records by
    the first component first, then by the second component for ties, and so on. This must hold after
@@ -596,7 +660,7 @@ primary key, and which reduced-index primary keys contributed.
 
 | Field                        | Type                                             | Purpose                                             |
 |------------------------------|--------------------------------------------------|-----------------------------------------------------|
-| `cardinalities`              | `TransactionalMap<Long, Integer>`                | Composed key (via `NumberUtils.join`) to count      |
+| `cardinalities`              | `PersistentTransactionalMap<Long, Integer>`      | Composed key (via `NumberUtils.join`) to count      |
 | `referencedPrimaryKeysIndex` | `TransactionalMap<Integer, TransactionalBitmap>` | Referenced PK to set of index PKs that reference it |
 
 **Composed key format.** The `Long` key in `cardinalities` is produced by `NumberUtils.join(int, int)`,
@@ -621,8 +685,8 @@ Tracks per-attribute-value cardinality within a `ReferencedTypeEntityIndex`. One
 
 | Field           | Type                                                 | Purpose                    |
 |-----------------|------------------------------------------------------|----------------------------|
-| `valueType`     | `Class<? extends Serializable>`                      | Declared attribute type    |
-| `cardinalities` | `TransactionalMap<AttributeCardinalityKey, Integer>` | (recordId, value) to count |
+| `valueType`     | `Class<? extends Serializable>`                              | Declared attribute type    |
+| `cardinalities` | `PersistentTransactionalMap<AttributeCardinalityKey, Integer>` | (recordId, value) to count |
 
 **`AttributeCardinalityKey`** is a record containing `(int recordId, Serializable value)`. It uniquely
 identifies one entity's contribution of a particular attribute value.
@@ -659,13 +723,13 @@ graph TD
 
 | Field                        | Type                                             | Purpose                                             |
 |------------------------------|--------------------------------------------------|-----------------------------------------------------|
-| `pkCardinalities`            | `TransactionalMap<Integer, Integer>`              | Owning entity PK to insertion count                 |
+| `pkCardinalities`            | `PersistentTransactionalMap<Integer, Integer>`    | Owning entity PK to insertion count                 |
 | `referencedPrimaryKeysIndex` | `TransactionalMap<Integer, TransactionalBitmap>`  | Referenced PK to set of owning entity PKs           |
 | `cardinalityIndexes`         | `TransactionalMap<AttributeIndexKey, AttributeCardinalityIndex>` | Per-attribute cardinality tracking |
 
 Unlike `ReferencedTypeEntityIndex` (which uses `ReferenceTypeCardinalityIndex` with packed
-`Long` keys), `ReducedGroupEntityIndex` uses a simple `Map<Integer, Integer>` for PK
-cardinality. This is because the group index does not need to track a mapping between two
+`Long` keys), `ReducedGroupEntityIndex` uses a simple `PersistentTransactionalMap<Integer, Integer>`
+for PK cardinality. This is because the group index does not need to track a mapping between two
 different kinds of primary keys (index PK vs. referenced entity PK) -- it directly tracks
 owning entity PK counts.
 
@@ -734,10 +798,18 @@ the same owner entity contribute the same histogram value.
 
 ### FilterIndex Value Type
 
-Histogram values are stored in the attribute's **original numeric type** (`Byte`, `Short`,
-`Integer`, `Long`, or `BigDecimal`). `BigDecimal` values have `stripTrailingZeros()` applied for
-consistent equality semantics. Conversion to `BigDecimal` for `HistogramDataCruncher` is deferred
-to query time.
+Integral histogram values (`Byte`, `Short`, `Integer`, `Long`) are stored in their original numeric
+type. **`BigDecimal` values are scaled to an order-preserving `int`** at the source attribute's
+`indexedDecimalPlaces`, exactly like a plain `BigDecimal` filter index — the histogram's `FilterIndex`
+uses the same `FilterIndex.getNormalizer(type, indexedDecimalPlaces)` (see
+[bplus-tree-bucket-store.md](bplus-tree-bucket-store.md#scaled-int-decimal-keys-and-frozen-indexeddecimalplaces)).
+This keeps the histogram buckets consistent with the filter index over the same attribute: a histogram
+cannot bucket at a finer precision than the index actually stores. A value with more fractional digits
+than `indexedDecimalPlaces` is rounded (`HALF_UP`) to that scale, so an attribute that must preserve
+fractional histogram buckets has to declare a sufficient `indexedDecimalPlaces`. The scaled `int` is
+reconstructed back to a `BigDecimal` at the same scale (and `stripTrailingZeros()` applied) for
+`HistogramDataCruncher` at query time. The `indexedDecimalPlaces` scale is itself frozen into
+`HistogramIndexStoragePart` (see [Histogram Indexes](#histogram-indexes) below).
 
 ### Lifecycle
 
@@ -769,9 +841,12 @@ changes) and cross-entity triggers (group/referenced entity attribute changes) a
    one reference — the remaining PK must still be present. Only after removing the second
    reference should the bucket become empty.
 
-2. **BigDecimal normalization.** `BigDecimal("2.0")` and `BigDecimal("2.00")` must map to the
-   same histogram bucket. The `stripTrailingZeros()` normalization must be applied consistently
-   in both local triggers and cross-entity executors.
+2. **BigDecimal scaling.** `BigDecimal` histogram values are scaled to an `int` at the source
+   attribute's `indexedDecimalPlaces`, so `2.0` and `2.00` map to the same bucket (both → the same
+   scaled int), and a value finer than the declared scale is rounded `HALF_UP` to it (e.g. with
+   `indexedDecimalPlaces = 0`, `0.5` buckets at `1`). The scale used by the local triggers and the
+   cross-entity executors must match the scale frozen on `HistogramIndexStoragePart`; a drift throws
+   via `assertIndexedDecimalPlacesUnchanged`.
 
 3. **Null value handling.** When the value expression resolves to `null` (attribute not set and
    no `??` default), no histogram entry should be created for the owning entity PK.
