@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.histogram;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -31,7 +32,10 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.test.annotation.UseDataSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -249,6 +253,203 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 	}
 
 	@Test
+	@DisplayName("should render BigDecimalNumberRange thresholds at the schema indexed scale")
+	void shouldRenderBigDecimalRangeHistogramAtSchemaScaleWhenValueScaleIsLower() {
+		// A referenced entity carries a `BigDecimalNumberRange` attribute declared with
+		// `indexDecimalPlaces(4)`, but the seeded values have a lower natural scale (integer bounds →
+		// effective retained scale 0). The regular attribute index normalizes the range to the schema
+		// scale before storing; the histogram-index population path must do the same — otherwise the
+		// histogram FilterIndex stores comparable longs at the value's intrinsic scale (0) while the
+		// read side decodes them at the schema scale (4), shrinking every threshold by 10^4.
+		final int indexedDecimalPlaces = 4;
+		final String rangeAttribute = "rangeValue";
+		final String rangeHistogram = "bigDecimalRangeBucket";
+		runWithInlineSchema(
+			"bigDecimalRangeHistogramScale",
+			session -> {
+				session.defineEntitySchema(ENTITY_PARAMETER)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+					.withAttribute(
+						rangeAttribute, BigDecimalNumberRange.class,
+						whichIs -> whichIs.filterable().indexDecimalPlaces(indexedDecimalPlaces).nullable()
+					)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withReferenceToEntity(
+						REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioning()
+							.indexedWithComponents(ReferenceIndexedComponents.values())
+							.faceted()
+							.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+							.bucketed(
+								rangeHistogram,
+								ExpressionFactory.parse(
+									"$reference.referencedEntity?.attributes['" + rangeAttribute + "']"
+								)
+							)
+					)
+					.updateVia(session);
+			},
+			session -> {
+				session.createNewEntity(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					.upsertVia(session);
+				// integer-valued bounds → effective retained scale 0, below the schema's
+				// indexDecimalPlaces(4): the scale mismatch the histogram-index path must normalize away
+				createParameterValueWithBigDecimalRange(session, 1, rangeAttribute, "1", "10");
+				createParameterValueWithBigDecimalRange(session, 2, rangeAttribute, "20", "88");
+				session.createNewEntity(ENTITY_PRODUCT, 100)
+					.setReference(
+						REF_PARAM_VALUES, 1,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					)
+					.upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, 101)
+					.setReference(
+						REF_PARAM_VALUES, 2,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					)
+					.upsertVia(session);
+			},
+			evita -> evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final HistogramContract histogram =
+						queryGroupHistogram(session, rangeHistogram, 10);
+					final Bucket[] buckets = histogram.getBuckets();
+					assertTrue(buckets.length > 0, "Range histogram must produce at least one bucket");
+
+					// the seeded ranges span [1, 88]; correct thresholds must lie in that band, never
+					// be shrunk to sub-unit fractions like 0.0001 (the 10^4-too-small defect signature)
+					assertTrue(
+						histogram.getMin().compareTo(BigDecimal.ONE) >= 0,
+						"min " + histogram.getMin() + " must be >= 1 (seeded lower bound) — a value "
+							+ "below 1 proves the threshold was decoded at the wrong scale"
+					);
+					assertTrue(
+						histogram.getMax().compareTo(BigDecimal.valueOf(88)) <= 0,
+						"max " + histogram.getMax() + " must be <= 88 (seeded upper bound)"
+					);
+					for (final Bucket bucket : buckets) {
+						assertTrue(
+							bucket.threshold().compareTo(BigDecimal.ONE) >= 0,
+							"threshold " + bucket.threshold() + " must be >= 1 — a sub-unit threshold "
+								+ "is the 10^" + indexedDecimalPlaces + "-too-small scale defect"
+						);
+					}
+				}
+			)
+		);
+	}
+
+	@Test
+	@DisplayName("should drop a BigDecimalNumberRange histogram entry on removal despite a lower value scale")
+	void shouldRemoveBigDecimalRangeHistogramEntryAtSchemaScaleWhenValueScaleIsLower() {
+		// Removal-path companion to shouldRenderBigDecimalRangeHistogramAtSchemaScaleWhenValueScaleIsLower.
+		// The existence guard that runs before a histogram-index remove compares its probe against the STORED
+		// bucket value, which the write path normalized to the schema scale (4). A raw probe carrying the
+		// value's intrinsic scale (0) would never match its re-scaled stored counterpart, so the removal would
+		// be silently suppressed and the histogram would keep a phantom entry that can never be reclaimed. The
+		// guard must therefore normalize its probe with the same scale; this test fails if it does not.
+		final int indexedDecimalPlaces = 4;
+		final String rangeAttribute = "rangeValue";
+		final String rangeHistogram = "bigDecimalRangeBucket";
+		runWithInlineSchema(
+			"bigDecimalRangeHistogramScaleRemoval",
+			session -> {
+				session.defineEntitySchema(ENTITY_PARAMETER)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+					.withAttribute(
+						rangeAttribute, BigDecimalNumberRange.class,
+						whichIs -> whichIs.filterable().indexDecimalPlaces(indexedDecimalPlaces).nullable()
+					)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withReferenceToEntity(
+						REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioning()
+							.indexedWithComponents(ReferenceIndexedComponents.values())
+							.faceted()
+							.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+							.bucketed(
+								rangeHistogram,
+								ExpressionFactory.parse(
+									"$reference.referencedEntity?.attributes['" + rangeAttribute + "']"
+								)
+							)
+					)
+					.updateVia(session);
+			},
+			session -> {
+				session.createNewEntity(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					.upsertVia(session);
+				// scale-0 bounds, below the schema's indexDecimalPlaces(4) — the same scale mismatch the
+				// removal guard must normalize away to match the stored (scale-4) bucket value
+				createParameterValueWithBigDecimalRange(session, 1, rangeAttribute, "1", "10");
+				createParameterValueWithBigDecimalRange(session, 2, rangeAttribute, "20", "88");
+				session.createNewEntity(ENTITY_PRODUCT, 100)
+					.setReference(
+						REF_PARAM_VALUES, 1,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					)
+					.upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, 101)
+					.setReference(
+						REF_PARAM_VALUES, 2,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					)
+					.upsertVia(session);
+			},
+			evita -> {
+				// baseline: both ranges contribute, so the group histogram spans the full [1, 88] band
+				evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final HistogramContract histogram =
+							queryGroupHistogram(session, rangeHistogram, 10);
+						assertTrue(
+							histogram.getMax().compareTo(BigDecimal.valueOf(88)) >= 0,
+							"baseline max " + histogram.getMax() + " must reach the seeded upper bound 88"
+						);
+					}
+				);
+				// remove the product contributing the [20, 88] range — drives the histogram-index removal
+				// path through the existence guard whose probe must be normalized to the schema scale
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						assertTrue(
+							session.deleteEntity(ENTITY_PRODUCT, 101),
+							"product 101 must exist and be deleted"
+						);
+					}
+				);
+				// only the [1, 10] range survives; the upper bound must collapse to <= 10. A max still near 88
+				// proves the [20, 88] removal was suppressed by a scale-mismatched guard probe (phantom entry).
+				evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final HistogramContract histogram =
+							queryGroupHistogram(session, rangeHistogram, 10);
+						assertTrue(
+							histogram.getMin().compareTo(BigDecimal.ONE) >= 0,
+							"surviving min " + histogram.getMin() + " must stay >= 1 — scale must remain correct"
+						);
+						assertTrue(
+							histogram.getMax().compareTo(BigDecimal.valueOf(10)) <= 0,
+							"surviving max " + histogram.getMax() + " must collapse to <= 10 after the [20, 88] "
+								+ "range is removed — a value near 88 means the removal was silently suppressed"
+						);
+					}
+				);
+			}
+		);
+	}
+
+	@Test
 	@UseDataSet(REFERENCE_HISTOGRAM_RANGE)
 	@DisplayName("should account each range into every overlapping bucket across bucket counts")
 	void shouldAccountEachRangeIntoEveryOverlappingBucket(@Nonnull Evita evita) {
@@ -352,6 +553,26 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 				assertEqualisedAware(histogram, behavior);
 			}
 		);
+	}
+
+	/**
+	 * Creates a single `parameterValue` entity carrying a `BigDecimalNumberRange` attribute whose
+	 * bounds are parsed from the supplied decimal strings. The bounds are intentionally given
+	 * integer string forms so the range's effective retained scale is `0`, lower than the schema's
+	 * `indexDecimalPlaces`, exercising the scale-normalization gap on the histogram-index path.
+	 */
+	private static void createParameterValueWithBigDecimalRange(
+		@Nonnull EvitaSessionContract session,
+		int pk,
+		@Nonnull String attributeName,
+		@Nonnull String from, @Nonnull String to
+	) {
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, pk)
+			.setAttribute(
+				attributeName,
+				BigDecimalNumberRange.between(new BigDecimal(from), new BigDecimal(to))
+			)
+			.upsertVia(session);
 	}
 
 	// ---------------------------------------------------------------------

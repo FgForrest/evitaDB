@@ -72,6 +72,7 @@ import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccess
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -1675,10 +1676,11 @@ public interface ReferenceIndexMutator {
 		@Nullable Locale locale,
 		@Nonnull Scope scope
 	) {
+		final int indexedDecimalPlaces = trigger.getValueDescriptor().indexedDecimalPlaces();
 		for (final Serializable value : oldValues) {
 			removeSingleHistogramValue(
 				executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-				locale, value, ownerPK, groupId, scope
+				locale, value, ownerPK, groupId, scope, indexedDecimalPlaces
 			);
 		}
 	}
@@ -1755,7 +1757,7 @@ public interface ReferenceIndexMutator {
 			if (values.length > 0) {
 				removeHistogramValuesWithGuard(
 					executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-					locale, values, ownerPK, groupId, scope
+					locale, values, ownerPK, groupId, scope, resolution.indexedDecimalPlaces()
 				);
 			}
 		}
@@ -1800,7 +1802,7 @@ public interface ReferenceIndexMutator {
 					if (values.length > 0) {
 						removeHistogramValuesWithGuard(
 							executor, referenceKey.referenceName(), trigger.getHistogramIndexName(),
-							locale, values, entityPrimaryKey, groupId, scope
+							locale, values, entityPrimaryKey, groupId, scope, resolution.indexedDecimalPlaces()
 						);
 					}
 				}
@@ -1849,13 +1851,20 @@ public interface ReferenceIndexMutator {
 					executor, referenceKey, resolution, refAttrSupplier, locale, scope
 				);
 				final Serializable[] values = resolveHistogramValues(rawValue, resolution);
+				final int indexedDecimalPlaces = resolution.indexedDecimalPlaces();
 				for (final Serializable value : values) {
 					for (final int storagePK : groupStoragePKs) {
 						final EntityIndex reducedIndex =
 							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
 						if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-							if (isValueInHistogram(hcei, trigger.getHistogramIndexName(), locale, value, ownerPK)) {
-								hcei.removeHistogramValue(trigger.getHistogramIndexName(), locale, value, ownerPK);
+							if (
+								isValueInHistogram(
+									hcei, trigger.getHistogramIndexName(), locale, value, ownerPK, indexedDecimalPlaces
+								)
+							) {
+								hcei.removeHistogramValue(
+									trigger.getHistogramIndexName(), locale, value, ownerPK, indexedDecimalPlaces
+								);
 							}
 						}
 					}
@@ -1913,6 +1922,9 @@ public interface ReferenceIndexMutator {
 			}
 			return new Serializable[0];
 		}
+		// values are returned raw — scale normalization happens once at the histogram-index write
+		// boundary (HistogramIndexOperations); the removal existence guards normalize their probe
+		// with the same scale (see removeHistogramValuesWithGuard / removeSingleHistogramValue)
 		if (resolution.arrayType() && rawValue instanceof Serializable[] array) {
 			int count = 0;
 			for (final Serializable element : array) {
@@ -2968,14 +2980,16 @@ public interface ReferenceIndexMutator {
 	 * Values may be `Number` instances (for plain-numeric histograms) or `Range` instances (for
 	 * range-typed histograms). The downstream index APIs accept `Serializable` directly.
 	 *
-	 * @param executor      the mutation executor
-	 * @param referenceName the reference name
-	 * @param histogramName the histogram definition name
-	 * @param locale        the locale, or `null` for non-localized
-	 * @param values        the histogram values to remove (`Number` or `Range` instances)
-	 * @param ownerPK       the primary key of the owner entity
-	 * @param groupId       the group primary key (null for ungrouped)
-	 * @param scope         the current scope
+	 * @param executor             the mutation executor
+	 * @param referenceName        the reference name
+	 * @param histogramName        the histogram definition name
+	 * @param locale               the locale, or `null` for non-localized
+	 * @param values               the histogram values to remove (`Number` or `Range` instances)
+	 * @param ownerPK              the primary key of the owner entity
+	 * @param groupId              the group primary key (null for ungrouped)
+	 * @param scope                the current scope
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places (probe +
+	 *                             write-boundary normalization scale)
 	 */
 	private static void removeHistogramValuesWithGuard(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2985,7 +2999,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull Serializable[] values,
 		int ownerPK,
 		@Nullable Integer groupId,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		int indexedDecimalPlaces
 	) {
 		for (final Serializable value : values) {
 			if (groupId != null) {
@@ -2999,8 +3014,8 @@ public interface ReferenceIndexMutator {
 						final EntityIndex reducedIndex =
 							executor.getEntityIndexByPrimaryKeyForModification(storagePK);
 						if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-							if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
-								hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+							if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK, indexedDecimalPlaces)) {
+								hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 							}
 						}
 					}
@@ -3011,9 +3026,9 @@ public interface ReferenceIndexMutator {
 				);
 				final EntityIndex typeIndex = executor.getIndexIfExists(typeKey);
 				if (typeIndex instanceof HistogramCapableEntityIndex hcei) {
-					if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+					if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK, indexedDecimalPlaces)) {
 						executor.getOrCreateIndex(typeKey);
-						hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+						hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 					}
 				}
 			}
@@ -3027,14 +3042,16 @@ public interface ReferenceIndexMutator {
 	 * expression may have been `false` when the value was originally indexed — the attribute existed
 	 * in storage but was never added to the histogram.
 	 *
-	 * @param executor      the mutation executor
-	 * @param referenceName the reference name
-	 * @param histogramName the histogram definition name
-	 * @param locale        the locale, or `null` for non-localized
-	 * @param value         the histogram value to remove (`Number` or `Range` instance)
-	 * @param ownerPK       the primary key of the owner entity
-	 * @param groupId       the group primary key (null for ungrouped)
-	 * @param scope         the current scope
+	 * @param executor             the mutation executor
+	 * @param referenceName        the reference name
+	 * @param histogramName        the histogram definition name
+	 * @param locale               the locale, or `null` for non-localized
+	 * @param value                the histogram value to remove (`Number` or `Range` instance)
+	 * @param ownerPK              the primary key of the owner entity
+	 * @param groupId              the group primary key (null for ungrouped)
+	 * @param scope                the current scope
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places (probe +
+	 *                             write-boundary normalization scale)
 	 */
 	private static void removeSingleHistogramValue(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -3044,7 +3061,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull Serializable value,
 		int ownerPK,
 		@Nullable Integer groupId,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		int indexedDecimalPlaces
 	) {
 		if (groupId != null) {
 			final EntityIndexKey groupTypeKey = new EntityIndexKey(
@@ -3056,8 +3074,8 @@ public interface ReferenceIndexMutator {
 				for (final int storagePK : storagePKs) {
 					final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
 					if (reducedIndex instanceof HistogramCapableEntityIndex hcei) {
-						if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
-							hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+						if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK, indexedDecimalPlaces)) {
+							hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 						}
 					}
 				}
@@ -3068,9 +3086,9 @@ public interface ReferenceIndexMutator {
 			);
 			final EntityIndex typeIndex = executor.getIndexIfExists(typeKey);
 			if (typeIndex instanceof HistogramCapableEntityIndex hcei) {
-				if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
+				if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK, indexedDecimalPlaces)) {
 					executor.getOrCreateIndex(typeKey);
-					hcei.removeHistogramValue(histogramName, locale, value, ownerPK);
+					hcei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 				}
 			}
 		}
@@ -3084,11 +3102,17 @@ public interface ReferenceIndexMutator {
 	 * This is an O(B) point lookup where B is the number of distinct values (typically 10-200 for
 	 * e-commerce histograms). RoaringBitmap `contains()` is O(1).
 	 *
-	 * @param entityIndex   the histogram-capable entity index
-	 * @param histogramName the histogram definition name
-	 * @param locale        the locale, or `null` for non-localized
-	 * @param value         the value to check
-	 * @param ownerPK       the owner PK to check
+	 * The stored bucket values were normalized to `indexedDecimalPlaces` at the histogram-index write
+	 * boundary, so the probe `value` is normalized with the same scale before the equality lookup —
+	 * otherwise a raw `BigDecimalNumberRange` whose intrinsic scale differs from the schema scale would
+	 * never match its stored (re-scaled) counterpart and the guard would suppress a valid removal.
+	 *
+	 * @param entityIndex          the histogram-capable entity index
+	 * @param histogramName        the histogram definition name
+	 * @param locale               the locale, or `null` for non-localized
+	 * @param value                the value to check
+	 * @param ownerPK              the owner PK to check
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places (probe scale)
 	 * @return `true` if the histogram contains the (value, ownerPK) pair
 	 */
 	private static boolean isValueInHistogram(
@@ -3096,7 +3120,8 @@ public interface ReferenceIndexMutator {
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int ownerPK
+		int ownerPK,
+		int indexedDecimalPlaces
 	) {
 		final HistogramIndex histogramIndex = entityIndex.getHistogramIndex(histogramName);
 		if (histogramIndex == null) {
@@ -3106,9 +3131,10 @@ public interface ReferenceIndexMutator {
 		if (filterIndex == null) {
 			return false;
 		}
+		final Serializable normalizedValue = NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces);
 		final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
 		for (final ValueToRecordBitmap bucket : buckets) {
-			if (bucket.getValue().equals(value)) {
+			if (bucket.getValue().equals(normalizedValue)) {
 				return bucket.getRecordIds().contains(ownerPK);
 			}
 		}
@@ -3142,16 +3168,19 @@ public interface ReferenceIndexMutator {
 		@Nonnull Scope scope
 	) {
 		final Class<? extends Serializable> plainType = resolution.plainType();
+		final int indexedDecimalPlaces = resolution.indexedDecimalPlaces();
 		if (rawValue == null) {
 			// apply default value if specified (already converted to plainType at build time)
 			if (resolution.defaultValue() != null) {
 				insertSingleHistogramValue(
 					executor, referenceName, histogramName, locale,
-					resolution.defaultValue(), ownerPK, groupId, scope, plainType
+					resolution.defaultValue(), ownerPK, groupId, scope, plainType, indexedDecimalPlaces
 				);
 			}
 			return;
 		}
+		// values are passed raw — scale normalization happens once at the histogram-index write
+		// boundary (HistogramIndexOperations), so this path stays free of scale semantics
 		// enforce the array/scalar contract declared by the resolution before dispatching — a
 		// mismatch between `arrayType` and the runtime shape of `rawValue` is a programming error
 		// (schema vs. value drift) that must surface immediately rather than silently mis-index
@@ -3171,12 +3200,12 @@ public interface ReferenceIndexMutator {
 				if (element instanceof Number number) {
 					insertSingleHistogramValue(
 						executor, referenceName, histogramName, locale,
-						number, ownerPK, groupId, scope, plainType
+						number, ownerPK, groupId, scope, plainType, indexedDecimalPlaces
 					);
 				} else if (element instanceof Range<?> range) {
 					insertSingleHistogramValue(
 						executor, referenceName, histogramName, locale,
-						range, ownerPK, groupId, scope, plainType
+						range, ownerPK, groupId, scope, plainType, indexedDecimalPlaces
 					);
 				} else if (element != null) {
 					throw new GenericEvitaInternalError(
@@ -3189,12 +3218,12 @@ public interface ReferenceIndexMutator {
 		} else if (rawValue instanceof Number number) {
 			insertSingleHistogramValue(
 				executor, referenceName, histogramName, locale,
-				number, ownerPK, groupId, scope, plainType
+				number, ownerPK, groupId, scope, plainType, indexedDecimalPlaces
 			);
 		} else if (rawValue instanceof Range<?> range) {
 			insertSingleHistogramValue(
 				executor, referenceName, histogramName, locale,
-				range, ownerPK, groupId, scope, plainType
+				range, ownerPK, groupId, scope, plainType, indexedDecimalPlaces
 			);
 		} else {
 			throw new GenericEvitaInternalError(
@@ -3215,10 +3244,12 @@ public interface ReferenceIndexMutator {
 	 * @param locale        the locale for localized histograms, or `null` for non-localized
 	 * @param value         the histogram value in its original type (a `Number` for plain numeric
 	 *                      attributes or a `Range` instance for Range-typed attributes)
-	 * @param ownerPK       the primary key of the owner entity
-	 * @param groupId       the group primary key (null for ungrouped)
-	 * @param scope         the current scope
-	 * @param valueType     the plain type of the value (used for lazy index creation)
+	 * @param ownerPK              the primary key of the owner entity
+	 * @param groupId              the group primary key (null for ungrouped)
+	 * @param scope                the current scope
+	 * @param valueType            the plain type of the value (used for lazy index creation)
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places, threaded to
+	 *                             the histogram-index write boundary for scale normalization
 	 */
 	private static void insertSingleHistogramValue(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -3229,7 +3260,8 @@ public interface ReferenceIndexMutator {
 		int ownerPK,
 		@Nullable Integer groupId,
 		@Nonnull Scope scope,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		if (groupId != null) {
 			// grouped reference: find the ReducedGroupEntityIndex via the group type index
@@ -3280,7 +3312,7 @@ public interface ReferenceIndexMutator {
 							reducedIndex.getClass().getName() + "."
 					);
 				}
-				hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+				hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 			}
 		} else {
 			// ungrouped reference: insert into ReferencedTypeEntityIndex
@@ -3310,7 +3342,7 @@ public interface ReferenceIndexMutator {
 			}
 			// mark the index dirty — it is modified via insertHistogramValue below
 			executor.getOrCreateIndex(typeKey);
-			hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+			hcei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 		}
 	}
 

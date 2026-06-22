@@ -668,11 +668,12 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
 		int ownerPK,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		HistogramIndexOperations.insertHistogramValue(
 			this.histogramIndexes, this.dirty, getReferenceName(),
-			histogramName, locale, value, ownerPK, valueType
+			histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces
 		);
 	}
 
@@ -681,11 +682,12 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int ownerPK
+		int ownerPK,
+		int indexedDecimalPlaces
 	) {
 		HistogramIndexOperations.removeHistogramValue(
 			this.histogramIndexes, this.dirty, getTransactionalLayerMaintainer(),
-			histogramName, locale, value, ownerPK
+			histogramName, locale, value, ownerPK, indexedDecimalPlaces
 		);
 	}
 

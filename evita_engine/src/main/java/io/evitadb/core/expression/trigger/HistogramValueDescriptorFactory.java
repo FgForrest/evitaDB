@@ -199,7 +199,7 @@ public class HistogramValueDescriptorFactory {
 			}
 			return new HistogramValueDescriptor(
 				source, sourceEntityType, attributeName, plainType, arrayType, localized,
-				null, innerNumericType
+				null, innerNumericType, attributeSchema.getIndexedDecimalPlaces()
 			);
 		}
 
@@ -220,7 +220,7 @@ public class HistogramValueDescriptorFactory {
 
 		return new HistogramValueDescriptor(
 			source, sourceEntityType, attributeName, plainType, arrayType, localized,
-			defaultValue, null
+			defaultValue, null, attributeSchema.getIndexedDecimalPlaces()
 		);
 	}
 
