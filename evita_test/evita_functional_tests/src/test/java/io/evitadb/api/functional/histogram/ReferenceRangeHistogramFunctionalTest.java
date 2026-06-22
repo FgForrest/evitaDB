@@ -344,6 +344,112 @@ public class ReferenceRangeHistogramFunctionalTest extends AbstractReferenceSumm
 	}
 
 	@Test
+	@DisplayName("should drop a BigDecimalNumberRange histogram entry on removal despite a lower value scale")
+	void shouldRemoveBigDecimalRangeHistogramEntryAtSchemaScaleWhenValueScaleIsLower() {
+		// Removal-path companion to shouldRenderBigDecimalRangeHistogramAtSchemaScaleWhenValueScaleIsLower.
+		// The existence guard that runs before a histogram-index remove compares its probe against the STORED
+		// bucket value, which the write path normalized to the schema scale (4). A raw probe carrying the
+		// value's intrinsic scale (0) would never match its re-scaled stored counterpart, so the removal would
+		// be silently suppressed and the histogram would keep a phantom entry that can never be reclaimed. The
+		// guard must therefore normalize its probe with the same scale; this test fails if it does not.
+		final int indexedDecimalPlaces = 4;
+		final String rangeAttribute = "rangeValue";
+		final String rangeHistogram = "bigDecimalRangeBucket";
+		runWithInlineSchema(
+			"bigDecimalRangeHistogramScaleRemoval",
+			session -> {
+				session.defineEntitySchema(ENTITY_PARAMETER)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+					.withAttribute(
+						rangeAttribute, BigDecimalNumberRange.class,
+						whichIs -> whichIs.filterable().indexDecimalPlaces(indexedDecimalPlaces).nullable()
+					)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withReferenceToEntity(
+						REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioning()
+							.indexedWithComponents(ReferenceIndexedComponents.values())
+							.faceted()
+							.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+							.bucketed(
+								rangeHistogram,
+								ExpressionFactory.parse(
+									"$reference.referencedEntity?.attributes['" + rangeAttribute + "']"
+								)
+							)
+					)
+					.updateVia(session);
+			},
+			session -> {
+				session.createNewEntity(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					.upsertVia(session);
+				// scale-0 bounds, below the schema's indexDecimalPlaces(4) — the same scale mismatch the
+				// removal guard must normalize away to match the stored (scale-4) bucket value
+				createParameterValueWithBigDecimalRange(session, 1, rangeAttribute, "1", "10");
+				createParameterValueWithBigDecimalRange(session, 2, rangeAttribute, "20", "88");
+				session.createNewEntity(ENTITY_PRODUCT, 100)
+					.setReference(
+						REF_PARAM_VALUES, 1,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					)
+					.upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, 101)
+					.setReference(
+						REF_PARAM_VALUES, 2,
+						whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+					)
+					.upsertVia(session);
+			},
+			evita -> {
+				// baseline: both ranges contribute, so the group histogram spans the full [1, 88] band
+				evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final HistogramContract histogram =
+							queryGroupHistogram(session, rangeHistogram, 10);
+						assertTrue(
+							histogram.getMax().compareTo(BigDecimal.valueOf(88)) >= 0,
+							"baseline max " + histogram.getMax() + " must reach the seeded upper bound 88"
+						);
+					}
+				);
+				// remove the product contributing the [20, 88] range — drives the histogram-index removal
+				// path through the existence guard whose probe must be normalized to the schema scale
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						assertTrue(
+							session.deleteEntity(ENTITY_PRODUCT, 101),
+							"product 101 must exist and be deleted"
+						);
+					}
+				);
+				// only the [1, 10] range survives; the upper bound must collapse to <= 10. A max still near 88
+				// proves the [20, 88] removal was suppressed by a scale-mismatched guard probe (phantom entry).
+				evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final HistogramContract histogram =
+							queryGroupHistogram(session, rangeHistogram, 10);
+						assertTrue(
+							histogram.getMin().compareTo(BigDecimal.ONE) >= 0,
+							"surviving min " + histogram.getMin() + " must stay >= 1 — scale must remain correct"
+						);
+						assertTrue(
+							histogram.getMax().compareTo(BigDecimal.valueOf(10)) <= 0,
+							"surviving max " + histogram.getMax() + " must collapse to <= 10 after the [20, 88] "
+								+ "range is removed — a value near 88 means the removal was silently suppressed"
+						);
+					}
+				);
+			}
+		);
+	}
+
+	@Test
 	@UseDataSet(REFERENCE_HISTOGRAM_RANGE)
 	@DisplayName("should account each range into every overlapping bucket across bucket counts")
 	void shouldAccountEachRangeIntoEveryOverlappingBucket(@Nonnull Evita evita) {
