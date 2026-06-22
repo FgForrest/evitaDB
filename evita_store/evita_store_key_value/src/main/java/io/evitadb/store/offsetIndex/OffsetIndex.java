@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -47,6 +46,7 @@ import io.evitadb.store.offsetIndex.exception.PoolExhaustedException;
 import io.evitadb.store.offsetIndex.exception.RecordNotYetWrittenException;
 import io.evitadb.store.offsetIndex.io.ReadOnlyHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyHandle;
+import io.evitadb.store.offsetIndex.map.OffsetLocationChampMap;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -245,7 +245,7 @@ public class OffsetIndex {
 	 * `(currentVersion, versions, locationRoots, histograms)` triple atomically, so lock-free readers in
 	 * {@link #get(long, long, Class)} (and its sibling lookups) always observe a coherent snapshot - they can never
 	 * pair a freshly appended root with a stale version array. Each retained version owns an immutable, structurally
-	 * shared {@link ChampMap} of locations, so keeping many versions is cheap and historical reads resolve to the exact
+	 * shared {@link OffsetLocationChampMap} of locations, so keeping many versions is cheap and historical reads resolve to the exact
 	 * per-version state via {@link Roots#floorRoot(long)} rather than reconstructing diffs. See {@link Roots}.
 	 */
 	private volatile Roots roots;
@@ -369,8 +369,8 @@ public class OffsetIndex {
 				catalogVersion,
 				fileOffsetIndexBuilder
 					.map(CollectingOffsetIndexBuilder::getBuiltIndex)
-					.map(ChampMap::<RecordKey, FileLocation>from)
-					.orElseGet(ChampMap::empty),
+					.map(OffsetLocationChampMap::from)
+					.orElseGet(OffsetLocationChampMap::empty),
 				fileOffsetIndexBuilder
 					.map(CollectingOffsetIndexBuilder::getHistogram)
 					.<Map<Byte, Integer>>map(Map::copyOf)
@@ -453,7 +453,7 @@ public class OffsetIndex {
 			);
 			this.roots = Roots.initial(
 				catalogVersion,
-				ChampMap.from(fileOffsetIndexBuilder.getBuiltIndex()),
+				OffsetLocationChampMap.from(fileOffsetIndexBuilder.getBuiltIndex()),
 				Map.copyOf(fileOffsetIndexBuilder.getHistogram()),
 				System.currentTimeMillis()
 			);
@@ -1469,12 +1469,12 @@ public class OffsetIndex {
 		// O(M·log32 N) and allocates only the touched path (no O(N) full-map copy, no humongous backing array). One
 		// root + histogram snapshot is retained per promoted version, so a reader pinned to any of them resolves the
 		// exact per-version state through Roots.floorRoot (replacing the former overwritten-value reconstruction).
-		ChampMap<RecordKey, FileLocation> root = currentRoots.latestRoot();
+		OffsetLocationChampMap root = currentRoots.latestRoot();
 		Map<Byte, Integer> histogram = currentRoots.latestHistogram();
 
 		final int batchSize = nonFlushedValueSets.size();
 		final long[] addVersions = new long[batchSize];
-		@SuppressWarnings("unchecked") final ChampMap<RecordKey, FileLocation>[] addRoots = new ChampMap[batchSize];
+		final OffsetLocationChampMap[] addRoots = new OffsetLocationChampMap[batchSize];
 		@SuppressWarnings("unchecked") final Map<Byte, Integer>[] addHistograms = new Map[batchSize];
 		final long[] addTimestamps = new long[batchSize];
 		// all versions in one flush become durable together, so they share a single promotion timestamp
@@ -1493,13 +1493,14 @@ public class OffsetIndex {
 
 				final int count;
 				if (nonFlushedValue.removed()) {
-					// read the location being dropped before path-copying it away
-					final FileLocation removedLocation = root.get(recordKey);
+					// read the dropped record's length before path-copying it away (primitive fast path,
+					// no FileLocation materialization)
+					final int removedLength = root.findRecordLength(recordKey);
 					// location might not exist when value was created and immediately removed
-					if (removedLocation != null) {
+					if (removedLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT) {
 						root = root.removed(recordKey);
 						count = -1;
-						recordLengthDelta -= removedLocation.recordLength();
+						recordLengthDelta -= removedLength;
 					} else {
 						count = 0;
 					}
@@ -1518,11 +1519,13 @@ public class OffsetIndex {
 					count = 1;
 				} else {
 					final FileLocation newRecordLocation = nonFlushedValue.fileLocation();
-					// read the replaced location before path-copying the new one in
-					final FileLocation existingRecordLocation = root.get(recordKey);
-					Assert.isPremiseValid(existingRecordLocation != null, "Record was not present!");
+					// read the replaced record's length before path-copying the new one in (primitive
+					// fast path, no FileLocation materialization)
+					final int existingLength = root.findRecordLength(recordKey);
+					Assert.isPremiseValid(
+						existingLength != OffsetLocationChampMap.RECORD_LENGTH_ABSENT, "Record was not present!");
 					root = root.updated(recordKey, newRecordLocation);
-					recordLengthDelta += newRecordLocation.recordLength() - existingRecordLocation.recordLength();
+					recordLengthDelta += newRecordLocation.recordLength() - existingLength;
 					if (newRecordLocation.recordLength() > workingMaxRecordSize) {
 						workingMaxRecordSize = newRecordLocation.recordLength();
 					}
@@ -1711,7 +1714,7 @@ public class OffsetIndex {
 	 * Immutable, structurally-shared registry of the record-location index across catalog
 	 * versions. It pairs a sorted (ascending) `versions` array with parallel `locationRoots`,
 	 * `histograms` and `timestamps` arrays, where index `i` holds the complete state as it stood at
-	 * catalog version `versions[i]` - the {@link ChampMap} of record locations, the record-type
+	 * catalog version `versions[i]` - the {@link OffsetLocationChampMap} of record locations, the record-type
 	 * histogram, and the wall-clock promotion timestamp (a telemetry-only side channel, never
 	 * consulted for version resolution). Only versions that actually changed the index get an entry;
 	 * reads for any catalog version resolve through {@link #floorIndex(long)} (the greatest retained
@@ -1739,7 +1742,7 @@ public class OffsetIndex {
 	private record Roots(
 		long currentVersion,
 		@Nonnull long[] versions,
-		@Nonnull ChampMap<RecordKey, FileLocation>[] locationRoots,
+		@Nonnull OffsetLocationChampMap[] locationRoots,
 		@Nonnull Map<Byte, Integer>[] histograms,
 		@Nonnull long[] timestamps
 	) {
@@ -1756,7 +1759,7 @@ public class OffsetIndex {
 		@Nonnull
 		static Roots initial(
 			long version,
-			@Nonnull ChampMap<RecordKey, FileLocation> root,
+			@Nonnull OffsetLocationChampMap root,
 			@Nonnull Map<Byte, Integer> histogram,
 			long timestamp
 		) {
@@ -1765,12 +1768,11 @@ public class OffsetIndex {
 			);
 		}
 
-		@SuppressWarnings("unchecked")
 		@Nonnull
-		private static ChampMap<RecordKey, FileLocation>[] asRootArray(
-			@Nonnull ChampMap<RecordKey, FileLocation> root
+		private static OffsetLocationChampMap[] asRootArray(
+			@Nonnull OffsetLocationChampMap root
 		) {
-			return (ChampMap<RecordKey, FileLocation>[]) new ChampMap[]{root};
+			return new OffsetLocationChampMap[]{root};
 		}
 
 		@SuppressWarnings("unchecked")
@@ -1810,7 +1812,7 @@ public class OffsetIndex {
 		Roots append(
 			long newCurrentVersion,
 			@Nonnull long[] addVersions,
-			@Nonnull ChampMap<RecordKey, FileLocation>[] addRoots,
+			@Nonnull OffsetLocationChampMap[] addRoots,
 			@Nonnull Map<Byte, Integer>[] addHistograms,
 			@Nonnull long[] addTimestamps
 		) {
@@ -1830,7 +1832,7 @@ public class OffsetIndex {
 			final long[] nv = new long[total];
 			System.arraycopy(this.versions, 0, nv, 0, keep);
 			System.arraycopy(addVersions, 0, nv, keep, addLen);
-			final ChampMap<RecordKey, FileLocation>[] nr = Arrays.copyOf(this.locationRoots, total);
+			final OffsetLocationChampMap[] nr = Arrays.copyOf(this.locationRoots, total);
 			System.arraycopy(addRoots, 0, nr, keep, addLen);
 			final Map<Byte, Integer>[] nh = Arrays.copyOf(this.histograms, total);
 			System.arraycopy(addHistograms, 0, nh, keep, addLen);
@@ -1899,7 +1901,7 @@ public class OffsetIndex {
 		 * @return the resolved location map
 		 */
 		@Nonnull
-		ChampMap<RecordKey, FileLocation> floorRoot(long catalogVersion) {
+		OffsetLocationChampMap floorRoot(long catalogVersion) {
 			return this.locationRoots[floorIndex(catalogVersion)];
 		}
 
@@ -1920,7 +1922,7 @@ public class OffsetIndex {
 		 * @return the latest location map
 		 */
 		@Nonnull
-		ChampMap<RecordKey, FileLocation> latestRoot() {
+		OffsetLocationChampMap latestRoot() {
 			return this.locationRoots[this.locationRoots.length - 1];
 		}
 

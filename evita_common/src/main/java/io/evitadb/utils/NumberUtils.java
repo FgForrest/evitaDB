@@ -258,13 +258,35 @@ public class NumberUtils {
 	}
 
 	/**
-	 * Inverse method to {@link #join(int, int)}.
+	 * Inverse method to {@link #join(int, int)}. Allocates a two-element array holding the high-order
+	 * component at index 0 and the low-order component at index 1. On hot paths that need only one of
+	 * the two halves prefer the allocation-free {@link #splitHigh(long)} / {@link #splitLow(long)}.
 	 */
 	public static int[] split(long number) {
 		return new int[]{
-			(int) (number >> 32),
-			(int) (number)
+			splitHigh(number),
+			splitLow(number)
 		};
+	}
+
+	/**
+	 * Returns the high-order 32 bits of `number` as an int — the index-0 component of
+	 * {@link #split(long)}, i.e. the `numberA` that was passed to {@link #join(int, int)}. Unlike
+	 * {@link #split(long)} this performs no array allocation, so it is safe to call on hot paths that
+	 * decompose a joined long.
+	 */
+	public static int splitHigh(long number) {
+		return (int) (number >> 32);
+	}
+
+	/**
+	 * Returns the low-order 32 bits of `number` as an int — the index-1 component of
+	 * {@link #split(long)}, i.e. the `numberB` that was passed to {@link #join(int, int)}. Unlike
+	 * {@link #split(long)} this performs no array allocation, so it is safe to call on hot paths that
+	 * decompose a joined long.
+	 */
+	public static int splitLow(long number) {
+		return (int) number;
 	}
 
 	/**

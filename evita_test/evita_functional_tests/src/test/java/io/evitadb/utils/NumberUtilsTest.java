@@ -32,6 +32,8 @@ import java.util.Map;
 
 import static io.evitadb.utils.NumberUtils.join;
 import static io.evitadb.utils.NumberUtils.split;
+import static io.evitadb.utils.NumberUtils.splitHigh;
+import static io.evitadb.utils.NumberUtils.splitLow;
 import java.io.Serializable;
 import org.junit.jupiter.api.Tag;
 
@@ -73,6 +75,28 @@ class NumberUtilsTest {
 			assertArrayEquals(new int[]{Integer.MIN_VALUE, Integer.MAX_VALUE}, split(join(Integer.MIN_VALUE, Integer.MAX_VALUE)));
 			assertArrayEquals(new int[]{Integer.MAX_VALUE, Integer.MIN_VALUE}, split(join(Integer.MAX_VALUE, Integer.MIN_VALUE)));
 			assertArrayEquals(new int[]{-10, -564}, split(join(-10, -564)));
+		}
+
+		@Test
+		@DisplayName("Should decompose a joined long half-by-half without allocation")
+		void shouldSplitHighAndLowWithoutAllocation() {
+			final int[][] pairs = {
+				{1, 45},
+				{Integer.MAX_VALUE, Integer.MIN_VALUE},
+				{Integer.MIN_VALUE, Integer.MIN_VALUE},
+				{Integer.MIN_VALUE, Integer.MAX_VALUE},
+				{Integer.MAX_VALUE, Integer.MIN_VALUE},
+				{-10, -564},
+				{0, 0}
+			};
+			for (final int[] pair : pairs) {
+				final long joined = join(pair[0], pair[1]);
+				// the half-accessors must agree with the index-0 / index-1 components of split(...)
+				assertEquals(pair[0], splitHigh(joined));
+				assertEquals(pair[1], splitLow(joined));
+				assertEquals(split(joined)[0], splitHigh(joined));
+				assertEquals(split(joined)[1], splitLow(joined));
+			}
 		}
 	}
 
