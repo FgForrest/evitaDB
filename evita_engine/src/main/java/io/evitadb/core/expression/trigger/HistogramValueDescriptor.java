@@ -50,6 +50,10 @@ import java.io.Serializable;
  * @param innerNumericType    when `plainType` is a `NumberRange` subtype, the matching inner numeric type
  *                            (e.g., `IntegerNumberRange.class` -> `Integer.class`); null for non-Range
  *                            `plainType` values
+ * @param indexedDecimalPlaces the source attribute schema's indexed decimal places — the authoritative
+ *                            scale at which `BigDecimalNumberRange` (and scalar `BigDecimal`) values must
+ *                            be encoded before insertion into the histogram index, mirroring the regular
+ *                            attribute-index write path. `0` for non-decimal source attributes
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record HistogramValueDescriptor(
@@ -60,7 +64,8 @@ public record HistogramValueDescriptor(
 	boolean arrayType,
 	boolean localized,
 	@Nullable Number defaultValue,
-	@Nullable Class<? extends Number> innerNumericType
+	@Nullable Class<? extends Number> innerNumericType,
+	int indexedDecimalPlaces
 ) {
 
 }

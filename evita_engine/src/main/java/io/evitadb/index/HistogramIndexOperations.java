@@ -27,6 +27,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -43,6 +44,16 @@ import java.util.Locale;
  * between the two subclasses ({@code getRepresentativeReferenceKey().referenceName()} on
  * `ReducedGroupEntityIndex` vs {@code getReferenceName()} on `ReferencedTypeEntityIndex`).
  *
+ * This helper is the single scale-normalization boundary for histogram-index writes: both
+ * {@link #insertHistogramValue} and {@link #removeHistogramValue} re-encode the value to the source
+ * attribute's `indexedDecimalPlaces` via
+ * {@link NumberUtils#normalizeForIndexing(java.io.Serializable, int)} exactly once before delegating
+ * to {@link HistogramIndex}. This mirrors {@code AttributeIndexMutator.executeAttributeUpsert}, which
+ * is the equivalent boundary for the standard attribute-index path — both paths share the same
+ * {@code normalizeForIndexing} primitive at their respective write boundaries rather than relying on
+ * callers to pre-normalize. Keep normalization here (not scattered across the trigger paths) so the
+ * `BigDecimalNumberRange`-scale invariant cannot be reintroduced by a non-local change.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 final class HistogramIndexOperations {
@@ -55,14 +66,16 @@ final class HistogramIndexOperations {
 	 * first use. The created index is locale-aware iff `locale` is non-`null`. Sets the supplied
 	 * `dirty` flag to signal that the owning entity index has pending changes.
 	 *
-	 * @param histograms    the subclass-owned histogram index map
-	 * @param dirty         the subclass-owned dirty flag to mark as `true` after the insert
-	 * @param referenceName the reference name to attach to a newly-created histogram index
-	 * @param histogramName the name of the histogram definition
-	 * @param locale        the locale for localized histograms, or `null` for non-localized
-	 * @param value         the histogram value in its original type (a `Number` or `Range`)
-	 * @param ownerPK       the primary key of the owner entity
-	 * @param valueType     the plain type of the value (used for lazy index creation)
+	 * @param histograms           the subclass-owned histogram index map
+	 * @param dirty                the subclass-owned dirty flag to mark as `true` after the insert
+	 * @param referenceName        the reference name to attach to a newly-created histogram index
+	 * @param histogramName        the name of the histogram definition
+	 * @param locale               the locale for localized histograms, or `null` for non-localized
+	 * @param value                the histogram value in its original type (a `Number` or `Range`)
+	 * @param ownerPK              the primary key of the owner entity
+	 * @param valueType            the plain type of the value (used for lazy index creation)
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places — the scale at
+	 *                             which the value is re-encoded before storage
 	 */
 	static void insertHistogramValue(
 		@Nonnull TransactionalMap<String, HistogramIndex> histograms,
@@ -72,7 +85,8 @@ final class HistogramIndexOperations {
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
 		int ownerPK,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		final HistogramIndex histogramIndex = histograms.computeIfAbsent(
 			histogramName,
@@ -80,7 +94,9 @@ final class HistogramIndexOperations {
 				? new LocalizedHistogramIndex(histogramName, referenceName, valueType)
 				: new SimpleHistogramIndex(histogramName, referenceName, valueType)
 		);
-		histogramIndex.insertValue(locale, value, ownerPK);
+		// single normalization boundary for histogram writes — re-encode `BigDecimalNumberRange`
+		// (and scalar `BigDecimal`) bounds to the schema scale; non-decimal types pass through
+		histogramIndex.insertValue(locale, NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces), ownerPK);
 		dirty.setToTrue();
 	}
 
@@ -99,6 +115,9 @@ final class HistogramIndexOperations {
 	 *                                  non-localized
 	 * @param value                     the histogram value to remove
 	 * @param ownerPK                   the primary key of the owner entity
+	 * @param indexedDecimalPlaces      the source attribute schema's indexed decimal places — must
+	 *                                  match the scale used at insert time so the removed value's
+	 *                                  encoded form lines up with what was stored
 	 */
 	static void removeHistogramValue(
 		@Nonnull TransactionalMap<String, HistogramIndex> histograms,
@@ -107,14 +126,16 @@ final class HistogramIndexOperations {
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int ownerPK
+		int ownerPK,
+		int indexedDecimalPlaces
 	) {
 		final HistogramIndex histogramIndex = histograms.get(histogramName);
 		Assert.isPremiseValid(
 			histogramIndex != null,
 			() -> "Histogram index for histogram " + histogramName + " not found."
 		);
-		histogramIndex.removeValue(locale, value, ownerPK);
+		// symmetric with insertHistogramValue — same normalization so encoded longs match the stored form
+		histogramIndex.removeValue(locale, NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces), ownerPK);
 		dirty.setToTrue();
 		// if the histogram index is now empty, remove it from the map and clean up transactional layers
 		if (histogramIndex.isEmpty()) {

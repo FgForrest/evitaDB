@@ -96,11 +96,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -591,7 +587,7 @@ class EntityIndexRoundTripTest {
 		 * @return a populated `GlobalEntityIndex`
 		 */
 		@Nonnull
-		private GlobalEntityIndex buildPopulatedIndex() {
+		private static GlobalEntityIndex buildPopulatedIndex() {
 			final EntityIndexKey key = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
 			final GlobalEntityIndex index = new GlobalEntityIndex(INDEX_PK, ENTITY_TYPE, key);
 			final EntitySchemaContract schema = createSchema(Set.of(Locale.ENGLISH));
@@ -641,7 +637,7 @@ class EntityIndexRoundTripTest {
 		 * @return a freshly-loaded `GlobalEntityIndex`
 		 */
 		@Nonnull
-		private GlobalEntityIndex reload(@Nonnull CapturedStorage storage) {
+		private static GlobalEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			// GlobalEntityIndex is entity-scoped — uses EntityAttributeIndex
 			final AttributeIndex attributeIndex = reloadAttributeIndex(storage, ENTITY_TYPE, null, false);
@@ -722,12 +718,12 @@ class EntityIndexRoundTripTest {
 
 			// AttributeIndex subclass identity must survive reload: GlobalEntityIndex carries
 			// an EntityAttributeIndex with ENTITY scope
-			assertTrue(
-				original.attributeIndex instanceof EntityAttributeIndex,
+			assertInstanceOf(
+				EntityAttributeIndex.class, original.attributeIndex,
 				"GlobalEntityIndex must construct an EntityAttributeIndex"
 			);
-			assertTrue(
-				reloaded.attributeIndex instanceof EntityAttributeIndex,
+			assertInstanceOf(
+				EntityAttributeIndex.class, reloaded.attributeIndex,
 				"Reloaded GlobalEntityIndex must reconstruct an EntityAttributeIndex"
 			);
 			assertEquals(AttributeScope.ENTITY, reloaded.attributeIndex.getScope());
@@ -750,7 +746,7 @@ class EntityIndexRoundTripTest {
 		 * @return a populated `ReducedEntityIndex`
 		 */
 		@Nonnull
-		private ReducedEntityIndex buildPopulatedIndex() {
+		private static ReducedEntityIndex buildPopulatedIndex() {
 			final RepresentativeReferenceKey rrk =
 				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, 5));
 			final EntityIndexKey key =
@@ -806,7 +802,7 @@ class EntityIndexRoundTripTest {
 		 * @return a freshly-loaded `ReducedEntityIndex`
 		 */
 		@Nonnull
-		private ReducedEntityIndex reload(@Nonnull CapturedStorage storage) {
+		private static ReducedEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			final RepresentativeReferenceKey rrk =
 				(RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator();
@@ -879,12 +875,12 @@ class EntityIndexRoundTripTest {
 
 			// AttributeIndex subclass identity must survive reload: ReducedEntityIndex carries
 			// a ReferenceAttributeIndex with REFERENCE scope
-			assertTrue(
-				original.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, original.attributeIndex,
 				"ReducedEntityIndex must construct a ReferenceAttributeIndex"
 			);
-			assertTrue(
-				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, reloaded.attributeIndex,
 				"Reloaded ReducedEntityIndex must reconstruct a ReferenceAttributeIndex"
 			);
 			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());
@@ -909,7 +905,7 @@ class EntityIndexRoundTripTest {
 		 * @return a populated `ReducedGroupEntityIndex`
 		 */
 		@Nonnull
-		private ReducedGroupEntityIndex buildPopulatedIndex() {
+		private static ReducedGroupEntityIndex buildPopulatedIndex() {
 			final RepresentativeReferenceKey rrk =
 				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, GROUP_PK));
 			final EntityIndexKey key =
@@ -939,8 +935,8 @@ class EntityIndexRoundTripTest {
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Watch", 13);
 
 			// histogram — must round-trip via the manifest
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class);
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 200, 14, Integer.class);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 100, 13, Integer.class, 0);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 200, 14, Integer.class, 0);
 
 			// price ref-index intentionally NOT populated here for the same reason as in
 			// ReducedEntityIndexRoundTripTest: PriceListAndCurrencyPriceRefIndex requires a
@@ -960,7 +956,7 @@ class EntityIndexRoundTripTest {
 		 * @return a freshly-loaded `ReducedGroupEntityIndex`
 		 */
 		@Nonnull
-		private ReducedGroupEntityIndex reload(@Nonnull CapturedStorage storage) {
+		private static ReducedGroupEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			final RepresentativeReferenceKey rrk =
 				(RepresentativeReferenceKey) manifest.getEntityIndexKey().discriminator();
@@ -1042,12 +1038,12 @@ class EntityIndexRoundTripTest {
 
 			// AttributeIndex subclass identity must survive reload: ReducedGroupEntityIndex
 			// carries a ReferenceAttributeIndex with REFERENCE scope
-			assertTrue(
-				original.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, original.attributeIndex,
 				"ReducedGroupEntityIndex must construct a ReferenceAttributeIndex"
 			);
-			assertTrue(
-				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, reloaded.attributeIndex,
 				"Reloaded ReducedGroupEntityIndex must reconstruct a ReferenceAttributeIndex"
 			);
 			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());
@@ -1069,7 +1065,7 @@ class EntityIndexRoundTripTest {
 		 * @return a populated `ReferencedTypeEntityIndex`
 		 */
 		@Nonnull
-		private ReferencedTypeEntityIndex buildPopulatedIndex() {
+		private static ReferencedTypeEntityIndex buildPopulatedIndex() {
 			final EntityIndexKey key = new EntityIndexKey(
 				EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_NAME
 			);
@@ -1090,8 +1086,8 @@ class EntityIndexRoundTripTest {
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Lamp", 15);
 			index.insertFilterAttribute(refSchema, nameSchema, allowedLocales, null, "Lamp", 15);
 
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 11, 15, Integer.class);
-			index.insertHistogramValue(HISTOGRAM_NAME, null, 22, 16, Integer.class);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 11, 15, Integer.class, 0);
+			index.insertHistogramValue(HISTOGRAM_NAME, null, 22, 16, Integer.class, 0);
 
 			index.addFacet(null, new ReferenceKey(REFERENCE_NAME, 50), GROUP_PK, 15);
 			return index;
@@ -1105,7 +1101,7 @@ class EntityIndexRoundTripTest {
 		 * @return a freshly-loaded `ReferencedTypeEntityIndex`
 		 */
 		@Nonnull
-		private ReferencedTypeEntityIndex reload(@Nonnull CapturedStorage storage) {
+		private static ReferencedTypeEntityIndex reload(@Nonnull CapturedStorage storage) {
 			final EntityIndexStoragePart manifest = storage.requireManifest();
 			// ReferencedTypeEntityIndex is reference-scoped even though the AttributeIndex receives a
 			// null representative key — its discriminator is a String reference name
@@ -1171,12 +1167,12 @@ class EntityIndexRoundTripTest {
 			// AttributeIndex subclass identity must survive reload: ReferencedTypeEntityIndex
 			// carries a ReferenceAttributeIndex with REFERENCE scope even though it has no
 			// RepresentativeReferenceKey
-			assertTrue(
-				original.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, original.attributeIndex,
 				"ReferencedTypeEntityIndex must construct a ReferenceAttributeIndex"
 			);
-			assertTrue(
-				reloaded.attributeIndex instanceof ReferenceAttributeIndex,
+			assertInstanceOf(
+				ReferenceAttributeIndex.class, reloaded.attributeIndex,
 				"Reloaded ReferencedTypeEntityIndex must reconstruct a ReferenceAttributeIndex"
 			);
 			assertEquals(AttributeScope.REFERENCE, reloaded.attributeIndex.getScope());

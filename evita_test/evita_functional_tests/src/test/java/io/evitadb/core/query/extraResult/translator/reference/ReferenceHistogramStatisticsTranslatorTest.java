@@ -148,7 +148,8 @@ class ReferenceHistogramStatisticsTranslatorTest {
 			false,
 			localized,
 			null,
-			null
+			null,
+			0
 		);
 	}
 

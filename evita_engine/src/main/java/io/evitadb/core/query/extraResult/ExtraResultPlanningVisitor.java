@@ -139,7 +139,6 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@SuppressWarnings("deprecation")
 public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	private static final Map<Class<? extends RequireConstraint>, RequireConstraintTranslator<? extends RequireConstraint>>
 		TRANSLATORS;

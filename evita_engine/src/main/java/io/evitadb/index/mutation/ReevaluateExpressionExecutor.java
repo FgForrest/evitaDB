@@ -60,6 +60,7 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
@@ -682,7 +683,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					for (int ownerPK : matched) {
 						removeHistogramValue(
 							histogramName, locale, value, ownerPK,
-							group, rtei, isGrouped, target
+							group, rtei, isGrouped, target, resolution.indexedDecimalPlaces()
 						);
 					}
 				}
@@ -931,7 +932,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 						for (int ownerPK : matched) {
 							insertHistogramValue(
 								histogramName, locale, emittedValue, ownerPK, group, rtei, isGrouped,
-								target, plainType
+								target, plainType, resolution.indexedDecimalPlaces()
 							);
 						}
 					}
@@ -950,7 +951,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 						for (int ownerPK : matched) {
 							insertHistogramValue(
 								histogramName, locale, defaultValue, ownerPK, group, rtei, isGrouped,
-								target, plainType
+								target, plainType, resolution.indexedDecimalPlaces()
 							);
 						}
 					}
@@ -1090,7 +1091,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			resolution, filterIndex, shouldBeIndexedBitmap, group,
 			(value, ownerPK) -> insertHistogramValue(
 				histogramName, locale, value, ownerPK, group, rtei, isGrouped,
-				target, plainType
+				target, plainType, resolution.indexedDecimalPlaces()
 			)
 		);
 	}
@@ -1269,7 +1270,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		processRefAttrFilterIndexBuckets(
 			resolution, filterIndex, ownerPKsToRemove, group,
 			(value, ownerPK) -> removeHistogramValue(
-				histogramName, locale, value, ownerPK, group, rtei, isGrouped, target
+				histogramName, locale, value, ownerPK, group, rtei, isGrouped, target,
+				resolution.indexedDecimalPlaces()
 			)
 		);
 	}
@@ -1287,7 +1289,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
-		@Nonnull IndexMutationTarget target
+		@Nonnull IndexMutationTarget target,
+		int indexedDecimalPlaces
 	) {
 		if (isGrouped && group.groupPK() != null) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
@@ -1295,13 +1298,21 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
 					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
 				);
-				if (histogramContainsOwner(rgei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
-					rgei.removeHistogramValue(histogramName, locale, value, ownerPK);
+				if (
+					histogramContainsOwner(
+						rgei.getHistogramIndex(histogramName), locale, value, ownerPK, indexedDecimalPlaces
+					)
+				) {
+					rgei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 				}
 			}
 		}
-		if (histogramContainsOwner(rtei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
-			rtei.removeHistogramValue(histogramName, locale, value, ownerPK);
+		if (
+			histogramContainsOwner(
+				rtei.getHistogramIndex(histogramName), locale, value, ownerPK, indexedDecimalPlaces
+			)
+		) {
+			rtei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 		}
 	}
 
@@ -1312,13 +1323,15 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * Comparison uses `Object.equals` on the bucket value — `Range` subtypes implement value-based equality
 	 * over both bounds (and inner numeric type), so the lookup is symmetric for both scalar `Number` values
-	 * and range-typed bucket values.
+	 * and range-typed bucket values. The probe `value` is normalized to `indexedDecimalPlaces` first so it
+	 * matches the stored bucket value, which was normalized at the histogram-index write boundary.
 	 */
 	private static boolean histogramContainsOwner(
 		@Nullable HistogramIndex histogramIndex,
 		@Nullable Locale locale,
 		@Nonnull Serializable value,
-		int ownerPK
+		int ownerPK,
+		int indexedDecimalPlaces
 	) {
 		if (histogramIndex == null) {
 			return false;
@@ -1327,9 +1340,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (filterIndex == null) {
 			return false;
 		}
+		final Serializable normalizedValue = NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces);
 		final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
 		for (final ValueToRecordBitmap bucket : buckets) {
-			if (bucket.getValue().equals(value)) {
+			if (bucket.getValue().equals(normalizedValue)) {
 				return bucket.getRecordIds().contains(ownerPK);
 			}
 		}
@@ -1347,9 +1361,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param ownerPK        primary key of the owner entity
 	 * @param group          the group for reduced-index routing
 	 * @param rtei           the top-level referenced-type index
-	 * @param isGrouped      `true` when the reference has a group type
-	 * @param target         access to entity collection indexes
-	 * @param valueType      the plain type of the attribute
+	 * @param isGrouped            `true` when the reference has a group type
+	 * @param target               access to entity collection indexes
+	 * @param valueType            the plain type of the attribute
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places, threaded to the
+	 *                             histogram-index write boundary for scale normalization
 	 */
 	private static void insertHistogramValue(
 		@Nonnull String histogramName,
@@ -1360,7 +1376,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		if (isGrouped && group.groupPK() != null) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
@@ -1368,10 +1385,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
 					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
 				);
-				rgei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+				rgei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 			}
 		}
-		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 	}
 
 	/**
@@ -1778,7 +1795,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull EntityPrimaryKeyInSet pkConstraint,
 		boolean isGroupScope
 	) {
-		return (FilterBy) ConstraintCloneVisitor.clone(
+		final FilterBy rewritten = (FilterBy) ConstraintCloneVisitor.clone(
 			filterBy,
 			(visitor, constraint) -> constraint instanceof final ReferenceHaving rh
 				&& rh.getReferenceName().equals(referenceName)
@@ -1786,6 +1803,16 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				&& !visitor.isWithin(GroupHaving.class)
 				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope)
 				: constraint
+		);
+		// ConstraintCloneVisitor.clone is @Nullable because it returns null when the cloned tree
+		// collapses to a non-applicable constraint. That cannot happen here: the trigger `filterBy`
+		// always carries an applicable `referenceHaving`, and the translator only injects PK scope —
+		// it never drops children — so the clone is at least as applicable as the input. Assert the
+		// invariant explicitly to keep the @Nonnull contract sound rather than propagate a silent null.
+		return Objects.requireNonNull(
+			rewritten,
+			"Rewritten referenceHaving filter unexpectedly collapsed to null — the trigger `filterBy` " +
+				"must always retain an applicable constraint after PK-scope injection."
 		);
 	}
 

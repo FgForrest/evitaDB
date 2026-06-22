@@ -1252,7 +1252,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				false,
 				true,
 				null,
-				null
+				null, 0
 			);
 			final DefaultHistogramExpressionTrigger histogramTrigger =
 				new DefaultHistogramExpressionTrigger(
@@ -1288,7 +1288,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				false,
 				false,
 				null,
-				null
+				null, 0
 			);
 			final DefaultHistogramExpressionTrigger histogramTrigger =
 				new DefaultHistogramExpressionTrigger(
@@ -1317,7 +1317,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				false,
 				true,
 				null,
-				null
+				null, 0
 			);
 			final DefaultHistogramExpressionTrigger histogramTrigger =
 				new DefaultHistogramExpressionTrigger(
@@ -1352,7 +1352,7 @@ class DefaultCatalogExpressionTriggerRegistryTest {
 				false,
 				false,
 				null,
-				null
+				null, 0
 			);
 			final DefaultHistogramExpressionTrigger histogramTrigger =
 				new DefaultHistogramExpressionTrigger(
