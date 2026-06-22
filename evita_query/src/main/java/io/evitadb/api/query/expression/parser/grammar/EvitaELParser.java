@@ -1045,155 +1045,155 @@ public class EvitaELParser extends Parser {
 						break;
 					case 6:
 						{
-						_localctx = new GreaterThanExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((GreaterThanExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new NullCoalesceExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((NullCoalesceExpressionContext)_localctx).value = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(74);
 						if (!(precpred(_ctx, 11))) throw new FailedPredicateException(this, "precpred(_ctx, 11)");
 						setState(75);
-						match(GT);
+						match(DOUBLE_QUESTION_MARK);
 						setState(76);
-						((GreaterThanExpressionContext)_localctx).rightExpression = expression(12);
+						((NullCoalesceExpressionContext)_localctx).defaultValue = expression(12);
 						}
 						break;
 					case 7:
 						{
-						_localctx = new GreaterThanEqualsExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((GreaterThanEqualsExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new GreaterThanExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((GreaterThanExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(77);
 						if (!(precpred(_ctx, 10))) throw new FailedPredicateException(this, "precpred(_ctx, 10)");
 						setState(78);
-						match(GT_EQ);
+						match(GT);
 						setState(79);
-						((GreaterThanEqualsExpressionContext)_localctx).rightExpression = expression(11);
+						((GreaterThanExpressionContext)_localctx).rightExpression = expression(11);
 						}
 						break;
 					case 8:
 						{
-						_localctx = new LessThanExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((LessThanExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new GreaterThanEqualsExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((GreaterThanEqualsExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(80);
 						if (!(precpred(_ctx, 9))) throw new FailedPredicateException(this, "precpred(_ctx, 9)");
 						setState(81);
-						match(LT);
+						match(GT_EQ);
 						setState(82);
-						((LessThanExpressionContext)_localctx).rightExpression = expression(10);
+						((GreaterThanEqualsExpressionContext)_localctx).rightExpression = expression(10);
 						}
 						break;
 					case 9:
 						{
-						_localctx = new LessThanEqualsExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((LessThanEqualsExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new LessThanExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((LessThanExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(83);
 						if (!(precpred(_ctx, 8))) throw new FailedPredicateException(this, "precpred(_ctx, 8)");
 						setState(84);
-						match(LT_EQ);
+						match(LT);
 						setState(85);
-						((LessThanEqualsExpressionContext)_localctx).rightExpression = expression(9);
+						((LessThanExpressionContext)_localctx).rightExpression = expression(9);
 						}
 						break;
 					case 10:
 						{
-						_localctx = new EqualsExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((EqualsExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new LessThanEqualsExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((LessThanEqualsExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(86);
 						if (!(precpred(_ctx, 7))) throw new FailedPredicateException(this, "precpred(_ctx, 7)");
 						setState(87);
-						match(EQ);
+						match(LT_EQ);
 						setState(88);
-						((EqualsExpressionContext)_localctx).rightExpression = expression(8);
+						((LessThanEqualsExpressionContext)_localctx).rightExpression = expression(8);
 						}
 						break;
 					case 11:
 						{
-						_localctx = new NotEqualsExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((NotEqualsExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new EqualsExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((EqualsExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(89);
 						if (!(precpred(_ctx, 6))) throw new FailedPredicateException(this, "precpred(_ctx, 6)");
 						setState(90);
-						match(NOT_EQ);
+						match(EQ);
 						setState(91);
-						((NotEqualsExpressionContext)_localctx).rightExpression = expression(7);
+						((EqualsExpressionContext)_localctx).rightExpression = expression(7);
 						}
 						break;
 					case 12:
 						{
-						_localctx = new XorExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((XorExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new NotEqualsExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((NotEqualsExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(92);
 						if (!(precpred(_ctx, 5))) throw new FailedPredicateException(this, "precpred(_ctx, 5)");
 						setState(93);
-						match(XOR);
+						match(NOT_EQ);
 						setState(94);
-						((XorExpressionContext)_localctx).rightExpression = expression(6);
+						((NotEqualsExpressionContext)_localctx).rightExpression = expression(6);
 						}
 						break;
 					case 13:
 						{
-						_localctx = new AndExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((AndExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new XorExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((XorExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(95);
 						if (!(precpred(_ctx, 4))) throw new FailedPredicateException(this, "precpred(_ctx, 4)");
 						setState(96);
-						match(AND);
+						match(XOR);
 						setState(97);
-						((AndExpressionContext)_localctx).rightExpression = expression(5);
+						((XorExpressionContext)_localctx).rightExpression = expression(5);
 						}
 						break;
 					case 14:
 						{
-						_localctx = new OrExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((OrExpressionContext)_localctx).leftExpression = _prevctx;
+						_localctx = new AndExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((AndExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(98);
 						if (!(precpred(_ctx, 3))) throw new FailedPredicateException(this, "precpred(_ctx, 3)");
 						setState(99);
-						match(OR);
+						match(AND);
 						setState(100);
-						((OrExpressionContext)_localctx).rightExpression = expression(4);
+						((AndExpressionContext)_localctx).rightExpression = expression(4);
 						}
 						break;
 					case 15:
 						{
-						_localctx = new SpreadNullCoalesceExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((SpreadNullCoalesceExpressionContext)_localctx).value = _prevctx;
+						_localctx = new OrExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((OrExpressionContext)_localctx).leftExpression = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
 						setState(101);
 						if (!(precpred(_ctx, 2))) throw new FailedPredicateException(this, "precpred(_ctx, 2)");
+						setState(102);
+						match(OR);
 						setState(103);
-						_errHandler.sync(this);
-						_la = _input.LA(1);
-						if (_la==QUESTION_MARK) {
-							{
-							setState(102);
-							((SpreadNullCoalesceExpressionContext)_localctx).nullSafe = match(QUESTION_MARK);
-							}
-						}
-
-						setState(105);
-						match(STAR_QUESTION_MARK);
-						setState(106);
-						((SpreadNullCoalesceExpressionContext)_localctx).defaultValue = expression(3);
+						((OrExpressionContext)_localctx).rightExpression = expression(3);
 						}
 						break;
 					case 16:
 						{
-						_localctx = new NullCoalesceExpressionContext(new ExpressionContext(_parentctx, _parentState));
-						((NullCoalesceExpressionContext)_localctx).value = _prevctx;
+						_localctx = new SpreadNullCoalesceExpressionContext(new ExpressionContext(_parentctx, _parentState));
+						((SpreadNullCoalesceExpressionContext)_localctx).value = _prevctx;
 						pushNewRecursionContext(_localctx, _startState, RULE_expression);
-						setState(107);
+						setState(104);
 						if (!(precpred(_ctx, 1))) throw new FailedPredicateException(this, "precpred(_ctx, 1)");
+						setState(106);
+						_errHandler.sync(this);
+						_la = _input.LA(1);
+						if (_la==QUESTION_MARK) {
+							{
+							setState(105);
+							((SpreadNullCoalesceExpressionContext)_localctx).nullSafe = match(QUESTION_MARK);
+							}
+						}
+
 						setState(108);
-						match(DOUBLE_QUESTION_MARK);
+						match(STAR_QUESTION_MARK);
 						setState(109);
-						((NullCoalesceExpressionContext)_localctx).defaultValue = expression(2);
+						((SpreadNullCoalesceExpressionContext)_localctx).defaultValue = expression(2);
 						}
 						break;
 					}
@@ -1928,7 +1928,7 @@ public class EvitaELParser extends Parser {
 		"\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"+
 		"\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"+
 		"\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"+
-		"\u0003\u0001h\b\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001"+
+		"\u0001\u0001\u0001\u0001\u0001\u0001\u0003\u0001k\b\u0001\u0001\u0001"+
 		"\u0001\u0001\u0005\u0001o\b\u0001\n\u0001\f\u0001r\t\u0001\u0001\u0002"+
 		"\u0001\u0002\u0001\u0002\u0001\u0002\u0001\u0002\u0001\u0002\u0003\u0002"+
 		"z\b\u0002\u0001\u0003\u0003\u0003}\b\u0003\u0001\u0003\u0001\u0003\u0001"+
@@ -1971,24 +1971,24 @@ public class EvitaELParser extends Parser {
 		"\u0010AB\n\u000e\u0000\u0000BC\u0005\u0010\u0000\u0000Co\u0003\u0002\u0001"+
 		"\u000fDE\n\r\u0000\u0000EF\u0005\f\u0000\u0000Fo\u0003\u0002\u0001\u000e"+
 		"GH\n\f\u0000\u0000HI\u0005\r\u0000\u0000Io\u0003\u0002\u0001\rJK\n\u000b"+
-		"\u0000\u0000KL\u0005\u0011\u0000\u0000Lo\u0003\u0002\u0001\fMN\n\n\u0000"+
-		"\u0000NO\u0005\u0012\u0000\u0000Oo\u0003\u0002\u0001\u000bPQ\n\t\u0000"+
-		"\u0000QR\u0005\u0013\u0000\u0000Ro\u0003\u0002\u0001\nST\n\b\u0000\u0000"+
-		"TU\u0005\u0014\u0000\u0000Uo\u0003\u0002\u0001\tVW\n\u0007\u0000\u0000"+
-		"WX\u0005\u0015\u0000\u0000Xo\u0003\u0002\u0001\bYZ\n\u0006\u0000\u0000"+
-		"Z[\u0005\u0016\u0000\u0000[o\u0003\u0002\u0001\u0007\\]\n\u0005\u0000"+
-		"\u0000]^\u0005\u0017\u0000\u0000^o\u0003\u0002\u0001\u0006_`\n\u0004\u0000"+
-		"\u0000`a\u0005\u0018\u0000\u0000ao\u0003\u0002\u0001\u0005bc\n\u0003\u0000"+
-		"\u0000cd\u0005\u0019\u0000\u0000do\u0003\u0002\u0001\u0004eg\n\u0002\u0000"+
-		"\u0000fh\u0005\u0006\u0000\u0000gf\u0001\u0000\u0000\u0000gh\u0001\u0000"+
-		"\u0000\u0000hi\u0001\u0000\u0000\u0000ij\u0005\u0007\u0000\u0000jo\u0003"+
-		"\u0002\u0001\u0003kl\n\u0001\u0000\u0000lm\u0005\u0005\u0000\u0000mo\u0003"+
+		"\u0000\u0000KL\u0005\u0005\u0000\u0000Lo\u0003\u0002\u0001\fMN\n\n\u0000"+
+		"\u0000NO\u0005\u0011\u0000\u0000Oo\u0003\u0002\u0001\u000bPQ\n\t\u0000"+
+		"\u0000QR\u0005\u0012\u0000\u0000Ro\u0003\u0002\u0001\nST\n\b\u0000\u0000"+
+		"TU\u0005\u0013\u0000\u0000Uo\u0003\u0002\u0001\tVW\n\u0007\u0000\u0000"+
+		"WX\u0005\u0014\u0000\u0000Xo\u0003\u0002\u0001\bYZ\n\u0006\u0000\u0000"+
+		"Z[\u0005\u0015\u0000\u0000[o\u0003\u0002\u0001\u0007\\]\n\u0005\u0000"+
+		"\u0000]^\u0005\u0016\u0000\u0000^o\u0003\u0002\u0001\u0006_`\n\u0004\u0000"+
+		"\u0000`a\u0005\u0017\u0000\u0000ao\u0003\u0002\u0001\u0005bc\n\u0003\u0000"+
+		"\u0000cd\u0005\u0018\u0000\u0000do\u0003\u0002\u0001\u0004ef\n\u0002\u0000"+
+		"\u0000fg\u0005\u0019\u0000\u0000go\u0003\u0002\u0001\u0003hj\n\u0001\u0000"+
+		"\u0000ik\u0005\u0006\u0000\u0000ji\u0001\u0000\u0000\u0000jk\u0001\u0000"+
+		"\u0000\u0000kl\u0001\u0000\u0000\u0000lm\u0005\u0007\u0000\u0000mo\u0003"+
 		"\u0002\u0001\u0002n;\u0001\u0000\u0000\u0000n>\u0001\u0000\u0000\u0000"+
 		"nA\u0001\u0000\u0000\u0000nD\u0001\u0000\u0000\u0000nG\u0001\u0000\u0000"+
 		"\u0000nJ\u0001\u0000\u0000\u0000nM\u0001\u0000\u0000\u0000nP\u0001\u0000"+
 		"\u0000\u0000nS\u0001\u0000\u0000\u0000nV\u0001\u0000\u0000\u0000nY\u0001"+
 		"\u0000\u0000\u0000n\\\u0001\u0000\u0000\u0000n_\u0001\u0000\u0000\u0000"+
-		"nb\u0001\u0000\u0000\u0000ne\u0001\u0000\u0000\u0000nk\u0001\u0000\u0000"+
+		"nb\u0001\u0000\u0000\u0000ne\u0001\u0000\u0000\u0000nh\u0001\u0000\u0000"+
 		"\u0000or\u0001\u0000\u0000\u0000pn\u0001\u0000\u0000\u0000pq\u0001\u0000"+
 		"\u0000\u0000q\u0003\u0001\u0000\u0000\u0000rp\u0001\u0000\u0000\u0000"+
 		"sz\u0003\u0010\b\u0000tz\u0003\u000e\u0007\u0000uv\u0005\u0001\u0000\u0000"+
@@ -2024,7 +2024,7 @@ public class EvitaELParser extends Parser {
 		"\u0000\u00ab\u00ad\u0005\u001d\u0000\u0000\u00ac\u00a7\u0001\u0000\u0000"+
 		"\u0000\u00ac\u00a8\u0001\u0000\u0000\u0000\u00ac\u00a9\u0001\u0000\u0000"+
 		"\u0000\u00ac\u00aa\u0001\u0000\u0000\u0000\u00ac\u00ab\u0001\u0000\u0000"+
-		"\u0000\u00ad\u0011\u0001\u0000\u0000\u0000\u0011\u001f\".09gnpy|\u0086"+
+		"\u0000\u00ad\u0011\u0001\u0000\u0000\u0000\u0011\u001f\".09jnpy|\u0086"+
 		"\u0089\u008e\u0095\u009b\u009f\u00ac";
 	public static final ATN _ATN =
 		new ATNDeserializer().deserialize(_serializedATN.toCharArray());

@@ -1186,12 +1186,10 @@ class ReducedGroupEntityIndexTest
 		@DisplayName("should isolate histogram filter indexes per locale so values from one locale never leak into another")
 		void shouldIsolateHistogramFilterIndexesPerLocale() {
 			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class,
-			0
+				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class, 0
 			);
 			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.GERMAN, 43, 11, Integer.class,
-			0
+				HISTOGRAM_NAME, Locale.GERMAN, 43, 11, Integer.class, 0
 			);
 
 			final FilterIndex englishFilter = ReducedGroupEntityIndexTest.this.index
@@ -1211,8 +1209,7 @@ class ReducedGroupEntityIndexTest
 		@DisplayName("should dispose the histogram filter index once the last value under a given name/locale is removed")
 		void shouldDisposeHistogramFilterIndexWhenLastValueRemoved() {
 			ReducedGroupEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, null, 42, 10, Integer.class,
-			0
+				HISTOGRAM_NAME, null, 42, 10, Integer.class, 0
 			);
 			assertNotNull(
 				ReducedGroupEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null)
@@ -1257,8 +1254,7 @@ class ReducedGroupEntityIndexTest
 					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
 					original.insertHistogramValue(HISTOGRAM_NAME, null, 43, 11, Integer.class, 0);
 					original.insertHistogramValue(
-						"other", Locale.ENGLISH, 99, 12, Integer.class,
-					0
+						"other", Locale.ENGLISH, 99, 12, Integer.class, 0
 					);
 				},
 				(original, committed) -> {

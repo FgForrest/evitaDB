@@ -45,8 +45,22 @@ import java.util.Optional;
 @EqualsAndHashCode
 public class Histogram implements HistogramContract {
 	@Serial private static final long serialVersionUID = -4037073601860571920L;
+	/**
+	 * Inclusive upper bound of the last bucket; the rightmost bucket stores only its lower threshold.
+	 */
 	private final BigDecimal max;
+	/**
+	 * Pre-computed buckets ordered by ascending threshold; never empty (enforced by the constructor).
+	 */
 	@Getter private final Bucket[] buckets;
+	/**
+	 * Number of entities represented by the histogram. For point and price histograms, and for range histograms
+	 * under the frequency-equalised behaviors (`EQUALIZED` / `EQUALIZED_OPTIMIZED`), this equals the sum of
+	 * occurrences across all buckets; for range histograms under the overlap behaviors (`STANDARD` / `OPTIMIZED`) a
+	 * single record may overlap multiple buckets, so this is the distinct count — smaller than the bucket-occurrence
+	 * sum — and must be stored explicitly.
+	 */
+	private final int overallCount;
 	/**
 	 * Referenced entity whose value anchors the minimum bucket of the histogram. Populated only for
 	 * histograms computed over references when the query requests an entity fetch for the reference.
@@ -72,6 +86,26 @@ public class Histogram implements HistogramContract {
 		@Nullable SealedEntity minReferencedEntity,
 		@Nullable SealedEntity maxReferencedEntity
 	) {
+		this(buckets, max, sumOccurrences(buckets), minReferencedEntity, maxReferencedEntity);
+	}
+
+	/**
+	 * Constructor variant accepting an explicit `overallCount`. Used by range (overlap) histograms where a single
+	 * record may overlap multiple buckets, so the distinct-record count differs from the bucket-occurrence sum.
+	 *
+	 * @param buckets             non-empty array of buckets with strictly monotonic thresholds
+	 * @param max                 inclusive right bound of the last bucket; must be `>= buckets[last].threshold()`
+	 * @param overallCount        number of distinct entities covered by the histogram
+	 * @param minReferencedEntity entity anchoring the first bucket, or `null` if unresolved
+	 * @param maxReferencedEntity entity anchoring the last bucket, or `null` if unresolved
+	 */
+	public Histogram(
+		@Nonnull Bucket[] buckets,
+		@Nonnull BigDecimal max,
+		int overallCount,
+		@Nullable SealedEntity minReferencedEntity,
+		@Nullable SealedEntity maxReferencedEntity
+	) {
 		Assert.isTrue(!ArrayUtils.isEmpty(buckets), "Buckets may never be empty!");
 		Assert.isTrue(
 			buckets[buckets.length - 1].threshold().compareTo(max) <= 0,
@@ -91,8 +125,20 @@ public class Histogram implements HistogramContract {
 		);
 		this.buckets = buckets;
 		this.max = max;
+		this.overallCount = overallCount;
 		this.minReferencedEntity = minReferencedEntity;
 		this.maxReferencedEntity = maxReferencedEntity;
+	}
+
+	/**
+	 * Sums the occurrences across all buckets — the point/price-histogram definition of overall count.
+	 */
+	private static int sumOccurrences(@Nonnull Bucket[] buckets) {
+		int sum = 0;
+		for (final Bucket bucket : buckets) {
+			sum += bucket.occurrences();
+		}
+		return sum;
 	}
 
 	@Override
@@ -123,11 +169,7 @@ public class Histogram implements HistogramContract {
 
 	@Override
 	public int getOverallCount() {
-		int sum = 0;
-		for (final Bucket bucket : this.buckets) {
-			sum += bucket.occurrences();
-		}
-		return sum;
+		return this.overallCount;
 	}
 
 	@Nonnull

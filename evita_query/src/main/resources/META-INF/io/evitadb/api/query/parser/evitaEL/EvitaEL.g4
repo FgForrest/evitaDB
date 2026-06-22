@@ -56,6 +56,7 @@ expression
     | leftExpression = expression PERCENT rightExpression = expression # moduloExpression
     | leftExpression = expression PLUS rightExpression = expression # additionExpression
     | leftExpression = expression MINUS rightExpression = expression # substractionExpression
+    | value = expression DOUBLE_QUESTION_MARK defaultValue = expression # nullCoalesceExpression
     | leftExpression = expression GT rightExpression = expression # greaterThanExpression
     | leftExpression = expression GT_EQ rightExpression = expression # greaterThanEqualsExpression
     | leftExpression = expression LT rightExpression = expression # lessThanExpression
@@ -66,7 +67,6 @@ expression
     | leftExpression = expression AND rightExpression = expression # andExpression
     | leftExpression = expression OR rightExpression = expression # orExpression
     | value = expression nullSafe = QUESTION_MARK? STAR_QUESTION_MARK defaultValue = expression # spreadNullCoalesceExpression
-    | value = expression DOUBLE_QUESTION_MARK defaultValue = expression # nullCoalesceExpression
     ;
 
 operandOperationOperand

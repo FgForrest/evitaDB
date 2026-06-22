@@ -23,6 +23,7 @@
 
 package io.evitadb.utils;
 
+import io.evitadb.dataType.BigDecimalNumberRange;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -348,6 +350,152 @@ class NumberUtilsTest {
 			final Map<BigDecimal, Integer> map = Map.of(normalized[0], 1);
 			assertEquals(1, map.get(normalized[1]));
 			assertEquals(1, map.get(normalized[2]));
+		}
+	}
+
+	@Nested
+	@DisplayName("normalizeForIndexing tests")
+	class NormalizeForIndexingTests {
+
+		@Test
+		@DisplayName("Should strip trailing zeros for scalar BigDecimal regardless of indexed decimal places")
+		void shouldNormalizeScalarBigDecimal() {
+			assertEquals(new BigDecimal("5E+1"), NumberUtils.normalizeForIndexing(new BigDecimal("50.00"), 4));
+			assertEquals(new BigDecimal("88.1"), NumberUtils.normalizeForIndexing(new BigDecimal("88.10000"), 4));
+		}
+
+		@Test
+		@DisplayName("Should return non-decimal values unchanged")
+		void shouldReturnNonDecimalValuesUnchanged() {
+			final Serializable intValue = 42;
+			assertSame(intValue, NumberUtils.normalizeForIndexing(intValue, 4));
+			final Serializable strValue = "hello";
+			assertSame(strValue, NumberUtils.normalizeForIndexing(strValue, 4));
+		}
+
+		@Test
+		@DisplayName("Should normalize each element in BigDecimal array, preserving nulls")
+		void shouldNormalizeBigDecimalArrayPreservingNulls() {
+			final BigDecimal[] input = new BigDecimal[]{new BigDecimal("10.00"), null, new BigDecimal("30.50")};
+			final BigDecimal[] result = (BigDecimal[]) NumberUtils.normalizeForIndexing(input, 4);
+			assertEquals(new BigDecimal("1E+1"), result[0]);
+			assertNull(result[1]);
+			assertEquals(new BigDecimal("30.5"), result[2]);
+		}
+
+		@Test
+		@DisplayName("Should re-encode a typed range built at a different intrinsic scale to indexedDecimalPlaces")
+		void shouldReEncodeRangeToIndexedDecimalPlaces() {
+			// 2-arg factory derives retainedDecimalPlaces from the inputs' own scale (5) and leaves the
+			// schema-authoritative scale unknown (null) - this is the buggy case that must be re-encoded
+			final BigDecimalNumberRange input = BigDecimalNumberRange.between(
+				new BigDecimal("88.10000"), new BigDecimal("118.10000")
+			);
+			final BigDecimalNumberRange result =
+				(BigDecimalNumberRange) NumberUtils.normalizeForIndexing(input, 4);
+
+			final BigDecimalNumberRange expected = BigDecimalNumberRange.between(
+				new BigDecimal("88.10000"), new BigDecimal("118.10000"), 4
+			);
+			assertEquals(4, result.getRetainedDecimalPlaces());
+			assertEquals(expected.getFrom(), result.getFrom());
+			assertEquals(expected.getTo(), result.getTo());
+			// the comparable longs must equal those the query side produces at the same scale
+			assertEquals(881000L, result.getFrom());
+			assertEquals(1181000L, result.getTo());
+		}
+
+		@Test
+		@DisplayName("Should re-encode a range whose explicit scale differs from indexedDecimalPlaces")
+		void shouldReEncodeRangeWhenExplicitScaleDiffersFromIndexedDecimalPlaces() {
+			// the range carries an explicit retainedDecimalPlaces (2) that differs from the requested
+			// indexedDecimalPlaces (4), so it must be re-encoded to the schema-authoritative scale
+			final BigDecimalNumberRange input = BigDecimalNumberRange.between(
+				new BigDecimal("88.1"), new BigDecimal("118.1"), 2
+			);
+			final BigDecimalNumberRange result =
+				(BigDecimalNumberRange) NumberUtils.normalizeForIndexing(input, 4);
+
+			assertNotSame(input, result);
+			assertEquals(4, result.getRetainedDecimalPlaces());
+			assertEquals(881000L, result.getFrom());
+			assertEquals(1181000L, result.getTo());
+			// the precise bounds must be preserved through the re-encoding
+			assertEquals(0, new BigDecimal("88.1").compareTo(result.getPreciseFrom()));
+			assertEquals(0, new BigDecimal("118.1").compareTo(result.getPreciseTo()));
+		}
+
+		@Test
+		@DisplayName("Should return the same range instance when it already carries the requested scale")
+		void shouldReturnSameInstanceWhenScaleAlreadyMatches() {
+			final BigDecimalNumberRange input = BigDecimalNumberRange.between(
+				new BigDecimal("88.1"), new BigDecimal("118.1"), 4
+			);
+			assertSame(input, NumberUtils.normalizeForIndexing(input, 4));
+		}
+
+		@Test
+		@DisplayName("Should return the same range instance when null-retained natural scale already matches")
+		void shouldReturnSameInstanceWhenNullRetainedNaturalScaleAlreadyMatches() {
+			// 2-arg factory leaves retainedDecimalPlaces null but the bounds' natural scale (2) already
+			// equals indexedDecimalPlaces - the common index path must not allocate a fresh equal range
+			final BigDecimalNumberRange input = BigDecimalNumberRange.between(
+				new BigDecimal("88.10"), new BigDecimal("118.10")
+			);
+			assertSame(input, NumberUtils.normalizeForIndexing(input, 2));
+		}
+
+		@Test
+		@DisplayName("Should re-encode open-ended ranges (from-only and to-only)")
+		void shouldReEncodeOpenEndedRanges() {
+			final BigDecimalNumberRange fromOnly =
+				(BigDecimalNumberRange) NumberUtils.normalizeForIndexing(
+					BigDecimalNumberRange.from(new BigDecimal("88.10000")), 4
+				);
+			assertEquals(4, fromOnly.getRetainedDecimalPlaces());
+			assertEquals(881000L, fromOnly.getFrom());
+
+			final BigDecimalNumberRange toOnly =
+				(BigDecimalNumberRange) NumberUtils.normalizeForIndexing(
+					BigDecimalNumberRange.to(new BigDecimal("118.10000")), 4
+				);
+			assertEquals(4, toOnly.getRetainedDecimalPlaces());
+			assertEquals(1181000L, toOnly.getTo());
+		}
+
+		@Test
+		@DisplayName("Should round to indexedDecimalPlaces = 0")
+		void shouldRoundToZeroIndexedDecimalPlaces() {
+			final BigDecimalNumberRange result =
+				(BigDecimalNumberRange) NumberUtils.normalizeForIndexing(
+					BigDecimalNumberRange.between(new BigDecimal("88.10000"), new BigDecimal("118.90000")), 0
+				);
+			assertEquals(0, result.getRetainedDecimalPlaces());
+			assertEquals(88L, result.getFrom());
+			assertEquals(119L, result.getTo());
+		}
+
+		@Test
+		@DisplayName("Should leave the infinite range untouched")
+		void shouldLeaveInfiniteRangeUntouched() {
+			assertSame(
+				BigDecimalNumberRange.INFINITE,
+				NumberUtils.normalizeForIndexing(BigDecimalNumberRange.INFINITE, 4)
+			);
+		}
+
+		@Test
+		@DisplayName("Should re-encode each element of a range array, preserving nulls")
+		void shouldReEncodeRangeArrayPreservingNulls() {
+			final BigDecimalNumberRange[] input = new BigDecimalNumberRange[]{
+				BigDecimalNumberRange.between(new BigDecimal("88.10000"), new BigDecimal("118.10000")),
+				null
+			};
+			final BigDecimalNumberRange[] result =
+				(BigDecimalNumberRange[]) NumberUtils.normalizeForIndexing(input, 4);
+			assertEquals(4, result[0].getRetainedDecimalPlaces());
+			assertEquals(881000L, result[0].getFrom());
+			assertNull(result[1]);
 		}
 	}
 }

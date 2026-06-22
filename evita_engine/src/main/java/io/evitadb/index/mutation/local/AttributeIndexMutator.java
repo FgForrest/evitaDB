@@ -166,11 +166,12 @@ public interface AttributeIndexMutator {
 			attributeKey.attributeName());
 		Assert.notNull(attributeDefinition, "Attribute `" + attributeKey.attributeName() + "` not defined in schema!");
 
-		final Serializable valueToInsert = NumberUtils.normalizeIfBigDecimal(
+		final Serializable valueToInsert = NumberUtils.normalizeForIndexing(
 			Objects.requireNonNull(
 				EvitaDataTypes.toTargetType(
 					attributeValue, attributeDefinition.getType(), attributeDefinition.getIndexedDecimalPlaces())
-			)
+			),
+			attributeDefinition.getIndexedDecimalPlaces()
 		);
 
 		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
@@ -207,7 +208,9 @@ public interface AttributeIndexMutator {
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
 				if (existingValue.isPresent()) {
 					final AttributeValue theValue = existingValue.get();
-					final Serializable theValueToRemove = Objects.requireNonNull(theValue.value());
+					final Serializable theValueToRemove = NumberUtils.normalizeForIndexing(
+						Objects.requireNonNull(theValue.value()), attributeDefinition.getIndexedDecimalPlaces()
+					);
 					catalogIndex.removeUniqueAttribute(
 						entitySchema, globalAttributeSchema, allowedLocales, locale,
 						theValueToRemove, epkForRemoval
@@ -301,7 +304,9 @@ public interface AttributeIndexMutator {
 						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.EXISTING) + "!"
 				);
 				//noinspection unchecked
-				return (T) existingValue.value();
+				return (T) NumberUtils.normalizeForIndexing(
+					Objects.requireNonNull(existingValue.value()), attributeDefinition.getIndexedDecimalPlaces()
+				);
 			} else {
 				return alreadyKnownOldValue;
 			}

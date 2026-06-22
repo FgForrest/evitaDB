@@ -1161,12 +1161,10 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@DisplayName("should isolate histogram values per locale so one locale's records never leak into another")
 		void shouldIsolateHistogramValuesPerLocale() {
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class,
-			0
+				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class, 0
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.GERMAN, 42, 11, Integer.class,
-			0
+				HISTOGRAM_NAME, Locale.GERMAN, 42, 11, Integer.class, 0
 			);
 
 			final FilterIndex englishFilter = ReferencedTypeEntityIndexTest.this.index
@@ -1186,8 +1184,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@DisplayName("should dispose the histogram filter index once the last value under a given name/locale is removed")
 		void shouldDisposeHistogramFilterIndexWhenLastValueRemoved() {
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, null, 42, 10, Integer.class,
-			0
+				HISTOGRAM_NAME, null, 42, 10, Integer.class, 0
 			);
 			assertNotNull(
 				ReferencedTypeEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null)

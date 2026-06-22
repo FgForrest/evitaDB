@@ -1060,7 +1060,7 @@ public class DefaultCatalogPersistenceService
 			scheduler,
 			this.catalogStoragePath,
 			this.storageSettings.timeTravelEnabled(),
-			this::fetchDataFilesInfo
+			this::fetchOldestRetainedDataFilesInfo
 		);
 		final CatalogBootstrap initialCatalogBootstrap = new CatalogBootstrap(
 			0, 0, Instant.now().atZone(ZoneId.systemDefault()).toOffsetDateTime(), null
@@ -1238,7 +1238,7 @@ public class DefaultCatalogPersistenceService
 			scheduler,
 			this.catalogStoragePath,
 			this.storageSettings.timeTravelEnabled(),
-			this::fetchDataFilesInfo
+			this::fetchOldestRetainedDataFilesInfo
 		);
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
@@ -1375,7 +1375,7 @@ public class DefaultCatalogPersistenceService
 			this.scheduler,
 			this.catalogStoragePath,
 			this.storageSettings.timeTravelEnabled(),
-			this::fetchDataFilesInfo
+			this::fetchOldestRetainedDataFilesInfo
 		);
 		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
 		// TOBEDONE #538 - introduced with #650 and could be removed later when no version prior to 2025.2 is used
@@ -3736,33 +3736,20 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
-	 * This method finds bootstrap record for the given catalog version and returns its record along with the appropriate
-	 * catalog header.
+	 * Returns the bootstrap record and catalog header of the oldest catalog version still retained on disk (the first
+	 * record in the bootstrap file). This is the basis for the WAL-rotation purge driven by
+	 * {@link ObsoleteFileMaintainer}: the catalog data file referenced by this bootstrap is the lowest index that is
+	 * kept, so deleting everything strictly below it never removes a file that a retained bootstrap record still
+	 * references, and - because that file is by definition not eligible for deletion - the header read itself can never
+	 * target an already purged file. This mirrors the time-travel branch of {@link #purgeAllObsoleteFiles()}.
 	 *
-	 * @param catalogVersion the catalog version
-	 * @return the catalog header and the bootstrap record
+	 * @return the data files info of the oldest retained catalog version, or {@code null} when no bootstrap is available
 	 */
 	@Nullable
-	private DataFilesBulkInfo fetchDataFilesInfo(long catalogVersion) {
-		try (
-			final Stream<CatalogBootstrap> catalogBootstrapRecordStream = getCatalogBootstrapRecordStream(
-				this.catalogName, this.bootstrapStorageSettings
-			)
-		) {
-			final AtomicReference<CatalogBootstrap> lastExaminedBootstrap = new AtomicReference<>();
-			return catalogBootstrapRecordStream
-				.peek(lastExaminedBootstrap::set)
-				.filter(it -> it.catalogVersion() == catalogVersion)
-				.map(it -> new DataFilesBulkInfo(it, fetchCatalogHeader(it)))
-				.findFirst()
-				.orElseGet(() -> {
-					// when particular catalog version is not found
-					final CatalogBootstrap catalogBootstrap = lastExaminedBootstrap.get();
-					// we return the first bootstrap record that is greater than the requested catalog version
-					return catalogBootstrap.catalogVersion() > catalogVersion ?
-						new DataFilesBulkInfo(catalogBootstrap, fetchCatalogHeader(catalogBootstrap)) : null;
-				});
-		}
+	private DataFilesBulkInfo fetchOldestRetainedDataFilesInfo() {
+		return getFirstCatalogBootstrap(this.catalogName, this.bootstrapStorageSettings)
+			.map(it -> new DataFilesBulkInfo(it, fetchCatalogHeader(it)))
+			.orElse(null);
 	}
 
 	/**

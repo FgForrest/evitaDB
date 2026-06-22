@@ -23,6 +23,7 @@
 
 package io.evitadb.utils;
 
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
@@ -319,6 +320,85 @@ public class NumberUtils {
 			return normalized;
 		}
 		return value;
+	}
+
+	/**
+	 * Normalizes a value into the canonical form fed to the attribute indexes at the index-write boundary.
+	 *
+	 * This is the precision-aware counterpart of {@link #normalizeIfBigDecimal(Serializable)}: in addition to
+	 * stripping trailing zeros from scalar `BigDecimal` values (so numerically equal values map to the same
+	 * inverted-index key), it re-encodes {@link BigDecimalNumberRange} values to the attribute schema's
+	 * `indexedDecimalPlaces`. A range constructed from `BigDecimal`s whose own scale differs from the schema
+	 * (e.g. via {@link BigDecimalNumberRange#between(BigDecimal, BigDecimal)}) carries comparable longs frozen
+	 * at that intrinsic scale; left unchanged, those longs would not line up with the query bounds (which are
+	 * always encoded at `indexedDecimalPlaces`), so range overlap tests would silently miss. Re-encoding here
+	 * keeps the stored value untouched (store-verbatim) while guaranteeing the range index uses the same scale
+	 * as the query side. Both directions of an index mutation (insert and remove) must run through this method
+	 * so the encoded longs stay symmetric.
+	 *
+	 * Array variants are handled element-wise (preserving `null` elements); all other types are returned
+	 * unchanged. This null-guarding of array elements is the reason this method is kept separate from
+	 * {@link #normalizeIfBigDecimal(Serializable)} rather than folded into it — do not merge the two, the
+	 * differing element handling is a deliberate behavioral distinction.
+	 *
+	 * @param value                the value to normalize for indexing
+	 * @param indexedDecimalPlaces the attribute schema's indexed decimal places — the authoritative scale used
+	 *                             to encode `BigDecimalNumberRange` bounds into comparable longs
+	 * @return the value in its canonical index form
+	 */
+	@Nonnull
+	public static Serializable normalizeForIndexing(@Nonnull Serializable value, int indexedDecimalPlaces) {
+		if (value instanceof BigDecimal bd) {
+			return normalize(bd);
+		} else if (value instanceof BigDecimalNumberRange range) {
+			return normalizeRangeForIndexing(range, indexedDecimalPlaces);
+		} else if (value instanceof BigDecimal[] bdArray) {
+			final BigDecimal[] normalized = new BigDecimal[bdArray.length];
+			for (int i = 0; i < bdArray.length; i++) {
+				normalized[i] = bdArray[i] == null ? null : normalize(bdArray[i]);
+			}
+			return normalized;
+		} else if (value instanceof BigDecimalNumberRange[] rangeArray) {
+			final BigDecimalNumberRange[] normalized = new BigDecimalNumberRange[rangeArray.length];
+			for (int i = 0; i < rangeArray.length; i++) {
+				normalized[i] = rangeArray[i] == null ?
+					null : normalizeRangeForIndexing(rangeArray[i], indexedDecimalPlaces);
+			}
+			return normalized;
+		}
+		return value;
+	}
+
+	/**
+	 * Re-encodes a {@link BigDecimalNumberRange} so its comparable-long bounds use `indexedDecimalPlaces`.
+	 * Returns the original instance when it already carries the requested scale, or when it has no bounds to
+	 * re-scale (fully open / infinite range).
+	 *
+	 * @param range                the range to re-encode
+	 * @param indexedDecimalPlaces the authoritative scale to encode the bounds with
+	 * @return a range whose comparable-long bounds are encoded at `indexedDecimalPlaces`
+	 */
+	@Nonnull
+	private static BigDecimalNumberRange normalizeRangeForIndexing(
+		@Nonnull BigDecimalNumberRange range,
+		int indexedDecimalPlaces
+	) {
+		if (range.getEffectiveRetainedDecimalPlaces() == indexedDecimalPlaces) {
+			// already encoded at the requested scale (explicitly or by natural bound scale) - nothing to do
+			return range;
+		}
+		final BigDecimal from = range.getPreciseFrom();
+		final BigDecimal to = range.getPreciseTo();
+		if (from != null && to != null) {
+			return BigDecimalNumberRange.between(from, to, indexedDecimalPlaces);
+		} else if (from != null) {
+			return BigDecimalNumberRange.from(from, indexedDecimalPlaces);
+		} else if (to != null) {
+			return BigDecimalNumberRange.to(to, indexedDecimalPlaces);
+		} else {
+			// fully open / infinite range - no bounds to encode
+			return range;
+		}
 	}
 
 }

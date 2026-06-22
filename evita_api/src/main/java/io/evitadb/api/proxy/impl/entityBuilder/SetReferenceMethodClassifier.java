@@ -358,8 +358,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull SealedEntityProxyState theState
 	) {
 		final String referenceName = referenceSchema.getName();
-		final int referencedId = Objects.requireNonNull(
-			EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class));
+		final int referencedId = requireReferencedId(args, referenceIdLocation, referenceName);
 		final Optional<ReferenceContract> reference = theState
 			.entityBuilder()
 		    .getReference(referenceName, referencedId);
@@ -509,8 +508,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nullable ConstantPredicate constantPredicate
 	) {
 		final String referenceName = referenceSchema.getName();
-		final int referencedId = Objects.requireNonNull(
-			EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class));
+		final int referencedId = requireReferencedId(args, referenceIdLocation, referenceName);
 		final Predicate<Object> predicate = predicateLocation >= 0 ?
 			(Predicate<Object>) Objects.requireNonNull(args[predicateLocation]) : null;
 		final Predicate<Object> composedPredicate = combinePredicates(predicate, constantPredicate, args);
@@ -827,7 +825,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		final Object referenceProxy = theState.getOrCreateReferencedEntityProxyWithCallback(
 			referenceSchema.getName(),
 			referencedIdIndex >= 0 ?
-				Objects.requireNonNull(EvitaDataTypes.toTargetType((Serializable) args[referencedIdIndex], int.class)) :
+				requireReferencedId(args, referencedIdIndex, referenceSchema.getName()) :
 				null,
 			referencedEntitySchema,
 			expectedType,
@@ -920,9 +918,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				if (schemaCardinality.allowsDuplicates()) {
 					throw new ReferenceAllowsDuplicatesException(referenceName, theState.getEntitySchema(), Operation.WRITE);
 				} else {
-					final int requestedPrimaryKey = Objects.requireNonNull(
-						EvitaDataTypes.toTargetType((Serializable) args[referencedIdIndex], int.class)
-					);
+					final int requestedPrimaryKey = requireReferencedId(args, referencedIdIndex, referenceName);
 					referencedEntity = references.stream()
 						.filter(it -> it.getReferencedPrimaryKey() == requestedPrimaryKey)
 						.findFirst()
@@ -969,8 +965,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final String referenceName = referenceSchema.getName();
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final int referencedId = Objects.requireNonNull(
-				EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
+			final int referencedId = requireReferencedId(args, 0, referenceName);
 			final Optional<ReferenceContract> reference = theState
 				.entityBuilder()
 			    .getReference(referenceName, referencedId);
@@ -1051,9 +1046,63 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Reads the referenced primary key at `args[referencedIdIndex]` and converts it to `int`.
+	 * Throws `EvitaInvalidUsageException` carrying the reference name when the argument is `null`
+	 * (e.g. a boxed `Integer` parameter passed as `null`) instead of letting an opaque
+	 * `NullPointerException` bubble up from the value conversion (see #1241).
+	 *
+	 * @param args               the original method arguments
+	 * @param referencedIdIndex  position of the referenced primary key in `args` (must be `>= 0`)
+	 * @param referenceName      the reference schema name (used only in the error message)
+	 * @return the referenced primary key as an `int`
+	 */
+	private static int requireReferencedId(
+		@Nonnull Object[] args,
+		int referencedIdIndex,
+		@Nonnull String referenceName
+	) {
+		final Object rawArg = args[referencedIdIndex];
+		if (rawArg == null) {
+			throw new EvitaInvalidUsageException(
+				"Referenced primary key for reference `" + referenceName + "` must not be null!"
+			);
+		}
+		// EvitaDataTypes.toTargetType only returns null for null input; rawArg is non-null here.
+		return EvitaDataTypes.toTargetType((Serializable) rawArg, int.class);
+	}
+
+	/**
+	 * Returns the references of the given name from the builder, optionally narrowed to a single
+	 * referenced primary key read from `args[referencedIdIndex]` when `referencedIdIndex >= 0`.
+	 * Mirrors the id-narrowing performed by the create/update path in
+	 * `getOrCreateReferenceWithPredicateAndId`, so that remove-by-(id + attribute predicate)
+	 * matches on BOTH the id and the predicate instead of the predicate alone.
+	 *
+	 * @param entityBuilder      the entity builder to read references from
+	 * @param referenceName      the reference schema name
+	 * @param args               the original method arguments (used only when referencedIdIndex >= 0)
+	 * @param referencedIdIndex  position of the referenced primary key in `args`, or `-1` if none
+	 * @return references for the given reference name (optionally narrowed by referenced primary key)
+	 */
+	@Nonnull
+	private static Collection<ReferenceContract> getReferencesForRemoval(
+		@Nonnull EntityBuilder entityBuilder,
+		@Nonnull String referenceName,
+		@Nonnull Object[] args,
+		int referencedIdIndex
+	) {
+		if (referencedIdIndex >= 0) {
+			final int referencedId = requireReferencedId(args, referencedIdIndex, referenceName);
+			return entityBuilder.getReferences(referenceName, referencedId);
+		}
+		return entityBuilder.getReferences(referenceName);
+	}
+
+	/**
 	 * Return a method implementation that removes the single reference if exists.
 	 *
 	 * @param referenceSchema the reference schema to use
+	 * @param referencedIdIndex index of the referenced primary key in the method args, or -1 if none
 	 * @return the method implementation
 	 */
 	@Nonnull
@@ -1062,6 +1111,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ResolvedParameter resolvedParameter,
 		boolean entityRecognizedInReturnType,
+		int referencedIdIndex,
 		int predicateIndex,
 		@Nullable Class<?> predicateType,
 		@Nullable ConstantPredicate constantPredicate
@@ -1072,8 +1122,9 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (Number.class.isAssignableFrom(returnType)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
 					final EntityBuilder entityBuilder = theState.entityBuilder();
-					final Collection<ReferenceContract> references = entityBuilder.getReferences(
-						referenceName);
+					final Collection<ReferenceContract> references = getReferencesForRemoval(
+						entityBuilder, referenceName, args, referencedIdIndex
+					);
 					//noinspection unchecked
 					final Predicate<Object> predicate = predicateIndex >= 0 ?
 						(Predicate<Object>) Objects.requireNonNull(args[predicateIndex]) :
@@ -1097,6 +1148,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					referenceSchema,
 					returnType,
 					entityRecognizedInReturnType,
+					referencedIdIndex,
 					predicateIndex,
 					predicateType,
 					constantPredicate
@@ -1105,7 +1157,9 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		} else if (returnType.equals(void.class)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final EntityBuilder entityBuilder = theState.entityBuilder();
-				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				final Collection<ReferenceContract> references = getReferencesForRemoval(
+					entityBuilder, referenceName, args, referencedIdIndex
+				);
 				//noinspection unchecked
 				final Predicate<Object> predicate = predicateIndex >= 0 ? (Predicate<Object>) Objects.requireNonNull(
 					args[predicateIndex]) : null;
@@ -1124,7 +1178,9 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		} else if (Boolean.class.isAssignableFrom(returnType)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final EntityBuilder entityBuilder = theState.entityBuilder();
-				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				final Collection<ReferenceContract> references = getReferencesForRemoval(
+					entityBuilder, referenceName, args, referencedIdIndex
+				);
 				//noinspection unchecked
 				final Predicate<Object> predicate = predicateIndex >= 0 ? (Predicate<Object>) Objects.requireNonNull(
 					args[predicateIndex]) : null;
@@ -1146,8 +1202,9 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (returnType.equals(proxyState.getProxyClass())) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
 					final EntityBuilder entityBuilder = theState.entityBuilder();
-					final Collection<ReferenceContract> references = entityBuilder.getReferences(
-						referenceName);
+					final Collection<ReferenceContract> references = getReferencesForRemoval(
+						entityBuilder, referenceName, args, referencedIdIndex
+					);
 					if (references.isEmpty()) {
 						// do nothing
 					} else {
@@ -1171,7 +1228,9 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			} else if (Number.class.isAssignableFrom(returnType) || (returnType.isPrimitive() && (int.class.equals(returnType) || long.class.equals(returnType)))) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
 					final EntityBuilder entityBuilder = theState.entityBuilder();
-					final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+					final Collection<ReferenceContract> references = getReferencesForRemoval(
+						entityBuilder, referenceName, args, referencedIdIndex
+					);
 					if (references.isEmpty()) {
 						// do nothing
 						return 0;
@@ -1199,6 +1258,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					referenceSchema,
 					returnType,
 					entityRecognizedInReturnType,
+					referencedIdIndex,
 					predicateIndex,
 					predicateType,
 					constantPredicate
@@ -1242,6 +1302,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * @param referenceSchema              the reference schema to use
 	 * @param returnType                   the return type
 	 * @param entityRecognizedInReturnType true if the entity annotation is recognized in the return type
+	 * @param referencedIdIndex            index of the referenced PK in method args, or -1 if none
 	 * @return the method implementation
 	 */
 	@Nonnull
@@ -1249,6 +1310,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class<?> returnType,
 		boolean entityRecognizedInReturnType,
+		int referencedIdIndex,
 		int predicateIndex,
 		@Nullable Class<?> predicateType,
 		@Nullable ConstantPredicate constantPredicate
@@ -1256,7 +1318,9 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final String referenceName = referenceSchema.getName();
-			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+			final Collection<ReferenceContract> references = getReferencesForRemoval(
+				entityBuilder, referenceName, args, referencedIdIndex
+			);
 			if (references.isEmpty()) {
 				// do nothing
 				return null;
@@ -1315,6 +1379,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * @param referenceSchema              the reference schema to use
 	 * @param returnType                   the return type
 	 * @param entityRecognizedInReturnType true if the entity annotation is recognized in the return type
+	 * @param referencedIdIndex            index of the referenced PK in method args, or -1 if none
 	 * @return the method implementation
 	 */
 	@Nonnull
@@ -1322,6 +1387,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class<?> returnType,
 		boolean entityRecognizedInReturnType,
+		int referencedIdIndex,
 		int predicateIndex,
 		@Nullable Class<?> predicateType,
 		@Nullable ConstantPredicate constantPredicate
@@ -1329,7 +1395,9 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final String referenceName = referenceSchema.getName();
-			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+			final Collection<ReferenceContract> references = getReferencesForRemoval(
+				entityBuilder, referenceName, args, referencedIdIndex
+			);
 			if (references.isEmpty()) {
 				// do nothing
 				return Collections.emptyList();
@@ -2109,8 +2177,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull SealedEntityProxyState theState
 	) {
 		final EntityBuilder entityBuilder = theState.entityBuilder();
-		final Serializable referencedPrimaryKey = (Serializable) args[0];
-		final int referenceId = Objects.requireNonNull(EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class));
+		final int referenceId = requireReferencedId(args, 0, referenceName);
 		final Optional<ReferenceContract> reference = entityBuilder.getReference(referenceName, referenceId);
 		if (reference.isPresent()) {
 			final ReferenceKey referenceKey = reference.get().getReferenceKey();
@@ -2137,8 +2204,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		final String referenceName = referenceSchema.getName();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.entityBuilder();
-			final int referencedPrimaryKey = Objects.requireNonNull(
-				EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
+			final int referencedPrimaryKey = requireReferencedId(args, 0, referenceName);
 			final Optional<ReferenceContract> reference = entityBuilder.getReference(
 				referenceName, referencedPrimaryKey
 			);
@@ -2319,8 +2385,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		} else {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final InternalEntityBuilder entityBuilder = theState.entityBuilder();
-				final int referencedId = Objects.requireNonNull(
-					EvitaDataTypes.toTargetType((Serializable) args[0], int.class));
+				final int referencedId = requireReferencedId(args, 0, referenceSchema.getName());
 				final ReferenceKey referenceKey = entityBuilder.createReference(
 					referenceSchema.getName(), referencedId
 				);
@@ -2612,7 +2677,10 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				.map(AttributeRef::value)
 				.orElseGet(parameter::getName);
 
-			if (NumberUtils.isIntConvertibleNumber(parameterType)) {
+			// `@AttributeRef` takes precedence over the int-convertible referenced-id classification:
+			// an `@AttributeRef` parameter of an int-convertible type is a representative/filter
+			// attribute predicate, not the referenced primary key (see #1241).
+			if (NumberUtils.isIntConvertibleNumber(parameterType) && attributeRef.isEmpty()) {
 				referencedIdIndex = OptionalInt.of(i);
 			} else if (Consumer.class.isAssignableFrom(parameterType)) {
 				consumerIndex = OptionalInt.of(i);
@@ -2807,6 +2875,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 							      }),
 							isEntityRecognizedIn(parsedArguments.entityRecognizedIn(), EntityRecognizedIn.RETURN_TYPE),
 							-1,
+							-1,
 							null,
 							null
 						);
@@ -2842,6 +2911,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 										return new ResolvedParameter(method.getReturnType(), methodReturnType);
 									}),
 								isEntityRecognizedIn(parsedArguments.entityRecognizedIn(), EntityRecognizedIn.RETURN_TYPE),
+								parsedArguments.referencedIdIndex().orElse(-1),
 								parsedArguments.predicateIndex().orElse(-1),
 								parsedArguments.predicateType().map(ResolvedParameter::resolvedType).orElse(null),
 								parsedArguments.constantPredicate().orElse(null)
@@ -2902,6 +2972,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 									      return new ResolvedParameter(method.getReturnType(), methodReturnType);
 								      }),
 								isEntityRecognizedIn(parsedArguments.entityRecognizedIn(), EntityRecognizedIn.RETURN_TYPE),
+								parsedArguments.referencedIdIndex().orElse(-1),
 								parsedArguments.predicateIndex().orElse(-1),
 								parsedArguments.predicateType().map(ResolvedParameter::resolvedType).orElse(null),
 								parsedArguments.constantPredicate().orElse(null)

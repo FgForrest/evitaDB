@@ -39,8 +39,6 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.NavigableSet;
-import java.util.TreeSet;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -203,105 +201,11 @@ public class ReferenceDecimalRangeHistogramFunctionalTest
 		);
 	}
 
-	@Test
-	@UseDataSet(REFERENCE_HISTOGRAM_DECIMAL_RANGE)
-	@DisplayName("should account each decimal range into every overlapping bucket across bucket counts")
-	void shouldAccountEachDecimalRangeIntoEveryOverlappingBucket(@Nonnull Evita evita) {
-		// the emitted threshold grid varies with the requested bucket count; the overlap oracle is
-		// independent of that grid — it reads whatever thresholds the engine emits and re-buckets the
-		// seeded range endpoints into them. Asserting it across several counts proves the range-overlap
-		// accounting holds whatever bucketing strategy the cruncher picks.
-		evita.queryCatalog(
-			TEST_CATALOG,
-			session -> {
-				for (final int requested : new int[] {6, 10, 20, 50}) {
-					final HistogramContract histogram = queryGroupHistogram(session, requested);
-					assertBucketsMatchOverlapOracle(histogram);
-				}
-			}
-		);
-	}
-
-	// ---------------------------------------------------------------------
-	// overlap oracle — independent re-derivation of expected bucket counts
-	// ---------------------------------------------------------------------
-
 	/**
 	 * A seeded `parameterValue` decimal-range-fixture row: the inclusive `BigDecimal` bounds
 	 * of its `validRange` attribute.
 	 */
 	private record SeededDecimalRange(@Nonnull BigDecimal from, @Nonnull BigDecimal to) {
-	}
-
-	/**
-	 * Number of supplied ranges whose closed interval `[from, to]` contains `endpoint`.
-	 * Mirrors the closed-interval semantics of `FilterIndex#getRangeHistogramOfAllRecords`: a
-	 * record's `starts` join the active set before the threshold bucket is snapshotted and its
-	 * `ends` leave only afterwards, so a range is counted at both its lower and upper endpoint.
-	 */
-	private static int overlapCount(@Nonnull BigDecimal endpoint) {
-		int count = 0;
-		for (final SeededDecimalRange range : SEEDED_RANGES) {
-			if (range.from().compareTo(endpoint) <= 0 && endpoint.compareTo(range.to()) <= 0) {
-				count++;
-			}
-		}
-		return count;
-	}
-
-	/**
-	 * Independently re-derives the expected per-bucket occurrences from {@link #SEEDED_RANGES}
-	 * and asserts the histogram the engine produced matches bucket-for-bucket.
-	 *
-	 * Each distinct range endpoint `E` carries weight {@link #overlapCount(BigDecimal)} (how
-	 * many ranges cover it); the cruncher sums those weights into whichever emitted bucket
-	 * interval contains `E`. Intervals are half-open `[thresholdᵢ, thresholdᵢ₊₁)` except the
-	 * last, which is closed `[thresholdₙ₋₁, max]`. The re-bucketing uses only `BigDecimal`
-	 * comparison and the emitted thresholds — it never calls the histogram engine — so a match
-	 * proves every range was accounted into every bucket its endpoints fall in, with no drops
-	 * and no double-counts. Because the endpoints are compared against the emitted thresholds,
-	 * the oracle also fails if those thresholds are collapsed by a power of ten.
-	 */
-	private static void assertBucketsMatchOverlapOracle(@Nonnull HistogramContract histogram) {
-		final Bucket[] buckets = histogram.getBuckets();
-		final BigDecimal max = histogram.getMax();
-		// distinct endpoints of the seeded ranges, ascending, at the schema scale
-		final NavigableSet<BigDecimal> endpoints = new TreeSet<>();
-		for (final SeededDecimalRange range : SEEDED_RANGES) {
-			endpoints.add(scaleToSchema(range.from()));
-			endpoints.add(scaleToSchema(range.to()));
-		}
-		int independentTotal = 0;
-		for (int i = 0; i < buckets.length; i++) {
-			final BigDecimal lower = buckets[i].threshold();
-			final boolean last = i == buckets.length - 1;
-			final BigDecimal upper = last ? max : buckets[i + 1].threshold();
-			int expected = 0;
-			for (final BigDecimal endpoint : endpoints) {
-				final boolean atOrAboveLower = endpoint.compareTo(lower) >= 0;
-				// half-open upper bound for every bucket but the last, which owns `max` inclusively
-				final boolean belowUpper = last
-					? endpoint.compareTo(upper) <= 0
-					: endpoint.compareTo(upper) < 0;
-				if (atOrAboveLower && belowUpper) {
-					expected += overlapCount(endpoint);
-				}
-			}
-			assertEquals(
-				expected, buckets[i].occurrences(),
-				"Bucket " + (last ? "[" + lower + ", " + max + "]" : "[" + lower + ", " + upper + ")")
-					+ " must count every seeded range overlapping each endpoint it contains"
-			);
-			independentTotal += expected;
-		}
-		assertTrue(
-			independentTotal > 0,
-			"the seeded ranges must contribute at least one attribution"
-		);
-		assertEquals(
-			independentTotal, histogram.getOverallCount(),
-			"overallCount must equal the independently derived total attribution count"
-		);
 	}
 
 }

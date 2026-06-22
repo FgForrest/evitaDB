@@ -31,21 +31,41 @@ import javax.annotation.Nonnull;
 /**
  * Record contains settings for particular thread pool used inside evitaDB.
  *
- * @param minThreadCount Defines count of threads that are spun up in
- *                       `ExecutorService` for handling input requests
- *                       as well as maintenance tasks. The more catalogs
- *                       in evitaDB there are, the higher count of
- *                       thread count might be required.
- * @param maxThreadCount Defines count of threads that might be spun up
- *                       at the maximum (i.e. when there are not enough
- *                       threads to process input requests and background
- *                       tasks).
+ * The request and transaction pools are backed by a {@code ThreadPoolExecutor} configured with a
+ * *threads-first* (Tomcat-style) queueing policy: the pool grows from {@link #minThreadCount}
+ * up to {@link #maxThreadCount} *before* any task is parked in the backlog, and only once all
+ * {@code maxThreadCount} threads are busy does the {@link #queueSize}-bounded backlog start filling.
+ * This trades a little CPU oversubscription for lower latency — idle thread headroom is used
+ * immediately instead of letting requests wait behind busy core threads. evitaDB's request workload
+ * is a mix of CPU work and blocking (I/O, serialization, lock waits), so headroom above the CPU count
+ * is required to keep cores busy while some threads are parked.
+ *
+ * The core-derived defaults reflect this: {@code minThreadCount = availableProcessors()} (a warm
+ * baseline equal to the CPU count) and {@code maxThreadCount = availableProcessors() * 4} (enough
+ * blocking headroom while staying below the ~5×CPU point where empirical throughput begins to halve
+ * from context-switch thrash). Request and transaction pools share identical sizing and queueing
+ * behaviour. Production deployments are expected to override these with explicit values; the defaults
+ * are only a sane unconfigured baseline.
+ *
+ * @param minThreadCount Core thread count of the backing `ThreadPoolExecutor`
+ *                       (`corePoolSize`). Threads are created on demand up to
+ *                       this count and kept ready for handling input requests
+ *                       and maintenance tasks; idle threads are reclaimed after
+ *                       a keep-alive period. The more catalogs in evitaDB there
+ *                       are, the higher count might be required.
+ * @param maxThreadCount Maximum thread count of the backing `ThreadPoolExecutor`
+ *                       (`maximumPoolSize`) — the effective concurrency ceiling.
+ *                       The pool grows from `minThreadCount` up to this many
+ *                       threads *before* it starts queueing, so the configured
+ *                       maximum is actually reachable for blocking workloads
+ *                       (decoupled from the available CPU count).
  * @param threadPriority Defines a `Thread.getPriority()` for background
  *                       threads. The number must be in interval 1-10.
  *                       The threads with higher priority should be
  *                       preferred over the ones with lesser priority.
- * @param queueSize      Maximum amount of tasks accepted to thread pool
- *                       to wait for a free thread.
+ * @param queueSize      Maximum number of tasks allowed to wait in the backlog
+ *                       once all `maxThreadCount` threads are busy. Beyond this
+ *                       the task is rejected with a `RejectedExecutionException`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -55,12 +75,12 @@ public record ThreadPoolOptions(
 	int threadPriority,
 	int queueSize
 ) {
-	public static final int DEFAULT_REQUEST_MIN_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 10;
-	public static final int DEFAULT_REQUEST_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 20;
+	public static final int DEFAULT_REQUEST_MIN_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
+	public static final int DEFAULT_REQUEST_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() << 2;
 	public static final int DEFAULT_REQUEST_THREAD_PRIORITY = 8;
 	public static final int DEFAULT_REQUEST_QUEUE_SIZE = 100;
 	public static final int DEFAULT_TRANSACTION_MIN_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
-	public static final int DEFAULT_TRANSACTION_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() << 1;
+	public static final int DEFAULT_TRANSACTION_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() << 2;
 	public static final int DEFAULT_TRANSACTION_THREAD_PRIORITY = 5;
 	public static final int DEFAULT_TRANSACTION_QUEUE_SIZE = 100;
 	public static final int DEFAULT_MIN_SERVICE_THREAD_COUNT = Math.max(Runtime.getRuntime().availableProcessors(), 1);
