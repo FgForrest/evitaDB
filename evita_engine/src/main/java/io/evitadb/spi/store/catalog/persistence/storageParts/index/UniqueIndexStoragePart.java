@@ -40,7 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Filter index container stores index for single {@link AttributeSchema} of the single
+ * Unique index container stores index for single {@link AttributeSchema} of the single
  * {@link EntitySchema}. This container object serves only as a storage carrier for
  * {@link io.evitadb.index.attribute.UniqueIndex} which is a live memory representation of the data stored in this
  * container.
@@ -58,7 +58,7 @@ import java.util.Objects;
 @NotThreadSafe
 @ToString(of = "attributeIndexKey")
 public class UniqueIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = 5731946208351947602L;
+	@Serial private static final long serialVersionUID = 8200588488685516906L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.

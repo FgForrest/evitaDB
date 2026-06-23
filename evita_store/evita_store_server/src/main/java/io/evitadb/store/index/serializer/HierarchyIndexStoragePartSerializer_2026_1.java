@@ -38,7 +38,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 /**
  * This {@link Serializer} implementation reads {@link HierarchyIndexStoragePart} from binary format.
  *
- * It reads the pre-granular-slimming format current in the 2026.2 development line; retained for backward
+ * It reads the 2026.1 (released) binary format; retained for backward
  * compatibility only. That format wrote the children id arrays, the roots and the orphans as raw fixed 4-byte ints; the
  * current serializer delta-varints those (globally ascending) arrays. Like the other deprecated readers its
  * {@link #write(Kryo, Output, HierarchyIndexStoragePart)} throws — this format must never be written again. The
@@ -48,7 +48,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Deprecated(since = "2026.2", forRemoval = true)
-public class HierarchyIndexStoragePartSerializer_2026_2 extends Serializer<HierarchyIndexStoragePart> {
+public class HierarchyIndexStoragePartSerializer_2026_1 extends Serializer<HierarchyIndexStoragePart> {
 
 	@Override
 	public void write(Kryo kryo, Output output, HierarchyIndexStoragePart hierarchyIndex) {

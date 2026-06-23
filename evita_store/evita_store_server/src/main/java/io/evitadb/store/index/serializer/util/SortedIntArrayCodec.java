@@ -114,4 +114,66 @@ public final class SortedIntArrayCodec {
 		return result;
 	}
 
+	/**
+	 * Writes a non-decreasing **run** of an `int[]` (a contiguous sub-range `[from, from + len)`) WITHOUT a count
+	 * prefix — the caller already knows the run length from elsewhere (e.g. a sort-index block length derived from the
+	 * value cardinality), so persisting it again would be redundant. This is the building block for block-delta
+	 * encoding where many short ascending runs are concatenated and their lengths are recovered independently.
+	 *
+	 * The run must be sorted in ascending order (equal neighbours are allowed); a debug premise check fails loud on a
+	 * decreasing run so a caller that hands in unsorted data is caught immediately instead of silently corrupting the
+	 * stream. Callers that cannot guarantee the run is non-decreasing must check it themselves and choose a raw
+	 * fallback before calling this method (the predicate is the same `current >= previous` used here).
+	 *
+	 * @param output the Kryo output to write to
+	 * @param array  the backing array holding the run (must not be null)
+	 * @param from   the inclusive start index of the run
+	 * @param len    the number of elements in the run; `0` writes nothing
+	 */
+	public static void writeAscendingRun(@Nonnull Output output, @Nonnull int[] array, int from, int len) {
+		if (len == 0) {
+			return;
+		}
+		// the first element of the run may be negative, so use zig-zag to keep small magnitudes compact regardless of sign
+		output.writeVarInt(array[from], false);
+		int previous = array[from];
+		final int to = from + len;
+		for (int i = from + 1; i < to; i++) {
+			final int current = array[i];
+			// fail loud on a decreasing run instead of writing a negative gap that the reader would misinterpret
+			Assert.isPremiseValid(
+				current >= previous,
+				"SortedIntArrayCodec requires a non-decreasing run, but element at index " + i +
+					" (" + current + ") is smaller than its predecessor (" + previous + ")!"
+			);
+			// the gap of an ascending run is always >= 0, so a plain (unsigned) varint is optimal here
+			output.writeVarInt(current - previous, true);
+			previous = current;
+		}
+	}
+
+	/**
+	 * Reads a run previously written by {@link #writeAscendingRun(Output, int[], int, int)} into `dst[from .. from+len)`.
+	 * The run length must be supplied by the caller (it was not persisted). `len == 0` is a no-op.
+	 *
+	 * @param input the Kryo input to read from
+	 * @param dst   the destination array to fill (must not be null and must be large enough for `[from, from + len)`)
+	 * @param from  the inclusive start index in `dst` to fill
+	 * @param len   the number of elements to read
+	 */
+	public static void readAscendingRun(@Nonnull Input input, @Nonnull int[] dst, int from, int len) {
+		if (len == 0) {
+			return;
+		}
+		// the first element of the run was zig-zag encoded
+		int previous = input.readVarInt(false);
+		dst[from] = previous;
+		final int to = from + len;
+		for (int i = from + 1; i < to; i++) {
+			// each subsequent element is the running sum of the unsigned gaps
+			previous += input.readVarInt(true);
+			dst[i] = previous;
+		}
+	}
+
 }

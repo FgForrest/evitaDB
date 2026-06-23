@@ -43,7 +43,7 @@ import lombok.RequiredArgsConstructor;
  * internal price id and then deduped), so it is delta-varint encoded via {@link SortedIntArrayCodec} instead of as raw
  * fixed 4-byte ints. The codec asserts the non-decreasing invariant on write, so any future breakage of that fragile
  * ordering fails loud rather than silently corrupting the stream. The pre-slimming format is read by
- * {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2}.
+ * {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

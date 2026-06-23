@@ -53,7 +53,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Round-trip and lazy-upgrade coverage for {@link FacetIndexStoragePartSerializer} (referencing entity id arrays
- * delta-varint encoded) and the preserved {@link FacetIndexStoragePartSerializer_2026_2} (raw fixed-int format).
+ * delta-varint encoded) and the preserved {@link FacetIndexStoragePartSerializer_2026_1} (the 2026.1 released raw
+ * fixed-int format).
  * Covers empty / single / large-gap referencing arrays, a present and an absent no-group block, and multiple groups.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -64,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 @Tag(SERIALIZATION)
 class FacetIndexStoragePartSerializerTest {
 	/** The pre-slimming serial-version-uid of {@link FacetIndexStoragePart} (kept registered). */
-	private static final long LEGACY_2026_2_UID = -2348533783771242845L;
+	private static final long LEGACY_2026_1_UID = -2348533783771242845L;
 
 	private Kryo kryo;
 
@@ -192,10 +193,10 @@ class FacetIndexStoragePartSerializerTest {
 		}
 
 		/**
-		 * Hand-encodes the pre-slimming 2026.2 raw-int format for the given part (uid-prefixed), mirroring the dropped
-		 * 2026.2 writer's wire exactly so the production dispatcher routes it to the registered 2026.2 reader. The
-		 * preserved {@link FacetIndexStoragePartSerializer_2026_2} is the frozen prior-production reader; its write path
-		 * deliberately throws, so the legacy blob is reproduced here by hand.
+		 * Hand-encodes the 2026.1 released pre-slimming raw-int format for the given part (uid-prefixed), mirroring the
+		 * dropped 2026.1 writer's wire exactly so the production dispatcher routes it to the registered 2026.1 reader.
+		 * The preserved {@link FacetIndexStoragePartSerializer_2026_1} is the frozen prior-production reader; its write
+		 * path deliberately throws, so the legacy blob is reproduced here by hand.
 		 *
 		 * @param part the storage part to encode in the pre-slimming format
 		 * @return the legacy-format bytes (uid-prefixed)
@@ -204,7 +205,7 @@ class FacetIndexStoragePartSerializerTest {
 		private byte[] encodePreSlimmingBytes(@Nonnull FacetIndexStoragePart part) {
 			final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
 			try (final Output output = new Output(os, 4_096)) {
-				output.writeLong(LEGACY_2026_2_UID);
+				output.writeLong(LEGACY_2026_1_UID);
 				output.writeVarInt(part.getEntityIndexPrimaryKey(), true);
 				output.writeString(part.getReferenceName());
 

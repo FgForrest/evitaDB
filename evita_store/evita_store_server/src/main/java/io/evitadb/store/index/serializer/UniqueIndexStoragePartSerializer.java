@@ -49,8 +49,9 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * the set of the value-to-record map values (see {@link io.evitadb.index.attribute.OwnerUniqueIndex}) and is rebuilt
  * from them on read, so it is no longer persisted. Each record id is written as a zig-zag varint instead of a fixed
  * 4-byte int. A folded (view-mode) part carries no value-to-record map at all — its data lives in the shared
- * `FilterIndexStoragePart` — and writes only a single boolean marker. The pre-slimming format is read by
- * {@link UniqueIndexStoragePartSerializer_2026_2}.
+ * `FilterIndexStoragePart` — and writes only a single boolean marker. The released-minor formats are read by
+ * {@link UniqueIndexStoragePartSerializer_2025_5} / {@link UniqueIndexStoragePartSerializer_2026_1}; the prior 2026.2
+ * development format was never released, so it has no backward-compatible reader.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

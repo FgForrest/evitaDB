@@ -41,7 +41,7 @@ import java.util.Map;
 /**
  * This {@link Serializer} implementation reads {@link ChainIndex} from binary format.
  *
- * It reads the pre-granular-slimming format current in the 2026.2 development line; retained for backward
+ * It reads the 2026.1 (released) binary format; retained for backward
  * compatibility only. Like the other deprecated readers its {@link #write(Kryo, Output, ChainIndexStoragePart)} throws
  * — this format must never be written again. The dispatcher delegates writes only to the current serializer; the
  * backward-compatible reading is validated end-to-end by the backward-compatibility suite.
@@ -50,7 +50,7 @@ import java.util.Map;
  */
 @Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor
-public class ChainIndexStoragePartSerializer_2026_2 extends Serializer<ChainIndexStoragePart> {
+public class ChainIndexStoragePartSerializer_2026_1 extends Serializer<ChainIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override

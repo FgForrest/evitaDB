@@ -42,7 +42,6 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.io.Serializable;
-import java.util.Objects;
 import java.util.Collections;
 import java.util.Map;
 
@@ -82,8 +81,6 @@ class UniqueIndexStoragePartSerializerTest {
 	// by the end-to-end backward-compatibility test on real old catalogs, so it is intentionally out of scope here.
 	/** The 2026.1 serial-version-uid of {@link UniqueIndexStoragePart} (kept registered for old catalogs). */
 	private static final long LEGACY_2026_1_UID = -3921198859032670410L;
-	/** The pre-slimming 2026.2 serial-version-uid of {@link UniqueIndexStoragePart} (kept registered). */
-	private static final long LEGACY_2026_2_UID = 8200588488685516906L;
 
 	private Kryo kryo;
 	private ReadWriteKeyCompressor keyCompressor;
@@ -255,27 +252,6 @@ class UniqueIndexStoragePartSerializerTest {
 	class LazyUpgrade {
 
 		@Test
-		@DisplayName("reads a 2026.2 fat-format owner blob (bitmap present) through the dispatcher")
-		void shouldReadLegacy20262FatFormat() {
-			// the preserved 2026.2 reader is the frozen prior-production reader; its write path deliberately throws, so
-			// the fat-format owner blob is reproduced by hand here and read back through the production dispatcher, which
-			// routes it to the registered 2026.2 backward-compatible reader
-			final byte[] legacyBytes = encode20262OwnerBytes();
-
-			final UniqueIndexStoragePart deserialized = StoragePartSerializerTestSupport.decode(
-				UniqueIndexStoragePartSerializerTest.this.kryo, legacyBytes, UniqueIndexStoragePart.class
-			);
-
-			assertTrue(deserialized.isDataPresent());
-			final Map<Serializable, Integer> values = deserialized.getUniqueValueToRecordId();
-			assertNotNull(values);
-			assertEquals(1, values.get("apple"));
-			assertEquals(2, values.get("banana"));
-			assertNotNull(deserialized.getRecordIds());
-			assertArrayEquals(new int[]{1, 2}, deserialized.getRecordIds().getArray());
-		}
-
-		@Test
 		@DisplayName("reads a 2026.1 always-present blob (no marker, bitmap present) through the dispatcher")
 		void shouldReadLegacy20261Format() {
 			// the 2026.1 format wrote: entityIdx, partId, keyId, class, bitmap, mapSize, (key, fixed-int value)*
@@ -326,47 +302,6 @@ class UniqueIndexStoragePartSerializerTest {
 		 *
 		 * @return the 2026.1-format bytes
 		 */
-		/**
-		 * Hand-encodes the 2026.2 fat owner format for {@link #ownerPart()} (uid-prefixed), matching the preserved
-		 * 2026.2 serializer's wire exactly so the production dispatcher routes it to the registered 2026.2 reader. The
-		 * fat format wrote the dataPresent marker, the record-id bitmap (via `kryo.writeObject`) and the value-to-record
-		 * map with each record id as a fixed 4-byte int. The 2026.2 reader's write path deliberately throws, so the blob
-		 * is reproduced here by hand.
-		 *
-		 * @return the 2026.2-format bytes
-		 */
-		@Nonnull
-		private byte[] encode20262OwnerBytes() {
-			final UniqueIndexStoragePart owner = ownerPart();
-			final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
-			try (final Output output = new Output(os, 4_096)) {
-				output.writeLong(LEGACY_2026_2_UID);
-				output.writeInt(owner.getEntityIndexPrimaryKey());
-				output.writeVarLong(owner.getStoragePartPK(), true);
-				output.writeVarInt(
-					UniqueIndexStoragePartSerializerTest.this.keyCompressor.getId(owner.getAttributeIndexKey()), true
-				);
-				final Class<?> plainType = owner.getType().isArray()
-					? owner.getType().getComponentType() : owner.getType();
-				UniqueIndexStoragePartSerializerTest.this.kryo.writeClass(output, plainType);
-
-				output.writeBoolean(true);
-				UniqueIndexStoragePartSerializerTest.this.kryo.writeObject(
-					output, Objects.requireNonNull(owner.getRecordIds())
-				);
-
-				final Map<Serializable, Integer> uniqueValueToRecordId = Objects.requireNonNull(
-					owner.getUniqueValueToRecordId()
-				);
-				output.writeVarInt(uniqueValueToRecordId.size(), true);
-				for (final Map.Entry<Serializable, Integer> entry : uniqueValueToRecordId.entrySet()) {
-					UniqueIndexStoragePartSerializerTest.this.kryo.writeObject(output, entry.getKey());
-					output.writeInt(entry.getValue());
-				}
-			}
-			return os.toByteArray();
-		}
-
 		@Nonnull
 		private byte[] encode20261OwnerBytes() {
 			final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);

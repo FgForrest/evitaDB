@@ -56,7 +56,7 @@ import java.util.Map;
  * On read the same fat {@link ChainElementState} map that {@link ChainIndex#createStoragePart(int)} produced is
  * reconstructed, so {@link ChainIndexStoragePart} and the load path (the four-arg {@link ChainIndex} constructor and
  * the attribute index loader) are untouched. The previous fat format is read by
- * {@link ChainIndexStoragePartSerializer_2026_2}.
+ * {@link ChainIndexStoragePartSerializer_2026_1}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

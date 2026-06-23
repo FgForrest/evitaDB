@@ -37,7 +37,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * This {@link Serializer} implementation reads {@link PriceListAndCurrencySuperIndexStoragePart} from binary format.
  *
- * It reads the pre-granular-slimming format current in the 2026.2 development line; retained for backward
+ * It reads the 2026.1 (released) binary format; retained for backward
  * compatibility only. That format wrote the price ids array as raw fixed 4-byte ints; the current serializer
  * delta-varints that (strictly ascending) array. Like the other deprecated readers its {@link #write(Kryo, Output,
  * PriceListAndCurrencyRefIndexStoragePart)} throws — this format must never be written again. The dispatcher delegates
@@ -48,7 +48,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor
-public class PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2 extends Serializer<PriceListAndCurrencyRefIndexStoragePart> {
+public class PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1 extends Serializer<PriceListAndCurrencyRefIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override

@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexStoragePart;
 
+import javax.annotation.Nonnull;
 import java.util.Map;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -38,7 +39,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 /**
  * This {@link Serializer} implementation reads {@link FacetIndexStoragePart} from binary format.
  *
- * It reads the pre-granular-slimming format current in the 2026.2 development line; retained for backward
+ * It reads the 2026.1 (released) binary format; retained for backward
  * compatibility only. That format wrote each facet's referencing entity id array as raw fixed 4-byte ints; the current
  * serializer delta-varints those (globally ascending) arrays. Like the other deprecated readers its {@link #write(Kryo,
  * Output, FacetIndexStoragePart)} throws — this format must never be written again. The dispatcher delegates writes
@@ -48,7 +49,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Deprecated(since = "2026.2", forRemoval = true)
-public class FacetIndexStoragePartSerializer_2026_2 extends Serializer<FacetIndexStoragePart> {
+public class FacetIndexStoragePartSerializer_2026_1 extends Serializer<FacetIndexStoragePart> {
 
 	@Override
 	public void write(Kryo kryo, Output output, FacetIndexStoragePart storagePart) {
@@ -80,7 +81,8 @@ public class FacetIndexStoragePartSerializer_2026_2 extends Serializer<FacetInde
 		);
 	}
 
-	private static Map<Integer, Bitmap> readGroup(Input input) {
+	@Nonnull
+	private static Map<Integer, Bitmap> readGroup(@Nonnull Input input) {
 		final int facetCount = input.readVarInt(true);
 		final Map<Integer, Bitmap> result = createHashMap(facetCount);
 		for (int i = 0; i < facetCount; i++) {

@@ -43,7 +43,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * `TransactionalIntArray` snapshots, "unique, strictly ordered ascending"), so they are delta-varint encoded via
  * {@link SortedIntArrayCodec} instead of as raw fixed 4-byte ints; all three are routinely empty, which the codec
  * handles (returning a non-null empty array). The pre-slimming format is read by
- * {@link HierarchyIndexStoragePartSerializer_2026_2}.
+ * {@link HierarchyIndexStoragePartSerializer_2026_1}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

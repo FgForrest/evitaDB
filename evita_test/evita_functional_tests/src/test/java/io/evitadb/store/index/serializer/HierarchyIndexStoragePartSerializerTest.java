@@ -51,9 +51,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Round-trip and lazy-upgrade coverage for {@link HierarchyIndexStoragePartSerializer} (children / roots / orphans
- * arrays delta-varint encoded) and the preserved {@link HierarchyIndexStoragePartSerializer_2026_2} (raw fixed-int
- * format). Covers the routinely-empty roots / orphans arrays, multiple levels with single and large-gap children, and
- * a fully empty hierarchy.
+ * arrays delta-varint encoded) and the preserved {@link HierarchyIndexStoragePartSerializer_2026_1} (the 2026.1
+ * released raw fixed-int format). Covers the routinely-empty roots / orphans arrays, multiple levels with single and
+ * large-gap children, and a fully empty hierarchy.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -63,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag(SERIALIZATION)
 class HierarchyIndexStoragePartSerializerTest {
 	/** The pre-slimming serial-version-uid of {@link HierarchyIndexStoragePart} (kept registered). */
-	private static final long LEGACY_2026_2_UID = -3223754922135567923L;
+	private static final long LEGACY_2026_1_UID = -3223754922135567923L;
 
 	private Kryo kryo;
 
@@ -171,10 +171,10 @@ class HierarchyIndexStoragePartSerializerTest {
 		}
 
 		/**
-		 * Hand-encodes the pre-slimming 2026.2 raw-int format for the given part (uid-prefixed), mirroring the dropped
-		 * 2026.2 writer's wire exactly so the production dispatcher routes it to the registered 2026.2 reader. The
-		 * preserved {@link HierarchyIndexStoragePartSerializer_2026_2} is the frozen prior-production reader; its write
-		 * path deliberately throws, so the legacy blob is reproduced here by hand.
+		 * Hand-encodes the 2026.1 released pre-slimming raw-int format for the given part (uid-prefixed), mirroring the
+		 * dropped 2026.1 writer's wire exactly so the production dispatcher routes it to the registered 2026.1 reader.
+		 * The preserved {@link HierarchyIndexStoragePartSerializer_2026_1} is the frozen prior-production reader; its
+		 * write path deliberately throws, so the legacy blob is reproduced here by hand.
 		 *
 		 * @param part the storage part to encode in the pre-slimming format
 		 * @return the legacy-format bytes (uid-prefixed)
@@ -183,7 +183,7 @@ class HierarchyIndexStoragePartSerializerTest {
 		private static byte[] encodePreSlimmingBytes(@Nonnull HierarchyIndexStoragePart part) {
 			final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
 			try (final Output output = new Output(os, 4_096)) {
-				output.writeLong(LEGACY_2026_2_UID);
+				output.writeLong(LEGACY_2026_1_UID);
 				output.writeInt(part.getEntityIndexPrimaryKey());
 
 				final Map<Integer, HierarchyNode> itemIndex = part.getItemIndex();

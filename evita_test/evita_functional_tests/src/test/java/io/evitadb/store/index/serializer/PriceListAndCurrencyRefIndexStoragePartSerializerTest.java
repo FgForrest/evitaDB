@@ -52,8 +52,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Round-trip and lazy-upgrade coverage for {@link PriceListAndCurrencyRefIndexStoragePartSerializer} (the strictly
  * ascending price ids array delta-varint encoded via the asserting codec) and the preserved
- * {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2} (raw fixed-int format). Covers empty, single and
- * large-gap price id arrays.
+ * {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1} (the 2026.1 released raw fixed-int format). Covers
+ * empty, single and large-gap price id arrays.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -66,7 +66,7 @@ class PriceListAndCurrencyRefIndexStoragePartSerializerTest {
 		"basic", Currency.getInstance("EUR"), PriceInnerRecordHandling.NONE
 	);
 	/** The pre-slimming serial-version-uid of {@link PriceListAndCurrencyRefIndexStoragePart} (kept registered). */
-	private static final long LEGACY_2026_2_UID = -1687563151524978160L;
+	private static final long LEGACY_2026_1_UID = -1687563151524978160L;
 
 	private Kryo kryo;
 	private ReadWriteKeyCompressor keyCompressor;
@@ -176,9 +176,9 @@ class PriceListAndCurrencyRefIndexStoragePartSerializerTest {
 		}
 
 		/**
-		 * Hand-encodes the pre-slimming 2026.2 raw-int format for the given part (uid-prefixed), mirroring the dropped
-		 * 2026.2 writer's wire exactly so the production dispatcher routes it to the registered 2026.2 reader. The
-		 * preserved {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2} is the frozen prior-production
+		 * Hand-encodes the 2026.1 released pre-slimming raw-int format for the given part (uid-prefixed), mirroring the
+		 * dropped 2026.1 writer's wire exactly so the production dispatcher routes it to the registered 2026.1 reader.
+		 * The preserved {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_1} is the frozen prior-production
 		 * reader; its write path deliberately throws, so the legacy blob is reproduced here by hand.
 		 *
 		 * @param part the storage part to encode in the pre-slimming format
@@ -188,7 +188,7 @@ class PriceListAndCurrencyRefIndexStoragePartSerializerTest {
 		private byte[] encodePreSlimmingBytes(@Nonnull PriceListAndCurrencyRefIndexStoragePart part) {
 			final ByteArrayOutputStream os = new ByteArrayOutputStream(4_096);
 			try (final Output output = new Output(os, 4_096)) {
-				output.writeLong(LEGACY_2026_2_UID);
+				output.writeLong(LEGACY_2026_1_UID);
 				output.writeInt(part.getEntityIndexPrimaryKey());
 				output.writeVarLong(part.getStoragePartPK(), true);
 				output.writeVarInt(
