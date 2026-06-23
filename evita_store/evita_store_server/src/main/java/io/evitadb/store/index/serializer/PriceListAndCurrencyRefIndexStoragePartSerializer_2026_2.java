@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,37 +32,28 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencyRefIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
-import io.evitadb.store.index.serializer.util.SortedIntArrayCodec;
-import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link PriceListAndCurrencySuperIndexStoragePart} from/to binary format.
+ * This {@link Serializer} implementation reads {@link PriceListAndCurrencySuperIndexStoragePart} from binary format.
  *
- * The price ids array is strictly ascending (it is built from a `TransactionalObjArray` of price records sorted by
- * internal price id and then deduped), so it is delta-varint encoded via {@link SortedIntArrayCodec} instead of as raw
- * fixed 4-byte ints. The codec asserts the non-decreasing invariant on write, so any future breakage of that fragile
- * ordering fails loud rather than silently corrupting the stream. The pre-slimming format is read by
- * {@link PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2}.
+ * It reads the pre-granular-slimming format current in the 2026.2 development line; retained for backward
+ * compatibility only. That format wrote the price ids array as raw fixed 4-byte ints; the current serializer
+ * delta-varints that (strictly ascending) array. Like the other deprecated readers its {@link #write(Kryo, Output,
+ * PriceListAndCurrencyRefIndexStoragePart)} throws — this format must never be written again. The dispatcher delegates
+ * writes only to the current serializer; the backward-compatible reading is validated end-to-end by the
+ * backward-compatibility suite.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor
-public class PriceListAndCurrencyRefIndexStoragePartSerializer extends Serializer<PriceListAndCurrencyRefIndexStoragePart> {
+public class PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2 extends Serializer<PriceListAndCurrencyRefIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
 	public void write(Kryo kryo, Output output, PriceListAndCurrencyRefIndexStoragePart priceIndex) {
-		output.writeInt(priceIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = priceIndex.getStoragePartPK();
-		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
-		output.writeVarLong(uniquePartId, true);
-		output.writeVarInt(this.keyCompressor.getId(priceIndex.getPriceIndexKey()), true);
-
-		kryo.writeObject(output, priceIndex.getValidityIndex());
-
-		// the price ids are strictly ascending; route through the asserting codec (writes the count itself)
-		SortedIntArrayCodec.writeAscendingInts(output, priceIndex.getPriceIds());
+		throw new UnsupportedOperationException("This serializer is deprecated and should not be used.");
 	}
 
 	@Override
@@ -72,7 +63,8 @@ public class PriceListAndCurrencyRefIndexStoragePartSerializer extends Serialize
 		final PriceIndexKey priceIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		final RangeIndex validityIndex = kryo.readObject(input, RangeIndex.class);
 
-		final int[] priceIds = SortedIntArrayCodec.readAscendingInts(input);
+		final int tripleCount = input.readInt(true);
+		final int[] priceIds = input.readInts(tripleCount);
 
 		return new PriceListAndCurrencyRefIndexStoragePart(
 			entityIndexPrimaryKey, priceIndexKey, validityIndex, priceIds, uniquePartId

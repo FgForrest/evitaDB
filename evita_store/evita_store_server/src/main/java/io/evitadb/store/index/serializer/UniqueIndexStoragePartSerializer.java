@@ -42,7 +42,15 @@ import java.util.Objects;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link io.evitadb.index.attribute.UniqueIndex} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link io.evitadb.index.attribute.UniqueIndex} from/to binary
+ * format.
+ *
+ * The current (slim) format drops the redundant record-id bitmap from an owner-mode part: that bitmap always equals
+ * the set of the value-to-record map values (see {@link io.evitadb.index.attribute.OwnerUniqueIndex}) and is rebuilt
+ * from them on read, so it is no longer persisted. Each record id is written as a zig-zag varint instead of a fixed
+ * 4-byte int. A folded (view-mode) part carries no value-to-record map at all — its data lives in the shared
+ * `FilterIndexStoragePart` — and writes only a single boolean marker. The pre-slimming format is read by
+ * {@link UniqueIndexStoragePartSerializer_2026_2}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -58,22 +66,23 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(this.keyCompressor.getId(uniqueIndex.getAttributeIndexKey()), true);
 
-		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
+		final Class<?> plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
 		kryo.writeClass(output, plainType);
 
 		// a folded (view-mode) unique index derives its value-to-record map and record-id bitmap from the shared
-		// FilterIndexStoragePart, so a slim part carries neither. The marker records whether the record-id bitmap +
-		// value map sections follow; only owner-mode (standalone) parts write them.
+		// FilterIndexStoragePart, so a slim part carries neither. The marker records whether the value map section
+		// follows; only owner-mode (standalone) parts write it.
 		final boolean dataPresent = uniqueIndex.isDataPresent();
 		output.writeBoolean(dataPresent);
 		if (dataPresent) {
-			kryo.writeObject(output, Objects.requireNonNull(uniqueIndex.getRecordIds()));
-
+			// the record-id bitmap is redundant: it always equals the set of the map values (see OwnerUniqueIndex)
+			// and is reconstructed from them on read, so it is no longer persisted
 			final Map<Serializable, Integer> uniqueValueToRecordId = Objects.requireNonNull(uniqueIndex.getUniqueValueToRecordId());
 			output.writeVarInt(uniqueValueToRecordId.size(), true);
 			for (Entry<Serializable, Integer> entry : uniqueValueToRecordId.entrySet()) {
 				kryo.writeObject(output, entry.getKey());
-				output.writeInt(entry.getValue());
+				// record ids are primary keys; zig-zag keeps small magnitudes compact regardless of sign
+				output.writeVarInt(entry.getValue(), false);
 			}
 		}
 	}
@@ -85,19 +94,22 @@ public class UniqueIndexStoragePartSerializer extends Serializer<UniqueIndexStor
 		final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
 
-		// the record-id bitmap + value map sections are present only for owner-mode parts; a slim (view-mode) part
-		// wrote a `false` marker and omitted them — they are re-derived from the shared FilterIndexStoragePart on load.
+		// the value map section is present only for owner-mode parts; a slim (view-mode) part wrote a `false` marker
+		// and omitted it — it is re-derived from the shared FilterIndexStoragePart on load.
 		final boolean dataPresent = input.readBoolean();
 		if (dataPresent) {
-			final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
-
 			final int uniqueValueCount = input.readVarInt(true);
 			final Map<Serializable, Integer> uniqueIndex = createHashMap(uniqueValueCount);
+			final int[] recordIdValues = new int[uniqueValueCount];
 			for (int i = 0; i < uniqueValueCount; i++) {
 				final Serializable key = kryo.readObject(input, attributeType);
-				final int value = input.readInt();
+				final int value = input.readVarInt(false);
 				uniqueIndex.put(key, value);
+				recordIdValues[i] = value;
 			}
+			// the record-id bitmap is rebuilt from the map values (it is exactly the set of those values); the bitmap
+			// dedupes, so duplicate values across the (distinct-keyed) map collapse just as the owner index expects
+			final TransactionalBitmap recordIds = new TransactionalBitmap(recordIdValues);
 
 			return new UniqueIndexStoragePart(
 				entityIndexPrimaryKey, attributeIndexKey, attributeType, uniqueIndex, recordIds, uniquePartId

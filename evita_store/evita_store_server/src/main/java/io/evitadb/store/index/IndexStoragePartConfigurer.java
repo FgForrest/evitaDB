@@ -83,7 +83,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			UniqueIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(this.keyCompressor), UniqueIndexStoragePart.class)
 				.addBackwardCompatibleSerializer(-4095785894036417656L, new UniqueIndexStoragePartSerializer_2025_5(this.keyCompressor))
-				.addBackwardCompatibleSerializer(-3921198859032670410L, new UniqueIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(-3921198859032670410L, new UniqueIndexStoragePartSerializer_2026_1(this.keyCompressor))
+				.addBackwardCompatibleSerializer(8200588488685516906L, new UniqueIndexStoragePartSerializer_2026_2(this.keyCompressor)),
 			index++
 		);
 		kryo.register(
@@ -103,7 +104,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			ChainIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new ChainIndexStoragePartSerializer(this.keyCompressor), ChainIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-2563092938071912295L, new ChainIndexStoragePartSerializer_2025_5(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(-2563092938071912295L, new ChainIndexStoragePartSerializer_2025_5(this.keyCompressor))
+				.addBackwardCompatibleSerializer(8894604958733971199L, new ChainIndexStoragePartSerializer_2026_2(this.keyCompressor)),
 			index++
 		);
 		kryo.register(
@@ -133,7 +135,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		index++;
 
 		kryo.register(PriceListAndCurrencySuperIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class), index++);
-		kryo.register(PriceListAndCurrencyRefIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class), index++);
+		kryo.register(
+			PriceListAndCurrencyRefIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-1687563151524978160L, new PriceListAndCurrencyRefIndexStoragePartSerializer_2026_2(this.keyCompressor)),
+			index++
+		);
 		kryo.register(
 			PriceWithInternalIds.class,
 			new SerialVersionBasedSerializer<>(new PriceWithInternalIdsSerializer(this.keyCompressor), PriceWithInternalIds.class)
@@ -141,9 +148,19 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		kryo.register(HierarchyIndexStoragePart.class, new SerialVersionBasedSerializer<>(new HierarchyIndexStoragePartSerializer(), HierarchyIndexStoragePart.class), index++);
+		kryo.register(
+			HierarchyIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new HierarchyIndexStoragePartSerializer(), HierarchyIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-3223754922135567923L, new HierarchyIndexStoragePartSerializer_2026_2()),
+			index++
+		);
 
-		kryo.register(FacetIndexStoragePart.class, new SerialVersionBasedSerializer<>(new FacetIndexStoragePartSerializer(), FacetIndexStoragePart.class), index++);
+		kryo.register(
+			FacetIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new FacetIndexStoragePartSerializer(), FacetIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-2348533783771242845L, new FacetIndexStoragePartSerializer_2026_2()),
+			index++
+		);
 		kryo.register(ComparableLocale.class, new SerialVersionBasedSerializer<>(new ComparableLocaleSerializer(), ComparableLocale.class), index++);
 		kryo.register(ComparableCurrency.class, new SerialVersionBasedSerializer<>(new ComparableCurrencySerializer(), ComparableCurrency.class), index++);
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);

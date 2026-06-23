@@ -51,7 +51,7 @@ import java.util.Map;
 @AllArgsConstructor
 @ToString(of = "attributeIndexKey")
 public class ChainIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = 8894604958733971199L;
+	@Serial private static final long serialVersionUID = 4729183650274619038L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.

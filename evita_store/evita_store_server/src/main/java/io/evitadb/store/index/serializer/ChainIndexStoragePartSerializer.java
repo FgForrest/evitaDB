@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,10 +38,25 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
-import java.util.Map.Entry;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link ChainIndex} from/to binary format.
+ *
+ * The persisted format is the slim per-chain format: the pre-slimming format mirrored the
+ * fat per-element {@link ChainElementState} map on disk (~3 ints + 1 enum per element) even though the chain runs
+ * already encode almost everything. The slim format keeps, per chain, only the run primary keys (once), the head's
+ * predecessor primary key and the head's {@link ElementState} (one byte). The remaining per-element state is fully
+ * derivable on read because:
+ *
+ * - `inChainOfHeadWithPrimaryKey` of every element equals the run head (`run[0]`);
+ * - a non-head element's predecessor equals the previous element in the run (the invariant
+ *   {@link ChainIndex#getConsistencyReport()} enforces);
+ * - a non-head element's state is always {@link ElementState#SUCCESSOR}.
+ *
+ * On read the same fat {@link ChainElementState} map that {@link ChainIndex#createStoragePart(int)} produced is
+ * reconstructed, so {@link ChainIndexStoragePart} and the load path (the four-arg {@link ChainIndex} constructor and
+ * the attribute index loader) are untouched. The previous fat format is read by
+ * {@link ChainIndexStoragePartSerializer_2026_2}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -57,21 +72,24 @@ public class ChainIndexStoragePartSerializer extends Serializer<ChainIndexStorag
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(this.keyCompressor.getId(chainIndex.getAttributeIndexKey()), true);
 
+		// the fat element-state map is still carried by the part on the heap; the slim wire derives the single
+		// non-redundant datum per chain (head predecessor + head state) from the head element's state entry
 		final Map<Integer, ChainElementState> elementStates = chainIndex.getElementStates();
-		output.writeVarInt(elementStates.size(), true);
-		for (Entry<Integer, ChainElementState> entry : elementStates.entrySet()) {
-			output.writeInt(entry.getKey());
-			final ChainElementState state = entry.getValue();
-			output.writeInt(state.inChainOfHeadWithPrimaryKey());
-			output.writeInt(state.predecessorPrimaryKey());
-			output.writeInt(state.state().ordinal());
-		}
-
 		final int[][] chains = chainIndex.getChains();
 		output.writeVarInt(chains.length, true);
 		for (int[] chain : chains) {
 			output.writeVarInt(chain.length, true);
 			output.writeInts(chain, 0, chain.length);
+			// every non-empty chain has a head; an empty chain carries no derivable head datum
+			if (chain.length > 0) {
+				final ChainElementState headState = elementStates.get(chain[0]);
+				Assert.notNull(
+					headState,
+					"Index damaged! The head `" + chain[0] + "` of a persisted chain has no element state entry!"
+				);
+				output.writeInt(headState.predecessorPrimaryKey());
+				output.writeVarInt(headState.state().ordinal(), true);
+			}
 		}
 	}
 
@@ -81,26 +99,26 @@ public class ChainIndexStoragePartSerializer extends Serializer<ChainIndexStorag
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
-		final int stateCount = input.readInt(true);
-		final Map<Integer, ChainElementState> elementStates = CollectionUtils.createHashMap(stateCount);
-		for(int i = 0; i < stateCount; i++) {
-			final int primaryKey = input.readInt();
-			final int inChainOfHeadWithPrimaryKey = input.readInt();
-			final int predecessorPrimaryKey = input.readInt();
-			final ElementState state = ElementState.values()[input.readInt()];
-			elementStates.put(
-				primaryKey,
-				new ChainElementState(
-					inChainOfHeadWithPrimaryKey, predecessorPrimaryKey, state
-				)
-			);
-		}
-
-		final int chainCount = input.readInt(true);
+		final int chainCount = input.readVarInt(true);
 		final int[][] chains = new int[chainCount][];
-		for(int i = 0; i < chainCount; i++) {
-			final int chainLength = input.readInt(true);
-			chains[i] = input.readInts(chainLength);
+		// the element-state map is rebuilt to be structurally identical (same content) to the one createStoragePart
+		// emitted, so the load path (ChainIndexStoragePart + the four-arg ChainIndex constructor) needs no change
+		final Map<Integer, ChainElementState> elementStates = CollectionUtils.createHashMap(chainCount << 1);
+		for (int i = 0; i < chainCount; i++) {
+			final int chainLength = input.readVarInt(true);
+			final int[] run = input.readInts(chainLength);
+			chains[i] = run;
+			if (chainLength > 0) {
+				final int headPredecessorPk = input.readInt();
+				final ElementState headState = ElementState.values()[input.readVarInt(true)];
+				final int headPk = run[0];
+				// the head keeps its persisted predecessor + state verbatim
+				elementStates.put(headPk, new ChainElementState(headPk, headPredecessorPk, headState));
+				// every non-head element is, by the chain invariant, a SUCCESSOR of the previous element in the run
+				for (int j = 1; j < run.length; j++) {
+					elementStates.put(run[j], new ChainElementState(headPk, run[j - 1], ElementState.SUCCESSOR));
+				}
+			}
 		}
 
 		return new ChainIndexStoragePart(

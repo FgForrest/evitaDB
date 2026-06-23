@@ -49,7 +49,7 @@ import java.util.Map;
 @NotThreadSafe
 @ToString(of = {"referenceName", "entityIndexPrimaryKey"})
 public class FacetIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -2348533783771242845L;
+	@Serial private static final long serialVersionUID = 6184029571648392013L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.

@@ -58,7 +58,7 @@ import java.util.Objects;
 @NotThreadSafe
 @ToString(of = "attributeIndexKey")
 public class UniqueIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeIndexKey> {
-	@Serial private static final long serialVersionUID = 8200588488685516906L;
+	@Serial private static final long serialVersionUID = 5731946208351947602L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.

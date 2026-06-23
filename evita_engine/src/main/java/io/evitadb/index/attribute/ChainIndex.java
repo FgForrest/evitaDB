@@ -453,17 +453,10 @@ public class ChainIndex implements
 	 */
 	@Nullable
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
-		//TODO JNO (#760): the persisted format still mirrors the pre-split fat per-element shape and is
-		// ~5x larger than necessary. The `chains` runs already encode everything except one datum per chain,
-		// so a second-phase slim format should write, per chain, only: the run PKs (once) + the head's
-		// predecessor PK (HEAD_PK for a true head) + the head's ElementState (1 byte). Everything else is
-		// redundant: `inChainOfHeadWithPrimaryKey` == the run's head (chain[0]); a non-head element's
-		// predecessor == its previous element in the run (the invariant getConsistencyReport() enforces);
-		// non-head state is always SUCCESSOR. On read, rebuild the same ChainElementState map this method
-		// emits (so ChainIndexStoragePart and the load constructor need no change) — the change is confined
-		// to a new versioned ChainIndexStoragePartSerializer, registering the current one as the
-		// backward-compatible reader (same pattern as ChainIndexStoragePartSerializer_2025_5). This also
-		// removes the drift-prone redundancy of persisting state/inChainOfHead that can disagree with the runs.
+		// The fat element-state map below is materialized only transiently on the heap; the slim persisted format
+		// (see ChainIndexStoragePartSerializer) derives, per chain, just the run primary keys plus the head's
+		// predecessor and state and reconstructs this exact map on read, so this method and the load path are
+		// unchanged by the slimming.
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.chainIndexChanges = null;
@@ -484,6 +477,20 @@ public class ChainIndex implements
 						predecessor != null,
 						"Index damaged! The element `" + elementId + "` has no predecessor entry!"
 					);
+					// The slim persisted format (ChainIndexStoragePartSerializer) keeps only the head's predecessor and
+					// reconstructs every non-head element's predecessor as its positional predecessor - the previous
+					// element in the run. This is the same invariant getConsistencyReport() verifies; enforce it here at
+					// the persistence chokepoint so a damaged index fails loud instead of being silently "healed" on the
+					// next load. Heads (i == 0) are exempt: their (external / circular / HEAD_PK) predecessor is persisted
+					// verbatim. The check is guarded by `i > 0` so the message never dereferences run[i - 1] for a head.
+					if (i > 0) {
+						isPremiseValid(
+							predecessor == run[i - 1],
+							"Index damaged! The non-head element `" + elementId + "` has stored predecessor `" +
+								predecessor + "` but its positional predecessor in the run is `" + run[i - 1] +
+								"` - the slim chain storage format cannot represent this state!"
+						);
+					}
 					elementStates.put(
 						elementId,
 						new ChainElementState(
