@@ -217,6 +217,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Returns the scope of the current entity. If the scope has already been retrieved and memoized, it returns the
 	 * memoized value. Otherwise, it fetches the scope from the main entity storage part, memoizes it, and returns it.
 	 *
+	 * During a `SetEntityScopeMutation` the memoized value is intentionally flipped to the target scope mid-transition
+	 * (after removal from the source scope, before insertion into the target) so scope-sensitive gates consulted while
+	 * re-indexing observe the target scope.
+	 *
 	 * @return The scope of the current entity.
 	 */
 	@Nonnull
@@ -364,9 +368,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					"Scope between entity and latest entity body container must be the same!"
 				);
 				removeEntityFromIndexes(entity, entity.getScope());
-				addEntityToIndexes(entity, setEntityScopeMutation.getScope());
-				// reset memoized scope, it has just changed
+				// flip the memoized scope to the target scope *before* re-indexing into it, so that scope-sensitive
+				// gates consulted during indexing (e.g. reference partitioning index type) see the scope the entity is
+				// being indexed as, not the stale source scope. Removal above still ran against the original scope.
 				this.memoizedScope = setEntityScopeMutation.getScope();
+				addEntityToIndexes(entity, setEntityScopeMutation.getScope());
 			}
 		} else {
 			// SHOULD NOT EVER HAPPEN
