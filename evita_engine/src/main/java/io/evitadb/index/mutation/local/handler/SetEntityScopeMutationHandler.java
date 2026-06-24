@@ -83,8 +83,11 @@ public final class SetEntityScopeMutationHandler implements LocalMutationHandler
 			"Scope between entity and latest entity body container must be the same!"
 		);
 		executor.removeEntityFromIndexes(entity, entity.getScope());
-		executor.addEntityToIndexes(entity, mutation.getScope());
+		// flip the memoized scope to the target scope *before* re-indexing into it, so that scope-sensitive gates
+		// consulted during indexing (e.g. reference partitioning index type) see the scope the entity is being
+		// indexed as, not the stale source scope. Removal above still ran against the original scope.
 		executor.setMemoizedScope(mutation.getScope());
+		executor.addEntityToIndexes(entity, mutation.getScope());
 	}
 
 }
