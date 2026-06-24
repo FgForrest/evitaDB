@@ -46,6 +46,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -54,6 +55,8 @@ import java.util.Locale;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getReferencedEntityIndex;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.INDEXING;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -73,6 +76,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Tag(CONTRACT)
+@Tag(INDEXING)
 @DisplayName("Reduced reference index keeps the entity-level sortable compound across archive/restore")
 public class ArchiveRestoreReducedCompoundTest implements EvitaTestSupport {
 	private static final String DIR = "archiveRestoreReducedCompoundTest";
