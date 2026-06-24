@@ -297,7 +297,7 @@ public class ArchiveRestoreReducedCompoundTest implements EvitaTestSupport {
 				// the reference is not partitioned in this scope - there is no reduced index, which is correct absence
 				return null;
 			}
-			assertNotSame(
+			assertNotEquals(
 				CompoundPresence.PRESENT, sortCompoundPresence(reduced, COMPOUND_NAME, locale, PRODUCT_PK),
 				"Reduced " + scope + " category index UNEXPECTEDLY contains the entity-level sortable compound"
 			);
