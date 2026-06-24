@@ -36,10 +36,8 @@ import io.evitadb.api.requestResponse.schema.builder.SortableAttributeCompoundSc
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.Entities;
@@ -52,10 +50,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.lang.reflect.Field;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.functional.indexing.EvitaIndexingTest.getReferencedEntityIndex;
@@ -95,6 +90,7 @@ public class ArchiveRestoreReducedCompoundTest implements EvitaTestSupport {
 	@BeforeEach
 	void setUp() {
 		cleanTestSubDirectoryWithRethrow(DIR);
+		cleanTestSubDirectoryWithRethrow(DIR_EXPORT);
 		this.evita = new Evita(getEvitaConfiguration());
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
@@ -103,6 +99,7 @@ public class ArchiveRestoreReducedCompoundTest implements EvitaTestSupport {
 	void tearDown() {
 		this.evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR);
+		cleanTestSubDirectoryWithRethrow(DIR_EXPORT);
 	}
 
 	@Nested
@@ -446,50 +443,33 @@ public class ArchiveRestoreReducedCompoundTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Reflectively resolves the presence of {@code recordId} in the sort index of the given entity-level
-	 * sortable-attribute compound for the given locale within {@code index}. Returns a tri-state so absence checks can
-	 * distinguish "compound exists but lacks the record" from "no such compound/locale key" - the latter must not
-	 * silently satisfy a presence assertion.
+	 * Resolves the presence of {@code recordId} in the sort index of the given entity-level sortable-attribute compound
+	 * for the given locale within {@code index}. Returns a tri-state so absence checks can distinguish "compound exists
+	 * but lacks the record" from "no such compound/locale key" - the latter must not silently satisfy a presence
+	 * assertion. The compound is defined on entity level, hence the looked-up {@link AttributeIndexKey} carries a
+	 * `null` reference name.
 	 *
-	 * @param index       entity (reduced) index to inspect
+	 * @param index        entity (reduced) index to inspect
 	 * @param compoundName name of the entity-level sortable compound
-	 * @param locale      locale of the compound key, or `null` for a non-localized compound
-	 * @param recordId    record primary key to look for
+	 * @param locale       locale of the compound key, or `null` for a non-localized compound
+	 * @param recordId     record primary key to look for
 	 * @return tri-state presence result
 	 */
 	@Nonnull
-	@SuppressWarnings({"unchecked", "SameParameterValue"})
+	@SuppressWarnings("SameParameterValue")
 	private static CompoundPresence sortCompoundPresence(
 		@Nonnull EntityIndex index, @Nonnull String compoundName, @Nullable Locale locale, int recordId
 	) {
-		try {
-			final Field attributeIndexField = EntityIndex.class.getDeclaredField("attributeIndex");
-			attributeIndexField.setAccessible(true);
-			final AttributeIndex attributeIndex = (AttributeIndex) attributeIndexField.get(index);
-
-			final Field sortIndexField = AttributeIndex.class.getDeclaredField("sortIndex");
-			sortIndexField.setAccessible(true);
-			final Map<AttributeIndexKey, SortIndex> sortIndexes =
-				(Map<AttributeIndexKey, SortIndex>) sortIndexField.get(attributeIndex);
-
-			boolean compoundKeyFound = false;
-			for (final Map.Entry<AttributeIndexKey, SortIndex> entry : sortIndexes.entrySet()) {
-				final AttributeIndexKey key = entry.getKey();
-				if (compoundName.equals(key.attributeName()) && Objects.equals(locale, key.locale())) {
-					compoundKeyFound = true;
-					for (final int id : entry.getValue().getSortedRecords()) {
-						if (id == recordId) {
-							return CompoundPresence.PRESENT;
-						}
-					}
-				}
-			}
-			return compoundKeyFound ? CompoundPresence.ABSENT_RECORD : CompoundPresence.NO_SUCH_COMPOUND;
-		} catch (ReflectiveOperationException ex) {
-			throw new GenericEvitaInternalError(
-				"Failed to reflectively read sort index of compound '" + compoundName + "': " + ex.getMessage(), ex
-			);
+		final SortIndex sortIndex = index.getSortIndex(new AttributeIndexKey(null, compoundName, locale));
+		if (sortIndex == null) {
+			return CompoundPresence.NO_SUCH_COMPOUND;
 		}
+		for (final int id : sortIndex.getSortedRecords()) {
+			if (id == recordId) {
+				return CompoundPresence.PRESENT;
+			}
+		}
+		return CompoundPresence.ABSENT_RECORD;
 	}
 
 	@Nonnull
