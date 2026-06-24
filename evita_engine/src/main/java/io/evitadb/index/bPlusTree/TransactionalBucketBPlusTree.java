@@ -46,9 +46,12 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static io.evitadb.utils.ArrayUtils.*;
 
@@ -92,6 +95,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	ConsistencySensitiveDataStructure
 {
 	@Serial private static final long serialVersionUID = -2030749900648110509L;
+	/**
+	 * Sentinel page sequence marking a node that has not yet been assigned a persistence page under the granular
+	 * FilterIndex layout. A freshly built node (initial empty leaf, split-born sibling, new root) and
+	 * a node loaded before its page is restored all start here; the write path allocates a concrete page (always
+	 * non-negative) at emission, and the load path restores each node's persisted page. Equal to the owner-resident
+	 * {@link io.evitadb.index.page.PageStreamRegistry#NO_PAGE} sentinel (both engine-side).
+	 */
+	public static final int UNASSIGNED_PAGE_SEQUENCE = -1;
 	private static final int DEFAULT_VALUE_BLOCK_SIZE = 64;
 	private static final int DEFAULT_MIN_VALUE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
@@ -901,6 +912,458 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 	}
 
+	/**
+	 * Enumerates the tree's leaf nodes in ascending key order. This is the page-emission foundation of the granular
+	 * FilterIndex storage layout: each leaf becomes one persisted page, so the write path walks this list to discover
+	 * what to store. The returned leaves are the live node instances captured as a read-only snapshot — the caller
+	 * must not mutate them. Ordering follows the natural left-to-right child order of the internal spine, which is the
+	 * very same order the bucket {@link #cursor()} walks.
+	 *
+	 * @return the ordered list of leaf nodes; never empty (an empty tree has a single empty leaf as its root)
+	 */
+	@Nonnull
+	public List<BPlusLeafTreeNode<K>> enumerateLeaves() {
+		final List<BPlusLeafTreeNode<K>> leaves = new ArrayList<>();
+		collectLeaves(getRoot(), leaves);
+		return leaves;
+	}
+
+	/**
+	 * Returns whether the tree's root is an internal (routing) node, i.e. the tree spans more than one leaf. This is the
+	 * granular-storage paging predicate: a single-leaf tree is persisted as one inline part (paging it
+	 * would be pure overhead), while a multi-leaf tree is persisted as individual leaf pages.
+	 *
+	 * @return true when the root is internal (≥ 2 leaves), false when the root itself is the only leaf
+	 */
+	public boolean isRootInternal() {
+		return getRoot() instanceof BPlusInternalTreeNode;
+	}
+
+	/**
+	 * A live, write-path handle over a single leaf page: it exposes the leaf's logical persistence page
+	 * sequence (carried across commits by {@link BPlusTreeNode#getPageSequence()}), lets the emitter assign a freshly
+	 * allocated page to a not-yet-paged (split-born or fresh) leaf, and hands out a leaf-scoped {@link BucketCursor} the
+	 * emitter materializes the page contents from. The handles are returned in ascending key order — the very order the
+	 * persisted leaf-page list records — by {@link #leafPageHandles()}.
+	 *
+	 * @param <K> the bucket key type
+	 */
+	public interface LeafPageHandle<K extends Comparable<K>> {
+
+		/**
+		 * Returns the leaf's current page sequence, or {@link #UNASSIGNED_PAGE_SEQUENCE} when the leaf has no page yet.
+		 *
+		 * @return the page sequence or {@link #UNASSIGNED_PAGE_SEQUENCE}
+		 */
+		int getPageSequence();
+
+		/**
+		 * Returns whether this leaf has been mutated since the last flush — the deterministic change-detection signal.
+		 * The flag is read transaction-aware (the in-flight transaction's layer when one exists), so a leaf changed in
+		 * the committing transaction reads dirty at flush even though its committed instance is replaced only later, at
+		 * the commit-merge. Unlike a content hash it can never miss a real change: every mutation sets it.
+		 *
+		 * @return true when the leaf must be (re)written
+		 */
+		boolean isDirty();
+
+		/**
+		 * Clears the leaf's dirty flag — called by the emitter once the leaf page has been collected for this flush, so
+		 * the next commit suppresses it unless it is mutated again. Transaction-aware (clears the layer's flag in a
+		 * transaction; the committed instance the merge produces defaults to clean anyway).
+		 */
+		void clearDirty();
+
+		/**
+		 * Stamps a freshly allocated page sequence onto the leaf. The stamp lands on the live (source) node so the
+		 * commit-merge carries it forward into the committed tree (see {@link #createCopyWithMergedTransactionalMemory}).
+		 *
+		 * @param pageSequence the allocated page sequence (>= 0)
+		 */
+		void setPageSequence(int pageSequence);
+
+		/**
+		 * Returns a fresh leaf-scoped cursor over this leaf's buckets in ascending value order. The cursor reads the
+		 * live node columns (the transaction-aware committed-with-changes structure reached from the current root), so
+		 * the emitter sees read-your-writes content.
+		 *
+		 * @return a fresh single-leaf bucket cursor
+		 */
+		@Nonnull
+		BucketCursor<K> cursor();
+	}
+
+	/**
+	 * Returns one {@link LeafPageHandle} per leaf, in ascending key order — the page-emission view of the tree for the
+	 * granular FilterIndex write path. The handles wrap the live leaf nodes reached from the current
+	 * (transaction-aware) root, so stamping a page sequence through a handle mutates the node the merge will carry
+	 * forward, and the cursors materialize read-your-writes content.
+	 *
+	 * @return the ordered leaf-page handles; never empty
+	 */
+	@Nonnull
+	public List<LeafPageHandle<K>> leafPageHandles() {
+		final List<BPlusLeafTreeNode<K>> leaves = enumerateLeaves();
+		final List<LeafPageHandle<K>> handles = new ArrayList<>(leaves.size());
+		for (final BPlusLeafTreeNode<K> leaf : leaves) {
+			handles.add(new LeafPageHandleImpl<>(leaf));
+		}
+		return handles;
+	}
+
+	/**
+	 * Default {@link LeafPageHandle} backed by a single live leaf node.
+	 *
+	 * @param <M> the bucket key type
+	 */
+	private static final class LeafPageHandleImpl<M extends Comparable<M>> implements LeafPageHandle<M> {
+		@Nonnull private final BPlusLeafTreeNode<M> leaf;
+
+		LeafPageHandleImpl(@Nonnull BPlusLeafTreeNode<M> leaf) {
+			this.leaf = leaf;
+		}
+
+		@Override
+		public int getPageSequence() {
+			return this.leaf.getPageSequence();
+		}
+
+		@Override
+		public boolean isDirty() {
+			return this.leaf.isDirty();
+		}
+
+		@Override
+		public void clearDirty() {
+			this.leaf.clearDirty();
+		}
+
+		@Override
+		public void setPageSequence(int pageSequence) {
+			this.leaf.setPageSequence(pageSequence);
+		}
+
+		@Nonnull
+		@Override
+		public BucketCursor<M> cursor() {
+			return new SingleLeafBucketCursor<>(this.leaf);
+		}
+	}
+
+	/**
+	 * A {@link BucketCursor} restricted to one leaf node, reading its columns directly (the same getters
+	 * {@link ForwardBucketCursor} reads). Used by the granular write path to materialize one leaf page at a time
+	 * without walking the whole tree.
+	 *
+	 * @param <M> the bucket key type
+	 */
+	private static final class SingleLeafBucketCursor<M extends Comparable<M>> implements BucketCursor<M> {
+		@Nonnull private final ValueColumn<M> keys;
+		@Nonnull private final int[] records;
+		@Nullable private final TransactionalBitmap[] overflow;
+		private final int peek;
+		private int currentIndex = -1;
+		private boolean positioned;
+
+		SingleLeafBucketCursor(@Nonnull BPlusLeafTreeNode<M> leaf) {
+			this.keys = leaf.getKeyColumn();
+			this.records = leaf.getRecords();
+			this.overflow = leaf.getOverflow();
+			this.peek = leaf.getPeek();
+		}
+
+		@Override
+		public boolean next() {
+			if (this.currentIndex < this.peek) {
+				this.currentIndex++;
+				this.positioned = true;
+				return true;
+			}
+			this.positioned = false;
+			return false;
+		}
+
+		@Nonnull
+		@Override
+		public M value() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.keys.keyAt(this.currentIndex);
+		}
+
+		@Override
+		public boolean isSingle() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.overflow == null || this.overflow[this.currentIndex] == null;
+		}
+
+		@Override
+		public int singleRecordId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.records[this.currentIndex];
+		}
+
+		@Nonnull
+		@Override
+		public Bitmap records() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			if (this.overflow != null && this.overflow[this.currentIndex] != null) {
+				return this.overflow[this.currentIndex];
+			}
+			return new SingleRecordBitmap(this.records[this.currentIndex]);
+		}
+
+		@Override
+		public int size() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			if (this.overflow != null && this.overflow[this.currentIndex] != null) {
+				return this.overflow[this.currentIndex].size();
+			}
+			return 1;
+		}
+	}
+
+	/**
+	 * Re-assembles a B+ tree from a pre-built, ascending-ordered sequence of leaf nodes, deriving the internal routing
+	 * spine bottom-up. This is the inverse of {@link #enumerateLeaves()} and the foundation of the granular FilterIndex
+	 * load path: leaf pages are read straight from disk and the spine is reconstructed here in a single pass rather
+	 * than rebuilt by replaying per-record inserts.
+	 *
+	 * Each internal level groups the level below into nodes of at most {@link #internalNodeBlockSize}` + 1` children,
+	 * distributed as evenly as possible so that every node — except the root, which is exempt from the minimum — meets
+	 * the minimum occupancy. The even split is always feasible because the tree invariant guarantees the maximum
+	 * fan-out is at least twice the minimum. Separators are the left boundary keys of the children, honoring the
+	 * tree's separator-from-first-key invariant, so no separators need be persisted. The assembled tree reuses this
+	 * tree's block-size configuration, key type, comparator and value-column factory.
+	 *
+	 * WARNING: the assembled tree REUSES (aliases) the supplied leaf node instances — it does not copy them. This is
+	 * intended for the load path (where the leaves are freshly built from disk pages and owned by no other tree) and
+	 * for read-only round-trips. Do NOT keep mutating the source tree (or the leaves) after handing them here unless
+	 * the source is being discarded, or the two trees will share — and corrupt — leaf state.
+	 *
+	 * @param orderedLeaves the leaves in ascending key order (as returned by {@link #enumerateLeaves()}); must be non-empty
+	 * @return a new tree whose buckets are exactly those held by the supplied leaves
+	 */
+	@Nonnull
+	public TransactionalBucketBPlusTree<K> assembleFromLeaves(@Nonnull List<BPlusLeafTreeNode<K>> orderedLeaves) {
+		Assert.isPremiseValid(!orderedLeaves.isEmpty(), "At least one leaf node is required to assemble a tree.");
+		// the tree size is the total bucket count across all leaves (size() == peek + 1 per leaf)
+		int totalBuckets = 0;
+		for (BPlusLeafTreeNode<K> orderedLeaf : orderedLeaves) {
+			totalBuckets += orderedLeaf.size();
+		}
+		final BPlusTreeNode<K, ?> assembledRoot = buildSpine(new ArrayList<>(orderedLeaves));
+		return new TransactionalBucketBPlusTree<>(
+			this.valueBlockSize, this.minValueBlockSize,
+			this.internalNodeBlockSize, this.minInternalNodeBlockSize,
+			this.keyType,
+			this.comparator,
+			this.valueColumnFactory,
+			assembledRoot,
+			totalBuckets
+		);
+	}
+
+	/**
+	 * Re-assembles a B+ tree from a sequence of single-leaf source trees — one per persisted leaf page — preserving the
+	 * original leaf boundaries exactly and stamping each leaf with its persisted page sequence. This is the
+	 * boundary-stable load path for the granular FilterIndex: a caller that owns the bucket
+	 * representation (the inverted index) builds one single-leaf tree per persisted page via the public
+	 * {@link #addRecord} surface, then hands them here in ascending key order together with their page sequences. The
+	 * resulting tree's leaf *i* is byte-identical to persisted page *i*, so the change-detection baseline restored
+	 * alongside it makes the first post-restart commit a true no-op for unchanged leaves (no full re-pagination).
+	 *
+	 * Each source tree MUST consist of a single leaf (a page never exceeds a leaf's capacity); the leaf node is aliased
+	 * into the assembled tree exactly as in {@link #assembleFromLeaves} — do not keep mutating the source trees
+	 * afterwards.
+	 *
+	 * @param orderedSingleLeafTrees the per-page single-leaf trees in ascending key order
+	 * @param pageSequences               the persisted page sequence for each tree, positionally aligned; same length
+	 * @return a new tree whose leaves are exactly those of the supplied trees, each stamped with its page sequence
+	 */
+	@Nonnull
+	public TransactionalBucketBPlusTree<K> assembleFromSingleLeafTrees(
+		@Nonnull List<TransactionalBucketBPlusTree<K>> orderedSingleLeafTrees,
+		@Nonnull int[] pageSequences
+	) {
+		Assert.isPremiseValid(
+			orderedSingleLeafTrees.size() == pageSequences.length,
+			"The number of single-leaf trees must match the number of page sequences."
+		);
+		final List<BPlusLeafTreeNode<K>> leaves = new ArrayList<>(pageSequences.length);
+		for (int i = 0; i < pageSequences.length; i++) {
+			final BPlusTreeNode<K, ?> root = orderedSingleLeafTrees.get(i).getRoot();
+			Assert.isPremiseValid(
+				root instanceof BPlusLeafTreeNode,
+				"Each persisted leaf page must rebuild to exactly one leaf."
+			);
+			//noinspection unchecked
+			final BPlusLeafTreeNode<K> leaf = (BPlusLeafTreeNode<K>) root;
+			leaf.setPageSequence(pageSequences[i]);
+			leaves.add(leaf);
+		}
+		return assembleFromLeaves(leaves);
+	}
+
+	/**
+	 * Recursively collects the leaf nodes reachable from `node` in ascending key order via an in-order, left-to-right
+	 * walk of the internal spine.
+	 *
+	 * @param node   the subtree root to descend
+	 * @param leaves the accumulator receiving leaves in order
+	 */
+	private void collectLeaves(@Nonnull BPlusTreeNode<K, ?> node, @Nonnull List<BPlusLeafTreeNode<K>> leaves) {
+		if (node instanceof BPlusLeafTreeNode<?> leaf) {
+			//noinspection unchecked
+			leaves.add((BPlusLeafTreeNode<K>) leaf);
+		} else if (node instanceof BPlusInternalTreeNode<?> internal) {
+			//noinspection unchecked
+			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
+			final BPlusTreeNode<K, ?>[] children = internalNode.getChildren();
+			final int peek = internalNode.getPeek();
+			for (int i = 0; i <= peek; i++) {
+				collectLeaves(children[i], leaves);
+			}
+		} else {
+			throw new GenericEvitaInternalError("Unknown node type: " + node);
+		}
+	}
+
+	/**
+	 * Builds one internal level over `level` and recurses until a single node (the root) remains. The level below is
+	 * partitioned into `ceil(size / maxChildren)` parents, each receiving an evenly distributed contiguous run of
+	 * children so no non-root parent underflows.
+	 *
+	 * @param level the ordered nodes of the level immediately below the one being built
+	 * @return the root of the assembled subtree
+	 */
+	@Nonnull
+	private BPlusTreeNode<K, ?> buildSpine(@Nonnull List<? extends BPlusTreeNode<K, ?>> level) {
+		if (level.size() == 1) {
+			return level.get(0);
+		}
+		final int maxChildren = this.internalNodeBlockSize + 1;
+		final int childTotal = level.size();
+		final int parentCount = (childTotal + maxChildren - 1) / maxChildren;
+		final int baseChildren = childTotal / parentCount;
+		// the first `withExtra` parents take one extra child so the split is as even as possible
+		final int withExtra = childTotal % parentCount;
+		final List<BPlusInternalTreeNode<K>> parents = new ArrayList<>(parentCount);
+		int childIndex = 0;
+		for (int p = 0; p < parentCount; p++) {
+			final int childCount = baseChildren + (p < withExtra ? 1 : 0);
+			parents.add(buildInternalNode(level, childIndex, childCount));
+			childIndex += childCount;
+		}
+		return buildSpine(parents);
+	}
+
+	/**
+	 * Constructs a single internal node holding `childCount` children taken from `children` starting at `from`. The
+	 * separator before child `i` (for `i >= 1`) is that child's left boundary key. The key / children arrays are
+	 * allocated at the node's full capacity (mirroring split-created nodes), leaving the unused tail at its default.
+	 *
+	 * @param children   the ordered children of the level below
+	 * @param from       the index of the first child this node owns
+	 * @param childCount the number of children this node owns (>= 1)
+	 * @return the assembled internal node
+	 */
+	@Nonnull
+	private BPlusInternalTreeNode<K> buildInternalNode(
+		@Nonnull List<? extends BPlusTreeNode<K, ?>> children, int from, int childCount
+	) {
+		//noinspection unchecked
+		final K[] keys = (K[]) Array.newInstance(this.keyType, this.internalNodeBlockSize);
+		//noinspection unchecked
+		final BPlusTreeNode<K, ?>[] childArray = new BPlusTreeNode[this.internalNodeBlockSize + 1];
+		for (int i = 0; i < childCount; i++) {
+			final BPlusTreeNode<K, ?> child = children.get(from + i);
+			childArray[i] = child;
+			if (i > 0) {
+				// separator i-1 routes to child i — the left boundary key invariant the tree enforces
+				keys[i - 1] = child.getLeftBoundaryKey();
+			}
+		}
+		return new BPlusInternalTreeNode<>(keys, childArray, childCount - 1, this.comparator, true);
+	}
+
+	/**
+	 * Collects the nodes this (committed) tree rebuilt relative to `priorTree` — the page set a commit must (re)write
+	 * under the granular FilterIndex layout, driving emission from the merge's instance-identity rebuilt set. A node
+	 * carried across the commit unchanged is shared BY IDENTITY between the prior committed tree
+	 * and this one (the transactional merge returns the very same instance); a node the merge rebuilds — for ANY reason
+	 * it rebuilds: a child changed, the node itself held a transactional layer, one of a leaf's overflow record-set
+	 * bitmaps mutated, or it is a split/merge product — is a fresh instance. So `{node in this tree : not
+	 * identity-present in priorTree}` is exactly the merge's rebuilt set, with no hand-maintained dirty predicate that
+	 * could drift from the merge logic. In particular this catches a leaf whose record set changed only through an
+	 * overflow bitmap (e.g. mutated via the live bitmap from {@link #getRecordsEqualTo}) without the leaf node itself
+	 * acquiring a layer — the case a leaf-layer-only predicate would miss.
+	 *
+	 * Both trees must be in their committed (layer-free) state — call this AFTER the commit that produced this tree.
+	 * The walk prunes a whole subtree at the first carried-over node (a carried internal node necessarily has an
+	 * entirely carried subtree, since the merge returns it unchanged only when no descendant changed), so it visits
+	 * `O(changed nodes + their root-paths)`. The prior-tree identity index it builds is the only full-tree cost and is
+	 * optimized away later once nodes carry a persisted `pageSequence`.
+	 *
+	 * @param priorTree the previous committed tree this one was derived from by a transactional merge
+	 * @return the rebuilt nodes (leaves and internal spine) in pre-order; empty for a no-op commit
+	 */
+	@Nonnull
+	public List<BPlusTreeNode<K, ?>> collectRebuiltNodesSince(@Nonnull TransactionalBucketBPlusTree<K> priorTree) {
+		final Set<BPlusTreeNode<K, ?>> priorNodes = Collections.newSetFromMap(new IdentityHashMap<>());
+		indexNodesByIdentity(priorTree.getRoot(), priorNodes);
+		final List<BPlusTreeNode<K, ?>> rebuilt = new ArrayList<>();
+		collectRebuilt(getRoot(), priorNodes, rebuilt);
+		return rebuilt;
+	}
+
+	/**
+	 * Adds every node reachable from `node` (inclusive) to `out` under identity semantics.
+	 *
+	 * @param node the subtree root to index
+	 * @param out  the identity set accumulator
+	 */
+	private void indexNodesByIdentity(@Nonnull BPlusTreeNode<K, ?> node, @Nonnull Set<BPlusTreeNode<K, ?>> out) {
+		out.add(node);
+		if (node instanceof BPlusInternalTreeNode<?> internal) {
+			//noinspection unchecked
+			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
+			final BPlusTreeNode<K, ?>[] children = internalNode.getChildren();
+			final int peek = internalNode.getPeek();
+			for (int i = 0; i <= peek; i++) {
+				indexNodesByIdentity(children[i], out);
+			}
+		}
+	}
+
+	/**
+	 * Walks `node`'s subtree collecting every node not identity-present in `priorNodes` (rebuilt this commit), pruning
+	 * whole subtrees at the first carried-over node.
+	 *
+	 * @param node       the subtree root to scan
+	 * @param priorNodes the identity set of the prior committed tree's nodes
+	 * @param out        the rebuilt-node accumulator (pre-order)
+	 */
+	private void collectRebuilt(
+		@Nonnull BPlusTreeNode<K, ?> node,
+		@Nonnull Set<BPlusTreeNode<K, ?>> priorNodes,
+		@Nonnull List<BPlusTreeNode<K, ?>> out
+	) {
+		if (priorNodes.contains(node)) {
+			// carried over unchanged → the whole subtree below is clean too
+			return;
+		}
+		out.add(node);
+		if (node instanceof BPlusInternalTreeNode<?> internal) {
+			//noinspection unchecked
+			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
+			final BPlusTreeNode<K, ?>[] children = internalNode.getChildren();
+			final int peek = internalNode.getPeek();
+			for (int i = 0; i <= peek; i++) {
+				collectRebuilt(children[i], priorNodes, out);
+			}
+		}
+	}
+
 	@Nonnull
 	@Override
 	public ConsistencyReport getConsistencyReport() {
@@ -1395,6 +1858,26 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		M getLeftBoundaryKey();
+
+		/**
+		 * Returns the logical page this node occupies in its persistence stream under the granular FilterIndex layout
+		 *, or {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE} when none has been assigned yet.
+		 * The page is the STABLE on-disk identity of the node: an in-place rewrite carries the same page forward (so the
+		 * same storage part is overwritten on commit), while a split-born sibling or a not-yet-loaded node reads as
+		 * unassigned until the write/load path assigns one.
+		 *
+		 * @return the assigned page sequence, or {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE}
+		 */
+		int getPageSequence();
+
+		/**
+		 * Assigns the logical page this node occupies in its persistence stream. Called by the write path when a
+		 * previously {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE unassigned} node is first allocated a page,
+		 * and by the load path to restore each node's persisted page.
+		 *
+		 * @param pageSequence the page sequence to assign
+		 */
+		void setPageSequence(int pageSequence);
 	}
 
 	/**
@@ -1483,6 +1966,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Index of the last occupied position in the children array.
 		 */
 		private int peek;
+		/**
+		 * The logical persistence page this node occupies (see {@link BPlusTreeNode#getPageSequence()}). NOT transactional —
+		 * it is structural bookkeeping carried across the commit-merge by {@link #createCopyWithMergedTransactionalMemory}
+		 * (an in-place rebuild reuses the source page) and is left at {@link #UNASSIGNED_PAGE_SEQUENCE} on split-born nodes
+		 * until the write path allocates a page.
+		 */
+		private int pageSequence = UNASSIGNED_PAGE_SEQUENCE;
 
 		/**
 		 * Creates a new internal node with a single key separating two child nodes, used when creating a new root after
@@ -1630,6 +2120,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					}
 				}
 			}
+		}
+
+		@Override
+		public int getPageSequence() {
+			// pageSequence is structural (not transactional): it lives on the committed instance and is reused across
+			// the commit-merge, so it is read/written directly without routing through any transactional layer
+			return this.pageSequence;
+		}
+
+		@Override
+		public void setPageSequence(int pageSequence) {
+			this.pageSequence = pageSequence;
 		}
 
 		@Override
@@ -2096,8 +2598,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				}
 			}
 
+			final BPlusInternalTreeNode<M> result;
 			if (newChildren != null) {
-				return new BPlusInternalTreeNode<>(
+				result = new BPlusInternalTreeNode<>(
 					theKeys,
 					newChildren,
 					thePeek,
@@ -2105,7 +2608,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					true
 				);
 			} else if (layer != null) {
-				return new BPlusInternalTreeNode<>(
+				result = new BPlusInternalTreeNode<>(
 					theKeys,
 					theChildren,
 					thePeek,
@@ -2116,7 +2619,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// nodes created during splits/merges are built with transactionalLayer=false so they do not allocate
 				// STM layers mid-transaction; on commit they must be rebuilt as participating (transactionalLayer=true)
 				// nodes so subsequent transactions can layer changes over them
-				return new BPlusInternalTreeNode<>(
+				result = new BPlusInternalTreeNode<>(
 					theKeys,
 					theChildren,
 					thePeek,
@@ -2126,6 +2629,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else {
 				return this;
 			}
+			// carry the logical persistence page across the rebuild: an in-place rebuild rewrites the SAME page (reuse
+			// this.pageSequence), while a split-born node keeps its UNASSIGNED_PAGE_SEQUENCE so the write path allocates it fresh
+			result.pageSequence = this.pageSequence;
+			return result;
 		}
 
 		@Override
@@ -2201,6 +2708,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Index of the last occupied position in the columns.
 		 */
 		private int peek;
+		/**
+		 * The logical persistence page this leaf occupies (see {@link BPlusTreeNode#getPageSequence()}). NOT transactional —
+		 * it is structural bookkeeping carried across the commit-merge by {@link #createCopyWithMergedTransactionalMemory}
+		 * (an in-place rebuild of this leaf reuses the source page so the same storage part is overwritten) and is left
+		 * at {@link #UNASSIGNED_PAGE_SEQUENCE} on split-born leaves until the write path allocates a page.
+		 */
+		private int pageSequence = UNASSIGNED_PAGE_SEQUENCE;
+		/**
+		 * The granular-storage change-detection flag: `true` when this leaf has been mutated since the last flush emitted
+		 * its page. Routed through the leaf's transactional layer (like the columns) so a change made inside a transaction
+		 * is visible at flush yet isolated from concurrent readers and discarded on abort. A committed leaf the merge
+		 * produces defaults to clean; the emitter clears the flag once it has collected the page. It is the deterministic
+		 * replacement for a content hash — every mutation site sets it, so a real change can never be suppressed.
+		 */
+		private boolean dirty = false;
 
 		/**
 		 * Shifts the passed overflow column one slot to the right at `position`, leaving the freed slot null so the
@@ -2387,6 +2909,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
+			// changing the occupied range is a content mutation (truncation on split/removal, donor shrink on
+			// steal/merge): flag the leaf so the granular write path re-emits its page
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
 			if (layer == null) {
 				final int originPeek = this.peek;
 				this.peek = peek;
@@ -2426,6 +2955,47 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						}
 					}
 				}
+			}
+		}
+
+		@Override
+		public int getPageSequence() {
+			// pageSequence is structural (not transactional): it lives on the committed instance and is reused across
+			// the commit-merge, so it is read/written directly without routing through any transactional layer
+			return this.pageSequence;
+		}
+
+		@Override
+		public void setPageSequence(int pageSequence) {
+			this.pageSequence = pageSequence;
+		}
+
+		/**
+		 * Returns the change-detection flag, transaction-aware: the in-flight transaction's layer value when a layer
+		 * exists, otherwise the committed value. See {@link #dirty}.
+		 *
+		 * @return true when the leaf has been mutated since its page was last flushed
+		 */
+		boolean isDirty() {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			return layer == null ? this.dirty : layer.dirty;
+		}
+
+		/**
+		 * Clears the change-detection flag once the emitter has collected this leaf's page for the current flush. In a
+		 * transaction it clears the layer's flag (the merge produces a clean committed instance regardless); in the
+		 * warm-up path it clears the committed instance in place so the next flush suppresses it. See {@link #dirty}.
+		 */
+		void clearDirty() {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				this.dirty = false;
+			} else {
+				layer.dirty = false;
 			}
 		}
 
@@ -2496,6 +3066,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
+			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
 			if (layer == null) {
 				ensureOverflowForSteal(previousNode.getOverflow());
 				this.keys.copyRangeTo(0, this.keys, numberOfTailValues, this.peek + 1);
@@ -2547,6 +3123,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
+			// the receiving leaf's page changes; the donor is flagged via its own setPeek below
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
 			if (layer == null) {
 				final ValueColumn<M> nextKeys = nextNode.getKeyColumnForUpdate();
 				final int[] nextRecords = nextNode.getRecordsForUpdate();
@@ -2593,6 +3175,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
+			// the surviving (receiving) leaf's page changes; the emptied donor is flagged via its own setPeek(-1) below
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
 			if (layer == null) {
 				ensureOverflowForSteal(previousNode.getOverflow());
 				this.keys.copyRangeTo(0, this.keys, mergePeek + 1, this.peek + 1);
@@ -2629,6 +3217,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
+			// the surviving (receiving) leaf's page changes; the emptied donor is flagged via its own setPeek(-1) below
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
 			if (layer == null) {
 				ensureOverflowForSteal(nextNode.getOverflow());
 				nextNode.getKeyColumn().copyRangeTo(0, this.keys, this.peek + 1, mergePeek + 1);
@@ -2941,8 +3535,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				}
 			}
 
+			final BPlusLeafTreeNode<M> result;
 			if (newOverflow != null) {
-				return new BPlusLeafTreeNode<>(
+				result = new BPlusLeafTreeNode<>(
 					theKeys,
 					theRecords,
 					newOverflow,
@@ -2951,7 +3546,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					true
 				);
 			} else if (layer != null) {
-				return new BPlusLeafTreeNode<>(
+				result = new BPlusLeafTreeNode<>(
 					theKeys,
 					theRecords,
 					theOverflow,
@@ -2963,7 +3558,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// nodes created during splits/merges are built with transactionalLayer=false so they do not allocate
 				// STM layers mid-transaction; on commit they must be rebuilt as participating (transactionalLayer=true)
 				// nodes so subsequent transactions can layer changes over them
-				return new BPlusLeafTreeNode<>(
+				result = new BPlusLeafTreeNode<>(
 					theKeys,
 					theRecords,
 					theOverflow,
@@ -2974,6 +3569,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else {
 				return this;
 			}
+			// carry the logical persistence page across the rebuild: an in-place rebuild of this leaf rewrites the SAME
+			// page (reuse this.pageSequence), while a split-born leaf keeps its UNASSIGNED_PAGE_SEQUENCE so the write path allocates
+			// it fresh
+			result.pageSequence = this.pageSequence;
+			return result;
 		}
 
 		/**
@@ -2988,6 +3588,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
+			// adding a record mutates this leaf's page: flag it for re-emission (the layer is created above regardless,
+			// so a rare no-op add over-reports at worst — never under-reports)
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.peek < this.records.length - 1,
@@ -3030,6 +3637,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
+			// adding records mutates this leaf's page: flag it for re-emission
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
 			if (layer == null) {
 				Assert.isPremiseValid(
 					this.peek < this.records.length - 1,
@@ -3072,6 +3685,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
+			// removing records mutates this leaf's page: flag it for re-emission
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
 			if (layer == null) {
 				final InsertionPosition insertionPosition =
 					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);

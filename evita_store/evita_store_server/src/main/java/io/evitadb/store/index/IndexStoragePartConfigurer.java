@@ -177,6 +177,21 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		// the granular FilterIndex leaf-page record — a brand-new record type with no backward-compatible reader.
+		// Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			FilterIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new FilterIndexLeafPagePartSerializer(), FilterIndexLeafPagePart.class),
+			index++
+		);
+
+		// the granular FilterIndex range leaf-page record — a brand-new record type with no backward-compatible reader.
+		kryo.register(
+			RangeIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new RangeIndexLeafPagePartSerializer(), RangeIndexLeafPagePart.class),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
 

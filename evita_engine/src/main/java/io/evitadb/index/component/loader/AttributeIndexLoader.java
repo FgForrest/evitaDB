@@ -31,22 +31,33 @@ import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey.StreamKind;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 
@@ -266,17 +277,19 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		// the freeze rationale on FilterIndexStoragePart#indexedDecimalPlaces). A later schema change to the scale is
 		// surfaced as drift on the next modification rather than silently reinterpreting the persisted keys.
 		final int indexedDecimalPlaces = part.getIndexedDecimalPlaces();
-		// build the OWNED shared value→ValueToRecord tree from the persisted histogram points; the normalizer is the
-		// shared NFD/Instant/scaled-int one so keys are canonical
-		final InvertedIndex shared = new InvertedIndex(
-			plainType,
-			part.getHistogramPoints(),
-			FilterIndex.getNormalizer(plainType, indexedDecimalPlaces),
-			FilterIndex.getComparator(attributeIndexKey, plainType),
-			indexedDecimalPlaces
+		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
+		final Comparator<?> comparator = FilterIndex.getComparator(attributeIndexKey, plainType);
+
+		// the OWNED shared value→ValueToRecord tree (bucket axis) and the optional shared range companion (range axis)
+		// are reloaded independently of each other, then wrapped together in a FilterIndexView
+		final InvertedIndex shared = loadInvertedIndex(
+			catalogVersion, entityIndexId, service, part, attributeIndexKey, key,
+			plainType, normalizer, comparator, indexedDecimalPlaces
 		);
 		sharedValueIndexes.put(attributeIndexKey, shared);
-		final RangeIndex rangeIndex = part.getRangeIndex();
+		final RangeIndex rangeIndex = loadRangeIndex(
+			catalogVersion, entityIndexId, service, part, attributeIndexKey, key
+		);
 		if (rangeIndex != null) {
 			sharedRangeIndexes.put(attributeIndexKey, rangeIndex);
 		}
@@ -284,6 +297,121 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		filterIndexes.put(
 			attributeIndexKey,
 			new FilterIndexView(attributeIndexKey, shared, rangeIndex, attributeType, indexedDecimalPlaces)
+		);
+	}
+
+	/**
+	 * Loads the OWNED shared value→`ValueToRecord` tree (the bucket axis) of a FILTER part. A `SINGLE` part carries its
+	 * buckets inline and is rebuilt via the standard buckets constructor; a `PAGED` part reads every listed leaf page in
+	 * order — keyed by `join(streamId, pageSequence)`, the stream id recomputed from the sub-index identity via the read-only
+	 * compressor (it was registered at the first `PAGED` write) — and reassembles boundary-stable (one leaf per persisted
+	 * page, page identities + change-detection baseline restored), so the first post-restart commit rewrites only
+	 * genuinely-changed leaves rather than re-paginating the whole index.
+	 *
+	 * @param catalogVersion       the catalog version to read pages at
+	 * @param entityIndexId        the owning entity index pk (part of the page-stream key)
+	 * @param service              the storage-part persistence service to read from
+	 * @param part                 the already-fetched FILTER root part
+	 * @param attributeIndexKey    the sub-index identity (part of the page-stream key)
+	 * @param key                  the manifest key, used only for failure messages
+	 * @param plainType            the non-array value type used to build the tree
+	 * @param normalizer           the canonical value normalizer (NFD / Instant / scaled-int)
+	 * @param comparator           the value ordering comparator
+	 * @param indexedDecimalPlaces the frozen scale for `BigDecimal` keys (0 otherwise)
+	 * @return the reloaded owned value tree
+	 */
+	@Nonnull
+	private static InvertedIndex loadInvertedIndex(
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull StoragePartPersistenceService<?> service,
+		@Nonnull FilterIndexStoragePart part,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull AttributeIndexStorageKey key,
+		@Nonnull Class<?> plainType,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator<?> comparator,
+		int indexedDecimalPlaces
+	) {
+		if (!part.isPaged()) {
+			return new InvertedIndex(
+				plainType, part.getHistogramPoints(), normalizer, comparator, indexedDecimalPlaces
+			);
+		}
+		final int streamId = service.getReadOnlyKeyCompressor().getId(
+			new LeafStreamKey(entityIndexId, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.FILTER))
+		);
+		final int[] orderedPageSequences = part.getLeafPageSequences();
+		final ValueToRecordBitmap[][] perPageBuckets = new ValueToRecordBitmap[orderedPageSequences.length][];
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final int pageSequence = orderedPageSequences[i];
+			final FilterIndexLeafPagePart leafPage = service.getStoragePart(
+				catalogVersion, FilterIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+				FilterIndexLeafPagePart.class
+			);
+			isPremiseValid(
+				leafPage != null,
+				"Filter index leaf page " + pageSequence + " (stream " + streamId + ") for key " + key.attribute() +
+					" was not found in persistent storage!"
+			);
+			perPageBuckets[i] = leafPage.getBuckets();
+		}
+		return InvertedIndex.fromPersistedPages(
+			plainType, orderedPageSequences, perPageBuckets, part.getHighWaterPageSequence(),
+			normalizer, comparator, indexedDecimalPlaces
+		);
+	}
+
+	/**
+	 * Loads the optional shared range companion (the range axis) of a FILTER part, mirroring {@link #loadInvertedIndex}.
+	 * A non-range-paged part carries the range inline (or has none at all → `null`); a range-`PAGED` part reads every
+	 * listed {@link RangeIndexLeafPagePart} in order — keyed by `join(rangeStreamId, pageSequence)`, the stream id resolved
+	 * with {@link StreamKind#RANGE} — and reassembles boundary-stable.
+	 *
+	 * @param catalogVersion    the catalog version to read pages at
+	 * @param entityIndexId     the owning entity index pk (part of the page-stream key)
+	 * @param service           the storage-part persistence service to read from
+	 * @param part              the already-fetched FILTER root part
+	 * @param attributeIndexKey the sub-index identity (part of the page-stream key)
+	 * @param key               the manifest key, used only for failure messages
+	 * @return the reloaded range companion, or `null` when the attribute has none
+	 */
+	@Nullable
+	private static RangeIndex loadRangeIndex(
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull StoragePartPersistenceService<?> service,
+		@Nonnull FilterIndexStoragePart part,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull AttributeIndexStorageKey key
+	) {
+		if (!part.isRangePaged()) {
+			return part.getRangeIndex();
+		}
+		final int rangeStreamId = service.getReadOnlyKeyCompressor().getId(
+			new LeafStreamKey(
+				entityIndexId,
+				new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.FILTER),
+				StreamKind.RANGE
+			)
+		);
+		final int[] rangePageSequences = part.getRangeLeafPageSequences();
+		final TransactionalRangePoint[][] perPagePoints = new TransactionalRangePoint[rangePageSequences.length][];
+		for (int i = 0; i < rangePageSequences.length; i++) {
+			final int pageSequence = rangePageSequences[i];
+			final RangeIndexLeafPagePart leafPage = service.getStoragePart(
+				catalogVersion, RangeIndexLeafPagePart.computeUniquePartId(rangeStreamId, pageSequence),
+				RangeIndexLeafPagePart.class
+			);
+			isPremiseValid(
+				leafPage != null,
+				"Range index leaf page " + pageSequence + " (stream " + rangeStreamId + ") for key " + key.attribute() +
+					" was not found in persistent storage!"
+			);
+			perPagePoints[i] = leafPage.getPoints();
+		}
+		return RangeIndex.fromPersistedPages(
+			rangePageSequences, perPagePoints, part.getRangeHighWaterPageSequence()
 		);
 	}
 

@@ -28,10 +28,14 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyReport;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure.ConsistencyState;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusInternalTreeNode;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusLeafTreeNode;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BPlusTreeNode;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -40,15 +44,19 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -1443,7 +1451,7 @@ class TransactionalBucketBPlusTreeTest {
 	}
 
 	@Nested
-	@DisplayName("Merge overflow-aliasing regression (#760)")
+	@DisplayName("Merge overflow-aliasing regression")
 	class MergeOverflowAliasingRegressionTest {
 
 		@Test
@@ -1483,7 +1491,7 @@ class TransactionalBucketBPlusTreeTest {
 		 * @param multiKey        the single key that is promoted to a multi bucket
 		 * @param deleteAscending whether the surrounding buckets are deleted low-to-high or high-to-low
 		 */
-		private void runMultiSurvivorMergeChurn(
+		private static void runMultiSurvivorMergeChurn(
 			int valueBlockSize, int minBlockSize, int multiKey, boolean deleteAscending
 		) {
 			// internal-node block size is a fixed odd value (its own constraint, must not exceed the leaf block size);
@@ -1535,6 +1543,500 @@ class TransactionalBucketBPlusTreeTest {
 					}
 				}
 			);
+		}
+	}
+
+	/**
+	 * Verifies the page-assembly seams ({@link TransactionalBucketBPlusTree#enumerateLeaves()} and
+	 * {@link TransactionalBucketBPlusTree#assembleFromLeaves(List)}) the granular FilterIndex storage layout is built
+	 * on: a tree decomposed into its ordered leaves and reconstructed from them must be equivalent in bucket ordering
+	 * and per-bucket record sets, with a consistent internal spine derived purely from the leaves' boundary keys.
+	 */
+	@Nested
+	@DisplayName("Page assembly (leaf enumeration & spine reconstruction)")
+	class PageAssembly {
+
+		@Test
+		@DisplayName("enumerates leaves left-to-right covering every bucket exactly once")
+		@Tag(INDEXING)
+		void shouldEnumerateLeavesInAscendingOrderCoveringAllBuckets() {
+			final TreeTuple prepared = prepareRandomTree(42L, 200);
+			final List<BPlusLeafTreeNode<Integer>> leaves = prepared.tree().enumerateLeaves();
+			assertTrue(leaves.size() > 1, "Fixture should produce a multi-leaf tree.");
+			assertArrayEquals(
+				prepared.keys(), flattenLeafKeys(leaves),
+				"Leaf enumeration must cover all keys in ascending order."
+			);
+		}
+
+		@Test
+		@DisplayName("round-trips a multi-leaf tree through enumerate then assemble")
+		@Tag(INDEXING)
+		void shouldRoundTripMultiLeafTree() {
+			final TreeTuple prepared = prepareRandomTree(7L, 200);
+			assertTrue(prepared.tree().enumerateLeaves().size() > 1, "Fixture should be a multi-leaf tree.");
+			assertRoundTrip(prepared.tree(), prepared.keys());
+		}
+
+		@Test
+		@DisplayName("round-trips a tree whose root is a single leaf")
+		@Tag(INDEXING)
+		void shouldRoundTripSingleLeafTree() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(5, 50);
+			tree.addRecord(1, 10);
+			assertEquals(1, tree.enumerateLeaves().size(), "Fixture should be a single-leaf tree.");
+			assertRoundTrip(tree, new int[] {1, 5});
+		}
+
+		@Test
+		@DisplayName("round-trips multi-record buckets preserving every record set")
+		@Tag(INDEXING)
+		void shouldRoundTripMultiRecordBuckets() {
+			final TreeTuple prepared = prepareRandomMultiTree(13L, 200, 3);
+			assertRoundTrip(prepared.tree(), prepared.keys());
+		}
+
+		@Test
+		@DisplayName("round-trips an empty tree exposing a single empty leaf")
+		@Tag(INDEXING)
+		void shouldRoundTripEmptyTree() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			assertEquals(1, tree.enumerateLeaves().size(), "An empty tree must expose a single empty leaf.");
+			assertRoundTrip(tree, new int[0]);
+		}
+
+		@Test
+		@DisplayName("round-trips a multi-level tree whose internal nodes have a minimum occupancy above one")
+		@Tag(INDEXING)
+		void shouldRoundTripWithHigherMinimumOccupancy() {
+			// internalNodeBlockSize 7 (odd) → fan-out 8, minInternal 3 (> 1); 500 keys force several internal levels
+			// so the bottom-up spine builder's even-distribution min-occupancy guarantee is actually exercised.
+			assertRoundTripForConfig(8, 3, 7, 3, 500);
+		}
+
+		@Test
+		@DisplayName("round-trips at the InvertedIndex production block sizes")
+		@Tag(INDEXING)
+		void shouldRoundTripAtProductionBlockSizes() {
+			// the live InvertedIndex bucket-tree config: valueBlockSize 256, minValue 127, internal 127, minInternal 63
+			assertRoundTripForConfig(256, 127, 127, 63, 4_000);
+		}
+
+		/**
+		 * Builds a tree at the given block-size configuration, fills it with `totalKeys` shuffled buckets (every fourth
+		 * a multi-record bucket), and asserts it survives an enumerate → assemble round-trip.
+		 *
+		 * @param valueBlockSize           leaf block size
+		 * @param minValueBlockSize        minimum leaf occupancy
+		 * @param internalNodeBlockSize    internal node block size (odd)
+		 * @param minInternalNodeBlockSize minimum internal occupancy
+		 * @param totalKeys                number of distinct buckets to insert
+		 */
+		private static void assertRoundTripForConfig(
+			int valueBlockSize, int minValueBlockSize,
+			int internalNodeBlockSize, int minInternalNodeBlockSize, int totalKeys
+		) {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(
+				valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize,
+				Integer.class, null
+			);
+			final Random random = new Random(99L);
+			final List<Integer> order = new ArrayList<>(totalKeys);
+			for (int i = 0; i < totalKeys; i++) {
+				order.add(i);
+			}
+			java.util.Collections.shuffle(order, random);
+			for (final int key : order) {
+				if (key % 4 == 0) {
+					tree.addRecord(key, key * 10, key * 10 + 1);
+				} else {
+					tree.addRecord(key, key * 10);
+				}
+			}
+			assertTrue(tree.enumerateLeaves().size() > 1, "Config must produce a multi-leaf tree.");
+			final int[] expectedKeys = new int[totalKeys];
+			for (int i = 0; i < totalKeys; i++) {
+				expectedKeys[i] = i;
+			}
+			assertRoundTrip(tree, expectedKeys);
+		}
+
+		/**
+		 * Flattens the keys held across the ordered leaves into a single ascending array.
+		 *
+		 * @param leaves the ordered leaves
+		 * @return the concatenated keys
+		 */
+		@Nonnull
+		private static int[] flattenLeafKeys(@Nonnull List<BPlusLeafTreeNode<Integer>> leaves) {
+			final List<Integer> all = new ArrayList<>();
+			for (final BPlusLeafTreeNode<Integer> leaf : leaves) {
+				for (int i = 0; i <= leaf.getPeek(); i++) {
+					all.add(leaf.keyAt(i));
+				}
+			}
+			return all.stream().mapToInt(Integer::intValue).toArray();
+		}
+
+		/**
+		 * Enumerates the leaves of `original`, re-assembles a fresh tree from them, and asserts the reconstruction is
+		 * consistent and bucket-for-bucket equivalent to the original.
+		 *
+		 * @param original     the source tree
+		 * @param expectedKeys the sorted keys the reconstruction must expose
+		 */
+		private static void assertRoundTrip(
+			@Nonnull TransactionalBucketBPlusTree<Integer> original, @Nonnull int... expectedKeys
+		) {
+			final List<BPlusLeafTreeNode<Integer>> leaves = original.enumerateLeaves();
+			final TransactionalBucketBPlusTree<Integer> reassembled = original.assembleFromLeaves(leaves);
+			verifyTreeConsistency(reassembled, expectedKeys);
+			assertEquals(original.bucketCount(), reassembled.bucketCount(), "Bucket count must be preserved.");
+			for (final int key : expectedKeys) {
+				assertArrayEquals(
+					recordsOf(original, key), recordsOf(reassembled, key),
+					"Record set must be preserved for value " + key
+				);
+			}
+		}
+	}
+
+	/**
+	 * Verifies {@link TransactionalBucketBPlusTree#collectRebuiltNodesSince(TransactionalBucketBPlusTree)} — the
+	 * Option-2 dirty-page detector for the granular FilterIndex layout. The rebuilt set it reports must
+	 * equal, by instance identity, the set the transactional merge actually rebuilt (committed nodes absent from the
+	 * prior committed tree), it must prune clean subtrees, and — the case a leaf-layer-only predicate would miss — it
+	 * must flag a leaf whose record set changed only through an overflow bitmap mutated outside the leaf's own methods.
+	 */
+	@Nested
+	@DisplayName("Committed-page diff (Option-2 rebuilt-node detection)")
+	@Tag(TRANSACTION)
+	class CommittedPageDiff {
+
+		@Test
+		@DisplayName("reports no rebuilt nodes for a no-op commit")
+		@Tag(INDEXING)
+		void shouldReportNoRebuiltNodesForNoOpCommit() {
+			final TreeTuple prepared = prepareRandomTree(11L, 200);
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> {
+					// no mutation at all
+				},
+				(original, committed) -> {
+					assertSame(original.getRoot(), committed.getRoot(), "A no-op commit must share the root by identity.");
+					assertTrue(
+						committed.collectRebuiltNodesSince(original).isEmpty(),
+						"A no-op commit must rebuild nothing."
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("reports exactly the root-to-leaf path for a single changed bucket")
+		@Tag(INDEXING)
+		void shouldReportRootToLeafPathForSingleChangedBucket() {
+			final TreeTuple prepared = prepareRandomTree(12L, 300);
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> tree.addRecord(150, 1_500, 9_999), // promote one existing bucket to multi
+				(original, committed) -> {
+					final List<BPlusTreeNode<Integer, ?>> rebuilt = committed.collectRebuiltNodesSince(original);
+					assertRebuiltMatchesMergeSet(original, committed, rebuilt);
+					// the change touches one leaf, so only that leaf + its spine path are rebuilt — far fewer than all
+					assertTrue(rebuilt.size() < original.bucketCount(), "Must not rebuild the whole tree.");
+					assertEquals(1, leafCount(rebuilt), "Exactly one leaf must be rebuilt for a single-bucket change.");
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("flags the leaf when a record set changes only through its overflow bitmap")
+		@Tag(INDEXING)
+		void shouldReportLeafForOverflowOnlyBitmapMutation() {
+			// value 0 is a multi bucket (0 % 5 == 0) holding {0, 1}
+			final TreeTuple prepared = prepareRandomMultiTree(13L, 300, 5);
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> {
+					// mutate the live overflow bitmap directly, bypassing the leaf's addRecord — so the leaf node
+					// itself never acquires a transactional layer (the case the old leaf-layer predicate missed)
+					final Bitmap records = tree.getRecordsEqualTo(0);
+					assertInstanceOf(TransactionalBitmap.class, records, "Value 0 must be a multi-record bucket.");
+					((TransactionalBitmap) records).add(9_999);
+				},
+				(original, committed) -> {
+					final List<BPlusTreeNode<Integer, ?>> rebuilt = committed.collectRebuiltNodesSince(original);
+					assertRebuiltMatchesMergeSet(original, committed, rebuilt);
+					assertEquals(1, leafCount(rebuilt), "The overflow mutation must rebuild exactly its one leaf.");
+					assertArrayEquals(
+						new int[] {0, 1, 9_999}, committed.getRecordsEqualTo(0).getArray(),
+						"The committed tree must carry the overflow-added record."
+					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("matches the merge rebuilt set across split-inducing inserts")
+		@Tag(INDEXING)
+		void shouldMatchMergeSetForSplitInducingInserts() {
+			final TreeTuple prepared = prepareRandomTree(14L, 200);
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> {
+					for (int i = 1_000; i < 1_120; i++) {
+						tree.addRecord(i, i * 10);
+					}
+				},
+				(original, committed) -> assertRebuiltMatchesMergeSet(
+					original, committed, committed.collectRebuiltNodesSince(original)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("matches the merge rebuilt set across merge-inducing removals")
+		@Tag(INDEXING)
+		void shouldMatchMergeSetForMergeInducingRemovals() {
+			final TreeTuple prepared = prepareRandomTree(15L, 200);
+			assertStateAfterCommit(
+				prepared.tree(),
+				tree -> {
+					for (int i = 0; i < 150; i++) {
+						tree.removeRecord(i, i * 10);
+					}
+				},
+				(original, committed) -> assertRebuiltMatchesMergeSet(
+					original, committed, committed.collectRebuiltNodesSince(original)
+				)
+			);
+		}
+
+		/**
+		 * Asserts the reported rebuilt set equals, by identity, the merge's actual rebuilt set — the committed nodes
+		 * not identity-present in the prior tree — computed here independently via a full (unpruned) walk of both trees.
+		 * Also asserts the report has no duplicates and that no reported node was carried over from the prior tree.
+		 *
+		 * @param prior     the pre-commit committed tree
+		 * @param committed the post-commit committed tree
+		 * @param rebuilt   the nodes the detector reported as rebuilt
+		 */
+		private static void assertRebuiltMatchesMergeSet(
+			@Nonnull TransactionalBucketBPlusTree<Integer> prior,
+			@Nonnull TransactionalBucketBPlusTree<Integer> committed,
+			@Nonnull List<BPlusTreeNode<Integer, ?>> rebuilt
+		) {
+			final Set<BPlusTreeNode<Integer, ?>> priorNodes = identityNodesOf(prior);
+			final Set<BPlusTreeNode<Integer, ?>> committedNodes = identityNodesOf(committed);
+			final Set<BPlusTreeNode<Integer, ?>> oracle = Collections.newSetFromMap(new IdentityHashMap<>());
+			for (final BPlusTreeNode<Integer, ?> node : committedNodes) {
+				if (!priorNodes.contains(node)) {
+					oracle.add(node);
+				}
+			}
+			final Set<BPlusTreeNode<Integer, ?>> reported = Collections.newSetFromMap(new IdentityHashMap<>());
+			reported.addAll(rebuilt);
+			assertEquals(rebuilt.size(), reported.size(), "The report must not contain duplicate nodes.");
+			for (final BPlusTreeNode<Integer, ?> node : rebuilt) {
+				assertFalse(priorNodes.contains(node), "A reported node must not be one carried over from the prior tree.");
+			}
+			assertEquals(oracle.size(), reported.size(), "Reported set size must equal the merge rebuilt set.");
+			assertTrue(reported.containsAll(oracle), "Reported set must contain every node the merge rebuilt.");
+			assertTrue(oracle.containsAll(reported), "Reported set must contain only nodes the merge rebuilt.");
+		}
+
+		/**
+		 * Collects every node of the tree into an identity set via a full walk.
+		 *
+		 * @param tree the tree to index
+		 * @return the identity set of all its nodes
+		 */
+		@Nonnull
+		private static Set<BPlusTreeNode<Integer, ?>> identityNodesOf(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree
+		) {
+			final Set<BPlusTreeNode<Integer, ?>> nodes = Collections.newSetFromMap(new IdentityHashMap<>());
+			walkNodes(tree.getRoot(), nodes);
+			return nodes;
+		}
+
+		/**
+		 * Recursively adds `node` and its descendants to `out`.
+		 *
+		 * @param node the subtree root
+		 * @param out  the identity set accumulator
+		 */
+		private static void walkNodes(
+			@Nonnull BPlusTreeNode<Integer, ?> node, @Nonnull Set<BPlusTreeNode<Integer, ?>> out) {
+			out.add(node);
+			if (node instanceof BPlusInternalTreeNode<?> internal) {
+				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> internalNode =
+					(BPlusInternalTreeNode<Integer>) internal;
+				final BPlusTreeNode<Integer, ?>[] children = internalNode.getChildren();
+				for (int i = 0; i <= internalNode.getPeek(); i++) {
+					walkNodes(children[i], out);
+				}
+			}
+		}
+
+		/**
+		 * Counts how many of the reported nodes are leaves.
+		 *
+		 * @param nodes the reported nodes
+		 * @return the leaf count
+		 */
+		private static int leafCount(@Nonnull List<BPlusTreeNode<Integer, ?>> nodes) {
+			int count = 0;
+			for (final BPlusTreeNode<Integer, ?> node : nodes) {
+				if (node instanceof BPlusLeafTreeNode<?>) {
+					count++;
+				}
+			}
+			return count;
+		}
+	}
+
+	/**
+	 * Verifies the granular FilterIndex page-tree: the STABLE, copy-propagated `pageSequence`
+	 * node field. A node's page is its on-disk identity — an in-place rebuild (the transactional commit-merge) must carry
+	 * the same page forward so the same storage part is overwritten, a split-born sibling must start
+	 * {@link TransactionalBucketBPlusTree#UNASSIGNED_PAGE_SEQUENCE} so the write path allocates it fresh, and the
+	 * enumerate→assemble load round-trip must preserve each leaf's page.
+	 */
+	@Nested
+	@DisplayName("Page-sequence threading")
+	class PageSequenceThreading {
+
+		@Test
+		@DisplayName("a fresh tree's root leaf starts with an unassigned page")
+		@Tag(INDEXING)
+		@Tag(SERIALIZATION)
+		void shouldDefaultPageSequenceToUnassignedForFreshTree() {
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
+			assertEquals(1, leaves.size(), "A fresh tree is a single empty leaf.");
+			assertEquals(
+				TransactionalBucketBPlusTree.UNASSIGNED_PAGE_SEQUENCE, leaves.get(0).getPageSequence(),
+				"A freshly built leaf must start unassigned."
+			);
+		}
+
+		@Test
+		@DisplayName("an in-place commit reuses every leaf's page and rebuilds the touched leaf")
+		@Tag(INDEXING)
+		@Tag(SERIALIZATION)
+		void shouldReuseLeafPagesAcrossInPlaceCommit() {
+			final TreeTuple prepared = prepareRandomTree(21L, 300);
+			final TransactionalBucketBPlusTree<Integer> tree = prepared.tree();
+			// assign every committed leaf a distinct page, keyed by its left boundary (stable across an in-place change)
+			final TreeMap<Integer, Integer> pageByBoundary = new TreeMap<>();
+			final List<BPlusLeafTreeNode<Integer>> before = tree.enumerateLeaves();
+			for (int i = 0; i < before.size(); i++) {
+				final BPlusLeafTreeNode<Integer> leaf = before.get(i);
+				leaf.setPageSequence(i);
+				pageByBoundary.put(leaf.getLeftBoundaryKey(), i);
+			}
+			// capture the leaf owning value 150 so we can prove it is rebuilt (a fresh instance) yet keeps its page
+			final BPlusLeafTreeNode<Integer> ownerBefore = leafOwning(before, 150);
+			final int ownerPage = ownerBefore.getPageSequence();
+
+			assertStateAfterCommit(
+				tree,
+				t -> t.addRecord(150, 1_500, 9_999), // promote an existing bucket — rebuilds one leaf, no split/merge
+				(original, committed) -> {
+					final List<BPlusLeafTreeNode<Integer>> after = committed.enumerateLeaves();
+					for (final BPlusLeafTreeNode<Integer> leaf : after) {
+						assertEquals(
+							pageByBoundary.get(leaf.getLeftBoundaryKey()), Integer.valueOf(leaf.getPageSequence()),
+							"Leaf boundary " + leaf.getLeftBoundaryKey() + " must keep its page across an in-place commit."
+						);
+					}
+					final BPlusLeafTreeNode<Integer> ownerAfter = leafOwning(after, 150);
+					assertNotSame(ownerBefore, ownerAfter, "The touched leaf must be rebuilt (a fresh instance).");
+					assertEquals(ownerPage, ownerAfter.getPageSequence(), "The rebuilt leaf must reuse its source page.");
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("split-born leaves start unassigned")
+		@Tag(INDEXING)
+		@Tag(SERIALIZATION)
+		void shouldLeaveSplitBornLeavesUnassigned() {
+			// a tiny tree that is still a single leaf, with a page already assigned
+			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(3, Integer.class);
+			tree.addRecord(1, 10);
+			tree.addRecord(2, 20);
+			final List<BPlusLeafTreeNode<Integer>> before = tree.enumerateLeaves();
+			assertEquals(1, before.size(), "Setup must be a single leaf.");
+			before.get(0).setPageSequence(42);
+
+			assertStateAfterCommit(
+				tree,
+				t -> {
+					// overflow the single leaf so it splits into two fresh leaves
+					t.addRecord(3, 30);
+					t.addRecord(4, 40);
+					t.addRecord(5, 50);
+				},
+				(original, committed) -> {
+					final List<BPlusLeafTreeNode<Integer>> after = committed.enumerateLeaves();
+					assertTrue(after.size() > 1, "The leaf must have split.");
+					for (final BPlusLeafTreeNode<Integer> leaf : after) {
+						assertEquals(
+							TransactionalBucketBPlusTree.UNASSIGNED_PAGE_SEQUENCE, leaf.getPageSequence(),
+							"A split-born leaf must start unassigned so the write path allocates it a fresh page."
+						);
+					}
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("enumerate then assemble round-trip preserves each leaf's page")
+		@Tag(INDEXING)
+		@Tag(SERIALIZATION)
+		void shouldPreserveLeafPagesThroughAssemblyRoundTrip() {
+			final TreeTuple prepared = prepareRandomTree(22L, 400);
+			final TransactionalBucketBPlusTree<Integer> tree = prepared.tree();
+			final List<BPlusLeafTreeNode<Integer>> source = tree.enumerateLeaves();
+			for (int i = 0; i < source.size(); i++) {
+				source.get(i).setPageSequence(100 + i);
+			}
+			final TransactionalBucketBPlusTree<Integer> assembled = tree.assembleFromLeaves(source);
+			final List<BPlusLeafTreeNode<Integer>> roundTripped = assembled.enumerateLeaves();
+			assertEquals(source.size(), roundTripped.size(), "Leaf count must survive the round-trip.");
+			for (int i = 0; i < source.size(); i++) {
+				assertEquals(
+					100 + i, roundTripped.get(i).getPageSequence(),
+					"Leaf " + i + " must keep its page through enumerate then assemble."
+				);
+			}
+		}
+
+		/**
+		 * Returns the leaf whose bucket range contains `value` — the leaf with the greatest left boundary not exceeding
+		 * `value`.
+		 *
+		 * @param leaves the ordered leaves
+		 * @param value  the bucket value to locate
+		 * @return the owning leaf
+		 */
+		@Nonnull
+		private static BPlusLeafTreeNode<Integer> leafOwning(
+			@Nonnull List<BPlusLeafTreeNode<Integer>> leaves, int value) {
+			BPlusLeafTreeNode<Integer> owner = leaves.get(0);
+			for (final BPlusLeafTreeNode<Integer> leaf : leaves) {
+				if (leaf.getLeftBoundaryKey() <= value) {
+					owner = leaf;
+				} else {
+					break;
+				}
+			}
+			return owner;
 		}
 	}
 }

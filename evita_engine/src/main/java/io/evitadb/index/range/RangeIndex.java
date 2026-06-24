@@ -37,12 +37,15 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree.LeafPageHandle;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.utils.Assert;
 import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -51,10 +54,12 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -109,6 +114,14 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	private static final int VALUE_BLOCK_SIZE = 512;
 	private static final int MIN_VALUE_BLOCK_SIZE = VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
+	/**
+	 * Local stream key used with {@link #pageStreamRegistry}. A {@code RangeIndex} owns exactly one page stream (its
+	 * threshold tree), so a single fixed key suffices; the persisted, globally-unique stream id is a separate concept
+	 * resolved store-side from the sub-index identity (see {@code RangeIndexLeafPagePart}), never this value. It is its
+	 * OWN registry (and stream `0`) — independent of the sibling {@code InvertedIndex}'s bucket stream — because the two
+	 * structures are separate transactional producers that commit (and publish their staged baselines) independently.
+	 */
+	private static final int RANGE_PAGE_STREAM = 0;
 
 	/**
 	 * Predicate will return true if point has no sense because it contains no data (no starts, no ends). Predicate will
@@ -132,6 +145,17 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * enclosing transactional map structurally share an untouched range structure across commits.
 	 */
 	private final TransactionalBoolean dirty;
+
+	/**
+	 * Owner-resident page bookkeeping for the granular FilterIndex storage layout: the advance-only
+	 * `pageSequence` allocator, the explicit high-water and the `pageSequence -> nodeId` change-detection baseline of this
+	 * index's threshold tree. It lives OUTSIDE transactional memory and is carried BY REFERENCE through
+	 * {@link #createCopyWithMergedTransactionalMemory} so the surviving committed owner keeps the allocator and baseline
+	 * across commits (the discarded transactional copy never has its own). It is consulted only on the single-writer
+	 * flush/commit path. This is the range counterpart of the {@code InvertedIndex}'s bucket-stream registry — a SEPARATE
+	 * instance, because the two structures commit independently.
+	 */
+	@Nonnull @Getter private final PageStreamRegistry pageStreamRegistry;
 
 	/**
 	 * Memoized result for the "valid at now" query produced by {@link #getRecordsValidNowFormula(long)}.
@@ -203,14 +227,24 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	}
 
 	/**
+	 * Creates a fresh, empty threshold tree carrying NO points — not even the border sentinels. Used as the building
+	 * block for the boundary-stable page reload ({@link #fromPersistedPages}), which seeds each leaf tree directly from a
+	 * persisted page (the sentinels live in the first / last pages) and must not inject duplicates.
+	 */
+	@Nonnull
+	private static TransactionalLongBPlusTree<TransactionalRangePoint> createBareTree() {
+		return new TransactionalLongBPlusTree<>(
+			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
+			TransactionalRangePoint.class, RANGE_POINT_WRAPPER
+		);
+	}
+
+	/**
 	 * Creates a fresh tree carrying only the `Long.MIN_VALUE` / `Long.MAX_VALUE` border sentinels.
 	 */
 	@Nonnull
 	private static TransactionalLongBPlusTree<TransactionalRangePoint> createEmptyTree() {
-		final TransactionalLongBPlusTree<TransactionalRangePoint> tree = new TransactionalLongBPlusTree<>(
-			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
-			TransactionalRangePoint.class, RANGE_POINT_WRAPPER
-		);
+		final TransactionalLongBPlusTree<TransactionalRangePoint> tree = createBareTree();
 		tree.insert(Long.MIN_VALUE, new TransactionalRangePoint(Long.MIN_VALUE));
 		tree.insert(Long.MAX_VALUE, new TransactionalRangePoint(Long.MAX_VALUE));
 		return tree;
@@ -221,10 +255,7 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		Assert.isTrue(ranges[0].getThreshold() == Long.MIN_VALUE, "First range should have threshold Long.MIN_VALUE!");
 		Assert.isTrue(ranges[ranges.length - 1].getThreshold() == Long.MAX_VALUE, "Last range should have threshold Long.MAX_VALUE!");
 		assertThresholdIsMonotonic(ranges);
-		final TransactionalLongBPlusTree<TransactionalRangePoint> tree = new TransactionalLongBPlusTree<>(
-			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
-			TransactionalRangePoint.class, RANGE_POINT_WRAPPER
-		);
+		final TransactionalLongBPlusTree<TransactionalRangePoint> tree = createBareTree();
 		// rebuild the tree from the deserialized snapshot by inserting all points (thresholds are unique & monotonic)
 		for (final TransactionalRangePoint point : ranges) {
 			tree.insert(point.getThreshold(), point);
@@ -232,31 +263,41 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		this.ranges = tree;
 		// rebuilt from a persisted snapshot - a freshly loaded index is clean
 		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
 	public RangeIndex() {
 		this.ranges = createEmptyTree();
 		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
 	public RangeIndex(long from, long to, @Nonnull int[] recordIds) {
 		this.ranges = createEmptyTree();
 		// dirty must be initialized before addRecord (which raises it)
 		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = new PageStreamRegistry();
 		for (int recordId : recordIds) {
 			addRecord(from, to, recordId);
 		}
 	}
 
 	/**
-	 * Private constructor used by {@link #createCopyWithMergedTransactionalMemory} to wrap an already committed tree.
+	 * Private constructor used by {@link #createCopyWithMergedTransactionalMemory} to wrap an already committed tree, and
+	 * by {@link #fromPersistedPages} to wrap a boundary-stable reloaded tree. The owner-resident page bookkeeping is
+	 * carried BY REFERENCE so the surviving committed owner keeps the allocator + change-detection baseline.
 	 *
-	 * @param committedTree the tree obtained from the committed transactional state
+	 * @param committedTree      the tree obtained from the committed transactional state (or reassembled from pages)
+	 * @param pageStreamRegistry the owner-resident page bookkeeping to adopt by reference
 	 */
-	private RangeIndex(@Nonnull TransactionalLongBPlusTree<TransactionalRangePoint> committedTree) {
+	private RangeIndex(
+		@Nonnull TransactionalLongBPlusTree<TransactionalRangePoint> committedTree,
+		@Nonnull PageStreamRegistry pageStreamRegistry
+	) {
 		this.ranges = committedTree;
 		// a committed copy starts clean - its diff layer has just been folded into committedTree
 		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = pageStreamRegistry;
 	}
 
 	/**
@@ -264,9 +305,12 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 */
 	@Nonnull
 	public RangePoint<?>[] getRanges() {
-		//TODO JNO (#760): materializes the whole range-point array on every commit only to feed the
-		// serialization route; remove once StorageParts become granular (issue #760 part B — persist
-		// only the changed parts of the index instead of rewriting the entire index per transaction).
+		// This materializes the whole range-point array and feeds the SINGLE (whole-index, inline)
+		// serialization route only. It is intentionally retained: small range indexes stay inline in the
+		// FilterIndexStoragePart root and are cheaper to rewrite whole than to maintain per-leaf page
+		// bookkeeping. Large range indexes persist granularly via the page tree (collectChangedPages /
+		// RangeIndexLeafPagePart), which bypasses this method entirely and writes
+		// only the leaves a transaction actually changed.
 		final List<RangePoint<?>> result = new ArrayList<>(this.ranges.size());
 		final Iterator<TransactionalRangePoint> it = this.ranges.valueIterator();
 		while (it.hasNext()) {
@@ -364,6 +408,10 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		}
 		if (INT_RANGE_POINT_OBSOLETE_CHECKER.test(point)) {
 			this.ranges.delete(threshold);
+		} else {
+			// the point's record set was mutated in place (the leaf's own columns are untouched) — flag the holding
+			// leaf dirty so the granular write path re-emits its page (the delete branch already marks it)
+			this.ranges.markDirty(threshold);
 		}
 	}
 
@@ -633,6 +681,178 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		return getAllRecords().size();
 	}
 
+	/*
+		GRANULAR PAGE STORAGE
+	 */
+
+	/**
+	 * Returns whether this index's threshold tree spans more than one leaf and is therefore persisted in the granular
+	 * `PAGED` shape (one record per leaf) rather than inline in the `FilterIndexStoragePart` root.
+	 *
+	 * @return true when the tree has an internal root (≥ 2 leaves)
+	 */
+	public boolean isPaged() {
+		return this.ranges.isRootInternal();
+	}
+
+	/**
+	 * Drops this index's page bookkeeping (allocator, high-water, baseline). Called when the range falls back to the
+	 * inline `SINGLE` shape so a later regrow into `PAGED` starts from a clean baseline and re-emits every leaf. The
+	 * caller is expected to have already issued removals for the prior `PAGED` leaf pages (see {@link #livePageSequences()})
+	 * BEFORE calling this.
+	 */
+	public void forgetPageStream() {
+		this.pageStreamRegistry.forget(RANGE_PAGE_STREAM);
+	}
+
+	/**
+	 * Walks the threshold tree leaf-by-leaf and returns the granular write-path emission for this commit: the leaf
+	 * pages that changed since the last flush (the ones the commit must (re)write),
+	 * the full ordered list of live leaf-page sequences (the `PAGED` root's leaf list), the stream high-water, and the
+	 * page sequences a leaf merge dropped this commit. A not-yet-paged (split-born or fresh) leaf is assigned a freshly
+	 * allocated page sequence stamped onto the live node so the commit-merge carries it forward; each leaf's
+	 * transaction-aware dirty flag decides whether it is re-emitted, and is cleared once its page is collected. The
+	 * complete next live-page set is STAGED here and becomes live only when the commit is published. A clean index must
+	 * not call this.
+	 *
+	 * @return the changed leaf pages, the ordered live page-sequence list, the high-water and the freed page sequences
+	 */
+	@Nonnull
+	public PagedEmission collectChangedPages() {
+		final List<LeafPageHandle<TransactionalRangePoint>> handles = this.ranges.leafPageHandles();
+		final int[] orderedPageSequences = new int[handles.size()];
+		final List<RangePage> changedPages = new ArrayList<>();
+		final Set<Integer> nextLive = new HashSet<>(handles.size());
+		int idx = 0;
+		for (final LeafPageHandle<TransactionalRangePoint> handle : handles) {
+			int pageSequence = handle.getPageSequence();
+			final boolean freshLeaf = pageSequence == TransactionalLongBPlusTree.UNASSIGNED_PAGE_SEQUENCE;
+			if (freshLeaf) {
+				// split-born / fresh leaf: allocate a page and stamp it onto the live node (the merge carries it forward)
+				pageSequence = this.pageStreamRegistry.allocate(RANGE_PAGE_STREAM);
+				handle.setPageSequence(pageSequence);
+			}
+			orderedPageSequences[idx++] = pageSequence;
+			nextLive.add(pageSequence);
+
+			// a leaf is (re)written iff it is brand new or its transaction-aware dirty flag is set — an exact signal a
+			// content hash cannot match: every mutation site sets it, so a real change can never be suppressed. Once the
+			// page is collected the flag is cleared so the next commit suppresses the leaf unless it is mutated again.
+			if (freshLeaf || handle.isDirty()) {
+				final int size = handle.size();
+				final TransactionalRangePoint[] pagePoints = new TransactionalRangePoint[size];
+				for (int i = 0; i < size; i++) {
+					pagePoints[i] = handle.valueAt(i);
+				}
+				changedPages.add(new RangePage(pageSequence, pagePoints));
+				handle.clearDirty();
+			}
+		}
+		// pages live in the published set but absent from this commit's live leaves were dropped by a leaf merge:
+		// they must be REMOVED from storage, not merely unreferenced — the append-only OffsetIndex never reclaims a
+		// record that is neither superseded (page ids are advance-only, never re-keyed) nor explicitly removed
+		final int[] freedPageSequences = this.pageStreamRegistry.freedPageSequences(RANGE_PAGE_STREAM, nextLive);
+		this.pageStreamRegistry.stage(RANGE_PAGE_STREAM, nextLive);
+		return new PagedEmission(
+			changedPages, orderedPageSequences, this.pageStreamRegistry.highWater(RANGE_PAGE_STREAM), freedPageSequences
+		);
+	}
+
+	/**
+	 * Returns the page sequences currently live in the published set — every leaf page this index has on disk. Used
+	 * by the `PAGED -> SINGLE` fallback to remove all prior leaf pages before the index collapses back to the inline
+	 * shape (after which {@link #forgetPageStream()} clears the bookkeeping).
+	 *
+	 * @return the live page sequences, or an empty array when the index has no leaf pages on disk
+	 */
+	@Nonnull
+	public int[] livePageSequences() {
+		return this.pageStreamRegistry.livePageSequences(RANGE_PAGE_STREAM);
+	}
+
+	/**
+	 * Rebuilds a `PAGED` range index from its persisted leaf pages, preserving the original leaf boundaries and page
+	 * identities. Unlike the point-replaying constructor, this builds one leaf per persisted page (so
+	 * in-memory leaf *i* is byte-identical to persisted page *i*), stamps each leaf with its persisted page sequence, and
+	 * restores the page-stream bookkeeping (high-water + the live-page set). Reconstruction replays the points through
+	 * the leaf's mutation path, which flags the freshly built leaves dirty; they are cleared afterwards because they are
+	 * exactly what is already on disk. The result is a boundary-stable reload: a subsequent no-mutation commit rewrites
+	 * nothing (every leaf is clean), and the first real mutation rewrites only genuinely-changed leaves instead of
+	 * re-paginating the whole index. The border sentinels (`Long.MIN_VALUE` / `Long.MAX_VALUE`) live in the first / last
+	 * pages, so the reassembled tree carries them.
+	 *
+	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending threshold order (the root's leaf list)
+	 * @param perPagePoints    the range points of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
+	 * @return the rebuilt, boundary-stable `PAGED` range index
+	 */
+	@Nonnull
+	public static RangeIndex fromPersistedPages(
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull TransactionalRangePoint[][] perPagePoints,
+		int highWaterPageSequence
+	) {
+		Assert.isPremiseValid(
+			orderedPageSequences.length == perPagePoints.length,
+			"The number of page sequences must match the number of leaf-page point arrays."
+		);
+		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged range index must have at least one leaf page.");
+		final List<TransactionalLongBPlusTree<TransactionalRangePoint>> pageTrees = new ArrayList<>(orderedPageSequences.length);
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final TransactionalRangePoint[] points = perPagePoints[i];
+			// build a single-leaf tree from this page's points — a page never exceeds a leaf's capacity, so no split
+			final TransactionalLongBPlusTree<TransactionalRangePoint> pageTree = createBareTree();
+			for (final TransactionalRangePoint point : points) {
+				pageTree.insert(point.getThreshold(), point);
+			}
+			pageTrees.add(pageTree);
+		}
+		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
+		final TransactionalLongBPlusTree<TransactionalRangePoint> tree =
+			createBareTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+		// the reconstructed leaves were flagged dirty by the replaying inserts above, but they are byte-identical to
+		// what is already on disk: clear the flags and seed the live-page set so the first post-load commit suppresses
+		// every untouched leaf
+		final List<LeafPageHandle<TransactionalRangePoint>> handles = tree.leafPageHandles();
+		final Set<Integer> livePages = new HashSet<>(handles.size());
+		for (final LeafPageHandle<TransactionalRangePoint> handle : handles) {
+			handle.clearDirty();
+			livePages.add(handle.getPageSequence());
+		}
+		final PageStreamRegistry pageStreamRegistry = new PageStreamRegistry();
+		pageStreamRegistry.restore(RANGE_PAGE_STREAM, highWaterPageSequence, livePages);
+		return new RangeIndex(tree, pageStreamRegistry);
+	}
+
+	/**
+	 * One leaf page produced by the granular write path: its stable page sequence and its range points in ascending
+	 * threshold order.
+	 *
+	 * @param pageSequence the leaf's stable page sequence
+	 * @param points  the leaf's range points in ascending threshold order
+	 */
+	public record RangePage(int pageSequence, @Nonnull TransactionalRangePoint[] points) {
+	}
+
+	/**
+	 * The granular write-path emission for one commit: the leaf pages to (re)write this commit, the
+	 * complete ordered list of live leaf-page sequences (the `PAGED` root's leaf list, ascending threshold order), the
+	 * stream high-water to persist in the root, and the page sequences a leaf merge dropped this commit (to be removed
+	 * from storage so they don't leak).
+	 *
+	 * @param changedPages     the leaf pages whose content changed since the last baseline
+	 * @param orderedPageSequences  every live leaf's page sequence in ascending threshold order
+	 * @param highWaterPageSequence the maximum page sequence ever allocated for the stream
+	 * @param freedPageSequences    page sequences dropped this commit (merged-away leaves) that must be removed from storage
+	 */
+	public record PagedEmission(
+		@Nonnull List<RangePage> changedPages,
+		@Nonnull int[] orderedPageSequences,
+		int highWaterPageSequence,
+		@Nonnull int[] freedPageSequences
+	) {
+	}
+
 	@Nonnull
 	@Override
 	public RangeIndex createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
@@ -641,7 +861,18 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		// sparing the full B+ tree rebuild that getStateCopyWithCommittedChanges(this.ranges) would otherwise perform.
 		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
-			return new RangeIndex(transactionalLayer.getStateCopyWithCommittedChanges(this.ranges));
+			// publish the page baseline staged by this commit's flush: the merge runs only AFTER the
+			// flush has durably written the changed leaf pages + root, so the staged `pageSequence -> nodeId` map now
+			// reflects what is on disk and may become the live change-detection baseline for the next commit. The
+			// registry is then carried BY REFERENCE into the committed copy, so the surviving owner keeps it. (No discard
+			// counterpart is needed: a pre-flush abort never stages, a flush failure is fatal — restart rebuilds a clean
+			// registry — and a stale staged map is harmlessly replaced by the next commit's stage.)
+			this.pageStreamRegistry.publishStaged();
+			return new RangeIndex(
+				transactionalLayer.getStateCopyWithCommittedChanges(this.ranges),
+				// carry the owner-resident page bookkeeping BY REFERENCE
+				this.pageStreamRegistry
+			);
 		} else {
 			return this;
 		}

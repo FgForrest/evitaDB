@@ -41,12 +41,19 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.utils.AssertionUtils.assertFormulaResultsIn;
@@ -1431,6 +1438,200 @@ class RangeIndexTest {
 				stress.getRecordsWithRangesOverlapping(Long.MIN_VALUE, Long.MAX_VALUE), survivors
 			);
 		}
+	}
+
+	@Nested
+	@DisplayName("Granular paged emission")
+	class PagedEmission {
+
+		/**
+		 * Builds a range index with `recordCount` records, each a distinct `[from, to]` interval, so the threshold tree
+		 * spans many leaves (block size 512 — two thresholds per record means a few hundred records suffice).
+		 */
+		@Nonnull
+		private static RangeIndex multiLeafRange(int recordCount) {
+			final RangeIndex index = new RangeIndex();
+			for (int i = 0; i < recordCount; i++) {
+				index.addRecord(i * 10L, i * 10L + 5, i);
+			}
+			return index;
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a small (single-leaf) range stays inline (SINGLE)")
+		void shouldNotPageSingleLeafRange() {
+			final RangeIndex index = new RangeIndex();
+			index.addRecord(10L, 20L, 1);
+			index.addRecord(30L, 40L, 2);
+			assertFalse(index.isPaged(), "A small (single-leaf) range must stay inline (SINGLE).");
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a multi-leaf range pages and its leaf pages reconstruct the full range-point array in order")
+		void shouldPageMultiLeafRangeAndReconstruct() {
+			final RangeIndex index = multiLeafRange(400);
+			assertTrue(index.isPaged(), "A large (multi-leaf) range must be paged.");
+
+			final RangeIndex.PagedEmission emission = index.collectChangedPages();
+			final int[] ordered = emission.orderedPageSequences();
+			assertTrue(ordered.length >= 2, "A paged range must span multiple leaf pages.");
+			for (int i = 0; i < ordered.length; i++) {
+				assertEquals(i, ordered[i], "Fresh leaves must allocate a dense ascending page sequence.");
+			}
+			assertEquals(ordered.length - 1, emission.highWaterPageSequence(), "High-water must be the last page.");
+			assertEquals(
+				ordered.length, emission.changedPages().size(),
+				"On the first emission (empty baseline) every leaf page is changed."
+			);
+
+			// concatenating the leaf pages in page-sequence order must equal the whole-tree materialization
+			final Map<Integer, TransactionalRangePoint[]> byPageSequence = new HashMap<>();
+			for (final RangeIndex.RangePage page : emission.changedPages()) {
+				byPageSequence.put(page.pageSequence(), page.points());
+			}
+			final List<Long> reconstructedThresholds = new ArrayList<>();
+			for (final int pageSequence : ordered) {
+				final TransactionalRangePoint[] pagePoints = byPageSequence.get(pageSequence);
+				assertNotNull(pagePoints, "Every ordered page must have been emitted.");
+				for (final TransactionalRangePoint point : pagePoints) {
+					reconstructedThresholds.add(point.getThreshold());
+				}
+			}
+			final RangePoint<?>[] expected = index.getRanges();
+			assertEquals(expected.length, reconstructedThresholds.size(), "Point count must match the whole tree.");
+			for (int i = 0; i < expected.length; i++) {
+				assertEquals(expected[i].getThreshold(), reconstructedThresholds.get(i), "threshold @ " + i);
+			}
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("after publishing the baseline, an unchanged range re-writes nothing and only a changed leaf re-emits")
+		void shouldSuppressUnchangedLeavesAfterPublish() {
+			final RangeIndex index = multiLeafRange(400);
+			final RangeIndex.PagedEmission first = index.collectChangedPages();
+			assertEquals(
+				first.orderedPageSequences().length, first.changedPages().size(), "First emission writes every leaf."
+			);
+			index.getPageStreamRegistry().publishStaged();
+
+			final RangeIndex.PagedEmission unchanged = index.collectChangedPages();
+			assertTrue(
+				unchanged.changedPages().isEmpty(), "An unchanged range must re-write no leaf pages after publish."
+			);
+			index.getPageStreamRegistry().publishStaged();
+
+			// add a record on the smallest threshold → only the first leaf (page 0) is re-emitted
+			index.addRecord(0L, 5L, 9999);
+			final RangeIndex.PagedEmission afterChange = index.collectChangedPages();
+			assertEquals(1, afterChange.changedPages().size(), "Only the changed leaf is re-written.");
+			assertEquals(
+				0, afterChange.changedPages().get(0).pageSequence(), "The first leaf (holding the smallest threshold) changed."
+			);
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("removing a record from a surviving point re-emits its leaf (in-place value mutation is detected)")
+		void shouldReemitLeafWhenRecordRemovedFromSurvivingPoint() {
+			// a second record shares the smallest point's from/to thresholds, so its record set holds two ids and
+			// survives a single removal — the removal mutates the range point's bitmap in place, leaving the holding
+			// leaf's own columns untouched. The change-detection must still flag that leaf (the bug the dirty flag fixes).
+			final RangeIndex index = multiLeafRange(400);
+			assertTrue(index.isPaged(), "A multi-leaf range must be paged.");
+			index.addRecord(0L, 5L, 9999);
+			index.collectChangedPages();
+			index.getPageStreamRegistry().publishStaged();
+			assertTrue(
+				index.collectChangedPages().changedPages().isEmpty(),
+				"An unchanged range must re-write no leaf pages after publish."
+			);
+			index.getPageStreamRegistry().publishStaged();
+
+			// remove the shared record; record 0 keeps the point alive (no delete, pure in-place bitmap edit)
+			index.removeRecord(0L, 5L, 9999);
+			final RangeIndex.PagedEmission afterRemove = index.collectChangedPages();
+			assertFalse(
+				afterRemove.changedPages().isEmpty(),
+				"Removing a record from a surviving point must re-emit its leaf (in-place value mutation)."
+			);
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a leaf merge reports the dropped page as freed (so it can be removed, not leaked)")
+		void shouldReportFreedPagesWhenLeafMergesAway() {
+			final RangeIndex index = multiLeafRange(400);
+			final int[] pagesBefore = index.collectChangedPages().orderedPageSequences();
+			index.getPageStreamRegistry().publishStaged();
+			final Set<Integer> baseline = new HashSet<>();
+			for (final int sequence : pagesBefore) {
+				baseline.add(sequence);
+			}
+
+			// drop a large contiguous block of records → many thresholds become obsolete and leaves merge away
+			for (int i = 0; i < 250; i++) {
+				index.removeRecord(i * 10L, i * 10L + 5, i);
+			}
+
+			final RangeIndex.PagedEmission afterShrink = index.collectChangedPages();
+			assertTrue(
+				afterShrink.orderedPageSequences().length < pagesBefore.length, "Shrinking must drop at least one leaf page."
+			);
+			assertTrue(afterShrink.freedPageSequences().length > 0, "Dropped leaf pages must be reported as freed.");
+			final Set<Integer> live = new HashSet<>();
+			for (final int sequence : afterShrink.orderedPageSequences()) {
+				live.add(sequence);
+			}
+			for (final int freed : afterShrink.freedPageSequences()) {
+				assertFalse(live.contains(freed), "A freed page must not be live.");
+				assertTrue(baseline.contains(freed), "A freed page must have been live in the prior baseline.");
+			}
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a boundary-stable reload restores page identities and suppresses the first commit")
+		void shouldReloadBoundaryStableAndSuppressFirstCommit() {
+			final RangeIndex index = multiLeafRange(400);
+			final RangeIndex.PagedEmission emission = index.collectChangedPages();
+			index.getPageStreamRegistry().publishStaged();
+			final int[] orderedPageSequences = emission.orderedPageSequences();
+			final int highWater = emission.highWaterPageSequence();
+			final Map<Integer, TransactionalRangePoint[]> byPageSequence = new HashMap<>();
+			for (final RangeIndex.RangePage page : emission.changedPages()) {
+				byPageSequence.put(page.pageSequence(), page.points());
+			}
+			final TransactionalRangePoint[][] perPagePoints = new TransactionalRangePoint[orderedPageSequences.length][];
+			for (int i = 0; i < orderedPageSequences.length; i++) {
+				perPagePoints[i] = byPageSequence.get(orderedPageSequences[i]);
+			}
+
+			// reload boundary-stable (one leaf per page, page identities + change-detection baseline restored)
+			final RangeIndex reloaded = RangeIndex.fromPersistedPages(orderedPageSequences, perPagePoints, highWater);
+			assertTrue(reloaded.isPaged(), "Reloaded range must still be paged.");
+			assertEquals(index, reloaded, "Reloaded range must be content-equal to the original.");
+
+			// first post-reload commit must rewrite nothing and free nothing (identities + baseline survived the reload)
+			final RangeIndex.PagedEmission afterReload = reloaded.collectChangedPages();
+			assertArrayEquals(
+				orderedPageSequences, afterReload.orderedPageSequences(), "Reload must preserve every leaf's page sequence."
+			);
+			assertTrue(
+				afterReload.changedPages().isEmpty(), "A boundary-stable reload must rewrite no leaf pages."
+			);
+			assertEquals(0, afterReload.freedPageSequences().length, "A boundary-stable reload must free no pages.");
+			assertEquals(highWater, afterReload.highWaterPageSequence(), "Reload must restore the high-water.");
+		}
+
 	}
 
 	private static long timestampForDate(int day, int month) {

@@ -28,6 +28,7 @@ import io.evitadb.core.exception.PriceAlreadyAssignedToEntityException;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.price.model.PriceIndexKey;
@@ -66,10 +67,10 @@ public class PriceListAndCurrencyPriceSuperIndex
 	@Serial private static final long serialVersionUID = 182980639981206272L;
 	/**
 	 * Contains the same information as in {@link #priceRecords}, but indexed by entityId. Backed by a persistent
-	 * immutable {@link io.evitadb.dataType.champ.ChampMap} via {@link PersistentTransactionalMap}: the values are
+	 * immutable {@link ChampMap} via {@link PersistentTransactionalMap}: the values are
 	 * plain immutable {@link EntityPrices} (no nested transactional state), so commit derives the next snapshot in
 	 * `O(Δ·log N)` instead of rebuilding the whole map. Mutated via `compute`/`computeIfPresent`, which the variant
-	 * inherits from the {@link Map} defaults (built on `get`/`put`/`remove`) — never {@link io.evitadb.dataType.champ.ChampMap}'s
+	 * inherits from the {@link Map} defaults (built on `get`/`put`/`remove`) — never {@link ChampMap}'s
 	 * throwing mutators.
 	 */
 	private final PersistentTransactionalMap<Integer, EntityPrices> entityPrices;

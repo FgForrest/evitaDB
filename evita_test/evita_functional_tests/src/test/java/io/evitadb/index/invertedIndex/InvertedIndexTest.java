@@ -1451,4 +1451,208 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 	}
 
+	/**
+	 * Granular `PAGED` write-path emission: a single-leaf index stays inline (`SINGLE`); a multi-leaf
+	 * index emits one leaf page per leaf whose ordered concatenation reconstructs the whole bucket array, with a dense
+	 * page-sequence allocation that is carried across emissions for unchanged leaves.
+	 */
+	@Nested
+	@DisplayName("Granular paged emission")
+	class PagedEmission {
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a single-leaf index is not paged")
+		void shouldNotPageSingleLeafIndex() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			index.addRecord(1, 100);
+			index.addRecord(2, 200);
+			assertFalse(index.isPaged(), "A small (single-leaf) index must stay inline (SINGLE).");
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a multi-leaf index pages and its leaf pages reconstruct the full bucket array in order")
+		void shouldPageMultiLeafIndexAndReconstruct() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			// well past one leaf block (256) so the tree spans several leaves
+			final int valueCount = 1_000;
+			for (int i = 0; i < valueCount; i++) {
+				index.addRecord(i, i * 10);
+				index.addRecord(i, i * 10 + 1); // a second record so some buckets are multi-record
+			}
+			assertTrue(index.isPaged(), "A large (multi-leaf) index must be paged.");
+
+			final InvertedIndex.PagedEmission emission = index.collectChangedPages();
+			final int[] ordered = emission.orderedPageSequences();
+			assertTrue(ordered.length >= 2, "A paged index must span multiple leaf pages.");
+			// first emission: every leaf is fresh, so a dense 0..L-1 allocation and a high-water of L-1
+			for (int i = 0; i < ordered.length; i++) {
+				assertEquals(i, ordered[i], "Fresh leaves must allocate a dense ascending page sequence.");
+			}
+			assertEquals(ordered.length - 1, emission.highWaterPageSequence(), "High-water must be the last page.");
+			assertEquals(
+				ordered.length, emission.changedPages().size(),
+				"On the first emission (empty baseline) every leaf page is changed."
+			);
+
+			// concatenating the leaf pages in ordered page-sequence order must equal the whole-tree materialization
+			final Map<Integer, ValueToRecordBitmap[]> byPageSequence = new HashMap<>();
+			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
+				byPageSequence.put(page.pageSequence(), page.buckets());
+			}
+			final List<ValueToRecordBitmap> reconstructed = new ArrayList<>();
+			for (final int pageSequence : ordered) {
+				final ValueToRecordBitmap[] pageBuckets = byPageSequence.get(pageSequence);
+				assertNotNull(pageBuckets, "Every ordered page must have been emitted.");
+				Collections.addAll(reconstructed, pageBuckets);
+			}
+
+			final ValueToRecordBitmap[] expected = index.getValueToRecordBitmap();
+			assertEquals(expected.length, reconstructed.size(), "Bucket count must match the whole tree.");
+			for (int i = 0; i < expected.length; i++) {
+				assertEquals(expected[i].getValue(), reconstructed.get(i).getValue(), "value @ " + i);
+				assertArrayEquals(
+					expected[i].getRecordIds().getArray(), reconstructed.get(i).getRecordIds().getArray(),
+					"record set @ " + i
+				);
+			}
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("page sequences are carried across emissions for unchanged leaves")
+		void shouldCarryPageSequencesAcrossEmissions() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			for (int i = 0; i < 1_000; i++) {
+				index.addRecord(i, i * 10);
+			}
+			final int[] first = index.collectChangedPages().orderedPageSequences();
+			// a second emission without structural change must report the very same ordered page sequences (the leaves
+			// kept their allocated pages — no re-allocation), so the high-water does not advance
+			final InvertedIndex.PagedEmission second = index.collectChangedPages();
+			assertArrayEquals(first, second.orderedPageSequences(), "Unchanged leaves must keep their pages.");
+			assertEquals(first.length - 1, second.highWaterPageSequence(), "High-water must not advance.");
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("after publishing the baseline, an unchanged tree re-writes nothing and only a changed leaf re-emits")
+		void shouldSuppressUnchangedLeavesAfterPublish() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			for (int i = 0; i < 1_000; i++) {
+				index.addRecord(i, i * 10);
+			}
+			final InvertedIndex.PagedEmission first = index.collectChangedPages();
+			assertEquals(
+				first.orderedPageSequences().length, first.changedPages().size(), "First emission writes every leaf."
+			);
+			// simulate the durable-commit publish the merge performs (carries the staged baseline live)
+			index.getPageStreamRegistry().publishStaged();
+
+			// nothing changed → no leaf page is re-written
+			final InvertedIndex.PagedEmission unchanged = index.collectChangedPages();
+			assertTrue(
+				unchanged.changedPages().isEmpty(), "An unchanged tree must re-write no leaf pages after publish."
+			);
+			index.getPageStreamRegistry().publishStaged();
+
+			// touch the smallest value's record set → only the first leaf (page 0) is re-emitted
+			index.addRecord(0, 999);
+			final InvertedIndex.PagedEmission afterChange = index.collectChangedPages();
+			assertEquals(1, afterChange.changedPages().size(), "Only the changed leaf is re-written.");
+			assertEquals(
+				0, afterChange.changedPages().get(0).pageSequence(), "The first leaf (holding the smallest value) changed."
+			);
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a leaf merge reports the dropped page as freed (so it can be removed, not leaked) (#1)")
+		void shouldReportFreedPagesWhenLeafMergesAway() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			for (int i = 0; i < 1_000; i++) {
+				index.addRecord(i, i * 10);
+			}
+			// publish the baseline so the next emission can diff against the prior live page set
+			final int[] pagesBefore = index.collectChangedPages().orderedPageSequences();
+			index.getPageStreamRegistry().publishStaged();
+			final Set<Integer> baseline = new HashSet<>();
+			for (final int sequence : pagesBefore) {
+				baseline.add(sequence);
+			}
+
+			// drop a large contiguous block of values → several leaves empty and merge away
+			for (int i = 0; i < 600; i++) {
+				index.removeRecord(i, i * 10);
+			}
+
+			final InvertedIndex.PagedEmission afterShrink = index.collectChangedPages();
+			assertTrue(
+				afterShrink.orderedPageSequences().length < pagesBefore.length, "Shrinking must drop at least one leaf page."
+			);
+			assertTrue(afterShrink.freedPageSequences().length > 0, "Dropped leaf pages must be reported as freed.");
+			final Set<Integer> live = new HashSet<>();
+			for (final int sequence : afterShrink.orderedPageSequences()) {
+				live.add(sequence);
+			}
+			for (final int freed : afterShrink.freedPageSequences()) {
+				assertFalse(live.contains(freed), "A freed page must not be live.");
+				assertTrue(baseline.contains(freed), "A freed page must have been live in the prior baseline.");
+			}
+		}
+
+		@Test
+		@Tag(INDEXING)
+		@Tag(ATTRIBUTE)
+		@DisplayName("a boundary-stable reload restores page identities and suppresses the first commit (#2)")
+		void shouldReloadBoundaryStableAndSuppressFirstCommit() {
+			final InvertedIndex index = new InvertedIndex(FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+			for (int i = 0; i < 1_000; i++) {
+				index.addRecord(i, i * 10);
+				if (i % 3 == 0) {
+					index.addRecord(i, i * 10 + 1); // some multi-record buckets
+				}
+			}
+			final InvertedIndex.PagedEmission emission = index.collectChangedPages();
+			index.getPageStreamRegistry().publishStaged();
+			final int[] orderedPageSequences = emission.orderedPageSequences();
+			final int highWater = emission.highWaterPageSequence();
+			// the first emission writes every leaf, so reconstruct the per-page buckets in page order from it
+			final Map<Integer, ValueToRecordBitmap[]> byPageSequence = new HashMap<>();
+			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
+				byPageSequence.put(page.pageSequence(), page.buckets());
+			}
+			final ValueToRecordBitmap[][] perPageBuckets = new ValueToRecordBitmap[orderedPageSequences.length][];
+			for (int i = 0; i < orderedPageSequences.length; i++) {
+				perPageBuckets[i] = byPageSequence.get(orderedPageSequences[i]);
+			}
+
+			// reload boundary-stable (one leaf per page, page identities + change-detection baseline restored)
+			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
+				Comparable.class, orderedPageSequences, perPageBuckets, highWater,
+				FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+			);
+			assertTrue(reloaded.isPaged(), "Reloaded index must still be paged.");
+			assertEquals(index, reloaded, "Reloaded index must be content-equal to the original.");
+
+			// first post-reload commit must rewrite nothing and free nothing (identities + baseline survived the reload)
+			final InvertedIndex.PagedEmission afterReload = reloaded.collectChangedPages();
+			assertArrayEquals(
+				orderedPageSequences, afterReload.orderedPageSequences(), "Reload must preserve every leaf's page sequence."
+			);
+			assertTrue(
+				afterReload.changedPages().isEmpty(), "A boundary-stable reload must rewrite no leaf pages."
+			);
+			assertEquals(0, afterReload.freedPageSequences().length, "A boundary-stable reload must free no pages.");
+			assertEquals(highWater, afterReload.highWaterPageSequence(), "Reload must restore the high-water.");
+		}
+
+	}
+
 }

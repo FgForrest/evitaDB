@@ -45,9 +45,16 @@ import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -98,6 +105,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	permits OwnerFilterIndex, FilterIndexView {
 	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
 	static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
+	/**
+	 * Empty inline-bucket array carried by a bucket-`PAGED` {@link FilterIndexStoragePart} root (its buckets live in
+	 * individual leaf pages instead).
+	 */
+	private static final ValueToRecordBitmap[] EMPTY_HISTOGRAM_POINTS = new ValueToRecordBitmap[0];
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
 	private static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
 	/**
@@ -1112,6 +1124,154 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		} else {
 			return null;
 		}
+	}
+
+	/**
+	 * Emits this filter index's modified storage parts into `sink`. A clean index emits nothing. A
+	 * dirty index whose bucket tree spans a single leaf emits the inline `SINGLE` root (today's whole-index part); a
+	 * dirty index whose tree spans multiple leaves emits the granular `PAGED` shape: one {@link FilterIndexLeafPagePart}
+	 * per CHANGED leaf plus the `PAGED` root carrying the high-water and the ordered live leaf-page list. The leaf pages
+	 * carry the sub-index identity so their stream id (and primary key) is resolved store-side at write time.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 */
+	public void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		if (!isDirty()) {
+			return;
+		}
+		final AttributeKeyWithIndexType streamKey =
+			new AttributeKeyWithIndexType(this.attributeIndexKey, AttributeIndexType.FILTER);
+
+		// the two sub-indexes are paged independently of each other; emit the range axis first (preserving the prior
+		// emission order), then the bucket axis, then fuse both descriptors into the single FilterIndexStoragePart root
+		final RangeAxis range = appendRangeAxis(entityIndexPrimaryKey, streamKey, sink);
+		final BucketAxis bucket = appendBucketAxis(entityIndexPrimaryKey, streamKey, sink);
+
+		sink.addChangeToStore(
+			new FilterIndexStoragePart(
+				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
+				bucket.histogramPoints(), range.inlineRangeIndex(), this.indexedDecimalPlaces,
+				bucket.paged(), bucket.highWaterPageSequence(), bucket.leafPageSequences(),
+				range.rangePaged(), range.rangeHighWaterPageSequence(), range.rangeLeafPageSequences(), null
+			)
+		);
+	}
+
+	/**
+	 * Emits the BUCKET (value) axis of this commit into `sink` and returns how it maps onto the
+	 * {@link FilterIndexStoragePart} root. A `PAGED` bucket tree emits one {@link FilterIndexLeafPagePart} per CHANGED
+	 * leaf plus a {@link FilterIndexLeafPageRemoval} per freed leaf and carries empty inline buckets; a `SINGLE` tree
+	 * that just collapsed from `PAGED` removes its prior leaf pages, forgets the page stream, and carries every bucket
+	 * inline.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param streamKey             the sub-index identity carried by each leaf page (resolves its store-side stream id)
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 * @return the bucket-axis descriptor to fold into the root part
+	 */
+	@Nonnull
+	private BucketAxis appendBucketAxis(
+		int entityIndexPrimaryKey, @Nonnull AttributeKeyWithIndexType streamKey, @Nonnull TrappedChanges sink
+	) {
+		if (this.invertedIndex.isPaged()) {
+			final InvertedIndex.PagedEmission emission = this.invertedIndex.collectChangedPages();
+			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
+				sink.addChangeToStore(
+					new FilterIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets())
+				);
+			}
+			// remove the leaf pages a merge dropped this commit so they don't leak (the OffsetIndex never reclaims an
+			// unreferenced-but-never-removed record — page ids are advance-only and never re-keyed)
+			for (final int freedPageSequence : emission.freedPageSequences()) {
+				sink.addChangeToStore(new FilterIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			return new BucketAxis(EMPTY_HISTOGRAM_POINTS, true, emission.highWaterPageSequence(), emission.orderedPageSequences());
+		}
+		// SINGLE shape: the index collapsed back to a single leaf. Remove every leaf page from its prior PAGED life
+		// (the SINGLE root no longer references them) BEFORE dropping the page bookkeeping, then forget the stream so a
+		// later regrow into PAGED starts from a clean baseline and re-emits every leaf.
+		for (final int freedPageSequence : this.invertedIndex.livePageSequences()) {
+			sink.addChangeToStore(new FilterIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+		}
+		this.invertedIndex.forgetPageStream();
+		return new BucketAxis(this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY);
+	}
+
+	/**
+	 * Emits the RANGE axis of this commit into `sink` and returns how it maps onto the {@link FilterIndexStoragePart}
+	 * root, mirroring {@link #appendBucketAxis}. A `PAGED` range emits one {@link RangeIndexLeafPagePart} per CHANGED
+	 * leaf plus a {@link RangeIndexLeafPageRemoval} per freed leaf and carries a `null` inline range; a `SINGLE` range
+	 * (or none at all) carries the whole {@link RangeIndex} inline and, if it just collapsed from `PAGED`, removes its
+	 * prior leaf pages and forgets the range stream.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param streamKey             the sub-index identity carried by each leaf page (resolves its store-side stream id)
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 * @return the range-axis descriptor to fold into the root part
+	 */
+	@Nonnull
+	private RangeAxis appendRangeAxis(
+		int entityIndexPrimaryKey, @Nonnull AttributeKeyWithIndexType streamKey, @Nonnull TrappedChanges sink
+	) {
+		if (this.rangeIndex != null && this.rangeIndex.isPaged()) {
+			final RangeIndex.PagedEmission emission = this.rangeIndex.collectChangedPages();
+			for (final RangeIndex.RangePage page : emission.changedPages()) {
+				sink.addChangeToStore(
+					new RangeIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.points())
+				);
+			}
+			for (final int freedPageSequence : emission.freedPageSequences()) {
+				sink.addChangeToStore(new RangeIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			return new RangeAxis(null, true, emission.highWaterPageSequence(), emission.orderedPageSequences());
+		}
+		if (this.rangeIndex != null) {
+			// SINGLE range that may have just collapsed from PAGED: remove every prior leaf page (the inline root no
+			// longer references them) BEFORE dropping the bookkeeping, then forget the stream so a later regrow starts
+			// from a clean baseline and re-emits every leaf
+			for (final int freedPageSequence : this.rangeIndex.livePageSequences()) {
+				sink.addChangeToStore(new RangeIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			this.rangeIndex.forgetPageStream();
+		}
+		return new RangeAxis(this.rangeIndex, false, -1, ArrayUtils.EMPTY_INT_ARRAY);
+	}
+
+	/**
+	 * The bucket-axis outcome of one commit: how the value bucket tree maps onto the {@link FilterIndexStoragePart}
+	 * root. When `paged`, `histogramPoints` is empty and the buckets live in {@link FilterIndexLeafPagePart} leaf pages;
+	 * when `SINGLE`, `histogramPoints` carries every bucket inline and the page metadata is the empty / `-1` sentinel.
+	 *
+	 * @param histogramPoints  inline buckets for a `SINGLE` part; empty for a `PAGED` part
+	 * @param paged            true when the bucket tree is persisted as leaf pages
+	 * @param highWaterPageSequence the bucket stream high-water for a `PAGED` part; `-1` otherwise
+	 * @param leafPageSequences     the ordered live leaf-page sequences for a `PAGED` part; empty otherwise
+	 */
+	private record BucketAxis(
+		@Nonnull ValueToRecordBitmap[] histogramPoints,
+		boolean paged,
+		int highWaterPageSequence,
+		@Nonnull int[] leafPageSequences
+	) {
+	}
+
+	/**
+	 * The range-axis outcome of one commit, mirroring {@link BucketAxis} for the optional range companion. When
+	 * `rangePaged`, `inlineRangeIndex` is `null` and the range points live in {@link RangeIndexLeafPagePart} leaf pages;
+	 * otherwise the whole {@link RangeIndex} is carried inline (or `null` when the attribute has no range companion).
+	 *
+	 * @param inlineRangeIndex      the inline range for a non-paged part; `null` when paged or absent
+	 * @param rangePaged            true when the range tree is persisted as leaf pages
+	 * @param rangeHighWaterPageSequence the range stream high-water for a `PAGED` range; `-1` otherwise
+	 * @param rangeLeafPageSequences     the ordered live range leaf-page sequences for a `PAGED` range; empty otherwise
+	 */
+	private record RangeAxis(
+		@Nullable RangeIndex inlineRangeIndex,
+		boolean rangePaged,
+		int rangeHighWaterPageSequence,
+		@Nonnull int[] rangeLeafPageSequences
+	) {
 	}
 
 	/**

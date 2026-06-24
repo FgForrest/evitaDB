@@ -68,6 +68,7 @@ import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart.EntityAssociatedDataKey;
@@ -559,6 +560,16 @@ public class DefaultEntityCollectionPersistenceService
 					catalogVersion,
 					removedStoragePart.getStoragePartPKOrElseThrowException(),
 					removedStoragePart.containerType()
+				);
+			} else if (storagePart instanceof DeferredRemovalStoragePart deferredRemoval) {
+				// a removal whose primary key can only be resolved store-side (e.g. a freed granular FilterIndex leaf page
+				// whose streamId is a compressor dictionary id) — resolve it against the live compressor and remove it.
+				// The read-only view suffices: the stream was registered when the page was first written.
+				final long removedPartPK = deferredRemoval.computeUniquePartIdAndSet(
+					this.storagePartPersistenceService.getReadOnlyKeyCompressor()
+				);
+				this.storagePartPersistenceService.removeStoragePart(
+					catalogVersion, removedPartPK, deferredRemoval.removedContainerType()
 				);
 			} else {
 				this.storagePartPersistenceService.putStoragePart(catalogVersion, storagePart);

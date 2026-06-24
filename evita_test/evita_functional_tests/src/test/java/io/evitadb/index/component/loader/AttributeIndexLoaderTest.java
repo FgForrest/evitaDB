@@ -28,11 +28,12 @@ import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
-import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.attribute.FilterIndex;
@@ -45,6 +46,9 @@ import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.attribute.UniqueIndexView;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
@@ -52,17 +56,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
-import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.dataType.Scope;
-import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -84,15 +79,10 @@ import java.util.UUID;
 import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
-import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Drives the real {@link AttributeIndexLoader#load(LoadContext)} two-pass reload algorithm against
@@ -247,6 +237,37 @@ class AttributeIndexLoaderTest {
 		assertTrue(bundle.chainIndexes().isEmpty(), "No chain entries expected");
 	}
 
+	@Test
+	@DisplayName("loads a granular PAGED filter part by reading its leaf pages and reconstructs the whole tree")
+	void shouldLoadPagedFilterAndReconstructTree() {
+		final AttributeIndexKey key = new AttributeIndexKey(null, "name", null);
+		final InvertedIndex source = new InvertedIndex(
+			String.class, FilterIndex.getNormalizer(String.class, 0), FilterIndex.getComparator(key, String.class), 0
+		);
+		// more than one leaf block (256) of distinct values so the tree spans multiple leaves and is persisted PAGED
+		for (int i = 0; i < 1_000; i++) {
+			source.addRecord(String.format("value-%05d", i), i);
+		}
+		assertTrue(source.isPaged(), "the seeded index must be multi-leaf (PAGED)");
+		final ValueToRecordBitmap[] expected = source.getValueToRecordBitmap();
+
+		final SeededStorage storage = new SeededStorage();
+		storage.seedPagedFilter(key, String.class, source);
+
+		final AttributeIndexes bundle = load(storage, key);
+
+		final InvertedIndex loaded = bundle.sharedValueIndexes().get(key);
+		assertNotNull(loaded, "the PAGED filter part must rebuild a shared inverted index");
+		final ValueToRecordBitmap[] actual = loaded.getValueToRecordBitmap();
+		assertEquals(expected.length, actual.length, "the reloaded tree must hold every bucket");
+		for (int i = 0; i < expected.length; i++) {
+			assertEquals(expected[i].getValue(), actual[i].getValue(), "value @ " + i);
+			assertArrayEquals(
+				expected[i].getRecordIds().getArray(), actual[i].getRecordIds().getArray(), "record set @ " + i
+			);
+		}
+	}
+
 	/**
 	 * Invokes the production loader against the seeded storage, wrapping the seeded parts in a
 	 * {@link LoadContext} whose manifest advertises exactly the seeded keys.
@@ -363,6 +384,36 @@ class AttributeIndexLoaderTest {
 			seed(
 				AttributeIndexType.FILTER, key,
 				new FilterIndexStoragePart(INDEX_PK, key, type, points, null, indexedDecimalPlaces, null)
+			);
+		}
+
+		/**
+		 * Seeds a granular `PAGED` FILTER part: emits the source index's leaf pages, stores each as a
+		 * {@link FilterIndexLeafPagePart} keyed by `join(streamId, pageSequence)`, and stores the `PAGED` root carrying the
+		 * high-water and the ordered leaf-page list. The stream id is resolved through the shared compressor exactly as
+		 * the loader resolves it on read.
+		 *
+		 * @param key    the attribute key
+		 * @param type   the attribute value type
+		 * @param source a multi-leaf inverted index whose leaf pages are persisted
+		 */
+		void seedPagedFilter(@Nonnull AttributeIndexKey key, @Nonnull Class<?> type, @Nonnull InvertedIndex source) {
+			final int streamId = this.keyCompressor.getId(
+				new LeafStreamKey(INDEX_PK, new AttributeKeyWithIndexType(key, AttributeIndexType.FILTER))
+			);
+			final InvertedIndex.PagedEmission emission = source.collectChangedPages();
+			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
+				final long pagePk = FilterIndexLeafPagePart.computeUniquePartId(streamId, page.pageSequence());
+				this.partsById.put(
+					pagePk, new FilterIndexLeafPagePart(streamId, page.pageSequence(), page.buckets(), pagePk)
+				);
+			}
+			seed(
+				AttributeIndexType.FILTER, key,
+				FilterIndexStoragePart.paged(
+					INDEX_PK, key, type, null, 0,
+					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
+				)
 			);
 		}
 
@@ -700,7 +751,9 @@ class AttributeIndexLoaderTest {
 		 * @return the reconstructed attribute-index bundle
 		 */
 		@Nonnull
-		private AttributeIndexes loadReferenced(@Nonnull SeededStorage storage, @Nonnull AttributeIndexKey... keys) {
+		private static AttributeIndexes loadReferenced(
+			@Nonnull SeededStorage storage, @Nonnull AttributeIndexKey... keys
+		) {
 			for (final AttributeIndexKey key : keys) {
 				assertNotNull(key);
 			}
@@ -732,7 +785,7 @@ class AttributeIndexLoaderTest {
 		 * @return the entity schema with one reference-scoped and one entity-level scaled BigDecimal attribute
 		 */
 		@Nonnull
-		private EntitySchema buildReferenceSchema() {
+		private static EntitySchema buildReferenceSchema() {
 			final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 				APITestConstants.TEST_CATALOG, NamingConvention.generate(APITestConstants.TEST_CATALOG),
 				EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE

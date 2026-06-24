@@ -145,6 +145,52 @@ class FilterIndexStoragePartSerializerTest {
 	}
 
 	@Test
+	@DisplayName("a SINGLE part round-trips as not paged with an empty leaf-page list")
+	void shouldRoundTripSinglePartAsNotPaged() {
+		final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);
+		final FilterIndexStoragePart deserialized = roundTrip(part(key, String.class));
+
+		org.junit.jupiter.api.Assertions.assertFalse(deserialized.isPaged(), "A legacy/single part must not be paged.");
+		assertEquals(0, deserialized.getLeafPageSequences().length, "A single part carries no leaf pages.");
+		assertEquals(2, deserialized.getHistogramPoints().length, "A single part carries its buckets inline.");
+	}
+
+	@Test
+	@DisplayName("a PAGED part round-trips its high-water and ordered leaf-page list with no inline buckets or stored stream id")
+	void shouldRoundTripPagedPart() {
+		final AttributeIndexKey key = new AttributeIndexKey("BRAND", "name", Locale.ENGLISH);
+		final int[] leafPageSequences = {0, 1, 4, 5, 9};
+		final FilterIndexStoragePart paged = FilterIndexStoragePart.paged(
+			42, key, String.class, null, 0, 9, leafPageSequences, 1L
+		);
+
+		final FilterIndexStoragePart deserialized = roundTrip(paged);
+
+		org.junit.jupiter.api.Assertions.assertTrue(deserialized.isPaged(), "The part must round-trip as paged.");
+		assertEquals(9, deserialized.getHighWaterPageSequence(), "High-water pageSequence must survive the round-trip.");
+		assertArrayEquals(leafPageSequences, deserialized.getLeafPageSequences(), "Ordered leaf-page list must survive the round-trip.");
+		assertEquals(0, deserialized.getHistogramPoints().length, "A paged part carries no inline buckets.");
+		assertEquals(key, deserialized.getAttributeIndexKey());
+		assertSame(String.class, deserialized.getAttributeType());
+	}
+
+	@Test
+	@DisplayName("a PAGED BigDecimal part round-trips the frozen scale alongside the page metadata")
+	void shouldRoundTripPagedBigDecimalPart() {
+		final AttributeIndexKey key = new AttributeIndexKey(null, "price", null);
+		final FilterIndexStoragePart paged = FilterIndexStoragePart.paged(
+			42, key, java.math.BigDecimal.class, null, 2, 0, new int[]{0}, 1L
+		);
+
+		final FilterIndexStoragePart deserialized = roundTrip(paged);
+
+		org.junit.jupiter.api.Assertions.assertTrue(deserialized.isPaged());
+		assertEquals(2, deserialized.getIndexedDecimalPlaces(), "The frozen scale must round-trip on a paged part too.");
+		assertEquals(0, deserialized.getHighWaterPageSequence());
+		assertArrayEquals(new int[]{0}, deserialized.getLeafPageSequences());
+	}
+
+	@Test
 	@DisplayName("the constructor rejects a null attributeType (the dropped 2024.5 type-less format)")
 	void shouldRejectNullAttributeTypeAtConstruction() {
 		final AttributeIndexKey key = new AttributeIndexKey(null, "code", null);

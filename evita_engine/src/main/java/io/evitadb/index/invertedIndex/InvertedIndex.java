@@ -37,7 +37,9 @@ import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
+import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
@@ -54,9 +56,11 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -187,6 +191,21 @@ public class InvertedIndex implements
 	 * persisted.
 	 */
 	@Getter private final int indexedDecimalPlaces;
+	/**
+	 * Local stream key used with {@link #pageStreamRegistry}. An {@code InvertedIndex} owns exactly one page stream (its
+	 * bucket tree), so a single fixed key suffices; the persisted, globally-unique stream id is a separate concept
+	 * resolved store-side from the sub-index identity (see `FilterIndexLeafPagePart`), never this value.
+	 */
+	private static final int BUCKET_PAGE_STREAM = 0;
+	/**
+	 * Owner-resident page bookkeeping for the granular FilterIndex storage layout: the advance-only
+	 * `pageSequence` allocator, the explicit high-water and the `pageSequence -> nodeId` change-detection baseline of this
+	 * index's bucket tree. It lives OUTSIDE transactional memory and is carried BY REFERENCE through
+	 * {@link #createCopyWithMergedTransactionalMemory} so the surviving committed owner keeps the allocator and baseline
+	 * across commits (the discarded transactional copy never has its own). It is consulted only on the single-writer
+	 * flush/commit path.
+	 */
+	@Nonnull @Getter private final PageStreamRegistry pageStreamRegistry;
 
 	/**
 	 * Creates a fresh, empty tree ordered by the passed comparator. The leaf key-column kind is chosen from the
@@ -360,6 +379,7 @@ public class InvertedIndex implements
 		this.comparator = comparator;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
 	/**
@@ -436,6 +456,77 @@ public class InvertedIndex implements
 		this.comparator = comparator;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = new PageStreamRegistry();
+	}
+
+	/**
+	 * Rebuilds a `PAGED` inverted index from its persisted leaf pages, preserving the original leaf boundaries and page
+	 * identities. Unlike the bucket-replaying constructor, this builds one leaf per persisted page (so
+	 * in-memory leaf *i* is byte-identical to persisted page *i*), stamps each leaf with its persisted page sequence, and
+	 * restores the page-stream bookkeeping (high-water + the live-page set). Reconstruction replays the buckets through
+	 * the leaf's mutation path, which flags the freshly built leaves dirty; they are cleared afterwards because they are
+	 * exactly what is already on disk. The result is a boundary-stable reload: a subsequent no-mutation commit rewrites
+	 * nothing (every leaf is clean), and the first real mutation rewrites only genuinely-changed leaves instead of
+	 * re-paginating the whole index.
+	 *
+	 * @param plainType            the plain (non-array) declared attribute type
+	 * @param orderedPageSequences      the persisted leaf-page sequences in ascending key order (the root's leaf list)
+	 * @param perPageBuckets       the buckets of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param highWaterPageSequence     the persisted stream high-water (largest page sequence ever allocated)
+	 * @param normalizer           the value normalizer
+	 * @param comparator           the value order
+	 * @param indexedDecimalPlaces the frozen decimal-places scale (0 for non-`BigDecimal` types)
+	 * @return the rebuilt, boundary-stable `PAGED` inverted index
+	 */
+	@Nonnull
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	public static InvertedIndex fromPersistedPages(
+		@Nonnull Class<?> plainType,
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull ValueToRecordBitmap[][] perPageBuckets,
+		int highWaterPageSequence,
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces
+	) {
+		Assert.isPremiseValid(
+			orderedPageSequences.length == perPageBuckets.length,
+			"The number of page sequences must match the number of leaf-page bucket arrays."
+		);
+		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged inverted index must have at least one leaf page.");
+		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final ValueToRecordBitmap[] buckets = perPageBuckets[i];
+			// build a single-leaf tree from this page's buckets — a page never exceeds a leaf's capacity, so no split
+			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
+			for (final ValueToRecordBitmap bucket : buckets) {
+				final Bitmap recordIds = bucket.getRecordIds();
+				final Comparable value = (Comparable) bucket.getValue();
+				if (recordIds.size() == 1) {
+					pageTree.addRecord(value, recordIds.getFirst());
+				} else {
+					pageTree.addRecord(value, recordIds.getArray());
+				}
+			}
+			pageTrees.add(pageTree);
+		}
+		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
+		final TransactionalBucketBPlusTree tree =
+			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+		// the reconstructed leaves were flagged dirty by the replaying inserts above, but they are byte-identical to
+		// what is already on disk: clear the flags and seed the live-page set so the first post-load commit suppresses
+		// every untouched leaf
+		final List<LeafPageHandle> handles = tree.leafPageHandles();
+		final Set<Integer> livePages = new HashSet<>(handles.size());
+		for (final LeafPageHandle handle : handles) {
+			handle.clearDirty();
+			livePages.add(handle.getPageSequence());
+		}
+		final PageStreamRegistry pageStreamRegistry = new PageStreamRegistry();
+		pageStreamRegistry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, livePages);
+		return new InvertedIndex(
+			plainType, tree, normalizer, comparator, indexedDecimalPlaces, pageStreamRegistry
+		);
 	}
 
 	/**
@@ -447,13 +538,15 @@ public class InvertedIndex implements
 	 * @param normalizer           the normalizer of the source index
 	 * @param comparator           the comparator of the source index
 	 * @param indexedDecimalPlaces the frozen decimal-places scale carried forward from the source index
+	 * @param pageStreamRegistry   the owner-resident page bookkeeping carried BY REFERENCE from the source index
 	 */
 	private InvertedIndex(
 		@Nonnull Class<?> plainType,
 		@Nonnull TransactionalBucketBPlusTree committedTree,
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator,
-		int indexedDecimalPlaces
+		int indexedDecimalPlaces,
+		@Nonnull PageStreamRegistry pageStreamRegistry
 	) {
 		this.plainType = plainType;
 		this.buckets = committedTree;
@@ -461,6 +554,7 @@ public class InvertedIndex implements
 		this.comparator = comparator;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.dirty = new TransactionalBoolean(false);
+		this.pageStreamRegistry = pageStreamRegistry;
 	}
 
 	@Nonnull
@@ -571,9 +665,12 @@ public class InvertedIndex implements
 	 */
 	@Nonnull
 	public ValueToRecordBitmap[] getValueToRecordBitmap() {
-		//TODO JNO (#760): materializes the whole bucket array on every commit only to feed the
-		// serialization route; remove once StorageParts become granular (issue #760 part B — persist
-		// only the changed parts of the index instead of rewriting the entire index per transaction).
+		// This materializes the whole bucket array and feeds the SINGLE (whole-index, inline)
+		// serialization route only. It is intentionally retained: small inverted indexes stay inline in
+		// the FilterIndexStoragePart root and are cheaper to rewrite whole than to maintain per-leaf page
+		// bookkeeping. Large inverted indexes persist granularly via the page tree (collectChangedPages /
+		// FilterIndexLeafPagePart), which bypasses this method entirely and writes only the leaves a
+		// transaction actually changed.
 		final List<ValueToRecordBitmap> result = new ArrayList<>(this.buckets.bucketCount());
 		final BucketCursor cursor = this.buckets.cursor();
 		while (cursor.next()) {
@@ -818,12 +915,22 @@ public class InvertedIndex implements
 		if (isDirty) {
 			final TransactionalBucketBPlusTree committedTree =
 				(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.buckets);
+			// publish the page baseline staged by this commit's flush: the merge runs only AFTER the
+			// flush has durably written the changed leaf pages + root, so the staged `pageSequence -> nodeId` map now
+			// reflects what is on disk and may become the live change-detection baseline for the next commit. The
+			// registry is then carried BY REFERENCE into the committed copy, so the surviving owner keeps it. (No
+			// discard counterpart is needed: a pre-flush abort never stages, a flush failure is fatal — restart rebuilds
+			// a clean registry — and a stale staged map is harmlessly replaced by the next commit's stage.)
+			this.pageStreamRegistry.publishStaged();
 			return new InvertedIndex(
 				this.plainType,
 				committedTree,
 				this.normalizer,
 				this.comparator,
-				this.indexedDecimalPlaces
+				this.indexedDecimalPlaces,
+				// carry the owner-resident page bookkeeping BY REFERENCE: the surviving committed owner keeps the
+				// allocator + change-detection baseline the just-completed flush populated
+				this.pageStreamRegistry
 			);
 		} else {
 			return this;
@@ -835,6 +942,130 @@ public class InvertedIndex implements
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.buckets.removeLayer(transactionalLayer);
+	}
+
+	/**
+	 * Returns whether this index's bucket tree spans more than one leaf and is therefore persisted in the granular
+	 * `PAGED` shape (one record per leaf) rather than the inline `SINGLE` shape.
+	 *
+	 * @return true when the tree has an internal root (≥ 2 leaves)
+	 */
+	public boolean isPaged() {
+		return this.buckets.isRootInternal();
+	}
+
+	/**
+	 * Drops this index's page bookkeeping (allocator, high-water, baseline). Called when the index falls back to the
+	 * inline `SINGLE` shape so a later regrow into `PAGED` starts from a clean baseline and re-emits every leaf. The
+	 * caller is expected to have already issued removals for the prior `PAGED` leaf pages (see {@link #livePageSequences()})
+	 * BEFORE calling this — once the bookkeeping is forgotten those page sequences can no longer be enumerated.
+	 */
+	public void forgetPageStream() {
+		this.pageStreamRegistry.forget(BUCKET_PAGE_STREAM);
+	}
+
+	/**
+	 * Walks the bucket tree leaf-by-leaf and returns the granular write-path emission for this commit:
+	 * the leaf pages that changed since the last flush (the ones the commit must (re)write), the
+	 * full ordered list of live leaf-page sequences (the `PAGED` root's leaf list), and the stream high-water.
+	 *
+	 * For each leaf, a not-yet-paged (split-born or fresh) leaf is assigned a freshly allocated page sequence stamped
+	 * onto the live node so the commit-merge carries it forward; each leaf's transaction-aware dirty flag decides
+	 * whether it is re-emitted, and is cleared once its page is collected. The complete next live-page set is STAGED on
+	 * the registry here and becomes live only when the commit is published (see the commit handshake). A clean
+	 * (non-dirty) index must not call this — the caller gates on {@link #isDirty()}.
+	 *
+	 * @return the changed leaf pages, the ordered live page-sequence list, and the high-water
+	 */
+	@Nonnull
+	public PagedEmission collectChangedPages() {
+		// this.buckets is a raw tree, so the handle list and its cursors are raw too — bucket values are read as Object
+		// and cast to Serializable exactly as the whole-tree materializer does
+		final List<LeafPageHandle> handles = this.buckets.leafPageHandles();
+		final int[] orderedPageSequences = new int[handles.size()];
+		final List<LeafPage> changedPages = new ArrayList<>();
+		final Set<Integer> nextLive = new HashSet<>(handles.size());
+		int idx = 0;
+		for (final LeafPageHandle handle : handles) {
+			int pageSequence = handle.getPageSequence();
+			final boolean freshLeaf = pageSequence == TransactionalBucketBPlusTree.UNASSIGNED_PAGE_SEQUENCE;
+			if (freshLeaf) {
+				// split-born / fresh leaf: allocate a page and stamp it onto the live node (the merge carries it forward)
+				pageSequence = this.pageStreamRegistry.allocate(BUCKET_PAGE_STREAM);
+				handle.setPageSequence(pageSequence);
+			}
+			orderedPageSequences[idx++] = pageSequence;
+			nextLive.add(pageSequence);
+
+			// a leaf is (re)written iff it is brand new or its transaction-aware dirty flag is set — an exact signal a
+			// content hash cannot match: every mutation site sets it, so a real change can never be suppressed. Once the
+			// page is collected the flag is cleared so the next commit suppresses the leaf unless it is mutated again.
+			if (freshLeaf || handle.isDirty()) {
+				final BucketCursor cursor = handle.cursor();
+				final List<ValueToRecordBitmap> pageBuckets = new ArrayList<>();
+				while (cursor.next()) {
+					final Serializable value = (Serializable) cursor.value();
+					pageBuckets.add(
+						cursor.isSingle()
+							? new ValueToRecordBitmap(value, cursor.singleRecordId())
+							: new ValueToRecordBitmap(value, (TransactionalBitmap) cursor.records())
+					);
+				}
+				final ValueToRecordBitmap[] bucketArray = pageBuckets.toArray(ValueToRecordBitmap[]::new);
+				changedPages.add(new LeafPage(pageSequence, bucketArray));
+				handle.clearDirty();
+			}
+		}
+		// pages live in the published set but absent from this commit's live leaves were dropped by a leaf merge:
+		// they must be REMOVED from storage, not merely unreferenced — the append-only OffsetIndex never reclaims a
+		// record that is neither superseded (page ids are advance-only, never re-keyed) nor explicitly removed, so an
+		// unreferenced leaf page would otherwise be copied forward by every compaction forever.
+		final int[] freedPageSequences = this.pageStreamRegistry.freedPageSequences(BUCKET_PAGE_STREAM, nextLive);
+		this.pageStreamRegistry.stage(BUCKET_PAGE_STREAM, nextLive);
+		return new PagedEmission(
+			changedPages, orderedPageSequences, this.pageStreamRegistry.highWater(BUCKET_PAGE_STREAM), freedPageSequences
+		);
+	}
+
+	/**
+	 * Returns the page sequences currently live in the published baseline — every leaf page this index has on disk. Used
+	 * by the `PAGED -> SINGLE` fallback to remove all prior leaf pages before the index collapses back to the inline
+	 * shape (after which {@link #forgetPageStream()} clears the bookkeeping).
+	 *
+	 * @return the live page sequences, or an empty array when the index has no leaf pages on disk
+	 */
+	@Nonnull
+	public int[] livePageSequences() {
+		return this.pageStreamRegistry.livePageSequences(BUCKET_PAGE_STREAM);
+	}
+
+	/**
+	 * One leaf page produced by the granular write path: its stable page sequence and its buckets in ascending value
+	 * order.
+	 *
+	 * @param pageSequence the leaf's stable page sequence
+	 * @param buckets the leaf's buckets in ascending value order
+	 */
+	public record LeafPage(int pageSequence, @Nonnull ValueToRecordBitmap[] buckets) {
+	}
+
+	/**
+	 * The granular write-path emission for one commit: the leaf pages to (re)write this commit, the
+	 * complete ordered list of live leaf-page sequences (the `PAGED` root's leaf list, ascending key order), the stream
+	 * high-water to persist in the root, and the page sequences a leaf merge dropped this commit (to be removed from
+	 * storage so they don't leak).
+	 *
+	 * @param changedPages     the leaf pages whose content changed since the last baseline
+	 * @param orderedPageSequences  every live leaf's page sequence in ascending key order
+	 * @param highWaterPageSequence the maximum page sequence ever allocated for the stream
+	 * @param freedPageSequences    page sequences dropped this commit (merged-away leaves) that must be removed from storage
+	 */
+	public record PagedEmission(
+		@Nonnull List<LeafPage> changedPages,
+		@Nonnull int[] orderedPageSequences,
+		int highWaterPageSequence,
+		@Nonnull int[] freedPageSequences
+	) {
 	}
 
 	/**

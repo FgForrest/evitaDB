@@ -1105,12 +1105,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(trappedChanges::addChangeToStore);
 		}
-		// FILTER parts are produced from the shared tree via the rebuilt filter views (which carry attributeType + range)
+		// FILTER parts are produced from the shared tree via the rebuilt filter views (which carry attributeType + range).
+		// A small (single-leaf) index emits one inline SINGLE part; a large (multi-leaf) index emits granular PAGED leaf
+		// pages + a PAGED root — both go through appendStorageParts.
 		for (final AttributeIndexKey key : this.sharedValueIndex.keySet()) {
 			final FilterIndex view = resolveFilterView(key);
 			if (view != null) {
-				ofNullable(view.createStoragePart(entityIndexPrimaryKey))
-					.ifPresent(trappedChanges::addChangeToStore);
+				view.appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 			}
 		}
 		for (Entry<AttributeIndexKey, SortIndex> entry : this.sortIndex.entrySet()) {
