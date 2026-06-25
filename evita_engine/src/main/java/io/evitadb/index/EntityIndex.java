@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.core.buffer.DataStoreChanges.RemovedStoragePart;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -59,6 +60,7 @@ import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.Assert;
@@ -114,7 +116,12 @@ public abstract class EntityIndex implements
 	@Delegate(types = AttributeIndexContract.class)
 	protected final AttributeIndex attributeIndex;
 	/**
-	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
+	 * Internal flag that tracks whether the entity-id membership bitmaps ({@link #entityIds} /
+	 * {@link #entityIdsByLanguage}) changed and must be re-persisted. It drives two things: the index
+	 * {@link #version} bump on commit, and the emission of the sibling {@link EntityIdsStoragePart}
+	 * during flush. Manifest ({@link EntityIndexStoragePart}) re-emission, by contrast, is decided by the
+	 * structural diff against the captured `original*` baselines — so a pure membership change no longer
+	 * forces the bulky manifest to be rewritten.
 	 */
 	protected final TransactionalBoolean dirty;
 	/**
@@ -181,6 +188,17 @@ public abstract class EntityIndex implements
 	 */
 	protected Set<HistogramIndexStorageKey> originalHistogramKeys;
 	/**
+	 * Whether this index already existed in persistent storage when it was constructed (proxied by a
+	 * committed entity-id bitmaps part, i.e. a non-empty `entityIds`). It guarantees the manifest is
+	 * written at least once even for an index whose only change is entity membership (no sub-index ever
+	 * appearing): such a never-persisted index would otherwise emit a bitmaps part with no manifest and
+	 * become unreloadable — see {@link #getModifiedStorageParts(TrappedChanges)}. The value is derived
+	 * from the non-emptiness of the supplied `entityIds` at construction, so it self-heals across the
+	 * transactional copy: once the first bitmaps part is committed, the next copy is built from a
+	 * non-empty bitmap and observes `true`.
+	 */
+	protected final boolean previouslyPersisted;
+	/**
 	 * Ordered list of self-registering sub-systems that participate in commit-time flush and
 	 * transactional-layer lifecycle. Populated by the base constructors with the three intrinsic
 	 * components (attribute, hierarchy, facet) and extended by subclass constructors via
@@ -227,6 +245,8 @@ public abstract class EntityIndex implements
 		this.dirty = new TransactionalBoolean();
 		this.indexKey = indexKey;
 		this.entityIds = new TransactionalBitmap();
+		// a fresh index has no persisted bitmaps yet
+		this.previouslyPersisted = false;
 		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(16), TransactionalBitmap.class, TransactionalBitmap::new);
 		final RepresentativeReferenceKey discriminatorRefKey =
 			indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null;
@@ -280,6 +300,9 @@ public abstract class EntityIndex implements
 		this.version = version;
 		this.dirty = new TransactionalBoolean();
 		this.entityIds = new TransactionalBitmap(entityIds);
+		// reloaded / transactionally-copied indexes already carry persisted bitmaps when non-empty;
+		// this self-heals across the commit copy, which is built from the committed (non-empty) bitmap
+		this.previouslyPersisted = !entityIds.isEmpty();
 
 		final Map<Locale, TransactionalBitmap> txEntityIdsByLanguage = createHashMap(entityIdsByLanguage.size());
 		for (Entry<Locale, TransactionalBitmap> entry : entityIdsByLanguage.entrySet()) {
@@ -346,6 +369,8 @@ public abstract class EntityIndex implements
 		this.version = version;
 		this.dirty = new TransactionalBoolean();
 		this.entityIds = entityIds;
+		// the "preserve originals" copy carries the source index's persisted-bitmap state verbatim
+		this.previouslyPersisted = !entityIds.isEmpty();
 		this.entityIdsByLanguage = entityIdsByLanguage;
 		this.attributeIndex = attributeIndex;
 		this.hierarchyIndex = hierarchyIndex;
@@ -816,9 +841,13 @@ public abstract class EntityIndex implements
 	 *
 	 * The flush walks the registered {@link IndexComponent} list in order: each component emits its own
 	 * modified storage parts and announces its live keys into a shared {@link EntityIndexManifest}. The
-	 * collected manifest is then compared against the captured originals; on any divergence (or when the
-	 * dirty flag is set) a fresh {@link EntityIndexStoragePart} is built listing every sub-index that
-	 * must reload on restart.
+	 * collected manifest is then compared against the captured originals; on any divergence a fresh
+	 * {@link EntityIndexStoragePart} is built listing every sub-index that must reload on restart.
+	 *
+	 * The entity-id membership bitmaps are persisted independently of the manifest: when {@link #dirty}
+	 * is set they are re-emitted as a sibling {@link EntityIdsStoragePart} (or removed when the index
+	 * emptied out), so a pure membership change no longer rewrites the bulky manifest. The one coupling
+	 * is the first write — see the body for why a never-persisted index still emits its manifest.
 	 *
 	 * @param trappedChanges the accumulator collecting modified storage parts for the current commit
 	 */
@@ -835,19 +864,41 @@ public abstract class EntityIndex implements
 		final Set<PriceIndexKey> priceIndexKeys = manifest.getPriceKeys();
 		final Set<String> facetIndexReferencedEntities = manifest.getFacetReferencedEntities();
 		final Set<HistogramIndexStorageKey> histogramIndexStorageKeys = manifest.getHistogramKeys();
-		if (this.dirty.isTrue() ||
+
+		final boolean bitmapsDirty = this.dirty.isTrue();
+		final boolean manifestStructurallyChanged =
 			this.originalHierarchyIndexEmpty != hierarchyIndexEmpty ||
-			!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
-			!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
-			!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities) ||
-			!Objects.equals(this.originalHistogramKeys, histogramIndexStorageKeys)
-		) {
+				!Objects.equals(this.originalAttributeIndexes, attributeIndexStorageKeys) ||
+				!Objects.equals(this.originalPriceIndexes, priceIndexKeys) ||
+				!Objects.equals(this.originalFacetIndexes, facetIndexReferencedEntities) ||
+				!Objects.equals(this.originalHistogramKeys, histogramIndexStorageKeys);
+
+		// The bulky manifest (the sub-index reference sets) is re-emitted only when its own content
+		// changed. The extra `bitmapsDirty && !previouslyPersisted` term guarantees the manifest is
+		// written at least once: a fresh index whose only change is entity membership (no sub-index ever
+		// appearing) must still persist a manifest, or it would be unreloadable (a bitmaps part with no
+		// manifest). After the first commit the transactional copy observes a non-empty bitmap and flips
+		// `previouslyPersisted` to true, so subsequent membership-only commits skip the manifest.
+		if (manifestStructurallyChanged || (bitmapsDirty && !this.previouslyPersisted)) {
 			trappedChanges.addChangeToStore(
 				createStoragePart(
 					hierarchyIndexEmpty, attributeIndexStorageKeys, priceIndexKeys,
 					facetIndexReferencedEntities, histogramIndexStorageKeys
 				)
 			);
+		}
+
+		// The entity-id bitmaps live in their own sibling part, re-emitted on any membership change.
+		if (bitmapsDirty) {
+			if (this.entityIds.isEmpty() && this.entityIdsByLanguage.isEmpty()) {
+				// the index emptied out — drop the sibling part so compaction can reclaim it (a no-op
+				// when none was ever written, e.g. a fresh index emptied before its first flush)
+				trappedChanges.addChangeToStore(
+					new RemovedStoragePart(EntityIdsStoragePart.class, this.primaryKey)
+				);
+			} else {
+				trappedChanges.addChangeToStore(createBitmapsPart());
+			}
 		}
 	}
 
@@ -977,12 +1028,25 @@ public abstract class EntityIndex implements
 	) {
 		return new EntityIndexStoragePart(
 			this.primaryKey, this.version, this.indexKey,
-			this.entityIds, this.entityIdsByLanguage,
 			attributeIndexStorageKeys,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
 			facetIndexReferencedEntities,
 			histogramIndexStorageKeys
+		);
+	}
+
+	/**
+	 * Builds the sibling {@link EntityIdsStoragePart} carrying this index's entity-id membership bitmaps
+	 * ({@link #entityIds} and {@link #entityIdsByLanguage}). Emitted from
+	 * {@link #getModifiedStorageParts(TrappedChanges)} whenever the membership changed.
+	 *
+	 * @return the storage part holding the entity-id superset bitmap and the per-locale bitmaps
+	 */
+	@Nonnull
+	private StoragePart createBitmapsPart() {
+		return new EntityIdsStoragePart(
+			this.primaryKey, this.version, this.entityIds, this.entityIdsByLanguage
 		);
 	}
 

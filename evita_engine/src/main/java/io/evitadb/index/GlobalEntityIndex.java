@@ -269,9 +269,9 @@ public class GlobalEntityIndex extends EntityIndex
 			return new GlobalEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
-				manifest.getVersion(),
-				manifest.getEntityIds(),
-				manifest.getEntityIdsByLanguage(),
+				context.version(),
+				context.entityIds(),
+				context.entityIdsByLanguage(),
 				new EntityAttributeIndex(
 					context.entitySchema().getName(),
 					attributes.uniqueIndexes(),

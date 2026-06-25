@@ -34,6 +34,7 @@ import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
@@ -47,6 +48,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCard
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
@@ -73,6 +75,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -229,15 +232,14 @@ public interface Migration_2025_6 {
 							}
 						}
 					}
-					// store upgraded entity index storage part
+					// store the upgraded entity index manifest WITHOUT the entity-id bitmaps — the modern
+					// serializer evicts them, so they are persisted in a sibling EntityIdsStoragePart below
 					collectionStoragePartService.putStoragePart(
 						catalogVersion,
 						new EntityIndexStoragePart(
 							deprecatedIndexBody.getPrimaryKey(),
 							deprecatedIndexBody.getVersion(),
 							deprecatedIndexBody.getEntityIndexKey(),
-							deprecatedIndexBody.getEntityIds(),
-							deprecatedIndexBody.getEntityIdsByLanguage(),
 							deprecatedIndexBody.getAttributeIndexes(),
 							deprecatedIndexBody.getPriceIndexes(),
 							deprecatedIndexBody.isHierarchyIndex(),
@@ -245,6 +247,29 @@ public interface Migration_2025_6 {
 							java.util.Collections.emptySet()
 						)
 					);
+					// persist the evicted entity-id bitmaps as the sibling part (skip empty indexes — the
+					// loader falls back to an empty bitmap when the sibling is absent). A deprecated index
+					// body is always rehydrated with its inline bitmaps by the backward-compatible
+					// serializer, so a null carrier here means a corrupt record — fail the migration loudly.
+					final Bitmap deprecatedEntityIds = Objects.requireNonNull(
+						deprecatedIndexBody.getEntityIds(),
+						"Deprecated entity index " + indexPrimaryKey + " carries no inline entity-id bitmap!"
+					);
+					final Map<Locale, TransactionalBitmap> deprecatedEntityIdsByLanguage = Objects.requireNonNull(
+						deprecatedIndexBody.getEntityIdsByLanguage(),
+						"Deprecated entity index " + indexPrimaryKey + " carries no inline per-locale entity-id map!"
+					);
+					if (!deprecatedEntityIds.isEmpty() || !deprecatedEntityIdsByLanguage.isEmpty()) {
+						collectionStoragePartService.putStoragePart(
+							catalogVersion,
+							new EntityIdsStoragePart(
+								deprecatedIndexBody.getPrimaryKey(),
+								deprecatedIndexBody.getVersion(),
+								deprecatedEntityIds,
+								deprecatedEntityIdsByLanguage
+							)
+						);
+					}
 					indexesMigrated++;
 				} else if (storagePart == null) {
 					throw new GenericEvitaInternalError("Entity index storage part for primary key " + indexPrimaryKey + " is missing!");
@@ -465,7 +490,11 @@ public interface Migration_2025_6 {
 			uniqueIndexCnt != null,
 			"Unique index with id " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() + " was not found in persistent storage!"
 		);
-		final Map<Serializable, Integer> uniqueValueToRecordId = uniqueIndexCnt.getUniqueValueToRecordId();
+		final Map<Serializable, Integer> uniqueValueToRecordId = Objects.requireNonNull(
+			uniqueIndexCnt.getUniqueValueToRecordId(),
+			"Unique index " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() +
+				" carries no value-to-record mapping!"
+		);
 		final Map<Serializable, Integer> migratedUniqueValueToRecordId = CollectionUtils.createHashMap(
 			uniqueValueToRecordId.size()
 		);

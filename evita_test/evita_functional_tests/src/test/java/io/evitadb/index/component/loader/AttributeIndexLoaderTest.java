@@ -37,6 +37,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -291,6 +292,9 @@ class AttributeIndexLoaderTest {
 			buildSchema(manifest),
 			ENTITY_INDEX_KEY,
 			manifest,
+			manifest.getVersion(),
+			EmptyBitmap.INSTANCE,
+			Map.of(),
 			storage,
 			null
 		);
@@ -764,6 +768,9 @@ class AttributeIndexLoaderTest {
 				buildReferenceSchema(),
 				REFERENCED_TYPE_INDEX_KEY,
 				manifest,
+				manifest.getVersion(),
+				EmptyBitmap.INSTANCE,
+				Map.of(),
 				storage,
 				// REFERENCED_ENTITY_TYPE indexes carry a String discriminator and a `null` referenceKey, exactly as the
 				// engine's DefaultEntityCollectionPersistenceService builds the context

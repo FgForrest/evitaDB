@@ -55,6 +55,8 @@ import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
@@ -71,6 +73,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
@@ -107,6 +110,7 @@ import java.util.Set;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.MANAGEMENT;
+import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -508,22 +512,43 @@ class EntityIndexRoundTripTest {
 	}
 
 	/**
-	 * Reconstructs the entity-id-by-language map from the manifest. The map is bitmap-typed and
-	 * needs to be wrapped in fresh transactional bitmaps to match the deserialization constructor's
-	 * expected type.
+	 * Resolves the entity-id superset bitmap exactly as the production `readEntityIndex` loader does:
+	 * from the sibling {@link EntityIdsStoragePart} when present, else from the manifest's legacy inline
+	 * carrier, else an empty bitmap.
 	 *
-	 * @param manifest the captured `EntityIndexStoragePart`
+	 * @param storage the captured storage parts
+	 * @return the entity-id superset bitmap to feed into the deserialization constructor
+	 */
+	@Nonnull
+	private static Bitmap reloadEntityIds(@Nonnull CapturedStorage storage) {
+		if (storage.bitmapsPart != null) {
+			return storage.bitmapsPart.getEntityIds();
+		}
+		final Bitmap legacy = storage.requireManifest().getEntityIds();
+		return legacy == null ? EmptyBitmap.INSTANCE : legacy;
+	}
+
+	/**
+	 * Reconstructs the entity-id-by-language map by the same sibling-or-legacy-fallback rule as
+	 * {@link #reloadEntityIds(CapturedStorage)}. The map is bitmap-typed and needs to be wrapped in
+	 * fresh transactional bitmaps to match the deserialization constructor's expected type.
+	 *
+	 * @param storage the captured storage parts
 	 * @return a map suitable for passing into the deserialization constructor
 	 */
 	@Nonnull
 	private static Map<Locale, TransactionalBitmap> reloadEntityIdsByLanguage(
-		@Nonnull EntityIndexStoragePart manifest
+		@Nonnull CapturedStorage storage
 	) {
+		final Map<Locale, TransactionalBitmap> source = storage.bitmapsPart != null
+			? storage.bitmapsPart.getEntityIdsByLanguage()
+			: storage.requireManifest().getEntityIdsByLanguage();
 		// LinkedHashMap preserves deterministic iteration order for downstream comparisons
 		final Map<Locale, TransactionalBitmap> reloaded = new LinkedHashMap<>(4);
-		for (final Map.Entry<Locale, TransactionalBitmap> entry
-			: manifest.getEntityIdsByLanguage().entrySet()) {
-			reloaded.put(entry.getKey(), new TransactionalBitmap(entry.getValue()));
+		if (source != null) {
+			for (final Map.Entry<Locale, TransactionalBitmap> entry : source.entrySet()) {
+				reloaded.put(entry.getKey(), new TransactionalBitmap(entry.getValue()));
+			}
 		}
 		return reloaded;
 	}
@@ -724,8 +749,8 @@ class EntityIndexRoundTripTest {
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
 				manifest.getVersion(),
-				manifest.getEntityIds(),
-				reloadEntityIdsByLanguage(manifest),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
 				(EntityAttributeIndex) attributeIndex,
 				new PriceSuperIndex(priceIndexes),
 				reloadHierarchyIndex(storage),
@@ -889,8 +914,8 @@ class EntityIndexRoundTripTest {
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
 				manifest.getVersion(),
-				manifest.getEntityIds(),
-				reloadEntityIdsByLanguage(manifest),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
 				(ReferenceAttributeIndex) attributeIndex,
 				new PriceRefIndex(manifest.getEntityIndexKey().scope(), priceIndexes),
 				reloadHierarchyIndex(storage),
@@ -1045,8 +1070,8 @@ class EntityIndexRoundTripTest {
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
 				manifest.getVersion(),
-				manifest.getEntityIds(),
-				reloadEntityIdsByLanguage(manifest),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
 				(ReferenceAttributeIndex) attributeIndex,
 				new PriceRefIndex(manifest.getEntityIndexKey().scope(), priceIndexes),
 				reloadHierarchyIndex(storage),
@@ -1179,8 +1204,8 @@ class EntityIndexRoundTripTest {
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
 				manifest.getVersion(),
-				manifest.getEntityIds(),
-				reloadEntityIdsByLanguage(manifest),
+				reloadEntityIds(storage),
+				reloadEntityIdsByLanguage(storage),
 				(ReferenceAttributeIndex) attributeIndex,
 				reloadHierarchyIndex(storage),
 				reloadFacetIndex(storage),
@@ -1239,6 +1264,89 @@ class EntityIndexRoundTripTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Legacy inline-bitmap manifest reload")
+	@Tag(INDEXING)
+	@Tag(SERIALIZATION)
+	class LegacyInlineBitmapManifestReloadTest {
+
+		/**
+		 * Builds a legacy-format `GlobalEntityIndex` manifest through the canonical 10-arg constructor,
+		 * carrying the entity-id bitmaps INLINE (the way manifests written before the entity-id bitmaps
+		 * were evicted into a sibling `EntityIdsStoragePart` look on disk). No sibling bitmaps part is
+		 * captured, so the reload helpers must fall back to the manifest's inline carrier — the exact
+		 * code path the production `readEntityIndex` loader takes when reading an older-format manifest.
+		 *
+		 * @param entityIds           the inline superset bitmap, or `null` for an empty legacy index
+		 * @param entityIdsByLanguage the inline per-locale bitmaps, or `null` for an empty legacy index
+		 * @return a captured storage bundle whose only populated slot is the legacy manifest
+		 */
+		@Nonnull
+		private static CapturedStorage captureLegacyManifest(
+			@Nullable Bitmap entityIds,
+			@Nullable Map<Locale, TransactionalBitmap> entityIdsByLanguage
+		) {
+			final EntityIndexKey key = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
+			final EntityIndexStoragePart legacyManifest = new EntityIndexStoragePart(
+				INDEX_PK, 1, key,
+				entityIds, entityIdsByLanguage,
+				Set.of(), Set.of(), false, Set.of(), Set.of()
+			);
+			final CapturedStorage storage = new CapturedStorage();
+			// mirror the on-disk shape of an older-format catalog: the manifest carries the bitmaps
+			// itself and there is no sibling EntityIdsStoragePart, leaving bitmapsPart null
+			storage.manifest = legacyManifest;
+			return storage;
+		}
+
+		@Test
+		@DisplayName("should resolve membership from the manifest's inline bitmaps when no sibling bitmaps part exists")
+		void shouldResolveMembershipFromInlineBitmapsWhenNoSiblingPartExists() {
+			final TransactionalBitmap inlineEntityIds = new TransactionalBitmap(10, 20, 30);
+			final TransactionalBitmap inlineEnglish = new TransactionalBitmap(10, 20);
+			final Map<Locale, TransactionalBitmap> inlineByLanguage = new LinkedHashMap<>(2);
+			inlineByLanguage.put(Locale.ENGLISH, inlineEnglish);
+
+			final CapturedStorage storage = LegacyInlineBitmapManifestReloadTest.captureLegacyManifest(inlineEntityIds, inlineByLanguage);
+			final Bitmap reloadedEntityIds = reloadEntityIds(storage);
+			final Map<Locale, TransactionalBitmap> reloadedByLanguage = reloadEntityIdsByLanguage(storage);
+
+			// the superset membership must equal the inline-carried bitmap verbatim
+			assertArrayEquals(
+				inlineEntityIds.getArray(), reloadedEntityIds.getArray(),
+				"Reloaded superset membership must equal the manifest's inline entity-id bitmap"
+			);
+			// each per-locale membership must equal the inline-carried per-locale bitmap
+			assertEquals(
+				Set.of(Locale.ENGLISH), reloadedByLanguage.keySet(),
+				"Reloaded per-locale map must carry exactly the inline-tracked locales"
+			);
+			assertArrayEquals(
+				inlineEnglish.getArray(), reloadedByLanguage.get(Locale.ENGLISH).getArray(),
+				"Reloaded English membership must equal the manifest's inline per-locale bitmap"
+			);
+		}
+
+		@Test
+		@DisplayName("should resolve to empty membership without failing when the manifest carries no inline bitmaps")
+		void shouldResolveToEmptyMembershipWhenManifestCarriesNoInlineBitmaps() {
+			// a modern, empty index: getEntityIds() == null and getEntityIdsByLanguage() == null —
+			// the loader must fall back to EmptyBitmap.INSTANCE / an empty map rather than dereferencing null
+			final CapturedStorage storage = LegacyInlineBitmapManifestReloadTest.captureLegacyManifest(null, null);
+			final Bitmap reloadedEntityIds = reloadEntityIds(storage);
+			final Map<Locale, TransactionalBitmap> reloadedByLanguage = reloadEntityIdsByLanguage(storage);
+
+			assertTrue(
+				reloadedEntityIds.isEmpty(),
+				"Null inline superset bitmap must resolve to an empty bitmap, not throw"
+			);
+			assertTrue(
+				reloadedByLanguage.isEmpty(),
+				"Null inline per-locale map must resolve to an empty map, not throw"
+			);
+		}
+	}
+
 	/**
 	 * In-memory bag of storage parts emitted by a single `getModifiedStorageParts` call,
 	 * categorized by structural role for test access.
@@ -1246,6 +1354,8 @@ class EntityIndexRoundTripTest {
 	private static final class CapturedStorage {
 		/** The manifest emitted by the entity index. */
 		@Nullable private EntityIndexStoragePart manifest;
+		/** The sibling entity-id bitmaps part (evicted out of the manifest from the 2026.2 format). */
+		@Nullable private EntityIdsStoragePart bitmapsPart;
 		/** UNIQUE / FILTER / SORT / CHAIN parts (CARDINALITY parts are stored separately). */
 		@Nonnull private final List<AttributeIndexStoragePart> attributeParts = new ArrayList<>(8);
 		/** Attribute cardinality parts — reduced/referenced indexes consume them via a separate map. */
@@ -1275,6 +1385,9 @@ class EntityIndexRoundTripTest {
 			if (part instanceof EntityIndexStoragePart manifestPart) {
 				assertNull(this.manifest, "Multiple manifests emitted in one flush");
 				this.manifest = manifestPart;
+			} else if (part instanceof EntityIdsStoragePart bitmapsStoragePart) {
+				assertNull(this.bitmapsPart, "Multiple entity-id bitmaps parts emitted in one flush");
+				this.bitmapsPart = bitmapsStoragePart;
 			} else if (part instanceof AttributeCardinalityIndexStoragePart cardPart) {
 				this.attributeCardinalityParts.add(cardPart);
 			} else if (part instanceof AttributeIndexStoragePart attrPart) {

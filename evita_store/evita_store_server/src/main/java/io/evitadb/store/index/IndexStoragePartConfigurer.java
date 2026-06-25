@@ -192,6 +192,14 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		// the entity-id bitmaps evicted out of EntityIndexStoragePart — a brand-new record type with no
+		// backward-compatible reader (legacy catalogs keep the bitmaps inline on the manifest instead).
+		kryo.register(
+			EntityIdsStoragePart.class,
+			new SerialVersionBasedSerializer<>(new EntityIdsStoragePartSerializer(this.keyCompressor), EntityIdsStoragePart.class),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
 

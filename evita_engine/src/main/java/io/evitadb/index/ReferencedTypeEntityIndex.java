@@ -319,9 +319,9 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 			return new ReferencedTypeEntityIndex(
 				manifest.getPrimaryKey(),
 				manifest.getEntityIndexKey(),
-				manifest.getVersion(),
-				manifest.getEntityIds(),
-				manifest.getEntityIdsByLanguage(),
+				context.version(),
+				context.entityIds(),
+				context.entityIdsByLanguage(),
 				new ReferenceAttributeIndex(
 					context.entitySchema().getName(),
 					null,

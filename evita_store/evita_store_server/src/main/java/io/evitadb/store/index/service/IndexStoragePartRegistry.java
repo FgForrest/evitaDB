@@ -58,7 +58,8 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 33, GroupCardinalityIndexStoragePart.class),
 			new StoragePartRecord((byte) 34, HistogramIndexStoragePart.class),
 			new StoragePartRecord((byte) 35, FilterIndexLeafPagePart.class),
-			new StoragePartRecord((byte) 36, RangeIndexLeafPagePart.class)
+			new StoragePartRecord((byte) 36, RangeIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 37, EntityIdsStoragePart.class)
 		);
 	}
 

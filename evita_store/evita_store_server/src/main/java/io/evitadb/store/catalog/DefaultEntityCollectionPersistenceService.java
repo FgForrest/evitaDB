@@ -59,6 +59,9 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
@@ -78,6 +81,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodySt
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
 import io.evitadb.store.entity.EntityFactory;
@@ -841,8 +845,32 @@ public class DefaultEntityCollectionPersistenceService
 			}
 		}
 
+		// the entity-id bitmaps were evicted out of the manifest into a sibling EntityIdsStoragePart from
+		// the 2026.2 format onwards — resolve them from the sibling when present, else fall back to the
+		// manifest's legacy inline carrier (released formats up to 2026.1), else an empty index
+		final EntityIdsStoragePart bitmapsPart = this.storagePartPersistenceService.getStoragePart(
+			catalogVersion, entityIndexId, EntityIdsStoragePart.class
+		);
+		final Bitmap entityIds;
+		final Map<Locale, TransactionalBitmap> entityIdsByLanguage;
+		final int effectiveVersion;
+		if (bitmapsPart != null) {
+			entityIds = bitmapsPart.getEntityIds();
+			entityIdsByLanguage = bitmapsPart.getEntityIdsByLanguage();
+			// the bitmaps part is re-emitted on every membership change while the manifest is not, so its
+			// version may run ahead of the manifest's — reconcile by taking the maximum
+			effectiveVersion = Math.max(manifest.getVersion(), bitmapsPart.getVersion());
+		} else {
+			final Bitmap legacyEntityIds = manifest.getEntityIds();
+			entityIds = legacyEntityIds == null ? EmptyBitmap.INSTANCE : legacyEntityIds;
+			final Map<Locale, TransactionalBitmap> legacyByLanguage = manifest.getEntityIdsByLanguage();
+			entityIdsByLanguage = legacyByLanguage == null ? Map.of() : legacyByLanguage;
+			effectiveVersion = manifest.getVersion();
+		}
+
 		final LoadContext context = new LoadContext(
 			catalogVersion, entityIndexId, entitySchema, entityIndexKey, manifest,
+			effectiveVersion, entityIds, entityIdsByLanguage,
 			this.storagePartPersistenceService, referenceKey
 		);
 

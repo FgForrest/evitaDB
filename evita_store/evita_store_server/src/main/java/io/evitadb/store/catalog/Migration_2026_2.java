@@ -30,13 +30,16 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
@@ -64,6 +67,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -114,6 +118,14 @@ import java.util.function.Supplier;
  * sort part would be wasted work, so it is skipped. Unique parts are unchanged: uniqueness keeps its own standalone
  * index and stays exact `BigDecimal`.
  *
+ * Independently of the re-keying, version 6 also **evicts the entity-id membership bitmaps** (`entityIds` and the
+ * per-locale `entityIdsByLanguage`) out of every {@link EntityIndexStoragePart} manifest into a sibling
+ * {@link EntityIdsStoragePart}, so that a later per-entity membership change rewrites only the small bitmaps record and
+ * not the bulky manifest. Each legacy manifest (read with its inline bitmaps by the backward-compatible serializer) is
+ * rewritten in the modern bitmap-less form and its bitmaps re-persisted as the sibling part; a manifest already evicted
+ * by an earlier migration step is detected by its `null` inline carrier and left untouched. This makes the eager
+ * rewrite the single point of eviction, so no stale inline bitmaps survive to resurface at runtime.
+ *
  * The shape follows {@link Migration_2025_6#upgradeFromStorageProtocolVersion_3_to_4} (the inline index-part rewrite
  * analogue), not the WAL-rewrite {@link Migration_2026_1}: per collection, re-key the affected filter parts, flush the
  * collection, then bump the catalog header to protocol 6. Crash-safety is inherited from the dispatch loop in
@@ -132,7 +144,9 @@ public interface Migration_2026_2 {
 
 	/**
 	 * Upgrades the catalog storage protocol version from version 5 to version 6 by re-keying every `String`-typed
-	 * filter index histogram to Unicode NFD (merging NFD-colliding buckets and re-sorting under the index comparator).
+	 * filter index histogram to Unicode NFD (merging NFD-colliding buckets and re-sorting under the index comparator),
+	 * re-scaling `BigDecimal` filter/sort keys to the order-preserving scaled `int`, and evicting every entity index's
+	 * inline membership bitmaps into a sibling {@link EntityIdsStoragePart} (rewriting the manifest bitmap-less).
 	 *
 	 * @param catalogHeader                            header of the catalog being upgraded
 	 * @param storagePartPersistenceService            catalog-level storage part persistence service
@@ -180,6 +194,7 @@ public interface Migration_2026_2 {
 			}
 
 			int rekeyedIndexes = 0;
+			int evictedManifests = 0;
 			for (final Integer indexPrimaryKey : indexIds) {
 				final EntityIndexStoragePart indexPart = collectionStoragePartService.getStoragePart(
 					catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
@@ -216,10 +231,50 @@ public interface Migration_2026_2 {
 						rekeyedIndexes++;
 					}
 				}
+
+				// evict the legacy inline entity-id bitmaps into a sibling EntityIdsStoragePart and rewrite
+				// the manifest in the modern bitmap-less form. A native 2026.1 (protocol 5) manifest is read
+				// by the backward-compatible serializer, which populates the inline carrier — a non-null
+				// carrier is the precise "still inline" signal. A manifest already evicted by an earlier
+				// migration step (e.g. Migration_2025_6) is read by the modern serializer, reports a null
+				// carrier, and is left untouched so its existing sibling part is not clobbered.
+				final Bitmap inlineEntityIds = indexPart.getEntityIds();
+				if (inlineEntityIds != null) {
+					collectionStoragePartService.putStoragePart(
+						catalogVersion,
+						new EntityIndexStoragePart(
+							indexPart.getPrimaryKey(),
+							indexPart.getVersion(),
+							indexPart.getEntityIndexKey(),
+							indexPart.getAttributeIndexes(),
+							indexPart.getPriceIndexes(),
+							indexPart.isHierarchyIndex(),
+							indexPart.getFacetIndexes(),
+							indexPart.getHistogramIndexes()
+						)
+					);
+					// persist the evicted bitmaps as the sibling part (skip empty indexes — the loader falls
+					// back to an empty bitmap when the sibling is absent)
+					final Map<Locale, TransactionalBitmap> inlineByLanguage = indexPart.getEntityIdsByLanguage();
+					if (!inlineEntityIds.isEmpty() || (inlineByLanguage != null && !inlineByLanguage.isEmpty())) {
+						collectionStoragePartService.putStoragePart(
+							catalogVersion,
+							new EntityIdsStoragePart(
+								indexPart.getPrimaryKey(),
+								indexPart.getVersion(),
+								inlineEntityIds,
+								inlineByLanguage == null ? Map.of() : inlineByLanguage
+							)
+						);
+					}
+					evictedManifests++;
+				}
 			}
 
-			if (rekeyedIndexes > 0) {
-				// at least one filter part of this collection changed - re-persist the collection and pick up its new location
+			if (rekeyedIndexes > 0 || evictedManifests > 0) {
+				// at least one part of this collection changed (a re-keyed filter/sort index, or an entity
+				// index manifest whose inline bitmaps were evicted) - re-persist the collection and pick up
+				// its new location
 				final OffsetIndexDescriptor offsetIndexDescriptor = collectionPersistenceService.flush(
 					catalogVersion,
 					new NoChangeHeaderInfoSupplier(entityCollectionHeader)
@@ -236,11 +291,14 @@ public interface Migration_2026_2 {
 					)
 				);
 				ConsoleWriter.writeLine(
-					"Entity collection `" + entityCollectionHeader.entityType() + "`: re-keyed " + rekeyedIndexes + " index(es) (NFD strings / scaled BigDecimals).",
+					"Entity collection `" + entityCollectionHeader.entityType() + "`: re-keyed " + rekeyedIndexes +
+						" index(es) (NFD strings / scaled BigDecimals), evicted entity-id bitmaps from " +
+						evictedManifests + " manifest(s).",
 					ConsoleColor.BRIGHT_BLUE
 				);
 			} else {
-				// nothing changed (ASCII-only string keys, no BigDecimal parts) - keep the existing collection file
+				// nothing changed (ASCII-only string keys, no BigDecimal parts, manifests already evicted) -
+				// keep the existing collection file
 				newCollectionFileIndex.put(entityTypeFileIndex.entityType(), entityTypeFileIndex);
 			}
 		}

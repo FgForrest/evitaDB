@@ -26,11 +26,16 @@ package io.evitadb.index.component.loader;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Immutable per-call bundle of everything a {@link ComponentLoader} needs to reload one sub-index
@@ -48,6 +53,14 @@ import javax.annotation.Nullable;
  *                               {@link EntityIndexStoragePart}
  * @param entityIndexStoragePart the previously-persisted manifest; loaders consult it for the
  *                               set of sub-index keys they should fetch
+ * @param version                the effective index version, reconciled from the manifest and the
+ *                               sibling {@link EntityIdsStoragePart} (whichever is newer) — see
+ *                               `DefaultEntityCollectionPersistenceService#readEntityIndex`
+ * @param entityIds              the all-entities superset bitmap, resolved from the sibling
+ *                               {@link EntityIdsStoragePart} when present, else from the manifest's
+ *                               legacy inline carrier
+ * @param entityIdsByLanguage    the per-locale entity-id bitmaps, resolved by the same
+ *                               sibling-or-legacy-fallback rule as {@code entityIds}
  * @param storagePartService     the storage-part persistence service used to fetch raw parts
  * @param referenceKey           the discriminator for `REFERENCED_ENTITY` /
  *                               `REFERENCED_GROUP_ENTITY` indexes; `null` for `GLOBAL` and
@@ -59,6 +72,9 @@ public record LoadContext(
 	@Nonnull EntitySchema entitySchema,
 	@Nonnull EntityIndexKey entityIndexKey,
 	@Nonnull EntityIndexStoragePart entityIndexStoragePart,
+	int version,
+	@Nonnull Bitmap entityIds,
+	@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 	@Nonnull StoragePartPersistenceService<?> storagePartService,
 	@Nullable RepresentativeReferenceKey referenceKey
 ) {
