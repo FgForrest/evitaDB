@@ -23,6 +23,9 @@
 
 package io.evitadb.core.transaction.memory;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -31,11 +34,22 @@ import java.util.stream.Stream;
 import static java.util.Optional.ofNullable;
 
 /**
- * Transactional memory piece that collects created and removed inner transactional objects.
+ * Transactional memory piece that tracks inner transactional objects created and removed within a container during a
+ * single transaction. At cleanup it discards the diff layers of those objects so that churn (objects both created and
+ * removed in the same transaction) does not leak stale transactional memory.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public final class TransactionalContainerChanges<DIFF_PIECE, COPY, PRODUCER extends TransactionalLayerProducer<DIFF_PIECE, COPY>> {
-	private List<PRODUCER> createdItems;
-	private List<PRODUCER> removedItems;
+public final class TransactionalContainerChanges<DIFF_PIECE, COPY, PRODUCER extends TransactionalLayerProducer<DIFF_PIECE, COPY>>
+	implements Snapshotable<TransactionalContainerChanges.ContainerChangesMemento<PRODUCER>> {
+	/**
+	 * Lazily allocated list of objects created in this transaction; `null` until the first {@link #addCreatedItem}.
+	 */
+	@Nullable private List<PRODUCER> createdItems;
+	/**
+	 * Lazily allocated list of objects removed in this transaction; `null` until the first {@link #addRemovedItem}.
+	 */
+	@Nullable private List<PRODUCER> removedItems;
 
 	/**
 	 * Registers new - created transactional object.
@@ -76,6 +90,33 @@ public final class TransactionalContainerChanges<DIFF_PIECE, COPY, PRODUCER exte
 	}
 
 	/**
+	 * Captures the current created/removed bookkeeping into a memento so that a savepoint can later revert any
+	 * registrations made after this point. The producer instances are captured by reference only (the
+	 * nested-layer-boundary invariant of {@link Snapshotable}) — their own diff state is reverted by their own
+	 * {@link Snapshotable}; here only the *membership* of the two lists is snapshotted.
+	 */
+	@Nonnull
+	@Override
+	public ContainerChangesMemento<PRODUCER> snapshot() {
+		return new ContainerChangesMemento<>(
+			this.createdItems == null ? null : new ArrayList<>(this.createdItems),
+			this.removedItems == null ? null : new ArrayList<>(this.removedItems)
+		);
+	}
+
+	/**
+	 * Resets the created/removed bookkeeping to exactly the state captured by the given memento, discarding any
+	 * registrations made since. Copies *out of* the memento so the same memento may be restored repeatedly.
+	 */
+	@Override
+	public void restore(@Nonnull ContainerChangesMemento<PRODUCER> memento) {
+		final List<PRODUCER> snapshotCreated = memento.createdItems();
+		this.createdItems = snapshotCreated == null ? null : new LinkedList<>(snapshotCreated);
+		final List<PRODUCER> snapshotRemoved = memento.removedItems();
+		this.removedItems = snapshotRemoved == null ? null : new LinkedList<>(snapshotRemoved);
+	}
+
+	/**
 	 * Collects both created and removed items. Removes instances that were registered as both created and removed.
 	 */
 	private Stream<PRODUCER> getCreatedAndRemovedItems() {
@@ -92,6 +133,21 @@ public final class TransactionalContainerChanges<DIFF_PIECE, COPY, PRODUCER exte
 				});
 		}
 		return Stream.empty();
+	}
+
+	/**
+	 * Immutable carrier of a {@link TransactionalContainerChanges} created/removed bookkeeping at the moment a
+	 * savepoint was opened. The producer instances are held by reference only — restoring this memento reverts which
+	 * producers are tracked as created/removed, not the producers' own internal diff state.
+	 *
+	 * @param createdItems snapshot copy of the created-items list, or `null` if none had been registered yet
+	 * @param removedItems snapshot copy of the removed-items list, or `null` if none had been registered yet
+	 * @param <PRODUCER>   the tracked transactional producer type
+	 */
+	public record ContainerChangesMemento<PRODUCER>(
+		@Nullable List<PRODUCER> createdItems,
+		@Nullable List<PRODUCER> removedItems
+	) {
 	}
 
 }

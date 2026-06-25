@@ -23,6 +23,8 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
+import io.evitadb.index.array.IntArrayChanges.IntArrayChangesMemento;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 
@@ -45,7 +47,8 @@ import java.util.Arrays;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @NotThreadSafe
-public class IntArrayChanges implements ArrayChangesIteratorSupport {
+public class IntArrayChanges
+	implements ArrayChangesIteratorSupport, Snapshotable<IntArrayChangesMemento> {
 	private static final int[][] EMPTY_BI_INT_ARRAY = new int[0][];
 	/**
 	 * Unmodifiable underlying array.
@@ -383,6 +386,94 @@ public class IntArrayChanges implements ArrayChangesIteratorSupport {
 			result += insertedValue.length;
 		}
 		return result;
+	}
+
+	/**
+	 * Captures the current diff state (insertion positions, inserted payload rows, removal positions and the
+	 * memoized merged-array cache) into an immutable memento for a transactional savepoint.
+	 *
+	 * Independence is guaranteed cheaply because the layer mutates its arrays with strict copy-on-write
+	 * discipline:
+	 *
+	 * - `insertions` and `removals` are reference-captured as-is — every mutation path replaces the whole
+	 *   field with a freshly allocated array (via the {@link ArrayUtils} helpers), never writing an existing
+	 *   element, so the captured reference can never be observed mutating.
+	 * - `insertedValues` requires a ONE-LEVEL clone of the outer array: the outer slots are reassigned in
+	 *   place by {@link #addRecordId(int)} and {@link #removeRecordId(int)}, which would otherwise corrupt
+	 *   the memento. The inner rows are shared by reference and stay safe because rows are only ever replaced
+	 *   wholesale with fresh allocations, never element-mutated.
+	 * - `memoizedMergedArray` is a derived cache and is captured by reference; it is recomputable on demand.
+	 *
+	 * The immutable `delegate` baseline is intentionally NOT captured — it is final, shared with the owning
+	 * {@link TransactionalIntArray} and never mutated, so it is the unchanging reference point that both
+	 * snapshot and restore implicitly share.
+	 *
+	 * @return a memento that {@link #restore(IntArrayChangesMemento)} can later use to reset this layer
+	 */
+	@Nonnull
+	@Override
+	public IntArrayChangesMemento snapshot() {
+		return new IntArrayChangesMemento(
+			// reference-captured: replaced wholesale on each mutation, never element-mutated
+			this.insertions,
+			// one-level clone: outer slots are reassigned in place (addRecordId / removeRecordId)
+			this.insertedValues.clone(),
+			// reference-captured: replaced wholesale on each mutation, never element-mutated
+			this.removals,
+			// derived cache captured by reference; recomputable on demand
+			this.memoizedMergedArray
+		);
+	}
+
+	/**
+	 * Resets this diff layer back to the exact state captured by the given memento, undoing every
+	 * modification made since the memento was produced. All three diff arrays (kept index-parallel and
+	 * sorted) are restored atomically together with the memoized merged-array cache, so the parallel/sorted
+	 * invariants are preserved by construction.
+	 *
+	 * The memento may be restored repeatedly: `insertions`, `removals` and `memoizedMergedArray` are only
+	 * ever reassigned wholesale by subsequent mutations (never element-mutated), so aliasing the memento's
+	 * references into the live fields is safe. The outer `insertedValues` array, however, has its slots
+	 * reassigned in place by `addRecordId` / `removeRecordId`, so it MUST be re-cloned here (mirroring the
+	 * snapshot clone); otherwise a mutation after the first restore would write through into the memento and
+	 * corrupt a subsequent restore. The final `delegate` baseline is intentionally left untouched.
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull IntArrayChangesMemento memento) {
+		this.insertions = memento.insertions();
+		// one-level clone: the live outer array must not alias the memento's, because addRecordId /
+		// removeRecordId reassign outer slots in place (which would otherwise corrupt the memento)
+		this.insertedValues = memento.insertedValues().clone();
+		this.removals = memento.removals();
+		this.memoizedMergedArray = memento.memoizedMergedArray();
+		// delegate is final and shared with the immutable baseline — intentionally untouched
+	}
+
+	/**
+	 * Immutable carrier of the {@link IntArrayChanges} diff state for a transactional savepoint.
+	 *
+	 * The `delegate` baseline is deliberately absent — it is final on the layer and shared by reference with
+	 * the owning {@link TransactionalIntArray}, so it never needs to be captured or restored.
+	 *
+	 * @param insertions          sorted positions in the delegate array where insertions occur;
+	 *                            index-parallel to `insertedValues`. Captured by reference (the layer side is
+	 *                            copy-on-write).
+	 * @param insertedValues      one-level clone of the outer payload array (`insertedValues[i]` is the sorted
+	 *                            set of recordIds inserted at delegate position `insertions[i]`); inner rows
+	 *                            shared by reference (rows are replaced wholesale, never element-mutated).
+	 * @param removals            sorted positions in the delegate array marked for removal. Captured by
+	 *                            reference (the layer side is copy-on-write).
+	 * @param memoizedMergedArray derived merged-array cache, or `null` if not yet computed; recomputable on
+	 *                            demand.
+	 */
+	public record IntArrayChangesMemento(
+		@Nonnull int[] insertions,
+		@Nonnull int[][] insertedValues,
+		@Nonnull int[] removals,
+		@Nullable int[] memoizedMergedArray
+	) {
 	}
 
 }

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.list;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.utils.Assert;
@@ -58,7 +59,7 @@ import java.util.TreeSet;
  */
 @RequiredArgsConstructor
 @NotThreadSafe
-class ListChanges<V> implements Serializable {
+class ListChanges<V> implements Serializable, Snapshotable<ListChanges.ListChangesMemento<V>> {
 	@Serial private static final long serialVersionUID = -4217133814767167202L;
 	/**
 	 * Original immutable list.
@@ -290,6 +291,64 @@ class ListChanges<V> implements Serializable {
 			}
 		}
 		this.addedItems.putAll(items);
+	}
+
+	/**
+	 * Captures the current diff state ({@link #removedItems} and {@link #addedItems}) into a memento. Both collections
+	 * are shallow-copied into fresh ordered containers so a later {@link #add(int, Object)} / {@link #remove(int)} /
+	 * {@link #cleanAll(TransactionalLayerMaintainer)} (or the internal index-shift helpers) cannot mutate the captured
+	 * state (memento-independence invariant). The immutable {@link #listDelegate} baseline is the shared read-only
+	 * source and is therefore deliberately not captured. The element references stored as {@link #addedItems} values are
+	 * copied by reference only: when an element is itself a nested transactional producer it owns its own diff layer,
+	 * rolled back by its own {@link Snapshotable} at the maintainer level (nested-layer-boundary invariant).
+	 *
+	 * @return a memento holding independent copies of the current removedItems and addedItems deltas
+	 */
+	@Nonnull
+	@Override
+	public ListChangesMemento<V> snapshot() {
+		return new ListChangesMemento<>(
+			new TreeSet<>(this.removedItems),
+			new TreeMap<>(this.addedItems)
+		);
+	}
+
+	/**
+	 * Resets this diff layer back to the state captured by the given memento, discarding any insertions / removals
+	 * recorded since the snapshot. Because {@link #removedItems} and {@link #addedItems} are final, their contents are
+	 * cleared and refilled in place from the memento (copying out of the memento, so the same memento may be restored
+	 * repeatedly). The shared immutable {@link #listDelegate} baseline is never touched, and {@link #size()} /
+	 * {@link #isEmpty()} are computed on the fly from the restored collections, so no derived state needs fixing up.
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull ListChangesMemento<V> memento) {
+		// restore the tombstoned delegate indexes and inserted elements as a consistent pair
+		this.removedItems.clear();
+		this.removedItems.addAll(memento.removedItems());
+		this.addedItems.clear();
+		this.addedItems.putAll(memento.addedItems());
+	}
+
+	/**
+	 * Immutable carrier of a {@link ListChanges} diff snapshot. Holds independent copies of the per-transaction
+	 * removedItems and addedItems deltas captured at {@link #snapshot()} time. It intentionally does not carry the
+	 * immutable {@code listDelegate} baseline (shared read-only source).
+	 *
+	 * The {@code addedItems} keys are logical merged-view indexes while {@code removedItems} are delegate-relative
+	 * indexes; both must be captured and restored together as a consistent pair so the {@code +1 / -1} re-keying
+	 * invariant the index-shift helpers rely on stays intact. Element references held as map values are copied by
+	 * reference only (identity is preserved on purpose, so nested producer layers stay correctly associated).
+	 *
+	 * @param removedItems copy of the original delegate indexes tombstoned this transaction
+	 * @param addedItems   copy of the elements inserted this transaction, keyed by logical merged-view index
+	 * @param <V>          the element type of the underlying list
+	 */
+	public record ListChangesMemento<V>(
+		@Nonnull TreeSet<Integer> removedItems,
+		@Nonnull TreeMap<Integer, V> addedItems
+	) {
 	}
 
 }

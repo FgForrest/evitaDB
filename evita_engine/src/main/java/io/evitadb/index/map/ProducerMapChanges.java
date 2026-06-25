@@ -23,9 +23,12 @@
 
 package io.evitadb.index.map;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.champ.ChampMap;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.map.MapChanges.MapChangesMemento;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -118,6 +121,65 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 	}
 
 	/**
+	 * {@inheritDoc}
+	 *
+	 * Chains to {@link MapChanges#snapshot()} for the inherited four diff fields and additionally captures the
+	 * producer-only {@link #valueMutatedKeys} dirty-key set into a {@link ProducerMapChangesMemento}. The dirty keys
+	 * are deep-copied so a later {@link #markValueMutated} cannot corrupt the memento; the inherited base state is held
+	 * by reference inside the wrapping memento (it is itself an independent deep copy produced by `super`). The
+	 * `valueMutatedKeys` elements are keys (effectively immutable) — never the producer values — so no nested-layer
+	 * state is touched here.
+	 *
+	 * @return a {@link ProducerMapChangesMemento} that {@link #restore(MapChangesMemento)} can use to reset this layer
+	 */
+	@Nonnull
+	@Override
+	public MapChangesMemento<K, V> snapshot() {
+		return new ProducerMapChangesMemento<>(
+			super.snapshot(),
+			new HashSet<>(this.valueMutatedKeys)
+		);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Chains to {@link MapChanges#restore(MapChangesMemento)} (via the carried {@link ProducerMapChangesMemento#baseState()
+	 * base state}) for the inherited four diff fields and additionally resets the producer-only {@link #valueMutatedKeys}
+	 * `final` set IN PLACE (`clear()` + `addAll`) from a copy taken OUT of the memento, so the same memento can be
+	 * restored more than once. The producer values referenced by the restored keys are never touched — their internal
+	 * state is governed by their own {@link Snapshotable}.
+	 *
+	 * @param memento a {@link ProducerMapChangesMemento} previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull MapChangesMemento<K, V> memento) {
+		final ProducerMapChangesMemento<K, V> producerMemento = asProducerMemento(memento);
+		super.restore(producerMemento.baseState());
+		this.valueMutatedKeys.clear();
+		this.valueMutatedKeys.addAll(producerMemento.valueMutatedKeys());
+	}
+
+	/**
+	 * Casts the given memento to the {@link ProducerMapChangesMemento} this layer produces in {@link #snapshot()},
+	 * failing fast on an unexpected implementation rather than silently ignoring it.
+	 *
+	 * @param memento the memento to cast
+	 * @return the memento as a {@link ProducerMapChangesMemento}
+	 */
+	@Nonnull
+	private ProducerMapChangesMemento<K, V> asProducerMemento(
+		@Nonnull MapChangesMemento<K, V> memento
+	) {
+		if (memento instanceof ProducerMapChangesMemento<K, V> producerMemento) {
+			return producerMemento;
+		}
+		throw new GenericEvitaInternalError(
+			"ProducerMapChanges expects a ProducerMapChangesMemento but got: " + memento.getClass().getName()
+		);
+	}
+
+	/**
 	 * Computes the next committed {@link ChampMap} snapshot from the previous one (the {@link #getMapDelegate delegate},
 	 * which MUST already be a {@link ChampMap} — {@link PersistentTransactionalProducerMap} seals before creating the
 	 * layer) by path-copying ONLY the keys touched this transaction, sharing every untouched subtree with the
@@ -192,6 +254,29 @@ public class ProducerMapChanges<K, V> extends MapChanges<K, V> {
 		releaseOrphanedCreatedThenRemovedLayers(transactionalLayer);
 
 		return result;
+	}
+
+	/**
+	 * Immutable memento capturing the mutable diff state of a {@link ProducerMapChanges} layer at a single point in
+	 * time. It carries the inherited diff state (the {@link MapChanges.BaseMapChangesMemento} produced by
+	 * {@link MapChanges#snapshot()}) plus a deep copy of the producer-only {@link #valueMutatedKeys} dirty-key set, so
+	 * {@link #snapshot()} / {@link #restore(MapChangesMemento)} can reset both halves atomically.
+	 *
+	 * Being a permitted implementation of the sealed {@link MapChangesMemento} keeps the inherited
+	 * {@link Snapshotable Snapshotable<MapChangesMemento>} binding intact, so a maintainer-level savepoint round-trips
+	 * this memento through {@link Snapshotable#restore(Object) restore(snapshot())} without losing the producer-only
+	 * state. The {@link #valueMutatedKeys} copy holds keys (effectively immutable) by reference; the producer values
+	 * those keys point at are never captured here — their nested layers are governed by their own {@link Snapshotable}.
+	 *
+	 * @param baseState        the inherited diff state captured by {@link MapChanges#snapshot()}
+	 * @param valueMutatedKeys deep copy of {@link ProducerMapChanges#valueMutatedKeys}
+	 * @param <K> key type
+	 * @param <V> value type
+	 */
+	public record ProducerMapChangesMemento<K, V>(
+		@Nonnull MapChangesMemento<K, V> baseState,
+		@Nonnull Set<K> valueMutatedKeys
+	) implements MapChangesMemento<K, V> {
 	}
 
 }

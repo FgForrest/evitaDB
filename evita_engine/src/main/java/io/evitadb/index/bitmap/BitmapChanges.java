@@ -23,6 +23,7 @@
 
 package io.evitadb.index.bitmap;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -37,7 +38,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public class BitmapChanges {
+public class BitmapChanges implements Snapshotable<BitmapChanges.BitmapChangesMemento> {
 	/**
 	 * Unmodifiable underlying bitmap.
 	 */
@@ -161,6 +162,56 @@ public class BitmapChanges {
 		return this.originalBitmap.getCardinality()
 			- this.removals.getCardinality()
 			+ this.insertions.getCardinality();
+	}
+
+	/**
+	 * Captures the current diff state ({@link #insertions} and {@link #removals}) into a memento. The two delta
+	 * bitmaps are deep-cloned so a later {@link #addRecordId(int)} / {@link #removeRecordId(int)} cannot mutate the
+	 * captured state (memento-independence invariant). The immutable {@link #originalBitmap} baseline is the shared
+	 * MVCC snapshot and is therefore deliberately not captured, and {@link #memoizedMergedBitmap} is a derived cache
+	 * reconstructible from the deltas, so it is not captured either.
+	 *
+	 * @return a memento holding independent clones of the current insertions and removals deltas
+	 */
+	@Nonnull
+	@Override
+	public BitmapChangesMemento snapshot() {
+		// clone() is the established deep-copy primitive for RoaringBitmap in this codebase
+		return new BitmapChangesMemento(this.insertions.clone(), this.removals.clone());
+	}
+
+	/**
+	 * Resets this diff layer back to the state captured by the given memento, discarding any insertions / removals
+	 * recorded since the snapshot. Because {@link #insertions} and {@link #removals} are final, their contents are
+	 * cleared and refilled in place from the memento (copying out of the memento, so the same memento may be restored
+	 * repeatedly). The shared immutable {@link #originalBitmap} baseline is never touched, and the derived
+	 * {@link #memoizedMergedBitmap} cache is nulled so it is recomputed lazily and never reflects post-snapshot state.
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull BitmapChangesMemento memento) {
+		this.insertions.clear();
+		this.insertions.or(memento.insertions());
+		this.removals.clear();
+		this.removals.or(memento.removals());
+		// invalidate the derived cache so the merged bitmap is recomputed from the restored deltas
+		this.memoizedMergedBitmap = null;
+	}
+
+	/**
+	 * Immutable carrier of a {@link BitmapChanges} diff snapshot. Holds independent deep clones of the per-transaction
+	 * insertions and removals deltas captured at {@link #snapshot()} time. It intentionally does not carry the
+	 * immutable {@code originalBitmap} baseline (shared MVCC state) nor the derived {@code memoizedMergedBitmap} cache.
+	 *
+	 * @param insertions deep clone of the record ids added this transaction (disjoint from baseline and removals)
+	 * @param removals   deep clone of the record ids removed this transaction (subset of baseline, disjoint from
+	 *                   insertions)
+	 */
+	public record BitmapChangesMemento(
+		@Nonnull RoaringBitmap insertions,
+		@Nonnull RoaringBitmap removals
+	) {
 	}
 
 }

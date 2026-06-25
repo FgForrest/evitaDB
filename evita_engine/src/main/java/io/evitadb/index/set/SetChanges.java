@@ -24,6 +24,7 @@
 package io.evitadb.index.set;
 
 import io.evitadb.api.requestResponse.data.ContentComparator;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import lombok.Getter;
@@ -48,7 +49,7 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 @NotThreadSafe
-public class SetChanges<K> implements Serializable {
+public class SetChanges<K> implements Serializable, Snapshotable<SetChanges.SetChangesMemento<K>> {
 	@Serial private static final long serialVersionUID = -6370910459056592080L;
 
 	/**
@@ -365,6 +366,62 @@ public class SetChanges<K> implements Serializable {
 			this.createdKeys = new HashSet<>();
 		}
 		return this.createdKeys;
+	}
+
+	/**
+	 * Captures the current diff state of this layer into an independent memento.
+	 *
+	 * Both change sets are deep-copied into fresh `HashSet` instances so that later
+	 * {@link #put}/{@link #remove}/{@link #clearAll} calls (which mutate them in place) cannot corrupt
+	 * the captured memento. The lazy null-vs-empty distinction is preserved (a `null` set is captured as
+	 * `null`, never as an empty set) so a restored layer keeps the allocation-free fast paths intact.
+	 *
+	 * The {@link #setDelegate} is the shared immutable baseline and is never mutated by this layer, so it
+	 * is intentionally excluded from the memento. The {@code K} elements are captured by reference only -
+	 * they are diff keys whose own transactional state (when they are
+	 * {@link TransactionalLayerProducer}s) is governed by their own savepoints, not by this layer.
+	 *
+	 * @return an immutable memento holding deep copies of the two change sets
+	 */
+	@Nonnull
+	@Override
+	public SetChangesMemento<K> snapshot() {
+		return new SetChangesMemento<>(
+			this.createdKeys == null ? null : new HashSet<>(this.createdKeys),
+			this.removedKeys == null ? null : new HashSet<>(this.removedKeys)
+		);
+	}
+
+	/**
+	 * Restores the diff state of this layer from the given memento, undoing every
+	 * {@link #put}/{@link #remove}/{@link #clearAll} performed since the memento was captured.
+	 *
+	 * Each change set is rebuilt from a fresh copy of the memento's set (or set to `null` when the
+	 * memento captured `null`), so the same memento may be restored more than once without being aliased
+	 * or mutated by subsequent layer operations. The {@link #setDelegate} is left untouched.
+	 *
+	 * @param memento the previously captured state to restore
+	 */
+	@Override
+	public void restore(@Nonnull SetChangesMemento<K> memento) {
+		this.createdKeys = memento.created() == null ? null : new HashSet<>(memento.created());
+		this.removedKeys = memento.removed() == null ? null : new HashSet<>(memento.removed());
+	}
+
+	/**
+	 * Immutable memento holding deep copies of the two lazily-allocated change sets of a
+	 * {@link SetChanges} layer. Both fields are nullable to faithfully preserve the layer's
+	 * null-vs-empty lazy-allocation invariant. The baseline {@link SetChanges#setDelegate} is shared and
+	 * immutable, so it is deliberately not part of the memento.
+	 *
+	 * @param created the created-keys change set, or `null` when none were recorded
+	 * @param removed the removed-keys change set, or `null` when none were recorded
+	 * @param <K>     the type of the keys tracked by the set
+	 */
+	public record SetChangesMemento<K>(
+		@Nullable Set<K> created,
+		@Nullable Set<K> removed
+	) {
 	}
 
 }

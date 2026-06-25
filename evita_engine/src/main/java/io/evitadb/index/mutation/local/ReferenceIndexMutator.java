@@ -83,7 +83,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -721,7 +720,6 @@ public interface ReferenceIndexMutator {
 	 * @param referenceKey       the reference key identifying the reference
 	 * @param groupId            the group primary key, or null if not grouped
 	 * @param executor           the mutation executor
-	 * @param undoActionConsumer consumer for undo actions, or null if not needed
 	 */
 	static void referenceInsertGlobal(
 		int entityPrimaryKey,
@@ -729,11 +727,10 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndex globalIndex,
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull EntityIndexLocalMutationExecutor executor
 	) {
 		addFacetToIndex(
-			globalIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor, undoActionConsumer);
+			globalIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor);
 	}
 
 	/**
@@ -751,7 +748,6 @@ public interface ReferenceIndexMutator {
 	 * @param referencedPrimaryKey        the target primary key for type index mapping (entity PK or group PK)
 	 * @param groupId                     the group primary key, or null if not grouped
 	 * @param existingDataSupplierFactory factory to supply existing data needed for indexing
-	 * @param undoActionConsumer          consumer for undo actions, or null if not needed
 	 */
 	static void referenceInsertPerComponent(
 		int entityPrimaryKey,
@@ -763,16 +759,11 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		int referencedPrimaryKey,
 		@Nullable Integer groupId,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		// register reduced index PK → referenced primary key mapping in the type index
 		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
-		if (referenceTypeIndex.insertPrimaryKeyIfMissing(
-			pkForReferenceTypeIndex, referencedPrimaryKey) && undoActionConsumer != null) {
-			undoActionConsumer.accept(
-				() -> referenceTypeIndex.removePrimaryKey(pkForReferenceTypeIndex, referencedPrimaryKey));
-		}
+		referenceTypeIndex.insertPrimaryKeyIfMissing(pkForReferenceTypeIndex, referencedPrimaryKey);
 
 		// we access attributes and sortable compounds from the reference schema
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
@@ -812,26 +803,17 @@ public interface ReferenceIndexMutator {
 			final boolean entityFirstIndexedInTargetIndex =
 				rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
 					== CardinalityChange.BOUNDARY_CROSSED;
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
-				);
-			}
 			indexAllExistingData(
 				executor, referenceIndex,
 				entitySchema, referenceSchema,
 				referenceKey,
 				entityPrimaryKey,
 				entityFirstIndexedInTargetIndex,
-				existingDataSupplierFactory,
-				undoActionConsumer
+				existingDataSupplierFactory
 			);
 		} else {
 			final boolean entityFirstIndexedInTargetIndex =
 				referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
-			if (entityFirstIndexedInTargetIndex && undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> referenceIndex.removePrimaryKey(entityPrimaryKey));
-			}
 			// REI indexes are keyed per-reference so no duplicate refs can land here; always run the
 			// full entity-level + reference-level population when the entity is freshly inserted
 			if (entityFirstIndexedInTargetIndex) {
@@ -841,15 +823,14 @@ public interface ReferenceIndexMutator {
 					referenceKey,
 					entityPrimaryKey,
 					true,
-					existingDataSupplierFactory,
-					undoActionConsumer
+					existingDataSupplierFactory
 				);
 			}
 		}
 
 		// add facet to reduced index
 		addFacetToIndex(
-			referenceIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor, undoActionConsumer
+			referenceIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor
 		);
 	}
 
@@ -871,8 +852,6 @@ public interface ReferenceIndexMutator {
 	 * @param referenceKey                identifies the specific referenced entity
 	 * @param groupId                     the group primary key to associate with the facet, or `null` if not grouped
 	 * @param existingDataSupplierFactory factory for reading existing entity data to populate the reduced index
-	 * @param undoActionConsumer          if non-null, receives inverse operations to undo every index change; used
-	 *                                    during scope migration and speculative indexing
 	 */
 	static void referenceInsert(
 		int entityPrimaryKey,
@@ -884,20 +863,19 @@ public interface ReferenceIndexMutator {
 		@Nonnull AbstractReducedEntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		// global operation — add facet to global index (once per reference)
 		referenceInsertGlobal(
 			entityPrimaryKey, referenceSchema, entityIndex, referenceKey, groupId,
-			executor, undoActionConsumer
+			executor
 		);
 		// per-component operation — type index + reduced index
 		referenceInsertPerComponent(
 			entityPrimaryKey, entitySchema, referenceSchema, executor,
 			referenceTypeIndex, referenceIndex, referenceKey,
 			referenceKey.primaryKey(), groupId,
-			existingDataSupplierFactory, undoActionConsumer
+			existingDataSupplierFactory
 		);
 	}
 
@@ -911,17 +889,15 @@ public interface ReferenceIndexMutator {
 	 * @param globalIndex        the global entity index to remove the facet from
 	 * @param referenceKey       the reference key identifying the reference
 	 * @param executor           the mutation executor
-	 * @param undoActionConsumer consumer for undo actions, or null if not needed
 	 */
 	static void referenceRemovalGlobal(
 		int entityPrimaryKey,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndex globalIndex,
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull EntityIndexLocalMutationExecutor executor
 	) {
-		removeFacetInIndex(globalIndex, referenceSchema, referenceKey, entityPrimaryKey, executor, undoActionConsumer);
+		removeFacetInIndex(globalIndex, referenceSchema, referenceKey, entityPrimaryKey, executor);
 	}
 
 	/**
@@ -937,7 +913,6 @@ public interface ReferenceIndexMutator {
 	 * @param referenceKey                the original reference key — for attribute lookup
 	 * @param referencedPrimaryKey        the target primary key for type index mapping (entity PK or group PK)
 	 * @param existingDataSupplierFactory factory to supply existing data
-	 * @param undoActionConsumer          consumer for undo actions, or null if not needed
 	 */
 	static void referenceRemovalPerComponent(
 		int entityPrimaryKey,
@@ -948,18 +923,11 @@ public interface ReferenceIndexMutator {
 		@Nonnull AbstractReducedEntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
 		int referencedPrimaryKey,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		// remove reduced index PK → referenced primary key mapping from the type index
 		final int pkForReferenceTypeIndex = referenceIndex.getPrimaryKey();
-		if (referenceTypeIndex.removePrimaryKey(
-			pkForReferenceTypeIndex, referencedPrimaryKey) && undoActionConsumer != null) {
-			undoActionConsumer.accept(() -> referenceTypeIndex.insertPrimaryKeyIfMissing(
-				pkForReferenceTypeIndex,
-				referencedPrimaryKey
-			));
-		}
+		referenceTypeIndex.removePrimaryKey(pkForReferenceTypeIndex, referencedPrimaryKey);
 
 		// we access attributes and sortable compounds from the reference schema
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider attributeSchemaProvider =
@@ -997,26 +965,17 @@ public interface ReferenceIndexMutator {
 			final boolean entityFullyRemovedFromTargetIndex =
 				rgei.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey())
 					== CardinalityChange.BOUNDARY_CROSSED;
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> rgei.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey())
-				);
-			}
 			removeAllExistingData(
 				executor, referenceIndex,
 				entitySchema, referenceSchema,
 				referenceKey,
 				entityPrimaryKey,
 				entityFullyRemovedFromTargetIndex,
-				existingDataSupplierFactory,
-				undoActionConsumer
+				existingDataSupplierFactory
 			);
 		} else {
 			final boolean entityFullyRemovedFromTargetIndex =
 				referenceIndex.removePrimaryKey(entityPrimaryKey);
-			if (entityFullyRemovedFromTargetIndex && undoActionConsumer != null) {
-				undoActionConsumer.accept(() -> referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey));
-			}
 			if (entityFullyRemovedFromTargetIndex) {
 				removeAllExistingData(
 					executor, referenceIndex,
@@ -1024,8 +983,7 @@ public interface ReferenceIndexMutator {
 					referenceKey,
 					entityPrimaryKey,
 					true,
-					existingDataSupplierFactory,
-					undoActionConsumer
+					existingDataSupplierFactory
 				);
 			}
 		}
@@ -1039,16 +997,12 @@ public interface ReferenceIndexMutator {
 	 * global entity index).
 	 * 2. The reference schema marks the reference as faceted in the index's scope.
 	 *
-	 * If `undoActionConsumer` is provided, the corresponding removal operation is registered so that the change
-	 * can be rolled back (used during speculative indexing and scope migration).
-	 *
 	 * @param index              the target entity index (global or reduced)
 	 * @param referenceSchema    the schema of the reference; used to check faceting and schema name resolution
 	 * @param referenceKey       identifies the specific referenced entity for the facet entry
 	 * @param groupId            the group primary key for this facet, or `null` if no group is assigned
 	 * @param entityPrimaryKey   the primary key of the entity owning the reference
 	 * @param executor           the mutation executor; used for schema look-ups and scope access
-	 * @param undoActionConsumer if non-null, receives a `removeFacet` lambda for undoing this operation
 	 */
 	static void addFacetToIndex(
 		@Nonnull EntityIndex index,
@@ -1056,8 +1010,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
 		int entityPrimaryKey,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull EntityIndexLocalMutationExecutor executor
 	) {
 		final Scope scope = index.getIndexKey().scope();
 		if (
@@ -1073,10 +1026,6 @@ public interface ReferenceIndexMutator {
 			);
 			if (shouldBeIndexed) {
 				index.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(
-						() -> index.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey));
-				}
 			}
 		}
 	}
@@ -1093,10 +1042,6 @@ public interface ReferenceIndexMutator {
 	 * direct processing (e.g. via {@link #referenceInsertPerComponent}). In that case, the storage-derived
 	 * old group is stale and the facet does not exist in the old group bucket. The method handles this
 	 * gracefully by checking facet presence before removal.
-	 *
-	 * Note: no `undoActionConsumer` is supported here because this operation is always called in the context of
-	 * a {@link io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation} which is not
-	 * subject to speculative undoing in the same way as insertions.
 	 *
 	 * @param entityPrimaryKey the primary key of the entity owning the reference
 	 * @param index            the target entity index (global or reduced)
@@ -1126,12 +1071,12 @@ public interface ReferenceIndexMutator {
 					scope
 				);
 				applyFacetDecisionMatrix(
-					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted
 				);
 			} else {
 				// no expression — unconditionally move the facet to the new group
 				applyFacetDecisionMatrix(
-					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, true, null
+					index, referenceSchema, referenceKey, groupId, entityPrimaryKey, true
 				);
 			}
 		}
@@ -1158,7 +1103,6 @@ public interface ReferenceIndexMutator {
 	 * @param targetGroupId      the group the facet should end up in (null for ungrouped)
 	 * @param entityPrimaryKey   the entity PK
 	 * @param nowFaceted         result of the expression evaluation
-	 * @param undoActionConsumer if non-null, receives undo operations (supported for add/remove, not for move)
 	 */
 	static void applyFacetDecisionMatrix(
 		@Nonnull EntityIndex index,
@@ -1166,26 +1110,15 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer targetGroupId,
 		int entityPrimaryKey,
-		boolean nowFaceted,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		boolean nowFaceted
 	) {
 		final boolean wasFaceted = wasFaceted(index, referenceKey, entityPrimaryKey);
 		if (wasFaceted && !nowFaceted) {
 			// was faceted, now not — remove from whichever group it currently resides in
 			removeFromCurrentGroup(index, referenceSchema, referenceKey, entityPrimaryKey);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey)
-				);
-			}
 		} else if (!wasFaceted && nowFaceted) {
 			// was not faceted, now is — add under target group
 			index.addFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> index.removeFacet(referenceSchema, referenceKey, targetGroupId, entityPrimaryKey)
-				);
-			}
 		} else if (wasFaceted && !isFacetPresentInGroup(index, referenceKey, targetGroupId, entityPrimaryKey)) {
 			// was faceted, still faceted, but in a different group — move to target group
 			removeFromCurrentGroup(index, referenceSchema, referenceKey, entityPrimaryKey);
@@ -1264,7 +1197,7 @@ public interface ReferenceIndexMutator {
 
 			// apply to global index
 			applyFacetDecisionMatrix(
-				globalIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+				globalIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted
 			);
 
 			// apply to reduced entity index when the schema requires partitioning-level indexing
@@ -1275,7 +1208,7 @@ public interface ReferenceIndexMutator {
 					? getOrCreateReferencedEntityIndex(executor, bothKeys.stored(), scope)
 					: getOrCreateReferencedEntityIndex(executor, bothKeys.current(), scope);
 				applyFacetDecisionMatrix(
-					reducedIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted, null
+					reducedIndex, cachedSchema, referenceKey, groupId, entityPrimaryKey, nowFaceted
 				);
 			}
 		}
@@ -1353,23 +1286,18 @@ public interface ReferenceIndexMutator {
 	 * or when the target index is an {@link AbstractReducedEntityIndex} for a different reference schema that is not
 	 * configured for {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}.
 	 *
-	 * If `undoActionConsumer` is provided, the corresponding `addFacet` operation is registered so that the removal
-	 * can be rolled back.
-	 *
 	 * @param index              the target entity index (global or reduced)
 	 * @param referenceSchema    the schema of the reference; used to check faceting and schema name resolution
 	 * @param referenceKey       identifies the specific referenced entity whose facet is to be removed
 	 * @param entityPrimaryKey   the primary key of the entity owning the reference
 	 * @param executor           the mutation executor; used for reading the existing reference and schema access
-	 * @param undoActionConsumer if non-null, receives an `addFacet` lambda for undoing this operation
 	 */
 	static void removeFacetInIndex(
 		@Nonnull EntityIndex index,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReferenceKey referenceKey,
 		int entityPrimaryKey,
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull EntityIndexLocalMutationExecutor executor
 	) {
 		final Scope scope = index.getIndexKey().scope();
 		if (
@@ -1384,14 +1312,14 @@ public interface ReferenceIndexMutator {
 					final ReferenceContract existingReference = executor.getReferencesStoragePart()
 						.findReferenceOrThrowException(referenceKey);
 					removeFacetInIndexInternal(
-						index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer
+						index, referenceSchema, entityPrimaryKey, existingReference
 					);
 				}
 			} else {
 				final ReferenceContract existingReference = executor.getReferencesStoragePart()
 					.findReferenceOrThrowException(referenceKey);
 				removeFacetInIndexInternal(
-					index, referenceSchema, entityPrimaryKey, existingReference, undoActionConsumer
+					index, referenceSchema, entityPrimaryKey, existingReference
 				);
 			}
 		}
@@ -1441,7 +1369,7 @@ public interface ReferenceIndexMutator {
 					scope
 				);
 				applyFacetDecisionMatrix(
-					index, referenceSchema, referenceKey, null, entityPrimaryKey, nowFaceted, null
+					index, referenceSchema, referenceKey, null, entityPrimaryKey, nowFaceted
 				);
 			} else {
 				// no expression — unconditionally move the facet to ungrouped
@@ -1452,7 +1380,7 @@ public interface ReferenceIndexMutator {
 					"Group is expected to be non-null when RemoveReferenceGroupMutation is about to be executed."
 				);
 				applyFacetDecisionMatrix(
-					index, referenceSchema, referenceKey, null, entityPrimaryKey, true, null
+					index, referenceSchema, referenceKey, null, entityPrimaryKey, true
 				);
 			}
 		}
@@ -2284,7 +2212,6 @@ public interface ReferenceIndexMutator {
 	 *                                    index discriminator, which may contain the group PK for group-level indexes)
 	 * @param entityPrimaryKey            the primary key of the owning entity being indexed into the reduced index
 	 * @param existingDataSupplierFactory factory that supplies the entity's current attributes, prices and references
-	 * @param undoActionConsumer          if non-null, receives inverse operations for every change made
 	 */
 	private static void indexAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2294,21 +2221,20 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		int entityPrimaryKey,
 		boolean entityFirstIndexedInTargetIndex,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		final String entityType = entitySchema.getName();
 
 		// per-reference fanout: facets are keyed by (referenceKey, entityPrimaryKey) and the
 		// idempotency check in `indexAllFacets` ensures duplicates do not pile up when multiple
 		// references on the same entity resolve to the same group reduced index
-		indexAllFacets(executor, referenceSchema, targetIndex, entityPrimaryKey, undoActionConsumer);
+		indexAllFacets(executor, referenceSchema, targetIndex, entityPrimaryKey);
 
 		// per-reference fanout: reference attributes and reference-attribute sortable compounds
 		// are keyed by the reference's primary key — each reference contributes its own keys, so
 		// every reference must run this branch regardless of whether the entity is already present
 		indexAllReferenceLevelAttributes(
-			executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory, undoActionConsumer
+			executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory
 		);
 		insertInitialSuiteOfSortableAttributeCompounds(
 			executor, referenceSchema, targetIndex, referenceKey, null, existingDataSupplierFactory
@@ -2336,9 +2262,9 @@ public interface ReferenceIndexMutator {
 			}
 
 			indexAllPrices(
-				executor, referenceSchema, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer);
+				executor, referenceSchema, targetIndex, existingDataSupplierFactory.getPriceSupplier());
 			indexAllEntityLevelAttributes(
-				executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory, undoActionConsumer
+				executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory
 			);
 		}
 	}
@@ -2358,14 +2284,12 @@ public interface ReferenceIndexMutator {
 	 *                           to avoid re-fetching when the current reference name matches
 	 * @param targetIndex        the reduced entity index receiving the facet entries
 	 * @param entityPrimaryKey   the primary key of the owning entity
-	 * @param undoActionConsumer if non-null, receives inverse `removeFacet` operations for rollback
 	 */
 	private static void indexAllFacets(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
-		int entityPrimaryKey,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		int entityPrimaryKey
 	) {
 		final Scope scope = targetIndex.getIndexKey().scope();
 		if (shouldIndexFacetToTargetIndex(targetIndex, referenceSchema, scope, executor)) {
@@ -2401,11 +2325,6 @@ public interface ReferenceIndexMutator {
 						.map(GroupEntityReference::getPrimaryKey)
 						.orElse(null);
 					targetIndex.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
-					if (undoActionConsumer != null) {
-						undoActionConsumer.accept(
-							() -> targetIndex.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey)
-						);
-					}
 				}
 			}
 		}
@@ -2422,14 +2341,12 @@ public interface ReferenceIndexMutator {
 	 * @param referenceSchema       the reference schema; determines whether price indexing applies
 	 * @param targetIndex           the reduced entity index into which prices are inserted
 	 * @param existingPriceSupplier supplies the entity's current prices and price inner-record handling
-	 * @param undoActionConsumer    if non-null, receives inverse price removal operations for rollback
 	 */
 	private static void indexAllPrices(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
-		@Nonnull ExistingPriceSupplier existingPriceSupplier,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingPriceSupplier existingPriceSupplier
 	) {
 		final Scope scope = targetIndex.getIndexKey().scope();
 		if (isIndexedReferenceFor(referenceSchema, scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)) {
@@ -2448,8 +2365,7 @@ public interface ReferenceIndexMutator {
 						         price.indexed(),
 						         null,
 						         existingPriceSupplier.getPriceInnerRecordHandling(),
-						         PriceIndexMutator.createPriceProvider(price),
-						         undoActionConsumer
+						         PriceIndexMutator.createPriceProvider(price)
 					         )
 				);
 		}
@@ -2470,8 +2386,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		// only index entity-level attributes when the reference is configured for filtering and partitioning;
@@ -2514,8 +2429,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final RepresentativeReferenceKey indexRrk = extractRepresentativeReferenceKey(targetIndex);
@@ -2580,7 +2494,6 @@ public interface ReferenceIndexMutator {
 	 *                                    index discriminator, which may contain the group PK for group-level indexes)
 	 * @param entityPrimaryKey            the primary key of the owning entity being de-indexed from the reduced index
 	 * @param existingDataSupplierFactory factory supplying the entity's current attributes, prices and references
-	 * @param undoActionConsumer          if non-null, receives inverse operations for every change made
 	 */
 	private static void removeAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -2590,22 +2503,21 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey,
 		int entityPrimaryKey,
 		boolean entityFullyRemovedFromTargetIndex,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		final String entityType = entitySchema.getName();
 
 		// per-reference fanout: facets are removed using the (referenceKey, entityPrimaryKey) tuple
 		// and `removeAllFacets` already filters via `wasFaceted` so duplicate calls from sibling
 		// references resolving to the same group reduced index are idempotent
-		removeAllFacets(executor, referenceSchema, targetIndex, entityPrimaryKey, undoActionConsumer);
+		removeAllFacets(executor, referenceSchema, targetIndex, entityPrimaryKey);
 
 		// per-reference fanout: reference attributes and reference-attribute sortable compounds are
 		// keyed by this reference's primary key — each reference owns its own keys, so every
 		// reference removal must run this branch regardless of whether other references keep the
 		// entity present in the target index
 		removeAllReferenceLevelAttributes(
-			executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory, undoActionConsumer
+			executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory
 		);
 		removeEntireSuiteOfSortableAttributeCompounds(
 			executor, referenceSchema, targetIndex, referenceKey, null, existingDataSupplierFactory
@@ -2633,10 +2545,10 @@ public interface ReferenceIndexMutator {
 			}
 
 			removeAllPrices(
-				executor, referenceSchema, targetIndex, existingDataSupplierFactory.getPriceSupplier(), undoActionConsumer
+				executor, referenceSchema, targetIndex, existingDataSupplierFactory.getPriceSupplier()
 			);
 			removeAllEntityLevelAttributes(
-				executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory, undoActionConsumer
+				executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory
 			);
 		}
 	}
@@ -2652,14 +2564,12 @@ public interface ReferenceIndexMutator {
 	 * @param referenceSchema    the reference schema for which the reduced index is being cleaned up; used as a hint
 	 * @param targetIndex        the reduced entity index from which facet entries are removed
 	 * @param entityPrimaryKey   the primary key of the owning entity
-	 * @param undoActionConsumer if non-null, receives inverse `addFacet` operations for rollback
 	 */
 	private static void removeAllFacets(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
-		int entityPrimaryKey,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		int entityPrimaryKey
 	) {
 		final Scope scope = targetIndex.getIndexKey().scope();
 		if (shouldIndexFacetToTargetIndex(targetIndex, referenceSchema, scope, executor)) {
@@ -2677,7 +2587,7 @@ public interface ReferenceIndexMutator {
 				if (reference.exists() && referenceKeySchema.isFacetedInScope(scope)
 					&& wasFaceted(targetIndex, referenceKey, entityPrimaryKey)) {
 					removeFacetInIndexInternal(
-						targetIndex, referenceSchema, entityPrimaryKey, reference, undoActionConsumer
+						targetIndex, referenceSchema, entityPrimaryKey, reference
 					);
 				}
 			}
@@ -2685,8 +2595,7 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Removes a facet associated with a given entity in the provided index. Optionally, an undo action can
-	 * be provided to reverse this operation.
+	 * Removes a facet associated with a given entity in the provided index.
 	 *
 	 * During cross-reference propagation, the facet may have already been moved to a different group by
 	 * direct processing (e.g. via {@link #referenceInsertPerComponent}). In that case, the storage-derived
@@ -2697,15 +2606,12 @@ public interface ReferenceIndexMutator {
 	 * @param referenceSchema    the schema of the reference that identifies the facet
 	 * @param entityPrimaryKey   the primary key of the entity whose facet is to be removed
 	 * @param existingReference  the existing reference containing the facet key and optional group information
-	 * @param undoActionConsumer a consumer to handle undo actions; if not null, an operation to re-add the
-	 *                           facet will be passed for potential execution
 	 */
 	private static void removeFacetInIndexInternal(
 		@Nonnull EntityIndex index,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int entityPrimaryKey,
-		@Nonnull ReferenceContract existingReference,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ReferenceContract existingReference
 	) {
 		final ReferenceKey referenceKey = existingReference.getReferenceKey();
 		final Integer groupId = existingReference.getGroup()
@@ -2717,10 +2623,6 @@ public interface ReferenceIndexMutator {
 		// the facet, making the storage-derived group stale
 		if (isFacetPresentInGroup(index, referenceKey, groupId, entityPrimaryKey)) {
 			index.removeFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey);
-			if (undoActionConsumer != null) {
-				undoActionConsumer.accept(
-					() -> index.addFacet(referenceSchema, referenceKey, groupId, entityPrimaryKey));
-			}
 		}
 	}
 
@@ -2735,14 +2637,12 @@ public interface ReferenceIndexMutator {
 	 * @param referenceSchema       the reference schema; determines whether price de-indexing applies
 	 * @param targetIndex           the reduced entity index from which prices are removed
 	 * @param existingPriceSupplier supplies the entity's current prices needed for the removal key
-	 * @param undoActionConsumer    if non-null, receives inverse price insertion operations for rollback
 	 */
 	private static void removeAllPrices(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
-		@Nonnull ExistingPriceSupplier existingPriceSupplier,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingPriceSupplier existingPriceSupplier
 	) {
 		final Scope scope = targetIndex.getIndexKey().scope();
 		if (isIndexedReferenceFor(referenceSchema, scope, ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING)) {
@@ -2753,8 +2653,7 @@ public interface ReferenceIndexMutator {
 						referenceSchema,
 						targetIndex,
 						price.priceKey(),
-						existingPriceSupplier,
-						undoActionConsumer
+						existingPriceSupplier
 					)
 				);
 		}
@@ -2775,8 +2674,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		// only de-index entity-level attributes when the reference is configured for filtering and
@@ -2815,8 +2713,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull AbstractReducedEntityIndex targetIndex,
 		@Nonnull ReferenceKey referenceKey,
-		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final RepresentativeReferenceKey indexRrk = extractRepresentativeReferenceKey(targetIndex);

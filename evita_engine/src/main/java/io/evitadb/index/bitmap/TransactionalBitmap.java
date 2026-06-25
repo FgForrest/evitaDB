@@ -39,6 +39,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
 
+import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerForWriteIfExists;
 import static io.evitadb.core.transaction.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
@@ -153,7 +154,7 @@ public class TransactionalBitmap
 			this.roaringBitmap.add(recordId);
 			this.memoizedCardinality = -1;
 		} else {
-			BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			if (layer != null) {
 				for (int recId : recordId) {
 					layer.addRecordId(recId);
@@ -184,7 +185,7 @@ public class TransactionalBitmap
 			this.roaringBitmap.add(recordIds.getArray());
 			this.memoizedCardinality = -1;
 		} else {
-			BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			if (layer != null) {
 				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {
@@ -241,7 +242,7 @@ public class TransactionalBitmap
 			}
 			this.memoizedCardinality = -1;
 		} else {
-			BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			if (layer != null) {
 				for (int recId : recordId) {
 					layer.removeRecordId(recId);
@@ -281,7 +282,7 @@ public class TransactionalBitmap
 			}
 			this.memoizedCardinality = -1;
 		} else {
-			BitmapChanges layer = getTransactionalMemoryLayerIfExists(this);
+			BitmapChanges layer = getTransactionalMemoryLayerForWriteIfExists(this);
 			if (layer != null) {
 				final OfInt it = recordIds.iterator();
 				while (it.hasNext()) {

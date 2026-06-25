@@ -46,21 +46,35 @@ import java.util.concurrent.atomic.AtomicLong;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 @Slf4j
 public class TransactionalObjectVersion {
+	/**
+	 * JVM-wide singleton sequence shared by all transactional objects when assigning their version ids.
+	 */
 	public static final TransactionalObjectVersion SEQUENCE = new TransactionalObjectVersion();
+	/**
+	 * Backing counter; starts at {@link Long#MIN_VALUE} and is incremented on every {@link #nextId()} call, so ids
+	 * begin in the negative domain and cross into the positive domain over the lifetime of the JVM.
+	 */
 	private final AtomicLong version = new AtomicLong(Long.MIN_VALUE);
 	/**
-	 * If TRUE, the domain of the version is positive numbers, otherwise negative numbers.
+	 * If TRUE, the domain of the version is positive numbers, otherwise negative numbers. Declared
+	 * `volatile` because {@link #SEQUENCE} is a JVM-wide singleton read and written by many
+	 * transaction threads concurrently; without it the secondary overflow guard could observe a
+	 * stale value across threads.
 	 */
-	private boolean positiveDomain = false;
+	private volatile boolean positiveDomain = false;
 
 	/**
-	 * Generates new unique id from the sequence.
+	 * Returns the next unique id from the sequence.
+	 *
+	 * @throws IdentifierOverflowException once the sequence wraps back into the negative domain, halting further
+	 *                                     updates to avoid handing out a duplicate version (see class JavaDoc)
 	 */
 	public long nextId() {
 		final long id = this.version.incrementAndGet();
 		if (!this.positiveDomain && id >= 0) {
 			this.positiveDomain = true;
-		} if (id == Long.MAX_VALUE || (id < 0 && this.positiveDomain)) {
+		}
+		if (id == Long.MAX_VALUE || (id < 0 && this.positiveDomain)) {
 			log.error(
 				"Transactional object version sequence overflowed, which can cause unpredictable results! " +
 					"Database cannot accept any new modifications. Please restart database to start counting from the beginning."

@@ -40,12 +40,14 @@ import java.util.EnumSet;
 public interface ServerEntityMutation {
 
 	/**
-	 * Determines whether the applying logic should try to undo actions when error occurs.
-	 * This may not be necessary when replaying mutations from WAL log, since then the entire memory is thrown out.
+	 * Determines whether a failed mutation should be atomically rolled back via the diff-layer savepoint.
+	 * This is unnecessary when replaying mutations from the WAL log, since there the entire
+	 * in-memory transaction is discarded on failure rather than recovered per-entity.
 	 *
-	 * @return true if the applying logic should try to undo actions when error occurs, false otherwise
+	 * @return true if the applying logic should open a savepoint to roll back partial changes on error,
+	 *         false otherwise
 	 */
-	boolean shouldApplyUndoOnError();
+	boolean shouldRollbackOnError();
 
 	/**
 	 * Determines whether the method should verify the consistency of the entity. This is not necessary if the mutation

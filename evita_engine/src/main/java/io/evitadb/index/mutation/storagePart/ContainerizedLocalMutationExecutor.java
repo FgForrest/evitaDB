@@ -1266,11 +1266,6 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	@Override
-	public void rollback() {
-		// do nothing all containers will be discarded along with this instance
-	}
-
-	@Override
 	public void verifyConsistency() {
 		if (!this.entityRemovedEntirely) {
 			if (this.entityContainer.isNew()) {

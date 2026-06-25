@@ -23,11 +23,13 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.dataType.bPlusTree.CumulativeWeightBPlusTree;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -45,7 +47,8 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public class SortIndexChanges implements Serializable {
+public class SortIndexChanges
+	implements Serializable, Snapshotable<SortIndexChanges.SortIndexChangesMemento> {
 	@Serial private static final long serialVersionUID = -4791973822619493092L;
 
 	/**
@@ -71,7 +74,7 @@ public class SortIndexChanges implements Serializable {
 	 * owning {@link SortIndex} (owner mode: its `sortedValues` tree; view mode: the shared inverted index) when the tree
 	 * is first built — see {@link #getValueTree()}. Transient: it is a rebuildable cache, never persisted.
 	 */
-	private transient CumulativeWeightBPlusTree<Serializable> valueLocationTree;
+	@Nullable private transient CumulativeWeightBPlusTree<Serializable> valueLocationTree;
 
 	public SortIndexChanges(
 		@Nonnull SortIndex sortIndex,
@@ -233,7 +236,7 @@ public class SortIndexChanges implements Serializable {
 
 	/**
 	 * Returns the start offset of `value`'s record-id block within {@link SortIndex#sortedRecords} — the cumulative
-	 * weight (rank) of all strictly-smaller values. Used by {@link SortIndex#getRecordsEqualToInternal} to slice the
+	 * weight (rank) of all strictly-smaller values. Used by {@link SortIndex#getRecordsEqualToInternal(Serializable)} to slice the
 	 * records associated with a value.
 	 *
 	 * @param value the value whose block start offset is computed
@@ -241,6 +244,59 @@ public class SortIndexChanges implements Serializable {
 	 */
 	int computeBlockStart(@Nonnull Serializable value) {
 		return getValueTree().rankOf(value);
+	}
+
+	/**
+	 * Captures the current state of this layer for a
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer} savepoint. Because
+	 * {@link #valueLocationTree} is a rebuildable derived cache of the owning {@link SortIndex} (the class
+	 * JavaDoc notes all data here can be safely thrown out and recreated), the memento is a cheap invalidation
+	 * marker rather than a deep copy: it captures only the current tree reference (possibly `null` if the tree
+	 * was never built) by reference. No B+ tree nodes are deep-copied; on rollback the tree is rebuilt from the
+	 * already-restored authoritative sibling structures.
+	 *
+	 * @return a memento that {@link #restore(SortIndexChangesMemento)} uses to invalidate the cache
+	 */
+	@Nonnull
+	@Override
+	public SortIndexChangesMemento snapshot() {
+		// O(1): capture the current cache reference (possibly null); the tree is a rebuildable cache and is
+		// never deep-copied — restore() drops it and getValueTree() lazily rebuilds it from the SortIndex
+		return new SortIndexChangesMemento(this.valueLocationTree);
+	}
+
+	/**
+	 * Restores this layer to the captured savepoint state by invalidating the memoized
+	 * {@link #valueLocationTree}.
+	 *
+	 * The value tree is a pure, rebuildable cache of {@link SortIndex} state, so the correct rollback is to drop
+	 * the cache and let {@link #getValueTree()} rebuild it lazily from the (already-restored) authoritative
+	 * sibling structures — {@link SortIndex#sortedRecords} and, in owner mode, the value-side tree — on the next
+	 * access. This is O(1), always consistent given those siblings are restored by their own
+	 * {@link io.evitadb.core.transaction.memory.Snapshotable} implementations, and is safe to invoke repeatedly
+	 * with the same memento (each call simply nulls the cache).
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull SortIndexChangesMemento memento) {
+		// O(1): drop the memoized cache so getValueTree() rebuilds it from the restored SortIndex on next access
+		this.valueLocationTree = null;
+	}
+
+	/**
+	 * Immutable memento carrying the savepoint state of a {@link SortIndexChanges} layer. The single captured
+	 * value is the memoized {@link SortIndexChanges#valueLocationTree} reference at snapshot time (held by
+	 * reference only, never deep-copied, possibly `null`). Because the tree is a rebuildable derived cache,
+	 * {@link #restore} ignores the captured tree and simply invalidates the live cache; the field is retained to
+	 * faithfully record the snapshot moment and keep the memento a self-describing carrier of the layer's sole
+	 * mutable field.
+	 *
+	 * @param valueLocationTree the memoized value tree reference at snapshot time, or `null` if not yet built
+	 */
+	public record SortIndexChangesMemento(
+		@Nullable CumulativeWeightBPlusTree<Serializable> valueLocationTree
+	) {
 	}
 
 }
