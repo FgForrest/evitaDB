@@ -32,6 +32,7 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.utils.Assert;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -60,6 +61,36 @@ public class PrefetchedRecordsSorter implements Sorter {
 		this.entityComparator = entityComparator;
 	}
 
+	/**
+	 * Sorts the candidate record set using the pre-fetched entity bodies and slices the result to the requested page.
+	 *
+	 * **Early-exit:** when {@link QueryExecutionContext#getPrefetchedEntities()} returns `null`, the sorter skips
+	 * itself entirely and returns the incoming `sortingContext` unchanged so the next sorter in the chain can handle
+	 * the full candidate set.
+	 *
+	 * **When prefetched entities are present:**
+	 *
+	 * 1. Translates each candidate record ID from `sortingContext.nonSortedKeys()` to its `EntityContract`
+	 *    via `QueryExecutionContext.translateToEntity`.
+	 * 2. Sorts the entity list with `entityComparator`. If the comparator implements
+	 *    {@link EntityReferenceSensitiveComparator} and a `referenceKey` is set on the context, sorting is
+	 *    scoped to that reference key.
+	 * 3. Entities that the comparator could not sort (returned by `getNonSortedEntities()`) are collected into
+	 *    a `notFoundRecords` bitmap and excluded from the sortable slice `[0, entitiesCount)`.
+	 * 4. The sortable slice is paged and written into `result`; skipped records are reported to
+	 *    `skippedRecordsConsumer` if provided.
+	 * 5. Returns a new `SortingContext` carrying the unsortable records so the next sorter can place them.
+	 *
+	 * **Partition invariant:** every primary key reported by `entityComparator.getNonSortedEntities()` MUST
+	 * fall outside the sortable slice. If the comparator places a non-sortable entity inside the slice, the
+	 * sort/non-sort partitions disagree and the downstream sorter would emit duplicate primary keys.
+	 * {@link Assert#isPremiseValid} throws immediately in that case to surface the violation early.
+	 *
+	 * @param sortingContext      the current sorting state including candidate keys and pagination window
+	 * @param result              output array that receives sorted primary keys for the requested page slice
+	 * @param skippedRecordsConsumer optional consumer called for each primary key skipped before the page window
+	 * @return updated `SortingContext` with unsortable records passed to the next sorter in the chain
+	 */
 	@Nonnull
 	@Override
 	public SortingContext sortAndSlice(
@@ -105,6 +136,20 @@ public class PrefetchedRecordsSorter implements Sorter {
 			final AtomicInteger index = new AtomicInteger();
 			final int entitiesCount = selectedRecordIds.size() - notFoundRecordsCnt;
 			final List<EntityContract> entityContracts = entities.subList(0, entitiesCount);
+			// invariant: comparator must have pushed every non-sortable entity past `entitiesCount`;
+			// if it did not, the trailing slice carries duplicates that leak into the next sorter.
+			if (notFoundRecordsCnt > 0) {
+				for (int i = 0; i < entitiesCount; i++) {
+					final int pk = queryContext.translateEntity(entityContracts.get(i));
+					Assert.isPremiseValid(
+						!notFoundRecords.contains(pk),
+						() -> "Entity comparator " + this.entityComparator.getClass().getName() +
+							" reported entity #" + pk + " as non-sortable yet kept it inside" +
+							" the sortable slice — sort/non-sort partitions disagree;" +
+							" downstream sorters would emit duplicates."
+					);
+				}
+			}
 			final int skippedItems = Math.min(recomputedStartIndex, entitiesCount);
 			final int appendedItems = Math.min(Math.min(recomputedEndIndex, entitiesCount), skippedItems + result.length - peak);
 			if (skippedRecordsConsumer != null) {
