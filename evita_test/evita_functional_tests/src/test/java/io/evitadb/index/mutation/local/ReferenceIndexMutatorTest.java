@@ -53,7 +53,6 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
-import java.util.function.Consumer;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.index.mutation.local.ReferenceIndexMutator.attributeUpdate;
@@ -80,8 +79,6 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 	private static final String ATTRIBUTE_BRAND_EAN = "brandEan";
 	private static final String ATTRIBUTE_VARIANT_COUNT = "variantCount";
 	private static final String ATTRIBUTE_CHAR_ARRAY = "charArray";
-	public static final Consumer<Runnable> DO_NOTHING_CONSUMER = runnable -> {
-	};
 	@Nonnull private final EntityIndex entityIndex = new GlobalEntityIndex(
 		1, this.productSchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL)
 	);
@@ -134,7 +131,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 			1, this.productSchema, referenceSchema, this.executor,
 			this.entityIndex, this.referenceTypesIndex, referenceIndex,
 			referenceKey, null,
-			getEntityAttributeValueSupplierFactory(this.productSchema, 1), DO_NOTHING_CONSUMER
+			getEntityAttributeValueSupplierFactory(this.productSchema, 1)
 		);
 
 		assertArrayEquals(new int[]{2}, this.referenceTypesIndex.getAllPrimaryKeys().getArray());
@@ -165,7 +162,7 @@ class ReferenceIndexMutatorTest extends AbstractMutatorTestBase {
 		referenceInsert(
 			1, this.productSchema, referenceSchema, this.executor,
 			this.entityIndex, this.referenceTypesIndex, referenceIndex,
-			referenceKey, null, entityAttributeValueSupplierFactory, DO_NOTHING_CONSUMER
+			referenceKey, null, entityAttributeValueSupplierFactory
 		);
 		final ReferenceAttributeMutation referenceMutation = new ReferenceAttributeMutation(
 			referenceKey, new UpsertAttributeMutation(new AttributeKey(ATTRIBUTE_VARIANT_COUNT), 55)

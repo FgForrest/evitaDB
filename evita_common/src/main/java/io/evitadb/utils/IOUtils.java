@@ -205,6 +205,65 @@ public class IOUtils {
 	}
 
 	/**
+	 * Primitive {@code int} specialization of {@link #executeSafely(Object, Supplier, IOExceptionThrowingConsumer)} that
+	 * passes the input without autoboxing. Behaviour is identical: any {@link IOException} thrown by {@code consumer} is
+	 * suppressed into a fresh exception from {@code exceptionFactory} and rethrown.
+	 *
+	 * @param <T>              the type of exception that will be thrown if an {@link IOException} occurs
+	 * @param input            the primitive argument passed to {@code consumer}
+	 * @param exceptionFactory supplier of the exception used to wrap any {@link IOException}
+	 * @param consumer         the action to execute
+	 * @throws T the wrapping exception if {@code consumer} threw an {@link IOException}
+	 */
+	public static <T extends RuntimeException> void executeSafely(
+		int input,
+		@Nonnull Supplier<T> exceptionFactory,
+		@Nonnull IOExceptionThrowingIntConsumer consumer
+	) throws T {
+		T exception = null;
+		try {
+			consumer.accept(input);
+		} catch (IOException e) {
+			exception = exceptionFactory.get();
+			exception.addSuppressed(e);
+		}
+		if (exception != null) {
+			throw exception;
+		}
+	}
+
+	/**
+	 * Primitive {@code int} specialization of
+	 * {@link #executeSafely(Object, Object, Supplier, IOExceptionThrowingBiConsumer)} that passes both inputs without
+	 * autoboxing. Behaviour is identical: any {@link IOException} thrown by {@code consumer} is suppressed into a fresh
+	 * exception from {@code exceptionFactory} and rethrown.
+	 *
+	 * @param <T>              the type of exception that will be thrown if an {@link IOException} occurs
+	 * @param input1           the first primitive argument passed to {@code consumer}
+	 * @param input2           the second primitive argument passed to {@code consumer}
+	 * @param exceptionFactory supplier of the exception used to wrap any {@link IOException}
+	 * @param consumer         the action to execute
+	 * @throws T the wrapping exception if {@code consumer} threw an {@link IOException}
+	 */
+	public static <T extends RuntimeException> void executeSafely(
+		int input1,
+		int input2,
+		@Nonnull Supplier<T> exceptionFactory,
+		@Nonnull IOExceptionThrowingIntBiConsumer consumer
+	) throws T {
+		T exception = null;
+		try {
+			consumer.accept(input1, input2);
+		} catch (IOException e) {
+			exception = exceptionFactory.get();
+			exception.addSuppressed(e);
+		}
+		if (exception != null) {
+			throw exception;
+		}
+	}
+
+	/**
 	 * Executes lambda logic encapsulated in {@link IOExceptionThrowingSupplier} instances, suppressing
 	 * and aggregating any {@link IOException} that occurs during execution. If any exceptions are thrown, they
 	 * are encapsulated and re-thrown as a single exception provided by the {@code exceptionFactory}.
@@ -473,6 +532,28 @@ public class IOUtils {
 	public interface IOExceptionThrowingBiConsumer<S, T> {
 
 		void accept(@Nonnull S input1, @Nonnull T input2) throws IOException;
+
+	}
+
+	/**
+	 * Primitive {@code int} specialization of {@link IOExceptionThrowingConsumer} that avoids autoboxing the argument.
+	 * Used on hot serialization paths where the consumer is invoked once per record/flush.
+	 */
+	@FunctionalInterface
+	public interface IOExceptionThrowingIntConsumer {
+
+		void accept(int input) throws IOException;
+
+	}
+
+	/**
+	 * Primitive {@code int} specialization of {@link IOExceptionThrowingBiConsumer} that avoids autoboxing both
+	 * arguments. Used on hot serialization paths where the consumer is invoked once per record.
+	 */
+	@FunctionalInterface
+	public interface IOExceptionThrowingIntBiConsumer {
+
+		void accept(int input1, int input2) throws IOException;
 
 	}
 

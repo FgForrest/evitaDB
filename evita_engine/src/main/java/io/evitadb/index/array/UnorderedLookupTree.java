@@ -24,6 +24,7 @@
 package io.evitadb.index.array;
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -231,7 +232,7 @@ public class UnorderedLookupTree implements
 		int[] counts = new int[containerCount];
 		int pos = 0;
 		for (int c = 0; c < containerCount; c++) {
-			final LeafNode container = new LeafNode(!Transaction.isTransactionAvailable());
+			final LeafNode container = new LeafNode(true);
 			final long key = (long) c * this.orderKeyGap;
 			container.setOrderKey(key);
 			final int cnt = Math.min(this.blockSize, n - pos);
@@ -260,7 +261,7 @@ public class UnorderedLookupTree implements
 			for (int p = 0; p < parentCount; p++) {
 				// distribute children evenly so the tail node never ends up with a single child
 				final int childN = base + (p < remainder ? 1 : 0);
-				final InternalNode internal = new InternalNode(!Transaction.isTransactionAvailable());
+				final InternalNode internal = new InternalNode(true);
 				final Node<?>[] internalChildren = internal.getChildrenForUpdate();
 				final int[] internalCounts = internal.getCountsForUpdate();
 				final long[] internalSeparators = internal.getSeparatorsForUpdate();
@@ -375,7 +376,7 @@ public class UnorderedLookupTree implements
 	 */
 	public void insertAtPosition(int index, int recordId, @Nonnull OrderKeyConsumer assignments) {
 		if (getRoot() == null) {
-			final LeafNode container = new LeafNode(!Transaction.isTransactionAvailable());
+			final LeafNode container = new LeafNode(true);
 			container.setOrderKey(0L);
 			container.getRecordIdsForUpdate()[0] = recordId;
 			container.setCount(1);
@@ -473,10 +474,13 @@ public class UnorderedLookupTree implements
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		// recurse into the size and root references and the whole node graph so that a tree which was created
 		// and discarded within the same transaction (e.g. a removed sub-index) does not leave any of its inner
-		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5)
+		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5).
+		// The current (in-transaction) root MUST be read BEFORE the root reference's own layer is dropped - otherwise
+		// getRoot() would fall back to the committed root (null for a tree built within this transaction) and the
+		// node-graph recursion would be skipped, leaking every node layer.
+		final Node<?> theRoot = getRoot();
 		this.size.removeLayer(transactionalLayer);
 		this.root.removeLayer(transactionalLayer);
-		final Node<?> theRoot = getRoot();
 		if (theRoot != null) {
 			removeLayerRecursively(theRoot, transactionalLayer);
 		}
@@ -769,9 +773,9 @@ public class UnorderedLookupTree implements
 		final int leftCount = total / 2;
 		final int rightCount = total - leftCount;
 		final long rightKey = mintOrderKey(container, cursor, assignments);
-		// the offspring node is built in-place (transactionalLayer=false) and rebuilt as a participating node on
-		// commit, exactly like the reference tree's split offspring
-		final LeafNode right = new LeafNode(!Transaction.isTransactionAvailable());
+		// the offspring node participates in the transactional layer so that any later in-savepoint
+		// mutation routes through a snapshot-able layer and can be rolled back per-entity
+		final LeafNode right = new LeafNode(true);
 		right.setOrderKey(rightKey);
 		final int[] containerRecordIds = container.getRecordIdsForUpdate();
 		final int[] rightRecordIds = right.getRecordIdsForUpdate();
@@ -813,7 +817,7 @@ public class UnorderedLookupTree implements
 						"Inconsistent lookup state!"
 					);
 				}
-				final InternalNode newRoot = new InternalNode(!Transaction.isTransactionAvailable());
+				final InternalNode newRoot = new InternalNode(true);
 				final Node<?>[] children = newRoot.getChildrenForUpdate();
 				final int[] counts = newRoot.getCountsForUpdate();
 				final long[] separators = newRoot.getSeparatorsForUpdate();
@@ -878,8 +882,9 @@ public class UnorderedLookupTree implements
 		final int total = node.getChildCount();
 		final int leftCount = total / 2;
 		final int rightCount = total - leftCount;
-		// the offspring node is built in-place (transactionalLayer=false) and rebuilt as a participating node on commit
-		final InternalNode right = new InternalNode(!Transaction.isTransactionAvailable());
+		// the offspring node participates in the transactional layer so that any later in-savepoint
+		// mutation routes through a snapshot-able layer and can be rolled back per-entity
+		final InternalNode right = new InternalNode(true);
 		final Node<?>[] nodeChildren = node.getChildrenForUpdate();
 		final int[] nodeCounts = node.getCountsForUpdate();
 		final long[] nodeSeparators = node.getSeparatorsForUpdate();
@@ -1405,7 +1410,7 @@ public class UnorderedLookupTree implements
 	 * per-transaction layer on first write through the `...ForUpdate()` accessors; read-only accessors read from the
 	 * layer if present.
 	 */
-	static final class LeafNode implements Node<LeafNode> {
+	static final class LeafNode implements Node<LeafNode>, Snapshotable<LeafNode.LeafNodeMemento> {
 		@Serial private static final long serialVersionUID = -2510718704128926730L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -1536,6 +1541,32 @@ public class UnorderedLookupTree implements
 			return new LeafNode(this.orderKey, this.recordIds, this.count, false);
 		}
 
+		/**
+		 * Captures this layer's revertable copy-on-write state for a per-entity savepoint. The mutable
+		 * fields are the order-key, the record-id array and the count; the record-id array is cloned (the ints are
+		 * value types) so that a later mutation, or a repeated {@link #restore}, cannot corrupt the memento.
+		 *
+		 * @return an independent snapshot of this container's order-key, record ids and count
+		 */
+		@Nonnull
+		@Override
+		public LeafNodeMemento snapshot() {
+			return new LeafNodeMemento(this.orderKey, this.recordIds.clone(), this.count);
+		}
+
+		/**
+		 * Restores the state captured by {@link #snapshot}. A fresh clone of the memento's record-id array is installed
+		 * so the memento stays reusable for a repeated restore.
+		 *
+		 * @param memento the state previously captured by {@link #snapshot}
+		 */
+		@Override
+		public void restore(@Nonnull LeafNodeMemento memento) {
+			this.orderKey = memento.orderKey();
+			this.recordIds = memento.recordIds().clone();
+			this.count = memento.count();
+		}
+
 		@Override
 		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			transactionalLayer.removeTransactionalMemoryLayer(this);
@@ -1587,6 +1618,21 @@ public class UnorderedLookupTree implements
 			sb.append(']');
 			return sb.toString();
 		}
+
+		/**
+		 * Immutable savepoint memento of a container's copy-on-write state. The record-id array is a private clone
+		 * owned by the memento (see {@link #snapshot}); the order-key and count are primitive value types.
+		 *
+		 * @param orderKey  the container order-key
+		 * @param recordIds clone of the record-id array
+		 * @param count     the number of valid record ids
+		 */
+		record LeafNodeMemento(
+			long orderKey,
+			@Nonnull int[] recordIds,
+			int count
+		) {
+		}
 	}
 
 	/**
@@ -1598,7 +1644,7 @@ public class UnorderedLookupTree implements
 	 * copied-on-write into the per-transaction layer on first write through the `...ForUpdate()` accessors; read-only
 	 * accessors read from the layer if present.
 	 */
-	static final class InternalNode implements Node<InternalNode> {
+	static final class InternalNode implements Node<InternalNode>, Snapshotable<InternalNode.InternalNodeMemento> {
 		@Serial private static final long serialVersionUID = 1791772842933035170L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -1771,6 +1817,36 @@ public class UnorderedLookupTree implements
 			return new InternalNode(this.children, this.separators, this.counts, this.childCount, false);
 		}
 
+		/**
+		 * Captures this layer's revertable copy-on-write state for a per-entity savepoint. The mutable
+		 * fields are the children, separators and counts arrays and the child count; all three arrays are cloned
+		 * (shallow for children — the child nodes own their own transactional layers and are snapshotted independently;
+		 * the separators and counts are value types) so that a later mutation, or a repeated {@link #restore}, cannot
+		 * corrupt the memento.
+		 *
+		 * @return an independent snapshot of this internal node's array structure
+		 */
+		@Nonnull
+		@Override
+		public InternalNodeMemento snapshot() {
+			return new InternalNodeMemento(
+				this.children.clone(), this.separators.clone(), this.counts.clone(), this.childCount);
+		}
+
+		/**
+		 * Restores the array structure captured by {@link #snapshot}. Fresh clones of the memento's arrays are
+		 * installed so the memento stays reusable for a repeated restore.
+		 *
+		 * @param memento the state previously captured by {@link #snapshot}
+		 */
+		@Override
+		public void restore(@Nonnull InternalNodeMemento memento) {
+			this.children = memento.children().clone();
+			this.separators = memento.separators().clone();
+			this.counts = memento.counts().clone();
+			this.childCount = memento.childCount();
+		}
+
 		@Override
 		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			transactionalLayer.removeTransactionalMemoryLayer(this);
@@ -1829,6 +1905,24 @@ public class UnorderedLookupTree implements
 		@Override
 		public String toString() {
 			return "Internal(children=" + getChildCount() + ')';
+		}
+
+		/**
+		 * Immutable savepoint memento of an internal node's copy-on-write array structure. The arrays are private
+		 * clones owned by the memento (see {@link #snapshot}); the child-node references they hold are shared by design
+		 * and the separators / counts are value types.
+		 *
+		 * @param children   clone of the child-pointer array
+		 * @param separators clone of the separator-key array
+		 * @param counts     clone of the per-child subtree-count array
+		 * @param childCount the number of valid children
+		 */
+		record InternalNodeMemento(
+			@Nonnull Node<?>[] children,
+			@Nonnull long[] separators,
+			@Nonnull int[] counts,
+			int childCount
+		) {
 		}
 	}
 

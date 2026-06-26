@@ -124,7 +124,6 @@ abstract class AbstractMutatorTestBase {
 			new MockEntityIndexCreator<>(this.catalogIndex),
 			() -> this.productSchema,
 			sequencer::getAndIncrement,
-			false,
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
 			},

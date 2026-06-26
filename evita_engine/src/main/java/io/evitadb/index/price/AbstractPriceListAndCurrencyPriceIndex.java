@@ -239,6 +239,29 @@ public abstract class AbstractPriceListAndCurrencyPriceIndex<SELF extends Abstra
 		this.validityIndex = validityIndex;
 	}
 
+	/**
+	 * Shallow copy constructor that preserves the existing {@link TransactionalBitmap} instances AND the already-built
+	 * {@link #priceRecords} tree BY REFERENCE (no re-wrapping, no rebuild). Used for new catalog attachment of a ref index
+	 * where the re-attachment is purely in-memory and the super index's {@link PriceRecordContract} instances are carried
+	 * forward, so the derived tree stays valid and need not be reconstructed. Mirrors the no-tree shallow constructor
+	 * above; sharing the transactional structures by reference matches how the bitmaps are carried on this path.
+	 */
+	protected AbstractPriceListAndCurrencyPriceIndex(
+		@Nonnull PriceIndexKey priceIndexKey,
+		@Nonnull TransactionalBitmap indexedPriceEntityIds,
+		@Nonnull TransactionalBitmap priceIds,
+		@Nonnull RangeIndex validityIndex,
+		@Nonnull TransactionalElementBPlusTree<PriceRecordContract> priceRecords
+	) {
+		this.dirty = new TransactionalBoolean();
+		this.terminated = new TransactionalBoolean();
+		this.priceIndexKey = priceIndexKey;
+		this.indexedPriceEntityIds = indexedPriceEntityIds;
+		this.indexedPriceIds = priceIds;
+		this.validityIndex = validityIndex;
+		this.priceRecords = priceRecords;
+	}
+
 	@Nonnull
 	@Override
 	public Bitmap getIndexedPriceEntityIds() {

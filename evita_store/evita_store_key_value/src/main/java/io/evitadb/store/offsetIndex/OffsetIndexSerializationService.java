@@ -36,7 +36,7 @@ import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecordHeader;
+import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecordCursor;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -272,7 +272,12 @@ public class OffsetIndexSerializationService {
 		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
 		// Single scratch buffer reused across every storage-record fragment in this snapshot copy.
 		// Per-fragment recordLength is bounded by `outputBufferSize`, so a single buffer of that size is always enough.
-		final byte[] rawCopyScratchBuffer = new byte[outputBufferSize];
+		// Sourced from the offset index so it survives across compactions instead of being reallocated each time; the
+		// caller holds the write handle, which serializes every writer of this instance.
+		final byte[] rawCopyScratchBuffer = offsetIndex.getCompactionScratchBuffer();
+		// Single reusable cursor filled by readRawInto for every fragment, instead of allocating a header object per
+		// fragment. Safe as a stack-local: this loop is single-threaded under the offset-index write handle.
+		final RawRecordCursor rawCursor = new RawRecordCursor();
 		// position in the source file where the input cursor currently sits (i.e. the byte right after the last
 		// record copied so far); `-1` means the cursor position is unknown and a seek is mandatory. Because
 		// `entries` is sorted by source position, the common case is that the next record begins exactly here -
@@ -302,14 +307,13 @@ public class OffsetIndexSerializationService {
 				long startPosition = -1;
 				int recordLength = 0;
 				byte control;
-				RawRecordHeader sourceRecord;
 				do {
-					sourceRecord = StorageRecord.readRawInto(inputStream, rawCopyScratchBuffer);
-					control = sourceRecord.control();
+					StorageRecord.readRawInto(inputStream, rawCopyScratchBuffer, rawCursor);
+					control = rawCursor.control();
 
 					final FileLocation recordLocation = StorageRecord.writeRaw(
 						output, control, catalogVersion,
-						rawCopyScratchBuffer, 0, sourceRecord.payloadLength()
+						rawCopyScratchBuffer, 0, rawCursor.payloadLength()
 					);
 					if (startPosition == -1) {
 						startPosition = recordLocation.startingPosition();

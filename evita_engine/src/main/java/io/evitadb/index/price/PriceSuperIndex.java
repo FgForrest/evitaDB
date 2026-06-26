@@ -27,7 +27,9 @@ import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges.ContainerChangesMemento;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.DateTimeRange;
@@ -164,7 +166,7 @@ public class PriceSuperIndex
 	/**
 	 * This class collects changes in {@link #priceIndexes} transactional map.
 	 */
-	public static class PriceIndexChanges {
+	public static class PriceIndexChanges implements Snapshotable<PriceIndexChanges.PriceIndexChangesMemento> {
 		private final TransactionalContainerChanges<Void, PriceListAndCurrencyPriceSuperIndex, PriceListAndCurrencyPriceSuperIndex> collectedPriceIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(PriceListAndCurrencyPriceSuperIndex priceIndex) {
@@ -181,6 +183,27 @@ public class PriceSuperIndex
 
 		public void cleanAll(TransactionalLayerMaintainer transactionalLayer) {
 			this.collectedPriceIndexChanges.cleanAll(transactionalLayer);
+		}
+
+		@Nonnull
+		@Override
+		public PriceIndexChangesMemento snapshot() {
+			return new PriceIndexChangesMemento(this.collectedPriceIndexChanges.snapshot());
+		}
+
+		@Override
+		public void restore(@Nonnull PriceIndexChangesMemento memento) {
+			this.collectedPriceIndexChanges.restore(memento.collectedPriceIndexChanges());
+		}
+
+		/**
+		 * Memento bundling the savepoint state of every {@link TransactionalContainerChanges} this aggregate tracks.
+		 *
+		 * @param collectedPriceIndexChanges snapshot of the price-index created/removed bookkeeping
+		 */
+		public record PriceIndexChangesMemento(
+			@Nonnull ContainerChangesMemento<PriceListAndCurrencyPriceSuperIndex> collectedPriceIndexChanges
+		) {
 		}
 	}
 

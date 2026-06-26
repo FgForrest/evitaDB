@@ -223,6 +223,19 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 	);
 
 	/**
+	 * The {@code transactionalLayer} flag for nodes a split creates. The {@code int→long} tree (whose nodes are
+	 * {@link io.evitadb.core.transaction.memory.Snapshotable} and which is never rebuilt by re-inserting outside an
+	 * active transaction) returns {@code true} so split offspring join the diff layer and their in-savepoint mutations
+	 * can be rolled back. A tree that is bulk-rebuilt by inserting during the commit-merge (e.g. the element-keyed price
+	 * tree's `newPriceRecordTree` invoked from `attachToCatalog`) must return {@code !Transaction.isTransactionAvailable()}
+	 * instead: inside that already-finalized transaction context a split offspring with the flag set would try to open a
+	 * fresh diff layer and fail, so it has to mutate in place.
+	 *
+	 * @return whether nodes produced by a split participate in the transactional memory layer
+	 */
+	protected abstract boolean splitNodesJoinTransactionalLayer();
+
+	/**
 	 * Finds the leaf node in the B+ tree that should contain the specified key. The search begins at the root and
 	 * descends to the leaf by following the appropriate child pointers of the internal nodes.
 	 *
@@ -340,7 +353,12 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 		final int[] originKeys = internal.getKeys();
 		final BPlusTreeNode<?>[] originChildren = internal.getChildren();
 
-		// Move half the keys to the new arrays of the left internal node
+		// Whether split offspring join the transactional diff layer: true for the savepoint-participating int→long tree,
+		// transaction-aware for the price tree that is bulk-rebuilt during commit-merge (see the hook's contract).
+		final boolean splitNodesTransactional = splitNodesJoinTransactionalLayer();
+
+		// Move half the keys to the new arrays of the left internal node — the split constructor always allocates fresh
+		// arrays, so the former node's arrays stay intact for a per-entity savepoint rollback.
 		final AbstractIntKeyedInternalNode<?> leftInternal = createInternalNode(
 			originKeys,
 			originChildren,
@@ -348,7 +366,7 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 			mid - 1,
 			0,
 			mid,
-			!Transaction.isTransactionAvailable()
+			splitNodesTransactional
 		);
 
 		// Move the other half to the start of existing arrays of the former internal node in the right internal node
@@ -359,7 +377,7 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 			leftInternal.getKeys().length,
 			mid,
 			leftInternal.getChildren().length,
-			!Transaction.isTransactionAvailable()
+			splitNodesTransactional
 		);
 
 		// remove changes of the previous node - it gets replaced
@@ -374,7 +392,7 @@ abstract class AbstractIntKeyedBPlusTree extends AbstractTransactionalBPlusTree
 					this.valueBlockSize,
 					rightInternal.getLeftBoundaryKey(),
 					leftInternal, rightInternal,
-					!Transaction.isTransactionAvailable()
+					splitNodesTransactional
 				)
 			);
 		} else {

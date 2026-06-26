@@ -25,7 +25,9 @@ package io.evitadb.index.facet;
 
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges.ContainerChangesMemento;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -246,7 +248,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	/**
 	 * This class collects changes in {@link #facetIdIndexes} transactional map and its sub structure.
 	 */
-	public static class FacetGroupIndexChanges {
+	public static class FacetGroupIndexChanges implements Snapshotable<FacetGroupIndexChanges.FacetGroupIndexChangesMemento> {
 		private final TransactionalContainerChanges<Void, FacetIdIndex, FacetIdIndex> items = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetIdIndex baseIndex) {
@@ -263,6 +265,27 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			this.items.cleanAll(transactionalLayer);
+		}
+
+		@Nonnull
+		@Override
+		public FacetGroupIndexChangesMemento snapshot() {
+			return new FacetGroupIndexChangesMemento(this.items.snapshot());
+		}
+
+		@Override
+		public void restore(@Nonnull FacetGroupIndexChangesMemento memento) {
+			this.items.restore(memento.items());
+		}
+
+		/**
+		 * Memento bundling the savepoint state of every {@link TransactionalContainerChanges} this aggregate tracks.
+		 *
+		 * @param items snapshot of the facet-id-index created/removed bookkeeping
+		 */
+		public record FacetGroupIndexChangesMemento(
+			@Nonnull ContainerChangesMemento<FacetIdIndex> items
+		) {
 		}
 
 	}

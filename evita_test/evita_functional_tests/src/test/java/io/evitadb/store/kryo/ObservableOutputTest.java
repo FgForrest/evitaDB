@@ -37,9 +37,12 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
 import java.util.zip.Deflater;
@@ -114,6 +117,30 @@ public class ObservableOutputTest {
 		} else {
 			return out.markEnd(control);
 		}
+	}
+
+	/**
+	 * Reads back a single record previously written with {@link #writeRecord} and returns its payload bytes.
+	 *
+	 * The wire layout produced by {@link #writeRecord} is `[recordLength:int][control:byte][payload][crc:long]`, so the
+	 * payload length is `recordLength` minus the 5-byte header (length int + control byte) and the mandatory CRC tail.
+	 * Reading through the full {@link ObservableInput} record lifecycle additionally verifies the per-record CRC32C, so
+	 * any byte corruption introduced while writing would surface as a failed read here.
+	 *
+	 * @param in the observable input positioned at the start of the next record
+	 * @return the decoded payload bytes of the record
+	 */
+	@Nonnull
+	private static byte[] readRecordPayload(@Nonnull ObservableInput<?> in) {
+		in.markStart();
+		final int recordLength = in.readInt();
+		final byte control = in.readByte();
+		in.markPayloadStart(recordLength, control);
+		final int payloadLength = recordLength - 5 - ObservableOutput.TAIL_MANDATORY_SPACE;
+		final byte[] payload = new byte[payloadLength];
+		in.readBytes(payload, 0, payloadLength);
+		in.markEnd(control);
+		return payload;
 	}
 
 	/**
@@ -1222,6 +1249,58 @@ public class ObservableOutputTest {
 					handlerInvoked[0],
 					"Handler should not be invoked for small writes"
 				);
+			}
+		}
+
+		@Test
+		@DisplayName("Records round-trip when active region repeatedly forces a reallocating rewind")
+		void shouldRoundTripRecordsAcrossMultipleReallocatingRewinds() {
+			// When a record being written occupies more than half of the buffer at the moment the buffer is exhausted,
+			// the still-unfinished active region cannot be compacted in place (it would overwrite itself) and must be
+			// relocated into a freshly sized buffer, recycling the previous buffer as the next spare. The record sizes
+			// below alternate between a small record (advancing the consumed prefix) and a large record (whose active
+			// region then exceeds that prefix), which drives that relocating rewind several times within a single output
+			// lifetime - without any intervening reset(). The test asserts that every record still round-trips intact.
+			final int bufferSize = 1024;
+			final int capacity = bufferSize - ObservableOutput.TAIL_MANDATORY_SPACE;
+			// active record sizes expressed as a percentage of capacity; the small/large alternation is what repeatedly
+			// pushes the active region past the consumed prefix at buffer-exhaustion time
+			final int[] activePercentOfCapacity = {20, 85, 50, 60, 20, 85, 50, 60, 20, 85, 50, 60};
+
+			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			final List<byte[]> writtenPayloads = new ArrayList<>(activePercentOfCapacity.length);
+			try (ObservableOutput<ByteArrayOutputStream> out =
+				     new ObservableOutput<>(
+					     baos, bufferSize, bufferSize, 0L,
+					     Crc32CChecksumFactory.INSTANCE.createChecksum(), null
+				     )) {
+
+				for (int percent : activePercentOfCapacity) {
+					final int activeSize = (capacity * percent) / 100;
+					// subtract the fixed record overhead (5-byte header + CRC tail) to obtain the payload size
+					final int payloadSize = activeSize - 5 - ObservableOutput.TAIL_MANDATORY_SPACE;
+					final byte[] payload = new byte[payloadSize];
+					new Random(payloadSize).nextBytes(payload);
+					writtenPayloads.add(payload);
+					writeRecord(out, payload, false);
+				}
+				out.flush();
+			}
+
+			final byte[] serialized = baos.toByteArray();
+			try (ObservableInput<ByteArrayInputStream> in =
+				     new ObservableInput<>(
+					     new ByteArrayInputStream(serialized), serialized.length + bufferSize,
+					     Crc32CChecksumFactory.INSTANCE.createChecksum(), null
+				     )) {
+
+				for (int i = 0; i < writtenPayloads.size(); i++) {
+					final byte[] readBack = readRecordPayload(in);
+					assertArrayEquals(
+						writtenPayloads.get(i), readBack,
+						"Payload of record " + i + " must survive the reallocating rewinds intact"
+					);
+				}
 			}
 		}
 	}

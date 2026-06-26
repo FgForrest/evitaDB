@@ -174,19 +174,25 @@ class IOUtilsTest {
 		}
 
 		@Test
-		@DisplayName("Should execute consumer without exception")
+		@DisplayName("Should execute int consumer forwarding the primitive input")
 		void shouldExecuteConsumerWithoutException() {
+			// the int literal binds to the primitive executeSafely(int, ...) overload (no autoboxing); the captured
+			// value proves the primitive argument was forwarded to the consumer
+			final int[] captured = {-1};
+
 			IOUtils.executeSafely(
 				1,
 				IllegalStateException::new,
-				i -> System.out.println("Lambda `" + i + "` executed successfully.")
+				i -> captured[0] = i
 			);
+
+			assertEquals(1, captured[0]);
 		}
 
 		@Test
 		@DisplayName("Should wrap exception thrown by consumer")
 		void shouldWrapExceptionThrownByConsumer() {
-			IllegalStateException exception = assertThrows(
+			final IllegalStateException exception = assertThrows(
 				IllegalStateException.class, () ->
 					IOUtils.executeSafely(
 						1,
@@ -198,6 +204,43 @@ class IOUtilsTest {
 			);
 
 			assertEquals("Exception in lambda", exception.getSuppressed()[0].getMessage());
+		}
+
+		@Test
+		@DisplayName("Should execute int bi-consumer forwarding both primitive inputs")
+		void shouldExecuteBiConsumerWithoutException() {
+			// the two int literals bind to the primitive executeSafely(int, int, ...) overload (no autoboxing); the
+			// captured values prove both primitive arguments were forwarded to the bi-consumer in order
+			final int[] captured = {-1, -1};
+
+			IOUtils.executeSafely(
+				7, 13,
+				IllegalStateException::new,
+				(first, second) -> {
+					captured[0] = first;
+					captured[1] = second;
+				}
+			);
+
+			assertEquals(7, captured[0]);
+			assertEquals(13, captured[1]);
+		}
+
+		@Test
+		@DisplayName("Should wrap exception thrown by bi-consumer")
+		void shouldWrapExceptionThrownByBiConsumer() {
+			final IllegalStateException exception = assertThrows(
+				IllegalStateException.class, () ->
+					IOUtils.executeSafely(
+						7, 13,
+						IllegalStateException::new,
+						(first, second) -> {
+							throw new IOException("Exception in bi-consumer");
+						}
+					)
+			);
+
+			assertEquals("Exception in bi-consumer", exception.getSuppressed()[0].getMessage());
 		}
 	}
 

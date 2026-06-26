@@ -46,6 +46,12 @@ If the database crashes during this initial bulk indexing, the state and consist
 corrupted, and the entire catalog should be dumped and rebuilt from scratch. Since there is no client other than the
 one writing the data, we can afford to do this.
 
+The same applies to a *single* failed write: bulk indexing has **no per-entity rollback**, so an `upsertEntity` /
+`deleteEntity` that fails part-way through can leave that entity's index entries half-applied. Recovery is the client's
+responsibility — either compensate for the partial write or (recommended) rebuild the catalog. See
+[Atomicity of individual writes](../../deep-dive/bulk-vs-incremental-indexing.md#atomicity-of-individual-writes) for
+details and how this differs from the transactional (`ALIVE`) phase.
+
 </LS>
 
 <LS to="j,c">
@@ -99,6 +105,11 @@ There might be multiple clients reading & writing data to the same catalog when 
 update is wrapped into a *transaction* that meets
 [the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation). More details about transaction
 handling is in [separate chapter](../../deep-dive/transactions.md).
+
+In this phase each entity write is additionally **atomic on its own**: if a single `upsertEntity` / `deleteEntity`
+fails part-way through (for example on a unique-constraint violation), only that entity's partial changes are reverted
+and the rest of the transaction stays valid, so the client may catch the error and keep writing before committing. See
+[Atomicity of individual entity mutations](../../deep-dive/transactions.md#atomicity-of-individual-entity-mutations).
 
 ## Model characteristics
 

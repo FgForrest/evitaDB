@@ -33,7 +33,9 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges.ContainerChangesMemento;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -278,7 +280,7 @@ public class CatalogIndex implements
 	/**
 	 * This class collects changes in {@link #uniqueIndex} transactional maps.
 	 */
-	public static class CatalogIndexChanges {
+	public static class CatalogIndexChanges implements Snapshotable<CatalogIndexChanges.CatalogIndexChangesMemento> {
 		private final TransactionalContainerChanges<Void, GlobalUniqueIndex, GlobalUniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {
@@ -295,6 +297,27 @@ public class CatalogIndex implements
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			this.uniqueIndexChanges.cleanAll(transactionalLayer);
+		}
+
+		@Nonnull
+		@Override
+		public CatalogIndexChangesMemento snapshot() {
+			return new CatalogIndexChangesMemento(this.uniqueIndexChanges.snapshot());
+		}
+
+		@Override
+		public void restore(@Nonnull CatalogIndexChangesMemento memento) {
+			this.uniqueIndexChanges.restore(memento.uniqueIndexChanges());
+		}
+
+		/**
+		 * Memento bundling the savepoint state of every {@link TransactionalContainerChanges} this aggregate tracks.
+		 *
+		 * @param uniqueIndexChanges snapshot of the global-unique-index created/removed bookkeeping
+		 */
+		public record CatalogIndexChangesMemento(
+			@Nonnull ContainerChangesMemento<GlobalUniqueIndex> uniqueIndexChanges
+		) {
 		}
 
 	}

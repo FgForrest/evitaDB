@@ -55,6 +55,10 @@ import java.util.function.Supplier;
 import static java.util.Optional.ofNullable;
 
 /**
+ * Concrete engine-side implementation of {@link TransactionContract}. Its {@link #close()} drives the underlying
+ * {@link TransactionalMemory}, committing the accumulated diff layer by default or rolling it back when the
+ * transaction was marked rollback-only.
+ *
  * {@inheritDoc TransactionContract}
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -63,7 +67,9 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public final class Transaction implements TransactionContract {
 	/**
-	 * TOBEDONE JNO - this should be migrated to ScopedValue in Java 21
+	 * Binds at most one active transaction to the current thread; all static accessors resolve the transaction
+	 * through it. A {@link ThreadLocal} is used so the binding follows the executing thread; it could move
+	 * to a `ScopedValue` once the project targets Java 21+.
 	 */
 	private static final ThreadLocal<Transaction> CURRENT_TRANSACTION = new ThreadLocal<>();
 
@@ -215,6 +221,24 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
+	 * Returns the existing transactional layer for the passed creator (never creates one), capturing its pre-mutation
+	 * state into an open per-entity savepoint on first touch. Use this instead of
+	 * {@link #getTransactionalMemoryLayerIfExists(TransactionalLayerCreator)} when mutating an already-existing layer
+	 * through the fast path, so the change can be reverted on a per-entity rollback.
+	 */
+	@Nullable
+	public static <T> T getTransactionalMemoryLayerForWriteIfExists(@Nonnull TransactionalLayerCreator<T> layerCreator) {
+		// we may safely do this because transactionalLayer is stored in ThreadLocal and
+		// thus won't be accessed by multiple threads at once
+		final Transaction transaction = CURRENT_TRANSACTION.get();
+		if (transaction != null) {
+			return transaction.transactionalMemory.getTransactionalMemoryLayerForWriteIfExists(layerCreator);
+		} else {
+			return null;
+		}
+	}
+
+	/**
 	 * Returns transactional states for passed layer creator object, that is isolated for this thread.
 	 */
 	@Nullable
@@ -348,7 +372,10 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
-	 * Creates new transaction.
+	 * Creates an isolated, in-memory-only transaction over the given transactional root. It is not WAL-backed and
+	 * has no {@link TransactionHandler}; on commit the merged copy is exposed via {@link #getCommitedState()}.
+	 *
+	 * @param txRoot root of the transactional object tree whose changes are committed or rolled back
 	 */
 	public <S, X, T extends TransactionalLayerProducer<X, S>> Transaction(@Nonnull T txRoot) {
 		this.transactionId = UUID.randomUUID();
@@ -361,10 +388,11 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
-	 * Creates new transaction.
+	 * Creates a WAL-backed transaction whose mutations and commit/rollback are managed by the given handler.
 	 *
 	 * @param transactionId      unique id of the transaction
 	 * @param transactionHandler handler that takes care about mutation persistence, commit and rollback behaviour
+	 * @param replay             `true` when the transaction is being replayed during incorporation into the trunk
 	 */
 	public Transaction(
 		@Nonnull UUID transactionId,
@@ -379,10 +407,13 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
-	 * Creates new transaction.
+	 * Creates a WAL-backed transaction that continues an already-populated {@link TransactionalMemory}, used when
+	 * more than one transaction is replayed in a row. The handler must be the same instance as the memory's finalizer.
 	 *
 	 * @param transactionId      unique id of the transaction
 	 * @param transactionHandler handler that takes care about mutation persistence, commit and rollback behaviour
+	 * @param transactionalMemory pre-existing memory whose diff layer is reused; its transaction is extended
+	 * @param replay             `true` when the transaction is being replayed during incorporation into the trunk
 	 */
 	public Transaction(
 		@Nonnull UUID transactionId,
@@ -407,6 +438,12 @@ public final class Transaction implements TransactionContract {
 		this.rollbackOnly = true;
 	}
 
+	/**
+	 * Marks this transaction rollback-only and records the cause, which is surfaced (logged and propagated to the
+	 * commit progress) when the transaction is rolled back on {@link #close()}.
+	 *
+	 * @param cause the exception that forced the rollback
+	 */
 	public void setRollbackOnlyWithException(@Nonnull Throwable cause) {
 		this.rollbackOnly = true;
 		this.rollbackCause = cause;
@@ -444,7 +481,11 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
-	 * Binds this transaction to current thread.
+	 * Binds this transaction to the current thread, enforcing the at-most-one-transaction-per-thread invariant.
+	 *
+	 * @return `true` if the binding was established by this call; `false` if the thread was already bound to this
+	 *         same transaction (the caller must then not unbind it)
+	 * @throws GenericEvitaInternalError if the thread is already bound to a different transaction
 	 */
 	public boolean bindTransactionToThread() {
 		final Transaction currentValue = CURRENT_TRANSACTION.get();

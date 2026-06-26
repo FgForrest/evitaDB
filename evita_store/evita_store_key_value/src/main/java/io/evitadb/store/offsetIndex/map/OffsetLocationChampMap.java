@@ -178,9 +178,10 @@ public final class OffsetLocationChampMap implements Map<RecordKey, FileLocation
 			return already;
 		}
 		final Builder builder = new Builder();
-		for (final Entry<? extends RecordKey, ? extends FileLocation> entry : source.entrySet()) {
-			builder.add(entry.getKey(), entry.getValue());
-		}
+		// forEach visits each (key, value) directly; the concrete source (a ConcurrentHashMap built by the offset-index
+		// collector) does NOT allocate a Map.Entry per element the way entrySet().iterator() does, so this drops one
+		// transient Entry object per record on the compaction rebuild path
+		source.forEach(builder::add);
 		return builder.build();
 	}
 

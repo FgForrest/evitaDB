@@ -35,38 +35,37 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * TransactionalMemory is central object for all {@link TransactionalLayerCreator} implementations. Transactional memory
- * allows to make changes to state objects that are visible only in the transaction. All accesses outside the transaction
- * (ie. from other threads to the same state objects) don't see the changes until they are committed.
+ * Central object holding the per-transaction diff layer for all {@link TransactionalLayerCreator} implementations.
+ * Changes made through it are visible only inside the owning transaction; accesses from outside (e.g. other threads
+ * reading the same baseline state objects) never observe them until they are committed and a new state instance is
+ * published.
  *
- * The work with transaction is expected in following form:
+ * The lifecycle is not driven through this class directly. A single {@link io.evitadb.core.transaction.Transaction}
+ * owns one instance and drives it via {@link io.evitadb.core.transaction.Transaction#close()}, which calls
+ * {@link #commit()} by default or {@link #rollback(Throwable)} when the transaction was marked rollback-only. Both
+ * are instance methods that delegate to the underlying {@link TransactionalLayerMaintainer}. A thread holds at most
+ * one active transaction at a time (bound through the `CURRENT_TRANSACTION` thread local); there is no notion of
+ * multiple simultaneous transactions on the same thread.
  *
- * ``` java
- * TransactionalMemory.open()
- * try {
- * TransactionalMemory.commit()
- * // do some work
- * } catch (Exception ex) {
- * TransactionalMemory.rollback()
- * }
- * ```
+ * All changes made by objects participating in a transaction (each must implement {@link TransactionalLayerCreator}
+ * or {@link TransactionalLayerProducer}) are captured in separate diff objects and must never mutate the original
+ * immutable baseline. New state is materialized only at commit time via
+ * {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}.
  *
- * All changes made with objects participating in transaction (all must implement {@link TransactionalLayerCreator} or
- * {@link TransactionalLayerProducer} interface) must be captured in change objects and must not affect original state.
- * Changes must create separate copy in {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
- * method.
- *
- * All copies created by {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
- * must be consumed by registered {@link TransactionalLayerMaintainerFinalizer#commit(TransactionalLayerMaintainer)} so
- * that no changes end in the void.
- *
- * Transactional memory is bound to current thread. Single thread may open multiple simultaneous transaction, but accessible
- * is only the last one created. Changes made in one transaction are not visible in other transaction (currently).
+ * All copies produced by `createCopyWithMergedTransactionalMemory` must be consumed by the registered
+ * {@link TransactionalLayerMaintainerFinalizer#commit(TransactionalLayerMaintainer)} so that no change is lost.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 public class TransactionalMemory {
+	/**
+	 * Maintainer holding this transaction's diff layer; merges it with the immutable baseline at commit time.
+	 */
 	private final TransactionalLayerMaintainer transactionalLayerMaintainer;
+	/**
+	 * Stack of suppression frames, one per active {@link #suppressTransactionalMemoryLayerForWithResult} scope; while
+	 * a creator sits in the top frame, no diff layer is created or returned for it.
+	 */
 	private final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedCreatorStack = new ArrayDeque<>(64);
 
 	public TransactionalMemory(@Nonnull TransactionalLayerMaintainerFinalizer finalizer) {
@@ -96,7 +95,11 @@ public class TransactionalMemory {
 	}
 
 	/**
-	 * Rolls back the transaction, cleans up all resources connected with them.
+	 * Rolls back the transaction and frees resources held by it (e.g. WAL files, off-heap regions).
+	 *
+	 * On the diff-layer path this is structurally a no-op: the immutable baseline objects are never mutated in
+	 * place, so discarding this transaction's diff layer is enough — there is nothing to structurally undo. Only
+	 * the registered {@link java.io.Closeable} resources need cleaning up.
 	 */
 	public void rollback(@Nullable Throwable cause) {
 		// execute rollback - some transactional objects may want to react and clean-up resources
@@ -132,6 +135,24 @@ public class TransactionalMemory {
 		final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedObjects = this.suppressedCreatorStack;
 		if (suppressedObjects.isEmpty() || !suppressedObjects.peek().contains(layerCreator)) {
 			return this.transactionalLayerMaintainer.getTransactionalMemoryLayerIfExists(layerCreator);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * Returns the existing transactional layer for the passed creator (never creates one), capturing its pre-mutation
+	 * state into an open per-entity savepoint on first touch. Use when mutating an already-existing layer through the
+	 * fast path.
+	 *
+	 * @param layerCreator the creator whose existing diff layer is requested
+	 * @return the existing diff layer, or NULL when none exists (or the creator is currently suppressed)
+	 */
+	@Nullable
+	public <T> T getTransactionalMemoryLayerForWriteIfExists(@Nonnull TransactionalLayerCreator<T> layerCreator) {
+		final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedObjects = this.suppressedCreatorStack;
+		if (suppressedObjects.isEmpty() || !suppressedObjects.peek().contains(layerCreator)) {
+			return this.transactionalLayerMaintainer.getTransactionalMemoryLayerForWriteIfExists(layerCreator);
 		} else {
 			return null;
 		}

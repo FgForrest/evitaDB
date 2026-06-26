@@ -24,6 +24,7 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
@@ -67,7 +68,10 @@ import static io.evitadb.utils.ArrayUtils.removeRecordFromSameArrayOnIndex;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInternalNode<SELF>>
-	implements InternalBPlusTreeNode<SELF>, IntBoundaryKeyedNode {
+	implements
+	InternalBPlusTreeNode<SELF>,
+	IntBoundaryKeyedNode,
+	Snapshotable<AbstractIntKeyedInternalNode.IntKeyedInternalNodeMemento> {
 	@Serial private static final long serialVersionUID = -6245889213004517882L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -710,6 +714,49 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayer(this);
+	}
+
+	/**
+	 * Captures this layer's revertable copy-on-write state for a per-entity savepoint. Only the keys and children
+	 * arrays and the peek index are mutable here; both arrays are cloned (shallow — the primitive keys are value types
+	 * and the child nodes own their own transactional layers and are snapshotted independently) so that a later
+	 * mutation, or a repeated {@link #restore}, cannot corrupt the memento.
+	 *
+	 * @return an independent snapshot of this internal node's array structure
+	 */
+	@Nonnull
+	@Override
+	public IntKeyedInternalNodeMemento snapshot() {
+		return new IntKeyedInternalNodeMemento(this.keys.clone(), this.children.clone(), this.peek);
+	}
+
+	/**
+	 * Restores the array structure captured by {@link #snapshot}. Fresh clones of the memento's arrays are installed so
+	 * the memento stays reusable for a repeated restore.
+	 *
+	 * @param memento the state previously captured by {@link #snapshot}
+	 */
+	@Override
+	public void restore(@Nonnull IntKeyedInternalNodeMemento memento) {
+		this.keys = memento.keys().clone();
+		this.children = memento.children().clone();
+		this.peek = memento.peek();
+	}
+
+	/**
+	 * Immutable savepoint memento of an {@code int}-keyed internal node's copy-on-write array structure. The arrays are
+	 * private clones owned by the memento (see {@link #snapshot}); the primitive keys and child-node references they
+	 * hold are shared by design. Shared by both {@code int}-routed trees, since their internal spines are identical.
+	 *
+	 * @param keys     clone of the separator-key array
+	 * @param children clone of the child-pointer array
+	 * @param peek     the last occupied child index
+	 */
+	record IntKeyedInternalNodeMemento(
+		@Nonnull int[] keys,
+		@Nonnull BPlusTreeNode<?>[] children,
+		int peek
+	) {
 	}
 
 	@Nonnull

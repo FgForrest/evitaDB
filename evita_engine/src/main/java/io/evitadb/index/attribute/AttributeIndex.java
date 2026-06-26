@@ -36,7 +36,9 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges.ContainerChangesMemento;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -1697,7 +1699,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * FILTER data), its sibling {@link #sharedRangeIndex}, {@link #sortIndex} and {@link #chainIndex}. The derived view
 	 * caches ({@link #filterIndex}, {@link #uniqueViewIndex}) hold no producer state and are not tracked here.
 	 */
-	public static class AttributeIndexChanges {
+	public static class AttributeIndexChanges implements Snapshotable<AttributeIndexChanges.AttributeIndexChangesMemento> {
 		// five producer containers: UNIQUE is standalone, FILTER data lives in the shared value-index container, the
 		// range structure is its own producer container, plus sort and chain.
 		private final TransactionalContainerChanges<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, PersistentTransactionalMap<Serializable, Integer>>, UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
@@ -1760,6 +1762,46 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			this.sharedRangeIndexChanges.cleanAll(transactionalLayer);
 			this.sortIndexChanges.cleanAll(transactionalLayer);
 			this.chainIndexChanges.cleanAll(transactionalLayer);
+		}
+
+		@Nonnull
+		@Override
+		public AttributeIndexChangesMemento snapshot() {
+			return new AttributeIndexChangesMemento(
+				this.uniqueIndexChanges.snapshot(),
+				this.sharedValueIndexChanges.snapshot(),
+				this.sharedRangeIndexChanges.snapshot(),
+				this.sortIndexChanges.snapshot(),
+				this.chainIndexChanges.snapshot()
+			);
+		}
+
+		@Override
+		public void restore(@Nonnull AttributeIndexChangesMemento memento) {
+			this.uniqueIndexChanges.restore(memento.uniqueIndexChanges());
+			this.sharedValueIndexChanges.restore(memento.sharedValueIndexChanges());
+			this.sharedRangeIndexChanges.restore(memento.sharedRangeIndexChanges());
+			this.sortIndexChanges.restore(memento.sortIndexChanges());
+			this.chainIndexChanges.restore(memento.chainIndexChanges());
+		}
+
+		/**
+		 * Memento bundling the savepoint state of all five {@link TransactionalContainerChanges} containers tracked
+		 * by an {@link AttributeIndexChanges}.
+		 *
+		 * @param uniqueIndexChanges      snapshot of the standalone unique-index created/removed bookkeeping
+		 * @param sharedValueIndexChanges snapshot of the shared value-index (FILTER data) created/removed bookkeeping
+		 * @param sharedRangeIndexChanges snapshot of the shared range-index created/removed bookkeeping
+		 * @param sortIndexChanges        snapshot of the sort-index created/removed bookkeeping
+		 * @param chainIndexChanges       snapshot of the chain-index created/removed bookkeeping
+		 */
+		public record AttributeIndexChangesMemento(
+			@Nonnull ContainerChangesMemento<UniqueIndex> uniqueIndexChanges,
+			@Nonnull ContainerChangesMemento<InvertedIndex> sharedValueIndexChanges,
+			@Nonnull ContainerChangesMemento<RangeIndex> sharedRangeIndexChanges,
+			@Nonnull ContainerChangesMemento<SortIndex> sortIndexChanges,
+			@Nonnull ContainerChangesMemento<ChainIndex> chainIndexChanges
+		) {
 		}
 
 	}

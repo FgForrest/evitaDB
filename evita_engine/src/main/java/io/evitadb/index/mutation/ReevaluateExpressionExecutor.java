@@ -265,14 +265,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
 			ReferenceIndexMutator.applyFacetDecisionMatrix(
-				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), true, null
+				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), true
 			);
 			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, true);
 		}
 		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldNotBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
 			ReferenceIndexMutator.applyFacetDecisionMatrix(
-				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), false, null
+				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), false
 			);
 			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, false);
 		}
@@ -310,7 +310,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					" to exist for referenced entity PK " + entry.referencedEntityPK()
 			);
 			ReferenceIndexMutator.applyFacetDecisionMatrix(
-				reducedIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), nowFaceted, null
+				reducedIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), nowFaceted
 			);
 		}
 	}

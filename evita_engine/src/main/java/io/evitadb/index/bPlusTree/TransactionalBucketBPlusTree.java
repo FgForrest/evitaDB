@@ -25,6 +25,7 @@ package io.evitadb.index.bPlusTree;
 
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -873,9 +874,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		// capture the in-transaction root BEFORE dropping the root reference's own layer - otherwise getRoot() would
+		// fall back to the committed root and the node-graph recursion would miss every node created during this
+		// transaction (e.g. split offspring), leaking their layers during the commit sweep
+		final BPlusTreeNode<K, ?> theRoot = getRoot();
 		this.size.removeLayer(transactionalLayer);
 		this.root.removeLayer(transactionalLayer);
-		removeLayerRecursively(getRoot(), transactionalLayer);
+		removeLayerRecursively(theRoot, transactionalLayer);
 	}
 
 	@Nonnull
@@ -1587,21 +1592,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			0,
 			mid,
 			this.comparator,
-			!Transaction.isTransactionAvailable()
+			true
 		);
 
-		// Move the other half to the start of the existing arrays of the former leaf in the right leaf node
+		// Move the other half into fresh arrays of the right leaf node. The former leaf's arrays are intentionally NOT
+		// reused in place: a per-entity savepoint must be able to restore the former leaf verbatim on rollback (the
+		// split is undone by re-attaching the former leaf's layer), which requires its backing arrays to stay intact.
 		final BPlusLeafTreeNode<K> rightLeaf = new BPlusLeafTreeNode<>(
 			originKeys,
 			originRecords,
 			originOverflow,
-			originKeys,
-			originRecords,
-			originOverflow,
+			originKeys.allocate(this.valueBlockSize),
+			new int[this.valueBlockSize],
+			originOverflow == null ? null : new TransactionalBitmap[this.valueBlockSize],
 			mid,
 			leftLeaf.getKeyColumn().capacity(),
 			this.comparator,
-			!Transaction.isTransactionAvailable()
+			true
 		);
 
 		if (Transaction.getTransactionalMemoryLayerIfExists(leaf) != null) {
@@ -1616,7 +1623,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					leftLeaf, rightLeaf,
 					this.keyType,
 					this.comparator,
-					!Transaction.isTransactionAvailable()
+					true
 				)
 			);
 		} else {
@@ -1680,7 +1687,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			mid,
 			this.keyType,
 			this.comparator,
-			!Transaction.isTransactionAvailable()
+			true
 		);
 
 		final BPlusInternalTreeNode<K> rightInternal = new BPlusInternalTreeNode<>(
@@ -1692,7 +1699,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			leftInternal.getChildren().length,
 			this.keyType,
 			this.comparator,
-			!Transaction.isTransactionAvailable()
+			true
 		);
 
 		if (Transaction.getTransactionalMemoryLayerIfExists(internal) != null) {
@@ -1707,7 +1714,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					leftInternal, rightInternal,
 					this.keyType,
 					this.comparator,
-					!Transaction.isTransactionAvailable()
+					true
 				)
 			);
 		} else {
@@ -1941,7 +1948,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * nodes — they do not store buckets directly but guide searches to the appropriate leaf nodes. Verbatim copy of the
 	 * object tree's internal node (the bucket decomposition only touches the leaf).
 	 */
-	static class BPlusInternalTreeNode<M extends Comparable<M>> implements BPlusTreeNode<M, BPlusInternalTreeNode<M>> {
+	static class BPlusInternalTreeNode<M extends Comparable<M>> implements
+		BPlusTreeNode<M, BPlusInternalTreeNode<M>>,
+		Snapshotable<BPlusInternalTreeNode.BPlusInternalNodeMemento<M>> {
 		@Serial private static final long serialVersionUID = 3382269323782408764L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -2561,6 +2570,33 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 		}
 
+		/**
+		 * Captures this layer's revertable copy-on-write state for a per-entity savepoint. Only the keys
+		 * and children arrays and the peek index are mutable here; both arrays are cloned (shallow — the key objects are
+		 * immutable and the child nodes own their own transactional layers and are snapshotted independently) so that a
+		 * later mutation, or a repeated {@link #restore}, cannot corrupt the memento.
+		 *
+		 * @return an independent snapshot of this internal node's array structure
+		 */
+		@Nonnull
+		@Override
+		public BPlusInternalNodeMemento<M> snapshot() {
+			return new BPlusInternalNodeMemento<>(this.keys.clone(), this.children.clone(), this.peek);
+		}
+
+		/**
+		 * Restores the array structure captured by {@link #snapshot}. Fresh clones of the memento's arrays are installed
+		 * so the memento stays reusable for a repeated restore.
+		 *
+		 * @param memento the state previously captured by {@link #snapshot}
+		 */
+		@Override
+		public void restore(@Nonnull BPlusInternalNodeMemento<M> memento) {
+			this.keys = memento.keys().clone();
+			this.children = memento.children().clone();
+			this.peek = memento.peek();
+		}
+
 		@Override
 		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			transactionalLayer.removeTransactionalMemoryLayer(this);
@@ -2665,6 +2701,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 		}
 
+		/**
+		 * Immutable savepoint memento of an internal node's copy-on-write array structure. The arrays are private
+		 * clones owned by the memento (see {@link #snapshot}); the key objects and child-node references they hold are
+		 * shared by design.
+		 *
+		 * @param keys     clone of the separator-key array
+		 * @param children clone of the child-pointer array
+		 * @param peek     the last occupied child index
+		 */
+		record BPlusInternalNodeMemento<M extends Comparable<M>>(
+			@Nonnull M[] keys,
+			@Nonnull BPlusTreeNode<M, ?>[] children,
+			int peek
+		) {
+		}
+
 	}
 
 	/**
@@ -2676,7 +2728,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * steal) across all three columns.
 	 */
 	static class BPlusLeafTreeNode<M extends Comparable<M>>
-		implements BPlusTreeNode<M, BPlusLeafTreeNode<M>> {
+		implements
+		BPlusTreeNode<M, BPlusLeafTreeNode<M>>,
+		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento<M>> {
 		@Serial private static final long serialVersionUID = 1382269323782408765L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -3484,6 +3538,40 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			);
 		}
 
+		/**
+		 * Captures this layer's revertable columnar state for a per-entity savepoint. The key column is
+		 * deep-copied via {@link ValueColumn#duplicate()}, the single-record column is cloned, and the lazy overflow
+		 * column is shallow-cloned — the overflow {@link TransactionalBitmap}s own their own transactional layers and are
+		 * snapshotted independently, so the leaf only needs to remember which slot points to which bitmap. Independent
+		 * copies guarantee a later mutation, or a repeated {@link #restore}, cannot corrupt the memento.
+		 *
+		 * @return an independent snapshot of this leaf's three columns and peek
+		 */
+		@Nonnull
+		@Override
+		public BPlusLeafNodeMemento<M> snapshot() {
+			return new BPlusLeafNodeMemento<>(
+				this.keys.duplicate(),
+				this.records.clone(),
+				this.overflow == null ? null : this.overflow.clone(),
+				this.peek
+			);
+		}
+
+		/**
+		 * Restores the columnar state captured by {@link #snapshot}. Fresh copies of the memento's columns are installed
+		 * so the memento stays reusable for a repeated restore.
+		 *
+		 * @param memento the state previously captured by {@link #snapshot}
+		 */
+		@Override
+		public void restore(@Nonnull BPlusLeafNodeMemento<M> memento) {
+			this.keys = memento.keys().duplicate();
+			this.records = memento.records().clone();
+			this.overflow = memento.overflow() == null ? null : memento.overflow().clone();
+			this.peek = memento.peek();
+		}
+
 		@Override
 		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			transactionalLayer.removeTransactionalMemoryLayer(this);
@@ -3909,6 +3997,24 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					System.arraycopy(this.overflow, 0, layer.overflow, 0, this.peek + 1);
 				}
 			}
+		}
+
+		/**
+		 * Immutable savepoint memento of a leaf node's three columns. The key column and single-record column are
+		 * private deep / array copies; the overflow array is a private shallow clone whose {@link TransactionalBitmap}
+		 * elements are shared by design (each owns its own snapshotted layer). See {@link #snapshot}.
+		 *
+		 * @param keys     deep copy of the key (bucket-value) column
+		 * @param records  clone of the single-record column
+		 * @param overflow shallow clone of the lazy overflow column, or {@code null}
+		 * @param peek     the last occupied column index
+		 */
+		record BPlusLeafNodeMemento<M extends Comparable<M>>(
+			@Nonnull ValueColumn<M> keys,
+			@Nonnull int[] records,
+			@Nullable TransactionalBitmap[] overflow,
+			int peek
+		) {
 		}
 
 	}

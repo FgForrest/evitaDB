@@ -48,6 +48,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -58,11 +59,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins down the per-reference iteration semantics of the two iterator entry points in
@@ -159,7 +156,6 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 			new MockEntityIndexCreator<>(this.catalogIndex),
 			() -> this.productSchema,
 			sequencer::getAndIncrement,
-			false,
 			() -> {
 				throw new UnsupportedOperationException("Not supported in the test.");
 			},
@@ -424,7 +420,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		recorder.assertGroupPathGroupPrimaryKeysInSlice(3, 6, 100, 100, 100);
 		assertSame(recorder.indexAtInvocation(3), recorder.indexAtInvocation(4));
 		assertSame(recorder.indexAtInvocation(4), recorder.indexAtInvocation(5));
-		assertTrue(recorder.indexAtInvocation(3) instanceof ReducedGroupEntityIndex);
+		assertInstanceOf(ReducedGroupEntityIndex.class, recorder.indexAtInvocation(3));
 
 		recorder.assertEveryInvocationPassesSameInstanceForBothSlots();
 	}
@@ -1085,6 +1081,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 			return this.indexes.get(entityIndexKey);
 		}
 
+		@Nullable
 		@Override
 		public EntityIndex getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
 			for (EntityIndex index : this.indexes.values()) {

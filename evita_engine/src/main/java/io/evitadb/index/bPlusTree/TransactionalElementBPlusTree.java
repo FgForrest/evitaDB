@@ -25,6 +25,7 @@ package io.evitadb.index.bPlusTree;
 
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -227,6 +228,16 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		return new BPlusInternalTreeNode(
 			originKeys, originChildren, keyStart, keyEnd, childrenStart, childrenEnd, transactionalLayer
 		);
+	}
+
+	@Override
+	protected boolean splitNodesJoinTransactionalLayer() {
+		// the element-keyed price tree is bulk-rebuilt by re-inserting records during the commit-merge
+		// (newPriceRecordTree invoked from attachToCatalog), where the transaction is already finalized; a split
+		// offspring that joined the diff layer there would fail to open a fresh layer, so it must mutate in place.
+		// Outside any transaction the flag is true (the node is its own committed state); inside a transaction it is
+		// false so split offspring mutate in place, exactly as before the per-entity savepoint work.
+		return !Transaction.isTransactionAvailable();
 	}
 
 	/**
@@ -546,10 +557,14 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		// recurse into the size and root references and the whole node graph so that a tree which was created
 		// and discarded within the same transaction (e.g. a removed sub-index) does not leave any of its inner
-		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep
+		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5).
+		// The current (in-transaction) root MUST be read BEFORE the root reference's own layer is dropped - otherwise
+		// getRoot() would fall back to the committed root and the recursion would miss every node created during this
+		// transaction (e.g. split offspring), leaking their layers.
+		final BPlusTreeNode<?> theRoot = getRoot();
 		this.size.removeLayer(transactionalLayer);
 		this.root.removeLayer(transactionalLayer);
-		removeLayerRecursively(getRoot(), transactionalLayer);
+		removeLayerRecursively(theRoot, transactionalLayer);
 	}
 
 	@Nonnull
@@ -597,7 +612,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		final int mid = this.valueBlockSize / 2;
 		final E[] originValues = leaf.getValues();
 
-		// Move half the values into the new array of the left leaf node
+		// Move half the values into the new array of the left leaf node. Split offspring are transaction-aware (see
+		// splitNodesJoinTransactionalLayer): inside an active transaction they mutate in place, so the commit-merge
+		// rebuild (newPriceRecordTree from attachToCatalog) does not try to open a diff layer on a finalized transaction.
 		final BPlusLeafTreeNode<E> leftLeaf = new BPlusLeafTreeNode<>(
 			originValues,
 			newValueArray(this.valueBlockSize),
@@ -725,7 +742,10 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 *
 	 * @param <E> the element (value) type
 	 */
-	static class BPlusLeafTreeNode<E> implements LeafBPlusTreeNode<BPlusLeafTreeNode<E>>, IntBoundaryKeyedNode {
+	static class BPlusLeafTreeNode<E> implements
+		LeafBPlusTreeNode<BPlusLeafTreeNode<E>>,
+		IntBoundaryKeyedNode,
+		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento<E>> {
 		@Serial private static final long serialVersionUID = 4087516269781010854L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -1160,6 +1180,46 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Override
 		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			transactionalLayer.removeTransactionalMemoryLayer(this);
+		}
+
+		/**
+		 * Captures this layer's revertable copy-on-write state for a per-entity savepoint. Only the values array and the
+		 * peek index are mutable here (the keys are derived from the elements, so no key array is held); the array is
+		 * cloned (shallow — the stored elements either are immutable or own their own transactional layers and are
+		 * snapshotted independently) so that a later mutation, or a repeated {@link #restore}, cannot corrupt the
+		 * memento.
+		 *
+		 * @return an independent snapshot of this leaf's value array and peek
+		 */
+		@Nonnull
+		@Override
+		public BPlusLeafNodeMemento<E> snapshot() {
+			return new BPlusLeafNodeMemento<>(this.values.clone(), this.peek);
+		}
+
+		/**
+		 * Restores the value array captured by {@link #snapshot}. A fresh clone of the memento's array is installed so
+		 * the memento stays reusable for a repeated restore.
+		 *
+		 * @param memento the state previously captured by {@link #snapshot}
+		 */
+		@Override
+		public void restore(@Nonnull BPlusLeafNodeMemento<E> memento) {
+			this.values = memento.values().clone();
+			this.peek = memento.peek();
+		}
+
+		/**
+		 * Immutable savepoint memento of an element leaf's copy-on-write state. The array is a private clone owned by the
+		 * memento (see {@link #snapshot}); the elements it holds are shared by design.
+		 *
+		 * @param values clone of the element array
+		 * @param peek   the last occupied value index
+		 */
+		record BPlusLeafNodeMemento<E>(
+			@Nonnull E[] values,
+			int peek
+		) {
 		}
 
 		@Nonnull
