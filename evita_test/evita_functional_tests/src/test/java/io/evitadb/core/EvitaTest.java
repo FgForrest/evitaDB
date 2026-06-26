@@ -3859,9 +3859,12 @@ class EvitaTest implements EvitaTestSupport {
 				"Expected size on disk to be between 1000 and 1700 bytes, but was " + statistics2.sizeOnDiskInBytes()
 			);
 			final EntityCollectionStatistics productStatistics = statistics2.entityCollectionStatistics()[0];
+			// the granular index storage layout (per-leaf-page parts plus the sibling entity-id part) carries fixed
+			// per-part framing overhead, so a tiny collection persists a little larger than the legacy monolithic blob —
+			// the upper bound is widened accordingly while still bracketing the expected small-collection size
 			assertTrue(
-				productStatistics.sizeOnDiskInBytes() > 300L && productStatistics.sizeOnDiskInBytes() < 600L,
-				"Expected size on disk to be between 300 and 600 bytes, but was " + productStatistics.sizeOnDiskInBytes()
+				productStatistics.sizeOnDiskInBytes() > 300L && productStatistics.sizeOnDiskInBytes() < 700L,
+				"Expected size on disk to be between 300 and 700 bytes, but was " + productStatistics.sizeOnDiskInBytes()
 			);
 			assertEquals(
 				new CatalogStatistics(
