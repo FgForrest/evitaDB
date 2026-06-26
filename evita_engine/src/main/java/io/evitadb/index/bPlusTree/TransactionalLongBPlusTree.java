@@ -490,8 +490,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 */
 	public void insert(long key, @Nonnull V value) {
 		final Cursor cursor = createCursor(key);
-		//noinspection unchecked
-		final BPlusLeafTreeNode<V> leaf = (BPlusLeafTreeNode<V>) cursor.leafNode();
+		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 		if (leaf.insert(key, value)) {
 			this.size.set(size() + 1);
 		}
@@ -513,8 +512,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 */
 	public void upsert(long key, @Nonnull UnaryOperator<V> updater) {
 		final Cursor cursor = createCursor(key);
-		//noinspection unchecked
-		final BPlusLeafTreeNode<V> leaf = (BPlusLeafTreeNode<V>) cursor.leafNode();
+		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 
 		final int existingIndex = leaf.getValueIndex(key);
 		if (existingIndex >= 0) {
@@ -556,8 +554,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 */
 	public void delete(long key) {
 		final Cursor cursor = createCursor(key);
-		//noinspection unchecked
-		final BPlusLeafTreeNode<V> leaf = (BPlusLeafTreeNode<V>) cursor.leafNode();
+		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 
 		final boolean headRemoved = leaf.size() > 1 && key == leaf.getKeys()[0];
 		if (leaf.delete(key)) {
@@ -582,8 +579,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Nonnull
 	public Optional<V> search(long key) {
 		final Cursor cursor = createCursor(key);
-		//noinspection unchecked
-		final BPlusLeafTreeNode<V> leaf = (BPlusLeafTreeNode<V>) cursor.leafNode();
+		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 		return leaf.getValue(key);
 	}
 
@@ -597,8 +593,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	 */
 	public void markDirty(long key) {
 		final Cursor cursor = createCursor(key);
-		//noinspection unchecked
-		final BPlusLeafTreeNode<V> leaf = (BPlusLeafTreeNode<V>) cursor.leafNode();
+		final BPlusLeafTreeNode<V> leaf = cursor.leafNode();
 		if (leaf.getValueIndex(key) >= 0) {
 			leaf.markDirty();
 		}
@@ -923,7 +918,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		long key,
 		@Nonnull CursorWithLevel cursor
 	) {
-		final BPlusInternalTreeNode parent = (BPlusInternalTreeNode) cursor.parent();
+		final BPlusInternalTreeNode parent = cursor.parent();
 
 		Assert.notNull(parent, "Parent node must not be null.");
 		parent.adaptToLeafSplit(key, original, left, right);

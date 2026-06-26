@@ -777,16 +777,20 @@ abstract class AbstractTransactionalBPlusTree implements Serializable {
 		}
 
 		/**
-		 * Retrieves the parent node of the current node in the B+ Tree structure, if it exists.
+		 * Retrieves the parent node of the current node in the B+ Tree structure, if it exists. Declared generic in the
+		 * concrete internal-node type so callers bind their typed parent at the assignment site without an explicit
+		 * downcast, exactly like {@link #currentNode()}; a parent is always an internal node by the tree invariant, so
+		 * the unchecked cast is safe.
 		 *
-		 * @return the parent node of type {@code InternalBPlusTreeNode} if the current level is greater than 0,
-		 * otherwise {@code null}.
+		 * @param <N> the concrete internal-node type inferred at the call site
+		 * @return the parent node if the current level is greater than 0, otherwise {@code null}.
 		 */
 		@Nullable
-		public InternalBPlusTreeNode<?> parent() {
+		public <N extends InternalBPlusTreeNode<N>> N parent() {
 			if (this.level > 0) {
 				final CursorLevel parentLevel = this.path.get(this.level - 1);
-				return (InternalBPlusTreeNode<?>) parentLevel.siblings()[parentLevel.index()];
+				//noinspection unchecked
+				return (N) parentLevel.siblings()[parentLevel.index()];
 			} else {
 				return null;
 			}
