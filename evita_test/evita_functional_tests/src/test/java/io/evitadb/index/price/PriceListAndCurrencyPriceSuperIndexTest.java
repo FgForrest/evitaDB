@@ -40,12 +40,14 @@ import io.evitadb.index.price.PriceListAndCurrencyPriceIndex.PriceListAndCurrenc
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -59,7 +61,6 @@ import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.Random;
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Tag;
@@ -90,7 +91,6 @@ import static io.evitadb.test.TestTags.PRICE;
 @Tag(PRICE)
 class PriceListAndCurrencyPriceSuperIndexTest {
 	private static final PriceIndexKey PRICE_INDEX_KEY = new PriceIndexKey("basic", Currency.getInstance("CZK"), PriceInnerRecordHandling.NONE);
-	private static final Consumer<PriceRecordContract> NOOP_PRICE_RECORD_CALLBACK = priceRecordContract -> {};
 	private static final IntConsumer NOOP_NOT_FOUND_CALLBACK = notFound -> {};
 	private static PriceRecordContract[] PRICE_RECORDS;
 
@@ -105,7 +105,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 	}
 
 	/**
-	 * Tests verifying `getPriceRecords(Bitmap)` lookup by internal price ID bitmap.
+	 * Tests verifying `forEachPriceRecord` streaming lookup by internal price ID bitmap.
 	 */
 	@Nested
 	@DisplayName("Price record lookup by ID")
@@ -120,10 +120,11 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			final BaseBitmap allIds = new BaseBitmap(
 				Arrays.stream(PRICE_RECORDS).mapToInt(PriceRecordContract::internalPriceId).toArray()
 			);
-			final PriceRecordContract[] foundPriceRecords =
-				tested.getPriceRecords(allIds, NOOP_PRICE_RECORD_CALLBACK, NOOP_NOT_FOUND_CALLBACK);
+			final CompositeObjectArray<PriceRecordContract> foundPriceRecords =
+				new CompositeObjectArray<>(PriceRecordContract.class);
+			tested.forEachPriceRecord(allIds, foundPriceRecords::add, NOOP_NOT_FOUND_CALLBACK);
 
-			assertArrayEquals(PRICE_RECORDS, foundPriceRecords);
+			assertArrayEquals(PRICE_RECORDS, foundPriceRecords.toArray());
 		}
 
 		@Test
@@ -134,10 +135,11 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 
 			final BaseBitmap firstPriceId = new BaseBitmap(PRICE_RECORDS[0].internalPriceId());
 			final NotFoundCollector notFoundCollector = new NotFoundCollector();
-			final PriceRecordContract[] foundPriceRecords =
-				tested.getPriceRecords(firstPriceId, NOOP_PRICE_RECORD_CALLBACK, notFoundCollector);
+			final CompositeObjectArray<PriceRecordContract> foundPriceRecords =
+				new CompositeObjectArray<>(PriceRecordContract.class);
+			tested.forEachPriceRecord(firstPriceId, foundPriceRecords::add, notFoundCollector);
 
-			assertArrayEquals(Arrays.copyOfRange(PRICE_RECORDS, 0, 1), foundPriceRecords);
+			assertArrayEquals(Arrays.copyOfRange(PRICE_RECORDS, 0, 1), foundPriceRecords.toArray());
 			assertEquals(0, notFoundCollector.getArray().length);
 		}
 
@@ -150,12 +152,13 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 			final BaseBitmap lastPriceId =
 				new BaseBitmap(PRICE_RECORDS[PRICE_RECORDS.length - 1].internalPriceId());
 			final NotFoundCollector notFoundCollector = new NotFoundCollector();
-			final PriceRecordContract[] foundPriceRecords =
-				tested.getPriceRecords(lastPriceId, NOOP_PRICE_RECORD_CALLBACK, notFoundCollector);
+			final CompositeObjectArray<PriceRecordContract> foundPriceRecords =
+				new CompositeObjectArray<>(PriceRecordContract.class);
+			tested.forEachPriceRecord(lastPriceId, foundPriceRecords::add, notFoundCollector);
 
 			assertArrayEquals(
 				Arrays.copyOfRange(PRICE_RECORDS, PRICE_RECORDS.length - 1, PRICE_RECORDS.length),
-				foundPriceRecords
+				foundPriceRecords.toArray()
 			);
 			assertEquals(0, notFoundCollector.getArray().length);
 		}
@@ -180,7 +183,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 						.toArray()
 				);
 				final BaseBitmap randomNonExistingPrices = new BaseBitmap(
-					IntStream.generate(() -> 1 + random.nextInt(PRICE_RECORDS.length * 2))
+					IntStream.generate(() -> 1 + random.nextInt(PRICE_RECORDS.length << 1))
 						.filter(it -> ArrayUtils.binarySearch(
 							PRICE_RECORDS, it,
 							(price, pid) -> Integer.compare(price.internalPriceId(), pid)
@@ -194,10 +197,11 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 				).compute();
 
 				final NotFoundCollector notFoundCollector = new NotFoundCollector();
-				final PriceRecordContract[] foundPriceRecords =
-					tested.getPriceRecords(aggregate, NOOP_PRICE_RECORD_CALLBACK, notFoundCollector);
+				final CompositeObjectArray<PriceRecordContract> foundPriceRecords =
+					new CompositeObjectArray<>(PriceRecordContract.class);
+				tested.forEachPriceRecord(aggregate, foundPriceRecords::add, notFoundCollector);
 
-				assertArrayEquals(pickedRecords, foundPriceRecords);
+				assertArrayEquals(pickedRecords, foundPriceRecords.toArray());
 				assertArrayEquals(randomNonExistingPrices.getArray(), notFoundCollector.getArray());
 			}
 		}
@@ -283,9 +287,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 				index -> {
 					// no mutations
 				},
-				(original, committed) -> {
-					assertSame(original, committed);
-				}
+				Assertions::assertSame
 			);
 		}
 	}
@@ -632,7 +634,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 
 			assertThrows(
 				PriceListAndCurrencyPriceIndexTerminated.class,
-				() -> tested.isEmpty()
+				tested::isEmpty
 			);
 		}
 
@@ -647,7 +649,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 
 			assertThrows(
 				PriceListAndCurrencyPriceIndexTerminated.class,
-				() -> tested.getPriceRecords()
+				tested::getPriceRecords
 			);
 		}
 

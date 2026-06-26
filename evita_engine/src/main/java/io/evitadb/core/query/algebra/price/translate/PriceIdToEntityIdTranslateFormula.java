@@ -204,12 +204,14 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 				// collect array of price records that were used in the input formula (only some of them will be in current input)
 				final PriceListAndCurrencyPriceIndex<?, ?> priceIndex = priceIdFormula.getPriceIndex();
 				final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
-				final PriceRecordContract[] foundPrices = priceIndex.getPriceRecords(
+				priceIndex.forEachPriceRecord(
 					priceIdBitmap,
-					priceRecordContract -> entityIdWriter.add(priceRecordContract.entityPrimaryKey()),
+					priceRecordContract -> {
+						entityIdWriter.add(priceRecordContract.entityPrimaryKey());
+						theFilteredPriceRecords.add(priceRecordContract);
+					},
 					notFound::add
 				);
-				theFilteredPriceRecords.addAll(foundPrices, 0, foundPrices.length);
 
 				// otherwise, initialize new iterator from the leftovers
 				priceIdBitmap = new BaseBitmap(notFound.get());
@@ -242,8 +244,8 @@ public class PriceIdToEntityIdTranslateFormula extends AbstractCacheableFormula 
 	@Override
 	public int getEstimatedCardinality() {
 		int sum = 0;
-		for (int i = 0; i < this.innerFormulas.length; i++) {
-			sum += this.innerFormulas[i].getEstimatedCardinality();
+		for (final Formula innerFormula : this.innerFormulas) {
+			sum += innerFormula.getEstimatedCardinality();
 		}
 		return sum;
 	}

@@ -106,7 +106,7 @@ public class NonResolvedFilteredPriceRecords implements FilteredPriceRecords {
 
 		final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
 		for (PriceListAndCurrencyPriceIndex<?,?> priceIndex : this.priceIndexes) {
-			priceIndex.getPriceRecords(
+			priceIndex.forEachPriceRecord(
 				this.priceRecordsIds,
 				priceRecordContract -> result[resultPeek.getAndIncrement()] = priceRecordContract,
 				notFound::add

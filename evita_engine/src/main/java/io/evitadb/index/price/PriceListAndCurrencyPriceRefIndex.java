@@ -34,7 +34,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.array.TransactionalObjArray;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.price.model.PriceIndexKey;
@@ -51,8 +50,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
-import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Objects;
 
 /**
@@ -143,7 +140,7 @@ public class PriceListAndCurrencyPriceRefIndex
 		);
 		this.superIndex = (PriceListAndCurrencyPriceSuperIndex) superIndex;
 		final PriceRecordContract[] priceRecords = superIndex.getPriceRecords(this.indexedPriceIds);
-		this.priceRecords = new TransactionalObjArray<>(priceRecords, Comparator.naturalOrder());
+		this.priceRecords = newPriceRecordTree(priceRecords);
 
 		final int[] entityIds = new int[priceRecords.length];
 		for (int i = 0; i < priceRecords.length; i++) {
@@ -183,8 +180,8 @@ public class PriceListAndCurrencyPriceRefIndex
 		this.indexedPriceIds.add(priceRecord.internalPriceId());
 		// index validity
 		addValidity(validity, priceRecord.internalPriceId());
-		// add price to the translation triple
-		this.priceRecords.add(priceRecord);
+		// add price to the translation tree (keyed by internal price id)
+		this.priceRecords.insert(priceRecord);
 		// make index dirty
 		markDirtyAndInvalidateCache();
 
@@ -204,13 +201,13 @@ public class PriceListAndCurrencyPriceRefIndex
 		final PriceRecordContract priceRecord = this.superIndex.getPriceRecord(ipId);
 		final EntityPrices entityPrices = this.superIndex.getEntityPrices(priceRecord.entityPrimaryKey());
 
-		// remove price to the translation triple
-		this.priceRecords.remove(priceRecord);
+		// remove price from the translation tree (keyed by internal price id)
+		this.priceRecords.delete(priceRecord.internalPriceId());
 
 		// remove the presence of the record
 		this.indexedPriceIds.remove(priceRecord.internalPriceId());
 
-		if (!entityPrices.containsAnyOf(this.priceRecords.getArray())) {
+		if (!entityPrices.containsAnyOf(this.priceRecords.toArray())) {
 			// remove the presence of the record
 			this.indexedPriceEntityIds.remove(priceRecord.entityPrimaryKey());
 		}
@@ -250,15 +247,10 @@ public class PriceListAndCurrencyPriceRefIndex
 	@Override
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
-			final int[] priceIds = new int[this.priceRecords.getLength()];
-			final Iterator<PriceRecordContract> it = this.priceRecords.iterator();
-			int index = 0;
-			while (it.hasNext()) {
-				final PriceRecordContract priceRecord = it.next();
-				priceIds[index++] = priceRecord.internalPriceId();
-			}
+			// the indexed price-id bitmap is kept in lockstep with the price-record tree (every add/remove updates both),
+			// so it already holds exactly the internal price ids to persist, ascending — no need to walk the tree
 			return new PriceListAndCurrencyRefIndexStoragePart(
-				entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex, priceIds
+				entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex, this.indexedPriceIds.getArray()
 			);
 		} else {
 			return null;

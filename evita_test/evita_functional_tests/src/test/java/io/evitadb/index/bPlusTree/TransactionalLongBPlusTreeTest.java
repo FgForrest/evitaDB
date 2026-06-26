@@ -511,8 +511,8 @@ class TransactionalLongBPlusTreeTest {
 		@DisplayName("releases diff layer of a producer value replaced by a different instance via upsert")
 		void shouldNotLeakLayerWhenProducerValueIsReplacedByDifferentInstanceViaUpsert() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
-				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, o -> (TransactionalBitmap) o);
-			tree.insert(1, new TransactionalBitmap(new int[]{10}));
+				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, TransactionalBitmap.class::cast);
+			tree.insert(1, new TransactionalBitmap(10));
 
 			assertStateAfterCommit(
 				tree,
@@ -521,7 +521,7 @@ class TransactionalLongBPlusTreeTest {
 					// instance via upsert - the discarded old instance's layer must be released
 					original.upsert(1, existing -> {
 						existing.add(11);
-						return new TransactionalBitmap(new int[]{30});
+						return new TransactionalBitmap(30);
 					});
 				},
 				(original, committed) -> {
@@ -629,8 +629,8 @@ class TransactionalLongBPlusTreeTest {
 		@DisplayName("releases diff layer of a modified producer value that is deleted in the same transaction")
 		void shouldNotLeakLayerWhenModifiedProducerValueIsDeleted() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
-				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, o -> (TransactionalBitmap) o);
-			tree.insert(1, new TransactionalBitmap(new int[]{10}));
+				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, TransactionalBitmap.class::cast);
+			tree.insert(1, new TransactionalBitmap(10));
 
 			assertStateAfterCommit(
 				tree,
@@ -650,13 +650,13 @@ class TransactionalLongBPlusTreeTest {
 		@DisplayName("sweeps cleanly when a freshly created producer value is added and deleted in the same transaction")
 		void shouldNotLeakLayerWhenFreshlyCreatedProducerValueIsAddedThenDeleted() {
 			final TransactionalLongBPlusTree<TransactionalBitmap> tree =
-				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, o -> (TransactionalBitmap) o);
+				new TransactionalLongBPlusTree<>(TransactionalBitmap.class, TransactionalBitmap.class::cast);
 
 			assertStateAfterCommit(
 				tree,
 				original -> {
 					// create a brand-new producer value, mutate it, then delete it within the same txn
-					final TransactionalBitmap fresh = new TransactionalBitmap(new int[]{20});
+					final TransactionalBitmap fresh = new TransactionalBitmap(20);
 					original.insert(2, fresh);
 					fresh.add(21);
 					original.delete(2);
@@ -930,7 +930,7 @@ class TransactionalLongBPlusTreeTest {
 		@Nonnull
 		private static TransactionalLongBPlusTree.BPlusInternalTreeNode emptyInternalNode() {
 			return new TransactionalLongBPlusTree.BPlusInternalTreeNode(
-				new long[3], new TransactionalLongBPlusTree.BPlusTreeNode<?>[4], 0, 0, 0, 0, true
+				new long[3], new BPlusTreeNode<?>[4], 0, 0, 0, 0, true
 			);
 		}
 
@@ -959,12 +959,12 @@ class TransactionalLongBPlusTreeTest {
 		 */
 		@Nonnull
 		private static TransactionalLongBPlusTree.BPlusInternalTreeNode internal(
-			@Nonnull long[] keys, @Nonnull TransactionalLongBPlusTree.BPlusTreeNode<?>... children
+			@Nonnull long[] keys, @Nonnull BPlusTreeNode<?>... children
 		) {
 			final long[] keyArray = new long[3];
 			System.arraycopy(keys, 0, keyArray, 0, keys.length);
-			final TransactionalLongBPlusTree.BPlusTreeNode<?>[] childArray =
-				new TransactionalLongBPlusTree.BPlusTreeNode<?>[4];
+			final BPlusTreeNode<?>[] childArray =
+				new BPlusTreeNode<?>[4];
 			System.arraycopy(children, 0, childArray, 0, children.length);
 			return new TransactionalLongBPlusTree.BPlusInternalTreeNode(
 				keyArray, childArray, 0, keys.length, 0, children.length, true
@@ -1337,8 +1337,8 @@ class TransactionalLongBPlusTreeTest {
 			assertTrue(insertionPosition.alreadyPresent());
 			final int startPos = insertionPosition.position();
 			final long[] partialCopy = new long[plainFullArray.length - startPos];
-			for (int i = startPos; i < plainFullArray.length; i++) {
-				partialCopy[i - startPos] = plainFullArray[i];
+			if (plainFullArray.length - startPos >= 0) {
+				System.arraycopy(plainFullArray, startPos, partialCopy, 0, plainFullArray.length - startPos);
 			}
 
 			final long[] reconstructedArray = new long[partialCopy.length];
@@ -1636,9 +1636,7 @@ class TransactionalLongBPlusTreeTest {
 				ArrayUtils.computeInsertPositionOfLongInOrderedArray(39, plainFullArray);
 
 			assertFalse(insertionPosition.alreadyPresent());
-			final int thePosition = insertionPosition.alreadyPresent()
-				? insertionPosition.position() + 1
-				: insertionPosition.position();
+			final int thePosition = insertionPosition.position();
 			final String[] partialCopy = new String[thePosition];
 			for (int i = partialCopy.length - 1; i >= 0; i--) {
 				partialCopy[thePosition - i - 1] = "Value" + plainFullArray[i];
@@ -2348,15 +2346,15 @@ class TransactionalLongBPlusTreeTest {
 		@SuppressWarnings("unchecked")
 		private static void installRoot(
 			@Nonnull TransactionalLongBPlusTree<String> tree,
-			@Nonnull TransactionalLongBPlusTree.BPlusTreeNode<?> root,
+			@Nonnull BPlusTreeNode<?> root,
 			int size
 		) {
 			try {
-				final Field rootField = TransactionalLongBPlusTree.class.getDeclaredField("root");
+				final Field rootField = AbstractTransactionalBPlusTree.class.getDeclaredField("root");
 				rootField.setAccessible(true);
-				((TransactionalReference<TransactionalLongBPlusTree.BPlusTreeNode<?>>)
+				((TransactionalReference<BPlusTreeNode<?>>)
 					rootField.get(tree)).set(root);
-				final Field sizeField = TransactionalLongBPlusTree.class.getDeclaredField("size");
+				final Field sizeField = AbstractTransactionalBPlusTree.class.getDeclaredField("size");
 				sizeField.setAccessible(true);
 				((TransactionalReference<Integer>) sizeField.get(tree)).set(size);
 			} catch (ReflectiveOperationException e) {
@@ -2389,12 +2387,12 @@ class TransactionalLongBPlusTreeTest {
 		 */
 		@Nonnull
 		private static TransactionalLongBPlusTree.BPlusInternalTreeNode internal(
-			@Nonnull long[] keys, @Nonnull TransactionalLongBPlusTree.BPlusTreeNode<?>... children
+			@Nonnull long[] keys, @Nonnull BPlusTreeNode<?>... children
 		) {
 			final long[] keyArray = new long[5];
 			System.arraycopy(keys, 0, keyArray, 0, keys.length);
-			final TransactionalLongBPlusTree.BPlusTreeNode<?>[] childArray =
-				new TransactionalLongBPlusTree.BPlusTreeNode<?>[6];
+			final BPlusTreeNode<?>[] childArray =
+				new BPlusTreeNode<?>[6];
 			System.arraycopy(children, 0, childArray, 0, children.length);
 			return new TransactionalLongBPlusTree.BPlusInternalTreeNode(
 				keyArray, childArray, 0, keys.length, 0, children.length, true

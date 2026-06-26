@@ -30,7 +30,6 @@ import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -44,7 +43,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.PrimitiveIterator.OfLong;
@@ -63,7 +61,7 @@ import static io.evitadb.utils.ArrayUtils.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @NotThreadSafe
-public class TransactionalIntToLongBPlusTree implements
+public class TransactionalIntToLongBPlusTree extends AbstractTransactionalBPlusTree implements
 	TransactionalLayerProducer<Void, TransactionalIntToLongBPlusTree>,
 	Serializable,
 	ConsistencySensitiveDataStructure {
@@ -73,108 +71,18 @@ public class TransactionalIntToLongBPlusTree implements
 	private static final int DEFAULT_INTERNAL_NODE_BLOCK_SIZE = DEFAULT_VALUE_BLOCK_SIZE / 2 - 1;
 	private static final int DEFAULT_MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(
 		(float) DEFAULT_INTERNAL_NODE_BLOCK_SIZE / 2.0) - 1);
-	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
-	/**
-	 * Maximum number of keys = values per leaf node. Use odd number. The number of keys in internal nodes is one less.
-	 */
-	@Getter private final int valueBlockSize;
-	/**
-	 * Minimum number of keys = values per leaf node. Controls branching factor for leaf nodes.
-	 */
-	@Getter private final int minValueBlockSize;
-	/**
-	 * Maximum number of keys per leaf node. Use odd number. The number of children in internal nodes is one more.
-	 */
-	@Getter private final int internalNodeBlockSize;
-	/**
-	 * Minimum number of keys per internal node. Controls branching factor for internal nodes.
-	 */
-	@Getter private final int minInternalNodeBlockSize;
-	/**
-	 * Number of elements in the tree.
-	 */
-	private final TransactionalReference<Integer> size;
-	/**
-	 * Root node of the tree.
-	 */
-	private final TransactionalReference<BPlusTreeNode<?>> root;
 
 	/**
-	 * Updates the keys in the parent nodes of a B+ Tree based on changes in a specific path.
-	 * This method propagates changes up the tree as necessary.
+	 * Returns the left boundary key of an arbitrary node reached through the key-agnostic {@link BPlusTreeNode} SPI
+	 * (e.g. an element of an internal node's children array). The primitive-key accessor lives on the per-tree
+	 * {@link IntKeyedNode} marker so it stays out of the shared SPI (which must never expose a typed key); every node
+	 * in this tree implements it, so the cast is always safe.
 	 *
-	 * @param cursorWithLevel the cursor representing the path from the root to the node where the changes occurred
+	 * @param node the node whose left boundary key is requested
+	 * @return the left boundary (smallest) key of the node
 	 */
-	private static void updateParentKeys(@Nonnull CursorWithLevel cursorWithLevel) {
-		BPlusInternalTreeNode immediateParent = cursorWithLevel.parent();
-		while (immediateParent != null) {
-			if (cursorWithLevel.currentNodeIndex() > 0) {
-				immediateParent.updateKeyForNode(cursorWithLevel.currentNodeIndex(), cursorWithLevel.currentNode());
-			}
-			cursorWithLevel = cursorWithLevel.toParentLevel();
-			immediateParent = cursorWithLevel != null ? cursorWithLevel.parent() : null;
-		}
-	}
-
-	/**
-	 * Verifies that the height of all tree branches is the same and returns the height of the tree. The B+ tree needs
-	 * to be balanced to achieve O(log n) complexity for search operations.
-	 *
-	 * @param tree the B+ tree to verify
-	 * @return the height of the tree
-	 */
-	private static int verifyAndReturnHeight(@Nonnull TransactionalIntToLongBPlusTree tree) {
-		final BPlusTreeNode<?> root = tree.getRoot();
-		if (root instanceof BPlusInternalTreeNode internalNode) {
-			final int resultHeight = verifyAndReturnHeight(internalNode, 0);
-			for (int i = 0; i <= internalNode.getPeek(); i++) {
-				verifyHeightOfAllChildren(internalNode.getChildren()[i], 1, resultHeight);
-			}
-			return resultHeight;
-		} else {
-			return 0;
-		}
-	}
-
-	/**
-	 * Verifies that all children of the given BPlusTreeNode have the correct height.
-	 * For internal nodes, it recursively verifies the height of their child nodes.
-	 * For leaf nodes, it checks if their height matches the maximal height.
-	 *
-	 * @param node          the BPlusTreeNode whose children are being verified, must not be null
-	 * @param nodeHeight    the height of the current node
-	 * @param maximalHeight the maximal height value that should be matched by leaf nodes
-	 */
-	private static void verifyHeightOfAllChildren(@Nonnull BPlusTreeNode<?> node, int nodeHeight, int maximalHeight) {
-		if (node instanceof BPlusInternalTreeNode internalNode) {
-			final int childHeight = nodeHeight + 1;
-			for (int i = 0; i < internalNode.size(); i++) {
-				verifyHeightOfAllChildren(internalNode.getChildren()[i], childHeight, maximalHeight);
-			}
-		} else {
-			if (maximalHeight != nodeHeight) {
-				throw new IllegalStateException(
-					"Leaf node " + node + " has a different height (" + nodeHeight + ") " +
-						"than the maximal height (" + maximalHeight + ")!"
-				);
-			}
-		}
-	}
-
-	/**
-	 * Verifies and calculates the height of a B+ tree starting from the given internal node.
-	 *
-	 * @param node          the internal node of the B+ tree to start height calculation from; must not be null
-	 * @param currentHeight the current height accumulated in the recursive process
-	 * @return the height of the B+ tree from the given node
-	 */
-	private static int verifyAndReturnHeight(@Nonnull BPlusInternalTreeNode node, int currentHeight) {
-		final BPlusTreeNode<?> child = node.getChildren()[0];
-		if (child instanceof BPlusInternalTreeNode internalChild) {
-			return verifyAndReturnHeight(internalChild, currentHeight + 1);
-		} else {
-			return currentHeight + 1;
-		}
+	private static int leftBoundaryKeyOf(@Nonnull BPlusTreeNode<?> node) {
+		return ((IntKeyedNode) node).getLeftBoundaryKey();
 	}
 
 	/**
@@ -214,44 +122,6 @@ public class TransactionalIntToLongBPlusTree implements
 				} else {
 					throw new IllegalStateException("Unknown node type: " + child);
 				}
-			}
-		}
-	}
-
-	/**
-	 * Verifies that the given B+ tree node and its child nodes satisfy the minimum required values
-	 * in their blocks. Throws an IllegalStateException if any node violates the minimum count condition.
-	 *
-	 * @param node                     the B+ tree node to verify, which can be an internal node or a leaf node. Must not be null.
-	 * @param minValueBlockSize        the minimum number of values required in a leaf node that is not the root.
-	 * @param minInternalNodeBlockSize the minimum number of values required in an internal node.
-	 * @param isRoot                   a boolean indicating if the current node being verified is the root of the tree.
-	 */
-	private static void verifyMinimalCountOfValuesInNodes(
-		@Nonnull BPlusTreeNode<?> node, int minValueBlockSize, int minInternalNodeBlockSize, boolean isRoot) {
-		if (node instanceof BPlusInternalTreeNode internalNode) {
-			// the minimum occupancy invariant constrains the number of keys, not children; an internal node
-			// with c children holds c - 1 keys, so checking the child count (size()) would be one slot too
-			// lenient and would accept a node that is genuinely under-occupied in keys; the root is exempt
-			// from the minimum because it may legitimately hold a single key
-			if (!isRoot && internalNode.keyCount() < minInternalNodeBlockSize) {
-				throw new IllegalStateException(
-					"Internal node " + internalNode + " has less than " + minInternalNodeBlockSize +
-						" keys (" + internalNode.keyCount() + ")!"
-				);
-			}
-			// recurse into the whole subtree regardless of whether this node is the root - the occupancy of
-			// the descendants must always be validated, only the root itself is exempt from the minimum
-			for (int i = 0; i < internalNode.size(); i++) {
-				verifyMinimalCountOfValuesInNodes(
-					internalNode.getChildren()[i], minValueBlockSize, minInternalNodeBlockSize, false
-				);
-			}
-		} else {
-			if (node.size() < minValueBlockSize && !isRoot) {
-				throw new IllegalStateException(
-					"Leaf node " + node + " has less than " + minValueBlockSize + " values (" + node.size() + ")!"
-				);
 			}
 		}
 	}
@@ -338,45 +208,6 @@ public class TransactionalIntToLongBPlusTree implements
 	}
 
 	/**
-	 * This method recursively traverses the B+ tree to find the least (leftmost) leaf node.
-	 * It also populates the path traversed with internal nodes.
-	 *
-	 * @param currentNode The current internal tree node being traversed. Must not be null.
-	 * @param path        A list to store the sequence of internal nodes visited. Must not be null.
-	 */
-	private static void addLeftmostCursorLevels(
-		@Nonnull BPlusInternalTreeNode currentNode,
-		@Nonnull List<CursorLevel> path
-	) {
-		final BPlusTreeNode<?>[] children = currentNode.getChildren();
-		path.add(new CursorLevel(children, 0, currentNode.getPeek()));
-		// if the child is an internal node, continue traversing down the tree
-		if (children[0] instanceof BPlusInternalTreeNode childInternalNode) {
-			addLeftmostCursorLevels(childInternalNode, path);
-		}
-	}
-
-	/**
-	 * This method recursively traverses the B+ tree to find the greatest (rightmost) leaf node.
-	 * It also populates the path traversed with internal nodes.
-	 *
-	 * @param currentNode The current internal tree node being traversed. Must not be null.
-	 * @param path        A list to store the sequence of internal nodes visited. Must not be null.
-	 */
-	private static void addRightmostCursorLevels(
-		@Nonnull BPlusInternalTreeNode currentNode,
-		@Nonnull List<CursorLevel> path
-	) {
-		final int currentNodePeek = currentNode.getPeek();
-		final BPlusTreeNode<?>[] children = currentNode.getChildren();
-		path.add(new CursorLevel(children, currentNodePeek, currentNodePeek));
-		// if the child is an internal node, continue traversing down the tree
-		if (children[currentNodePeek] instanceof BPlusInternalTreeNode childInternalNode) {
-			addRightmostCursorLevels(childInternalNode, path);
-		}
-	}
-
-	/**
 	 * Constructor to initialize the B+ Tree with default block sizes.
 	 */
 	public TransactionalIntToLongBPlusTree() {
@@ -436,56 +267,13 @@ public class TransactionalIntToLongBPlusTree implements
 		@Nonnull BPlusTreeNode<?> root,
 		int size
 	) {
-		Assert.isPremiseValid(valueBlockSize >= 3, "Block size must be at least 3.");
-		Assert.isPremiseValid(minValueBlockSize >= 1, "Minimum block size must be at least 1.");
-		Assert.isPremiseValid(
-			minValueBlockSize <= Math.ceil((float) valueBlockSize / 2.0) - 1,
-			"Minimum block size must be less than half of the block size, otherwise the tree nodes might be immediately full after merges."
-		);
-		Assert.isPremiseValid(internalNodeBlockSize >= 3, "Internal node block size must be at least 3.");
-		Assert.isPremiseValid(internalNodeBlockSize % 2 == 1, "Internal node block size must be an odd number.");
-		Assert.isPremiseValid(minInternalNodeBlockSize >= 1, "Minimum internal node block size must be at least 1.");
-		Assert.isPremiseValid(
-			minInternalNodeBlockSize <= Math.ceil((float) internalNodeBlockSize / 2.0) - 1,
-			"Minimum internal node block size must be less than half of the internal node block size, otherwise the tree nodes might be immediately full after merges."
-		);
-		Assert.isPremiseValid(
-			internalNodeBlockSize <= valueBlockSize,
-			"Internal node block size must not exceed the value block size, otherwise internal node merges overflow the node arrays."
-		);
-		this.valueBlockSize = valueBlockSize;
-		this.minValueBlockSize = minValueBlockSize;
-		this.internalNodeBlockSize = internalNodeBlockSize;
-		this.minInternalNodeBlockSize = minInternalNodeBlockSize;
-		this.root = new TransactionalReference<>(root);
-		this.size = new TransactionalReference<>(size);
+		super(valueBlockSize, minValueBlockSize, internalNodeBlockSize, minInternalNodeBlockSize, root, size);
 	}
 
-	/**
-	 * Retrieves the root node of the B+ tree.
-	 *
-	 * @return the root node of the B+ tree, guaranteed to be non-null.
-	 */
 	@Nonnull
-	public BPlusTreeNode<?> getRoot() {
-		return Objects.requireNonNull(this.root.get());
-	}
-
-	/**
-	 * Sets the root node of the B+ tree to the specified new root node.
-	 * This method removes the changes associated with the previous root
-	 * before replacing it with the new root.
-	 *
-	 * @param newRoot the new root node to be set for the B+ tree; must not be null
-	 */
-	public void setRoot(@Nonnull BPlusTreeNode<?> newRoot) {
-		// remove changes of the previous root - it gets replaced
-		final BPlusTreeNode<?> currentRoot = getRoot();
-		if (Transaction.getTransactionalMemoryLayerIfExists(currentRoot) != null) {
-			currentRoot.removeLayer();
-		}
-		// set new root
-		this.root.set(newRoot);
+	@Override
+	protected BPlusTreeNode<?> newEmptyLeaf() {
+		return new BPlusLeafTreeNode(this.valueBlockSize, true);
 	}
 
 	/**
@@ -497,7 +285,7 @@ public class TransactionalIntToLongBPlusTree implements
 	 */
 	public void insert(int key, long value) {
 		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode leaf = cursor.leafNode();
+		final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) cursor.leafNode();
 		if (leaf.insert(key, value)) {
 			this.size.set(size() + 1);
 		}
@@ -519,7 +307,7 @@ public class TransactionalIntToLongBPlusTree implements
 	 */
 	public void upsert(int key, @Nonnull LongUnaryOperator updater) {
 		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode leaf = cursor.leafNode();
+		final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) cursor.leafNode();
 
 		final int existingIndex = leaf.getValueIndex(key);
 		if (existingIndex >= 0) {
@@ -551,7 +339,7 @@ public class TransactionalIntToLongBPlusTree implements
 	 */
 	public void delete(int key) {
 		final Cursor cursor = createCursor(key);
-		final BPlusLeafTreeNode leaf = cursor.leafNode();
+		final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) cursor.leafNode();
 
 		final boolean headRemoved = leaf.size() > 1 && key == leaf.getKeys()[0];
 		if (leaf.delete(key)) {
@@ -576,16 +364,7 @@ public class TransactionalIntToLongBPlusTree implements
 	@Nonnull
 	public OptionalLong search(int key) {
 		final Cursor cursor = createCursor(key);
-		return cursor.leafNode().getValue(key);
-	}
-
-	/**
-	 * Returns the number of elements currently stored in the B+ tree.
-	 *
-	 * @return the size of the tree, represented as the number of elements it contains
-	 */
-	public int size() {
-		return Objects.requireNonNull(this.size.get());
+		return ((BPlusLeafTreeNode) cursor.leafNode()).getValue(key);
 	}
 
 	/**
@@ -728,41 +507,10 @@ public class TransactionalIntToLongBPlusTree implements
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		// recurse into the size and root references and the whole node graph so that a tree which was created
 		// and discarded within the same transaction (e.g. a removed sub-index) does not leave any of its inner
-		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5)
+		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep
 		this.size.removeLayer(transactionalLayer);
 		this.root.removeLayer(transactionalLayer);
 		removeLayerRecursively(getRoot(), transactionalLayer);
-	}
-
-	/**
-	 * Recursively removes the transactional diff layers of the passed node and its descendants. Walks the current
-	 * transactional view of the tree.
-	 *
-	 * Unlike the generic-value tree, leaf values are primitive `long` here and are never
-	 * {@link TransactionalLayerProducer}s, so there is no per-value layer to remove.
-	 *
-	 * @param node               the node whose layer (and that of its subtree) is to be removed
-	 * @param transactionalLayer the maintainer that owns the diff layers
-	 */
-	private static void removeLayerRecursively(
-		@Nonnull BPlusTreeNode<?> node,
-		@Nonnull TransactionalLayerMaintainer transactionalLayer
-	) {
-		if (node instanceof final BPlusInternalTreeNode internalNode) {
-			final BPlusTreeNode<?>[] children = internalNode.getChildren();
-			final int peek = internalNode.getPeek();
-			for (int i = 0; i <= peek; i++) {
-				removeLayerRecursively(children[i], transactionalLayer);
-			}
-		} else if (node instanceof BPlusLeafTreeNode) {
-			// leaf values are primitive longs, never TransactionalLayerProducers - nothing to recurse into
-		} else {
-			throw new GenericEvitaInternalError("Unknown node type: " + node);
-		}
-		// the node's own removeLayer asserts a layer exists - only call it when one is actually open
-		if (Transaction.getTransactionalMemoryLayerIfExists(node) != null) {
-			node.removeLayer(transactionalLayer);
-		}
 	}
 
 	@Nonnull
@@ -808,179 +556,6 @@ public class TransactionalIntToLongBPlusTree implements
 		} catch (IllegalStateException e) {
 			return new ConsistencyReport(ConsistencyState.BROKEN, e.getMessage());
 		}
-	}
-
-	/**
-	 * Consolidates the provided B+ tree node to maintain the structural properties of the tree.
-	 * This method is responsible for handling scenarios where nodes might underflow in terms of
-	 * the minimum number of keys or children allowed, and attempts strategies such as borrowing
-	 * keys from sibling nodes or merging nodes. If changes propagate up the tree (e.g., through
-	 * node merges), the parent nodes are also consolidated.
-	 *
-	 * @param cursor the cursor representing the path from the root to the node to be consolidated
-	 */
-	private <N extends BPlusTreeNode<N>> void consolidate(@Nonnull Cursor cursor) {
-		CursorWithLevel cursorWithLevel = cursor.toCursorWithLevel();
-
-		while (cursorWithLevel != null) {
-			final N node = cursorWithLevel.currentNode();
-			// use appropriate thresholds based on node type
-			final boolean isInternal =
-				node instanceof BPlusInternalTreeNode;
-			final int minBlock = isInternal
-				? this.minInternalNodeBlockSize
-				: this.minValueBlockSize;
-			final int maxBlock = isInternal
-				? this.internalNodeBlockSize
-				: this.valueBlockSize;
-			final boolean underFlowNode =
-				node.keyCount() < minBlock;
-			if (underFlowNode) {
-				final BPlusInternalTreeNode parent = cursorWithLevel.parent();
-				if (parent != null) {
-					final boolean nodeIsEmpty = node.size() == 0;
-					final CursorWithLevel previousNodeCursor = cursorWithLevel.getCursorForPreviousNode();
-					// if previous node with current node exists and shares the same parent
-					// and we can steal from the left sibling
-					if (previousNodeCursor != null) {
-						final N previousNode = previousNodeCursor.currentNode();
-						if (previousNode.keyCount() > minBlock) {
-							// steal half of the surplus data from the left sibling
-							node.stealFromLeft(
-								Math.max(1, (previousNode.keyCount() - minBlock) / 2), previousNode);
-							// update parent keys
-							updateParentKeys(cursorWithLevel);
-							return;
-						}
-					}
-
-					final CursorWithLevel nextNodeCursor = cursorWithLevel.getCursorForNextNode();
-					// if next node with current node exists and shares the same parent
-					// and we can steal from the right sibling
-					if (nextNodeCursor != null) {
-						final N nextNode = nextNodeCursor.currentNode();
-						if (nextNode.keyCount() > minBlock) {
-							// steal half of the surplus data from the right sibling
-							node.stealFromRight(
-								Math.max(1, (nextNode.keyCount() - minBlock) / 2), nextNode);
-							// update parent keys of the next node - we've stolen its first key
-							updateParentKeys(nextNodeCursor);
-							// update parent keys, but only if node was empty - which means first key was added
-							if (isInternal || nodeIsEmpty) {
-								updateParentKeys(cursorWithLevel);
-							}
-							return;
-						}
-					}
-
-					// if previous node with current node can be merged and share the same parent
-					if (previousNodeCursor != null) {
-						final N previousNode = previousNodeCursor.currentNode();
-						if (previousNode.keyCount() + node.keyCount() < maxBlock) {
-							// merge nodes
-							node.mergeWithLeft(previousNode);
-							// remove the removed child from the parent
-							parent.removeChildOnIndex(
-								previousNodeCursor.currentNodeIndex(), previousNodeCursor.currentNodeIndex());
-							// the merged-away node is detached from the tree - drop its transactional layer
-							// (touched during the merge) so the commit walk does not leave it stale
-							if (Transaction.getTransactionalMemoryLayerIfExists(previousNode) != null) {
-								previousNode.removeLayer();
-							}
-							// update parent keys, previous node has been removed
-							updateParentKeys(previousNodeCursor.withReplacedCurrentNode(node));
-							// consolidate the parent node
-							cursorWithLevel = cursorWithLevel.toParentLevel();
-							// continue with parent level
-							continue;
-						}
-					}
-
-					// if next node with current node can be merged and share the same parent
-					if (nextNodeCursor != null) {
-						final N nextNode = nextNodeCursor.currentNode();
-						if (nextNode.keyCount() + node.keyCount() < maxBlock) {
-							// merge nodes
-							node.mergeWithRight(nextNode);
-							// remove the removed child from the parent
-							parent.removeChildOnIndex(
-								nextNodeCursor.currentNodeIndex() - 1, nextNodeCursor.currentNodeIndex());
-							// the merged-away node is detached from the tree - drop its transactional layer
-							// (touched during the merge) so the commit walk does not leave it stale
-							if (Transaction.getTransactionalMemoryLayerIfExists(nextNode) != null) {
-								nextNode.removeLayer();
-							}
-							// update parent keys, next node has been removed
-							updateParentKeys(cursorWithLevel.withReplacedCurrentNode(node));
-							// consolidate the parent node
-							cursorWithLevel = cursorWithLevel.toParentLevel();
-						}
-					}
-				} else if (node == this.getRoot()) {
-					final BPlusTreeNode<?> theRoot = this.getRoot();
-					if (node.size() == 1 && node instanceof BPlusInternalTreeNode internalTreeNode) {
-						final BPlusTreeNode<?> firstChild = internalTreeNode.getChildren()[0];
-						if (Transaction.getTransactionalMemoryLayerIfExists(theRoot) != null) {
-							theRoot.removeLayer();
-						}
-						// replace the root with the only child
-						this.root.set(firstChild);
-					} else if (node.size() == 0 && node instanceof BPlusInternalTreeNode) {
-						if (Transaction.getTransactionalMemoryLayerIfExists(theRoot) != null) {
-							theRoot.removeLayer();
-						}
-						// the root is empty, create a new empty leaf node
-						this.root.set(
-							new BPlusLeafTreeNode(this.valueBlockSize, true)
-						);
-					}
-					cursorWithLevel = null;
-				}
-			} else {
-				// no underflow, we can break the loop
-				cursorWithLevel = null;
-			}
-		}
-	}
-
-	/**
-	 * Finds the leftmost leaf node in the B+ tree. The method begins its search from the root node and
-	 * traverses down to the leaf node by following the first child pointer of each internal node.
-	 *
-	 * @return the cursor to the leftmost leaf node of the tree
-	 */
-	@Nonnull
-	private Cursor createLeftmostCursor() {
-		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
-		final BPlusTreeNode<?> theRoot = this.getRoot();
-		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
-		path.add(new CursorLevel(rootSiblings, 0, 0));
-		// if the root is internal node, add the levels to the path until the leaf node is reached
-		if (theRoot instanceof BPlusInternalTreeNode rootInternalNode) {
-			addLeftmostCursorLevels(rootInternalNode, path);
-
-		}
-		return new Cursor(path);
-	}
-
-	/**
-	 * Finds the rightmost leaf node in the B+ tree. The method begins its search from the root node and
-	 * traverses down to the leaf node by following the last child pointer of each internal node.
-	 *
-	 * @return the cursor to the rightmost leaf node of the tree
-	 */
-	@Nonnull
-	private Cursor createRightmostCursor() {
-		final ArrayList<CursorLevel> path = new ArrayList<>(this.size() == 0 ? 1 : (int) (Math.log(this.size()) + 1));
-		final BPlusTreeNode<?> theRoot = this.getRoot();
-		final BPlusTreeNode<?>[] rootSiblings = new BPlusTreeNode<?>[]{theRoot};
-		path.add(new CursorLevel(rootSiblings, 0, 0));
-		// if the root is internal node, add the levels to the path until the leaf node is reached
-		if (theRoot instanceof BPlusInternalTreeNode rootInternalNode) {
-			addRightmostCursorLevels(rootInternalNode, path);
-
-		}
-		return new Cursor(path);
 	}
 
 	/**
@@ -1088,7 +663,7 @@ public class TransactionalIntToLongBPlusTree implements
 		int key,
 		@Nonnull CursorWithLevel cursor
 	) {
-		final BPlusInternalTreeNode parent = cursor.parent();
+		final BPlusInternalTreeNode parent = (BPlusInternalTreeNode) cursor.parent();
 
 		Assert.notNull(parent, "Parent node must not be null.");
 		parent.adaptToLeafSplit(key, original, left, right);
@@ -1165,13 +740,11 @@ public class TransactionalIntToLongBPlusTree implements
 	}
 
 	/**
-	 * B+ Tree Node interface representing a node in the B+ tree structure. Implemented by both internal nodes
-	 * (which hold keys and child pointers) and leaf nodes (which hold keys and values).
+	 * Per-tree typed marker that exposes the primitive `int` key accessors common to both node kinds, kept off the
+	 * key-agnostic {@link BPlusTreeNode} SPI so the shared base never sees (and never boxes) a key. Typed call sites
+	 * that hold only a {@link BPlusTreeNode} reference (e.g. a children-array element) cast to this to read the keys.
 	 */
-	interface BPlusTreeNode<N extends BPlusTreeNode<N>>
-		extends
-		TransactionalLayerProducer<N, N>,
-		Serializable {
+	interface IntKeyedNode {
 
 		/**
 		 * Retrieves an array of integer keys associated with the node.
@@ -1182,93 +755,19 @@ public class TransactionalIntToLongBPlusTree implements
 		int[] getKeys();
 
 		/**
-		 * Retrieves the peek index (last usable value) of the B+ Tree node's values / children.
+		 * Retrieves the left boundary (smallest) key contained within the node.
 		 *
-		 * @return the peek value of the node, indicating the last usable index in the node's values / children array.
-		 */
-		int getPeek();
-
-		/**
-		 * Sets the peek index of the B+ Tree node. The peek index indicates the last
-		 * usable position in the node's values or children array.
-		 *
-		 * @param peek the new peek index to set for the node
-		 */
-		void setPeek(int peek);
-
-		/**
-		 * Returns number of values in this node - i.e. peek + 1.
-		 *
-		 * @return number of values in this node
-		 */
-		default int size() {
-			return getPeek() + 1;
-		}
-
-		/**
-		 * Returns number of keys in this node - which differs between leaf and internal nodes.
-		 *
-		 * @return number of keys in this node
-		 */
-		int keyCount();
-
-		/**
-		 * Checks if the current B+ Tree leaf node is full, meaning all available slots are occupied.
-		 *
-		 * @return true if the node is full, false otherwise.
-		 */
-		boolean isFull();
-
-		/**
-		 * Converts the B+ Tree Node to a string representation with a specified level and indentation.
-		 *
-		 * @param sb           the StringBuilder to which the string representation will be appended.
-		 * @param level        the current level of the node in the B+ Tree hierarchy.
-		 * @param indentSpaces the number of spaces to use for indenting the string representation.
-		 */
-		void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces);
-
-		/**
-		 * Steals a specified number of values from the end of the left sibling node.
-		 *
-		 * @param numberOfTailValues the number of values to steal from the left sibling node.
-		 * @param previousNode       the left sibling node from which to steal values.
-		 */
-		void stealFromLeft(int numberOfTailValues, @Nonnull N previousNode);
-
-		/**
-		 * Steals a specified number of values from the start of the right sibling node.
-		 *
-		 * @param numberOfHeadValues the number of values to steal from the right sibling node.
-		 * @param nextNode           the right sibling node from which to steal values.
-		 */
-		void stealFromRight(int numberOfHeadValues, @Nonnull N nextNode);
-
-		/**
-		 * Merges the current leaf node with the left sibling leaf node.
-		 */
-		void mergeWithLeft(@Nonnull N previousNode);
-
-		/**
-		 * Merges the current leaf node with the right sibling leaf node.
-		 */
-		void mergeWithRight(@Nonnull N nextNode);
-
-		/**
-		 * Retrieves the left boundary key of the BPlusInternalTreeNode. This key is the smallest key contained
-		 * within the leftmost child of the current internal tree node. If the leftmost child is an internal node itself,
-		 * the method recursively retrieves the left boundary key of that internal node.
-		 *
-		 * @return the left boundary key of the BPlusInternalTreeNode.
+		 * @return the left boundary key of the node.
 		 */
 		int getLeftBoundaryKey();
+
 	}
 
 	/**
 	 * Internal node implementation of the B+ tree that holds keys and child node pointers. Internal nodes serve
 	 * as routing nodes — they do not store values directly but guide searches to the appropriate leaf nodes.
 	 */
-	static class BPlusInternalTreeNode implements BPlusTreeNode<BPlusInternalTreeNode> {
+	static class BPlusInternalTreeNode implements InternalBPlusTreeNode<BPlusInternalTreeNode>, IntKeyedNode {
 		@Serial private static final long serialVersionUID = -7649742437563558159L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -1361,7 +860,6 @@ public class TransactionalIntToLongBPlusTree implements
 		}
 
 		@Nonnull
-		@Override
 		public int[] getKeys() {
 			final BPlusInternalTreeNode layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -1495,7 +993,7 @@ public class TransactionalIntToLongBPlusTree implements
 				// we need to preserve all the current node keys
 				System.arraycopy(this.keys, 0, this.keys, numberOfTailValues, this.peek);
 				// our original first child newly produces its own key
-				this.keys[numberOfTailValues - 1] = this.children[numberOfTailValues].getLeftBoundaryKey();
+				this.keys[numberOfTailValues - 1] = leftBoundaryKeyOf(this.children[numberOfTailValues]);
 				// and now we can copy the keys from the previous node - but except the first one
 				System.arraycopy(
 					previousNode.getKeys(), previousNode.keyCount() - numberOfTailValues + 1, this.keys, 0,
@@ -1517,7 +1015,7 @@ public class TransactionalIntToLongBPlusTree implements
 				// we need to preserve all the current node keys
 				System.arraycopy(layer.keys, 0, layer.keys, numberOfTailValues, layer.peek);
 				// our original first child newly produces its own key
-				layer.keys[numberOfTailValues - 1] = layer.children[numberOfTailValues].getLeftBoundaryKey();
+				layer.keys[numberOfTailValues - 1] = leftBoundaryKeyOf(layer.children[numberOfTailValues]);
 				// and now we can copy the keys from the previous node - but except the first one
 				System.arraycopy(
 					previousNode.getKeysForUpdate(), previousNode.keyCount() - numberOfTailValues + 1, layer.keys, 0,
@@ -1547,7 +1045,7 @@ public class TransactionalIntToLongBPlusTree implements
 					nextNodeChildren, numberOfHeadValues, nextNodeChildren, 0, nextNode.size() - numberOfHeadValues);
 
 				// set the key for the first child of the next node
-				this.keys[this.peek] = this.children[this.peek + 1].getLeftBoundaryKey();
+				this.keys[this.peek] = leftBoundaryKeyOf(this.children[this.peek + 1]);
 
 				// we move the keys from the next node for all copied children
 				final int[] nextNodeKeys = nextNode.getKeysForUpdate();
@@ -1572,7 +1070,7 @@ public class TransactionalIntToLongBPlusTree implements
 				);
 
 				// set the key for the first child of the next node
-				layer.keys[layer.peek] = layer.children[layer.peek + 1].getLeftBoundaryKey();
+				layer.keys[layer.peek] = leftBoundaryKeyOf(layer.children[layer.peek + 1]);
 
 				// we move the keys from the next node for all copied children
 				final int[] nextNodeKeysForUpdate = nextNode.getKeysForUpdate();
@@ -1604,7 +1102,7 @@ public class TransactionalIntToLongBPlusTree implements
 				null;
 			if (layer == null) {
 				System.arraycopy(this.keys, 0, this.keys, mergePeek + 1, this.peek);
-				this.keys[mergePeek] = this.children[0].getLeftBoundaryKey();
+				this.keys[mergePeek] = leftBoundaryKeyOf(this.children[0]);
 				System.arraycopy(this.children, 0, this.children, mergePeek + 1, this.peek + 1);
 				System.arraycopy(previousNode.getKeys(), 0, this.keys, 0, mergePeek);
 				System.arraycopy(previousNode.getChildren(), 0, this.children, 0, mergePeek + 1);
@@ -1615,7 +1113,7 @@ public class TransactionalIntToLongBPlusTree implements
 				// we don't need to do: nodeToMergeWith.decoupleTransactionalArrays();
 				// the other node will be fully merged to this node, so its arrays remain unmodified by this operation
 				System.arraycopy(layer.keys, 0, layer.keys, mergePeek + 1, layer.peek);
-				layer.keys[mergePeek] = layer.children[0].getLeftBoundaryKey();
+				layer.keys[mergePeek] = leftBoundaryKeyOf(layer.children[0]);
 				System.arraycopy(layer.children, 0, layer.children, mergePeek + 1, layer.peek + 1);
 				System.arraycopy(previousNode.getKeysForUpdate(), 0, layer.keys, 0, mergePeek);
 				System.arraycopy(previousNode.getChildrenForUpdate(), 0, layer.children, 0, mergePeek + 1);
@@ -1639,7 +1137,7 @@ public class TransactionalIntToLongBPlusTree implements
 				null;
 			if (layer == null) {
 				System.arraycopy(nextNode.getChildren(), 0, this.children, this.peek + 1, mergePeek + 1);
-				this.keys[this.peek] = nextNode.getChildren()[0].getLeftBoundaryKey();
+				this.keys[this.peek] = leftBoundaryKeyOf(nextNode.getChildren()[0]);
 				System.arraycopy(nextNode.getKeys(), 0, this.keys, this.peek + 1, mergePeek);
 				this.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
@@ -1648,22 +1146,21 @@ public class TransactionalIntToLongBPlusTree implements
 				// we don't need to do: nodeToMergeWith.decoupleTransactionalArrays();
 				// the other node will be fully merged to this node, so its arrays remain unmodified by this operation
 				System.arraycopy(nextNode.getChildrenForUpdate(), 0, layer.children, layer.peek + 1, mergePeek + 1);
-				layer.keys[layer.peek] = layer.children[layer.peek + 1].getLeftBoundaryKey();
+				layer.keys[layer.peek] = leftBoundaryKeyOf(layer.children[layer.peek + 1]);
 				System.arraycopy(nextNode.getKeysForUpdate(), 0, layer.keys, layer.peek + 1, mergePeek);
 				layer.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
 			}
 		}
 
-		@Override
 		public int getLeftBoundaryKey() {
 			final BPlusInternalTreeNode layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
 				null;
 			if (layer == null) {
-				return this.children[0].getLeftBoundaryKey();
+				return leftBoundaryKeyOf(this.children[0]);
 			} else {
-				return layer.children[0].getLeftBoundaryKey();
+				return leftBoundaryKeyOf(layer.children[0]);
 			}
 		}
 
@@ -1898,14 +1395,14 @@ public class TransactionalIntToLongBPlusTree implements
 					this.children[index] == node,
 					"Node to update key for must match the child node at the specified index!"
 				);
-				this.keys[index - 1] = node.getLeftBoundaryKey();
+				this.keys[index - 1] = leftBoundaryKeyOf(node);
 			} else {
 				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
 					layer.children[index] == node,
 					"Node to update key for must match the child node at the specified index!"
 				);
-				layer.keys[index - 1] = node.getLeftBoundaryKey();
+				layer.keys[index - 1] = leftBoundaryKeyOf(node);
 			}
 		}
 
@@ -2019,7 +1516,7 @@ public class TransactionalIntToLongBPlusTree implements
 	 * Leaf node implementation of the B+ tree that stores key-value pairs. Leaf nodes hold all actual data
 	 * in the tree and are the terminal nodes in the B+ tree structure. Values are stored as primitive `long`.
 	 */
-	static class BPlusLeafTreeNode implements BPlusTreeNode<BPlusLeafTreeNode> {
+	static class BPlusLeafTreeNode implements BPlusTreeNode<BPlusLeafTreeNode>, IntKeyedNode {
 		@Serial private static final long serialVersionUID = 5744347408875846162L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -2107,7 +1604,6 @@ public class TransactionalIntToLongBPlusTree implements
 		}
 
 		@Nonnull
-		@Override
 		public int[] getKeys() {
 			final BPlusLeafTreeNode layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -2354,7 +1850,6 @@ public class TransactionalIntToLongBPlusTree implements
 			}
 		}
 
-		@Override
 		public int getLeftBoundaryKey() {
 			final BPlusLeafTreeNode layer = this.transactionalLayer ?
 				Transaction.getTransactionalMemoryLayerIfExists(this) :
@@ -2683,644 +2178,95 @@ public class TransactionalIntToLongBPlusTree implements
 	}
 
 	/**
-	 * Represents a cursor for navigating a B+ tree structure with its specific level,
-	 * maintaining the state of the current node and its path.
-	 *
-	 * This record is intended to support operations that perform traversal, modification,
-	 * or retrieval within the B+ tree by maintaining references to the current level,
-	 * node, and its hierarchical structure.
-	 *
-	 * @param path                     The path representing the sequence of nodes traversed to reach the current node.
-	 * @param level                    The current level in the tree where the cursor is positioned.
-	 * @param currentNodeOfGenericType The current node at the given level. The node can be passed from the outside
-	 *                                 if the current node in the path was replaced by another instance.
+	 * Int-keyed forward iterator base: layers the typed leaf-array cache on top of the shared key-agnostic
+	 * {@link AbstractForwardTreeNavigator}. The concrete key / value / entry iterators read the current element
+	 * straight from these cached arrays - the primitive key and value iterators return the primitive directly to avoid
+	 * boxing, while the entry iterator indexes the cached key and value arrays.
 	 */
-	private record CursorWithLevel(
-		@Nonnull List<CursorLevel> path,
-		int level,
-		@Nonnull BPlusTreeNode<?> currentNodeOfGenericType
-	) {
-
+	private abstract static class AbstractForwardTreeIterator extends AbstractForwardTreeNavigator {
 		/**
-		 * Creates a cursor at the given level using the current node from the path.
-		 *
-		 * @param path  the path representing the sequence of nodes traversed to reach the current node
-		 * @param level the current level in the tree where the cursor is positioned
-		 */
-		public CursorWithLevel(@Nonnull List<CursorLevel> path, int level) {
-			this(path, level, path.get(level).currentNode());
-		}
-
-		/**
-		 * Retrieves the current node of the type parameter in the B+ Tree structure.
-		 * The current node might represent a replaced node in the structure.
-		 *
-		 * @return the current node of the generic type {@code N} in the B+ Tree.
-		 */
-		@Nonnull
-		public <N extends BPlusTreeNode<N>> N currentNode() {
-			//noinspection unchecked
-			return (N) this.currentNodeOfGenericType;
-		}
-
-		/**
-		 * Retrieves the index of the current node in the path at the current level.
-		 *
-		 * @return the index of the current node in the path at the specified level.
-		 */
-		public int currentNodeIndex() {
-			return this.path.get(this.level).index();
-		}
-
-		/**
-		 * Retrieves the parent node of the current node in the B+ Tree structure, if it exists.
-		 *
-		 * @return the parent node of type {@code BPlusInternalTreeNode} if the current level is greater than 0,
-		 * otherwise {@code null}.
-		 */
-		@Nullable
-		public BPlusInternalTreeNode parent() {
-			if (this.level > 0) {
-				final CursorLevel parentLevel = this.path.get(this.level - 1);
-				return (BPlusInternalTreeNode) parentLevel.siblings()[parentLevel.index()];
-			} else {
-				return null;
-			}
-		}
-
-		/**
-		 * Creates a new instance of {@code CursorWithLevel} representing the parent level
-		 * by reducing the current level by one, if the current level is greater than 0.
-		 * If the current level is 0, returns {@code null}.
-		 *
-		 * @return a new {@code CursorWithLevel} instance at the parent level
-		 * if the current level is greater than 0, otherwise {@code null}.
-		 */
-		@Nullable
-		public CursorWithLevel toParentLevel() {
-			return this.level > 0 ? new CursorWithLevel(this.path(), this.level - 1) : null;
-		}
-
-		/**
-		 * Retrieves a cursor representing the previous node at the current level in the B+ Tree structure.
-		 * If there is no previous node at the current level (i.e., the current node is the first sibling),
-		 * the method returns {@code null}.
-		 *
-		 * This method calculates the previous node by decrementing the current index
-		 * and reconstructing the cursor path to ensure all levels below the current level
-		 * point to the appropriate descendants of the newly identified previous node.
-		 *
-		 * Method cannot resolve the previous node over multiple parents - it only works on the current level.
-		 *
-		 * @return a {@code CursorWithLevel} instance pointing to the previous node if it exists,
-		 * otherwise {@code null}.
-		 */
-		@Nullable
-		public CursorWithLevel getCursorForPreviousNode() {
-			final CursorLevel cursorLevel = this.path.get(this.level);
-			if (cursorLevel.index() > 0) {
-				// easy case - we can just move to the previous sibling
-				final List<CursorLevel> replacedPath = new ArrayList<>(this.path);
-				// we need to replace all levels from the current level up to the original one with the new path
-				CursorLevel newCursorLevel = new CursorLevel(
-					cursorLevel.siblings(),
-					cursorLevel.index() - 1,
-					cursorLevel.peek()
-				);
-				replacedPath.set(this.level, newCursorLevel);
-				// all levels below, will point to the last child of the new cursor level
-				for (int i = this.level + 1; i < this.path().size(); i++) {
-					final BPlusInternalTreeNode currentNode = newCursorLevel.currentNode();
-					newCursorLevel = new CursorLevel(
-						currentNode.getChildren(),
-						currentNode.getPeek(),
-						currentNode.getPeek()
-					);
-					replacedPath.set(i, newCursorLevel);
-				}
-				// return new cursor with the replaced path
-				return new CursorWithLevel(
-					replacedPath,
-					this.level
-				);
-			} else {
-				return null;
-			}
-		}
-
-		/**
-		 * Retrieves a cursor representing the next node at the current level in the B+ Tree structure.
-		 * If the current node is not the last sibling at the current level, the method calculates the
-		 * next node by incrementing the current index and reconstructing the cursor path for all subsequent levels.
-		 * The reconstruction ensures that all levels below the current level point to the appropriate
-		 * descendants of the newly identified sibling node.
-		 *
-		 * If the current node is the last sibling at the current level, the method returns {@code null}.
-		 *
-		 * Method cannot resolve the next node over multiple parents - it only works on the current level.
-		 *
-		 * @return a {@code CursorWithLevel} instance pointing to the next node if it exists,
-		 * otherwise {@code null}.
-		 */
-		@Nullable
-		public CursorWithLevel getCursorForNextNode() {
-			final CursorLevel cursorLevel = this.path.get(this.level);
-			if (cursorLevel.index() < cursorLevel.peek()) {
-				// easy case - we can just move to the next sibling
-				final List<CursorLevel> replacedPath = new ArrayList<>(this.path);
-				// we need to replace all levels from the current level up to the original one with the new path
-				CursorLevel newCursorLevel = new CursorLevel(
-					cursorLevel.siblings(),
-					cursorLevel.index() + 1,
-					cursorLevel.peek()
-				);
-				replacedPath.set(this.level, newCursorLevel);
-				// all levels below, will point to the first child of the new cursor level
-				for (int i = this.level + 1; i < this.path.size(); i++) {
-					final BPlusInternalTreeNode currentNode = newCursorLevel.currentNode();
-					newCursorLevel = new CursorLevel(currentNode.getChildren(), 0, currentNode.getPeek());
-					replacedPath.set(i, newCursorLevel);
-				}
-				// return new cursor with the replaced path
-				return new CursorWithLevel(
-					replacedPath,
-					this.level
-				);
-			} else {
-				return null;
-			}
-		}
-
-		/**
-		 * Creates a new instance of {@code CursorWithLevel} with the same path and level but
-		 * with the current node replaced by the provided node.
-		 *
-		 * @param node the new current node to replace the existing one. It must not be null and must
-		 *             satisfy the generic constraints of {@code BPlusTreeNode<N>}.
-		 * @return a new {@code CursorWithLevel} instance with the specified node as the current node
-		 * while retaining the original path and level.
-		 */
-		@Nonnull
-		public <N extends BPlusTreeNode<N>> CursorWithLevel withReplacedCurrentNode(@Nonnull N node) {
-			return new CursorWithLevel(
-				this.path,
-				this.level,
-				node
-			);
-		}
-
-	}
-
-	/**
-	 * Represents a position or path within a structure, specifically within a nested
-	 * or hierarchical tree-like structure such as a B+ tree. This class maintains a
-	 * path to a specific location within the tree through a list of CursorLevel objects.
-	 *
-	 * Cursor always points to a leaf node in the B+ tree structure and contains full path
-	 * to the leaf node. The path is represented by a list of CursorLevel objects, where each
-	 * CursorLevel object contains an array of sibling nodes at the same level, the index of
-	 * the current node within the siblings array, and the peek index of the current node.
-	 *
-	 * @param path A non-null list of CursorLevel objects representing the path to a
-	 *             specific node in the tree structure.
-	 */
-	private record Cursor(
-		@Nonnull List<CursorLevel> path
-	) {
-
-		/**
-		 * Retrieves the leaf node of the B+ tree at the deepest level of the current path.
-		 * This method accesses the last `CursorLevel` in the path to identify and return the
-		 * corresponding leaf node in the structure.
-		 *
-		 * @return The leaf node of the B+ tree at the location specified by the current path.
-		 * Guaranteed to be non-null.
-		 */
-		@Nonnull
-		public BPlusLeafTreeNode leafNode() {
-			final CursorLevel deepestLevel = this.path.get(this.path.size() - 1);
-			return (BPlusLeafTreeNode) deepestLevel.siblings()[deepestLevel.index()];
-		}
-
-		/**
-		 * Converts the current Cursor instance into a CursorWithLevel object.
-		 * The resulting CursorWithLevel encapsulates the same path as the current Cursor
-		 * along with the level information of the deepest node in the structure.
-		 *
-		 * @return A new CursorWithLevel object containing the path and the index of the
-		 * deepest level in the path. Guaranteed to be non-null.
-		 */
-		@Nonnull
-		public CursorWithLevel toCursorWithLevel() {
-			return new CursorWithLevel(this.path, this.path.size() - 1);
-		}
-	}
-
-	/**
-	 * A record representing the current level of a cursor within a BPlusTree structure.
-	 * Stores references to sibling nodes at the current level and tracks the index
-	 * of the current node and a peek index in the siblings array (last meaningful index).
-	 *
-	 * @param siblings An array of sibling nodes at the current level in the B+ tree structure.
-	 * @param index    The index of the current node within the siblings array, must be always > 0 and <= peek.
-	 * @param peek     The last meaningful index in the siblings array.
-	 */
-	private record CursorLevel(
-		@Nonnull BPlusTreeNode<?>[] siblings,
-		int index,
-		int peek
-	) {
-
-		/**
-		 * Retrieves the current node in the siblings array at the specified index.
-		 *
-		 * @param <N> the type of the BPlusTreeNode
-		 * @return the current BPlusTreeNode of type N at the specified index in the siblings array
-		 */
-		@Nonnull
-		public <N extends BPlusTreeNode<N>> N currentNode() {
-			//noinspection unchecked
-			return (N) this.siblings[this.index];
-		}
-	}
-
-	/**
-	 * Represents a node along with its associated index. This class is a record that holds an integer index
-	 * and a non-nullable node.
-	 *
-	 * @param node  the non-null node associated with the index
-	 * @param index the index associated with the value
-	 */
-	private record NodeWithIndex(
-		@Nonnull BPlusTreeNode<?> node,
-		int index
-	) {
-	}
-
-	/**
-	 * Iterator that traverses the B+ Tree from left to right and owns all the path traversal state shared
-	 * by the key, value and entry iterators. Subclasses add the concrete iterator interface and read
-	 * the current element straight from the per-leaf cached arrays - the primitive key iterators return the key
-	 * directly to avoid boxing, while the value and entry iterators index the cached value (and key) arrays.
-	 */
-	private abstract static class AbstractForwardTreeIterator {
-		/**
-		 * Array of arrays representing siblings on each level of the path.
-		 */
-		@Nonnull private final BPlusTreeNode<?>[][] path;
-		/**
-		 * The index of the current key on particular path.
-		 */
-		@Nonnull private final int[] pathIndex;
-		/**
-		 * The peek index of each sibling array on the path.
-		 */
-		@Nonnull private final int[] pathPeeks;
-		/**
-		 * The index of the current key within the current leaf node.
-		 */
-		protected int currentIndex;
-		/**
-		 * Flag indicating whether there are more elements to traverse.
-		 */
-		protected boolean hasNextElement;
-		/**
-		 * The current leaf's key array, value array and last occupied index, resolved through the transactional layer
-		 * exactly once per leaf when the iterator enters it (see {@link #loadCurrentLeaf()}). Caching them here turns
-		 * the hot per-element path into plain array indexing and removes the per-element `ThreadLocal` lookup that
-		 * {@link BPlusLeafTreeNode#getKeys()} / {@link BPlusLeafTreeNode#getValues()} / {@link BPlusLeafTreeNode#getPeek()}
-		 * would otherwise repeat on every step. Visible to subclasses so the key/value/entry iterators index them directly.
+		 * The current leaf's key and value arrays, refreshed once per leaf by {@link #loadCurrentLeaf()}. Visible to
+		 * subclasses so the key / value / entry iterators index them directly without a per-element accessor call.
 		 */
 		protected int[] leafKeys;
 		protected long[] leafValues;
-		protected int leafPeek;
 
 		/**
-		 * Initializes the forward iterator starting from the leftmost position of the cursor.
+		 * Creates a forward iterator starting from the leftmost position of the cursor.
 		 *
 		 * @param cursor the cursor providing the traversal path through the B+ tree
 		 */
 		protected AbstractForwardTreeIterator(@Nonnull Cursor cursor) {
-			final List<CursorLevel> cursorPath = cursor.path();
-			this.path = new BPlusTreeNode[cursorPath.size()][];
-			this.pathIndex = new int[this.path.length];
-			this.pathPeeks = new int[this.path.length];
-			for (int i = 0; i < cursorPath.size(); i++) {
-				final CursorLevel cursorLevel = cursorPath.get(i);
-				this.path[i] = cursorLevel.siblings();
-				this.pathIndex[i] = cursorLevel.index();
-				this.pathPeeks[i] = cursorLevel.peek();
-			}
-			this.currentIndex = 0;
-			// resolve the first leaf's arrays once; all subsequent per-element access reads the cached arrays
-			loadCurrentLeaf();
-			this.hasNextElement = this.leafPeek >= 0;
+			super(cursor);
 		}
 
 		/**
-		 * Initializes the forward iterator starting from the specified key or the first key greater than it.
+		 * Creates a forward iterator starting from the specified key or the first key greater than it.
 		 *
 		 * @param cursor the cursor providing the traversal path through the B+ tree
 		 * @param key    the key to start the iteration from
 		 */
 		protected AbstractForwardTreeIterator(@Nonnull Cursor cursor, int key) {
-			final List<CursorLevel> cursorPath = cursor.path();
-			this.path = new BPlusTreeNode[cursorPath.size()][];
-			this.pathIndex = new int[this.path.length];
-			this.pathPeeks = new int[this.path.length];
-			for (int i = 0; i < cursorPath.size(); i++) {
-				final CursorLevel cursorLevel = cursorPath.get(i);
-				this.path[i] = cursorLevel.siblings();
-				this.pathIndex[i] = cursorLevel.index();
-				this.pathPeeks[i] = cursorLevel.peek();
-			}
-			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
-				key, cursor.leafNode()
-					.getKeys(), 0, cursor.leafNode().size()
+			super(
+				cursor,
+				computeInsertPositionOfIntInOrderedArray(
+					key, ((IntKeyedNode) cursor.leafNode()).getKeys(), 0, cursor.leafNode().size()
+				)
 			);
-			// resolve the start leaf's arrays once; the per-element hot path then reads only the cached arrays
-			loadCurrentLeaf();
-			this.currentIndex = insertionPosition.position();
-			if (this.currentIndex <= this.leafPeek) {
-				// the start key lies within the current leaf - it has at least one key >= key
-				this.hasNextElement = true;
-			} else {
-				// the start key is greater than every key in the current leaf - the matching keys, if any,
-				// live in a following leaf, so we must advance the path to the next leaf instead of stopping
-				// here (otherwise keys/values in the gap between two leaves would be skipped)
-				this.hasNextElement = moveToNextLeaf();
-			}
 		}
 
-		/**
-		 * Returns true if there is another element to traverse.
-		 *
-		 * @return true if there is another element to traverse, false otherwise
-		 */
-		public boolean hasNext() {
-			return this.hasNextElement;
-		}
-
-		/**
-		 * Returns the leaf node the iterator currently points at.
-		 *
-		 * @return the leaf node the iterator currently points at
-		 */
-		@Nonnull
-		protected BPlusLeafTreeNode currentLeaf() {
-			return (BPlusLeafTreeNode) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
-		}
-
-		/**
-		 * Resolves the current leaf (the deepest node on the path) through the transactional layer exactly once and
-		 * caches its key array, value array and last occupied index. All per-element access then reads these cached
-		 * fields, so the costly transactional-layer {@code ThreadLocal} lookup is paid once per leaf instead of three
-		 * times per element.
-		 */
-		private void loadCurrentLeaf() {
-			final BPlusLeafTreeNode leaf = currentLeaf();
+		@Override
+		protected void loadCurrentLeaf() {
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) currentLeafNode();
 			this.leafKeys = leaf.getKeys();
 			this.leafValues = leaf.getValues();
 			this.leafPeek = leaf.getPeek();
 		}
-
-		/**
-		 * Advances the iterator one position to the right after the current element has been consumed. The
-		 * position moves to the next key in the current leaf, or - when the current leaf is exhausted - to
-		 * the first key of the following leaf via {@link #moveToNextLeaf()}.
-		 */
-		protected void advance() {
-			if (this.currentIndex < this.leafPeek) {
-				// easy path, there is another key in the current leaf
-				this.currentIndex++;
-			} else {
-				// we need to traverse up the path to find the next sibling leaf
-				this.hasNextElement = moveToNextLeaf();
-			}
-		}
-
-		/**
-		 * Advances the iterator path to the first entry of the next leaf to the right of the current one.
-		 * On success the path arrays point at the following leaf and {@link #currentIndex} is reset to its
-		 * first entry; on failure the path is left untouched.
-		 *
-		 * @return true if a following leaf was found, false if the current leaf is the rightmost one
-		 */
-		private boolean moveToNextLeaf() {
-			int level = this.pathIndex.length - 1;
-			BPlusTreeNode<?>[] parentLevel = this.path[level];
-			while (parentLevel != null) {
-				// if there is a next sibling at this level
-				if (this.pathIndex[level] < this.pathPeeks[level]) {
-					// we found the parent that has a next sibling - so move the index
-					this.pathIndex[level] = this.pathIndex[level] + 1;
-					BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
-					// all levels below, will point to the first child of the new cursor level
-					for (int i = level + 1; i <= this.path.length - 1; i++) {
-						Assert.isPremiseValid(
-							currentNode instanceof BPlusInternalTreeNode,
-							"Internal node expected!"
-						);
-						this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
-						this.pathIndex[i] = 0;
-						this.pathPeeks[i] = currentNode.getPeek();
-						currentNode = this.path[i][0];
-					}
-					this.currentIndex = 0;
-					// refresh the cached key/value arrays + peek for the newly entered leaf
-					loadCurrentLeaf();
-					return true;
-				} else {
-					// we need to continue search with the parent of the parent
-					level--;
-					parentLevel = level > 0 ? this.path[level] : null;
-				}
-			}
-			return false;
-		}
 	}
 
 	/**
-	 * Iterator that traverses the B+ Tree from right to left and owns all the path traversal state shared
-	 * by the key, value and entry iterators. Subclasses add the concrete iterator interface and read
-	 * the current element straight from the per-leaf cached arrays - the primitive key iterators return the key
-	 * directly to avoid boxing, while the value and entry iterators index the cached value (and key) arrays.
+	 * Int-keyed reverse iterator base: layers the typed leaf-array cache on top of the shared key-agnostic
+	 * {@link AbstractReverseTreeNavigator}. The concrete key / value / entry iterators read the current element
+	 * straight from these cached arrays.
 	 */
-	private abstract static class AbstractReverseTreeIterator {
+	private abstract static class AbstractReverseTreeIterator extends AbstractReverseTreeNavigator {
 		/**
-		 * Array of arrays representing siblings on each level of the path.
-		 */
-		@Nonnull private final BPlusTreeNode<?>[][] path;
-		/**
-		 * The index of the current key on particular path.
-		 */
-		@Nonnull private final int[] pathIndex;
-		/**
-		 * The index of the current key within the current leaf node.
-		 */
-		protected int currentIndex;
-		/**
-		 * Flag indicating whether there are more elements to traverse.
-		 */
-		protected boolean hasNextElement;
-		/**
-		 * The current leaf's key array, value array and last occupied index, resolved through the transactional layer
-		 * exactly once per leaf when the iterator enters it (see {@link #loadCurrentLeaf()}). Caching them here turns
-		 * the hot per-element path into plain array indexing and removes the per-element `ThreadLocal` lookup that
-		 * {@link BPlusLeafTreeNode#getKeys()} / {@link BPlusLeafTreeNode#getValues()} / {@link BPlusLeafTreeNode#getPeek()}
-		 * would otherwise repeat on every step. Visible to subclasses so the key/value/entry iterators index them directly.
+		 * The current leaf's key and value arrays, refreshed once per leaf by {@link #loadCurrentLeaf()}. Visible to
+		 * subclasses so the key / value / entry iterators index them directly without a per-element accessor call.
 		 */
 		protected int[] leafKeys;
 		protected long[] leafValues;
-		protected int leafPeek;
 
 		/**
-		 * Initializes the reverse iterator starting from the rightmost position of the cursor.
+		 * Creates a reverse iterator starting from the rightmost position of the cursor.
 		 *
 		 * @param cursor the cursor providing the traversal path through the B+ tree
 		 */
 		protected AbstractReverseTreeIterator(@Nonnull Cursor cursor) {
-			final List<CursorLevel> cursorPath = cursor.path();
-			this.path = new BPlusTreeNode[cursorPath.size()][];
-			this.pathIndex = new int[this.path.length];
-			for (int i = 0; i < cursorPath.size(); i++) {
-				final CursorLevel cursorLevel = cursorPath.get(i);
-				this.path[i] = cursorLevel.siblings();
-				this.pathIndex[i] = cursorLevel.index();
-			}
-			// resolve the rightmost leaf's arrays once; all subsequent per-element access reads the cached arrays
-			loadCurrentLeaf();
-			this.currentIndex = this.leafPeek;
-			this.hasNextElement = this.currentIndex >= 0;
+			super(cursor);
 		}
 
 		/**
-		 * Initializes the reverse iterator starting from the specified key or the first key lesser than or
-		 * equal to it.
+		 * Creates a reverse iterator starting from the specified key or the first key lesser than or equal to it.
 		 *
 		 * @param cursor the cursor providing the traversal path through the B+ tree
 		 * @param key    the key to start the iteration from
 		 */
 		protected AbstractReverseTreeIterator(@Nonnull Cursor cursor, int key) {
-			final List<CursorLevel> cursorPath = cursor.path();
-			this.path = new BPlusTreeNode[cursorPath.size()][];
-			this.pathIndex = new int[this.path.length];
-			for (int i = 0; i < cursorPath.size(); i++) {
-				final CursorLevel cursorLevel = cursorPath.get(i);
-				this.path[i] = cursorLevel.siblings();
-				this.pathIndex[i] = cursorLevel.index();
-			}
-			final InsertionPosition insertionPosition = computeInsertPositionOfIntInOrderedArray(
-				key, cursor.leafNode()
-					.getKeys(), 0, cursor.leafNode().size()
+			super(
+				cursor,
+				computeInsertPositionOfIntInOrderedArray(
+					key, ((IntKeyedNode) cursor.leafNode()).getKeys(), 0, cursor.leafNode().size()
+				)
 			);
-			// resolve the start leaf's arrays once; the per-element hot path then reads only the cached arrays
-			loadCurrentLeaf();
-			if (insertionPosition.alreadyPresent()) {
-				this.currentIndex = insertionPosition.position();
-				this.hasNextElement = true;
-			} else {
-				this.currentIndex = insertionPosition.position() - 1;
-				this.hasNextElement = true;
-				if (this.currentIndex < 0) {
-					moveToPreviousLeaf();
-				}
-			}
 		}
 
-		/**
-		 * Returns true if there is another element to traverse.
-		 *
-		 * @return true if there is another element to traverse, false otherwise
-		 */
-		public boolean hasNext() {
-			return this.hasNextElement;
-		}
-
-		/**
-		 * Returns the leaf node the iterator currently points at.
-		 *
-		 * @return the leaf node the iterator currently points at
-		 */
-		@Nonnull
-		protected BPlusLeafTreeNode currentLeaf() {
-			return (BPlusLeafTreeNode) this.path[this.path.length - 1][this.pathIndex[this.pathIndex.length - 1]];
-		}
-
-		/**
-		 * Resolves the current leaf (the deepest node on the path) through the transactional layer exactly once and
-		 * caches its key array, value array and last occupied index. All per-element access then reads these cached
-		 * fields, so the costly transactional-layer {@code ThreadLocal} lookup is paid once per leaf instead of three
-		 * times per element.
-		 */
-		private void loadCurrentLeaf() {
-			final BPlusLeafTreeNode leaf = currentLeaf();
+		@Override
+		protected void loadCurrentLeaf() {
+			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) currentLeafNode();
 			this.leafKeys = leaf.getKeys();
 			this.leafValues = leaf.getValues();
 			this.leafPeek = leaf.getPeek();
-		}
-
-		/**
-		 * Advances the iterator one position to the left after the current element has been consumed. The
-		 * position moves to the previous key in the current leaf, or - when the current leaf is exhausted -
-		 * to the last key of the preceding leaf via {@link #moveToPreviousLeaf()}.
-		 */
-		protected void advance() {
-			if (this.currentIndex > 0) {
-				// easy path, there is another key in the current leaf
-				this.currentIndex--;
-			} else {
-				// we need to traverse up the path to find the previous sibling leaf
-				moveToPreviousLeaf();
-			}
-		}
-
-		/**
-		 * Iterates through the path of B+ tree nodes in reverse order to position the iterator on the last
-		 * entry of the leaf preceding the current one.
-		 *
-		 * The method operates by traversing the parent nodes from the current position, and:
-		 * 1. Checks if the current parent node has a previous sibling node that can be accessed.
-		 * 2. If such a sibling exists, updates internal paths and indices to point to the previous leaf.
-		 * 3. Ensures that the search continues upwards in the tree hierarchy if no valid sibling is found.
-		 * 4. Verifies consistency for internal tree nodes during updates.
-		 *
-		 * This method sets the {@link #hasNextElement} field to true if a preceding leaf is found, and false
-		 * otherwise. Additionally, it updates {@link #currentIndex} to reflect the new position of the iterator.
-		 */
-		private void moveToPreviousLeaf() {
-			boolean found = false;
-			int level = this.pathIndex.length - 1;
-			BPlusTreeNode<?>[] parentLevel = this.path[level];
-			while (parentLevel != null) {
-				// if there is a previous sibling at this level
-				if (this.pathIndex[level] > 0) {
-					// move to the previous sibling
-					this.pathIndex[level] = this.pathIndex[level] - 1;
-					BPlusTreeNode<?> currentNode = this.path[level][this.pathIndex[level]];
-					// all levels below will point to the last child of the new cursor level
-					for (int i = level + 1; i <= this.pathIndex.length - 1; i++) {
-						Assert.isPremiseValid(
-							currentNode instanceof BPlusInternalTreeNode,
-							"Internal node expected!"
-						);
-						this.path[i] = ((BPlusInternalTreeNode) currentNode).getChildren();
-						this.pathIndex[i] = currentNode.getPeek();
-						currentNode = this.path[i][this.pathIndex[i]];
-					}
-					this.hasNextElement = true;
-					// refresh the cached key/value arrays + peek for the newly entered leaf
-					loadCurrentLeaf();
-					this.currentIndex = this.leafPeek;
-					found = true;
-					break;
-				} else {
-					// we need to continue search with the parent of the parent
-					level--;
-					parentLevel = level > 0 ? this.path[level] : null;
-				}
-			}
-			this.hasNextElement = found;
 		}
 	}
 

@@ -37,6 +37,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.iterator.RoaringBitmapBatchArrayIterator;
+import io.evitadb.index.price.AbstractPriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
@@ -142,7 +143,7 @@ public interface FilteredPriceRecords extends Serializable {
 			}
 		}
 		if (totalCount == 0) {
-			return ResolvedFilteredPriceRecords.EMPTY_PRICE_RECORDS;
+			return AbstractPriceListAndCurrencyPriceIndex.EMPTY_PRICE_RECORDS;
 		}
 		final PriceRecordContract[] merged = new PriceRecordContract[totalCount];
 		int offset = 0;

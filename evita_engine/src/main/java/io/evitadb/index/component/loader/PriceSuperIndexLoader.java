@@ -25,8 +25,11 @@ package io.evitadb.index.component.loader;
 
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceLeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 
@@ -67,12 +70,59 @@ public final class PriceSuperIndexLoader implements ComponentLoader {
 			);
 			result.put(
 				priceIndexKey,
-				new PriceListAndCurrencyPriceSuperIndex(
-					priceIndexKey, part.getValidityIndex(), part.getPriceRecords()
-				)
+				part.isPaged()
+					? loadPagedSuperIndex(service, catalogVersion, entityIndexId, priceIndexKey, part)
+					: new PriceListAndCurrencyPriceSuperIndex(
+						priceIndexKey, part.getValidityIndex(), part.getPriceRecords()
+					)
 			);
 		}
 		return new LoadedComponentBundle.PriceSuper(result);
+	}
+
+	/**
+	 * Reassembles a `PAGED` super price index from its persisted leaf pages. Resolves the page-stream id from the
+	 * sub-index identity (the dictionary id assigned when the index first went PAGED), reads each leaf page in ascending
+	 * key order, and hands the per-page record arrays to
+	 * {@link PriceListAndCurrencyPriceSuperIndex#fromPersistedPages} for boundary-stable reconstruction.
+	 *
+	 * @param service        the storage part persistence service
+	 * @param catalogVersion the catalog version being loaded
+	 * @param entityIndexId  the owning entity index pk
+	 * @param priceIndexKey  the price list and currency identity
+	 * @param part           the paged root storage part carrying the ordered leaf-page list and the high-water
+	 * @return the reassembled, boundary-stable super price index
+	 */
+	@Nonnull
+	private static PriceListAndCurrencyPriceSuperIndex loadPagedSuperIndex(
+		@Nonnull StoragePartPersistenceService<?> service,
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull PriceIndexKey priceIndexKey,
+		@Nonnull PriceListAndCurrencySuperIndexStoragePart part
+	) {
+		final int streamId = service.getReadOnlyKeyCompressor().getId(
+			new PriceLeafStreamKey(entityIndexId, priceIndexKey)
+		);
+		final int[] orderedPageSequences = part.getLeafPageSequences();
+		final PriceRecordContract[][] perPagePriceRecords = new PriceRecordContract[orderedPageSequences.length][];
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final PriceListAndCurrencySuperIndexLeafPagePart leafPage = service.getStoragePart(
+				catalogVersion,
+				PriceListAndCurrencySuperIndexLeafPagePart.computeUniquePartId(streamId, orderedPageSequences[i]),
+				PriceListAndCurrencySuperIndexLeafPagePart.class
+			);
+			isPremiseValid(
+				leafPage != null,
+				"Price leaf page " + orderedPageSequences[i] + " for index " + entityIndexId + " with key " +
+					priceIndexKey + " was not found in persistent storage!"
+			);
+			perPagePriceRecords[i] = leafPage.getPriceRecords();
+		}
+		return PriceListAndCurrencyPriceSuperIndex.fromPersistedPages(
+			priceIndexKey, part.getValidityIndex(), orderedPageSequences, perPagePriceRecords,
+			part.getHighWaterPageSequence()
+		);
 	}
 
 }

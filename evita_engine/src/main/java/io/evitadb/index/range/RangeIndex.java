@@ -36,8 +36,8 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
-import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree.LeafPageHandle;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -1047,29 +1047,12 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 			StartsEndsDTO that = (StartsEndsDTO) o;
 			final int[][] thisStarts = this.rangeStarts.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
 			final int[][] thatStarts = that.rangeStarts.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
-			if (thisStarts.length != thatStarts.length) {
+			if (!Arrays.deepEquals(thisStarts, thatStarts)) {
 				return false;
-			}
-			for (int i = 0; i < thisStarts.length; i++) {
-				int[] thisStart = thisStarts[i];
-				int[] thatStart = thatStarts[i];
-				if (!Arrays.equals(thisStart, thatStart)) {
-					return false;
-				}
 			}
 			final int[][] thisEnds = this.rangeEnds.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
 			final int[][] thatEnds = that.rangeEnds.stream().map(it -> it.compute().getArray()).toArray(int[][]::new);
-			if (thisEnds.length != thatEnds.length) {
-				return false;
-			}
-			for (int i = 0; i < thisEnds.length; i++) {
-				int[] thisEnd = thisEnds[i];
-				int[] thatEnd = thatEnds[i];
-				if (!Arrays.equals(thisEnd, thatEnd)) {
-					return false;
-				}
-			}
-			return true;
+			return Arrays.deepEquals(thisEnds, thatEnds);
 		}
 
 		@Override

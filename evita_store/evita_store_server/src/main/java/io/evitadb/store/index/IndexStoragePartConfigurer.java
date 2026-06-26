@@ -133,7 +133,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		// skip index, it was used by removed AttributeCardinalityIndexSerializer
 		index++;
 
-		kryo.register(PriceListAndCurrencySuperIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class), index++);
+		kryo.register(
+			PriceListAndCurrencySuperIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(-7553613939380658772L, new PriceListAndCurrencySuperIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+			index++
+		);
 		kryo.register(
 			PriceListAndCurrencyRefIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(this.keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class)
@@ -197,6 +202,15 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			EntityIdsStoragePart.class,
 			new SerialVersionBasedSerializer<>(new EntityIdsStoragePartSerializer(this.keyCompressor), EntityIdsStoragePart.class),
+			index++
+		);
+
+		// the granular super-price-index leaf-page record — a brand-new record type with no backward-compatible reader
+		// (legacy catalogs keep the price records inline on the monolithic super-index part instead). Appended last to
+		// keep the preceding registration ids stable.
+		kryo.register(
+			PriceListAndCurrencySuperIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexLeafPagePartSerializer(), PriceListAndCurrencySuperIndexLeafPagePart.class),
 			index++
 		);
 

@@ -246,6 +246,7 @@ class TransactionalObjectBPlusTreeTest {
 	 * A test-only key class that implements both `Comparable` and `TransactionalLayerProducer`, used to verify that
 	 * the constructor rejects such key types.
 	 */
+	@SuppressWarnings("ComparableImplementedButEqualsNotOverridden")
 	private static class TransactionalComparableKey
 		implements Comparable<TransactionalComparableKey>,
 		TransactionalLayerProducer<Void, TransactionalComparableKey> {
@@ -552,8 +553,10 @@ class TransactionalObjectBPlusTreeTest {
 		@DisplayName("releases diff layer of a producer value replaced by a different instance via upsert")
 		void shouldNotLeakLayerWhenProducerValueIsReplacedByDifferentInstanceViaUpsert() {
 			final TransactionalObjectBPlusTree<Integer, TransactionalBitmap> tree =
-				new TransactionalObjectBPlusTree<>(Integer.class, TransactionalBitmap.class, o -> (TransactionalBitmap) o);
-			tree.insert(1, new TransactionalBitmap(new int[]{10}));
+				new TransactionalObjectBPlusTree<>(
+					Integer.class, TransactionalBitmap.class,TransactionalBitmap.class::cast
+				);
+			tree.insert(1, new TransactionalBitmap(10));
 
 			assertStateAfterCommit(
 				tree,
@@ -562,7 +565,7 @@ class TransactionalObjectBPlusTreeTest {
 					// instance via upsert - the discarded old instance's layer must be released
 					original.upsert(1, existing -> {
 						existing.add(11);
-						return new TransactionalBitmap(new int[]{30});
+						return new TransactionalBitmap(30);
 					});
 				},
 				(original, committed) -> {
@@ -631,8 +634,10 @@ class TransactionalObjectBPlusTreeTest {
 		@DisplayName("releases diff layer of a modified producer value that is deleted in the same transaction")
 		void shouldNotLeakLayerWhenModifiedProducerValueIsDeleted() {
 			final TransactionalObjectBPlusTree<Integer, TransactionalBitmap> tree =
-				new TransactionalObjectBPlusTree<>(Integer.class, TransactionalBitmap.class, o -> (TransactionalBitmap) o);
-			tree.insert(1, new TransactionalBitmap(new int[]{10}));
+				new TransactionalObjectBPlusTree<>(Integer.class, TransactionalBitmap.class,
+				                                   TransactionalBitmap.class::cast
+				);
+			tree.insert(1, new TransactionalBitmap(10));
 
 			assertStateAfterCommit(
 				tree,
@@ -652,13 +657,15 @@ class TransactionalObjectBPlusTreeTest {
 		@DisplayName("sweeps cleanly when a freshly created producer value is added and deleted in the same transaction")
 		void shouldNotLeakLayerWhenFreshlyCreatedProducerValueIsAddedThenDeleted() {
 			final TransactionalObjectBPlusTree<Integer, TransactionalBitmap> tree =
-				new TransactionalObjectBPlusTree<>(Integer.class, TransactionalBitmap.class, o -> (TransactionalBitmap) o);
+				new TransactionalObjectBPlusTree<>(Integer.class, TransactionalBitmap.class,
+				                                   TransactionalBitmap.class::cast
+				);
 
 			assertStateAfterCommit(
 				tree,
 				original -> {
 					// create a brand-new producer value, mutate it, then delete it within the same txn
-					final TransactionalBitmap fresh = new TransactionalBitmap(new int[]{20});
+					final TransactionalBitmap fresh = new TransactionalBitmap(20);
 					original.insert(2, fresh);
 					fresh.add(21);
 					original.delete(2);
@@ -678,7 +685,7 @@ class TransactionalObjectBPlusTreeTest {
 			// orphaned-child-layer bug fixed by Fix A.
 			final TransactionalObjectBPlusTree<Integer, ValueToRecordBitmap> tree =
 				new TransactionalObjectBPlusTree<>(
-					Integer.class, ValueToRecordBitmap.class, o -> (ValueToRecordBitmap) o
+					Integer.class, ValueToRecordBitmap.class, ValueToRecordBitmap.class::cast
 				);
 			tree.insert(1, new ValueToRecordBitmap("a", 10));
 
@@ -714,7 +721,7 @@ class TransactionalObjectBPlusTreeTest {
 					// remain ALIVE and trip StaleTransactionMemoryException during the commit sweep (INV-5).
 					final TransactionalObjectBPlusTree<Integer, ValueToRecordBitmap> discarded =
 						new TransactionalObjectBPlusTree<>(
-							Integer.class, ValueToRecordBitmap.class, o -> (ValueToRecordBitmap) o
+							Integer.class, ValueToRecordBitmap.class, ValueToRecordBitmap.class::cast
 						);
 					for (int i = 0; i < 20; i++) {
 						discarded.insert(i, new ValueToRecordBitmap("v" + i, i));
@@ -1023,6 +1030,7 @@ class TransactionalObjectBPlusTreeTest {
 
 	}
 
+	@SuppressWarnings("SafeVarargsOnNonReifiableType")
 	@Nested
 	@DisplayName("Rebalancing - merge operations")
 	class MergeOperationsTest {
@@ -1035,9 +1043,8 @@ class TransactionalObjectBPlusTreeTest {
 		 */
 		@Nonnull
 		private static TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> emptyInternalNode() {
-			//noinspection unchecked
-			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer>(
-				new Integer[3], new TransactionalObjectBPlusTree.BPlusTreeNode[4], 0, 0, 0, 0, Integer.class, null, true
+			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<>(
+				new Integer[3], new BPlusTreeNode[4], 0, 0, 0, 0, Integer.class, null, true
 			);
 		}
 
@@ -1067,13 +1074,13 @@ class TransactionalObjectBPlusTreeTest {
 		@SafeVarargs
 		@Nonnull
 		private static TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> internal(
-			@Nonnull Integer[] keys, @Nonnull TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>... children
+			@Nonnull Integer[] keys,
+			@Nonnull BPlusTreeNode<?>... children
 		) {
 			final Integer[] keyArray = new Integer[3];
 			System.arraycopy(keys, 0, keyArray, 0, keys.length);
-			//noinspection unchecked
-			final TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>[] childArray =
-				new TransactionalObjectBPlusTree.BPlusTreeNode[4];
+			final BPlusTreeNode<?>[] childArray =
+				new BPlusTreeNode[4];
 			System.arraycopy(children, 0, childArray, 0, children.length);
 			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<>(
 				keyArray, childArray, 0, keys.length, 0, children.length, Integer.class, null, true
@@ -1700,9 +1707,7 @@ class TransactionalObjectBPlusTreeTest {
 				ArrayUtils.computeInsertPositionOfIntInOrderedArray(39, plainFullArray);
 
 			assertFalse(insertionPosition.alreadyPresent());
-			final int thePosition = insertionPosition.alreadyPresent()
-				? insertionPosition.position() + 1
-				: insertionPosition.position();
+			final int thePosition = insertionPosition.position();
 			final String[] partialCopy = new String[thePosition];
 			for (int i = partialCopy.length - 1; i >= 0; i--) {
 				partialCopy[thePosition - i - 1] = "Value" + plainFullArray[i];
@@ -2458,6 +2463,7 @@ class TransactionalObjectBPlusTreeTest {
 
 	}
 
+	@SuppressWarnings("SafeVarargsOnNonReifiableType")
 	@Nested
 	@DisplayName("Consistency oracle")
 	class ConsistencyOracleTest {
@@ -2474,15 +2480,15 @@ class TransactionalObjectBPlusTreeTest {
 		@SuppressWarnings("unchecked")
 		private static void installRoot(
 			@Nonnull TransactionalObjectBPlusTree<Integer, String> tree,
-			@Nonnull TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?> root,
+			@Nonnull BPlusTreeNode<?> root,
 			int size
 		) {
 			try {
-				final Field rootField = TransactionalObjectBPlusTree.class.getDeclaredField("root");
+				final Field rootField = AbstractTransactionalBPlusTree.class.getDeclaredField("root");
 				rootField.setAccessible(true);
-				((TransactionalReference<TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>>)
+				((TransactionalReference<BPlusTreeNode<?>>)
 					rootField.get(tree)).set(root);
-				final Field sizeField = TransactionalObjectBPlusTree.class.getDeclaredField("size");
+				final Field sizeField = AbstractTransactionalBPlusTree.class.getDeclaredField("size");
 				sizeField.setAccessible(true);
 				((TransactionalReference<Integer>) sizeField.get(tree)).set(size);
 			} catch (ReflectiveOperationException e) {
@@ -2516,13 +2522,13 @@ class TransactionalObjectBPlusTreeTest {
 		@SafeVarargs
 		@Nonnull
 		private static TransactionalObjectBPlusTree.BPlusInternalTreeNode<Integer> internal(
-			@Nonnull Integer[] keys, @Nonnull TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>... children
+			@Nonnull Integer[] keys,
+			@Nonnull BPlusTreeNode<?>... children
 		) {
 			final Integer[] keyArray = new Integer[3];
 			System.arraycopy(keys, 0, keyArray, 0, keys.length);
-			//noinspection unchecked
-			final TransactionalObjectBPlusTree.BPlusTreeNode<Integer, ?>[] childArray =
-				new TransactionalObjectBPlusTree.BPlusTreeNode[4];
+			final BPlusTreeNode<?>[] childArray =
+				new BPlusTreeNode[4];
 			System.arraycopy(children, 0, childArray, 0, children.length);
 			return new TransactionalObjectBPlusTree.BPlusInternalTreeNode<>(
 				keyArray, childArray, 0, keys.length, 0, children.length, Integer.class, null, true
@@ -3128,7 +3134,7 @@ class TransactionalObjectBPlusTreeTest {
 		 * @param tree      the tree under test
 		 * @param reference the reference {@link TreeMap} ordered by the same comparator
 		 */
-		private void assertOrderMatches(
+		private static void assertOrderMatches(
 			@Nonnull TransactionalObjectBPlusTree<Integer, String> tree,
 			@Nonnull TreeMap<Integer, String> reference
 		) {

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.price;
 
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
@@ -75,31 +76,40 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	int[] getIndexedPriceIds() throws PriceListAndCurrencyPriceIndexTerminated;
 
 	/**
-	 * Returns array of {@link PriceRecordContract} for passed bitmap of ids.
+	 * Materializes the price records for the passed id bitmap into an array, in ascending key order.
+	 * Every requested id MUST exist here — a missing id raises {@link GenericEvitaInternalError}.
+	 * Prefer {@link #forEachPriceRecord} when the records only need streaming; this array form is for
+	 * consumers that need random access (for example binary search).
 	 */
 	@Nonnull
-	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds)  throws PriceListAndCurrencyPriceIndexTerminated {
-		return getPriceRecords(
+	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds) throws PriceListAndCurrencyPriceIndexTerminated {
+		final CompositeObjectArray<PriceRecordContract> filteredPriceRecords =
+			new CompositeObjectArray<>(PriceRecordContract.class);
+		forEachPriceRecord(
 			priceIds,
-			priceRecordContract -> {
-			},
+			filteredPriceRecords::add,
 			notFoundPriceId -> {
 				throw new GenericEvitaInternalError("Price with id " + notFoundPriceId + " was not found in the same index!");
 			}
 		);
+		return filteredPriceRecords.toArray();
 	}
 
 	/**
-	 * Returns array of {@link PriceRecordContract} for passed bitmap of ids.
+	 * Streams the price records for the passed id bitmap to `priceFoundCallback` in ascending key order; every id
+	 * absent from this index is reported to `priceIdNotFoundCallback`. Unlike {@link #getPriceRecords(Bitmap)} it
+	 * never materializes an array, so streaming consumers pay no per-call allocation.
+	 *
+	 * @param priceIds                ascending bitmap of internal price ids to resolve
+	 * @param priceFoundCallback      receives each resolved price record in ascending key order
+	 * @param priceIdNotFoundCallback receives each requested id not present in this index
 	 */
-	@Nonnull
-	default PriceRecordContract[] getPriceRecords(
+	default void forEachPriceRecord(
 		@Nonnull Bitmap priceIds,
 		@Nonnull Consumer<PriceRecordContract> priceFoundCallback,
 		@Nonnull IntConsumer priceIdNotFoundCallback
-	)  throws PriceListAndCurrencyPriceIndexTerminated {
+	) throws PriceListAndCurrencyPriceIndexTerminated {
 		// TOBEDONE JNO - there is also an issue https://github.com/RoaringBitmap/RoaringBitmap/issues/562 that could make this algorithm faster
-		final CompositeObjectArray<PriceRecordContract> filteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
 		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 		try {
 			final BatchArrayIterator filteredPriceIdsIterator = new RoaringBitmapBatchArrayIterator(
@@ -150,7 +160,6 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 							// the price was found - report it
 							final PriceRecordContract priceRecord = priceRecords[lastExpectedPriceIndex];
 							priceFoundCallback.accept(priceRecord);
-							filteredPriceRecords.add(priceRecord);
 							lastPriceIndex = lastExpectedPriceIndex;
 						}
 					} else {
@@ -169,7 +178,6 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 							// the price was found - report it
 							final PriceRecordContract priceRecord = priceRecords[priceIndex];
 							priceFoundCallback.accept(priceRecord);
-							filteredPriceRecords.add(priceRecord);
 							lastPriceIndex = priceIndex;
 						}
 					}
@@ -179,9 +187,6 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 		} finally {
 			SharedBufferPool.INSTANCE.free(buffer);
 		}
-
-		// return found prices as array
-		return filteredPriceRecords.toArray();
 	}
 
 	/**
@@ -243,6 +248,22 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	 */
 	@Nullable
 	StoragePart createStoragePart(int entityIndexPrimaryKey) throws PriceListAndCurrencyPriceIndexTerminated;
+
+	/**
+	 * Appends this index's modified storage parts to `sink`. The default emits the single whole-index part from
+	 * {@link #createStoragePart(int)} (the ref index and any non-paged index); the super price index overrides this to
+	 * emit the granular `PAGED` leaf pages when its price-record tree spans multiple leaves.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 */
+	default void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink)
+		throws PriceListAndCurrencyPriceIndexTerminated {
+		final StoragePart part = createStoragePart(entityIndexPrimaryKey);
+		if (part != null) {
+			sink.addChangeToStore(part);
+		}
+	}
 
 	/**
 	 * Returns true if index is terminated.

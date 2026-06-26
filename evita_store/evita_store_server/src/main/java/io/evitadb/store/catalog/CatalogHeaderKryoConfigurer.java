@@ -32,6 +32,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceLeafStreamKey;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_05;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_08;
@@ -47,6 +48,7 @@ import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer_202
 import io.evitadb.store.index.serializer.HistogramIndexKeySerializer;
 import io.evitadb.store.index.serializer.LeafStreamKeySerializer;
 import io.evitadb.store.index.serializer.PriceIndexKeySerializer;
+import io.evitadb.store.index.serializer.PriceLeafStreamKeySerializer;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
 import io.evitadb.utils.Assert;
@@ -103,6 +105,13 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			LeafStreamKey.class,
 			new SerialVersionBasedSerializer<>(new LeafStreamKeySerializer(), LeafStreamKey.class),
+			index++
+		);
+		// the granular super-price-index page-stream identity key — a brand-new key type with no backward-compatible
+		// reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			PriceLeafStreamKey.class,
+			new SerialVersionBasedSerializer<>(new PriceLeafStreamKeySerializer(), PriceLeafStreamKey.class),
 			index++
 		);
 

@@ -949,7 +949,7 @@ class TransactionalIntToLongBPlusTreeTest {
 		@Nonnull
 		private static TransactionalIntToLongBPlusTree.BPlusInternalTreeNode emptyInternalNode() {
 			return new TransactionalIntToLongBPlusTree.BPlusInternalTreeNode(
-				new int[3], new TransactionalIntToLongBPlusTree.BPlusTreeNode<?>[4], 0, 0, 0, 0, true
+				new int[3], new BPlusTreeNode<?>[4], 0, 0, 0, 0, true
 			);
 		}
 
@@ -978,12 +978,12 @@ class TransactionalIntToLongBPlusTreeTest {
 		 */
 		@Nonnull
 		private static TransactionalIntToLongBPlusTree.BPlusInternalTreeNode internal(
-			@Nonnull int[] keys, @Nonnull TransactionalIntToLongBPlusTree.BPlusTreeNode<?>... children
+			@Nonnull int[] keys, @Nonnull BPlusTreeNode<?>... children
 		) {
 			final int[] keyArray = new int[3];
 			System.arraycopy(keys, 0, keyArray, 0, keys.length);
-			final TransactionalIntToLongBPlusTree.BPlusTreeNode<?>[] childArray =
-				new TransactionalIntToLongBPlusTree.BPlusTreeNode<?>[4];
+			final BPlusTreeNode<?>[] childArray =
+				new BPlusTreeNode<?>[4];
 			System.arraycopy(children, 0, childArray, 0, children.length);
 			return new TransactionalIntToLongBPlusTree.BPlusInternalTreeNode(
 				keyArray, childArray, 0, keys.length, 0, children.length, true
@@ -2357,15 +2357,15 @@ class TransactionalIntToLongBPlusTreeTest {
 		@SuppressWarnings("unchecked")
 		private static void installRoot(
 			@Nonnull TransactionalIntToLongBPlusTree tree,
-			@Nonnull TransactionalIntToLongBPlusTree.BPlusTreeNode<?> root,
+			@Nonnull BPlusTreeNode<?> root,
 			int size
 		) {
 			try {
-				final Field rootField = TransactionalIntToLongBPlusTree.class.getDeclaredField("root");
+				final Field rootField = AbstractTransactionalBPlusTree.class.getDeclaredField("root");
 				rootField.setAccessible(true);
-				((TransactionalReference<TransactionalIntToLongBPlusTree.BPlusTreeNode<?>>)
+				((TransactionalReference<BPlusTreeNode<?>>)
 					rootField.get(tree)).set(root);
-				final Field sizeField = TransactionalIntToLongBPlusTree.class.getDeclaredField("size");
+				final Field sizeField = AbstractTransactionalBPlusTree.class.getDeclaredField("size");
 				sizeField.setAccessible(true);
 				((TransactionalReference<Integer>) sizeField.get(tree)).set(size);
 			} catch (ReflectiveOperationException e) {
@@ -2398,12 +2398,12 @@ class TransactionalIntToLongBPlusTreeTest {
 		 */
 		@Nonnull
 		private static TransactionalIntToLongBPlusTree.BPlusInternalTreeNode internal(
-			@Nonnull int[] keys, @Nonnull TransactionalIntToLongBPlusTree.BPlusTreeNode<?>... children
+			@Nonnull int[] keys, @Nonnull BPlusTreeNode<?>... children
 		) {
 			final int[] keyArray = new int[5];
 			System.arraycopy(keys, 0, keyArray, 0, keys.length);
-			final TransactionalIntToLongBPlusTree.BPlusTreeNode<?>[] childArray =
-				new TransactionalIntToLongBPlusTree.BPlusTreeNode<?>[6];
+			final BPlusTreeNode<?>[] childArray =
+				new BPlusTreeNode<?>[6];
 			System.arraycopy(children, 0, childArray, 0, children.length);
 			return new TransactionalIntToLongBPlusTree.BPlusInternalTreeNode(
 				keyArray, childArray, 0, keys.length, 0, children.length, true
