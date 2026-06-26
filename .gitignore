@@ -102,3 +102,8 @@ fabric.properties
 /evita_test/evita_functional_tests/evita-server-certificates/*
 /evita_test/evita_functional_tests/export/*
 /evita_test/evita_functional_tests/data/*
+
+### Agent plans and reproduction notes (never committed)
+
+/.repro/
+/.claude/scheduled_tasks.lock
