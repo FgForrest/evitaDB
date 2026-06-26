@@ -1769,6 +1769,11 @@ public class EntityDecorator implements SealedEntity {
 	 * and handles cases where duplicate references (with the same {@link ReferenceKey}) are allowed
 	 * based on their schema definitions.
 	 *
+	 * Each qualifying reference that is not already a {@link ReferenceDecorator} is wrapped in one so that
+	 * the attribute predicate — including the `dropped()` filter for soft-deleted attribute values — is applied
+	 * uniformly on this lazy fill path, matching the behaviour of the eager
+	 * `fillFilteredSortedAndFetchedReferences` path.
+	 *
 	 * If the references allow duplicates, they are tracked separately in an internal map.
 	 * For references that do not allow duplicates, the values are stored directly in the returned map.
 	 *
@@ -1811,6 +1816,16 @@ public class EntityDecorator implements SealedEntity {
 								: lastResolvedSchema.getCardinality().allowsDuplicates();
 						}
 
+						// wrap into ReferenceDecorator so the attribute predicate (incl. exists() check
+						// for soft-deleted attributes) is consistently applied to every reference exposed
+						// from this entity — matches the eager fillFilteredSortedAndFetchedReferences path
+						final ReferenceContract wrappedReference = reference instanceof ReferenceDecorator ?
+							reference :
+							new ReferenceDecorator(
+								reference,
+								this.referencePredicate.getAttributePredicate(referenceName)
+							);
+
 						if (lastReferenceKey != null && lastReferenceKey.equalsInGeneral(referenceKey)) {
 							if (duplicatesAllowed) {
 								if (duplicatedIndexedReferences == null) {
@@ -1819,6 +1834,8 @@ public class EntityDecorator implements SealedEntity {
 								final ReferenceKey genericKey = referenceKey.isUnknownReference() ?
 									referenceKey :
 									new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
+								// `previous` was stored in a prior iteration via the else branch below
+								// and is therefore already wrapped — do not re-wrap it here
 								final ReferenceContract previous = indexedReferences.remove(lastReferenceKey);
 								final List<ReferenceContract> duplicatedList;
 								if (previous == DUPLICATE_REFERENCE) {
@@ -1830,13 +1847,13 @@ public class EntityDecorator implements SealedEntity {
 								} else {
 									duplicatedList = Objects.requireNonNull(duplicatedIndexedReferences.get(genericKey));
 								}
-								duplicatedList.add(reference);
+								duplicatedList.add(wrappedReference);
 								indexedReferences.put(genericKey, DUPLICATE_REFERENCE);
 							} else {
 								throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), schema, Operation.CREATE);
 							}
 						} else {
-							indexedReferences.put(referenceKey, reference);
+							indexedReferences.put(referenceKey, wrappedReference);
 						}
 						lastReferenceKey = referenceKey;
 					}
@@ -1857,6 +1874,11 @@ public class EntityDecorator implements SealedEntity {
 	 * If the references have not been previously filtered, this method processes the delegate's
 	 * references, applies the filtering, groups them by name, and transforms them into data chunks.
 	 *
+	 * Each qualifying reference that is not already a {@link ReferenceDecorator} is wrapped in one so that
+	 * the attribute predicate — including the `dropped()` filter for soft-deleted attribute values — is applied
+	 * uniformly on this lazy fill path, matching the behaviour of the eager
+	 * `fillFilteredSortedAndFetchedReferences` path.
+	 *
 	 * @return a non-null map where keys are reference names and values are DataChunk objects containing filtered references.
 	 */
 	@Nonnull
@@ -1868,12 +1890,22 @@ public class EntityDecorator implements SealedEntity {
 			);
 			for (ReferenceContract reference : references) {
 				if (this.referencePredicate.test(reference)) {
+					final String referenceName = reference.getReferenceName();
+					// wrap into ReferenceDecorator so the attribute predicate (incl. exists() check
+					// for soft-deleted attributes) is consistently applied to every reference exposed
+					// from this entity — matches the eager fillFilteredSortedAndFetchedReferences path
+					final ReferenceContract wrappedReference = reference instanceof ReferenceDecorator ?
+						reference :
+						new ReferenceDecorator(
+							reference,
+							this.referencePredicate.getAttributePredicate(referenceName)
+						);
 					allReferencesByName
 						.computeIfAbsent(
-							reference.getReferenceName(),
+							referenceName,
 							s -> new ArrayList<>(references.size() / this.entitySchema.getReferences().size())
 						)
-						.add(reference);
+						.add(wrappedReference);
 				}
 			}
 			this.filteredReferencesByName = allReferencesByName
