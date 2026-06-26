@@ -352,10 +352,11 @@ class LocalMutationExecutorCollector {
 			}
 
 			// Verify consistency BEFORE dispatching any cross-entity index trigger mutations (index-trigger phase).
-			// The container consistency check is independent of the index-trigger phase, and running it first means a
-			// consistency violation rolls back cleanly without having written to other collections'
-			// indexes — those writes are applied directly to the target collection (see
-			// EntityCollection#applyIndexMutations) and are NOT covered by this collector's rollback.
+			// The container consistency check is independent of the index-trigger phase; running it first means a
+			// consistency violation surfaces before any cross-collection index write is dispatched, so those writes
+			// never have to be unwound. Were they already dispatched they would still be reverted — like every other
+			// diff layer touched while the savepoint is open, EntityCollection#applyIndexMutations writes go through
+			// the same maintainer and are captured by it (see rollback()); checking first simply avoids the wasted work.
 			if (checkConsistency) {
 				changeCollector.verifyConsistency();
 			}
