@@ -82,9 +82,11 @@ public class PrefetchedRecordsSorter implements Sorter {
 	 * 5. Returns a new `SortingContext` carrying the unsortable records so the next sorter can place them.
 	 *
 	 * **Partition invariant:** every primary key reported by `entityComparator.getNonSortedEntities()` MUST
-	 * fall outside the sortable slice. If the comparator places a non-sortable entity inside the slice, the
-	 * sort/non-sort partitions disagree and the downstream sorter would emit duplicate primary keys.
-	 * {@link Assert#isPremiseValid} throws immediately in that case to surface the violation early.
+	 * fall outside the sortable slice. By cardinality the two slices are fixed-size partitions, so verifying
+	 * the trailing slice `[entitiesCount, entities.size())` consists exclusively of PKs from `notFoundRecords`
+	 * is sufficient — and cheap, costing O(notFoundRecordsCnt) instead of O(entitiesCount). If the comparator
+	 * places a non-sortable entity inside the sortable slice, downstream sorters would emit duplicate primary
+	 * keys; {@link Assert#isPremiseValid} throws immediately in that case to surface the violation early.
 	 *
 	 * @param sortingContext      the current sorting state including candidate keys and pagination window
 	 * @param result              output array that receives sorted primary keys for the requested page slice
@@ -136,17 +138,19 @@ public class PrefetchedRecordsSorter implements Sorter {
 			final AtomicInteger index = new AtomicInteger();
 			final int entitiesCount = selectedRecordIds.size() - notFoundRecordsCnt;
 			final List<EntityContract> entityContracts = entities.subList(0, entitiesCount);
-			// invariant: comparator must have pushed every non-sortable entity past `entitiesCount`;
-			// if it did not, the trailing slice carries duplicates that leak into the next sorter.
+			// invariant: the trailing slice [entitiesCount, entities.size()) must contain exactly
+			// the non-sortable PKs reported by the comparator. By cardinality the two slices are
+			// fixed-size partitions, so verifying the trailing slice is sufficient and costs
+			// O(notFoundRecordsCnt) — preferred over scanning the full sortable slice on this hot path.
 			if (notFoundRecordsCnt > 0) {
-				for (int i = 0; i < entitiesCount; i++) {
-					final int pk = queryContext.translateEntity(entityContracts.get(i));
+				final int totalSize = entities.size();
+				for (int i = entitiesCount; i < totalSize; i++) {
+					final int pk = queryContext.translateEntity(entities.get(i));
 					Assert.isPremiseValid(
-						!notFoundRecords.contains(pk),
+						notFoundRecords.contains(pk),
 						() -> "Entity comparator " + this.entityComparator.getClass().getName() +
-							" reported entity #" + pk + " as non-sortable yet kept it inside" +
-							" the sortable slice — sort/non-sort partitions disagree;" +
-							" downstream sorters would emit duplicates."
+							" kept sortable entity #" + pk + " inside the trailing non-sortable slice" +
+							" — sort/non-sort partitions disagree; downstream sorters would emit duplicates."
 					);
 				}
 			}
