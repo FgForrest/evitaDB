@@ -84,6 +84,14 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	private final byte[] deflateBuffer;
 	/**
+	 * Spare buffer recycled across overflow-rewinds whose active region cannot be compacted in place (see
+	 * {@link #require(int)}), instead of allocating a fresh full-size {@code byte[]} on every such rewind. Holds the
+	 * previous {@code buffer} after a swap so the two arrays ping-pong. Per-instance, and every {@link ObservableOutput}
+	 * is single-thread-confined, so this is not a shared-mutable-state hazard; cleared by {@link #reset()} so a pooled,
+	 * repeatedly-reset output never retains two full buffers.
+	 */
+	@Nullable private byte[] spareBuffer;
+	/**
 	 * Accumulated count of bytes that have been saved by compress.
 	 * This number is crucial for correct file location calculation when multiple records are written to the output.
 	 *
@@ -328,11 +336,16 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 			// store current position
 			final int savedPosition = this.position;
 			final int length = Math.subtractExact(this.position - this.startPosition, savedBytesByCompression);
+			// the lazy Supplier overload builds the diagnostic message only on actual failure, so this per-record premise
+			// check stays allocation-free on the hot serialization path (the eager `cond, "..." + vars` overload would
+			// otherwise concatenate a byte[] every record). `alteredControlByte` is reassigned earlier, so it is copied
+			// into an effectively-final local for the message.
+			final byte controlForError = alteredControlByte;
 			Assert.isPremiseValid(
 				length >= 0,
-				"Record length must be non-negative! Got: " + length + ", because " +
+				() -> "Record length must be non-negative! Got: " + length + ", because " +
 					"savedBytesByCompression is: " + savedBytesByCompression + ", " +
-					"payloadLength is: " + payloadLength + ", alteredControlByte is: " + alteredControlByte + "!"
+					"payloadLength is: " + payloadLength + ", alteredControlByte is: " + controlForError + "!"
 			);
 
 			// seek backwards to the place of record length and write it
@@ -345,14 +358,16 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 				Math.addExact(this.total, this.startPosition - this.lastConsumedPosition),
 				this.savedBytesByCompressionSinceReset
 			);
+			// same hot-path reasoning as the length premise above: the lazy Supplier keeps the message off the happy path
 			Assert.isPremiseValid(
 				supposedRecordStartPosition >= 0,
-				"Record start position must be non-negative! Got: " + supposedRecordStartPosition + ", because " +
+				() -> "Record start position must be non-negative! Got: " + supposedRecordStartPosition + ", because " +
 					"savedBytesByCompressionSinceReset is: " + this.savedBytesByCompressionSinceReset + ", " +
 					"total is: " + this.total + ", startPosition is: " + this.startPosition + ", lastConsumedPosition is: " + this.lastConsumedPosition + "!"
 			);
 
-			// write the record to the output stream
+			// write the record to the output stream; the primitive executeSafely overload avoids autoboxing the two int
+			// args, keeping the IOException -> KryoException wrapping centralized
 			IOUtils.executeSafely(
 				payloadLength, savedBytesByCompression,
 				KryoException::new,
@@ -605,6 +620,9 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		this.payloadStartPosition = -1;
 		this.recordLengthPosition = -1;
 		this.savedBytesByCompressionSinceReset = 0;
+		// drop the recycled spare so a pooled, repeatedly-reset output does not permanently retain two full buffers
+		// (copySnapshotTo never resets mid-copy, so the compaction benefit is preserved)
+		this.spareBuffer = null;
 		// reset cumulative checksum state
 		this.cumulatingChecksum = false;
 		this.cumulativeChecksum = 0L;
@@ -635,9 +653,18 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 				// if it's safe to copy within single buffer - do it
 				System.arraycopy(this.buffer, this.lastConsumedPosition, this.buffer, 0, activeBufferSize);
 			} else {
-				// it's not safe - data would be overwritten - we need to allocate new byte buffer
-				final byte[] newBuffer = new byte[this.capacity + TAIL_MANDATORY_SPACE];
+				// it's not safe - data would be overwritten - move the active region into a recycled spare buffer and
+				// swap, recycling the old buffer as the next spare instead of allocating a fresh full-size byte[] on
+				// every such rewind. The old buffer is dead after the swap: its consumed prefix was just flushed by
+				// writeDataToOutputStream() above (and OutputStream.write copies), and its active region is arraycopy'd
+				// out below - so nothing else references it. Safe without synchronization: every ObservableOutput is
+				// single-thread-confined (built locally for a compaction copy, or guarded by the write-handle lock).
+				final int requiredCapacity = this.capacity + TAIL_MANDATORY_SPACE;
+				final byte[] recycled = this.spareBuffer;
+				final byte[] newBuffer = recycled != null && recycled.length >= requiredCapacity
+					? recycled : new byte[requiredCapacity];
 				System.arraycopy(this.buffer, this.lastConsumedPosition, newBuffer, 0, activeBufferSize);
+				this.spareBuffer = this.buffer;
 				this.buffer = newBuffer;
 			}
 			recomputePositionsToNewStart();
@@ -772,6 +799,8 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 					this.cumulativeChecksum, this.checksum.getValue(), flushLength
 				);
 			}
+			// the primitive executeSafely overload avoids autoboxing `flushLength`, keeping the
+			// IOException -> KryoException wrapping centralized
 			IOUtils.executeSafely(
 				flushLength,
 				KryoException::new,

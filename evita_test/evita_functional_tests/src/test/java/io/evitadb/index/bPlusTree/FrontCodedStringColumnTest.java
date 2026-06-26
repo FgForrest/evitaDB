@@ -208,8 +208,8 @@ class FrontCodedStringColumnTest {
 		@Test
 		@DisplayName("round-trips keys whose shared prefix and suffix exceed the single-byte length limit")
 		void shouldRoundTripVarintBoundaryKeys() {
-			// the spike used a single byte per length (assuming < 256); production uses a varint, so a > 255-byte shared
-			// prefix and a > 255-byte suffix must both round-trip — guards the hardening over the spike's encoding
+			// length fields are varint-encoded, so a shared prefix and a suffix that each exceed the single-byte length
+			// limit (255 bytes) must both round-trip correctly
 			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
 			final String longPrefix = "a".repeat(300);
 			final String[] keys = {longPrefix + "1", longPrefix + "2", "z".repeat(400)};
@@ -223,6 +223,73 @@ class FrontCodedStringColumnTest {
 			final InsertionPosition hit = column.findKeyPosition(longPrefix + "2", 0, keys.length, null);
 			assertTrue(hit.alreadyPresent());
 			assertEquals(1, hit.position());
+		}
+
+		@Test
+		@DisplayName("decodes a short entry following a longer predecessor without leaking stale tail bytes")
+		void shouldDecodeShortEntryAfterLongerPredecessorWithoutStaleTail() {
+			// the decode reuses one scratch buffer across hops; a short entry decoded right after a much longer
+			// predecessor in the same restart block must be truncated to its real length, never echoing the
+			// predecessor's trailing bytes left in the shared scratch. The 60-byte key also exceeds the initial scratch
+			// size, so this also exercises the grow-then-reuse path.
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final String longKey = "abc" + "x".repeat(57); // 60 bytes, forces the scratch to grow past its seed
+			final String[] keys = {"aaa", longKey, "abd", "abe" + "y".repeat(40)};
+			for (int i = 0; i < keys.length; i++) {
+				column.insertKeyAt(i, keys[i]);
+			}
+			// "abd" (slot 2) shares "ab" with the 60-byte predecessor; a stale-tail bug would return "abd" + 57 'x's
+			assertEquals("abd", column.keyAt(2), "short entry must not inherit the longer predecessor's tail");
+			// every entry round-trips - covers the long->short and short->long transitions via decodeAt
+			for (int i = 0; i < keys.length; i++) {
+				assertEquals(keys[i], column.keyAt(i), "round-trip mismatch at slot " + i);
+			}
+			// asBoxedArray runs the decodeAll path (separate reused-scratch loop); first `keys.length` slots are live
+			final String[] decoded = (String[]) column.asBoxedArray();
+			for (int i = 0; i < keys.length; i++) {
+				assertEquals(keys[i], decoded[i], "decodeAll mismatch at slot " + i);
+			}
+			// binary search (which decodes each probed candidate) still locates the short key after the long one
+			final InsertionPosition hit = column.findKeyPosition("abd", 0, keys.length, null);
+			assertTrue(hit.alreadyPresent());
+			assertEquals(2, hit.position());
+		}
+
+		@Test
+		@DisplayName("round-trips the empty key and a zero-shared key sitting among much longer keys")
+		void shouldRoundTripEmptyKeyAndZeroSharedKeyAmongLongerKeys() {
+			// sorted keys: the empty string (the column minimum, stored as varint(0) varint(0) with no suffix), a long
+			// restart-anchoring key, and a trailing key that shares nothing with that long predecessor. Decoding the
+			// trailing key reuses the scratch already filled with the 300-byte predecessor, so the shared==0 branch must
+			// overwrite the suffix from offset 0 and truncate to the real length - never echoing the predecessor's tail.
+			// The 300-byte key also forces the decode scratch to grow past its initial capacity, exercising grow-then-reuse.
+			final ValueColumn<String> column = new FrontCodedStringColumn<>(BLOCK_SIZE);
+			final String[] keys = {"", "m".repeat(300), "z"};
+			for (int i = 0; i < keys.length; i++) {
+				column.insertKeyAt(i, keys[i]);
+			}
+
+			// random-access decode (decodeAt) round-trips every slot, including the empty entry and the zero-shared tail
+			for (int i = 0; i < keys.length; i++) {
+				assertEquals(keys[i], column.keyAt(i), "keyAt round-trip mismatch at slot " + i);
+			}
+			// the empty key must decode to "" exactly, never inheriting any bytes from a neighbour
+			assertEquals("", column.keyAt(0), "empty key must decode to the empty string");
+			// the zero-shared tail must not echo the long predecessor's bytes left in the reused scratch
+			assertEquals("z", column.keyAt(2), "zero-shared key must not inherit the long predecessor's tail");
+
+			// sequential decode (decodeAll, via asBoxedArray) round-trips the same keys
+			final String[] decoded = (String[]) column.asBoxedArray();
+			for (int i = 0; i < keys.length; i++) {
+				assertEquals(keys[i], decoded[i], "decodeAll mismatch at slot " + i);
+			}
+
+			// binary search locates each key, including the empty key at the front and the zero-shared key at the end
+			for (int i = 0; i < keys.length; i++) {
+				final InsertionPosition hit = column.findKeyPosition(keys[i], 0, keys.length, null);
+				assertTrue(hit.alreadyPresent(), "findKeyPosition must locate key at slot " + i);
+				assertEquals(i, hit.position(), "findKeyPosition returned wrong slot for key " + i);
+			}
 		}
 
 		@Test

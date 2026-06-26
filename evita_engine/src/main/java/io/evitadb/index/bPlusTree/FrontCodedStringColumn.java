@@ -24,6 +24,7 @@
 package io.evitadb.index.bPlusTree;
 
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -93,6 +94,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 */
 	private static final int MAX_ENTRY_HEADER_BYTES = 10;
 	/**
+	 * Initial size of the single scratch buffer reused across the forward hops of one {@link #decodeAt} / {@link
+	 * #decodeAll} decode. Sized for typical high-cardinality string keys (codes / EANs / URLs, ~10–40 B) so the common
+	 * decode never has to grow the scratch; longer keys grow it on demand.
+	 */
+	private static final int DECODE_SCRATCH_BYTES = 48;
+	/**
 	 * Shared empty byte array used as the "no predecessor" sentinel at the start of a decode and for an empty key.
 	 */
 	private static final byte[] EMPTY_BYTES = EMPTY_BYTE_ARRAY;
@@ -100,6 +107,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	 * Shared empty restart index so an empty column allocates none.
 	 */
 	private static final int[] EMPTY_OFFSETS = EMPTY_INT_ARRAY;
+	/**
+	 * Premise-failure message for a corrupt blob whose entry claims a shared prefix longer than its decoded predecessor.
+	 * Held as a compile-time constant so the per-hop decode check stays allocation-free.
+	 */
+	private static final String CORRUPT_BLOB_MESSAGE =
+		"Front-coded blob is corrupt: shared prefix exceeds decoded predecessor length!";
 
 	/**
 	 * The fixed leaf block size — the value returned by {@link #capacity()}. The blob itself is variable-length and
@@ -186,18 +199,19 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 
 	@Override
 	public void insertKeyAt(int index, @Nonnull M value) {
-		final String[] keys = decodeAll();
-		final String[] grown = new String[this.size + 1];
+		final byte[][] keys = decodeAllBytes();
+		final byte[][] grown = new byte[this.size + 1][];
 		System.arraycopy(keys, 0, grown, 0, index);
-		grown[index] = (String) value;
+		// the only key that has to be (re-)encoded from a String is the freshly inserted one
+		grown[index] = ((String) value).getBytes(StandardCharsets.UTF_8);
 		System.arraycopy(keys, index, grown, index + 1, this.size - index);
 		encode(grown, this.size + 1);
 	}
 
 	@Override
 	public void removeKeyAt(int index) {
-		final String[] keys = decodeAll();
-		final String[] shrunk = new String[this.size - 1];
+		final byte[][] keys = decodeAllBytes();
+		final byte[][] shrunk = new byte[this.size - 1][];
 		System.arraycopy(keys, 0, shrunk, 0, index);
 		System.arraycopy(keys, index + 1, shrunk, index, this.size - index - 1);
 		encode(shrunk, this.size - 1);
@@ -208,30 +222,30 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		// the leaf calls this only to release the freed last slot after removeKeyAt already dropped the entry, so the
 		// slot is already absent (index == size); a defensive truncate keeps it a strict no-op for any slot >= size
 		if (index < this.size) {
-			encode(decodeAll(), index);
+			encode(decodeAllBytes(), index);
 		}
 	}
 
 	@Override
 	public void copyRangeTo(int srcPos, @Nonnull ValueColumn<M> dst, int dstPos, int length) {
 		// snapshot the source range first (handles dst == this, including the overlapping right-shift in stealFromLeft)
-		final String[] srcAll = decodeAll();
-		final String[] slice = new String[length];
+		final byte[][] srcAll = decodeAllBytes();
+		final byte[][] slice = new byte[length][];
 		System.arraycopy(srcAll, srcPos, slice, 0, length);
 
 		final FrontCodedStringColumn<M> target = asSameKind(dst);
 		// dst == this reuses the just-decoded array; otherwise decode the destination's own live entries
-		final String[] dstAll = target == this ? srcAll : target.decodeAll();
+		final byte[][] dstAll = target == this ? srcAll : target.decodeAllBytes();
 		final int newSize = Math.max(target.size, dstPos + length);
-		final String[] result = dstAll.length >= newSize ? dstAll : Arrays.copyOf(dstAll, newSize);
+		final byte[][] result = dstAll.length >= newSize ? dstAll : Arrays.copyOf(dstAll, newSize);
 		System.arraycopy(slice, 0, result, dstPos, length);
 		// A right-shift (dstPos > target.size, used by the leaf steal/merge rebalance to open room at the front)
 		// leaves the slots between the old live end and dstPos logically empty; the caller always fills them with a
 		// second copy before the column is read. A fixed-slot array carries those as harmless null sentinels, but the
 		// dense front-coded blob has no null-slot representation and encode() would NPE on them, so stamp transient
-		// empty-string placeholders into the gap here — they are guaranteed to be overwritten by that follow-up copy.
+		// empty-byte placeholders into the gap here — they are guaranteed to be overwritten by that follow-up copy.
 		for (int i = target.size; i < dstPos; i++) {
-			result[i] = "";
+			result[i] = EMPTY_BYTES;
 		}
 		target.encode(result, newSize);
 	}
@@ -240,7 +254,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 	public void fillEmpty(int fromInclusive, int toExclusive) {
 		// truncate the live tail to [0, fromInclusive); slots are size-authoritative so toExclusive only asserts bounds
 		if (fromInclusive < this.size) {
-			encode(decodeAll(), fromInclusive);
+			encode(decodeAllBytes(), fromInclusive);
 		}
 	}
 
@@ -299,10 +313,12 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		final int restart = index / RESTART_INTERVAL;
 		final int base = restart * RESTART_INTERVAL;
 		int pos = this.restartOffsets[restart];
-		byte[] cur = EMPTY_BYTES;
-		// the varint-read / entry-reconstruction loop is intentionally inlined in both decodeAt and decodeAll: a shared
-		// helper would have to return the decoded bytes and the advanced position, forcing a per-call holder allocation
-		// (or a non-reentrant instance field) and breaking the zero-allocation contract of this hot path
+		// one scratch buffer reused across every forward hop: front-coding shares each entry's prefix with its physical
+		// predecessor (shared <= the length we just decoded), so the first `shared` bytes are already present in `cur`
+		// from the previous hop - only the suffix from offset `shared` onward is overwritten. No per-hop byte[] and no
+		// per-hop prefix copy. The varint-read loop stays inlined (a shared helper would force a per-call holder).
+		byte[] cur = new byte[DECODE_SCRATCH_BYTES];
+		int curLen = 0;
 		for (int j = base; j <= index; j++) {
 			// read varint sharedPrefixLength
 			int shared = 0;
@@ -321,25 +337,44 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 				suffixLen |= (b & 0x7F) << shift;
 				shift += 7;
 			} while ((b & 0x80) != 0);
-			final byte[] next = new byte[shared + suffixLen];
-			System.arraycopy(cur, 0, next, 0, shared);
-			System.arraycopy(this.data, pos, next, shared, suffixLen);
+			// front-coding invariant: a shared prefix can never exceed the predecessor we already decoded - check it so
+			// a corrupt blob fails fast (the original threw AIOOBE via the prefix arraycopy) instead of returning a wrong
+			// key. A constant message keeps this per-hop check allocation-free on the decode hot path.
+			Assert.isPremiseValid(shared <= curLen, CORRUPT_BLOB_MESSAGE);
+			final int total = shared + suffixLen;
+			if (total > cur.length) {
+				// grow preserving the already-decoded prefix (the first `shared` <= curLen bytes stay valid)
+				cur = Arrays.copyOf(cur, Math.max(total, cur.length << 1));
+			}
+			System.arraycopy(this.data, pos, cur, shared, suffixLen);
 			pos += suffixLen;
-			cur = next;
+			curLen = total;
 		}
-		return new String(cur, StandardCharsets.UTF_8);
+		// the explicit length is load-bearing: it stops a shorter entry from leaking stale tail bytes left in the reused
+		// scratch by a longer predecessor
+		return new String(cur, 0, curLen, StandardCharsets.UTF_8);
 	}
 
 	/**
-	 * Decodes all live entries sequentially into a fresh {@code String[]} of length {@link #size}.
+	 * Decodes all live entries sequentially into a fresh {@code byte[][]} of length {@link #size}, each element holding
+	 * one entry's raw UTF-8 bytes. This is the byte-level workhorse the slot mutators use: re-encoding via
+	 * {@link #encode(byte[][], int)} then never has to turn the unchanged keys back into bytes, so a single mutation no
+	 * longer allocates {@link #size} {@link String} objects plus {@link #size} {@code getBytes()} arrays.
 	 *
-	 * @return the decoded live values in physical order
+	 * @return the decoded live entries' raw UTF-8 bytes, in physical order; every element is a freshly allocated,
+	 *         caller-owned {@code byte[]} that aliases neither the column's internal {@link #data} blob nor the
+	 *         decode scratch, so a caller may keep, mutate, or replace any slot — which is exactly what lets the
+	 *         slot mutators stamp a new key into one slot before re-{@link #encode(byte[][], int)}
 	 */
 	@Nonnull
-	private String[] decodeAll() {
-		final String[] out = new String[this.size];
+	private byte[][] decodeAllBytes() {
+		final byte[][] out = new byte[this.size][];
 		int pos = 0;
-		byte[] cur = EMPTY_BYTES;
+		// one scratch buffer reused across every entry: each entry shares its prefix with the previous one, so the first
+		// `shared` bytes already sit in `cur`; only the suffix is overwritten. Each out[i] is a fresh copy, so it never
+		// aliases the scratch.
+		byte[] cur = new byte[DECODE_SCRATCH_BYTES];
+		int curLen = 0;
 		for (int i = 0; i < this.size; i++) {
 			int shared = 0;
 			int shift = 0;
@@ -356,24 +391,48 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 				suffixLen |= (b & 0x7F) << shift;
 				shift += 7;
 			} while ((b & 0x80) != 0);
-			final byte[] next = new byte[shared + suffixLen];
-			System.arraycopy(cur, 0, next, 0, shared);
-			System.arraycopy(this.data, pos, next, shared, suffixLen);
+			// front-coding invariant (constant message keeps this per-entry check allocation-free)
+			Assert.isPremiseValid(shared <= curLen, CORRUPT_BLOB_MESSAGE);
+			final int total = shared + suffixLen;
+			if (total > cur.length) {
+				cur = Arrays.copyOf(cur, Math.max(total, cur.length << 1));
+			}
+			System.arraycopy(this.data, pos, cur, shared, suffixLen);
 			pos += suffixLen;
-			out[i] = new String(next, StandardCharsets.UTF_8);
-			cur = next;
+			out[i] = Arrays.copyOf(cur, total);
+			curLen = total;
 		}
 		return out;
 	}
 
 	/**
-	 * Re-encodes the first {@code n} entries of {@code keys} into a fresh trimmed blob + restart index, replacing this
-	 * column's state. {@code keys.length} may exceed {@code n} (only the live prefix is encoded).
+	 * Decodes all live entries into a fresh {@code String[]} of length {@link #size}. Cold path only (consistency
+	 * verification / {@link #asBoxedArray}); the hot slot mutators use {@link #decodeAllBytes} instead.
 	 *
-	 * @param keys the source values (at least {@code n} non-null entries)
+	 * @return the decoded live values in physical order
+	 */
+	@Nonnull
+	private String[] decodeAll() {
+		final byte[][] raw = decodeAllBytes();
+		final String[] out = new String[raw.length];
+		for (int i = 0; i < raw.length; i++) {
+			out[i] = new String(raw[i], StandardCharsets.UTF_8);
+		}
+		return out;
+	}
+
+	/**
+	 * Re-encodes the first {@code n} entries of {@code keys} (raw UTF-8 key bytes) into a fresh trimmed blob + restart
+	 * index, replacing this column's state. {@code keys.length} may exceed {@code n} (only the live prefix is encoded).
+	 *
+	 * Operating on raw {@code byte[]} keys rather than {@link String}s is deliberate: the slot mutators decode the live
+	 * entries straight to their UTF-8 bytes ({@link #decodeAllBytes}), so the unchanged keys never round-trip through a
+	 * {@link String} object and a second {@code getBytes()} encode here — only the one newly-inserted key is encoded.
+	 *
+	 * @param keys the source key bytes (at least {@code n} non-null entries)
 	 * @param n    the number of entries to encode
 	 */
-	private void encode(@Nonnull String[] keys, int n) {
+	private void encode(@Nonnull byte[][] keys, int n) {
 		if (n == 0) {
 			this.data = EMPTY_BYTES;
 			this.dataLength = 0;
@@ -386,7 +445,7 @@ final class FrontCodedStringColumn<M extends Comparable<M>> implements ValueColu
 		int len = 0;
 		byte[] prev = EMPTY_BYTES;
 		for (int i = 0; i < n; i++) {
-			final byte[] keyBytes = keys[i].getBytes(StandardCharsets.UTF_8);
+			final byte[] keyBytes = keys[i];
 			final int shared;
 			if (i % RESTART_INTERVAL == 0) {
 				restarts[i / RESTART_INTERVAL] = len;
