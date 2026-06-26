@@ -190,7 +190,12 @@ public interface AttributeIndexMutator {
 			priorValue.ifPresent(
 				value -> indexForRemoval.removeAttribute(
 					referenceSchema, attributeDefinition, allowedLocales, scope, locale,
-					Objects.requireNonNull(value.value()), existingPk
+					// normalize the stored value to the schema scale so the removal targets the same
+					// index key the matching upsert produced (see `valueToInsert` above)
+					NumberUtils.normalizeForIndexing(
+						Objects.requireNonNull(value.value()), attributeDefinition.getIndexedDecimalPlaces()
+					),
+					existingPk
 				)
 			);
 			indexForUpsert.upsertAttribute(

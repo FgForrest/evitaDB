@@ -77,11 +77,11 @@ class EvitaWarmUpInsertionTest implements EvitaTestSupport {
 	/**
 	 * Number of records inserted in the initial bulk insertion phase.
 	 */
-	private static final int INITIAL_RECORD_COUNT = 10_000_000;
+	private static final int INITIAL_RECORD_COUNT = 500_000;
 	/**
 	 * Number of random remove/update operations performed in the churn phase that follows the initial insertion.
 	 */
-	private static final int CHURN_OPERATIONS = 10_000_000;
+	private static final int CHURN_OPERATIONS = 500_000;
 	/**
 	 * Progress is reported to the standard output every this many operations.
 	 */

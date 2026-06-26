@@ -23,9 +23,12 @@
 
 package io.evitadb.index.map;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.map.ProducerMapChanges.ProducerMapChangesMemento;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
@@ -58,7 +61,8 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 @NotThreadSafe
-public class MapChanges<K, V> implements Serializable {
+public class MapChanges<K, V>
+	implements Serializable, Snapshotable<MapChanges.MapChangesMemento<K, V>> {
 	@Serial private static final long serialVersionUID = -6370910459056592080L;
 
 	/**
@@ -526,6 +530,95 @@ public class MapChanges<K, V> implements Serializable {
 	}
 
 	/**
+	 * Captures the current mutable diff state into an independent memento (see
+	 * {@link Snapshotable#snapshot()}). The three mutable containers ({@link #removedKeys},
+	 * {@link #modifiedKeys}, {@link #createdThenRemovedProducers}) are deep-copied so a later mutation of this layer
+	 * cannot corrupt the memento, while {@link #createdKeyCount} is copied by value. Producer **values** held inside
+	 * {@link #modifiedKeys} (and the instances stashed in {@link #createdThenRemovedProducers}) are captured BY
+	 * REFERENCE only — their own nested diff layers are snapshotted by their own {@link Snapshotable}, coordinated by
+	 * the maintainer-level savepoint. The immutable {@link #mapDelegate} baseline and the stateless
+	 * {@link #transactionalLayerWrapper} are deliberately excluded — they are shared-immutable and never change during
+	 * the transaction.
+	 *
+	 * @return a memento that {@link #restore(MapChangesMemento)} can use to reset this layer to its current state
+	 */
+	@Nonnull
+	@Override
+	public MapChangesMemento<K, V> snapshot() {
+		return new BaseMapChangesMemento<>(
+			new HashSet<>(this.removedKeys),
+			new HashMap<>(this.modifiedKeys),
+			this.createdKeyCount,
+			this.createdThenRemovedProducers == null
+				? null
+				: copyIdentitySet(this.createdThenRemovedProducers)
+		);
+	}
+
+	/**
+	 * Resets this diff layer back to the exact state captured by the given memento (see
+	 * {@link Snapshotable#restore(Object)}). The two `final` containers ({@link #removedKeys}, {@link #modifiedKeys})
+	 * are reset IN PLACE via `clear()` + `addAll`/`putAll` (they cannot be reassigned), {@link #createdKeyCount} is
+	 * reassigned by value, and {@link #createdThenRemovedProducers} is rebuilt as a fresh identity-backed set (or set
+	 * to `null` when the memento captured `null`, preserving the lazy-allocation invariant). State is copied OUT of the
+	 * memento so the same memento can be restored more than once. Producer values are restored BY REFERENCE only —
+	 * their internal state is never touched here.
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull MapChangesMemento<K, V> memento) {
+		final BaseMapChangesMemento<K, V> baseState = baseStateOf(memento);
+		this.removedKeys.clear();
+		this.removedKeys.addAll(baseState.removedKeys());
+		this.modifiedKeys.clear();
+		this.modifiedKeys.putAll(baseState.modifiedKeys());
+		this.createdKeyCount = baseState.createdKeyCount();
+		this.createdThenRemovedProducers = baseState.createdThenRemovedProducers() == null
+			? null
+			: copyIdentitySet(baseState.createdThenRemovedProducers());
+	}
+
+	/**
+	 * Resolves the {@link BaseMapChangesMemento} carrying the inherited diff state from a memento that may be either the
+	 * base memento itself or a {@link ProducerMapChanges.ProducerMapChangesMemento} wrapping it. This lets
+	 * {@link #restore(MapChangesMemento)} reset the inherited fields regardless of which concrete memento the
+	 * (possibly producer) subclass produced.
+	 *
+	 * @param memento the memento to unwrap
+	 * @return the base memento carrying the inherited diff state
+	 */
+	@Nonnull
+	protected BaseMapChangesMemento<K, V> baseStateOf(@Nonnull MapChangesMemento<K, V> memento) {
+		if (memento instanceof BaseMapChangesMemento<K, V> baseMemento) {
+			return baseMemento;
+		} else if (memento instanceof ProducerMapChangesMemento<K, V> producerMemento) {
+			// the producer memento wraps the inherited diff state produced by super.snapshot()
+			return baseStateOf(producerMemento.baseState());
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unexpected MapChangesMemento implementation: " + memento.getClass().getName()
+			);
+		}
+	}
+
+	/**
+	 * Copies the given set into a fresh identity-backed set ({@link Collections#newSetFromMap(Map)} over an
+	 * {@link IdentityHashMap}), preserving the `==` membership semantics required by
+	 * {@link #createdThenRemovedProducers}. A plain content-equality {@link HashSet} would conflate two content-equal
+	 * but distinct producer-layer owners (e.g. two empty bitmaps) and corrupt the orphan-release decision.
+	 *
+	 * @param source the identity set to copy (elements captured by reference)
+	 * @return a new identity-backed set holding the same element references
+	 */
+	@Nonnull
+	private static Set<Object> copyIdentitySet(@Nonnull Set<Object> source) {
+		final Set<Object> copy = Collections.newSetFromMap(new IdentityHashMap<>(source.size()));
+		copy.addAll(source);
+		return copy;
+	}
+
+	/**
 	 * Clears all changes recorded in this diff layer.
 	 */
 	void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
@@ -548,6 +641,48 @@ public class MapChanges<K, V> implements Serializable {
 			this.createdThenRemovedProducers = null;
 		}
 		this.removedKeys.addAll(this.mapDelegate.keySet());
+	}
+
+	/**
+	 * Opaque memento type produced by {@link MapChanges#snapshot()} and consumed by
+	 * {@link MapChanges#restore(MapChangesMemento)}. It is a sealed hierarchy so that the producer-valued subclass can
+	 * contribute its own memento ({@link ProducerMapChanges.ProducerMapChangesMemento}) while the inherited
+	 * {@link Snapshotable Snapshotable<MapChangesMemento>} contract remains a single, stable type binding — the
+	 * maintainer-level savepoint can therefore round-trip {@link Snapshotable#restore(Object) restore(snapshot())}
+	 * polymorphically without losing the subclass-specific state.
+	 *
+	 * @param <K> key type
+	 * @param <V> value type
+	 */
+	public sealed interface MapChangesMemento<K, V>
+		permits BaseMapChangesMemento, ProducerMapChangesMemento {
+	}
+
+	/**
+	 * Immutable memento capturing the mutable diff state of the (base) {@link MapChanges} layer at a single point in
+	 * time, used by {@link MapChanges#snapshot()} / {@link MapChanges#restore(MapChangesMemento)} to support savepoint
+	 * rollback.
+	 *
+	 * The collection fields hold independent deep copies of the layer's containers (so a later layer mutation cannot
+	 * corrupt the memento); the producer **values** inside {@link #modifiedKeys} and the instances inside
+	 * {@link #createdThenRemovedProducers} are held BY REFERENCE only (their own nested layers are governed by their own
+	 * {@link Snapshotable}). The {@link #mapDelegate} baseline and the value wrapper are intentionally excluded — they
+	 * are shared-immutable and never change during a transaction.
+	 *
+	 * @param removedKeys                 deep copy of {@link MapChanges#removedKeys}
+	 * @param modifiedKeys                deep copy of {@link MapChanges#modifiedKeys} (values by reference)
+	 * @param createdKeyCount             value copy of {@link MapChanges#createdKeyCount}
+	 * @param createdThenRemovedProducers identity-backed copy of {@link MapChanges#createdThenRemovedProducers}, or
+	 *                                    `null` when the layer had none (the lazy-allocation invariant is preserved)
+	 * @param <K> key type
+	 * @param <V> value type
+	 */
+	public record BaseMapChangesMemento<K, V>(
+		@Nonnull Set<K> removedKeys,
+		@Nonnull Map<K, V> modifiedKeys,
+		int createdKeyCount,
+		@Nullable Set<Object> createdThenRemovedProducers
+	) implements MapChangesMemento<K, V> {
 	}
 
 }

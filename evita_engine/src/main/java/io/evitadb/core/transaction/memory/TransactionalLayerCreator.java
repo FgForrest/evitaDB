@@ -30,19 +30,20 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Interface allowing classes to participate in a transaction memory handling process. Implementations should implement
- * all get / set state methods in following pattern:
+ * all get / set state methods in following pattern (these accessors are normally reached through the static
+ * {@link io.evitadb.core.transaction.Transaction} facade rather than {@link TransactionalMemory} directly):
  *
  * ``` java
  * GET:
- *      final Changes layer = TransactionalMemory.getTransactionalMemoryLayerIfExists(this);
+ *      final Changes layer = Transaction.getTransactionalMemoryLayerIfExists(this);
  * 		if (layer == null) {
  * 			// execute original logic
  *      } else {
-* 			// execute logic and propagate all changes captured in transactional layer (Changes object)
+ * 			// execute logic and propagate all changes captured in transactional layer (Changes object)
  *      }
  *
  * SET:
- *      final Changes layer = TransactionalMemory.getTransactionalMemoryLayer(this);
+ *      final Changes layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
  * 		if (layer == null) {
  * 			// execute original logic
  *      } else {

@@ -31,6 +31,7 @@ import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
@@ -67,7 +68,7 @@ import static java.util.Optional.ofNullable;
  * @see DataStoreMemoryBuffer
  */
 @NotThreadSafe
-public class DataStoreChanges {
+public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStoreChangesMemento> {
 	/**
 	 * This map contains index of "dirty" entity indexes - i.e. subset of {@link EntityCollection indexes} that were
 	 * modified and not yet persisted.
@@ -97,6 +98,69 @@ public class DataStoreChanges {
 	 */
 	public void setPersistenceService(@Nonnull StoragePartPersistenceService<StorageDescriptor> persistenceService) {
 		this.persistenceService = persistenceService;
+	}
+
+	/**
+	 * Captures the revertable in-memory state of this layer for a per-entity savepoint (see
+	 * {@link io.evitadb.core.transaction.memory.TransactionalLayerMaintainer#openSavepoint()}).
+	 *
+	 * Only the dirty-index tracking and the trapped storage-part cache are captured — these are the only fields a
+	 * single entity mutation can touch while the savepoint is open: the index executor marks indexes dirty through
+	 * {@link #getOrCreateIndexForModification} / {@link #getIndexForModification} on every modification. Actual
+	 * storage parts are written ({@link #putStoragePart} / {@link #removeStoragePart}) by the storage executor only
+	 * during its `commit()`, which runs after the savepoint has already been committed — so a rolled-back entity never
+	 * persists a storage part and none needs reverting here. The {@link #persistenceService} reference is intentionally
+	 * not part of the memento (it changes only on store compaction, never inside a mutation).
+	 *
+	 * The captured maps are independent copies so that subsequent mutations of this layer — or a repeated
+	 * {@link #restore(DataStoreChangesMemento)} from the same memento — cannot corrupt the snapshot. The {@link Index}
+	 * values are shared by reference on purpose: their own transactional layers are snapshotted independently, so the
+	 * memento only needs to remember *which* indexes were dirty, not their contents.
+	 */
+	@Nonnull
+	@Override
+	public DataStoreChangesMemento snapshot() {
+		return new DataStoreChangesMemento(
+			new HashMap<>(this.dirtyEntityIndexes),
+			new IntObjectHashMap<>(this.dirtyEntityIndexesByPk),
+			copyTrappedChanges(this.trappedChanges)
+		);
+	}
+
+	/**
+	 * Restores the revertable in-memory state captured by {@link #snapshot()}, discarding any dirty-index tracking and
+	 * trapped storage-part changes made since the snapshot was taken. Fresh copies of the memento's maps are installed
+	 * so the memento stays reusable for a repeated restore.
+	 *
+	 * @param memento the state previously captured by {@link #snapshot()}
+	 */
+	@Override
+	public void restore(@Nonnull DataStoreChangesMemento memento) {
+		this.dirtyEntityIndexes = new HashMap<>(memento.dirtyEntityIndexes());
+		this.dirtyEntityIndexesByPk = new IntObjectHashMap<>(memento.dirtyEntityIndexesByPk());
+		this.trappedChanges = copyTrappedChanges(memento.trappedChanges());
+	}
+
+	/**
+	 * Creates an independent copy of the trapped-changes map-of-maps (or returns {@code null} when there is nothing to
+	 * copy). Both the outer map and each inner {@link LongObjectMap} are copied so the result shares no mutable
+	 * structure with the source; the {@link StoragePart} values are immutable enough to share by reference.
+	 *
+	 * @param source the trapped-changes structure to copy, may be {@code null}
+	 * @return an independent copy, or {@code null} when {@code source} is {@code null}
+	 */
+	@Nullable
+	private static Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> copyTrappedChanges(
+		@Nullable Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> source
+	) {
+		if (source == null) {
+			return null;
+		}
+		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> copy = new HashMap<>(source.size());
+		for (final Map.Entry<Class<? extends StoragePart>, LongObjectMap<StoragePart>> entry : source.entrySet()) {
+			copy.put(entry.getKey(), new LongObjectHashMap<>(entry.getValue()));
+		}
+		return copy;
 	}
 
 	/**
@@ -406,5 +470,22 @@ public class DataStoreChanges {
 			return this.iterator.next().value;
 		}
 
+	}
+
+	/**
+	 * Immutable snapshot of the revertable in-memory state of {@link DataStoreChanges}, captured by
+	 * {@link #snapshot()} and reinstated by {@link #restore(DataStoreChangesMemento)} on a per-entity savepoint
+	 * rollback. The maps are private copies owned by the memento; see {@link #snapshot()} for what is and is not
+	 * captured.
+	 *
+	 * @param dirtyEntityIndexes     copy of the dirty-index map keyed by {@link IndexKey}
+	 * @param dirtyEntityIndexesByPk copy of the dirty-index map keyed by index primary key
+	 * @param trappedChanges         independent copy of the trapped storage-part cache, or {@code null}
+	 */
+	public record DataStoreChangesMemento(
+		@Nonnull Map<IndexKey, Index<? extends IndexKey>> dirtyEntityIndexes,
+		@Nonnull IntObjectMap<Index<? extends IndexKey>> dirtyEntityIndexesByPk,
+		@Nullable Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> trappedChanges
+	) {
 	}
 }

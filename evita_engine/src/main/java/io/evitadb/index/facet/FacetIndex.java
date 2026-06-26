@@ -31,7 +31,9 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
+import io.evitadb.core.transaction.memory.TransactionalContainerChanges.ContainerChangesMemento;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -354,7 +356,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 	/**
 	 * This class collects changes in {@link #facetingEntities} transactional map and its sub structure.
 	 */
-	public static class FacetIndexChanges {
+	public static class FacetIndexChanges implements Snapshotable<FacetIndexChanges.FacetIndexChangesMemento> {
 		private final TransactionalContainerChanges<FacetEntityTypeIndexChanges, FacetReferenceIndex, FacetReferenceIndex> facetGroupIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetReferenceIndex index) {
@@ -371,6 +373,27 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			this.facetGroupIndexChanges.cleanAll(transactionalLayer);
+		}
+
+		@Nonnull
+		@Override
+		public FacetIndexChangesMemento snapshot() {
+			return new FacetIndexChangesMemento(this.facetGroupIndexChanges.snapshot());
+		}
+
+		@Override
+		public void restore(@Nonnull FacetIndexChangesMemento memento) {
+			this.facetGroupIndexChanges.restore(memento.facetGroupIndexChanges());
+		}
+
+		/**
+		 * Memento bundling the savepoint state of every {@link TransactionalContainerChanges} this aggregate tracks.
+		 *
+		 * @param facetGroupIndexChanges snapshot of the facet-reference-index created/removed bookkeeping
+		 */
+		public record FacetIndexChangesMemento(
+			@Nonnull ContainerChangesMemento<FacetReferenceIndex> facetGroupIndexChanges
+		) {
 		}
 	}
 

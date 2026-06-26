@@ -176,7 +176,7 @@ class ReferenceIndexMutatorDecisionMatrixTest {
 		assertTrue(isFacetPresent(index, refKey, ENTITY_PK), "Facet should be present before the call");
 
 		// apply decision matrix with nowFaceted=false — should remove the facet
-		ReferenceIndexMutator.applyFacetDecisionMatrix(index, refSchema, refKey, null, ENTITY_PK, false, null);
+		ReferenceIndexMutator.applyFacetDecisionMatrix(index, refSchema, refKey, null, ENTITY_PK, false);
 
 		assertFalse(isFacetPresent(index, refKey, ENTITY_PK), "Facet should be removed after the call");
 	}
@@ -196,7 +196,7 @@ class ReferenceIndexMutatorDecisionMatrixTest {
 		assertFalse(isFacetPresent(index, refKey, ENTITY_PK), "Facet should not be present before the call");
 
 		// apply decision matrix with nowFaceted=true — should add the facet
-		ReferenceIndexMutator.applyFacetDecisionMatrix(index, refSchema, refKey, null, ENTITY_PK, true, null);
+		ReferenceIndexMutator.applyFacetDecisionMatrix(index, refSchema, refKey, null, ENTITY_PK, true);
 
 		assertTrue(isFacetPresent(index, refKey, ENTITY_PK), "Facet should be present after the call");
 	}
@@ -217,7 +217,7 @@ class ReferenceIndexMutatorDecisionMatrixTest {
 		assertTrue(isFacetPresent(index, refKey, ENTITY_PK), "Facet should be present before the call");
 
 		// apply decision matrix with nowFaceted=true — should leave the facet as-is
-		ReferenceIndexMutator.applyFacetDecisionMatrix(index, refSchema, refKey, null, ENTITY_PK, true, null);
+		ReferenceIndexMutator.applyFacetDecisionMatrix(index, refSchema, refKey, null, ENTITY_PK, true);
 
 		assertTrue(isFacetPresent(index, refKey, ENTITY_PK), "Facet should still be present after the call");
 	}
@@ -237,7 +237,7 @@ class ReferenceIndexMutatorDecisionMatrixTest {
 		assertFalse(isFacetPresent(index, refKey, ENTITY_PK), "Facet should not be present before the call");
 
 		// apply decision matrix with nowFaceted=false — should be a no-op
-		ReferenceIndexMutator.applyFacetDecisionMatrix(index, refSchema, refKey, null, ENTITY_PK, false, null);
+		ReferenceIndexMutator.applyFacetDecisionMatrix(index, refSchema, refKey, null, ENTITY_PK, false);
 
 		assertFalse(isFacetPresent(index, refKey, ENTITY_PK), "Facet should still not be present after the call");
 		assertTrue(index.getFacetingEntities().isEmpty(), "Facet index should remain empty");
@@ -260,7 +260,7 @@ class ReferenceIndexMutatorDecisionMatrixTest {
 
 		// apply decision matrix with nowFaceted=true and targetGroupId=7
 		ReferenceIndexMutator.applyFacetDecisionMatrix(
-			index, refSchema, refKey, targetGroupId, ENTITY_PK, true, null
+			index, refSchema, refKey, targetGroupId, ENTITY_PK, true
 		);
 
 		assertTrue(isFacetPresent(index, refKey, ENTITY_PK), "Facet should be present after the call");

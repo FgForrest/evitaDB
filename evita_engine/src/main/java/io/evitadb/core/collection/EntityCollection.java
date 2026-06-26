@@ -218,16 +218,27 @@ public final class EntityCollection implements
 	private final EntitySchema initialSchema;
 	/**
 	 * Contains sequence that allows automatic assigning monotonic primary keys to the entities.
+	 *
+	 * The sequence guarantees uniqueness and monotonicity, not contiguity. A drawn value cannot be
+	 * un-consumed, so when a single entity mutation is reverted while the surrounding transaction keeps
+	 * going (partial rollback of one failed entity in a larger batch) the assigned key is simply skipped,
+	 * leaving a harmless gap — nothing relies on the keys being consecutive.
 	 */
 	private final AtomicInteger pkSequence;
 	/**
 	 * Contains sequence that allows assigning monotonic primary keys to the entity indexes.
+	 *
+	 * Like {@link #pkSequence}, it only guarantees uniqueness and monotonicity; a value consumed for an
+	 * index that is then rolled back is left as a harmless gap (an {@link AtomicInteger} cannot be un-consumed).
 	 */
 	private final AtomicInteger indexPkSequence;
 	/**
 	 * Contains the sequence for assigning {@link PriceInternalIdContainer#getInternalPriceId()} to a newly encountered
 	 * prices in the input data. See {@link PriceInternalIdContainer} to see the reasons behind it. The price sequence
 	 * is shared among live and archive scope to avoid ambiguities.
+	 *
+	 * Like {@link #pkSequence}, it only guarantees uniqueness and monotonicity; an internal price id consumed for
+	 * a price whose entity mutation is then rolled back is left as a harmless gap.
 	 */
 	private final AtomicInteger pricePkSequence;
 	/**
@@ -1933,7 +1944,7 @@ public final class EntityCollection implements
 			applyMutations(
 				session,
 				entityMutation,
-				removeMutation.shouldApplyUndoOnError(),
+				removeMutation.shouldRollbackOnError(),
 				removeMutation.shouldVerifyConsistency(),
 				null,
 				removeMutation.getImplicitMutationsBehavior(),
@@ -2405,7 +2416,7 @@ public final class EntityCollection implements
 			return applyMutations(
 				session,
 				entityMutationToUpsert,
-				veum.shouldApplyUndoOnError(),
+				veum.shouldRollbackOnError(),
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
@@ -2478,8 +2489,9 @@ public final class EntityCollection implements
 	 * Method applies all `localMutations` on entity with passed `entityPrimaryKey`.
 	 *
 	 * @param entityMutation            entity mutation to apply
-	 * @param undoOnError               whether to undo the changes on error
-	 *                                  (if set to false, the changes will be left in the storage)
+	 * @param atomicRollback            whether a failed mutation should be atomically reverted via the
+	 *                                  diff-layer savepoint; only effective when a transaction
+	 *                                  is active — pass {@code false} for WAL replay, where no rollback is needed
 	 * @param checkConsistency          whether to check the consistency of the entity after the mutation
 	 *                                  (if set to false, the consistency will not be checked)
 	 * @param generateImplicitMutations set of implicit mutations to generate
@@ -2490,7 +2502,7 @@ public final class EntityCollection implements
 	<T> Optional<T> applyMutations(
 		@Nullable EvitaSessionContract session,
 		@Nonnull EntityMutation entityMutation,
-		boolean undoOnError,
+		boolean atomicRollback,
 		boolean checkConsistency,
 		@Nullable EvitaRequest returnUpdatedEntity,
 		@Nonnull EnumSet<ImplicitMutationBehavior> generateImplicitMutations,
@@ -2521,7 +2533,6 @@ public final class EntityCollection implements
 			this.catalog.getCatalogIndexMaintainer(),
 			this::getInternalSchema,
 			this::nextInternalPriceId,
-			undoOnError,
 			() -> localMutationExecutorCollector.getFullEntityContents(changeCollector).entity(),
 			() -> this.catalog.getExpressionTriggerRegistry(),
 			(referenceName, scope) -> this.catalog.getExpressionTriggerRegistry()
@@ -2539,6 +2550,7 @@ public final class EntityCollection implements
 			getInternalSchema(),
 			entityMutation,
 			checkConsistency,
+			atomicRollback,
 			generateImplicitMutations,
 			changeCollector,
 			entityIndexUpdater,

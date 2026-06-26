@@ -25,6 +25,7 @@ package io.evitadb.index.bPlusTree;
 
 
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -977,10 +978,14 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		// recurse into the size and root references and the whole node/value graph so that a tree which was created
 		// and discarded within the same transaction (e.g. a removed sub-index) does not leave any of its inner
-		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5)
+		// transactional objects ALIVE - which would otherwise be detected as stale during the commit sweep (INV-5).
+		// The current (in-transaction) root MUST be read BEFORE the root reference's own layer is dropped - otherwise
+		// getRoot() would fall back to the committed root and the recursion would miss every node created during this
+		// transaction (e.g. split offspring), leaking their layers.
+		final BPlusTreeNode<K, ?> theRoot = getRoot();
 		this.size.removeLayer(transactionalLayer);
 		this.root.removeLayer(transactionalLayer);
-		removeLayerRecursively(getRoot(), transactionalLayer);
+		removeLayerRecursively(theRoot, transactionalLayer);
 	}
 
 	/**
@@ -1322,20 +1327,25 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			0,
 			mid,
 			this.comparator,
-			!Transaction.isTransactionAvailable(),
+			// nodes created during a split must participate in the transactional layer so their
+			// in-savepoint mutations are captured by the per-entity savepoint and can be rolled back
+			true,
 			this.transactionalLayerWrapper
 		);
 
-		// Move the other half to the start of existing arrays of former leaf in the right leaf node
+		// Move the other half into FRESH arrays of the right leaf node — the former leaf's arrays must stay intact so a
+		// per-entity savepoint rollback can restore the pre-split leaf; compacting them in place would
+		// corrupt that snapshot
+		//noinspection unchecked
 		final BPlusLeafTreeNode<K, V> rightLeaf = new BPlusLeafTreeNode<>(
 			originKeys,
 			originValues,
-			originKeys,
-			originValues,
+			(K[]) Array.newInstance(this.keyType, this.valueBlockSize),
+			(V[]) Array.newInstance(this.valueType, this.valueBlockSize),
 			mid,
 			leftLeaf.getKeys().length,
 			this.comparator,
-			!Transaction.isTransactionAvailable(),
+			true,
 			this.transactionalLayerWrapper
 		);
 
@@ -1354,7 +1364,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					leftLeaf, rightLeaf,
 					this.keyType,
 					this.comparator,
-					!Transaction.isTransactionAvailable()
+					true
 				)
 			);
 		} else {
@@ -1414,7 +1424,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 		final K[] originKeys = internal.getKeys();
 		final BPlusTreeNode<K, ?>[] originChildren = internal.getChildren();
 
-		// Move half the keys to the new arrays of the left leaf node
+		// Move half the keys to the new arrays of the left leaf node — the split constructor always allocates fresh
+		// arrays, so the former node's arrays stay intact for a per-entity savepoint rollback. The new
+		// nodes participate in the transactional layer so their in-savepoint mutations are captured.
 		final BPlusInternalTreeNode<K> leftInternal = new BPlusInternalTreeNode<>(
 			originKeys,
 			originChildren,
@@ -1424,7 +1436,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			mid,
 			this.keyType,
 			this.comparator,
-			!Transaction.isTransactionAvailable()
+			true
 		);
 
 		// Move the other half to the start of existing arrays of former leaf in the right leaf node
@@ -1437,7 +1449,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			leftInternal.getChildren().length,
 			this.keyType,
 			this.comparator,
-			!Transaction.isTransactionAvailable()
+			true
 		);
 
 		// remove changes of the previous root - it gets replaced
@@ -1454,7 +1466,7 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					leftInternal, rightInternal,
 					this.keyType,
 					this.comparator,
-					!Transaction.isTransactionAvailable()
+					true
 				)
 			);
 		} else {
@@ -1601,7 +1613,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	 * Internal node implementation of the B+ tree that holds keys and child node pointers. Internal nodes serve
 	 * as routing nodes — they do not store values directly but guide searches to the appropriate leaf nodes.
 	 */
-	static class BPlusInternalTreeNode<M extends Comparable<M>> implements BPlusTreeNode<M, BPlusInternalTreeNode<M>> {
+	static class BPlusInternalTreeNode<M extends Comparable<M>> implements
+		BPlusTreeNode<M, BPlusInternalTreeNode<M>>,
+		Snapshotable<BPlusInternalTreeNode.BPlusInternalNodeMemento<M>> {
 		@Serial private static final long serialVersionUID = -7185842083654066615L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -2275,6 +2289,33 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			);
 		}
 
+		/**
+		 * Captures this layer's revertable copy-on-write state for a per-entity savepoint. Only the keys
+		 * and children arrays and the peek index are mutable here; both arrays are cloned (shallow — the key objects are
+		 * immutable and the child nodes own their own transactional layers and are snapshotted independently) so that a
+		 * later mutation, or a repeated {@link #restore}, cannot corrupt the memento.
+		 *
+		 * @return an independent snapshot of this internal node's array structure
+		 */
+		@Nonnull
+		@Override
+		public BPlusInternalNodeMemento<M> snapshot() {
+			return new BPlusInternalNodeMemento<>(this.keys.clone(), this.children.clone(), this.peek);
+		}
+
+		/**
+		 * Restores the array structure captured by {@link #snapshot}. Fresh clones of the memento's arrays are installed
+		 * so the memento stays reusable for a repeated restore.
+		 *
+		 * @param memento the state previously captured by {@link #snapshot}
+		 */
+		@Override
+		public void restore(@Nonnull BPlusInternalNodeMemento<M> memento) {
+			this.keys = memento.keys().clone();
+			this.children = memento.children().clone();
+			this.peek = memento.peek();
+		}
+
 		@Override
 		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			transactionalLayer.removeTransactionalMemoryLayer(this);
@@ -2375,6 +2416,22 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			}
 		}
 
+		/**
+		 * Immutable savepoint memento of an internal node's copy-on-write array structure. The arrays are private
+		 * clones owned by the memento (see {@link #snapshot}); the key objects and child-node references they hold are
+		 * shared by design.
+		 *
+		 * @param keys     clone of the separator-key array
+		 * @param children clone of the child-pointer array
+		 * @param peek     the last occupied child index
+		 */
+		record BPlusInternalNodeMemento<M extends Comparable<M>>(
+			@Nonnull M[] keys,
+			@Nonnull BPlusTreeNode<M, ?>[] children,
+			int peek
+		) {
+		}
+
 	}
 
 	/**
@@ -2382,7 +2439,9 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 	 * in the tree and are the terminal nodes in the B+ tree structure.
 	 */
 	static class BPlusLeafTreeNode<M extends Comparable<M>, N>
-		implements BPlusTreeNode<M, BPlusLeafTreeNode<M, N>> {
+		implements
+		BPlusTreeNode<M, BPlusLeafTreeNode<M, N>>,
+		Snapshotable<BPlusLeafTreeNode.BPlusLeafNodeMemento<M, N>> {
 		@Serial private static final long serialVersionUID = 8382269323782408764L;
 		@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 		/**
@@ -2954,6 +3013,33 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 			);
 		}
 
+		/**
+		 * Captures this layer's revertable copy-on-write state for a per-entity savepoint. Both the key
+		 * and value arrays are cloned (shallow — the key objects are immutable and the values either are immutable or
+		 * own their own transactional layers and are snapshotted independently) so that a later mutation, or a repeated
+		 * {@link #restore}, cannot corrupt the memento.
+		 *
+		 * @return an independent snapshot of this leaf's two arrays and peek
+		 */
+		@Nonnull
+		@Override
+		public BPlusLeafNodeMemento<M, N> snapshot() {
+			return new BPlusLeafNodeMemento<>(this.keys.clone(), this.values.clone(), this.peek);
+		}
+
+		/**
+		 * Restores the array state captured by {@link #snapshot}. Fresh clones of the memento's arrays are installed so
+		 * the memento stays reusable for a repeated restore.
+		 *
+		 * @param memento the state previously captured by {@link #snapshot}
+		 */
+		@Override
+		public void restore(@Nonnull BPlusLeafNodeMemento<M, N> memento) {
+			this.keys = memento.keys().clone();
+			this.values = memento.values().clone();
+			this.peek = memento.peek();
+		}
+
 		@Override
 		public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			transactionalLayer.removeTransactionalMemoryLayer(this);
@@ -3198,6 +3284,21 @@ public class TransactionalObjectBPlusTree<K extends Comparable<K>, V> implements
 					System.arraycopy(this.values, 0, layer.values, 0, this.peek + 1);
 				}
 			}
+		}
+
+		/**
+		 * Immutable savepoint memento of a leaf node's copy-on-write arrays. The arrays are private clones owned by the
+		 * memento (see {@link #snapshot}); the key objects and value references they hold are shared by design.
+		 *
+		 * @param keys   clone of the key array
+		 * @param values clone of the value array
+		 * @param peek   the last occupied index
+		 */
+		record BPlusLeafNodeMemento<M extends Comparable<M>, N>(
+			@Nonnull M[] keys,
+			@Nonnull N[] values,
+			int peek
+		) {
 		}
 
 	}

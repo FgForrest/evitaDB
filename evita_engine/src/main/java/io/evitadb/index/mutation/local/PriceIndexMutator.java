@@ -42,7 +42,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Static utility interface that co-locates all price-index mutation routines to keep
@@ -71,11 +70,6 @@ import java.util.function.Consumer;
  * Each distinct price stored in an entity's `PricesStoragePart` is assigned a unique, entity-wide monotonically
  * increasing `internalPriceId` from a catalog-level sequence. This internal ID is used within price indexes to
  * cross-reference prices across entity primary keys and to enable efficient price-for-sale resolution.
- *
- * ## Undo support
- *
- * Every mutating method accepts an optional `undoActionConsumer`. When present, the inverse of every index
- * modification is registered with it, enabling semi-rollback of partial mutations on error.
  *
  * ## Update-as-remove-then-insert
  *
@@ -119,8 +113,6 @@ public interface PriceIndexMutator {
 	 *                             mode; consulted only when a former entry must be removed
 	 * @param internalIdSupplier   callback that resolves or allocates the stable internal price ID for a given
 	 *                             `PriceKey` + `innerRecordId` pair
-	 * @param undoActionConsumer   optional collector for undo lambdas; when non-null every index modification is
-	 *                             accompanied by its inverse registered with this consumer
 	 */
 	static void priceUpsert(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -133,8 +125,7 @@ public interface PriceIndexMutator {
 		@Nonnull BigDecimal priceWithTax,
 		boolean indexed,
 		@Nonnull ExistingPriceSupplier existingPriceSupplier,
-		@Nonnull PriceInternalIdProvider internalIdSupplier,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull PriceInternalIdProvider internalIdSupplier
 	) {
 		final PriceWithInternalIds formerPrice = existingPriceSupplier.getPriceByKey(priceKey);
 		final PriceInnerRecordHandling innerRecordHandling = existingPriceSupplier.getPriceInnerRecordHandling();
@@ -143,8 +134,7 @@ public interface PriceIndexMutator {
 			priceWithoutTax, priceWithTax,
 			indexed,
 			formerPrice, innerRecordHandling,
-			internalIdSupplier,
-			undoActionConsumer
+			internalIdSupplier
 		);
 	}
 
@@ -160,11 +150,9 @@ public interface PriceIndexMutator {
 	 *
 	 * 1. If `formerPrice` is non-null, exists, and is currently indexed, the old index entry is removed from
 	 *    `entityIndex` first. The former entry's scaled integer prices, validity, and internal price ID are read
-	 *    directly from `formerPrice`. An undo action that re-adds the former entry is registered when
-	 *    `undoActionConsumer` is provided.
+	 *    directly from `formerPrice`.
 	 * 2. If `indexed` is `true`, the new price entry is inserted. Price amounts are scaled to integers using
-	 *    `indexedPricePlaces`. A new internal price ID is obtained from `internalIdSupplier`. An undo action that
-	 *    removes the newly inserted entry is registered when `undoActionConsumer` is provided.
+	 *    `indexedPricePlaces`. A new internal price ID is obtained from `internalIdSupplier`.
 	 *
 	 * When `indexed` is `false` and `formerPrice` was indexed, this effectively removes the price from the index
 	 * without inserting a replacement (the non-indexed price is still persisted in entity storage, just not visible
@@ -190,8 +178,6 @@ public interface PriceIndexMutator {
 	 * @param innerRecordHandling  the entity's current price-grouping strategy (`NONE`, `LOWEST_PRICE`, or `SUM`)
 	 * @param internalIdSupplier   callback that resolves or allocates the stable internal price ID for the given
 	 *                             `PriceKey` + `innerRecordId` pair
-	 * @param undoActionConsumer   optional collector for undo lambdas; when non-null every index modification is
-	 *                             accompanied by its inverse registered with this consumer
 	 */
 	static void priceUpsert(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -205,8 +191,7 @@ public interface PriceIndexMutator {
 		boolean indexed,
 		@Nullable PriceWithInternalIds formerPrice,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling,
-		@Nonnull PriceInternalIdProvider internalIdSupplier,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull PriceInternalIdProvider internalIdSupplier
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
@@ -229,19 +214,6 @@ public interface PriceIndexMutator {
 					formerPriceWithoutTax,
 					formerPriceWithTax
 				);
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(
-						() -> entityIndex.addPrice(
-							referenceSchema,
-							epkForRemoval,
-							formerInternalPriceId,
-							priceKey, innerRecordHandling, formerInnerRecordId,
-							formerValidity,
-							formerPriceWithoutTax,
-							formerPriceWithTax
-						)
-					);
-				}
 			}
 			// now insert new price
 			if (indexed) {
@@ -249,7 +221,7 @@ public interface PriceIndexMutator {
 				final int internalPriceId = internalIdSupplier.getInternalPriceId(priceKey, innerRecordId);
 				final int priceWithoutTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithoutTax, indexedPricePlaces);
 				final int priceWithTaxAsInt = NumberUtils.convertExternalNumberToInt(priceWithTax, indexedPricePlaces);
-				final int priceId = entityIndex.addPrice(
+				entityIndex.addPrice(
 					referenceSchema,
 					epkForUpsert,
 					internalPriceId,
@@ -258,19 +230,6 @@ public interface PriceIndexMutator {
 					priceWithoutTaxAsInt,
 					priceWithTaxAsInt
 				);
-				if (undoActionConsumer != null) {
-					undoActionConsumer.accept(
-						() -> entityIndex.priceRemove(
-							referenceSchema,
-							epkForUpsert,
-							priceId,
-							priceKey, innerRecordHandling, innerRecordId,
-							validity,
-							priceWithoutTaxAsInt,
-							priceWithTaxAsInt
-						)
-					);
-				}
 			}
 		}
 	}
@@ -290,7 +249,6 @@ public interface PriceIndexMutator {
 	 * @param entityIndex          the entity index from which the price entry should be removed
 	 * @param priceKey             composite key identifying the price to remove
 	 * @param existingPriceSupplier supplier of the currently persisted price and the inner-record-handling mode
-	 * @param undoActionConsumer   optional collector for undo lambdas; when non-null the inverse re-add is registered
 	 * @throws EvitaInvalidUsageException if the price identified by `priceKey` does not exist in storage
 	 */
 	static void priceRemove(
@@ -298,13 +256,12 @@ public interface PriceIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey,
-		@Nonnull ExistingPriceSupplier existingPriceSupplier,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull ExistingPriceSupplier existingPriceSupplier
 	) {
 		final PriceWithInternalIds formerPrice = existingPriceSupplier.getPriceByKey(priceKey);
 		final PriceInnerRecordHandling innerRecordHandling = existingPriceSupplier.getPriceInnerRecordHandling();
 
-		priceRemove(executor, referenceSchema, entityIndex, priceKey, formerPrice, innerRecordHandling, undoActionConsumer);
+		priceRemove(executor, referenceSchema, entityIndex, priceKey, formerPrice, innerRecordHandling);
 	}
 
 	/**
@@ -320,8 +277,7 @@ public interface PriceIndexMutator {
 	 *   caller has requested removal of a price that was never persisted.
 	 * - If `formerPrice` exists but is not marked as indexed (`formerPrice.indexed() == false`) the price has no
 	 *   entry in the index and removal is silently skipped.
-	 * - If `formerPrice` exists and is indexed, the entry is removed from `entityIndex` and — when
-	 *   `undoActionConsumer` is provided — the inverse `addPrice` call is registered as an undo action.
+	 * - If `formerPrice` exists and is indexed, the entry is removed from `entityIndex`.
 	 *
 	 * When the target scope does not index prices, the entire method body is skipped.
 	 *
@@ -331,7 +287,6 @@ public interface PriceIndexMutator {
 	 * @param priceKey             composite key identifying the price to remove
 	 * @param formerPrice          the currently persisted price record; `null` indicates the price does not exist
 	 * @param innerRecordHandling  the entity's current price-grouping strategy (`NONE`, `LOWEST_PRICE`, or `SUM`)
-	 * @param undoActionConsumer   optional collector for undo lambdas; when non-null the inverse re-add is registered
 	 * @throws EvitaInvalidUsageException if `formerPrice` is `null`, meaning the price does not exist and cannot
 	 *                                    be removed
 	 */
@@ -341,8 +296,7 @@ public interface PriceIndexMutator {
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull PriceKey priceKey,
 		@Nullable PriceWithInternalIds formerPrice,
-		@Nonnull PriceInnerRecordHandling innerRecordHandling,
-		@Nullable Consumer<Runnable> undoActionConsumer
+		@Nonnull PriceInnerRecordHandling innerRecordHandling
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final int indexedPricePlaces = entitySchema.getIndexedPricePlaces();
@@ -370,21 +324,6 @@ public interface PriceIndexMutator {
 						priceWithoutTax,
 						priceWithTax
 					);
-					if (undoActionConsumer != null) {
-						undoActionConsumer.accept(
-							() -> entityIndex.addPrice(
-								referenceSchema,
-								epkForRemoval,
-								internalPriceId,
-								priceKey,
-								innerRecordHandling,
-								innerRecordId,
-								validity,
-								priceWithoutTax,
-								priceWithTax
-							)
-						);
-					}
 				}
 			} else {
 				throw new EvitaInvalidUsageException("Price " + priceKey + " doesn't exist and cannot be removed!");

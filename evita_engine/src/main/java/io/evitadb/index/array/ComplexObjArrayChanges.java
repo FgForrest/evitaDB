@@ -23,6 +23,7 @@
 
 package io.evitadb.index.array;
 
+import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.utils.ArrayUtils;
@@ -54,7 +55,8 @@ import static java.util.Optional.ofNullable;
  */
 @NotThreadSafe
 @SuppressWarnings("unchecked")
-class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>> {
+class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>>
+	implements Snapshotable<ComplexObjArrayChanges.ComplexObjArrayChangesMemento<T>> {
 	/**
 	 * Keeps type of the object that is monitored in changes.
 	 */
@@ -1007,6 +1009,112 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 			result += insertedValue.length;
 		}
 		return result;
+	}
+
+	/**
+	 * Captures the current positional diff (the two co-indexed pairs plus the derived memo cache) into an
+	 * immutable {@link ComplexObjArrayChangesMemento}.
+	 *
+	 * Every mutating method of this class replaces the four diff arrays wholesale (fresh allocation +
+	 * `System.arraycopy`), so a plain reference capture would already be safe against array *replacement*.
+	 * There is one exception: {@link #addRecordToExistingSetAtInsertionPoint} and
+	 * {@link #removeOrReduceInsertionOrder} reassign individual slots of {@link #insertedValues} in place
+	 * (`this.insertedValues[index] = ...`). To keep the memento independent of such per-slot mutation the outer
+	 * dimension of {@link #insertedValues} is cloned one level; the inner bucket arrays are shared by reference
+	 * because they too are only ever replaced wholesale, never mutated in place. For uniform repeat-restore
+	 * defensiveness the remaining single-dimension arrays are cloned as well — their cost is small.
+	 *
+	 * The element payloads (`T`) held in the buckets and in {@link #removedValues} are nested
+	 * {@link TransactionalLayerProducer} instances and are captured strictly by reference (nested-layer boundary).
+	 * Their internal mutable state is rewound by their own {@link Snapshotable}, coordinated by the
+	 * maintainer-level savepoint. The final config / identity fields ({@link #objectType}, {@link #original},
+	 * {@link #combiner}, {@link #reducer}, {@link #obsoleteChecker}, {@link #comparator}, {@link #deepComparator})
+	 * are immutable / stateless and are never captured.
+	 *
+	 * @return a memento that {@link #restore(ComplexObjArrayChangesMemento)} can use to rewind this layer
+	 */
+	@Nonnull
+	@Override
+	public ComplexObjArrayChangesMemento<T> snapshot() {
+		return new ComplexObjArrayChangesMemento<>(
+			this.insertions.clone(),
+			cloneInsertedValues(this.insertedValues),
+			this.removals.clone(),
+			this.removedValues.clone(),
+			this.memoizedMergedArray == null ? null : this.memoizedMergedArray.clone()
+		);
+	}
+
+	/**
+	 * Rewinds this layer's positional diff to exactly the state captured by the given memento, undoing every
+	 * insertion / removal recorded since the snapshot. All four diff arrays (both co-indexed pairs) are reset
+	 * together so the load-bearing pairing invariant (`insertions` ↔ `insertedValues`, `removals` ↔
+	 * `removedValues`) is restored atomically; the derived {@link #memoizedMergedArray} is reset alongside them so
+	 * {@link #getMergedArray()} cannot return a memo inconsistent with the diff.
+	 *
+	 * State is copied *out of* the memento (fresh clones) so the same memento can be restored more than once: a
+	 * subsequent per-slot reassignment of {@link #insertedValues} after the restore would otherwise corrupt the
+	 * memento's outer array and break a second restore. The element payloads are reattached by reference only;
+	 * their internal state is the responsibility of their own {@link Snapshotable} (nested-layer boundary).
+	 *
+	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
+	 */
+	@Override
+	public void restore(@Nonnull ComplexObjArrayChangesMemento<T> memento) {
+		this.insertions = memento.insertions().clone();
+		this.insertedValues = cloneInsertedValues(memento.insertedValues());
+		this.removals = memento.removals().clone();
+		this.removedValues = memento.removedValues().clone();
+		this.memoizedMergedArray = memento.memoizedMergedArray() == null
+			? null
+			: memento.memoizedMergedArray().clone();
+	}
+
+	/**
+	 * Creates a one-level (outer dimension) copy of the two-dimensional inserted-values array. The inner bucket
+	 * arrays are intentionally shared by reference because they are only ever replaced wholesale, never mutated in
+	 * place; cloning only the outer dimension prevents later per-slot reassignment from aliasing the snapshot.
+	 *
+	 * @param insertedValues the two-dimensional inserted-values array to copy
+	 * @return a fresh outer array whose slots reference the same inner bucket arrays
+	 */
+	@Nonnull
+	private T[][] cloneInsertedValues(@Nonnull T[][] insertedValues) {
+		return Arrays.copyOf(insertedValues, insertedValues.length);
+	}
+
+	/**
+	 * Immutable carrier of the mutable positional diff of a {@link ComplexObjArrayChanges} layer captured at the
+	 * moment of {@link ComplexObjArrayChanges#snapshot()}. Holds the two co-indexed pairs that describe the diff
+	 * against the immutable baseline plus the derived merge-result cache:
+	 *
+	 * - `insertions` ↔ `insertedValues`: bucket of element refs to splice in at each baseline position
+	 * - `removals` ↔ `removedValues`: element ref recording the removal / reduction at each baseline position
+	 * - `memoizedMergedArray`: nullable derived cache of the last merge result, restored only together with the
+	 *   four diff arrays so it can never become inconsistent with them
+	 *
+	 * The element payloads (`T`) are nested {@link TransactionalLayerProducer} instances held strictly by
+	 * reference; this memento never captures their internal state (nested-layer boundary). The immutable / stateless
+	 * config and identity fields of the layer are not part of the diff and are therefore not carried here.
+	 *
+	 * @param insertions         sorted baseline positions where insertion buckets occur (co-indexed with
+	 *                           `insertedValues`)
+	 * @param insertedValues     one-level copy of the two-dimensional inserted-value buckets (inner buckets shared
+	 *                           by reference)
+	 * @param removals           sorted baseline positions that are removed / reduced (co-indexed with
+	 *                           `removedValues`)
+	 * @param removedValues      element refs recorded per removal position (carry the subtracted delta for the
+	 *                           reduce family)
+	 * @param memoizedMergedArray nullable derived cache of the last merge result, or `null` when not memoized
+	 * @param <T>                element runtime type, a transactional, comparable object
+	 */
+	public record ComplexObjArrayChangesMemento<T extends TransactionalObject<T, ?> & Comparable<T>>(
+		@Nonnull int[] insertions,
+		@Nonnull T[][] insertedValues,
+		@Nonnull int[] removals,
+		@Nonnull T[] removedValues,
+		@Nullable T[] memoizedMergedArray
+	) {
 	}
 
 }
