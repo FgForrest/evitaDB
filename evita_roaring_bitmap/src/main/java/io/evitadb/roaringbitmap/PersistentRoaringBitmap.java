@@ -1256,6 +1256,12 @@ public class PersistentRoaringBitmap
    */
   private void sharedRemoveAt(int i) {
     final int size = highLowContainer.size(); // already decremented
+    // Static/lazy builders that produce all-owned results (e.g. flip, orNot, addOffset) populate
+    // highLowContainer via RoaringArray-level appends and may leave shared[] shorter than the
+    // container array. Every container beyond shared.length is necessarily owned (only the three
+    // sharing paths create shared containers, and all of them grow shared[] to cover their slots),
+    // so growing here and treating absent entries as false is correct, not just crash-safe.
+    ensureSharedCapacity(size + 1);
     System.arraycopy(this.shared, i + 1, this.shared, i, size - i);
     this.shared[size] = false;
   }
@@ -1269,6 +1275,9 @@ public class PersistentRoaringBitmap
       return;
     }
     final int newSize = highLowContainer.size(); // already decremented
+    // See sharedRemoveAt: tolerate an undersized shared[] left by all-owned builders; the old
+    // size was newSize + (end - begin), and entries beyond shared.length are owned (false).
+    ensureSharedCapacity(newSize + (end - begin));
     System.arraycopy(this.shared, end, this.shared, begin, newSize - begin);
     Arrays.fill(this.shared, newSize, newSize + (end - begin), false);
   }

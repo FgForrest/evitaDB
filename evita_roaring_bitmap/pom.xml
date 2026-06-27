@@ -13,6 +13,26 @@
 		<version>2026.2-SNAPSHOT</version>
 	</parent>
 	<dependencies>
-		<!-- test dependencies added in Phase P2 once the ported test closure reveals them -->
+		<!--
+			Test-scope dependencies required by the vendored upstream test suite.
+			Versions are managed by the root POM's dependencyManagement.
+			These never leak into the produced jar (test scope only); JUnit is inherited
+			from the root POM's shared <dependencies> block.
+		-->
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 </project>
