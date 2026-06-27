@@ -1256,17 +1256,6 @@ public class PersistentRoaringBitmap
     Arrays.fill(bitmap.shared, 0, size, true);
   }
 
-  private static void cowRangeValidation(final long rangeStart, final long rangeEnd) {
-    if (rangeStart < 0 || rangeStart > (1L << 32) - 1) {
-      throw new IllegalArgumentException(
-          "rangeStart=" + rangeStart + " should be in [0, 0xffffffff]");
-    }
-    if (rangeEnd > (1L << 32) || rangeEnd < 0) {
-      throw new IllegalArgumentException(
-          "rangeEnd=" + rangeEnd + " should be in [0, 0xffffffff + 1]");
-    }
-  }
-
   /**
    * Borrows a container from x2 at pos2 by structural sharing, inserts it into this bitmap
    * at pos1, and updates both bitmaps' shared[] tracking arrays.
@@ -1350,11 +1339,13 @@ public class PersistentRoaringBitmap
     final char hb = Util.highbits(x);
     final int i = highLowContainer.getIndex(hb);
     if (i >= 0) {
+      copyIfShared(i);
       highLowContainer.setContainerAtIndex(
           i, highLowContainer.getContainerAtIndex(i).add(Util.lowbits(x)));
     } else {
       final ArrayContainer newac = new ArrayContainer();
       highLowContainer.insertNewKeyValueAt(-i - 1, hb, newac.add(Util.lowbits(x)));
+      sharedInsertAt(-i - 1);
     }
   }
 
@@ -1383,12 +1374,14 @@ public class PersistentRoaringBitmap
       final int i = highLowContainer.getIndex((char) hb);
 
       if (i >= 0) {
+        copyIfShared(i);
         final Container c =
             highLowContainer.getContainerAtIndex(i).iadd(containerStart, containerLast + 1);
         highLowContainer.setContainerAtIndex(i, c);
       } else {
         highLowContainer.insertNewKeyValueAt(
             -i - 1, (char) hb, Container.rangeOfOnes(containerStart, containerLast + 1));
+        sharedInsertAt(-i - 1);
       }
     }
   }
