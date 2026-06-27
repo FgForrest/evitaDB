@@ -1896,17 +1896,28 @@ public class PersistentRoaringBitmap
    */
   public void clear() {
     highLowContainer = new RoaringArray(); // lose references
+    this.shared = new boolean[RoaringArray.INITIAL_CAPACITY];
   }
 
+  /**
+   * Shallow clone: shares all containers between this and the clone via copy-on-write.
+   * Both sides mark everything as shared, so the first mutator on either side clones
+   * only the affected container.
+   */
   @Override
   public PersistentRoaringBitmap clone() {
-    try {
-      final PersistentRoaringBitmap x = (PersistentRoaringBitmap) super.clone();
-      x.highLowContainer = highLowContainer.clone();
-      return x;
-    } catch (final CloneNotSupportedException e) {
-      throw new RuntimeException("shouldn't happen with clone", e);
-    }
+    final int size = highLowContainer.size();
+    final char[] newKeys = Arrays.copyOf(highLowContainer.keys, size);
+    final Container[] newValues = Arrays.copyOf(highLowContainer.values, size);
+    final RoaringArray clonedArray = new RoaringArray(newKeys, newValues, size);
+
+    // mark everything shared in both this and the clone
+    ensureSharedCapacity(size);
+    Arrays.fill(this.shared, 0, size, true);
+    final boolean[] cloneShared = new boolean[size];
+    Arrays.fill(cloneShared, true);
+
+    return new PersistentRoaringBitmap(clonedArray, cloneShared);
   }
 
   /**
@@ -1995,6 +2006,7 @@ public class PersistentRoaringBitmap
     } catch (InvalidRoaringFormat cookie) {
       throw cookie.toIOException(); // we convert it to an IOException
     }
+    this.shared = new boolean[highLowContainer.size()];
   }
 
   /**
@@ -2012,6 +2024,7 @@ public class PersistentRoaringBitmap
     } catch (InvalidRoaringFormat cookie) {
       throw cookie.toIOException(); // we convert it to an IOException
     }
+    this.shared = new boolean[highLowContainer.size()];
   }
 
   /**
@@ -2038,6 +2051,7 @@ public class PersistentRoaringBitmap
     } catch (InvalidRoaringFormat cookie) {
       throw cookie.toIOException(); // we convert it to an IOException
     }
+    this.shared = new boolean[highLowContainer.size()];
   }
 
   @Override
@@ -2592,7 +2606,8 @@ public class PersistentRoaringBitmap
 
       while (true) {
         if (s1 == s2) {
-          this.highLowContainer.setContainerAtIndex(
+          copyIfShared(pos1);
+          highLowContainer.setContainerAtIndex(
               pos1,
               highLowContainer
                   .getContainerAtIndex(pos1)
@@ -2611,8 +2626,7 @@ public class PersistentRoaringBitmap
           }
           s1 = highLowContainer.getKeyAtIndex(pos1);
         } else {
-          highLowContainer.insertNewKeyValueAt(
-              pos1, s2, x2.highLowContainer.getContainerAtIndex(pos2).clone());
+          borrowAndInsert(pos1, s2, x2, pos2, length2);
           pos1++;
           length1++;
           pos2++;
@@ -2624,7 +2638,7 @@ public class PersistentRoaringBitmap
       }
     }
     if (pos1 == length1) {
-      highLowContainer.appendCopy(x2.highLowContainer, pos2, length2);
+      appendTailWithSharing(x2, pos2, length2);
     }
   }
 
@@ -2646,8 +2660,10 @@ public class PersistentRoaringBitmap
 
       while (true) {
         if (s1 == s2) {
-          BitmapContainer c1 = highLowContainer.getContainerAtIndex(pos1).toBitmapContainer();
-          this.highLowContainer.setContainerAtIndex(
+          copyIfShared(pos1);
+          final BitmapContainer c1 =
+              highLowContainer.getContainerAtIndex(pos1).toBitmapContainer();
+          highLowContainer.setContainerAtIndex(
               pos1, c1.lazyIOR(x2.highLowContainer.getContainerAtIndex(pos2)));
           pos1++;
           pos2++;
@@ -2663,8 +2679,7 @@ public class PersistentRoaringBitmap
           }
           s1 = highLowContainer.getKeyAtIndex(pos1);
         } else {
-          highLowContainer.insertNewKeyValueAt(
-              pos1, s2, x2.highLowContainer.getContainerAtIndex(pos2).clone());
+          borrowAndInsert(pos1, s2, x2, pos2, length2);
           pos1++;
           length1++;
           pos2++;
@@ -2676,7 +2691,7 @@ public class PersistentRoaringBitmap
       }
     }
     if (pos1 == length1) {
-      highLowContainer.appendCopy(x2.highLowContainer, pos2, length2);
+      appendTailWithSharing(x2, pos2, length2);
     }
   }
 
@@ -2865,6 +2880,7 @@ public class PersistentRoaringBitmap
   @Override
   public void readExternal(ObjectInput in) throws IOException {
     this.highLowContainer.readExternal(in);
+    this.shared = new boolean[highLowContainer.size()];
   }
 
   /**
@@ -2995,7 +3011,8 @@ public class PersistentRoaringBitmap
   // to be used with lazyor
   protected void repairAfterLazy() {
     for (int k = 0; k < highLowContainer.size(); ++k) {
-      Container c = highLowContainer.getContainerAtIndex(k);
+      copyIfShared(k);
+      final Container c = highLowContainer.getContainerAtIndex(k);
       highLowContainer.setContainerAtIndex(k, c.repairAfterLazy());
     }
   }
@@ -3492,6 +3509,7 @@ public class PersistentRoaringBitmap
   @Override
   public void append(char key, Container container) {
     highLowContainer.append(key, container);
+    ensureSharedCapacity(highLowContainer.size());
   }
 
   /**
@@ -3526,6 +3544,7 @@ public class PersistentRoaringBitmap
   @Override
   public void trim() {
     this.highLowContainer.trim();
+    this.shared = Arrays.copyOf(this.shared, highLowContainer.size());
   }
 
   @Override
