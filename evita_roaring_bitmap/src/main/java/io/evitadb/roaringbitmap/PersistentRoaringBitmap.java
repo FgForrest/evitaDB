@@ -46,8 +46,18 @@ import java.util.Iterator;
  * Up to 4294967296 integers
  * can be stored.
  *
+ * Unlike the upstream {@code RoaringBitmap}, this class is *persistent* (in the structure-sharing
+ * sense): binary operations ({@link #or(PersistentRoaringBitmap, PersistentRoaringBitmap) or},
+ * {@link #and and}, {@link #xor xor}, {@link #andNot andNot}) share unchanged container references
+ * with their inputs, and mutations use copy-on-write so a shared container is cloned only on first
+ * write. This dramatically reduces allocation and GC pressure when bitmaps have low key overlap.
  *
- *
+ * Credits: derived from the RoaringBitmap project
+ * (https://github.com/RoaringBitmap/RoaringBitmap) by Daniel Lemire et al., Apache License 2.0.
+ * Vendored into evitaDB and reshaped by FG Forrest, a.s.; the copy-on-write behavior was
+ * prototyped as {@code CopyOnWriteRoaringBitmapV2} (RoaringBitmap issue #826) and folded into this
+ * single class. Synced from upstream v1.6.12 (fork commit {@code f27cd538}). See the module
+ * {@code LICENSE}, {@code AUTHORS} and {@code NOTICE} files.
  */
 public class PersistentRoaringBitmap
     implements Cloneable,

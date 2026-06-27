@@ -1,0 +1,27 @@
+evitaDB - Vendored RoaringBitmap
+================================
+
+This module contains source code derived from the RoaringBitmap project
+(https://github.com/RoaringBitmap/RoaringBitmap), licensed under the
+Apache License, Version 2.0. See the LICENSE and AUTHORS files in this
+module for the original copyright and contributor list.
+
+Synced from fork github.com/novoj/RoaringBitmap, commit f27cd538,
+which corresponds to upstream RoaringBitmap v1.6.12 (merge-base 952f8ce7).
+
+Modifications by FG Forrest, a.s. for evitaDB:
+  - Vendored only the subset of classes required by evitaDB (see CLOSURE.md).
+  - Package renamed from org.roaringbitmap to io.evitadb.roaringbitmap.
+  - Reshaped to a single persistent bitmap per data type:
+      * PersistentRoaringBitmap     (32-bit, was RoaringBitmap; absorbs the
+        copy-on-write / structural-sharing behavior prototyped in
+        CopyOnWriteRoaringBitmapV2 - binary operations share unchanged
+        container references and mutations clone shared containers lazily).
+      * PersistentLongRoaringBitmap (64-bit, was Roaring64Bitmap).
+  - Dropped the org.roaringbitmap.buffer (Mutable/Immutable/Mappeable) and
+    org.roaringbitmap.insights packages, and the FrozenRoaringBitmap and
+    FastRankRoaringBitmap classes, as unused by evitaDB.
+
+This NOTICE file is provided in compliance with section 4 of the Apache
+License, Version 2.0. Files derived from RoaringBitmap retain their original
+Apache-2.0 license headers; this notice states that they have been changed.
