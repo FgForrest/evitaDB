@@ -7,8 +7,6 @@ package io.evitadb.roaringbitmap;
 import static java.lang.Long.bitCount;
 import static java.lang.Long.numberOfTrailingZeros;
 
-import io.evitadb.roaringbitmap.buffer.MappeableBitmapContainer;
-import io.evitadb.roaringbitmap.buffer.MappeableContainer;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -113,16 +111,6 @@ public final class BitmapContainer extends Container implements Cloneable {
   public BitmapContainer(long[] newBitmap, int newCardinality) {
     this.cardinality = newCardinality;
     this.bitmap = newBitmap;
-  }
-
-  /**
-   * Creates a new non-mappeable container from a mappeable one. This copies the data.
-   *
-   * @param bc the original container
-   */
-  public BitmapContainer(MappeableBitmapContainer bc) {
-    this.cardinality = bc.getCardinality();
-    this.bitmap = bc.toLongArray();
   }
 
   @Override
@@ -1332,11 +1320,6 @@ public final class BitmapContainer extends Container implements Cloneable {
     LongBuffer lb = LongBuffer.allocate(bitmap.length);
     lb.put(bitmap);
     return lb;
-  }
-
-  @Override
-  public MappeableContainer toMappeableContainer() {
-    return new MappeableBitmapContainer(this);
   }
 
   @Override

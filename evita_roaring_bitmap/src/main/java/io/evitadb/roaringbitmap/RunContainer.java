@@ -3,8 +3,6 @@
  */
 package io.evitadb.roaringbitmap;
 
-import io.evitadb.roaringbitmap.buffer.MappeableContainer;
-import io.evitadb.roaringbitmap.buffer.MappeableRunContainer;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -208,16 +206,6 @@ public final class RunContainer extends Container implements Cloneable {
   private RunContainer(int nbrruns, char[] valueslength) {
     this.nbrruns = nbrruns;
     this.valueslength = Arrays.copyOf(valueslength, valueslength.length);
-  }
-
-  /**
-   * Creates a new non-mappeable container from a mappeable one. This copies the data.
-   *
-   * @param bc the original container
-   */
-  public RunContainer(MappeableRunContainer bc) {
-    this.nbrruns = bc.numberOfRuns();
-    this.valueslength = bc.toCharArray();
   }
 
   /**
@@ -2339,11 +2327,6 @@ public final class RunContainer extends Container implements Cloneable {
       return this;
     }
     return toBitmapOrArrayContainer(card);
-  }
-
-  @Override
-  public MappeableContainer toMappeableContainer() {
-    return new MappeableRunContainer(this);
   }
 
   /**

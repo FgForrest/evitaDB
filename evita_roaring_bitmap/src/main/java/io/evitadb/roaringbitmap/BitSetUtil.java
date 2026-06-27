@@ -193,12 +193,10 @@ public class BitSetUtil {
    * This method tries to minimise all kinds of memory allocation
    *
    * @param bb the uncompressed bitmap
-   * @param fastRank if set, returned bitmap is of type
-   *                 {@link io.evitadb.roaringbitmap.FastRankRoaringBitmap}
    * @return roaring bitmap
    */
-  public static RoaringBitmap bitmapOf(ByteBuffer bb, boolean fastRank) {
-    return bitmapOf(bb, fastRank, new long[BLOCK_LENGTH]);
+  public static RoaringBitmap bitmapOf(ByteBuffer bb) {
+    return bitmapOf(bb, new long[BLOCK_LENGTH]);
   }
 
   /**
@@ -209,19 +207,17 @@ public class BitSetUtil {
    *   No reference is kept to the wordsBuffer, so it can be cached as a ThreadLocal
    *
    * @param bb the uncompressed bitmap
-   * @param fastRank if set, returned bitmap is of type
-   *                 {@link io.evitadb.roaringbitmap.FastRankRoaringBitmap}
    * @param wordsBuffer buffer of length {@link BitSetUtil#BLOCK_LENGTH}
    * @return roaring bitmap
    */
-  public static RoaringBitmap bitmapOf(ByteBuffer bb, boolean fastRank, long[] wordsBuffer) {
+  public static RoaringBitmap bitmapOf(ByteBuffer bb, long[] wordsBuffer) {
 
     if (wordsBuffer.length != BLOCK_LENGTH) {
       throw new IllegalArgumentException("wordsBuffer length should be " + BLOCK_LENGTH);
     }
 
     bb = bb.slice().order(ByteOrder.LITTLE_ENDIAN);
-    final RoaringBitmap ans = fastRank ? new FastRankRoaringBitmap() : new RoaringBitmap();
+    final RoaringBitmap ans = new RoaringBitmap();
 
     // split buffer into blocks of long[]
     int containerIndex = 0;

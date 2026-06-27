@@ -4,8 +4,6 @@
 
 package io.evitadb.roaringbitmap;
 
-import io.evitadb.roaringbitmap.buffer.MappeableArrayContainer;
-import io.evitadb.roaringbitmap.buffer.MappeableContainer;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -83,16 +81,6 @@ public final class ArrayContainer extends Container implements Cloneable {
   public ArrayContainer(int newCard, char[] newContent) {
     this.cardinality = newCard;
     this.content = Arrays.copyOf(newContent, newCard);
-  }
-
-  /**
-   * Creates a new non-mappeable container from a mappeable one. This copies the data.
-   *
-   * @param bc the original container
-   */
-  public ArrayContainer(MappeableArrayContainer bc) {
-    this.cardinality = bc.getCardinality();
-    this.content = bc.toShortArray();
   }
 
   public ArrayContainer(char[] newContent) {
@@ -1295,11 +1283,6 @@ public final class ArrayContainer extends Container implements Cloneable {
   public int last() {
     assertNonEmpty(cardinality == 0);
     return (content[cardinality - 1]);
-  }
-
-  @Override
-  public MappeableContainer toMappeableContainer() {
-    return new MappeableArrayContainer(this);
   }
 
   /**

@@ -4,8 +4,6 @@
 
 package io.evitadb.roaringbitmap;
 
-import io.evitadb.roaringbitmap.buffer.MappeableContainer;
-
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.Externalizable;
@@ -881,13 +879,6 @@ public abstract class Container
    * @return the size in bytes
    */
   public abstract int serializedSizeInBytes();
-
-  /**
-   * Convert to a mappeable container.
-   *
-   * @return the mappeable container
-   */
-  public abstract MappeableContainer toMappeableContainer();
 
   /**
    * If possible, recover wasted memory.

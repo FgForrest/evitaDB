@@ -1,21 +1,11 @@
 package io.evitadb.roaringbitmap;
 
-import io.evitadb.roaringbitmap.buffer.MappeableArrayContainer;
-import io.evitadb.roaringbitmap.buffer.MappeableContainer;
-import io.evitadb.roaringbitmap.buffer.MappeableRunContainer;
-import io.evitadb.roaringbitmap.buffer.MutableRoaringArray;
-import io.evitadb.roaringbitmap.buffer.MutableRoaringBitmap;
-
 import java.util.function.Supplier;
 
 public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Supplier<T> {
 
   static Wizard<Container, RoaringBitmap> writer() {
     return new RoaringBitmapWizard();
-  }
-
-  static Wizard<MappeableContainer, MutableRoaringBitmap> bufferWriter() {
-    return new BufferWizard();
   }
 
   abstract class Wizard<
@@ -78,10 +68,6 @@ public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Suppl
       } else {
         return optimiseForRuns();
       }
-    }
-
-    public Wizard<Container, FastRankRoaringBitmap> fastRank() {
-      throw new IllegalStateException("Fast rank not yet implemented for byte buffers");
     }
 
     /**
@@ -170,25 +156,6 @@ public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Suppl
     }
   }
 
-  class BufferWizard extends Wizard<MappeableContainer, MutableRoaringBitmap> {
-
-    @Override
-    protected Supplier<MappeableContainer> arraySupplier() {
-      int size = expectedContainerSize;
-      return () -> new MappeableArrayContainer(size);
-    }
-
-    @Override
-    protected Supplier<MappeableContainer> runSupplier() {
-      return MappeableRunContainer::new;
-    }
-
-    @Override
-    protected MutableRoaringBitmap createUnderlying(int initialCapacity) {
-      return new MutableRoaringBitmap(new MutableRoaringArray(initialCapacity));
-    }
-  }
-
   abstract class RoaringWizard<T extends RoaringBitmap> extends Wizard<Container, T> {
 
     @Override
@@ -203,11 +170,6 @@ public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Suppl
     }
 
     @Override
-    public Wizard<Container, FastRankRoaringBitmap> fastRank() {
-      return new FastRankRoaringBitmapWizard(this);
-    }
-
-    @Override
     public RoaringBitmapWriter<T> get() {
       if (constantMemory) {
         int capacity = initialCapacity;
@@ -215,21 +177,6 @@ public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Suppl
             partiallySortValues, runCompress, () -> createUnderlying(capacity));
       }
       return super.get();
-    }
-  }
-
-  class FastRankRoaringBitmapWizard extends RoaringWizard<FastRankRoaringBitmap> {
-
-    FastRankRoaringBitmapWizard(Wizard<Container, ? extends RoaringBitmap> wizard) {
-      this.constantMemory = wizard.constantMemory;
-      this.initialCapacity = wizard.initialCapacity;
-      this.containerSupplier = wizard.containerSupplier;
-      this.partiallySortValues = wizard.partiallySortValues;
-    }
-
-    @Override
-    protected FastRankRoaringBitmap createUnderlying(int initialCapacity) {
-      return new FastRankRoaringBitmap(new RoaringArray(initialCapacity));
     }
   }
 

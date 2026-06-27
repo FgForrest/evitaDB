@@ -7,9 +7,6 @@ package io.evitadb.roaringbitmap;
 import static io.evitadb.roaringbitmap.RoaringBitmapWriter.writer;
 import static io.evitadb.roaringbitmap.Util.lowbitsAsInteger;
 
-import io.evitadb.roaringbitmap.buffer.ImmutableRoaringBitmap;
-import io.evitadb.roaringbitmap.buffer.MappeableContainerPointer;
-import io.evitadb.roaringbitmap.buffer.MutableRoaringBitmap;
 import io.evitadb.roaringbitmap.longlong.LongUtils;
 
 import java.io.DataInput;
@@ -1150,21 +1147,6 @@ public class RoaringBitmap
    */
   RoaringBitmap(RoaringArray highLowContainer) {
     this.highLowContainer = highLowContainer;
-  }
-
-  /**
-   * Create a RoaringBitmap from a MutableRoaringBitmap or ImmutableRoaringBitmap. The source is not
-   * modified.
-   *
-   * @param rb the original bitmap
-   */
-  public RoaringBitmap(ImmutableRoaringBitmap rb) {
-    highLowContainer = new RoaringArray();
-    MappeableContainerPointer cp = rb.getContainerPointer();
-    while (cp.getContainer() != null) {
-      highLowContainer.append(cp.key(), cp.getContainer().toContainer());
-      cp.advance();
-    }
   }
 
   /**
@@ -3286,16 +3268,6 @@ public class RoaringBitmap
   @Override
   public void append(char key, Container container) {
     highLowContainer.append(key, container);
-  }
-
-  /**
-   *
-   * Convert (copies) to a mutable roaring bitmap.
-   *
-   * @return a copy of this bitmap as a MutableRoaringBitmap
-   */
-  public MutableRoaringBitmap toMutableRoaringBitmap() {
-    return new MutableRoaringBitmap(this);
   }
 
   /**
