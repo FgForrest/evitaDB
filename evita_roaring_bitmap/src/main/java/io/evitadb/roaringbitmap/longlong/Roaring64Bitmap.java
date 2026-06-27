@@ -135,7 +135,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
   }
 
   /**
-   * Get the first (smallest) integer in this RoaringBitmap,
+   * Get the first (smallest) integer in this PersistentRoaringBitmap,
    * that is, returns the minimum of the set.
    * @return the first (smallest) integer
    * @throws NoSuchElementException if empty
@@ -146,7 +146,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
   }
 
   /**
-   * Get the last (largest) integer in this RoaringBitmap,
+   * Get the last (largest) integer in this PersistentRoaringBitmap,
    * that is, returns the maximum of the set.
    * @return the last (largest) integer
    * @throws NoSuchElementException if empty
@@ -709,11 +709,11 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
   }
 
   /**
-   * {@link Roaring64NavigableMap} are serializable. However, contrary to RoaringBitmap, the
+   * {@link Roaring64NavigableMap} are serializable. However, contrary to PersistentRoaringBitmap, the
    * serialization format is not well-defined: for now, it is strongly coupled with Java standard
    * serialization. Just like the serialization may be incompatible between various Java versions,
    * {@link Roaring64NavigableMap} are subject to incompatibilities. Moreover, even on a given Java
-   * versions, the serialization format may change from one RoaringBitmap version to another
+   * versions, the serialization format may change from one PersistentRoaringBitmap version to another
    */
   @Override
   public void writeExternal(ObjectOutput out) throws IOException {
@@ -871,8 +871,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
   /**
    * Serialize this bitmap.
    *
-   * Unlike RoaringBitmap, there is no specification for now: it may change from one java version to
-   * another, and from one RoaringBitmap version to another.
+   * Unlike PersistentRoaringBitmap, there is no specification for now: it may change from one java version to
+   * another, and from one PersistentRoaringBitmap version to another.
    *
    * Consider calling {@link #runOptimize} before serialization to improve compression.
    *
@@ -899,8 +899,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
   /**
    * Deserialize (retrieve) this bitmap.
    *
-   * Unlike RoaringBitmap, there is no specification for now: it may change from one java version to
-   * another, and from one RoaringBitmap version to another.
+   * Unlike PersistentRoaringBitmap, there is no specification for now: it may change from one java version to
+   * another, and from one PersistentRoaringBitmap version to another.
    *
    * The current bitmap is overwritten.
    *
@@ -916,8 +916,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
   /**
    * Deserialize (retrieve) this bitmap.
    *
-   * Unlike RoaringBitmap, there is no specification for now: it may change from one java version to
-   * another, and from one RoaringBitmap version to another.
+   * Unlike PersistentRoaringBitmap, there is no specification for now: it may change from one java version to
+   * another, and from one PersistentRoaringBitmap version to another.
    *
    * The current bitmap is overwritten.
    *

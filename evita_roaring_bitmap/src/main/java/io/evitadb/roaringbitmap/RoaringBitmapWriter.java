@@ -4,7 +4,7 @@ import java.util.function.Supplier;
 
 public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Supplier<T> {
 
-  static Wizard<Container, RoaringBitmap> writer() {
+  static Wizard<Container, PersistentRoaringBitmap> writer() {
     return new RoaringBitmapWizard();
   }
 
@@ -156,7 +156,7 @@ public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Suppl
     }
   }
 
-  abstract class RoaringWizard<T extends RoaringBitmap> extends Wizard<Container, T> {
+  abstract class RoaringWizard<T extends PersistentRoaringBitmap> extends Wizard<Container, T> {
 
     @Override
     protected Supplier<Container> arraySupplier() {
@@ -180,11 +180,11 @@ public interface RoaringBitmapWriter<T extends BitmapDataProvider> extends Suppl
     }
   }
 
-  class RoaringBitmapWizard extends RoaringWizard<RoaringBitmap> {
+  class RoaringBitmapWizard extends RoaringWizard<PersistentRoaringBitmap> {
 
     @Override
-    protected RoaringBitmap createUnderlying(int initialCapacity) {
-      return new RoaringBitmap(new RoaringArray(initialCapacity));
+    protected PersistentRoaringBitmap createUnderlying(int initialCapacity) {
+      return new PersistentRoaringBitmap(new RoaringArray(initialCapacity));
     }
   }
 

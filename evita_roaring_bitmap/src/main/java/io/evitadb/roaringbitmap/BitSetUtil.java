@@ -8,7 +8,7 @@ import java.util.BitSet;
 
 /***
  *
- * This class provides convenience functions to manipulate BitSet and RoaringBitmap objects.
+ * This class provides convenience functions to manipulate BitSet and PersistentRoaringBitmap objects.
  *
  */
 public class BitSetUtil {
@@ -21,18 +21,18 @@ public class BitSetUtil {
   // word
 
   /**
-   * Convert a {@link RoaringBitmap} to a {@link BitSet}.
+   * Convert a {@link PersistentRoaringBitmap} to a {@link BitSet}.
    * <p>
    * Equivalent to calling {@code BitSet.valueOf(BitSetUtil.toLongArray(bitmap))}.
    */
-  public static BitSet bitsetOf(RoaringBitmap bitmap) {
+  public static BitSet bitsetOf(PersistentRoaringBitmap bitmap) {
     return BitSet.valueOf(toLongArray(bitmap));
   }
 
   /**
-   * Convert a {@link RoaringBitmap} to a {@link BitSet} without copying to an intermediate array.
+   * Convert a {@link PersistentRoaringBitmap} to a {@link BitSet} without copying to an intermediate array.
    */
-  public static BitSet bitsetOfWithoutCopy(RoaringBitmap bitmap) {
+  public static BitSet bitsetOfWithoutCopy(PersistentRoaringBitmap bitmap) {
     if (bitmap.isEmpty()) {
       return new BitSet(0);
     }
@@ -46,11 +46,11 @@ public class BitSetUtil {
   }
 
   /**
-   * Returns an array of little-endian ordered bytes, given a {@link RoaringBitmap}.
+   * Returns an array of little-endian ordered bytes, given a {@link PersistentRoaringBitmap}.
    * <p>
    * See {@link BitSet#toByteArray()}.
    */
-  public static byte[] toByteArray(RoaringBitmap bitmap) {
+  public static byte[] toByteArray(PersistentRoaringBitmap bitmap) {
     long[] words = toLongArray(bitmap);
     ByteBuffer buffer =
         ByteBuffer.allocate(words.length * Long.SIZE).order(ByteOrder.LITTLE_ENDIAN);
@@ -59,11 +59,11 @@ public class BitSetUtil {
   }
 
   /**
-   * Returns an array of long, given a {@link RoaringBitmap}.
+   * Returns an array of long, given a {@link PersistentRoaringBitmap}.
    * <p>
    * See {@link BitSet#toLongArray()}.
    */
-  public static long[] toLongArray(RoaringBitmap bitmap) {
+  public static long[] toLongArray(PersistentRoaringBitmap bitmap) {
     if (bitmap.isEmpty()) {
       return new long[0];
     }
@@ -153,27 +153,27 @@ public class BitSetUtil {
   }
 
   /**
-   * Generate a RoaringBitmap out of a BitSet
+   * Generate a PersistentRoaringBitmap out of a BitSet
    *
    * @param bitSet original bitset (will not be modified)
    * @return roaring bitmap equivalent to BitSet
    */
-  public static RoaringBitmap bitmapOf(final BitSet bitSet) {
+  public static PersistentRoaringBitmap bitmapOf(final BitSet bitSet) {
     return bitmapOf(bitSet.toLongArray());
   }
 
   /**
-   * Generate a RoaringBitmap out of a long[], each long using little-endian representation of its
+   * Generate a PersistentRoaringBitmap out of a long[], each long using little-endian representation of its
    * bits
    *
    * @see BitSet#toLongArray() for an equivalent
    * @param words array of longs (will not be modified)
    * @return roaring bitmap
    */
-  public static RoaringBitmap bitmapOf(final long[] words) {
+  public static PersistentRoaringBitmap bitmapOf(final long[] words) {
     // split long[] into blocks.
     // each block becomes a single container, if any bit is set
-    final RoaringBitmap ans = new RoaringBitmap();
+    final PersistentRoaringBitmap ans = new PersistentRoaringBitmap();
     int containerIndex = 0;
     for (int from = 0; from < words.length; from += BLOCK_LENGTH) {
       final int to = Math.min(from + BLOCK_LENGTH, words.length);
@@ -189,18 +189,18 @@ public class BitSetUtil {
   }
 
   /**
-   * Efficiently generate a RoaringBitmap from an uncompressed byte array or ByteBuffer
+   * Efficiently generate a PersistentRoaringBitmap from an uncompressed byte array or ByteBuffer
    * This method tries to minimise all kinds of memory allocation
    *
    * @param bb the uncompressed bitmap
    * @return roaring bitmap
    */
-  public static RoaringBitmap bitmapOf(ByteBuffer bb) {
+  public static PersistentRoaringBitmap bitmapOf(ByteBuffer bb) {
     return bitmapOf(bb, new long[BLOCK_LENGTH]);
   }
 
   /**
-   * Efficiently generate a RoaringBitmap from an uncompressed byte array or ByteBuffer
+   * Efficiently generate a PersistentRoaringBitmap from an uncompressed byte array or ByteBuffer
    * This method tries to minimise all kinds of memory allocation
    * <br>
    * You can provide a cached wordsBuffer for avoiding 8 KB of extra allocation on every call
@@ -210,14 +210,14 @@ public class BitSetUtil {
    * @param wordsBuffer buffer of length {@link BitSetUtil#BLOCK_LENGTH}
    * @return roaring bitmap
    */
-  public static RoaringBitmap bitmapOf(ByteBuffer bb, long[] wordsBuffer) {
+  public static PersistentRoaringBitmap bitmapOf(ByteBuffer bb, long[] wordsBuffer) {
 
     if (wordsBuffer.length != BLOCK_LENGTH) {
       throw new IllegalArgumentException("wordsBuffer length should be " + BLOCK_LENGTH);
     }
 
     bb = bb.slice().order(ByteOrder.LITTLE_ENDIAN);
-    final RoaringBitmap ans = new RoaringBitmap();
+    final PersistentRoaringBitmap ans = new PersistentRoaringBitmap();
 
     // split buffer into blocks of long[]
     int containerIndex = 0;
@@ -297,14 +297,14 @@ public class BitSetUtil {
   }
 
   /**
-   * Compares a RoaringBitmap and a BitSet. They are equal if and only if they contain the same set
+   * Compares a PersistentRoaringBitmap and a BitSet. They are equal if and only if they contain the same set
    * of integers.
    *
    * @param bitset first object to be compared
    * @param bitmap second object to be compared
    * @return whether they are equals
    */
-  public static boolean equals(final BitSet bitset, final RoaringBitmap bitmap) {
+  public static boolean equals(final BitSet bitset, final PersistentRoaringBitmap bitmap) {
     if (bitset.cardinality() != bitmap.getCardinality()) {
       return false;
     }

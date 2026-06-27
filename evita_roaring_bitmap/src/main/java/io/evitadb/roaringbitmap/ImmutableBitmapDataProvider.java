@@ -199,28 +199,28 @@ public interface ImmutableBitmapDataProvider {
   int select(int j);
 
   /**
-   * Get the smallest unsigned (first) integer in this RoaringBitmap.
+   * Get the smallest unsigned (first) integer in this PersistentRoaringBitmap.
    * @return the smallest unsigned (first) integer
    * @throws NoSuchElementException if empty
    */
   int first();
 
   /**
-   * Get the largest unsigned (last) integer in this RoaringBitmap.
+   * Get the largest unsigned (last) integer in this PersistentRoaringBitmap.
    * @return the largest unsigned (last) integer
    * @throws NoSuchElementException if empty
    */
   int last();
 
   /**
-   * Get the smallest signed integer in this RoaringBitmap.
+   * Get the smallest signed integer in this PersistentRoaringBitmap.
    * @return the smallest signed integer
    * @throws NoSuchElementException if empty
    */
   int firstSigned();
 
   /**
-   * Get the largest signed integer in this RoaringBitmap.
+   * Get the largest signed integer in this PersistentRoaringBitmap.
    * @return the largest signed integer
    * @throws NoSuchElementException if empty
    */
@@ -290,7 +290,7 @@ public interface ImmutableBitmapDataProvider {
    *
    *
    * Irrespective of the endianess of the provided buffer, data is
-   * written using LITTlE_ENDIAN as per the RoaringBitmap specification.
+   * written using LITTlE_ENDIAN as per the PersistentRoaringBitmap specification.
    *
    * The current bitmap is not modified.
    * <pre>

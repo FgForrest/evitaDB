@@ -20,7 +20,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 /**
- * RoaringBitmap, a compressed alternative to the BitSet.
+ * PersistentRoaringBitmap, a compressed alternative to the BitSet.
  *
  * <pre>
  * {@code
@@ -28,10 +28,10 @@ import java.util.Iterator;
  *
  *      //...
  *
- *      RoaringBitmap rr = RoaringBitmap.bitmapOf(1,2,3,1000);
- *      RoaringBitmap rr2 = new RoaringBitmap();
+ *      PersistentRoaringBitmap rr = PersistentRoaringBitmap.bitmapOf(1,2,3,1000);
+ *      PersistentRoaringBitmap rr2 = new PersistentRoaringBitmap();
  *      for(int k = 4000; k<4255;++k) rr2.add(k);
- *      RoaringBitmap rror = RoaringBitmap.or(rr, rr2);
+ *      PersistentRoaringBitmap rror = PersistentRoaringBitmap.or(rr, rr2);
  *
  *      //...
  *      DataOutputStream wheretoserialize = ...
@@ -48,7 +48,7 @@ import java.util.Iterator;
  *
  *
  */
-public class RoaringBitmap
+public class PersistentRoaringBitmap
     implements Cloneable,
         Serializable,
         Iterable<Integer>,
@@ -89,7 +89,7 @@ public class RoaringBitmap
 
     @Override
     public boolean hasNext() {
-      return pos < RoaringBitmap.this.highLowContainer.size();
+      return pos < PersistentRoaringBitmap.this.highLowContainer.size();
     }
 
     @Override
@@ -103,11 +103,11 @@ public class RoaringBitmap
     }
 
     private void nextContainer() {
-      final int containerSize = RoaringBitmap.this.highLowContainer.size();
+      final int containerSize = PersistentRoaringBitmap.this.highLowContainer.size();
       if (pos < containerSize) {
         final int index = (pos + startingContainerIndex) % containerSize;
-        iter = RoaringBitmap.this.highLowContainer.getContainerAtIndex(index).getCharIterator();
-        hs = RoaringBitmap.this.highLowContainer.getKeyAtIndex(index) << 16;
+        iter = PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(index).getCharIterator();
+        hs = PersistentRoaringBitmap.this.highLowContainer.getKeyAtIndex(index) << 16;
       }
     }
 
@@ -141,8 +141,8 @@ public class RoaringBitmap
     @Override
     char findStartingContainerIndex() {
       // skip to starting at negative signed integers
-      char index = (char) RoaringBitmap.this.highLowContainer.advanceUntil((char) (1 << 15), -1);
-      if (index == RoaringBitmap.this.highLowContainer.size()) {
+      char index = (char) PersistentRoaringBitmap.this.highLowContainer.advanceUntil((char) (1 << 15), -1);
+      if (index == PersistentRoaringBitmap.this.highLowContainer.size()) {
         index = 0;
       }
       return index;
@@ -160,7 +160,7 @@ public class RoaringBitmap
 
     CharIterator iter;
 
-    int pos = RoaringBitmap.this.highLowContainer.size() - 1;
+    int pos = PersistentRoaringBitmap.this.highLowContainer.size() - 1;
 
     private RoaringReverseIntIterator() {
       nextContainer();
@@ -197,8 +197,8 @@ public class RoaringBitmap
     private void nextContainer() {
       if (pos >= 0) {
         iter =
-            RoaringBitmap.this.highLowContainer.getContainerAtIndex(pos).getReverseCharIterator();
-        hs = RoaringBitmap.this.highLowContainer.getKeyAtIndex(pos) << 16;
+            PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(pos).getReverseCharIterator();
+        hs = PersistentRoaringBitmap.this.highLowContainer.getKeyAtIndex(pos) << 16;
       }
     }
   }
@@ -231,20 +231,20 @@ public class RoaringBitmap
    * @param offset increment
    * @return a new bitmap
    */
-  public static RoaringBitmap addOffset(final RoaringBitmap x, long offset) {
+  public static PersistentRoaringBitmap addOffset(final PersistentRoaringBitmap x, long offset) {
     // we need "offset" to be a long because we want to support values
     // between -0xFFFFFFFF up to +-0xFFFFFFFF
     long container_offset_long =
         offset < 0 ? (offset - (1 << 16) + 1) / (1 << 16) : offset / (1 << 16);
     if ((container_offset_long < -(1 << 16)) || (container_offset_long >= (1 << 16))) {
-      return new RoaringBitmap(); // it is necessarily going to be empty
+      return new PersistentRoaringBitmap(); // it is necessarily going to be empty
     }
     // next cast is necessarily safe, the result is between -0xFFFF and 0xFFFF
     int container_offset = (int) container_offset_long;
     // next case is safe
     int in_container_offset = (int) (offset - container_offset_long * (1L << 16));
     if (in_container_offset == 0) {
-      RoaringBitmap answer = new RoaringBitmap();
+      PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
       for (int pos = 0; pos < x.highLowContainer.size(); pos++) {
         int key = (x.highLowContainer.getKeyAtIndex(pos));
         key += container_offset;
@@ -253,7 +253,7 @@ public class RoaringBitmap
       }
       return answer;
     } else {
-      RoaringBitmap answer = new RoaringBitmap();
+      PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
       for (int pos = 0; pos < x.highLowContainer.size(); pos++) {
         int key = (x.highLowContainer.getKeyAtIndex(pos));
         key += container_offset;
@@ -295,7 +295,7 @@ public class RoaringBitmap
    * @param rangeEnd exclusive ending of range
    * @return new bitmap
    */
-  public static RoaringBitmap add(RoaringBitmap rb, final long rangeStart, final long rangeEnd) {
+  public static PersistentRoaringBitmap add(PersistentRoaringBitmap rb, final long rangeStart, final long rangeEnd) {
     rangeSanityCheck(rangeStart, rangeEnd);
     if (rangeStart >= rangeEnd) {
       return rb.clone(); // empty range
@@ -306,7 +306,7 @@ public class RoaringBitmap
     final int hbLast = (Util.highbits(rangeEnd - 1));
     final int lbLast = (Util.lowbits(rangeEnd - 1));
 
-    RoaringBitmap answer = new RoaringBitmap();
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     answer.highLowContainer.appendCopiesUntil(rb.highLowContainer, (char) hbStart);
 
     if (hbStart == hbLast) {
@@ -365,7 +365,7 @@ public class RoaringBitmap
    * @deprecated use the version where longs specify the range
    */
   @Deprecated
-  public static RoaringBitmap add(RoaringBitmap rb, final int rangeStart, final int rangeEnd) {
+  public static PersistentRoaringBitmap add(PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
     if (rangeStart >= 0) {
       return add(rb, (long) rangeStart, (long) rangeEnd);
     }
@@ -383,10 +383,10 @@ public class RoaringBitmap
    * @param x1 first bitmap
    * @param x2 other bitmap
    * @return result of the operation
-   * @see FastAggregation#and(RoaringBitmap...)
+   * @see FastAggregation#and(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap and(final RoaringBitmap x1, final RoaringBitmap x2) {
-    final RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap and(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
+    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
     int pos1 = 0, pos2 = 0;
 
@@ -418,9 +418,9 @@ public class RoaringBitmap
    * @param x1 first bitmap
    * @param x2 other bitmap
    * @return as if you did and(x2,x2).getCardinality()
-   * @see FastAggregation#and(RoaringBitmap...)
+   * @see FastAggregation#and(PersistentRoaringBitmap...)
    */
-  public static int andCardinality(final RoaringBitmap x1, final RoaringBitmap x2) {
+  public static int andCardinality(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
     int answer = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
     int pos1 = 0, pos2 = 0;
@@ -451,8 +451,8 @@ public class RoaringBitmap
    * @param x2 other bitmap
    * @return result of the operation
    */
-  public static RoaringBitmap andNot(final RoaringBitmap x1, final RoaringBitmap x2) {
-    final RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap andNot(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
+    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     int pos1 = 0, pos2 = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
 
@@ -573,19 +573,19 @@ public class RoaringBitmap
    * @param dat set values
    * @return a new bitmap
    */
-  public static RoaringBitmap bitmapOf(final int... dat) {
-    final RoaringBitmap ans = new RoaringBitmap();
+  public static PersistentRoaringBitmap bitmapOf(final int... dat) {
+    final PersistentRoaringBitmap ans = new PersistentRoaringBitmap();
     ans.add(dat);
     return ans;
   }
 
   /**
-   * Efficiently builds a RoaringBitmap from unordered data
+   * Efficiently builds a PersistentRoaringBitmap from unordered data
    * @param data unsorted data
    * @return a new bitmap
    */
-  public static RoaringBitmap bitmapOfUnordered(final int... data) {
-    RoaringBitmapWriter<RoaringBitmap> writer =
+  public static PersistentRoaringBitmap bitmapOfUnordered(final int... data) {
+    RoaringBitmapWriter<PersistentRoaringBitmap> writer =
         writer().constantMemory().doPartialRadixSort().get();
     writer.addMany(data);
     writer.flush();
@@ -595,10 +595,10 @@ public class RoaringBitmap
   /**
    * @see #add(long, long)
    */
-  public static RoaringBitmap bitmapOfRange(long min, long max) {
+  public static PersistentRoaringBitmap bitmapOfRange(long min, long max) {
     rangeSanityCheck(min, max);
     if (min >= max) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
     final int hbStart = Util.highbits(min);
     final int lbStart = Util.lowbits(min);
@@ -606,7 +606,7 @@ public class RoaringBitmap
     final int lbLast = Util.lowbits(max - 1);
 
     RoaringArray array = new RoaringArray(hbLast - hbStart + 1);
-    RoaringBitmap bitmap = new RoaringBitmap(array);
+    PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap(array);
 
     int firstEnd = hbStart < hbLast ? 1 << 16 : lbLast + 1;
     Container firstContainer = RunContainer.rangeOfOnes(lbStart, firstEnd);
@@ -633,12 +633,12 @@ public class RoaringBitmap
    * @param rangeEnd exclusive ending of range, in [0, 0xffffffff + 1]
    * @return a new Bitmap
    */
-  public static RoaringBitmap flip(RoaringBitmap bm, final long rangeStart, final long rangeEnd) {
+  public static PersistentRoaringBitmap flip(PersistentRoaringBitmap bm, final long rangeStart, final long rangeEnd) {
     rangeSanityCheck(rangeStart, rangeEnd);
     if (rangeStart >= rangeEnd) {
       return bm.clone();
     }
-    RoaringBitmap answer = new RoaringBitmap();
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     final int hbStart = (Util.highbits(rangeStart));
     final int lbStart = (Util.lowbits(rangeStart));
     final int hbLast = (Util.highbits(rangeEnd - 1));
@@ -684,7 +684,7 @@ public class RoaringBitmap
    * @deprecated use the version where longs specify the range
    */
   @Deprecated
-  public static RoaringBitmap flip(RoaringBitmap rb, final int rangeStart, final int rangeEnd) {
+  public static PersistentRoaringBitmap flip(PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
     if (rangeStart >= 0) {
       return flip(rb, (long) rangeStart, (long) rangeEnd);
     }
@@ -701,7 +701,7 @@ public class RoaringBitmap
    * @param x2 other bitmap
    * @return true if they intersect
    */
-  public static boolean intersects(final RoaringBitmap x1, final RoaringBitmap x2) {
+  public static boolean intersects(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
     int pos1 = 0, pos2 = 0;
 
@@ -726,8 +726,8 @@ public class RoaringBitmap
   }
 
   // important: inputs should not have been computed lazily
-  protected static RoaringBitmap lazyor(final RoaringBitmap x1, final RoaringBitmap x2) {
-    final RoaringBitmap answer = new RoaringBitmap();
+  protected static PersistentRoaringBitmap lazyor(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
+    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     int pos1 = 0, pos2 = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
     main:
@@ -775,9 +775,9 @@ public class RoaringBitmap
   }
 
   // important: inputs should not be reused
-  protected static RoaringBitmap lazyorfromlazyinputs(
-      final RoaringBitmap x1, final RoaringBitmap x2) {
-    final RoaringBitmap answer = new RoaringBitmap();
+  protected static PersistentRoaringBitmap lazyorfromlazyinputs(
+      final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
+    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     int pos1 = 0, pos2 = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
     main:
@@ -837,7 +837,7 @@ public class RoaringBitmap
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap or(Iterator<? extends RoaringBitmap> bitmaps) {
+  public static PersistentRoaringBitmap or(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
     return FastAggregation.or(bitmaps);
   }
 
@@ -850,7 +850,7 @@ public class RoaringBitmap
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap or(RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap or(PersistentRoaringBitmap... bitmaps) {
     return FastAggregation.or(bitmaps);
   }
 
@@ -863,11 +863,11 @@ public class RoaringBitmap
    * @param x1 first bitmap
    * @param x2 other bitmap
    * @return result of the operation
-   * @see FastAggregation#or(RoaringBitmap...)
-   * @see FastAggregation#horizontal_or(RoaringBitmap...)
+   * @see FastAggregation#or(PersistentRoaringBitmap...)
+   * @see FastAggregation#horizontal_or(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap or(final RoaringBitmap x1, final RoaringBitmap x2) {
-    final RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap or(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
+    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     int pos1 = 0, pos2 = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
     main:
@@ -923,10 +923,10 @@ public class RoaringBitmap
    * @param x1 first bitmap
    * @param x2 other bitmap
    * @return cardinality of the union
-   * @see FastAggregation#or(RoaringBitmap...)
-   * @see FastAggregation#horizontal_or(RoaringBitmap...)
+   * @see FastAggregation#or(PersistentRoaringBitmap...)
+   * @see FastAggregation#horizontal_or(PersistentRoaringBitmap...)
    */
-  public static int orCardinality(final RoaringBitmap x1, final RoaringBitmap x2) {
+  public static int orCardinality(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
     // we use the fact that the cardinality of the bitmaps is known so that
     // the union is just the total cardinality minus the intersection
     return x1.getCardinality() + x2.getCardinality() - andCardinality(x1, x2);
@@ -941,7 +941,7 @@ public class RoaringBitmap
    * @param x2 other bitmap
    * @return cardinality of the symmetric difference
    */
-  public static int xorCardinality(final RoaringBitmap x1, final RoaringBitmap x2) {
+  public static int xorCardinality(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
     return x1.getCardinality() + x2.getCardinality() - 2 * andCardinality(x1, x2);
   }
 
@@ -954,7 +954,7 @@ public class RoaringBitmap
    * @param x2 other bitmap
    * @return cardinality of the left difference
    */
-  public static int andNotCardinality(final RoaringBitmap x1, final RoaringBitmap x2) {
+  public static int andNotCardinality(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
 
     if (length2 > 4 * length1) {
@@ -1005,7 +1005,7 @@ public class RoaringBitmap
    * @param rangeEnd exclusive ending of range
    * @return new bitmap
    */
-  public static RoaringBitmap remove(RoaringBitmap rb, final long rangeStart, final long rangeEnd) {
+  public static PersistentRoaringBitmap remove(PersistentRoaringBitmap rb, final long rangeStart, final long rangeEnd) {
     rangeSanityCheck(rangeStart, rangeEnd);
     if (rangeStart >= rangeEnd) {
       return rb.clone(); // empty range
@@ -1015,7 +1015,7 @@ public class RoaringBitmap
     final int lbStart = (Util.lowbits(rangeStart));
     final int hbLast = (Util.highbits(rangeEnd - 1));
     final int lbLast = (Util.lowbits(rangeEnd - 1));
-    RoaringBitmap answer = new RoaringBitmap();
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     answer.highLowContainer.appendCopiesUntil(rb.highLowContainer, (char) hbStart);
 
     if (hbStart == hbLast) {
@@ -1060,7 +1060,7 @@ public class RoaringBitmap
    * @deprecated use the version where longs specify the range
    */
   @Deprecated
-  public static RoaringBitmap remove(RoaringBitmap rb, final int rangeStart, final int rangeEnd) {
+  public static PersistentRoaringBitmap remove(PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
     if (rangeStart >= 0) {
       return remove(rb, (long) rangeStart, (long) rangeEnd);
     }
@@ -1078,11 +1078,11 @@ public class RoaringBitmap
    * @param x1 first bitmap
    * @param x2 other bitmap
    * @return result of the operation
-   * @see FastAggregation#xor(RoaringBitmap...)
-   * @see FastAggregation#horizontal_xor(RoaringBitmap...)
+   * @see FastAggregation#xor(PersistentRoaringBitmap...)
+   * @see FastAggregation#horizontal_xor(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap xor(final RoaringBitmap x1, final RoaringBitmap x2) {
-    final RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap xor(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
+    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     int pos1 = 0, pos2 = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
 
@@ -1138,14 +1138,14 @@ public class RoaringBitmap
   /**
    * Create an empty bitmap
    */
-  public RoaringBitmap() {
+  public PersistentRoaringBitmap() {
     highLowContainer = new RoaringArray();
   }
 
   /**
    * Wrap an existing high low container
    */
-  RoaringBitmap(RoaringArray highLowContainer) {
+  PersistentRoaringBitmap(RoaringArray highLowContainer) {
     this.highLowContainer = highLowContainer;
   }
 
@@ -1266,7 +1266,7 @@ public class RoaringBitmap
    *
    * @param x2 other bitmap
    */
-  public void and(final RoaringBitmap x2) {
+  public void and(final PersistentRoaringBitmap x2) {
     if (x2 == this) {
       return;
     }
@@ -1303,11 +1303,11 @@ public class RoaringBitmap
    * @param rangeEnd exclusive ending of range
    * @return new result bitmap
    */
-  public static RoaringBitmap and(
-      final Iterator<? extends RoaringBitmap> bitmaps, final long rangeStart, final long rangeEnd) {
+  public static PersistentRoaringBitmap and(
+      final Iterator<? extends PersistentRoaringBitmap> bitmaps, final long rangeStart, final long rangeEnd) {
     rangeSanityCheck(rangeStart, rangeEnd);
 
-    Iterator<RoaringBitmap> bitmapsIterator;
+    Iterator<PersistentRoaringBitmap> bitmapsIterator;
     bitmapsIterator = selectRangeWithoutCopy(bitmaps, rangeStart, rangeEnd);
     return FastAggregation.and(bitmapsIterator);
   }
@@ -1328,8 +1328,8 @@ public class RoaringBitmap
    * @deprecated use the version where longs specify the range. Negative range end are illegal.
    */
   @Deprecated
-  public static RoaringBitmap and(
-      final Iterator<? extends RoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
+  public static PersistentRoaringBitmap and(
+      final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
     return and(bitmaps, (long) rangeStart, (long) rangeEnd);
   }
 
@@ -1338,7 +1338,7 @@ public class RoaringBitmap
    *
    * @param x2 other bitmap
    */
-  public void andNot(final RoaringBitmap x2) {
+  public void andNot(final PersistentRoaringBitmap x2) {
     if (x2 == this) {
       clear();
       return;
@@ -1387,12 +1387,12 @@ public class RoaringBitmap
    * @param rangeEnd end point of the range (exclusive)
    * @return result of the operation
    */
-  public static RoaringBitmap andNot(
-      final RoaringBitmap x1, final RoaringBitmap x2, long rangeStart, long rangeEnd) {
+  public static PersistentRoaringBitmap andNot(
+      final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2, long rangeStart, long rangeEnd) {
     rangeSanityCheck(rangeStart, rangeEnd);
 
-    RoaringBitmap rb1 = selectRangeWithoutCopy(x1, rangeStart, rangeEnd);
-    RoaringBitmap rb2 = selectRangeWithoutCopy(x2, rangeStart, rangeEnd);
+    PersistentRoaringBitmap rb1 = selectRangeWithoutCopy(x1, rangeStart, rangeEnd);
+    PersistentRoaringBitmap rb2 = selectRangeWithoutCopy(x2, rangeStart, rangeEnd);
     return andNot(rb1, rb2);
   }
 
@@ -1411,8 +1411,8 @@ public class RoaringBitmap
    *     endpoints are not allowed.
    */
   @Deprecated
-  public static RoaringBitmap andNot(
-      final RoaringBitmap x1, final RoaringBitmap x2, final int rangeStart, final int rangeEnd) {
+  public static PersistentRoaringBitmap andNot(
+      final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2, final int rangeStart, final int rangeEnd) {
     return andNot(x1, x2, (long) rangeStart, (long) rangeEnd);
   }
 
@@ -1422,7 +1422,7 @@ public class RoaringBitmap
    * @param other the other bitmap
    * @param rangeEnd end point of the range (exclusive).
    */
-  public void orNot(final RoaringBitmap other, long rangeEnd) {
+  public void orNot(final PersistentRoaringBitmap other, long rangeEnd) {
     if (other == this) {
       throw new UnsupportedOperationException("orNot between a bitmap and itself?");
     }
@@ -1517,7 +1517,7 @@ public class RoaringBitmap
    * @param rangeEnd end point of the range (exclusive)
    * @return result of the operation
    */
-  public static RoaringBitmap orNot(final RoaringBitmap x1, final RoaringBitmap x2, long rangeEnd) {
+  public static PersistentRoaringBitmap orNot(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2, long rangeEnd) {
     rangeSanityCheck(0, rangeEnd);
     int maxKey = (int) ((rangeEnd - 1) >>> 16);
     int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
@@ -1543,7 +1543,7 @@ public class RoaringBitmap
     // this avoids temporary allocation, and can trim afterwards
     int maxSize = Math.min(maxKey + 1 + remainder - correction + x1.highLowContainer.size, 0x10000);
     if (maxSize == 0) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
     char[] newKeys = new char[maxSize];
     Container[] newValues = new Container[maxSize];
@@ -1598,7 +1598,7 @@ public class RoaringBitmap
         newValues[i] = newValues[i].clone();
       }
     }
-    RoaringBitmap result = new RoaringBitmap();
+    PersistentRoaringBitmap result = new PersistentRoaringBitmap();
     result.highLowContainer.keys = newKeys;
     result.highLowContainer.values = newValues;
     result.highLowContainer.size = size + remainder;
@@ -1688,9 +1688,9 @@ public class RoaringBitmap
   }
 
   @Override
-  public RoaringBitmap clone() {
+  public PersistentRoaringBitmap clone() {
     try {
-      final RoaringBitmap x = (RoaringBitmap) super.clone();
+      final PersistentRoaringBitmap x = (PersistentRoaringBitmap) super.clone();
       x.highLowContainer = highLowContainer.clone();
       return x;
     } catch (final CloneNotSupportedException e) {
@@ -1763,7 +1763,7 @@ public class RoaringBitmap
 
   /**
    * Deserialize (retrieve) this bitmap. See format specification at
-   * https://github.com/RoaringBitmap/RoaringFormatSpec
+   * https://github.com/PersistentRoaringBitmap/RoaringFormatSpec
    *
    * The current bitmap is overwritten.
    *
@@ -1788,7 +1788,7 @@ public class RoaringBitmap
 
   /**
    * Deserialize (retrieve) this bitmap.
-   * See format specification at https://github.com/RoaringBitmap/RoaringFormatSpec
+   * See format specification at https://github.com/PersistentRoaringBitmap/RoaringFormatSpec
    *
    * The current bitmap is overwritten.
    *
@@ -1805,14 +1805,14 @@ public class RoaringBitmap
 
   /**
    * Deserialize (retrieve) this bitmap.
-   * See format specification at https://github.com/RoaringBitmap/RoaringFormatSpec
+   * See format specification at https://github.com/PersistentRoaringBitmap/RoaringFormatSpec
    *
    * The current bitmap is overwritten.
    *
    * It is not necessary that limit() on the input ByteBuffer indicates the end of the serialized
    * data.
    *
-   * After loading this RoaringBitmap, you can advance to the rest of the data (if there
+   * After loading this PersistentRoaringBitmap, you can advance to the rest of the data (if there
    * is more) by setting bbf.position(bbf.position() + bitmap.serializedSizeInBytes());
    *
    * Note that the input ByteBuffer is effectively copied (with the slice operation) so you should
@@ -1831,8 +1831,8 @@ public class RoaringBitmap
 
   @Override
   public boolean equals(Object o) {
-    if (o instanceof RoaringBitmap) {
-      final RoaringBitmap srb = (RoaringBitmap) o;
+    if (o instanceof PersistentRoaringBitmap) {
+      final PersistentRoaringBitmap srb = (PersistentRoaringBitmap) o;
       return srb.highLowContainer.equals(this.highLowContainer);
     }
     return false;
@@ -1847,7 +1847,7 @@ public class RoaringBitmap
    * @param tolerance the maximum number of bits that may differ
    * @return true if the number of differing bits is smaller than tolerance
    */
-  public boolean isHammingSimilar(RoaringBitmap other, int tolerance) {
+  public boolean isHammingSimilar(PersistentRoaringBitmap other, int tolerance) {
     final int size1 = highLowContainer.size();
     final int size2 = other.highLowContainer.size();
     int pos1 = 0;
@@ -2330,13 +2330,13 @@ public class RoaringBitmap
 
       @Override
       public boolean hasNext() {
-        return pos < RoaringBitmap.this.highLowContainer.size();
+        return pos < PersistentRoaringBitmap.this.highLowContainer.size();
       }
 
       private Iterator<Integer> init() {
-        if (pos < RoaringBitmap.this.highLowContainer.size()) {
-          iter = RoaringBitmap.this.highLowContainer.getContainerAtIndex(pos).getCharIterator();
-          hs = RoaringBitmap.this.highLowContainer.getKeyAtIndex(pos) << 16;
+        if (pos < PersistentRoaringBitmap.this.highLowContainer.size()) {
+          iter = PersistentRoaringBitmap.this.highLowContainer.getContainerAtIndex(pos).getCharIterator();
+          hs = PersistentRoaringBitmap.this.highLowContainer.getKeyAtIndex(pos) << 16;
         }
         return this;
       }
@@ -2361,7 +2361,7 @@ public class RoaringBitmap
 
   // don't forget to call repairAfterLazy() afterward
   // important: x2 should not have been computed lazily
-  protected void lazyor(final RoaringBitmap x2) {
+  protected void lazyor(final PersistentRoaringBitmap x2) {
     if (this == x2) {
       return;
     }
@@ -2415,7 +2415,7 @@ public class RoaringBitmap
   // important: x2 should not have been computed lazily
   // this method is like lazyor except that it will convert
   // the current container to a bitset
-  protected void naivelazyor(RoaringBitmap x2) {
+  protected void naivelazyor(PersistentRoaringBitmap x2) {
     if (this == x2) {
       return;
     }
@@ -2470,8 +2470,8 @@ public class RoaringBitmap
    * @return a new bitmap with cardinality no more than maxcardinality
    */
   @Override
-  public RoaringBitmap limit(int maxcardinality) {
-    RoaringBitmap answer = new RoaringBitmap();
+  public PersistentRoaringBitmap limit(int maxcardinality) {
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     int currentcardinality = 0;
     for (int i = 0;
         (currentcardinality < maxcardinality) && (i < this.highLowContainer.size());
@@ -2495,7 +2495,7 @@ public class RoaringBitmap
    *
    * @param x2 other bitmap
    */
-  public void or(final RoaringBitmap x2) {
+  public void or(final PersistentRoaringBitmap x2) {
     if (this == x2) {
       return;
     }
@@ -2554,11 +2554,11 @@ public class RoaringBitmap
    * @param rangeEnd exclusive ending of range
    * @return new result bitmap
    */
-  public static RoaringBitmap or(
-      final Iterator<? extends RoaringBitmap> bitmaps, final long rangeStart, final long rangeEnd) {
+  public static PersistentRoaringBitmap or(
+      final Iterator<? extends PersistentRoaringBitmap> bitmaps, final long rangeStart, final long rangeEnd) {
     rangeSanityCheck(rangeStart, rangeEnd);
 
-    Iterator<RoaringBitmap> bitmapsIterator;
+    Iterator<PersistentRoaringBitmap> bitmapsIterator;
     bitmapsIterator = selectRangeWithoutCopy(bitmaps, rangeStart, rangeEnd);
     return or(bitmapsIterator);
   }
@@ -2574,8 +2574,8 @@ public class RoaringBitmap
    *     Negative range points are forbidden.
    */
   @Deprecated
-  public static RoaringBitmap or(
-      final Iterator<? extends RoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
+  public static PersistentRoaringBitmap or(
+      final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
     return or(bitmaps, (long) rangeStart, (long) rangeEnd);
   }
 
@@ -2794,11 +2794,11 @@ public class RoaringBitmap
   }
 
   /**
-   * Checks whether the parameter is a subset of this RoaringBitmap or not
+   * Checks whether the parameter is a subset of this PersistentRoaringBitmap or not
    * @param subset the potential subset
-   * @return true if the parameter is a subset of this RoaringBitmap
+   * @return true if the parameter is a subset of this PersistentRoaringBitmap
    */
-  public boolean contains(RoaringBitmap subset) {
+  public boolean contains(PersistentRoaringBitmap subset) {
     final int length1 = this.highLowContainer.size;
     final int length2 = subset.highLowContainer.size;
     int pos1 = 0, pos2 = 0;
@@ -3015,7 +3015,7 @@ public class RoaringBitmap
   /**
    * Serialize this bitmap.
    *
-   *  See format specification at https://github.com/RoaringBitmap/RoaringFormatSpec
+   *  See format specification at https://github.com/PersistentRoaringBitmap/RoaringFormatSpec
    *
    * Consider calling {@link #runOptimize} before serialization to improve compression.
    *
@@ -3083,19 +3083,19 @@ public class RoaringBitmap
    * @param rangeEnd exclusive
    * @return new iterator of bitmaps
    */
-  private static Iterator<RoaringBitmap> selectRangeWithoutCopy(
-      final Iterator<? extends RoaringBitmap> bitmaps, final long rangeStart, final long rangeEnd) {
-    Iterator<RoaringBitmap> bitmapsIterator;
+  private static Iterator<PersistentRoaringBitmap> selectRangeWithoutCopy(
+      final Iterator<? extends PersistentRoaringBitmap> bitmaps, final long rangeStart, final long rangeEnd) {
+    Iterator<PersistentRoaringBitmap> bitmapsIterator;
     bitmapsIterator =
-        new Iterator<RoaringBitmap>() {
+        new Iterator<PersistentRoaringBitmap>() {
           @Override
           public boolean hasNext() {
             return bitmaps.hasNext();
           }
 
           @Override
-          public RoaringBitmap next() {
-            RoaringBitmap next = bitmaps.next();
+          public PersistentRoaringBitmap next() {
+            PersistentRoaringBitmap next = bitmaps.next();
             return selectRangeWithoutCopy(next, rangeStart, rangeEnd);
           }
 
@@ -3115,12 +3115,12 @@ public class RoaringBitmap
    * @param rangeEnd exclusive
    * @return new bitmap
    */
-  public RoaringBitmap selectRange(final long rangeStart, final long rangeEnd) {
+  public PersistentRoaringBitmap selectRange(final long rangeStart, final long rangeEnd) {
     final int hbStart = (Util.highbits(rangeStart));
     final int lbStart = (Util.lowbits(rangeStart));
     final int hbLast = (Util.highbits(rangeEnd - 1));
     final int lbLast = (Util.lowbits(rangeEnd - 1));
-    RoaringBitmap answer = new RoaringBitmap();
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
 
     assert (rangeStart >= 0 && rangeEnd >= 0);
 
@@ -3185,13 +3185,13 @@ public class RoaringBitmap
    * @param rangeEnd exclusive
    * @return new bitmap
    */
-  private static RoaringBitmap selectRangeWithoutCopy(
-      RoaringBitmap rb, final long rangeStart, final long rangeEnd) {
+  private static PersistentRoaringBitmap selectRangeWithoutCopy(
+      PersistentRoaringBitmap rb, final long rangeStart, final long rangeEnd) {
     final int hbStart = (Util.highbits(rangeStart));
     final int lbStart = (Util.lowbits(rangeStart));
     final int hbLast = (Util.highbits(rangeEnd - 1));
     final int lbLast = (Util.lowbits(rangeEnd - 1));
-    RoaringBitmap answer = new RoaringBitmap();
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
 
     assert (rangeStart >= 0 && rangeEnd >= 0);
 
@@ -3314,7 +3314,7 @@ public class RoaringBitmap
    *
    * @param x2 other bitmap
    */
-  public void xor(final RoaringBitmap x2) {
+  public void xor(final PersistentRoaringBitmap x2) {
     if (x2 == this) {
       clear();
       return;
@@ -3380,10 +3380,10 @@ public class RoaringBitmap
    * @param rangeEnd exclusive ending of range
    * @return new result bitmap
    */
-  public static RoaringBitmap xor(
-      final Iterator<? extends RoaringBitmap> bitmaps, final long rangeStart, final long rangeEnd) {
+  public static PersistentRoaringBitmap xor(
+      final Iterator<? extends PersistentRoaringBitmap> bitmaps, final long rangeStart, final long rangeEnd) {
     rangeSanityCheck(rangeStart, rangeEnd);
-    Iterator<RoaringBitmap> bitmapsIterator;
+    Iterator<PersistentRoaringBitmap> bitmapsIterator;
     bitmapsIterator = selectRangeWithoutCopy(bitmaps, rangeStart, rangeEnd);
     return FastAggregation.xor(bitmapsIterator);
   }
@@ -3400,8 +3400,8 @@ public class RoaringBitmap
    *     Negative values not allowed for rangeStart and rangeEnd
    */
   @Deprecated
-  public static RoaringBitmap xor(
-      final Iterator<? extends RoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
+  public static PersistentRoaringBitmap xor(
+      final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
     return xor(bitmaps, (long) rangeStart, (long) rangeEnd);
   }
 

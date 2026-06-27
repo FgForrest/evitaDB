@@ -27,7 +27,7 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap and(Iterator<? extends RoaringBitmap> bitmaps) {
+  public static PersistentRoaringBitmap and(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
     return naive_and(bitmaps);
   }
 
@@ -38,7 +38,7 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap and(RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap and(PersistentRoaringBitmap... bitmaps) {
     if (bitmaps.length > 10) {
       return workShyAnd(new long[1024], bitmaps);
     }
@@ -52,7 +52,7 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap and(long[] aggregationBuffer, RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap and(long[] aggregationBuffer, PersistentRoaringBitmap... bitmaps) {
     if (bitmaps.length > 10) {
       if (aggregationBuffer.length < 1024) {
         throw new IllegalArgumentException("buffer should have at least 1024 elements.");
@@ -72,14 +72,14 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated cardinality
    */
-  public static int andCardinality(RoaringBitmap... bitmaps) {
+  public static int andCardinality(PersistentRoaringBitmap... bitmaps) {
     switch (bitmaps.length) {
       case 0:
         return 0;
       case 1:
         return bitmaps[0].getCardinality();
       case 2:
-        return RoaringBitmap.andCardinality(bitmaps[0], bitmaps[1]);
+        return PersistentRoaringBitmap.andCardinality(bitmaps[0], bitmaps[1]);
       default:
         return workShyAndCardinality(bitmaps);
     }
@@ -91,20 +91,20 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return whether they intersect
    */
-  public static boolean intersects(RoaringBitmap... bitmaps) {
+  public static boolean intersects(PersistentRoaringBitmap... bitmaps) {
     switch (bitmaps.length) {
       case 0:
         return false;
       case 1:
         return !bitmaps[0].isEmpty();
       case 2:
-        return RoaringBitmap.intersects(bitmaps[0], bitmaps[1]);
+        return PersistentRoaringBitmap.intersects(bitmaps[0], bitmaps[1]);
       default:
         return intersectsMultiple(bitmaps);
     }
   }
 
-  private static boolean intersectsMultiple(RoaringBitmap... bitmaps) {
+  private static boolean intersectsMultiple(PersistentRoaringBitmap... bitmaps) {
     long[] words = new long[1024];
     char[] keys = Util.intersectKeys(words, bitmaps);
     if (keys.length == 0) {
@@ -115,7 +115,7 @@ public final class FastAggregation {
     for (int i = 0; i < numKeys; i++) {
       Arrays.fill(words, -1L);
       Container tmp = new BitmapContainer(words, -1);
-      for (RoaringBitmap bitmap : bitmaps) {
+      for (PersistentRoaringBitmap bitmap : bitmaps) {
         int index = bitmap.highLowContainer.getIndex(keys[i]);
         Container container = bitmap.highLowContainer.getContainerAtIndex(index);
         // We only assign to 'tmp' when 'tmp != tmp.iand(container)'
@@ -142,14 +142,14 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated cardinality
    */
-  public static int orCardinality(RoaringBitmap... bitmaps) {
+  public static int orCardinality(PersistentRoaringBitmap... bitmaps) {
     switch (bitmaps.length) {
       case 0:
         return 0;
       case 1:
         return bitmaps[0].getCardinality();
       case 2:
-        return RoaringBitmap.orCardinality(bitmaps[0], bitmaps[1]);
+        return PersistentRoaringBitmap.orCardinality(bitmaps[0], bitmaps[1]);
       default:
         return horizontalOrCardinality(bitmaps);
     }
@@ -162,7 +162,7 @@ public final class FastAggregation {
    * @return aggregated bitmap
    */
   @Deprecated
-  public static RoaringBitmap horizontal_or(Iterator<? extends RoaringBitmap> bitmaps) {
+  public static PersistentRoaringBitmap horizontal_or(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
     return naive_or(bitmaps);
   }
 
@@ -173,10 +173,10 @@ public final class FastAggregation {
    *
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
-   * @see #or(RoaringBitmap...)
+   * @see #or(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap horizontal_or(List<? extends RoaringBitmap> bitmaps) {
-    RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap horizontal_or(List<? extends PersistentRoaringBitmap> bitmaps) {
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     if (bitmaps.isEmpty()) {
       return answer;
     }
@@ -232,10 +232,10 @@ public final class FastAggregation {
    *
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
-   * @see #or(RoaringBitmap...)
+   * @see #or(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap horizontal_or(RoaringBitmap... bitmaps) {
-    RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap horizontal_or(PersistentRoaringBitmap... bitmaps) {
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     if (bitmaps.length == 0) {
       return answer;
     }
@@ -291,10 +291,10 @@ public final class FastAggregation {
    *
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
-   * @see #xor(RoaringBitmap...)
+   * @see #xor(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap horizontal_xor(RoaringBitmap... bitmaps) {
-    RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap horizontal_xor(PersistentRoaringBitmap... bitmaps) {
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     if (bitmaps.length == 0) {
       return answer;
     }
@@ -353,11 +353,11 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap naive_and(Iterator<? extends RoaringBitmap> bitmaps) {
+  public static PersistentRoaringBitmap naive_and(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
     if (!bitmaps.hasNext()) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
-    RoaringBitmap answer = bitmaps.next().clone();
+    PersistentRoaringBitmap answer = bitmaps.next().clone();
     while (bitmaps.hasNext() && !answer.isEmpty()) {
       answer.and(bitmaps.next());
     }
@@ -376,18 +376,18 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap naive_and(RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap naive_and(PersistentRoaringBitmap... bitmaps) {
     if (bitmaps.length == 0) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
-    RoaringBitmap smallest = bitmaps[0];
+    PersistentRoaringBitmap smallest = bitmaps[0];
     for (int i = 1; i < bitmaps.length; i++) {
-      RoaringBitmap bitmap = bitmaps[i];
+      PersistentRoaringBitmap bitmap = bitmaps[i];
       if (bitmap.highLowContainer.size() < smallest.highLowContainer.size()) {
         smallest = bitmap;
       }
     }
-    RoaringBitmap answer = smallest.clone();
+    PersistentRoaringBitmap answer = smallest.clone();
     for (int k = 0; k < bitmaps.length && !answer.isEmpty(); ++k) {
       if (bitmaps[k] != smallest) {
         answer.and(bitmaps[k]);
@@ -404,16 +404,16 @@ public final class FastAggregation {
    * @param bitmaps the inputs
    * @return the intersection of the bitmaps
    */
-  public static RoaringBitmap workShyAnd(long[] buffer, RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap workShyAnd(long[] buffer, PersistentRoaringBitmap... bitmaps) {
     long[] words = buffer;
     char[] keys = Util.intersectKeys(words, bitmaps);
     if (keys.length == 0) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
     int numContainers = keys.length;
     Container[][] containers = new Container[numContainers][bitmaps.length];
     for (int i = 0; i < bitmaps.length; ++i) {
-      RoaringBitmap bitmap = bitmaps[i];
+      PersistentRoaringBitmap bitmap = bitmaps[i];
       int position = 0;
       for (int j = 0; j < bitmap.highLowContainer.size; ++j) {
         char key = bitmap.highLowContainer.keys[j];
@@ -446,10 +446,10 @@ public final class FastAggregation {
         array.append(keys[i], tmp instanceof BitmapContainer ? tmp.clone() : tmp);
       }
     }
-    return new RoaringBitmap(array);
+    return new PersistentRoaringBitmap(array);
   }
 
-  private static int workShyAndCardinality(RoaringBitmap... bitmaps) {
+  private static int workShyAndCardinality(PersistentRoaringBitmap... bitmaps) {
     long[] words = new long[1024];
     char[] keys = Util.intersectKeys(words, bitmaps);
     if (keys.length == 0) {
@@ -461,7 +461,7 @@ public final class FastAggregation {
     for (int i = 0; i < numKeys; i++) {
       Arrays.fill(words, -1L);
       Container tmp = new BitmapContainer(words, -1);
-      for (RoaringBitmap bitmap : bitmaps) {
+      for (PersistentRoaringBitmap bitmap : bitmaps) {
         int index = bitmap.highLowContainer.getIndex(keys[i]);
         Container container = bitmap.highLowContainer.getContainerAtIndex(index);
         // We only assign to 'tmp' when 'tmp != tmp.iand(container)'
@@ -480,11 +480,11 @@ public final class FastAggregation {
     return cardinality;
   }
 
-  private static int horizontalOrCardinality(RoaringBitmap... bitmaps) {
+  private static int horizontalOrCardinality(PersistentRoaringBitmap... bitmaps) {
     long[] words = new long[1024];
     int minKey = Character.MAX_VALUE;
     int maxKey = Character.MIN_VALUE;
-    for (RoaringBitmap bitmap : bitmaps) {
+    for (PersistentRoaringBitmap bitmap : bitmaps) {
       for (int i = 0; i < bitmap.highLowContainer.size(); i++) {
         char key = bitmap.highLowContainer.getKeyAtIndex(i);
         words[key >>> 6] |= 1L << key;
@@ -499,7 +499,7 @@ public final class FastAggregation {
     for (char key : keys) {
       Arrays.fill(words, 0);
       Container tmp = new BitmapContainer(words, -1);
-      for (RoaringBitmap bitmap : bitmaps) {
+      for (PersistentRoaringBitmap bitmap : bitmaps) {
         int index = bitmap.highLowContainer.getIndex(key);
         if (index < 0) {
           continue;
@@ -527,14 +527,14 @@ public final class FastAggregation {
    * @param bitmaps the inputs
    * @return the intersection of the bitmaps
    */
-  public static RoaringBitmap workAndMemoryShyAnd(long[] buffer, RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap workAndMemoryShyAnd(long[] buffer, PersistentRoaringBitmap... bitmaps) {
     if (buffer.length < 1024) {
       throw new IllegalArgumentException("buffer should have at least 1024 elements.");
     }
     long[] words = buffer;
     char[] keys = Util.intersectKeys(words, bitmaps);
     if (keys.length == 0) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
     int numContainers = keys.length;
 
@@ -544,7 +544,7 @@ public final class FastAggregation {
       char MatchingKey = keys[i];
       Arrays.fill(words, -1L);
       Container tmp = new BitmapContainer(words, -1);
-      for (RoaringBitmap bitmap : bitmaps) {
+      for (PersistentRoaringBitmap bitmap : bitmaps) {
         int idx = bitmap.highLowContainer.getIndex(MatchingKey);
         Container container = bitmap.highLowContainer.getContainerAtIndex(idx);
         // We only assign to 'tmp' when 'tmp != tmp.iand(container)'
@@ -563,7 +563,7 @@ public final class FastAggregation {
         array.append(keys[i], tmp instanceof BitmapContainer ? tmp.clone() : tmp);
       }
     }
-    return new RoaringBitmap(array);
+    return new PersistentRoaringBitmap(array);
   }
 
   /**
@@ -574,8 +574,8 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap naive_or(Iterator<? extends RoaringBitmap> bitmaps) {
-    RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap naive_or(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     while (bitmaps.hasNext()) {
       answer.naivelazyor(bitmaps.next());
     }
@@ -591,8 +591,8 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap naive_or(RoaringBitmap... bitmaps) {
-    RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap naive_or(PersistentRoaringBitmap... bitmaps) {
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     for (int k = 0; k < bitmaps.length; ++k) {
       answer.naivelazyor(bitmaps[k]);
     }
@@ -608,8 +608,8 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap naive_xor(Iterator<? extends RoaringBitmap> bitmaps) {
-    RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap naive_xor(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     while (bitmaps.hasNext()) {
       answer.xor(bitmaps.next());
     }
@@ -624,8 +624,8 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap naive_xor(RoaringBitmap... bitmaps) {
-    RoaringBitmap answer = new RoaringBitmap();
+  public static PersistentRoaringBitmap naive_xor(PersistentRoaringBitmap... bitmaps) {
+    PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
     for (int k = 0; k < bitmaps.length; ++k) {
       answer.xor(bitmaps[k]);
     }
@@ -639,7 +639,7 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap or(Iterator<? extends RoaringBitmap> bitmaps) {
+  public static PersistentRoaringBitmap or(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
     return naive_or(bitmaps);
   }
 
@@ -650,7 +650,7 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap or(RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap or(PersistentRoaringBitmap... bitmaps) {
     return naive_or(bitmaps);
   }
 
@@ -661,14 +661,14 @@ public final class FastAggregation {
    *
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
-   * @see #horizontal_or(RoaringBitmap...)
+   * @see #horizontal_or(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap priorityqueue_or(Iterator<? extends RoaringBitmap> bitmaps) {
+  public static PersistentRoaringBitmap priorityqueue_or(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
     if (!bitmaps.hasNext()) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
     // we buffer the call to getSizeInBytes(), hence the code complexity
-    ArrayList<RoaringBitmap> buffer = new ArrayList<>();
+    ArrayList<PersistentRoaringBitmap> buffer = new ArrayList<>();
     while (bitmaps.hasNext()) {
       buffer.add(bitmaps.next());
     }
@@ -693,7 +693,7 @@ public final class FastAggregation {
       Integer x1 = pq.poll();
       Integer x2 = pq.poll();
       if (istmp[x2] && istmp[x1]) {
-        buffer.set(x1, RoaringBitmap.lazyorfromlazyinputs(buffer.get(x1), buffer.get(x2)));
+        buffer.set(x1, PersistentRoaringBitmap.lazyorfromlazyinputs(buffer.get(x1), buffer.get(x2)));
         sizes[x1] = buffer.get(x1).getLongSizeInBytes();
         istmp[x1] = true;
         pq.add(x1);
@@ -706,13 +706,13 @@ public final class FastAggregation {
         sizes[x1] = buffer.get(x1).getLongSizeInBytes();
         pq.add(x1);
       } else {
-        buffer.set(x1, RoaringBitmap.lazyor(buffer.get(x1), buffer.get(x2)));
+        buffer.set(x1, PersistentRoaringBitmap.lazyor(buffer.get(x1), buffer.get(x2)));
         sizes[x1] = buffer.get(x1).getLongSizeInBytes();
         istmp[x1] = true;
         pq.add(x1);
       }
     }
-    RoaringBitmap answer = buffer.get(pq.poll());
+    PersistentRoaringBitmap answer = buffer.get(pq.poll());
     answer.repairAfterLazy();
     return answer;
   }
@@ -724,14 +724,14 @@ public final class FastAggregation {
    *
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
-   * @see #horizontal_or(RoaringBitmap...)
+   * @see #horizontal_or(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap priorityqueue_or(RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap priorityqueue_or(PersistentRoaringBitmap... bitmaps) {
     if (bitmaps.length == 0) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
     // we buffer the call to getSizeInBytes(), hence the code complexity
-    final RoaringBitmap[] buffer = Arrays.copyOf(bitmaps, bitmaps.length);
+    final PersistentRoaringBitmap[] buffer = Arrays.copyOf(bitmaps, bitmaps.length);
     final long[] sizes = new long[buffer.length];
     final boolean[] istmp = new boolean[buffer.length];
     for (int k = 0; k < sizes.length; ++k) {
@@ -753,7 +753,7 @@ public final class FastAggregation {
       Integer x1 = pq.poll();
       Integer x2 = pq.poll();
       if (istmp[x2] && istmp[x1]) {
-        buffer[x1] = RoaringBitmap.lazyorfromlazyinputs(buffer[x1], buffer[x2]);
+        buffer[x1] = PersistentRoaringBitmap.lazyorfromlazyinputs(buffer[x1], buffer[x2]);
         sizes[x1] = buffer[x1].getLongSizeInBytes();
         istmp[x1] = true;
         pq.add(x1);
@@ -766,13 +766,13 @@ public final class FastAggregation {
         sizes[x1] = buffer[x1].getLongSizeInBytes();
         pq.add(x1);
       } else {
-        buffer[x1] = RoaringBitmap.lazyor(buffer[x1], buffer[x2]);
+        buffer[x1] = PersistentRoaringBitmap.lazyor(buffer[x1], buffer[x2]);
         sizes[x1] = buffer[x1].getLongSizeInBytes();
         istmp[x1] = true;
         pq.add(x1);
       }
     }
-    RoaringBitmap answer = buffer[pq.poll()];
+    PersistentRoaringBitmap answer = buffer[pq.poll()];
     answer.repairAfterLazy();
     return answer;
   }
@@ -784,28 +784,28 @@ public final class FastAggregation {
    *
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
-   * @see #horizontal_xor(RoaringBitmap...)
+   * @see #horizontal_xor(PersistentRoaringBitmap...)
    */
-  public static RoaringBitmap priorityqueue_xor(RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap priorityqueue_xor(PersistentRoaringBitmap... bitmaps) {
     // TODO: This code could be faster, see priorityqueue_or
     if (bitmaps.length == 0) {
-      return new RoaringBitmap();
+      return new PersistentRoaringBitmap();
     }
 
-    PriorityQueue<RoaringBitmap> pq =
+    PriorityQueue<PersistentRoaringBitmap> pq =
         new PriorityQueue<>(
             bitmaps.length,
-            new Comparator<RoaringBitmap>() {
+            new Comparator<PersistentRoaringBitmap>() {
               @Override
-              public int compare(RoaringBitmap a, RoaringBitmap b) {
+              public int compare(PersistentRoaringBitmap a, PersistentRoaringBitmap b) {
                 return (int) (a.getLongSizeInBytes() - b.getLongSizeInBytes());
               }
             });
     Collections.addAll(pq, bitmaps);
     while (pq.size() > 1) {
-      RoaringBitmap x1 = pq.poll();
-      RoaringBitmap x2 = pq.poll();
-      pq.add(RoaringBitmap.xor(x1, x2));
+      PersistentRoaringBitmap x1 = pq.poll();
+      PersistentRoaringBitmap x2 = pq.poll();
+      pq.add(PersistentRoaringBitmap.xor(x1, x2));
     }
     return pq.poll();
   }
@@ -817,7 +817,7 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap xor(Iterator<? extends RoaringBitmap> bitmaps) {
+  public static PersistentRoaringBitmap xor(Iterator<? extends PersistentRoaringBitmap> bitmaps) {
     return naive_xor(bitmaps);
   }
 
@@ -828,7 +828,7 @@ public final class FastAggregation {
    * @param bitmaps input bitmaps
    * @return aggregated bitmap
    */
-  public static RoaringBitmap xor(RoaringBitmap... bitmaps) {
+  public static PersistentRoaringBitmap xor(PersistentRoaringBitmap... bitmaps) {
     return naive_xor(bitmaps);
   }
 

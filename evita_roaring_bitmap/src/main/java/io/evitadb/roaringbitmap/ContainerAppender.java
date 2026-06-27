@@ -21,7 +21,7 @@ import java.util.function.Supplier;
  *
  *     //...
  *
- *     RoaringBitmapWriter<RoaringBitmap> writer =
+ *     RoaringBitmapWriter<PersistentRoaringBitmap> writer =
  *        RoaringBitmapWriter.writer().get();
  *     for (int i :....) {
  *       writer.add(i);

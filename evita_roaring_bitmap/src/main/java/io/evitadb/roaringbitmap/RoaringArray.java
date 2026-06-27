@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.NoSuchElementException;
 
 /**
- * Specialized array to store the containers used by a RoaringBitmap. This is not meant to be used
+ * Specialized array to store the containers used by a PersistentRoaringBitmap. This is not meant to be used
  * by end users.
  */
 public final class RoaringArray implements Cloneable, Externalizable, AppendableStorage<Container> {
@@ -526,14 +526,14 @@ public final class RoaringArray implements Cloneable, Externalizable, Appendable
 
   /**
    * Deserialize (retrieve) this bitmap. See format specification at
-   * https://github.com/RoaringBitmap/RoaringFormatSpec
+   * https://github.com/PersistentRoaringBitmap/RoaringFormatSpec
    *
    * The current bitmap is overwritten.
    *
    * It is not necessary that limit() on the input ByteBuffer indicates the end of the serialized
    * data.
    *
-   * After loading this RoaringBitmap, you can advance to the rest of the data (if there
+   * After loading this PersistentRoaringBitmap, you can advance to the rest of the data (if there
    * is more) by setting bbf.position(bbf.position() + bitmap.serializedSizeInBytes());
    *
    * Note that the input ByteBuffer is effectively copied (with the slice operation) so you should

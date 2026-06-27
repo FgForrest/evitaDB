@@ -1244,8 +1244,8 @@ public final class Util {
    * @param bitmaps bitmaps
    * @return keys intersection
    */
-  static char[] intersectKeys(long[] words, RoaringBitmap[] bitmaps) {
-    RoaringBitmap first = bitmaps[0];
+  static char[] intersectKeys(long[] words, PersistentRoaringBitmap[] bitmaps) {
+    PersistentRoaringBitmap first = bitmaps[0];
     for (int i = 0; i < first.highLowContainer.size; ++i) {
       char key = first.highLowContainer.keys[i];
       words[key >>> 6] |= 1L << key;

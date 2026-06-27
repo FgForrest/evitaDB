@@ -11,7 +11,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
- * A mutable RoaringBitmap that supports structural sharing of containers in static binary
+ * A mutable PersistentRoaringBitmap that supports structural sharing of containers in static binary
  * operations, combined with copy-on-write semantics for mutations.
  *
  * Static binary operations ({@link #or(CopyOnWriteRoaringBitmapV2, CopyOnWriteRoaringBitmapV2)
@@ -29,7 +29,7 @@ import java.util.Arrays;
  *
  * Not thread-safe. Static binary ops mutate the inputs' internal shared-tracking arrays.
  */
-public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
+public class CopyOnWriteRoaringBitmapV2 extends PersistentRoaringBitmap {
 
   private static final long serialVersionUID = 1L;
 
@@ -62,13 +62,13 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   }
 
   /**
-   * Creates a CopyOnWriteRoaringBitmapV2 from an existing RoaringBitmap.
+   * Creates a CopyOnWriteRoaringBitmapV2 from an existing PersistentRoaringBitmap.
    * All containers are cloned to decouple from the source.
    *
    * @param source the bitmap to copy from
    * @return a new independent CopyOnWriteRoaringBitmapV2
    */
-  public static CopyOnWriteRoaringBitmapV2 fromBitmap(RoaringBitmap source) {
+  public static CopyOnWriteRoaringBitmapV2 fromBitmap(PersistentRoaringBitmap source) {
     final RoaringArray src = source.highLowContainer;
     final RoaringArray dst = new RoaringArray(src.size);
     for (int i = 0; i < src.size(); i++) {
@@ -169,12 +169,12 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
    * @param s2 the key to insert
    * @param x2 the source bitmap
    * @param pos2 the container index in x2
-   * @param cowX2 x2 cast to CopyOnWriteRoaringBitmapV2 (null if x2 is a plain RoaringBitmap)
+   * @param cowX2 x2 cast to CopyOnWriteRoaringBitmapV2 (null if x2 is a plain PersistentRoaringBitmap)
    * @param length2 the size of x2's container array (used for ensureSharedCapacity)
    */
   private void borrowAndInsert(
       int pos1, char s2,
-      RoaringBitmap x2, int pos2,
+      PersistentRoaringBitmap x2, int pos2,
       CopyOnWriteRoaringBitmapV2 cowX2, int length2) {
     final Container c;
     final boolean isShared;
@@ -199,10 +199,10 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
    * @param x2 the source bitmap
    * @param pos2 starting index in x2
    * @param length2 ending index (exclusive) in x2
-   * @param cowX2 x2 cast to CopyOnWriteRoaringBitmapV2 (null if x2 is a plain RoaringBitmap)
+   * @param cowX2 x2 cast to CopyOnWriteRoaringBitmapV2 (null if x2 is a plain PersistentRoaringBitmap)
    */
   private void appendTailWithSharing(
-      RoaringBitmap x2, int pos2, int length2,
+      PersistentRoaringBitmap x2, int pos2, int length2,
       CopyOnWriteRoaringBitmapV2 cowX2) {
     if (cowX2 != null) {
       final int startSize = highLowContainer.size();
@@ -535,7 +535,7 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   }
 
   @Override
-  public void or(final RoaringBitmap x2) {
+  public void or(final PersistentRoaringBitmap x2) {
     if (this == x2) {
       return;
     }
@@ -588,7 +588,7 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   }
 
   @Override
-  public void and(final RoaringBitmap x2) {
+  public void and(final PersistentRoaringBitmap x2) {
     if (x2 == this) {
       return;
     }
@@ -620,7 +620,7 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   }
 
   @Override
-  public void xor(final RoaringBitmap x2) {
+  public void xor(final PersistentRoaringBitmap x2) {
     if (x2 == this) {
       clear();
       return;
@@ -681,7 +681,7 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   }
 
   @Override
-  public void andNot(final RoaringBitmap x2) {
+  public void andNot(final PersistentRoaringBitmap x2) {
     if (x2 == this) {
       clear();
       return;
@@ -725,7 +725,7 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   }
 
   @Override
-  public void orNot(final RoaringBitmap other, long rangeEnd) {
+  public void orNot(final PersistentRoaringBitmap other, long rangeEnd) {
     if (other == this) {
       throw new UnsupportedOperationException("orNot between a bitmap and itself?");
     }
@@ -1024,7 +1024,7 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   // -----------------------------------------------------------------------
 
   @Override
-  protected void lazyor(final RoaringBitmap x2) {
+  protected void lazyor(final PersistentRoaringBitmap x2) {
     if (this == x2) {
       return;
     }
@@ -1077,7 +1077,7 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   }
 
   @Override
-  protected void naivelazyor(RoaringBitmap x2) {
+  protected void naivelazyor(PersistentRoaringBitmap x2) {
     if (this == x2) {
       return;
     }
@@ -1213,9 +1213,9 @@ public class CopyOnWriteRoaringBitmapV2 extends RoaringBitmap {
   // -----------------------------------------------------------------------
 
   /**
-   * Casts a RoaringBitmap to CopyOnWriteRoaringBitmapV2 if it is one, otherwise returns null.
+   * Casts a PersistentRoaringBitmap to CopyOnWriteRoaringBitmapV2 if it is one, otherwise returns null.
    */
-  private static CopyOnWriteRoaringBitmapV2 asCow(RoaringBitmap bitmap) {
+  private static CopyOnWriteRoaringBitmapV2 asCow(PersistentRoaringBitmap bitmap) {
     return (bitmap instanceof CopyOnWriteRoaringBitmapV2)
         ? (CopyOnWriteRoaringBitmapV2) bitmap
         : null;

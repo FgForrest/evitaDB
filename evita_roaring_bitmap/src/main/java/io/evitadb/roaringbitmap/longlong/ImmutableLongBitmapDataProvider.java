@@ -62,13 +62,13 @@ public interface ImmutableLongBitmapDataProvider {
    *
    * @return a custom iterator over set bits, the bits are traversed in ascending sorted order
    */
-  // RoaringBitmap proposes a PeekableLongIterator
+  // PersistentRoaringBitmap proposes a PeekableLongIterator
   LongIterator getLongIterator();
 
   /**
    * @return a custom iterator over set bits, the bits are traversed in descending sorted order
    */
-  // RoaringBitmap proposes a PeekableLongIterator
+  // PersistentRoaringBitmap proposes a PeekableLongIterator
   LongIterator getReverseLongIterator();
 
   /**
@@ -147,7 +147,7 @@ public interface ImmutableLongBitmapDataProvider {
   long select(long j);
 
   /**
-   * Get the first (smallest) integer in this RoaringBitmap,
+   * Get the first (smallest) integer in this PersistentRoaringBitmap,
    * that is, return the minimum of the set.
    * @return the first (smallest) integer
    * @throws NoSuchElementException if empty
@@ -155,7 +155,7 @@ public interface ImmutableLongBitmapDataProvider {
   long first();
 
   /**
-   * Get the last (largest) integer in this RoaringBitmap,
+   * Get the last (largest) integer in this PersistentRoaringBitmap,
    * that is, return the maximum of the set.
    * @return the last (largest) integer
    * @throws NoSuchElementException if empty
