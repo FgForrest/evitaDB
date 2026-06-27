@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<artifactId>evita_roaring_bitmap</artifactId>
+	<packaging>jar</packaging>
+	<name>evitaDB - Vendored RoaringBitmap (persistent/structure-sharing)</name>
+	<description>Vendored subset of RoaringBitmap (Apache-2.0) reshaped into a single persistent bitmap per data type
+		(PersistentRoaringBitmap / PersistentLongRoaringBitmap). See NOTICE for attribution and synced upstream commit.</description>
+	<parent>
+		<groupId>io.evitadb</groupId>
+		<artifactId>evita_root</artifactId>
+		<version>2026.2-SNAPSHOT</version>
+	</parent>
+	<dependencies>
+		<!-- test dependencies added in Phase P2 once the ported test closure reveals them -->
+	</dependencies>
+</project>
