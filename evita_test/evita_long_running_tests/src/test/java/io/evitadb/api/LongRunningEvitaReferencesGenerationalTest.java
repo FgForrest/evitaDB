@@ -31,6 +31,8 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -49,7 +51,6 @@ import io.evitadb.utils.CollectionUtils;
 import lombok.extern.apachecommons.CommonsLog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -230,12 +231,12 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 					.withGlobalAttribute(ATTRIBUTE_CODE)
 					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.filterable().localized().sortable().nullable())
 					.withAttribute(ATTRIBUTE_EAN, String.class, whichIs -> whichIs.filterable().nullable())
-					.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.sortable())
+					.withAttribute(ATTRIBUTE_PRIORITY, Long.class, AttributeSchemaEditor::sortable)
 					.withAttribute(ATTRIBUTE_VALIDITY, DateTimeRange.class, whichIs -> whichIs.filterable().nullable())
 					.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().indexDecimalPlaces(2).nullable())
 					.withAttribute(ATTRIBUTE_ALIAS, Boolean.class, whichIs -> whichIs.filterable().withDefaultValue(false))
 					/* here we define set of associated data, that can be stored along with entity */
-					.withAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, whichIs -> whichIs.nullable())
+					.withAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, AssociatedDataSchemaEditor::nullable)
 					.withAssociatedData(ASSOCIATED_DATA_LABELS, Labels.class, whichIs -> whichIs.localized().nullable())
 					/* here we define facets that relate to another entities stored in Evita */
 					.withReferenceToEntity(
@@ -252,7 +253,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 								.withGroupTypeRelatedToEntity(Entities.BRAND)
 								.withAttribute(ATTRIBUTE_CATEGORY_GROUP, String.class, thatIs -> thatIs.filterable().representative())
 								.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.filterable().sortable())
-								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Long.class, thatIs -> thatIs.sortable())
+								.withAttribute(ATTRIBUTE_CATEGORY_ORDER, Long.class, AttributeSchemaEditor::sortable)
 					)
 					.updateAndFetchVia(session);
 
@@ -378,31 +379,40 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	}
 
 	/**
-	 * Deterministic regression test pinned to seed `1623796816` — captures the open bug where the
-	 * group-path iteration in `ReferenceIndexMutator#forEachUniqueReferenceIndex` resolves a mutation
-	 * against a freshly-created `ReducedGroupEntityIndex` whose discriminator (built from
-	 * `bothKeys.stored().representativeAttributeValues()`) does not match any RGEI where the
-	 * entity's data physically lives.
+	 * Deterministic regression test pinned to seed `1623796816` — guards the reduced-index reload
+	 * strand. During investigation it presented as a group-path iteration in
+	 * `ReferenceIndexMutator#forEachUniqueReferenceIndex` resolving a mutation against a freshly-created
+	 * `ReducedGroupEntityIndex` whose discriminator (built from
+	 * `bothKeys.stored().representativeAttributeValues()`) does not match any RGEI where the entity's
+	 * data physically lives. That discriminator/iteration observation turned out to be a downstream
+	 * symptom, not the cause — see the root-cause note below.
 	 *
-	 * Reproduces in ~14 seconds; surfaces as either:
+	 * Reproduced in ~14 seconds before the fix; surfaced as either:
 	 *
 	 *   - `Price index for price list <X> and currency <Y> not found!` thrown from
 	 *     `AbstractPriceIndex.priceRemove`, or
 	 *   - `Cardinality index for attribute <X> not found.` thrown from
 	 *     `ReducedGroupEntityIndex.removeFilterAttribute`.
 	 *
-	 * Both manifestations stem from the same drift: the iteration in
-	 * {@link io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachUniqueReferenceIndex}
-	 * (group path) uses the plural `getRepresentativeReferenceKeys` which does NOT trigger migration;
-	 * only the singular `getRepresentativeReferenceKey` runs
-	 * {@code getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary}.
+	 * ROOT CAUSE (confirmed): a persistence-side change-detection desync, not the iteration-layer drift
+	 * first suspected. `EntityIndex.getModifiedStorageParts` re-emits its bulky manifest only when the
+	 * sub-index key sets differ from the `original*` baseline, but that baseline was never advanced after
+	 * a warm-up (bulk) flush on a reused index instance. After `goLive`, a transactional commit that drops
+	 * those sub-indexes (current keys shrink back to the stale empty baseline) is mis-detected as
+	 * "unchanged": the stale manifest and its now-removed price/sort sub-index parts are never
+	 * rewritten/removed, while the membership bitmap IS dropped — so on reload the index rebuilds a
+	 * price/sort sub-index the membership no longer backs, throwing one of the messages above. (The
+	 * entity-613 / discriminator observations were artifacts of this same scenario.)
 	 *
-	 * Empirical evidence captured during investigation: for entity 613, price `sellout/CZK/NONE`
-	 * was added (via `indexAllExistingData`) to 8 distinct `PriceRefIndex` instances — but NOT to
-	 * the one `priceRemove` targets at the moment of failure.
+	 * FIX: advance the baseline at flush completion. `EntityIndex` overrides {@link io.evitadb.index.Index#notifyFlushed()}
+	 * to call `captureOriginalsFromComponents()`, and `DataStoreChanges.popTrappedUpdates()` invokes it
+	 * once per index right after collecting its modified parts — keeping `getModifiedStorageParts` a pure
+	 * read while closing the warm-up -> transactional hand-off gap on reused instances.
 	 *
-	 * Disabled until the iteration-layer fix lands. Re-enable by removing the `@Disabled`
-	 * annotation after fix — this test then serves as the canonical regression marker.
+	 * Enabled (2026-06-27) as the canonical regression marker for this strand: it now PASSES with the fix
+	 * in place and would FAIL again (around mod 613) on any regression. Runs only under `-P longRunning`
+	 * (this module sets surefire `skipTests=true` by default) and is `@Tag(SLOW)`, so it is excluded from
+	 * the fast `unitAndFunctional` profile.
 	 *
 	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachUniqueReferenceIndex
 	 * @see io.evitadb.index.mutation.local.ReferenceIndexMutator#forEachReferenceIndex
@@ -411,7 +421,6 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	@Test
 	@Tag(SLOW)
 	@DisplayName("Generative seed 1623796816 must not surface reduced-reference-index drift")
-	@Disabled("See #1075 — generational seed 1623796816 fails at mod 613")
 	void shouldNotSurfaceReducedReferenceIndexDriftForSeed1623796816() {
 		// Re-invokes the generative driver with the deterministic seed pinned to the original
 		// CI failure. Calls `generationalTransactionalModificationProofTest` directly with a

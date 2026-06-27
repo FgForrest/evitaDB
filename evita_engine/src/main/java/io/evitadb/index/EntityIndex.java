@@ -902,6 +902,32 @@ public abstract class EntityIndex implements
 		}
 	}
 
+	/**
+	 * Advances the change-detection baseline to the state that was just persisted. Invoked by the flush
+	 * pipeline ({@link io.evitadb.core.buffer.DataStoreChanges#popTrappedUpdates()}) once, immediately after
+	 * {@link #getModifiedStorageParts(TrappedChanges)} has collected this index's parts for the commit, so it
+	 * runs exactly when the parts are actually written — and never on the incidental
+	 * {@code getModifiedStorageParts} calls made by tests or diagnostics (which is why the baseline refresh
+	 * lives here rather than inside the collect method, keeping that method a pure, idempotent read).
+	 *
+	 * After the flush the on-disk manifest reflects the current sub-index key sets, so the baseline the NEXT
+	 * flush diffs against must be those same sets. Without this advance an index first flushed in warm-up
+	 * (bulk) mode keeps its empty construction-time baseline while disk already holds the emitted sub-index
+	 * keys; the same instance is then reused after {@code goLive}, and a later transactional commit that drops
+	 * those sub-indexes (current key set shrinks back to the empty stale baseline) is mis-detected as
+	 * "unchanged". The stale manifest and its now-removed sub-index parts are then never rewritten/removed,
+	 * while the membership bitmap IS dropped — so on reload the index rebuilds a price/sort sub-index the
+	 * membership no longer backs, failing with "Price with id N was not found in the same index!" / the NULL
+	 * super-index variant / "Record id N is already present in the sort index!". Pure transactional commits
+	 * already refresh the baseline through the merge-copy constructor (which calls
+	 * {@link #captureOriginalsFromComponents()}); routing the refresh through this flush hook closes the same
+	 * gap on the warm-up -> transactional hand-off where the instance is reused rather than copied.
+	 */
+	@Override
+	public final void notifyFlushed() {
+		captureOriginalsFromComponents();
+	}
+
 	@Override
 	public final void resetDirty() {
 		this.dirty.reset();

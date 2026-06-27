@@ -182,6 +182,10 @@ public class DataStoreChanges implements Snapshotable<DataStoreChanges.DataStore
 
 		for (Index<? extends IndexKey> index : theDirtyEntityIndexes.values()) {
 			index.getModifiedStorageParts(trappedChanges);
+			// advance the index's change-detection baseline to the state we have just collected for this
+			// commit (pop == committed); keeps getModifiedStorageParts a pure read while still closing the
+			// warm-up -> transactional baseline-staleness gap on reused index instances
+			index.notifyFlushed();
 		}
 		if (theTrappedChanges != null) {
 			for (LongObjectMap<StoragePart> changesIndex : theTrappedChanges.values()) {
