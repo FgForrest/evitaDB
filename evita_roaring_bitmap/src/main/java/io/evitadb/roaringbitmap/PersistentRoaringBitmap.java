@@ -507,12 +507,11 @@ public class PersistentRoaringBitmap
    * @param n how many values should be set to true
    */
   public void addN(final int[] dat, final int offset, final int n) {
-    // let us validate the values first.
     if ((n < 0) || (offset < 0)) {
       throw new IllegalArgumentException("Negative values do not make sense.");
     }
     if (n == 0) {
-      return; // nothing to do
+      return;
     }
     if (offset + n > dat.length) {
       throw new IllegalArgumentException("Data source is too small.");
@@ -523,8 +522,9 @@ public class PersistentRoaringBitmap
     char currenthb = Util.highbits(val);
     int currentcontainerindex = highLowContainer.getIndex(currenthb);
     if (currentcontainerindex >= 0) {
+      copyIfShared(currentcontainerindex);
       currentcont = highLowContainer.getContainerAtIndex(currentcontainerindex);
-      Container newcont = currentcont.add(Util.lowbits(val));
+      final Container newcont = currentcont.add(Util.lowbits(val));
       if (newcont != currentcont) {
         highLowContainer.setContainerAtIndex(currentcontainerindex, newcont);
         currentcont = newcont;
@@ -534,14 +534,14 @@ public class PersistentRoaringBitmap
       final ArrayContainer newac = new ArrayContainer();
       currentcont = newac.add(Util.lowbits(val));
       highLowContainer.insertNewKeyValueAt(currentcontainerindex, currenthb, currentcont);
+      sharedInsertAt(currentcontainerindex);
     }
     j++;
     for (; j < n; ++j) {
       val = dat[j + offset];
-      char newhb = Util.highbits(val);
-      if (currenthb == newhb) { // easy case
-        // this could be quite frequent
-        Container newcont = currentcont.add(Util.lowbits(val));
+      final char newhb = Util.highbits(val);
+      if (currenthb == newhb) {
+        final Container newcont = currentcont.add(Util.lowbits(val));
         if (newcont != currentcont) {
           highLowContainer.setContainerAtIndex(currentcontainerindex, newcont);
           currentcont = newcont;
@@ -550,8 +550,9 @@ public class PersistentRoaringBitmap
         currenthb = newhb;
         currentcontainerindex = highLowContainer.getIndex(currenthb);
         if (currentcontainerindex >= 0) {
+          copyIfShared(currentcontainerindex);
           currentcont = highLowContainer.getContainerAtIndex(currentcontainerindex);
-          Container newcont = currentcont.add(Util.lowbits(val));
+          final Container newcont = currentcont.add(Util.lowbits(val));
           if (newcont != currentcont) {
             highLowContainer.setContainerAtIndex(currentcontainerindex, newcont);
             currentcont = newcont;
@@ -561,6 +562,7 @@ public class PersistentRoaringBitmap
           final ArrayContainer newac = new ArrayContainer();
           currentcont = newac.add(Util.lowbits(val));
           highLowContainer.insertNewKeyValueAt(currentcontainerindex, currenthb, currentcont);
+          sharedInsertAt(currentcontainerindex);
         }
       }
     }
@@ -1795,19 +1797,16 @@ public class PersistentRoaringBitmap
     final char hb = Util.highbits(x);
     final int i = highLowContainer.getIndex(hb);
     if (i >= 0) {
-      Container c = highLowContainer.getContainerAtIndex(i);
-      // we need to keep the newContainer if a switch between containers type
-      // occur, in order to get the new cardinality
-      Container newCont;
-      if (c instanceof RunContainer) { // do not compute cardinality
+      copyIfShared(i);
+      final Container c = highLowContainer.getContainerAtIndex(i);
+      if (c instanceof RunContainer) {
         if (!c.contains(Util.lowbits(x))) {
-          newCont = c.add(Util.lowbits(x));
-          highLowContainer.setContainerAtIndex(i, newCont);
+          highLowContainer.setContainerAtIndex(i, c.add(Util.lowbits(x)));
           return true;
         }
-      } else { // it is faster to use getCardinality() than contains() for other container types
-        int oldCard = c.getCardinality();
-        newCont = c.add(Util.lowbits(x));
+      } else {
+        final int oldCard = c.getCardinality();
+        final Container newCont = c.add(Util.lowbits(x));
         highLowContainer.setContainerAtIndex(i, newCont);
         if (newCont.getCardinality() > oldCard) {
           return true;
@@ -1816,6 +1815,7 @@ public class PersistentRoaringBitmap
     } else {
       final ArrayContainer newac = new ArrayContainer();
       highLowContainer.insertNewKeyValueAt(-i - 1, hb, newac.add(Util.lowbits(x)));
+      sharedInsertAt(-i - 1);
       return true;
     }
     return false;
@@ -1834,28 +1834,30 @@ public class PersistentRoaringBitmap
     if (i < 0) {
       return false;
     }
-    boolean containerNotEmpty;
-    Container C = highLowContainer.getContainerAtIndex(i);
-    if (C instanceof RunContainer) {
-      if (C.contains(lb)) { // getCardinality() is costly for run container
-        C = C.remove(lb);
-        containerNotEmpty = !C.isEmpty();
+    copyIfShared(i);
+    Container container = highLowContainer.getContainerAtIndex(i);
+    final boolean containerNotEmpty;
+    if (container instanceof RunContainer) {
+      if (container.contains(lb)) {
+        container = container.remove(lb);
+        containerNotEmpty = !container.isEmpty();
       } else {
         return false;
       }
     } else {
-      int oldcard = C.getCardinality();
-      C = C.remove(lb);
-      int newcard = C.getCardinality();
-      if (newcard == oldcard) {
+      final int oldCard = container.getCardinality();
+      container = container.remove(lb);
+      final int newCard = container.getCardinality();
+      if (newCard == oldCard) {
         return false;
       }
-      containerNotEmpty = newcard > 0;
+      containerNotEmpty = newCard > 0;
     }
     if (containerNotEmpty) {
-      highLowContainer.setContainerAtIndex(i, C);
+      highLowContainer.setContainerAtIndex(i, container);
     } else {
       highLowContainer.removeAtIndex(i);
+      sharedRemoveAt(i);
     }
     return true;
   }
@@ -2070,15 +2072,18 @@ public class PersistentRoaringBitmap
     final char hb = Util.highbits(x);
     final int i = highLowContainer.getIndex(hb);
     if (i >= 0) {
-      Container c = highLowContainer.getContainerAtIndex(i).flip(Util.lowbits(x));
+      copyIfShared(i);
+      final Container c = highLowContainer.getContainerAtIndex(i).flip(Util.lowbits(x));
       if (!c.isEmpty()) {
         highLowContainer.setContainerAtIndex(i, c);
       } else {
         highLowContainer.removeAtIndex(i);
+        sharedRemoveAt(i);
       }
     } else {
       final ArrayContainer newac = new ArrayContainer();
       highLowContainer.insertNewKeyValueAt(-i - 1, hb, newac.add(Util.lowbits(x)));
+      sharedInsertAt(-i - 1);
     }
   }
 
@@ -2109,16 +2114,19 @@ public class PersistentRoaringBitmap
       final int i = highLowContainer.getIndex((char) hb);
 
       if (i >= 0) {
+        copyIfShared(i);
         final Container c =
             highLowContainer.getContainerAtIndex(i).inot(containerStart, containerLast + 1);
         if (!c.isEmpty()) {
           highLowContainer.setContainerAtIndex(i, c);
         } else {
           highLowContainer.removeAtIndex(i);
+          sharedRemoveAt(i);
         }
       } else {
         highLowContainer.insertNewKeyValueAt(
             -i - 1, (char) hb, Container.rangeOfOnes(containerStart, containerLast + 1));
+        sharedInsertAt(-i - 1);
       }
     }
   }
@@ -2842,10 +2850,12 @@ public class PersistentRoaringBitmap
     if (i < 0) {
       return;
     }
+    copyIfShared(i);
     highLowContainer.setContainerAtIndex(
         i, highLowContainer.getContainerAtIndex(i).remove(Util.lowbits(x)));
     if (highLowContainer.getContainerAtIndex(i).isEmpty()) {
       highLowContainer.removeAtIndex(i);
+      sharedRemoveAt(i);
     }
   }
 
@@ -2872,11 +2882,13 @@ public class PersistentRoaringBitmap
       if (i < 0) {
         return;
       }
+      copyIfShared(i);
       final Container c = highLowContainer.getContainerAtIndex(i).iremove(lbStart, lbLast + 1);
       if (!c.isEmpty()) {
         highLowContainer.setContainerAtIndex(i, c);
       } else {
         highLowContainer.removeAtIndex(i);
+        sharedRemoveAt(i);
       }
       return;
     }
@@ -2884,6 +2896,7 @@ public class PersistentRoaringBitmap
     int ilast = highLowContainer.getIndex((char) hbLast);
     if (ifirst >= 0) {
       if (lbStart != 0) {
+        copyIfShared(ifirst);
         final Container c =
             highLowContainer
                 .getContainerAtIndex(ifirst)
@@ -2898,6 +2911,7 @@ public class PersistentRoaringBitmap
     }
     if (ilast >= 0) {
       if (lbLast != Util.maxLowBitAsInteger()) {
+        copyIfShared(ilast);
         final Container c = highLowContainer.getContainerAtIndex(ilast).iremove(0, lbLast + 1);
         if (!c.isEmpty()) {
           highLowContainer.setContainerAtIndex(ilast, c);
@@ -2911,6 +2925,7 @@ public class PersistentRoaringBitmap
       ilast = -ilast - 1;
     }
     highLowContainer.removeIndexRange(ifirst, ilast);
+    sharedRemoveRange(ifirst, ilast);
   }
 
   /**
