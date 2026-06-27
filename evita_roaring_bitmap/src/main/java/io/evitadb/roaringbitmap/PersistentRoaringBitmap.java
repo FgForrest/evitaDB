@@ -17,6 +17,7 @@ import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Iterator;
 
 /**
@@ -1136,17 +1137,203 @@ public class PersistentRoaringBitmap
   RoaringArray highLowContainer = null;
 
   /**
+   * Parallel array to `highLowContainer.values[]`.
+   * `shared[i] == true` means the container at index i is a borrowed reference
+   * from another bitmap and MUST be cloned before any in-place mutation (copy-on-write).
+   */
+  boolean[] shared;
+
+  /**
    * Create an empty bitmap
    */
   public PersistentRoaringBitmap() {
     highLowContainer = new RoaringArray();
+    this.shared = new boolean[RoaringArray.INITIAL_CAPACITY];
   }
 
   /**
-   * Wrap an existing high low container
+   * Wrap an existing high low container. No containers are shared.
    */
   PersistentRoaringBitmap(RoaringArray highLowContainer) {
     this.highLowContainer = highLowContainer;
+    this.shared = new boolean[highLowContainer.size()];
+  }
+
+  /**
+   * Package-private constructor: wraps an existing RoaringArray and shared flags.
+   * Used by static binary ops to construct results that share containers with the inputs.
+   */
+  PersistentRoaringBitmap(RoaringArray highLowContainer, boolean[] shared) {
+    this.highLowContainer = highLowContainer;
+    this.shared = shared;
+  }
+
+  // -----------------------------------------------------------------------
+  // Structural-sharing / copy-on-write infrastructure
+  // -----------------------------------------------------------------------
+
+  /**
+   * Creates a PersistentRoaringBitmap from an existing bitmap, cloning every container
+   * to produce a fully independent copy (no sharing with the source).
+   *
+   * @param source the bitmap to copy from
+   * @return a new independent PersistentRoaringBitmap
+   */
+  public static PersistentRoaringBitmap fromBitmap(PersistentRoaringBitmap source) {
+    final RoaringArray src = source.highLowContainer;
+    final RoaringArray dst = new RoaringArray(src.size);
+    for (int i = 0; i < src.size(); i++) {
+      dst.append(src.getKeyAtIndex(i), src.getContainerAtIndex(i).clone());
+    }
+    return new PersistentRoaringBitmap(dst, new boolean[dst.size]);
+  }
+
+  /**
+   * Grows `shared[]` to at least `minCapacity`. New slots default to false.
+   */
+  private void ensureSharedCapacity(int minCapacity) {
+    if (this.shared.length < minCapacity) {
+      this.shared = Arrays.copyOf(this.shared, Math.max(minCapacity, this.shared.length * 2));
+    }
+  }
+
+  /**
+   * If the container at index i is shared, clones it and marks it unshared.
+   * This is the COW guard -- must be called BEFORE any in-place mutation.
+   */
+  private void copyIfShared(int i) {
+    if (i < this.shared.length && this.shared[i]) {
+      highLowContainer.setContainerAtIndex(i,
+          highLowContainer.getContainerAtIndex(i).clone());
+      this.shared[i] = false;
+    }
+  }
+
+  /**
+   * After `highLowContainer.insertNewKeyValueAt(i, ...)` shifted arrays right,
+   * shifts the `shared[]` array right too. The newly inserted slot is marked unshared.
+   */
+  private void sharedInsertAt(int i) {
+    sharedInsertAt(i, false);
+  }
+
+  private void sharedInsertAt(int i, boolean isShared) {
+    final int size = highLowContainer.size(); // already incremented
+    ensureSharedCapacity(size);
+    System.arraycopy(this.shared, i, this.shared, i + 1, size - i - 1);
+    this.shared[i] = isShared;
+  }
+
+  /**
+   * After `highLowContainer.removeAtIndex(i)` shifted arrays left,
+   * shifts the `shared[]` array left too.
+   */
+  private void sharedRemoveAt(int i) {
+    final int size = highLowContainer.size(); // already decremented
+    System.arraycopy(this.shared, i + 1, this.shared, i, size - i);
+    this.shared[size] = false;
+  }
+
+  /**
+   * After `highLowContainer.removeIndexRange(begin, end)` shifted arrays left,
+   * shifts the `shared[]` array left too.
+   */
+  private void sharedRemoveRange(int begin, int end) {
+    if (end <= begin) {
+      return;
+    }
+    final int newSize = highLowContainer.size(); // already decremented
+    System.arraycopy(this.shared, end, this.shared, begin, newSize - begin);
+    Arrays.fill(this.shared, newSize, newSize + (end - begin), false);
+  }
+
+  /**
+   * Marks ALL containers in a bitmap as shared.
+   */
+  private static void markAllShared(PersistentRoaringBitmap bitmap) {
+    final int size = bitmap.highLowContainer.size();
+    bitmap.ensureSharedCapacity(size);
+    Arrays.fill(bitmap.shared, 0, size, true);
+  }
+
+  private static void cowRangeValidation(final long rangeStart, final long rangeEnd) {
+    if (rangeStart < 0 || rangeStart > (1L << 32) - 1) {
+      throw new IllegalArgumentException(
+          "rangeStart=" + rangeStart + " should be in [0, 0xffffffff]");
+    }
+    if (rangeEnd > (1L << 32) || rangeEnd < 0) {
+      throw new IllegalArgumentException(
+          "rangeEnd=" + rangeEnd + " should be in [0, 0xffffffff + 1]");
+    }
+  }
+
+  /**
+   * Borrows a container from x2 at pos2 by structural sharing, inserts it into this bitmap
+   * at pos1, and updates both bitmaps' shared[] tracking arrays.
+   *
+   * @param pos1 insertion index in this bitmap
+   * @param s2 the key to insert
+   * @param x2 the source bitmap
+   * @param pos2 the container index in x2
+   * @param length2 the size of x2's container array (used for ensureSharedCapacity)
+   */
+  private void borrowAndInsert(int pos1, char s2, PersistentRoaringBitmap x2, int pos2,
+      int length2) {
+    final Container c = x2.highLowContainer.getContainerAtIndex(pos2);
+    x2.ensureSharedCapacity(length2);
+    x2.shared[pos2] = true;
+    highLowContainer.insertNewKeyValueAt(pos1, s2, c);
+    sharedInsertAt(pos1, true);
+  }
+
+  /**
+   * Appends all remaining containers from x2 (from pos2 to length2) to this bitmap using
+   * structural sharing. Called after the main merge loop when this bitmap's keys are exhausted.
+   *
+   * @param x2 the source bitmap
+   * @param pos2 starting index in x2
+   * @param length2 ending index (exclusive) in x2
+   */
+  private void appendTailWithSharing(PersistentRoaringBitmap x2, int pos2, int length2) {
+    final int startSize = highLowContainer.size();
+    highLowContainer.append(x2.highLowContainer, pos2, length2);
+    final int newSize = highLowContainer.size();
+    ensureSharedCapacity(newSize);
+    Arrays.fill(this.shared, startSize, newSize, true);
+    x2.ensureSharedCapacity(length2);
+    Arrays.fill(x2.shared, pos2, length2, true);
+  }
+
+  /**
+   * Creates a new PersistentRoaringBitmap from a RoaringArray with all containers
+   * marked as shared. Used by static binary operations that produce shared results.
+   */
+  private static PersistentRoaringBitmap newAllSharedResult(RoaringArray answer) {
+    final boolean[] resultShared = new boolean[answer.size()];
+    Arrays.fill(resultShared, true);
+    return new PersistentRoaringBitmap(answer, resultShared);
+  }
+
+  /**
+   * Returns the container at the given index. Package-private for testing structural sharing.
+   */
+  Container getContainerAtIndex(int i) {
+    return highLowContainer.getContainerAtIndex(i);
+  }
+
+  /**
+   * Returns the key at the given index. Package-private for testing.
+   */
+  char getKeyAtIndex(int i) {
+    return highLowContainer.getKeyAtIndex(i);
+  }
+
+  /**
+   * Returns whether the container at the given index is marked as shared.
+   * Package-private for testing.
+   */
+  boolean isShared(int i) {
+    return i < this.shared.length && this.shared[i];
   }
 
   /**
