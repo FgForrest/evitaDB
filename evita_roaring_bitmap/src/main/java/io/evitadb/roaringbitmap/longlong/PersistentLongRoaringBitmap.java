@@ -26,16 +26,16 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 
 /**
- * Roaring64Bitmap is a compressed 64 bit bitmap. It can contain all the numbers of long
+ * PersistentLongRoaringBitmap is a compressed 64 bit bitmap. It can contain all the numbers of long
  * rang[Long.MAX_VALUE, Long.MIN_VALUE]. Since java has no unsigned long,we treat the negative value
  * as a successor of the positive value. So the ascending ordering of all the long value is:
  * 0,1,2...Long.MAX_VALUE,Long.MIN_VALUE,Long.MIN_VALUE+1.......-1. See Long.toUnsignedString()
  */
-public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
+public class PersistentLongRoaringBitmap implements Externalizable, LongBitmapDataProvider {
 
   private HighLowContainer highLowContainer;
 
-  public Roaring64Bitmap() {
+  public PersistentLongRoaringBitmap() {
     highLowContainer = new HighLowContainer();
   }
 
@@ -319,7 +319,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    *
    * @param x2 other bitmap
    */
-  public void or(final Roaring64Bitmap x2) {
+  public void or(final PersistentLongRoaringBitmap x2) {
     if (this == x2) {
       return;
     }
@@ -347,8 +347,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    * @param x2 other bitmap
    * @return result of the operation
    */
-  public static Roaring64Bitmap or(final Roaring64Bitmap x1, final Roaring64Bitmap x2) {
-    Roaring64Bitmap result = new Roaring64Bitmap();
+  public static PersistentLongRoaringBitmap or(final PersistentLongRoaringBitmap x1, final PersistentLongRoaringBitmap x2) {
+    PersistentLongRoaringBitmap result = new PersistentLongRoaringBitmap();
     KeyIterator it1 = x1.highLowContainer.highKeyIterator();
     KeyIterator it2 = x2.highLowContainer.highKeyIterator();
 
@@ -394,7 +394,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    *
    * @param x2 other bitmap
    */
-  public void xor(final Roaring64Bitmap x2) {
+  public void xor(final PersistentLongRoaringBitmap x2) {
     if (x2 == this) {
       clear();
       return;
@@ -423,8 +423,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    * @param x2 other bitmap
    * @return result of the operation
    */
-  public static Roaring64Bitmap xor(final Roaring64Bitmap x1, final Roaring64Bitmap x2) {
-    Roaring64Bitmap result = new Roaring64Bitmap();
+  public static PersistentLongRoaringBitmap xor(final PersistentLongRoaringBitmap x1, final PersistentLongRoaringBitmap x2) {
+    PersistentLongRoaringBitmap result = new PersistentLongRoaringBitmap();
     KeyIterator it1 = x1.highLowContainer.highKeyIterator();
     KeyIterator it2 = x2.highLowContainer.highKeyIterator();
 
@@ -470,7 +470,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    *
    * @param x2 other bitmap
    */
-  public void and(final Roaring64Bitmap x2) {
+  public void and(final PersistentLongRoaringBitmap x2) {
     if (x2 == this) {
       return;
     }
@@ -501,8 +501,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    * @param x2 other bitmap
    * @return result of the operation
    */
-  public static Roaring64Bitmap and(final Roaring64Bitmap x1, final Roaring64Bitmap x2) {
-    Roaring64Bitmap result = new Roaring64Bitmap();
+  public static PersistentLongRoaringBitmap and(final PersistentLongRoaringBitmap x1, final PersistentLongRoaringBitmap x2) {
+    PersistentLongRoaringBitmap result = new PersistentLongRoaringBitmap();
     KeyIterator it1 = x1.highLowContainer.highKeyIterator();
     while (it1.hasNext()) {
       byte[] highKey = it1.next();
@@ -529,7 +529,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    * @param x2 other bitmap
    * @return true if they intersect
    */
-  public static boolean intersects(final Roaring64Bitmap x1, final Roaring64Bitmap x2) {
+  public static boolean intersects(final PersistentLongRoaringBitmap x1, final PersistentLongRoaringBitmap x2) {
     KeyIterator it1 = x1.highLowContainer.highKeyIterator();
     KeyIterator it2 = x2.highLowContainer.highKeyIterator();
 
@@ -566,7 +566,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    * @param x2 other bitmap
    * @return as if you did and(x1,x2).getCardinality()
    */
-  public static long andCardinality(final Roaring64Bitmap x1, final Roaring64Bitmap x2) {
+  public static long andCardinality(final PersistentLongRoaringBitmap x1, final PersistentLongRoaringBitmap x2) {
     long cardinality = 0;
     KeyIterator it1 = x1.highLowContainer.highKeyIterator();
     KeyIterator it2 = x2.highLowContainer.highKeyIterator();
@@ -603,7 +603,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    *
    * @param x2 other bitmap
    */
-  public void andNot(final Roaring64Bitmap x2) {
+  public void andNot(final PersistentLongRoaringBitmap x2) {
     if (x2 == this) {
       clear();
       return;
@@ -634,8 +634,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    * @param x2 other bitmap
    * @return result of the operation
    */
-  public static Roaring64Bitmap andNot(final Roaring64Bitmap x1, final Roaring64Bitmap x2) {
-    Roaring64Bitmap result = new Roaring64Bitmap();
+  public static PersistentLongRoaringBitmap andNot(final PersistentLongRoaringBitmap x1, final PersistentLongRoaringBitmap x2) {
+    PersistentLongRoaringBitmap result = new PersistentLongRoaringBitmap();
     KeyIterator it1 = x1.highLowContainer.highKeyIterator();
     while (it1.hasNext()) {
       byte[] highKey = it1.next();
@@ -993,8 +993,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
    * @param dat set values
    * @return a new bitmap
    */
-  public static Roaring64Bitmap bitmapOf(final long... dat) {
-    final Roaring64Bitmap ans = new Roaring64Bitmap();
+  public static PersistentLongRoaringBitmap bitmapOf(final long... dat) {
+    final PersistentLongRoaringBitmap ans = new PersistentLongRoaringBitmap();
     ans.add(dat);
     return ans;
   }
@@ -1158,7 +1158,7 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
     if (getClass() != obj.getClass()) {
       return false;
     }
-    Roaring64Bitmap other = (Roaring64Bitmap) obj;
+    PersistentLongRoaringBitmap other = (PersistentLongRoaringBitmap) obj;
     return Objects.equals(highLowContainer, other.highLowContainer);
   }
 
@@ -1181,8 +1181,8 @@ public class Roaring64Bitmap implements Externalizable, LongBitmapDataProvider {
 
   // mainly used for benchmark
   @Override
-  public Roaring64Bitmap clone() {
-    Roaring64Bitmap result = new Roaring64Bitmap();
+  public PersistentLongRoaringBitmap clone() {
+    PersistentLongRoaringBitmap result = new PersistentLongRoaringBitmap();
     result.highLowContainer = this.highLowContainer.clone();
     return result;
   }
