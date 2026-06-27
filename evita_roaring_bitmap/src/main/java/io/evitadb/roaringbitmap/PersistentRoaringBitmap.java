@@ -1564,6 +1564,10 @@ public class PersistentRoaringBitmap
     int pos1 = 0, pos2 = 0, intersectionSize = 0;
     final int length1 = highLowContainer.size(), length2 = x2.highLowContainer.size();
     final boolean[] newShared = new boolean[length1];
+    // All-owned static builders (flip, add(range), addOffset) can leave shared[] shorter than the
+    // container array; entries beyond shared.length are owned (false). Grow it so the raw index
+    // reads below stay in bounds, matching sharedRemoveAt's tolerance of an undersized shared[].
+    ensureSharedCapacity(length1);
 
     while (pos1 < length1 && pos2 < length2) {
       final char s1 = highLowContainer.getKeyAtIndex(pos1);
@@ -1726,6 +1730,10 @@ public class PersistentRoaringBitmap
     // copy over everything which will remain without being complemented
     if (remainder > 0) {
       final int srcOffset = highLowContainer.size - remainder;
+      // All-owned static builders can leave shared[] shorter than the container array; entries
+      // beyond shared.length are owned (false). Grow it so the raw-index copy below stays in
+      // bounds, matching sharedRemoveAt's tolerance of an undersized shared[].
+      ensureSharedCapacity(highLowContainer.size);
       System.arraycopy(highLowContainer.keys, srcOffset, newKeys, size, remainder);
       System.arraycopy(highLowContainer.values, srcOffset, newValues, size, remainder);
       System.arraycopy(this.shared, srcOffset, newShared, size, remainder);

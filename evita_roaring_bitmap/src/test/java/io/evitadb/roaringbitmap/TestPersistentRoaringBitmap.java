@@ -3494,4 +3494,169 @@ public class TestPersistentRoaringBitmap {
           "Container " + i + " should not be shared after deserialize");
     }
   }
+
+  // -----------------------------------------------------------------------
+  // Undersized shared[] from all-owned static builders
+  //
+  // Static builders such as flip / add(range) / addOffset construct their
+  // result by appending freshly-owned containers, so the result's internal
+  // shared[] flag array can be left shorter than the container array. A later
+  // in-place mutation that shifts or drops containers must grow shared[] to
+  // match (via ensureSharedCapacity) before indexing into it. These tests
+  // drive the shifting helpers (sharedRemoveAt / sharedRemoveRange) and the
+  // "index past shared[] is treated as owned" path of copyIfShared.
+  // -----------------------------------------------------------------------
+
+  @Test
+  public void removeContainerFromStaticFlipResultWithUndersizedSharedArray() {
+    // A single-element seed flipped over keys 0..7 yields a fully-populated
+    // result with one owned container per key (> 4 containers, no shared[]).
+    final PersistentRoaringBitmap seed = new PersistentRoaringBitmap();
+    seed.add(3 << 16 | 1);
+
+    final PersistentRoaringBitmap result =
+        PersistentRoaringBitmap.flip(seed, 0L, 8L << 16);
+    assertTrue(result.getContainerCount() > 4,
+        "flip should produce more than four containers");
+
+    // Oracle: the same flip on a plain bitmap, then the same whole-container
+    // removal. A plain PersistentRoaringBitmap never carries an undersized
+    // shared[], so it exercises the unshared code path as a reference.
+    final PersistentRoaringBitmap oracle = new PersistentRoaringBitmap();
+    oracle.add(3 << 16 | 1);
+    final PersistentRoaringBitmap expected =
+        PersistentRoaringBitmap.flip(oracle, 0L, 8L << 16);
+
+    // Drop every value in key 5's container so the container itself is removed,
+    // forcing the internal sharedRemoveAt shift over the undersized array.
+    expected.remove(5L << 16, 6L << 16);
+    result.remove(5L << 16, 6L << 16);
+
+    assertArrayEquals(expected.toArray(), result.toArray());
+
+    // Neighbours of the removed container are intact.
+    assertTrue(result.contains(4 << 16 | 0), "key 4 should remain populated");
+    assertTrue(result.contains(6 << 16 | 0), "key 6 should remain populated");
+    assertFalse(result.contains(5 << 16 | 0), "key 5 should have been removed");
+  }
+
+  @Test
+  public void removeRangeFromStaticAddResultWithUndersizedSharedArray() {
+    // A small seed widened by a static range-add over keys 0..7 produces an
+    // all-owned multi-container result whose shared[] is undersized.
+    final PersistentRoaringBitmap seed = new PersistentRoaringBitmap();
+    seed.add(1 << 16 | 7);
+
+    final PersistentRoaringBitmap result =
+        PersistentRoaringBitmap.add(seed, 0L, 8L << 16);
+    assertTrue(result.getContainerCount() > 4,
+        "range add should produce more than four containers");
+
+    final PersistentRoaringBitmap oracle = new PersistentRoaringBitmap();
+    oracle.add(1 << 16 | 7);
+    final PersistentRoaringBitmap expected =
+        PersistentRoaringBitmap.add(oracle, 0L, 8L << 16);
+
+    // Remove the whole key-2..key-5 span; dropping several whole containers
+    // drives the internal sharedRemoveRange shift over the undersized array.
+    expected.remove(2L << 16, 6L << 16);
+    result.remove(2L << 16, 6L << 16);
+
+    assertArrayEquals(expected.toArray(), result.toArray());
+  }
+
+  @Test
+  public void addOffsetResultRemainsConsistentAndIsolatedAfterInPlaceMutation() {
+    // addOffset clones each container into the result, so the shifted bitmap is
+    // all-owned with an undersized shared[]. Mutating it in place must not read
+    // past shared[] incorrectly, and must not corrupt the source.
+    final PersistentRoaringBitmap source = PersistentRoaringBitmap.fromBitmap(
+        buildMultiContainerBitmap(0, 6, 42));
+    assertTrue(source.getContainerCount() > 4,
+        "source should hold more than four containers");
+    final int[] sourceBefore = source.toArray();
+
+    final PersistentRoaringBitmap shifted =
+        PersistentRoaringBitmap.addOffset(source, 3L << 16);
+
+    // Oracle: the same offset applied to an isolated copy of the source.
+    final PersistentRoaringBitmap oracle = PersistentRoaringBitmap.addOffset(
+        source.clone(), 3L << 16);
+    final int[] expectedBase = oracle.toArray();
+
+    // Mutate the shifted result in place across several of its containers,
+    // exercising the copyIfShared "i >= shared.length so treat as owned" branch.
+    oracle.add(4L << 16, 5L << 16);
+    oracle.remove(6L << 16, 7L << 16);
+    shifted.add(4L << 16, 5L << 16);
+    shifted.remove(6L << 16, 7L << 16);
+
+    // The in-place mutation produced exactly the oracle's result...
+    assertArrayEquals(oracle.toArray(), shifted.toArray());
+    // ...and was a genuine mutation, not a no-op.
+    assertFalse(java.util.Arrays.equals(expectedBase, shifted.toArray()),
+        "in-place mutation should have changed the shifted bitmap");
+
+    // The source bitmap is untouched by either the offset or the mutation.
+    assertArrayEquals(sourceBefore, source.toArray(),
+        "source was corrupted by addOffset or the in-place mutation of the result");
+  }
+
+  @Test
+  public void andNotOnBitmapFromAllOwnedBuilderWithUndersizedSharedArray() {
+    // A static range-add over a 10-key seed yields an all-owned, >4-container
+    // result whose shared[] is left at the initial length 4. In-place andNot
+    // reads this.shared[] by raw index, so it must grow shared[] first.
+    final PersistentRoaringBitmap base = new PersistentRoaringBitmap();
+    for (int key = 0; key < 10; key++) {
+      base.add(key << 16 | 1);
+    }
+    final PersistentRoaringBitmap a = PersistentRoaringBitmap.add(base, 0L, 1L);
+    assertTrue(a.getContainerCount() > 4,
+        "range add should produce more than four containers");
+
+    final PersistentRoaringBitmap b = new PersistentRoaringBitmap();
+    b.add(5 << 16 | 1);
+
+    // Oracle: the same andNot applied through a plain bitmap, which never
+    // carries an undersized shared[].
+    final PersistentRoaringBitmap oracle = new PersistentRoaringBitmap();
+    for (int key = 0; key < 10; key++) {
+      oracle.add(key << 16 | 1);
+    }
+    oracle.add(0L, 1L);
+    oracle.andNot(b);
+
+    a.andNot(b);
+
+    assertArrayEquals(oracle.toArray(), a.toArray());
+  }
+
+  @Test
+  public void orNotOnBitmapFromAllOwnedBuilderWithUndersizedSharedArray() {
+    // Same all-owned, undersized-shared[] result; in-place orNot copies the
+    // uncomplemented remainder out of this.shared[] by raw index and must grow
+    // shared[] first.
+    final PersistentRoaringBitmap base = new PersistentRoaringBitmap();
+    for (int key = 0; key < 10; key++) {
+      base.add(key << 16 | 1);
+    }
+    final PersistentRoaringBitmap a = PersistentRoaringBitmap.add(base, 0L, 1L);
+    assertTrue(a.getContainerCount() > 4,
+        "range add should produce more than four containers");
+
+    final PersistentRoaringBitmap b = new PersistentRoaringBitmap();
+    b.add(0);
+
+    final PersistentRoaringBitmap oracle = new PersistentRoaringBitmap();
+    for (int key = 0; key < 10; key++) {
+      oracle.add(key << 16 | 1);
+    }
+    oracle.add(0L, 1L);
+    oracle.orNot(b, 1L);
+
+    a.orNot(b, 1L);
+
+    assertArrayEquals(oracle.toArray(), a.toArray());
+  }
 }
