@@ -387,7 +387,8 @@ public class PersistentRoaringBitmap
    * @see FastAggregation#and(PersistentRoaringBitmap...)
    */
   public static PersistentRoaringBitmap and(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
-    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+    // intersection produces only freshly-computed containers, so no structural sharing
+    final RoaringArray answer = new RoaringArray();
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
     int pos1 = 0, pos2 = 0;
 
@@ -399,7 +400,7 @@ public class PersistentRoaringBitmap
         final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
         final Container c = c1.and(c2);
         if (!c.isEmpty()) {
-          answer.highLowContainer.append(s1, c);
+          answer.append(s1, c);
         }
         ++pos1;
         ++pos2;
@@ -409,7 +410,7 @@ public class PersistentRoaringBitmap
         pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
       }
     }
-    return answer;
+    return new PersistentRoaringBitmap(answer, new boolean[answer.size()]);
   }
 
   /**
@@ -453,7 +454,10 @@ public class PersistentRoaringBitmap
    * @return result of the operation
    */
   public static PersistentRoaringBitmap andNot(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
-    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+    // non-overlapping containers from x1 are shared by reference with the result
+    markAllShared(x1);
+
+    final RoaringArray answer = new RoaringArray();
     int pos1 = 0, pos2 = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
 
@@ -465,22 +469,23 @@ public class PersistentRoaringBitmap
         final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
         final Container c = c1.andNot(c2);
         if (!c.isEmpty()) {
-          answer.highLowContainer.append(s1, c);
+          answer.append(s1, c);
         }
         ++pos1;
         ++pos2;
       } else if (s1 < s2) {
         final int nextPos1 = x1.highLowContainer.advanceUntil(s2, pos1);
-        answer.highLowContainer.appendCopy(x1.highLowContainer, pos1, nextPos1);
+        answer.append(x1.highLowContainer, pos1, nextPos1);
         pos1 = nextPos1;
       } else {
         pos2 = x2.highLowContainer.advanceUntil(s1, pos2);
       }
     }
     if (pos2 == length2) {
-      answer.highLowContainer.appendCopy(x1.highLowContainer, pos1, length1);
+      answer.append(x1.highLowContainer, pos1, length1);
     }
-    return answer;
+
+    return newAllSharedResult(answer);
   }
 
   /**
@@ -870,7 +875,11 @@ public class PersistentRoaringBitmap
    * @see FastAggregation#horizontal_or(PersistentRoaringBitmap...)
    */
   public static PersistentRoaringBitmap or(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
-    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+    // non-overlapping containers are shared by reference with the result
+    markAllShared(x1);
+    markAllShared(x2);
+
+    final RoaringArray answer = new RoaringArray();
     int pos1 = 0, pos2 = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
     main:
@@ -880,7 +889,7 @@ public class PersistentRoaringBitmap
 
       while (true) {
         if (s1 == s2) {
-          answer.highLowContainer.append(
+          answer.append(
               s1,
               x1.highLowContainer
                   .getContainerAtIndex(pos1)
@@ -893,14 +902,14 @@ public class PersistentRoaringBitmap
           s1 = x1.highLowContainer.getKeyAtIndex(pos1);
           s2 = x2.highLowContainer.getKeyAtIndex(pos2);
         } else if (s1 < s2) {
-          answer.highLowContainer.appendCopy(x1.highLowContainer, pos1);
+          answer.append(s1, x1.highLowContainer.getContainerAtIndex(pos1));
           pos1++;
           if (pos1 == length1) {
             break main;
           }
           s1 = x1.highLowContainer.getKeyAtIndex(pos1);
         } else {
-          answer.highLowContainer.appendCopy(x2.highLowContainer, pos2);
+          answer.append(s2, x2.highLowContainer.getContainerAtIndex(pos2));
           pos2++;
           if (pos2 == length2) {
             break main;
@@ -910,11 +919,12 @@ public class PersistentRoaringBitmap
       }
     }
     if (pos1 == length1) {
-      answer.highLowContainer.appendCopy(x2.highLowContainer, pos2, length2);
+      answer.append(x2.highLowContainer, pos2, length2);
     } else if (pos2 == length2) {
-      answer.highLowContainer.appendCopy(x1.highLowContainer, pos1, length1);
+      answer.append(x1.highLowContainer, pos1, length1);
     }
-    return answer;
+
+    return newAllSharedResult(answer);
   }
 
   /**
@@ -1085,7 +1095,11 @@ public class PersistentRoaringBitmap
    * @see FastAggregation#horizontal_xor(PersistentRoaringBitmap...)
    */
   public static PersistentRoaringBitmap xor(final PersistentRoaringBitmap x1, final PersistentRoaringBitmap x2) {
-    final PersistentRoaringBitmap answer = new PersistentRoaringBitmap();
+    // non-overlapping containers from both inputs are shared by reference with the result
+    markAllShared(x1);
+    markAllShared(x2);
+
+    final RoaringArray answer = new RoaringArray();
     int pos1 = 0, pos2 = 0;
     final int length1 = x1.highLowContainer.size(), length2 = x2.highLowContainer.size();
 
@@ -1101,7 +1115,7 @@ public class PersistentRoaringBitmap
                   .getContainerAtIndex(pos1)
                   .xor(x2.highLowContainer.getContainerAtIndex(pos2));
           if (!c.isEmpty()) {
-            answer.highLowContainer.append(s1, c);
+            answer.append(s1, c);
           }
           pos1++;
           pos2++;
@@ -1111,14 +1125,14 @@ public class PersistentRoaringBitmap
           s1 = x1.highLowContainer.getKeyAtIndex(pos1);
           s2 = x2.highLowContainer.getKeyAtIndex(pos2);
         } else if (s1 < s2) {
-          answer.highLowContainer.appendCopy(x1.highLowContainer, pos1);
+          answer.append(s1, x1.highLowContainer.getContainerAtIndex(pos1));
           pos1++;
           if (pos1 == length1) {
             break main;
           }
           s1 = x1.highLowContainer.getKeyAtIndex(pos1);
         } else {
-          answer.highLowContainer.appendCopy(x2.highLowContainer, pos2);
+          answer.append(s2, x2.highLowContainer.getContainerAtIndex(pos2));
           pos2++;
           if (pos2 == length2) {
             break main;
@@ -1128,12 +1142,12 @@ public class PersistentRoaringBitmap
       }
     }
     if (pos1 == length1) {
-      answer.highLowContainer.appendCopy(x2.highLowContainer, pos2, length2);
+      answer.append(x2.highLowContainer, pos2, length2);
     } else if (pos2 == length2) {
-      answer.highLowContainer.appendCopy(x1.highLowContainer, pos1, length1);
+      answer.append(x1.highLowContainer, pos1, length1);
     }
 
-    return answer;
+    return newAllSharedResult(answer);
   }
 
   RoaringArray highLowContainer = null;
@@ -1454,11 +1468,13 @@ public class PersistentRoaringBitmap
     }
     int pos1 = 0, pos2 = 0, intersectionSize = 0;
     final int length1 = highLowContainer.size(), length2 = x2.highLowContainer.size();
+    final boolean[] newShared = new boolean[length1];
 
     while (pos1 < length1 && pos2 < length2) {
       final char s1 = highLowContainer.getKeyAtIndex(pos1);
       final char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
       if (s1 == s2) {
+        copyIfShared(pos1);
         final Container c1 = highLowContainer.getContainerAtIndex(pos1);
         final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
         final Container c = c1.iand(c2);
@@ -1474,6 +1490,7 @@ public class PersistentRoaringBitmap
       }
     }
     highLowContainer.resize(intersectionSize);
+    this.shared = newShared;
   }
 
   /**
@@ -1527,11 +1544,13 @@ public class PersistentRoaringBitmap
     }
     int pos1 = 0, pos2 = 0, intersectionSize = 0;
     final int length1 = highLowContainer.size(), length2 = x2.highLowContainer.size();
+    final boolean[] newShared = new boolean[length1];
 
     while (pos1 < length1 && pos2 < length2) {
       final char s1 = highLowContainer.getKeyAtIndex(pos1);
       final char s2 = x2.highLowContainer.getKeyAtIndex(pos2);
       if (s1 == s2) {
+        copyIfShared(pos1);
         final Container c1 = highLowContainer.getContainerAtIndex(pos1);
         final Container c2 = x2.highLowContainer.getContainerAtIndex(pos2);
         final Container c = c1.iandNot(c2);
@@ -1545,6 +1564,7 @@ public class PersistentRoaringBitmap
           final Container c1 = highLowContainer.getContainerAtIndex(pos1);
           highLowContainer.replaceKeyAndContainerAtIndex(intersectionSize, s1, c1);
         }
+        newShared[intersectionSize] = this.shared[pos1];
         ++intersectionSize;
         ++pos1;
       } else {
@@ -1553,9 +1573,11 @@ public class PersistentRoaringBitmap
     }
     if (pos1 < length1) {
       highLowContainer.copyRange(pos1, length1, intersectionSize);
+      System.arraycopy(this.shared, pos1, newShared, intersectionSize, length1 - pos1);
       intersectionSize += length1 - pos1;
     }
     highLowContainer.resize(intersectionSize);
+    this.shared = newShared;
   }
 
   /**
@@ -1609,11 +1631,11 @@ public class PersistentRoaringBitmap
       throw new UnsupportedOperationException("orNot between a bitmap and itself?");
     }
     rangeSanityCheck(0, rangeEnd);
-    int maxKey = (int) ((rangeEnd - 1) >>> 16);
-    int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
+    final int maxKey = (int) ((rangeEnd - 1) >>> 16);
+    final int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
     int size = 0;
     int pos1 = 0, pos2 = 0;
-    int length1 = highLowContainer.size(), length2 = other.highLowContainer.size();
+    final int length1 = highLowContainer.size(), length2 = other.highLowContainer.size();
     int s1 = length1 > 0 ? highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
     int s2 = length2 > 0 ? other.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
     int remainder = 0;
@@ -1629,14 +1651,17 @@ public class PersistentRoaringBitmap
     }
     // it's almost certain that the bitmap will grow, so make a conservative overestimate,
     // this avoids temporary allocation, and can trim afterwards
-    int maxSize = Math.min(maxKey + 1 + remainder - correction + highLowContainer.size, 0x10000);
+    final int maxSize =
+        Math.min(maxKey + 1 + remainder - correction + highLowContainer.size, 0x10000);
     if (maxSize == 0) {
       return;
     }
-    char[] newKeys = new char[maxSize];
-    Container[] newValues = new Container[maxSize];
+    final char[] newKeys = new char[maxSize];
+    final Container[] newValues = new Container[maxSize];
+    final boolean[] newShared = new boolean[maxSize];
     for (int key = 0; key <= maxKey && size < maxSize; ++key) {
       if (key == s1 && key == s2) { // actually need to do an or not
+        copyIfShared(pos1);
         newValues[size] =
             highLowContainer
                 .getContainerAtIndex(pos1)
@@ -1648,12 +1673,15 @@ public class PersistentRoaringBitmap
         s1 = pos1 < length1 ? highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
         s2 = pos2 < length2 ? other.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
       } else if (key == s1) { // or in a hole
-        newValues[size] =
-            key == maxKey
-                ? highLowContainer
-                    .getContainerAtIndex(pos1)
-                    .ior(RunContainer.rangeOfOnes(0, lastRun))
-                : RunContainer.full();
+        if (key == maxKey) {
+          copyIfShared(pos1);
+          newValues[size] =
+              highLowContainer
+                  .getContainerAtIndex(pos1)
+                  .ior(RunContainer.rangeOfOnes(0, lastRun));
+        } else {
+          newValues[size] = RunContainer.full();
+        }
         ++pos1;
         s1 = pos1 < length1 ? highLowContainer.getKeyAtIndex(pos1) : maxKey + 1;
       } else if (key == s2) { // insert the complement
@@ -1678,14 +1706,15 @@ public class PersistentRoaringBitmap
     }
     // copy over everything which will remain without being complemented
     if (remainder > 0) {
-      System.arraycopy(
-          highLowContainer.keys, highLowContainer.size - remainder, newKeys, size, remainder);
-      System.arraycopy(
-          highLowContainer.values, highLowContainer.size - remainder, newValues, size, remainder);
+      final int srcOffset = highLowContainer.size - remainder;
+      System.arraycopy(highLowContainer.keys, srcOffset, newKeys, size, remainder);
+      System.arraycopy(highLowContainer.values, srcOffset, newValues, size, remainder);
+      System.arraycopy(this.shared, srcOffset, newShared, size, remainder);
     }
     highLowContainer.keys = newKeys;
     highLowContainer.values = newValues;
     highLowContainer.size = size + remainder;
+    this.shared = newShared;
   }
 
   /**
@@ -2697,7 +2726,8 @@ public class PersistentRoaringBitmap
 
       while (true) {
         if (s1 == s2) {
-          this.highLowContainer.setContainerAtIndex(
+          copyIfShared(pos1);
+          highLowContainer.setContainerAtIndex(
               pos1,
               highLowContainer
                   .getContainerAtIndex(pos1)
@@ -2716,8 +2746,7 @@ public class PersistentRoaringBitmap
           }
           s1 = highLowContainer.getKeyAtIndex(pos1);
         } else {
-          highLowContainer.insertNewKeyValueAt(
-              pos1, s2, x2.highLowContainer.getContainerAtIndex(pos2).clone());
+          borrowAndInsert(pos1, s2, x2, pos2, length2);
           pos1++;
           length1++;
           pos2++;
@@ -2729,7 +2758,7 @@ public class PersistentRoaringBitmap
       }
     }
     if (pos1 == length1) {
-      highLowContainer.appendCopy(x2.highLowContainer, pos2, length2);
+      appendTailWithSharing(x2, pos2, length2);
     }
   }
 
@@ -3525,15 +3554,17 @@ public class PersistentRoaringBitmap
 
       while (true) {
         if (s1 == s2) {
+          copyIfShared(pos1);
           final Container c =
               highLowContainer
                   .getContainerAtIndex(pos1)
                   .ixor(x2.highLowContainer.getContainerAtIndex(pos2));
           if (!c.isEmpty()) {
-            this.highLowContainer.setContainerAtIndex(pos1, c);
+            highLowContainer.setContainerAtIndex(pos1, c);
             pos1++;
           } else {
             highLowContainer.removeAtIndex(pos1);
+            sharedRemoveAt(pos1);
             --length1;
           }
           pos2++;
@@ -3549,8 +3580,7 @@ public class PersistentRoaringBitmap
           }
           s1 = highLowContainer.getKeyAtIndex(pos1);
         } else {
-          highLowContainer.insertNewKeyValueAt(
-              pos1, s2, x2.highLowContainer.getContainerAtIndex(pos2).clone());
+          borrowAndInsert(pos1, s2, x2, pos2, length2);
           pos1++;
           length1++;
           pos2++;
@@ -3562,7 +3592,7 @@ public class PersistentRoaringBitmap
       }
     }
     if (pos1 == length1) {
-      highLowContainer.appendCopy(x2.highLowContainer, pos2, length2);
+      appendTailWithSharing(x2, pos2, length2);
     }
   }
 
