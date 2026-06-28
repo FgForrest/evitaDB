@@ -26,7 +26,7 @@ package io.evitadb.store.index.serializer;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -43,7 +43,6 @@ import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
 import java.io.Serializable;
 import java.util.Collections;
-import java.util.Map;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -124,16 +123,16 @@ class UniqueIndexStoragePartSerializerTest {
 	}
 
 	/**
-	 * Builds a full OWNER part carrying the value-to-record map and the record-id bitmap.
+	 * Builds a full OWNER part carrying the inline value + record-id columns (ascending key order).
 	 *
 	 * @return an owner-mode storage part
 	 */
 	@Nonnull
 	private static UniqueIndexStoragePart ownerPart() {
-		final Map<Serializable, Integer> uniqueValueToRecordId = Map.of("apple", 1, "banana", 2);
-		final Bitmap recordIds = new TransactionalBitmap(1, 2);
+		final Serializable[] values = {"apple", "banana"};
+		final int[] recordIds = {1, 2};
 		final UniqueIndexStoragePart part = new UniqueIndexStoragePart(
-			42, ATTRIBUTE_KEY, String.class, uniqueValueToRecordId, recordIds
+			42, ATTRIBUTE_KEY, String.class, values, recordIds
 		);
 		part.setStoragePartPK(7L);
 		return part;
@@ -152,9 +151,40 @@ class UniqueIndexStoragePartSerializerTest {
 		return part;
 	}
 
+	/**
+	 * Builds a PAGED OWNER part — the value entries live in {@code UniqueIndexLeafPagePart} leaf pages, so the root
+	 * carries only the high-water and the ordered leaf-page list (no inline map / bitmap).
+	 *
+	 * @return a paged owner-mode storage part
+	 */
+	@Nonnull
+	private static UniqueIndexStoragePart pagedOwnerPart() {
+		return UniqueIndexStoragePart.paged(
+			42, ATTRIBUTE_KEY, String.class, 5, new int[]{0, 1, 2}, 7L
+		);
+	}
+
 	@Nested
 	@DisplayName("Round-trip")
 	class RoundTrip {
+
+		@Test
+		@DisplayName("round-trips a PAGED owner-mode root carrying the high-water + leaf-page list")
+		void shouldRoundTripPagedOwnerModePart() {
+			final UniqueIndexStoragePart deserialized = roundTrip(pagedOwnerPart());
+
+			assertEquals(42, deserialized.getEntityIndexPrimaryKey());
+			assertEquals(7L, deserialized.getStoragePartPK());
+			assertEquals(ATTRIBUTE_KEY, deserialized.getAttributeIndexKey());
+			assertSame(String.class, deserialized.getType());
+			assertTrue(deserialized.isDataPresent(), "a paged owner part is still an OWNER part");
+			assertTrue(deserialized.isPaged(), "the paged discriminator must round-trip");
+			assertEquals(5, deserialized.getHighWaterPageSequence(), "the high-water must round-trip");
+			assertArrayEquals(new int[]{0, 1, 2}, deserialized.getLeafPageSequences(), "the leaf-page list must round-trip");
+			// a paged root carries no inline data — the entries live in the leaf pages
+			assertNull(deserialized.getValues(), "a paged root carries no inline value column");
+			assertNull(deserialized.getRecordIds(), "a paged root carries no inline record-id column");
+		}
 
 		@Test
 		@DisplayName("round-trips an owner-mode part carrying the value map + record-id bitmap")
@@ -167,15 +197,13 @@ class UniqueIndexStoragePartSerializerTest {
 			assertSame(String.class, deserialized.getType());
 			assertTrue(deserialized.isDataPresent(), "an owner-mode part must round-trip with its data present");
 
-			final Map<Serializable, Integer> values = deserialized.getUniqueValueToRecordId();
-			assertNotNull(values, "owner-mode value map must round-trip non-null");
-			assertEquals(2, values.size());
-			assertEquals(1, values.get("apple"));
-			assertEquals(2, values.get("banana"));
+			final Serializable[] values = deserialized.getValues();
+			assertNotNull(values, "owner-mode value column must round-trip non-null");
+			assertArrayEquals(new Serializable[]{"apple", "banana"}, values);
 
-			final Bitmap recordIds = deserialized.getRecordIds();
-			assertNotNull(recordIds, "owner-mode record-id bitmap must round-trip non-null");
-			assertArrayEquals(new int[]{1, 2}, recordIds.getArray());
+			final int[] recordIds = deserialized.getRecordIds();
+			assertNotNull(recordIds, "owner-mode record-id column must round-trip non-null");
+			assertArrayEquals(new int[]{1, 2}, recordIds);
 		}
 
 		@Test
@@ -188,8 +216,8 @@ class UniqueIndexStoragePartSerializerTest {
 			assertEquals(ATTRIBUTE_KEY, deserialized.getAttributeIndexKey());
 			assertSame(String.class, deserialized.getType());
 			assertFalse(deserialized.isDataPresent(), "a view-mode part must round-trip with no data present");
-			assertNull(deserialized.getUniqueValueToRecordId(), "view-mode value map must round-trip null");
-			assertNull(deserialized.getRecordIds(), "view-mode record-id bitmap must round-trip null");
+			assertNull(deserialized.getValues(), "view-mode value column must round-trip null");
+			assertNull(deserialized.getRecordIds(), "view-mode record-id column must round-trip null");
 		}
 	}
 
@@ -198,22 +226,20 @@ class UniqueIndexStoragePartSerializerTest {
 	class ProductionDispatchRoundTrip {
 
 		@Test
-		@DisplayName("round-trips an owner-mode part through the production dispatcher, rebuilding the bitmap")
+		@DisplayName("round-trips an owner-mode part through the production dispatcher, preserving the columns")
 		void shouldRoundTripOwnerModeThroughDispatcher() {
 			final UniqueIndexStoragePart deserialized = StoragePartSerializerTestSupport.roundTrip(
 				UniqueIndexStoragePartSerializerTest.this.kryo, ownerPart(), UniqueIndexStoragePart.class
 			);
 
 			assertTrue(deserialized.isDataPresent());
-			final Map<Serializable, Integer> values = deserialized.getUniqueValueToRecordId();
+			final Serializable[] values = deserialized.getValues();
 			assertNotNull(values);
-			assertEquals(2, values.size());
-			assertEquals(1, values.get("apple"));
-			assertEquals(2, values.get("banana"));
-			// the bitmap is no longer persisted; it is reconstructed from the map values on read
-			final Bitmap recordIds = deserialized.getRecordIds();
-			assertNotNull(recordIds, "the record-id bitmap must be reconstructed from the map values");
-			assertArrayEquals(new int[]{1, 2}, recordIds.getArray());
+			assertArrayEquals(new Serializable[]{"apple", "banana"}, values);
+			// the membership bitmap is no longer persisted; the inline record-id column round-trips verbatim
+			final int[] recordIds = deserialized.getRecordIds();
+			assertNotNull(recordIds, "the inline record-id column must round-trip");
+			assertArrayEquals(new int[]{1, 2}, recordIds);
 		}
 
 		@Test
@@ -224,26 +250,31 @@ class UniqueIndexStoragePartSerializerTest {
 			);
 
 			assertFalse(deserialized.isDataPresent());
-			assertNull(deserialized.getUniqueValueToRecordId());
+			assertNull(deserialized.getValues());
 			assertNull(deserialized.getRecordIds());
 		}
 
 		@Test
-		@DisplayName("the reconstructed bitmap dedupes — its array equals the distinct set of the map values")
+		@DisplayName("the columns round-trip the positional pairs and the owner index dedupes its membership bitmap")
 		void shouldReconstructBitmapAsDistinctSetOfValues() {
-			// two distinct keys may map to the same record id; the rebuilt bitmap must collapse the duplicate
-			final Map<Serializable, Integer> map = Map.of("a", 5, "b", 5, "c", 9);
-			final Bitmap recordIds = new TransactionalBitmap(5, 9);
-			final UniqueIndexStoragePart part = new UniqueIndexStoragePart(1, ATTRIBUTE_KEY, String.class, map, recordIds);
+			// two distinct values may map to the same record id; the inline columns keep each pair positionally, and the
+			// membership bitmap the owner index rebuilds from those columns must collapse the duplicate
+			final Serializable[] values = {"a", "b", "c"};
+			final int[] recordIds = {5, 5, 9};
+			final UniqueIndexStoragePart part = new UniqueIndexStoragePart(1, ATTRIBUTE_KEY, String.class, values, recordIds);
 			part.setStoragePartPK(3L);
 
 			final UniqueIndexStoragePart deserialized = StoragePartSerializerTestSupport.roundTrip(
 				UniqueIndexStoragePartSerializerTest.this.kryo, part, UniqueIndexStoragePart.class
 			);
 
-			final Bitmap rebuilt = deserialized.getRecordIds();
-			assertNotNull(rebuilt);
-			assertArrayEquals(new int[]{5, 9}, rebuilt.getArray());
+			assertArrayEquals(new Serializable[]{"a", "b", "c"}, deserialized.getValues());
+			assertArrayEquals(new int[]{5, 5, 9}, deserialized.getRecordIds());
+			// the membership bitmap the owner index rebuilds from the columns collapses the duplicate record id
+			final OwnerUniqueIndex restored = new OwnerUniqueIndex(
+				"PRODUCT", ATTRIBUTE_KEY, String.class, deserialized.getValues(), deserialized.getRecordIds()
+			);
+			assertArrayEquals(new int[]{5, 9}, restored.getRecordIds().getArray());
 		}
 	}
 
@@ -263,13 +294,11 @@ class UniqueIndexStoragePartSerializerTest {
 			);
 
 			assertTrue(deserialized.isDataPresent());
-			final Map<Serializable, Integer> values = deserialized.getUniqueValueToRecordId();
+			final Serializable[] values = deserialized.getValues();
 			assertNotNull(values);
-			assertEquals(2, values.size());
-			assertEquals(1, values.get("apple"));
-			assertEquals(2, values.get("banana"));
+			assertArrayEquals(new Serializable[]{"apple", "banana"}, values);
 			assertNotNull(deserialized.getRecordIds());
-			assertArrayEquals(new int[]{1, 2}, deserialized.getRecordIds().getArray());
+			assertArrayEquals(new int[]{1, 2}, deserialized.getRecordIds());
 		}
 
 		@Test
@@ -287,12 +316,11 @@ class UniqueIndexStoragePartSerializerTest {
 			);
 
 			assertTrue(rePersisted.isDataPresent());
-			final Map<Serializable, Integer> values = rePersisted.getUniqueValueToRecordId();
+			final Serializable[] values = rePersisted.getValues();
 			assertNotNull(values);
-			assertEquals(1, values.get("apple"));
-			assertEquals(2, values.get("banana"));
+			assertArrayEquals(new Serializable[]{"apple", "banana"}, values);
 			assertNotNull(rePersisted.getRecordIds());
-			assertArrayEquals(new int[]{1, 2}, rePersisted.getRecordIds().getArray());
+			assertArrayEquals(new int[]{1, 2}, rePersisted.getRecordIds());
 		}
 
 		/**
@@ -353,11 +381,11 @@ class UniqueIndexStoragePartSerializerTest {
 		@Test
 		@DisplayName("the owner-mode constructor rejects a null attributeType")
 		void shouldRejectNullAttributeTypeForOwnerPart() {
-			final Map<Serializable, Integer> uniqueValueToRecordId = Map.of("apple", 1);
-			final Bitmap recordIds = new TransactionalBitmap(1);
+			final Serializable[] values = {"apple"};
+			final int[] recordIds = {1};
 			assertThrows(
 				NullPointerException.class,
-				() -> new UniqueIndexStoragePart(42, ATTRIBUTE_KEY, null, uniqueValueToRecordId, recordIds),
+				() -> new UniqueIndexStoragePart(42, ATTRIBUTE_KEY, null, values, recordIds),
 				"a null attributeType must be rejected — the type-less legacy format is unsupported"
 			);
 		}

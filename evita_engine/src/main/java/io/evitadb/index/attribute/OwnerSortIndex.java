@@ -27,6 +27,8 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
@@ -34,7 +36,6 @@ import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
 import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.EntryCursor;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -378,8 +379,23 @@ public final class OwnerSortIndex extends SortIndex {
 
 	@Nonnull
 	@Override
-	protected Map<Serializable, Integer> storagePartCardinalities() {
-		return materializeCardinalities();
+	@SuppressWarnings("rawtypes")
+	protected CardinalityColumns storagePartCardinalities() {
+		// single ascending walk of the value tree into positionally-aligned sparse columns: only values shared by more
+		// than one record are emitted (cardinality 1 is implied on load), so no intermediate map is materialized on the
+		// commit/flush hot path
+		final CompositeObjectArray<Serializable> values = new CompositeObjectArray<>(Serializable.class);
+		final CompositeIntArray cardinalities = new CompositeIntArray();
+		final EntryCursor cursor = this.sortedValues.entryCursor();
+		while (cursor.hasNext()) {
+			final Serializable value = (Serializable) cursor.next();
+			final int cardinality = (Integer) cursor.value();
+			if (cardinality > 1) {
+				values.add(value);
+				cardinalities.add(cardinality);
+			}
+		}
+		return new CardinalityColumns(values.toArray(), cardinalities.toArray());
 	}
 
 	@Override
@@ -480,25 +496,6 @@ public final class OwnerSortIndex extends SortIndex {
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private void treeDelete(@Nonnull Serializable value) {
 		this.sortedValues.delete((Comparable) value);
-	}
-
-	/**
-	 * Materialises the sparse cardinality map for serialization: only values shared by more than one record are
-	 * emitted (cardinality `1` is implied on load), reproducing the exact byte layout the storage format expects.
-	 */
-	@Nonnull
-	@SuppressWarnings("rawtypes")
-	private Map<Serializable, Integer> materializeCardinalities() {
-		final Map<Serializable, Integer> result = CollectionUtils.createHashMap(this.sortedValues.size());
-		final EntryCursor cursor = this.sortedValues.entryCursor();
-		while (cursor.hasNext()) {
-			final Serializable value = (Serializable) cursor.next();
-			final int cardinality = (Integer) cursor.value();
-			if (cardinality > 1) {
-				result.put(value, cardinality);
-			}
-		}
-		return result;
 	}
 
 	/**

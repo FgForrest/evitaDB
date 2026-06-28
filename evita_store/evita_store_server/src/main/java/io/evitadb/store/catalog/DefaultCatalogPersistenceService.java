@@ -83,7 +83,9 @@ import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceServi
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.CatalogSchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.wal.IsolatedWalPersistenceService;
@@ -1581,16 +1583,60 @@ public class DefaultCatalogPersistenceService
 					.orElseThrow(
 						() -> new EvitaInvalidUsageException(
 							"Catalog index references attribute `" + attributeKey.attributeName() + "` but such attribute is not found in catalog schema!"));
-				sharedUniqueIndexes.put(
-					attributeKey,
-					new GlobalUniqueIndex(
+				final GlobalUniqueIndex globalUniqueIndex;
+				if (sharedUniqueIndexStoragePart.isPaged()) {
+					// PAGED: the value→tuple tree was persisted as individual leaf pages. Resolve the stream id from the
+					// (scope, attributeKey) identity (registered at the first PAGED write) and read every listed leaf page
+					// in ascending key order, then reassemble boundary-stable so the first post-restart commit rewrites
+					// only genuinely-changed leaves.
+					final int streamId = storagePartPersistenceService.getReadOnlyKeyCompressor().getId(
+						new GlobalUniqueLeafStreamKey(scope, attributeKey)
+					);
+					final int[] orderedPageSequences = sharedUniqueIndexStoragePart.getLeafPageSequences();
+					final java.io.Serializable[][] perPageValues = new java.io.Serializable[orderedPageSequences.length][];
+					final long[][] perPagePayloads = new long[orderedPageSequences.length][];
+					for (int i = 0; i < orderedPageSequences.length; i++) {
+						final int pageSequence = orderedPageSequences[i];
+						final GlobalUniqueIndexLeafPagePart leafPage = storagePartPersistenceService.getStoragePart(
+							catalogVersion,
+							GlobalUniqueIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+							GlobalUniqueIndexLeafPagePart.class
+						);
+						Assert.isPremiseValid(
+							leafPage != null,
+							"Global unique index leaf page " + pageSequence + " (stream " + streamId + ") for attribute `" +
+								attributeKey + "` was not found in persistent storage!"
+						);
+						perPageValues[i] = leafPage.getValues();
+						perPagePayloads[i] = leafPage.getPayloads();
+					}
+					globalUniqueIndex = GlobalUniqueIndex.fromPersistedPages(
 						scope,
 						attributeKey,
 						attributeSchema.getPlainType(),
-						sharedUniqueIndexStoragePart.getUniqueValueToRecordId(),
+						orderedPageSequences,
+						perPageValues,
+						perPagePayloads,
+						sharedUniqueIndexStoragePart.getHighWaterPageSequence(),
 						sharedUniqueIndexStoragePart.getLocaleIndex()
-					)
-				);
+					);
+				} else {
+					globalUniqueIndex = new GlobalUniqueIndex(
+						scope,
+						attributeKey,
+						attributeSchema.getPlainType(),
+						java.util.Objects.requireNonNull(
+							sharedUniqueIndexStoragePart.getValues(),
+							"A SINGLE global unique part must carry the inline value column!"
+						),
+						java.util.Objects.requireNonNull(
+							sharedUniqueIndexStoragePart.getPayloads(),
+							"A SINGLE global unique part must carry the inline payload column!"
+						),
+						sharedUniqueIndexStoragePart.getLocaleIndex()
+					);
+				}
+				sharedUniqueIndexes.put(attributeKey, globalUniqueIndex);
 			}
 			return Optional.of(
 				new CatalogIndex(

@@ -130,13 +130,14 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 								codeBuffer
 						);
 
+						final UniqueIndex.InlineSnapshot snap = committed.inlineSnapshot();
 						committedResult.set(
 							new OwnerUniqueIndex(
 								committed.getEntityType(),
 								committed.getAttributeIndexKey(),
 								committed.getType(),
-								new HashMap<>(committed.getUniqueValueToRecordId()),
-								committed.getRecordIds()
+								snap.values(),
+								snap.recordIds()
 							)
 						);
 					}

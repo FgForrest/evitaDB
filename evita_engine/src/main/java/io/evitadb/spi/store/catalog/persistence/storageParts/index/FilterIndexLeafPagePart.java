@@ -44,7 +44,7 @@ import java.io.Serial;
  * shape the monolithic {@code FilterIndexStoragePart} uses — in ascending value order; the routing spine that orders
  * the leaves is NOT persisted (it is reconstructed on load), and a leaf page stores no separators.
  *
- * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via {@link NumberUtils#join}.
+ * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via {@link NumberUtils#pack}.
  * `streamId` is the {@link KeyCompressor} id of the sub-index's {@link LeafStreamKey} (one dictionary entry per
  * persisted sub-index); `pageSequence` is the advance-only, never-reused page sequence within that stream.
  *
@@ -92,7 +92,7 @@ public class FilterIndexLeafPagePart implements StoragePart {
 	 */
 	@Nonnull @Getter private final ValueToRecordBitmap[] buckets;
 	/**
-	 * The storage-part primary key `join(streamId, pageSequence)`; `null` until assigned by
+	 * The storage-part primary key `pack(streamId, pageSequence)`; `null` until assigned by
 	 * {@link #computeUniquePartIdAndSet(KeyCompressor)} (write path) or supplied at rehydration (read path).
 	 */
 	@Nullable @Getter @Setter private Long storagePartPK;
@@ -105,7 +105,7 @@ public class FilterIndexLeafPagePart implements StoragePart {
 	 * @return the 64-bit storage-part primary key
 	 */
 	public static long computeUniquePartId(int streamId, int pageSequence) {
-		return NumberUtils.join(streamId, pageSequence);
+		return NumberUtils.pack(streamId, pageSequence);
 	}
 
 	/**

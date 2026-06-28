@@ -185,7 +185,7 @@ public interface Migration_2025_6 {
 					referencedEntityIdToReducedEntityIndexPrimaryKey.computeIfAbsent(
 						referenceKey.referenceName(),
 						__ -> new java.util.HashSet<>(1024)
-					).add(NumberUtils.join(referenceKey.primaryKey(), indexPrimaryKey));
+					).add(NumberUtils.pack(referenceKey.primaryKey(), indexPrimaryKey));
 					referencedEntityToIndexIdMap.put(referenceKey.primaryKey(), indexPrimaryKey);
 				}
 			}
@@ -490,19 +490,21 @@ public interface Migration_2025_6 {
 			uniqueIndexCnt != null,
 			"Unique index with id " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() + " was not found in persistent storage!"
 		);
-		final Map<Serializable, Integer> uniqueValueToRecordId = Objects.requireNonNull(
-			uniqueIndexCnt.getUniqueValueToRecordId(),
+		final Serializable[] values = Objects.requireNonNull(
+			uniqueIndexCnt.getValues(),
 			"Unique index " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() +
-				" carries no value-to-record mapping!"
+				" carries no inline value column!"
 		);
-		final Map<Serializable, Integer> migratedUniqueValueToRecordId = CollectionUtils.createHashMap(
-			uniqueValueToRecordId.size()
+		final int[] recordIds = Objects.requireNonNull(
+			uniqueIndexCnt.getRecordIds(),
+			"Unique index " + indexPrimaryKey + " with key " + attributeIndexKey.attribute() +
+				" carries no inline payload column!"
 		);
-		final RoaringBitmapWriter<RoaringBitmap> migratedRecordIdsWriter = RoaringBitmapBackedBitmap.buildWriter();
-		for (Entry<Serializable, Integer> entry : uniqueValueToRecordId.entrySet()) {
-			final int indexId = referencedEntityToIndexIdMap.get(entry.getValue());
-			migratedUniqueValueToRecordId.put(entry.getKey(), indexId);
-			migratedRecordIdsWriter.add(indexId);
+		// remap each record id (referenced-entity pk) to its reduced-index pk, positionally aligned with the values; the
+		// membership bitmap is no longer persisted on the part — it is rebuilt from this payload column on load
+		final int[] migratedRecordIds = new int[recordIds.length];
+		for (int i = 0; i < recordIds.length; i++) {
+			migratedRecordIds[i] = referencedEntityToIndexIdMap.get(recordIds[i]);
 		}
 		collectionStoragePartService.putStoragePart(
 			catalogVersion,
@@ -510,8 +512,8 @@ public interface Migration_2025_6 {
 				uniqueIndexCnt.getEntityIndexPrimaryKey(),
 				uniqueIndexCnt.getAttributeIndexKey(),
 				uniqueIndexCnt.getType(),
-				migratedUniqueValueToRecordId,
-				new BaseBitmap(migratedRecordIdsWriter.get()),
+				values,
+				migratedRecordIds,
 				uniqueIndexCnt.getStoragePartPK()
 			)
 		);
@@ -541,7 +543,7 @@ public interface Migration_2025_6 {
 		final ReferenceTypeCardinalityIndex referenceTypeCardinalityIndex = new ReferenceTypeCardinalityIndex();
 		final Set<Long> keyMapping = referencedEntityIdToReducedEntityIndexPrimaryKey.get(referenceName);
 		for (Long compressedValue : keyMapping) {
-			final int[] split = NumberUtils.split(compressedValue);
+			final int[] split = NumberUtils.unpack(compressedValue);
 			final int referencedEntityPrimaryKey = split[0];
 			final int referencedEntityIndexPrimaryKey = split[1];
 			referenceTypeCardinalityIndex.addRecord(referencedEntityIndexPrimaryKey, referencedEntityPrimaryKey);

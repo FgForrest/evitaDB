@@ -47,7 +47,7 @@ import java.io.Serial;
  * and a leaf page stores no separators. The border sentinels (`Long.MIN_VALUE` / `Long.MAX_VALUE`) live in the first /
  * last pages.
  *
- * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via {@link NumberUtils#join}.
+ * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via {@link NumberUtils#pack}.
  * `streamId` is the {@link KeyCompressor} id of the sub-index's {@link LeafStreamKey} resolved with
  * {@link StreamKind#RANGE} — distinct from the same FilterIndex's {@link StreamKind#BUCKET} value stream, so the two
  * streams' page sequences never collide; `pageSequence` is the advance-only, never-reused page sequence within that stream.
@@ -92,7 +92,7 @@ public class RangeIndexLeafPagePart implements StoragePart {
 	 */
 	@Nonnull @Getter private final TransactionalRangePoint[] points;
 	/**
-	 * The storage-part primary key `join(streamId, pageSequence)`; `null` until assigned by
+	 * The storage-part primary key `pack(streamId, pageSequence)`; `null` until assigned by
 	 * {@link #computeUniquePartIdAndSet(KeyCompressor)} (write path) or supplied at rehydration (read path).
 	 */
 	@Nullable @Getter @Setter private Long storagePartPK;
@@ -105,7 +105,7 @@ public class RangeIndexLeafPagePart implements StoragePart {
 	 * @return the 64-bit storage-part primary key
 	 */
 	public static long computeUniquePartId(int streamId, int pageSequence) {
-		return NumberUtils.join(streamId, pageSequence);
+		return NumberUtils.pack(streamId, pageSequence);
 	}
 
 	/**

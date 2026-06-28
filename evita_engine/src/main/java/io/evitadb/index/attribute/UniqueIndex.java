@@ -24,15 +24,12 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
-import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.map.MapChanges;
-import io.evitadb.index.map.PersistentTransactionalMap;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import lombok.Getter;
 
@@ -40,7 +37,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Map;
 
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.StringUtils.unknownToString;
@@ -54,8 +50,8 @@ import static io.evitadb.utils.StringUtils.unknownToString;
  * key, value type) and declares the read / persistence / transactional surface, but owns no data of its own. Two
  * concrete shapes exist:
  *
- * - {@link OwnerUniqueIndex} — a standalone index that owns its value→record-id map (a {@link PersistentTransactionalMap}
- *   backed by a persistent immutable {@link io.evitadb.dataType.champ.ChampMap}) and a record-id bitmap, fully
+ * - {@link OwnerUniqueIndex} — a standalone index that owns its value→record-id mapping (a value bucket B+ tree with
+ *   a front-coded leaf column for String keys and granular per-leaf-page persistence) and a record-id bitmap, fully
  *   participating in the commit cycle. Used for global-unique-localized attributes whose locale-less uniqueness cannot
  *   be folded into the per-locale shared filter tree.
  * - {@link UniqueIndexView} — a stateless view folded onto the shared `value→ValueToRecord` tree owned by
@@ -63,14 +59,15 @@ import static io.evitadb.utils.StringUtils.unknownToString;
  *   tree (uniqueness is enforced on the filter insert by {@link AttributeIndex}). Used for any non-localized attribute,
  *   or a localized one unique within locale.
  *
- * The base remains a {@link TransactionalLayerProducer} so the standalone owners can still live in
- * {@link AttributeIndex}'s producer {@code TransactionalMap}; the view simply overrides the producer hooks to be
- * inert (it lives in a plain non-producer map and is rebuilt fresh over the committed shared tree on each commit).
+ * The base remains a {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} so the standalone
+ * owners can still live in {@link AttributeIndex}'s producer {@code TransactionalMap}; the view simply overrides
+ * the producer hooks to be inert (it lives in a plain non-producer map and is rebuilt fresh over the committed
+ * shared tree on each commit).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 public abstract sealed class UniqueIndex implements
-	TransactionalLayerProducer<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, PersistentTransactionalMap<Serializable, Integer>>, UniqueIndex>,
+	VoidTransactionMemoryProducer<UniqueIndex>,
 	IndexDataStructure,
 	Serializable
 	permits OwnerUniqueIndex, UniqueIndexView {
@@ -211,17 +208,37 @@ public abstract sealed class UniqueIndex implements
 	public abstract boolean isEmpty();
 
 	/**
-	 * Method creates container for storing unique index from memory to the persistent storage.
+	 * Emits this unique index's modified storage parts into `sink` on the commit/flush path — the single persistence
+	 * entry point for a unique index. A clean index emits nothing. A dirty OWNER index whose value tree spans a single
+	 * leaf emits the inline `SINGLE` root; a dirty OWNER index whose tree spans multiple leaves emits the granular
+	 * `PAGED` shape (one {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart}
+	 * per CHANGED leaf plus the `PAGED` root). A folded VIEW index emits only its slim part.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param sink                  the trapped-changes accumulator for this commit
 	 */
-	@Nullable
-	public abstract StoragePart createStoragePart(int entityIndexPrimaryKey);
+	public abstract void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink);
 
 	/**
-	 * Returns an unmodifiable view of the unique value to record id mappings - exposed for persistence
-	 * ({@link #createStoragePart}) and load-time reconstruction, not for mutation. A view returns an empty map (its
-	 * data lives in the shared filter tree).
+	 * Returns the whole value tree as sorted, positionally-aligned `(value, recordId)` columns — the inline `SINGLE`
+	 * shape, the same representation a leaf page carries. Built by a single cursor walk (no map materialization), it feeds
+	 * the inline `SINGLE` write path and test inspection. A folded VIEW returns empty columns (its data lives in the
+	 * shared filter tree).
+	 *
+	 * @return the inline snapshot of every entry in ascending key order
 	 */
 	@Nonnull
-	abstract Map<Serializable, Integer> getUniqueValueToRecordId();
+	abstract InlineSnapshot inlineSnapshot();
+
+	/**
+	 * The whole value tree captured as positionally-aligned value + record-id columns — the inline `SINGLE` shape, the
+	 * same representation a leaf page carries. Produced by {@link #inlineSnapshot()} via a single cursor walk, so it never
+	 * builds an intermediate map.
+	 *
+	 * @param values    the values in ascending key order
+	 * @param recordIds the record ids, positionally aligned with `values`
+	 */
+	record InlineSnapshot(@Nonnull Serializable[] values, @Nonnull int[] recordIds) {
+	}
 
 }

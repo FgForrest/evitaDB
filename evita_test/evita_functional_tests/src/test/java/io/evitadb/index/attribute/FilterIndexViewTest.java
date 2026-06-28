@@ -23,9 +23,9 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -42,8 +42,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -162,10 +160,9 @@ class FilterIndexViewTest {
 			final FilterIndexView view = newView(KEY_A, shared, Integer.class);
 
 			assertFalse(view.isDirty(), "a fresh view over an untouched tree must not be dirty!");
-			assertNull(
-				view.createStoragePart(1),
-				"a clean view must not emit a storage part!"
-			);
+			final TrappedChanges sink = new TrappedChanges();
+			view.appendStorageParts(1, sink);
+			assertEquals(0, sink.getTrappedChangesCount(), "a clean view must not emit a storage part!");
 		}
 
 		@Test
@@ -177,16 +174,16 @@ class FilterIndexViewTest {
 			view.addRecord(1, 10);
 
 			assertTrue(view.isDirty(), "adding a record must flip the wrapped tree's dirty flag!");
-			final StoragePart partWhileDirty = view.createStoragePart(1);
-			assertNotNull(partWhileDirty, "a dirty view must emit a storage part!");
+			final TrappedChanges whileDirty = new TrappedChanges();
+			view.appendStorageParts(1, whileDirty);
+			assertTrue(whileDirty.getTrappedChangesCount() > 0, "a dirty view must emit a storage part!");
 
 			view.resetDirty();
 
 			assertFalse(view.isDirty(), "resetDirty must clear the wrapped tree's dirty flag!");
-			assertNull(
-				view.createStoragePart(1),
-				"a view reset to clean must stop emitting a storage part!"
-			);
+			final TrappedChanges afterReset = new TrappedChanges();
+			view.appendStorageParts(1, afterReset);
+			assertEquals(0, afterReset.getTrappedChangesCount(), "a view reset to clean must stop emitting a storage part!");
 		}
 	}
 

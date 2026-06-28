@@ -42,7 +42,6 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -90,7 +89,10 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		// BEFORE sortedRecords because the reader needs the per-value block lengths (from the cardinalities) to
 		// delta-decode the blocks.
 		final Serializable[] sortedRecordValues = sortIndex.getSortedRecordsValues();
-		final Map<Serializable, Integer> cardinalities = sortIndex.getValueCardinalities();
+		// the sparse cardinality columns are read straight off the part (ascending, aligned with sortedRecordValues) - no
+		// map is materialized on the commit/flush hot path
+		final Serializable[] cardinalityValues = sortIndex.getCardinalityValues();
+		final int[] cardinalities = sortIndex.getCardinalities();
 		final boolean valuesPresent = sortedRecordValues.length > 0;
 		output.writeBoolean(valuesPresent);
 		if (valuesPresent) {
@@ -99,10 +101,10 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 				writeComparableValue(kryo, output, sortedRecordValue, comparatorBase.length);
 			}
 
-			output.writeVarInt(cardinalities.size(), true);
-			for (final Entry<Serializable, Integer> entry : cardinalities.entrySet()) {
-				writeComparableValue(kryo, output, entry.getKey(), comparatorBase.length);
-				output.writeVarInt(entry.getValue(), true);
+			output.writeVarInt(cardinalityValues.length, true);
+			for (int i = 0; i < cardinalityValues.length; i++) {
+				writeComparableValue(kryo, output, cardinalityValues[i], comparatorBase.length);
+				output.writeVarInt(cardinalities[i], true);
 			}
 		}
 
@@ -111,7 +113,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			// owner mode: sortedRecords is a concatenation of per-value ascending blocks - delta-encode each block when
 			// every block is non-decreasing, otherwise fall back to a raw encoding (a migration-collapsed part may hold a
 			// non-ascending block - see the class javadoc).
-			final int[] blockLengths = computeBlockLengths(sortedRecordValues, cardinalities, sortedRecords.length);
+			final int[] blockLengths = computeBlockLengths(sortedRecordValues, cardinalityValues, cardinalities, sortedRecords.length);
 			final boolean blockDeltaEncoded = allBlocksAscending(sortedRecords, blockLengths);
 			output.writeBoolean(blockDeltaEncoded);
 			output.writeVarInt(sortedRecords.length, true);
@@ -285,6 +287,37 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 		int sum = 0;
 		for (int i = 0; i < sortedRecordValues.length; i++) {
 			final int length = cardinalities.getOrDefault(sortedRecordValues[i], 1);
+			blockLengths[i] = length;
+			sum += length;
+		}
+		Assert.isPremiseValid(
+			sum == totalRecords,
+			"Sort index damaged! The per-value block lengths sum to " + sum + " but the sorted-records array holds " +
+				totalRecords + " ids!"
+		);
+		return blockLengths;
+	}
+
+	/**
+	 * Allocation-free variant used on the persistence (write) hot path: the sparse cardinality columns are a subset of
+	 * `sortedRecordValues` in the same ascending order, so a single two-pointer merge recovers the per-value block length
+	 * (`cardinality > 1` from the sparse columns, an implied `1` otherwise) without building a lookup map. Equality is
+	 * tested with {@link Object#equals} exactly as the map-based variant's `getOrDefault`, so the two agree.
+	 */
+	private static int[] computeBlockLengths(
+		@Nonnull Serializable[] sortedRecordValues,
+		@Nonnull Serializable[] cardinalityValues,
+		@Nonnull int[] cardinalities,
+		int totalRecords
+	) {
+		final int[] blockLengths = new int[sortedRecordValues.length];
+		int sum = 0;
+		int c = 0;
+		for (int i = 0; i < sortedRecordValues.length; i++) {
+			int length = 1;
+			if (c < cardinalityValues.length && cardinalityValues[c].equals(sortedRecordValues[i])) {
+				length = cardinalities[c++];
+			}
 			blockLengths[i] = length;
 			sum += length;
 		}

@@ -631,9 +631,13 @@ public abstract sealed class SortIndex
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.sortIndexChanges = null;
+			// owner mode produces the sparse cardinality columns directly from its value tree (no intermediate map); view
+			// mode emits empty columns (re-derived from the shared FILTER part on load)
+			final CardinalityColumns cardinalityColumns = storagePartCardinalities();
 			return new SortIndexStoragePart(
 				entityIndexPrimaryKey, this.attributeIndexKey, this.comparatorBase,
-				getSortedRecords(), storagePartSortedValues(), storagePartCardinalities(),
+				getSortedRecords(), storagePartSortedValues(),
+				cardinalityColumns.values(), cardinalityColumns.cardinalities(),
 				this.indexedDecimalPlaces,
 				null
 			);
@@ -765,11 +769,12 @@ public abstract sealed class SortIndex
 	protected abstract Serializable[] storagePartSortedValues();
 
 	/**
-	 * Returns the value-side cardinality map to persist into the {@link SortIndexStoragePart}. Owner mode materializes
-	 * the sparse `cardinality > 1` map; view mode emits an empty map.
+	 * Returns the value-side sparse cardinality columns to persist into the {@link SortIndexStoragePart}. Owner mode walks
+	 * its value tree once, emitting only the `cardinality > 1` values in ascending order (no intermediate map); view mode
+	 * emits empty columns (the slim part re-derives them from the shared FILTER part on load).
 	 */
 	@Nonnull
-	protected abstract Map<Serializable, Integer> storagePartCardinalities();
+	protected abstract CardinalityColumns storagePartCardinalities();
 
 	/**
 	 * Pre-removal cardinality of a value whose presence is guaranteed by the public `removeRecord` callers (always
@@ -996,6 +1001,20 @@ public abstract sealed class SortIndex
 		 * Returns the cardinality of the pair the cursor currently sits on (after {@link #next()}).
 		 */
 		int cardinality();
+	}
+
+	/**
+	 * The value-side sparse cardinality columns handed to {@link SortIndexStoragePart}: positionally-aligned distinct
+	 * values and their cardinalities, holding only entries whose `cardinality > 1` (cardinality `1` is implied). Owner
+	 * mode fills these in ascending value order directly from its value tree; view mode hands back empty columns.
+	 *
+	 * @param values       the distinct values with cardinality `> 1`, in ascending order
+	 * @param cardinalities the cardinalities (each `> 1`) positionally aligned with `values`
+	 */
+	public record CardinalityColumns(
+		@Nonnull Serializable[] values,
+		@Nonnull int[] cardinalities
+	) {
 	}
 
 	/**

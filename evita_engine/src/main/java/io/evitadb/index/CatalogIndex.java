@@ -153,8 +153,10 @@ public class CatalogIndex implements
 			trappedChanges.addChangeToStore(createStoragePart());
 		}
 		for (Entry<AttributeKey, GlobalUniqueIndex> entry : this.uniqueIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entry.getKey()))
-				.ifPresent(trappedChanges::addChangeToStore);
+			// granular flush: a PAGED index emits its changed leaf pages + freed-page removals + a paged root; a SINGLE
+			// index emits the inline root (and collapse removals if it just shrank from PAGED). See
+			// GlobalUniqueIndex#appendStorageParts.
+			entry.getValue().appendStorageParts(entry.getKey(), trappedChanges);
 		}
 	}
 

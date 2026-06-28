@@ -152,8 +152,8 @@ public class ReferenceTypeCardinalityIndex
 			"Index primary key must not be zero!"
 		);
 
-		final boolean added = addCardinality(NumberUtils.join(indexPrimaryKey, 0));
-		if (addCardinality(-1L * NumberUtils.join(indexPrimaryKey, referencedEntityPrimaryKey))) {
+		final boolean added = addCardinality(NumberUtils.pack(indexPrimaryKey, 0));
+		if (addCardinality(-1L * NumberUtils.pack(indexPrimaryKey, referencedEntityPrimaryKey))) {
 			TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
 			if (indexIdBitmap == null) {
 				indexIdBitmap = new TransactionalBitmap();
@@ -189,8 +189,8 @@ public class ReferenceTypeCardinalityIndex
 			"Index primary key must not be zero!"
 		);
 
-		final boolean removed = removeCardinality(NumberUtils.join(indexPrimaryKey, 0));
-		if (removeCardinality(-1L * NumberUtils.join(indexPrimaryKey, referencedEntityPrimaryKey))) {
+		final boolean removed = removeCardinality(NumberUtils.pack(indexPrimaryKey, 0));
+		if (removeCardinality(-1L * NumberUtils.pack(indexPrimaryKey, referencedEntityPrimaryKey))) {
 			final TransactionalBitmap indexIdBitmap = this.referencedPrimaryKeysIndex.get(referencedEntityPrimaryKey);
 			Assert.isPremiseValid(
 				indexIdBitmap != null,

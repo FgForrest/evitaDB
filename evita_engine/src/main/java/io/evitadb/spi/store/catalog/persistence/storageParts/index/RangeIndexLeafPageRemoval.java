@@ -40,7 +40,7 @@ import java.io.Serial;
  *
  * Like {@link RangeIndexLeafPagePart} on the write path, this carries the sub-index `(entityIndexPrimaryKey,
  * attributeKey)` identity rather than a pre-resolved `streamId`: the writable {@link KeyCompressor} lives store-side, so
- * the target primary key `join(streamId, pageSequence)` is resolved store-side in {@link #computeUniquePartIdAndSet} with
+ * the target primary key `pack(streamId, pageSequence)` is resolved store-side in {@link #computeUniquePartIdAndSet} with
  * {@link StreamKind#RANGE} (the `streamId` is already registered — the page existed before it was freed). The part
  * carries no payload and is never written, so it needs no Kryo serializer; the flush drain resolves its key and removes
  * the leaf page.
@@ -63,7 +63,7 @@ public class RangeIndexLeafPageRemoval implements DeferredRemovalStoragePart {
 	 */
 	private final int pageSequence;
 	/**
-	 * The resolved storage-part primary key `join(streamId, pageSequence)`; `null` until {@link #computeUniquePartIdAndSet}
+	 * The resolved storage-part primary key `pack(streamId, pageSequence)`; `null` until {@link #computeUniquePartIdAndSet}
 	 * resolves it store-side.
 	 */
 	@Nullable private Long storagePartPK;

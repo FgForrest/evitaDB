@@ -80,7 +80,7 @@ public class FacetIndexStoragePart implements StoragePart {
 	}
 
 	public static long computeUniquePartId(Integer entityIndexPrimaryKey, String referenceName, KeyCompressor keyCompressor) {
-		return NumberUtils.join(entityIndexPrimaryKey, keyCompressor.getId(new ReferenceNameKey(referenceName)));
+		return NumberUtils.pack(entityIndexPrimaryKey, keyCompressor.getId(new ReferenceNameKey(referenceName)));
 	}
 
 	@Override

@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.RecordWithCompressedId;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -36,6 +37,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -73,10 +75,18 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	 */
 	@Getter private final Serializable[] sortedRecordsValues;
 	/**
-	 * Map contains only values with cardinalities greater than one. It is expected that records will have scarce values
-	 * with low cardinality so this should save a lot of memory.
+	 * Sparse value column holding only the distinct values whose cardinality is greater than one (positionally aligned
+	 * with {@link #cardinalities}); values absent here have an implied cardinality of `1`. Records are expected to carry
+	 * scarce values with low cardinality, so this sparse representation saves a lot of memory. When produced by the live
+	 * index (the persistence path) these values are in ascending order, aligned with {@link #sortedRecordsValues} — the
+	 * serializer's per-value block-length computation relies on that; a part reconstructed from disk carries them in
+	 * stored order and is only used to reseed the index (never re-serialized directly).
 	 */
-	@Getter private final Map<Serializable, Integer> valueCardinalities;
+	@Getter private final Serializable[] cardinalityValues;
+	/**
+	 * The cardinalities (each `> 1`) positionally aligned with {@link #cardinalityValues}.
+	 */
+	@Getter private final int[] cardinalities;
 	/**
 	 * The `indexedDecimalPlaces` scale frozen at index-creation time and persisted with the index. `BigDecimal` sort
 	 * values are stored as order-preserving scaled `int`s at this scale; it is `0` for every non-`BigDecimal` attribute
@@ -130,8 +140,11 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	}
 
 	/**
-	 * Canonical constructor carrying every field, including the frozen `indexedDecimalPlaces` scale and the
-	 * already-assigned storage part PK.
+	 * Map-based canonical constructor carrying every field, including the frozen `indexedDecimalPlaces` scale and the
+	 * already-assigned storage part PK. The sparse `valueCardinalities` map (only values with cardinality `> 1`) is
+	 * folded into the ascending sparse {@link #cardinalityValues} / {@link #cardinalities} columns by iterating the
+	 * already-ascending `sortedRecordsValues`, so the stored columns keep the order the serializer relies on. Retained so
+	 * the load / migration / backward-compatible paths (which carry a map) construct the part unchanged.
 	 */
 	public SortIndexStoragePart(
 		@Nonnull Integer entityIndexPrimaryKey,
@@ -143,14 +156,104 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 		int indexedDecimalPlaces,
 		@Nullable Long storagePartPK
 	) {
+		this(
+			entityIndexPrimaryKey, attributeIndexKey, comparatorBase,
+			sortedRecords, sortedRecordsValues,
+			sparseCardinalityValues(sortedRecordsValues, valueCardinalities),
+			sparseCardinalities(sortedRecordsValues, valueCardinalities),
+			indexedDecimalPlaces, storagePartPK
+		);
+	}
+
+	/**
+	 * Array-based canonical constructor carrying every field. The sparse `cardinalityValues` / `cardinalities` columns
+	 * must be positionally aligned and, when produced by the live index for persistence, in ascending value order (a
+	 * subset of `sortedRecordsValues`). This is the allocation-free path used by the live index, which produces the
+	 * columns directly from its value tree without materializing an intermediate map.
+	 */
+	public SortIndexStoragePart(
+		@Nonnull Integer entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nonnull int[] sortedRecords,
+		@Nonnull Serializable[] sortedRecordsValues,
+		@Nonnull Serializable[] cardinalityValues,
+		@Nonnull int[] cardinalities,
+		int indexedDecimalPlaces,
+		@Nullable Long storagePartPK
+	) {
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.comparatorBase = comparatorBase;
 		this.sortedRecords = sortedRecords;
 		this.sortedRecordsValues = sortedRecordsValues;
-		this.valueCardinalities = valueCardinalities;
+		this.cardinalityValues = cardinalityValues;
+		this.cardinalities = cardinalities;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.storagePartPK = storagePartPK;
+	}
+
+	/**
+	 * Folds the sparse cardinality map into an ascending value column by walking the already-ascending
+	 * `sortedRecordsValues` and keeping only the values whose mapped cardinality is `> 1`.
+	 */
+	@Nonnull
+	private static Serializable[] sparseCardinalityValues(
+		@Nonnull Serializable[] sortedRecordsValues,
+		@Nonnull Map<Serializable, Integer> valueCardinalities
+	) {
+		if (valueCardinalities.isEmpty()) {
+			return new Serializable[0];
+		}
+		final Serializable[] result = new Serializable[valueCardinalities.size()];
+		int n = 0;
+		for (final Serializable value : sortedRecordsValues) {
+			final Integer cardinality = valueCardinalities.get(value);
+			if (cardinality != null && cardinality > 1) {
+				result[n++] = value;
+			}
+		}
+		return n == result.length ? result : Arrays.copyOf(result, n);
+	}
+
+	/**
+	 * The cardinalities (each `> 1`) positionally aligned with {@link #sparseCardinalityValues}, in the same ascending
+	 * `sortedRecordsValues` order.
+	 */
+	@Nonnull
+	private static int[] sparseCardinalities(
+		@Nonnull Serializable[] sortedRecordsValues,
+		@Nonnull Map<Serializable, Integer> valueCardinalities
+	) {
+		if (valueCardinalities.isEmpty()) {
+			return new int[0];
+		}
+		final int[] result = new int[valueCardinalities.size()];
+		int n = 0;
+		for (final Serializable value : sortedRecordsValues) {
+			final Integer cardinality = valueCardinalities.get(value);
+			if (cardinality != null && cardinality > 1) {
+				result[n++] = cardinality;
+			}
+		}
+		return n == result.length ? result : Arrays.copyOf(result, n);
+	}
+
+	/**
+	 * Rebuilds the sparse `value → cardinality` map from the {@link #cardinalityValues} / {@link #cardinalities} columns.
+	 * Used only by the rare load / migration / backward-compatible paths that consume a map; the persistence (write) path
+	 * reads the columns directly, so no map is allocated on the commit/flush hot path.
+	 *
+	 * @return the sparse map of values whose cardinality is `> 1`
+	 */
+	@Nonnull
+	public Map<Serializable, Integer> getValueCardinalities() {
+		final Map<Serializable, Integer> result =
+			CollectionUtils.createHashMap(this.cardinalityValues.length);
+		for (int i = 0; i < this.cardinalityValues.length; i++) {
+			result.put(this.cardinalityValues[i], this.cardinalities[i]);
+		}
+		return result;
 	}
 
 	@Nonnull

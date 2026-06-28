@@ -48,6 +48,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey.StreamKind;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 
@@ -171,8 +172,10 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	 * tree already exists under the same key (foldable unique — its unique key equals its filter
 	 * key), a view-mode {@link UniqueIndex} is built over the first-pass filter view and pushed
 	 * into `uniqueViewIndexes`; any persisted value map / record bitmap is ignored (self-healing
-	 * to a slim part on reflush). Otherwise a standalone {@link OwnerUniqueIndex} is restored from
-	 * the full part into `uniqueIndexes`.
+	 * to a slim part on reflush). Otherwise a standalone {@link OwnerUniqueIndex} is restored into
+	 * `uniqueIndexes` in one of two shapes: PAGED, where the value tree's leaf pages are read in
+	 * ascending key order and reassembled boundary-stable via {@link OwnerUniqueIndex#fromPersistedPages},
+	 * or SINGLE, restored from the full inline part.
 	 *
 	 * @param entityType        entity type name passed to the rebuilt index
 	 * @param uniqueIndexes     owner (standalone) target map, populated for non-foldable keys
@@ -216,8 +219,40 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					filterIndexes.get(attributeIndexKey)
 				)
 			);
+		} else if (part.isPaged()) {
+			// OWNER, PAGED: standalone unique index whose value tree was persisted as individual leaf pages. Resolve the
+			// stream id from the sub-index identity (registered at the first PAGED write) and read every listed leaf page
+			// in ascending key order, then reassemble boundary-stable so the first post-restart commit rewrites only
+			// genuinely-changed leaves.
+			final int streamId = service.getReadOnlyKeyCompressor().getId(
+				new LeafStreamKey(entityIndexId, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.UNIQUE))
+			);
+			final int[] orderedPageSequences = part.getLeafPageSequences();
+			final Serializable[][] perPageValues = new Serializable[orderedPageSequences.length][];
+			final int[][] perPageRecordIds = new int[orderedPageSequences.length][];
+			for (int i = 0; i < orderedPageSequences.length; i++) {
+				final int pageSequence = orderedPageSequences[i];
+				final UniqueIndexLeafPagePart leafPage = service.getStoragePart(
+					catalogVersion, UniqueIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+					UniqueIndexLeafPagePart.class
+				);
+				isPremiseValid(
+					leafPage != null,
+					"Unique index leaf page " + pageSequence + " (stream " + streamId + ") for key " + key.attribute() +
+						" was not found in persistent storage!"
+				);
+				perPageValues[i] = leafPage.getValues();
+				perPageRecordIds[i] = leafPage.getRecordIds();
+			}
+			uniqueIndexes.put(
+				attributeIndexKey,
+				OwnerUniqueIndex.fromPersistedPages(
+					entityType, attributeIndexKey, part.getType(),
+					orderedPageSequences, perPageValues, perPageRecordIds, part.getHighWaterPageSequence()
+				)
+			);
 		} else {
-			// OWNER: standalone (global-unique-localized) unique index restored from its full part
+			// OWNER, SINGLE: standalone (global-unique-localized) unique index restored from its full inline part
 			uniqueIndexes.put(
 				attributeIndexKey,
 				new OwnerUniqueIndex(
@@ -225,12 +260,12 @@ public final class AttributeIndexLoader implements ComponentLoader {
 					attributeIndexKey,
 					part.getType(),
 					Objects.requireNonNull(
-						part.getUniqueValueToRecordId(),
-						"Owner unique part must carry the value-to-record map!"
+						part.getValues(),
+						"Owner unique part must carry the inline value column!"
 					),
 					Objects.requireNonNull(
 						part.getRecordIds(),
-						"Owner unique part must carry the record-id bitmap!"
+						"Owner unique part must carry the inline payload column!"
 					)
 				)
 			);
@@ -303,7 +338,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 	/**
 	 * Loads the OWNED shared value→`ValueToRecord` tree (the bucket axis) of a FILTER part. A `SINGLE` part carries its
 	 * buckets inline and is rebuilt via the standard buckets constructor; a `PAGED` part reads every listed leaf page in
-	 * order — keyed by `join(streamId, pageSequence)`, the stream id recomputed from the sub-index identity via the read-only
+	 * order — keyed by `pack(streamId, pageSequence)`, the stream id recomputed from the sub-index identity via the read-only
 	 * compressor (it was registered at the first `PAGED` write) — and reassembles boundary-stable (one leaf per persisted
 	 * page, page identities + change-detection baseline restored), so the first post-restart commit rewrites only
 	 * genuinely-changed leaves rather than re-paginating the whole index.

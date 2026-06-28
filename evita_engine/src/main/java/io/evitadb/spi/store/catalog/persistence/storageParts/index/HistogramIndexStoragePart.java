@@ -184,7 +184,7 @@ public class HistogramIndexStoragePart implements StoragePart {
 		@Nullable java.util.Locale locale,
 		@Nonnull KeyCompressor keyCompressor
 	) {
-		return NumberUtils.join(
+		return NumberUtils.pack(
 			entityIndexPrimaryKey,
 			keyCompressor.getId(new HistogramIndexKey(histogramName, locale))
 		);

@@ -60,7 +60,9 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 35, FilterIndexLeafPagePart.class),
 			new StoragePartRecord((byte) 36, RangeIndexLeafPagePart.class),
 			new StoragePartRecord((byte) 37, EntityIdsStoragePart.class),
-			new StoragePartRecord((byte) 38, PriceListAndCurrencySuperIndexLeafPagePart.class)
+			new StoragePartRecord((byte) 38, PriceListAndCurrencySuperIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 39, GlobalUniqueIndexLeafPagePart.class),
+			new StoragePartRecord((byte) 40, UniqueIndexLeafPagePart.class)
 		);
 	}
 

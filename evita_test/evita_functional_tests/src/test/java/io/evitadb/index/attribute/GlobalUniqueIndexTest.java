@@ -28,13 +28,14 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.util.HashMap;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -55,7 +56,7 @@ class GlobalUniqueIndexTest {
 	private final EntityReferenceWithLocale localizedProduct2FrenchRef = new EntityReferenceWithLocale(Entities.PRODUCT, 2, Locale.FRENCH);
 	private final EntityReferenceWithLocale localizedProduct3Ref = new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.ENGLISH);
 	private final GlobalUniqueIndex tested = new GlobalUniqueIndex(
-		Scope.LIVE, new AttributeKey("whatever"), String.class, new HashMap<>(), new HashMap<>()
+		Scope.LIVE, new AttributeKey("whatever"), String.class
 	);
 
 	@BeforeEach
@@ -151,6 +152,55 @@ class GlobalUniqueIndexTest {
 		assertEquals(this.productRef, this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null));
 		assertNull(this.tested.getEntityReferenceByUniqueValue("B", Locale.ENGLISH).orElse(null));
 		assertNull(this.tested.getEntityReferenceByUniqueValue("C", Locale.ENGLISH).orElse(null));
+	}
+
+	@Test
+	void shouldRoundTripLocalizedTupleThroughPackedPayload() {
+		// the (entityType, primaryKey, locale) tuple must survive the pack/unpack at the long-payload tree boundary
+		this.tested.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2);
+		assertEquals(
+			this.localizedProduct2EnglishRef,
+			this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElse(null)
+		);
+		// the resolved reference carries the very same entity type, primary key and locale that were registered
+		final EntityReferenceWithLocale resolved = this.tested.getEntityReferenceByUniqueValue("A", Locale.ENGLISH).orElseThrow();
+		assertEquals(Entities.PRODUCT, resolved.getType());
+		assertEquals(2, resolved.getPrimaryKey());
+		assertEquals(Locale.ENGLISH, resolved.locale());
+	}
+
+	@Test
+	void shouldFailWhenEntityTypeIdExceedsPayloadField() {
+		// a synthetic entity type whose primary key overflows the 16-bit packed payload field must be rejected loudly
+		// rather than silently truncated
+		final EntityCollection bigCollection = Mockito.mock(EntityCollection.class);
+		Mockito.when(bigCollection.getEntityTypePrimaryKey()).thenReturn(0x10000);
+		Mockito.when(this.catalog.getCollectionForEntityOrThrowException("BIG")).thenReturn(bigCollection);
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> this.tested.registerUniqueKey("A", "BIG", null, 1)
+		);
+	}
+
+	@Test
+	void shouldAllowSameValueAcrossLocalesForLocalizedAttribute() {
+		// a localized (within-locale-unique) attribute permits the same value to coexist across different locales
+		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
+			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
+		);
+		localized.attachToCatalog(null, this.catalog);
+		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2);
+		// registering the same value under a different locale must NOT raise a uniqueness violation
+		assertDoesNotThrow(() -> localized.registerUniqueKey("A", Entities.PRODUCT, Locale.FRENCH, 3));
+		// the value resolves under the last writer's locale (the value-keyed tree overwrites like the HashMap it replaces)
+		assertEquals(
+			new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.FRENCH),
+			localized.getEntityReferenceByUniqueValue("A", Locale.FRENCH).orElse(null)
+		);
+		// both primary keys remain visible in the per-entity-type record set
+		final Bitmap productRecords = localized.getRecordIds(Entities.PRODUCT);
+		assertTrue(productRecords.contains(2));
+		assertTrue(productRecords.contains(3));
 	}
 
 }

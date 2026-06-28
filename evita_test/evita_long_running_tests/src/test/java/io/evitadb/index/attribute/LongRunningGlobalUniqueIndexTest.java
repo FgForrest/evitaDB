@@ -158,11 +158,13 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 								codeBuffer
 						);
 
+						final GlobalUniqueIndex.InlineSnapshot snapshot = committed.inlineSnapshot();
 						final GlobalUniqueIndex newGlobalUniqueIndex = new GlobalUniqueIndex(
 							Scope.LIVE,
 							committed.getAttributeKey(),
 							committed.getType(),
-							new HashMap<>(committed.getUniqueValueToEntityReference()),
+							snapshot.values(),
+							snapshot.payloads(),
 							new HashMap<>(committed.getLocaleIndex())
 						);
 						newGlobalUniqueIndex.attachToCatalog(null, this.catalog);

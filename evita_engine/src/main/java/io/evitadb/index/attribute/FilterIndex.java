@@ -40,13 +40,13 @@ import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
@@ -1108,25 +1108,6 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	}
 
 	/**
-	 * Method creates container for storing filter index from memory to the persistent storage. The dirtiness decision
-	 * is delegated to the concrete subclass via {@link #isDirty()} (owner flag vs shared-tree flag).
-	 */
-	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
-		if (isDirty()) {
-			return new FilterIndexStoragePart(
-				entityIndexPrimaryKey, this.attributeIndexKey, this.attributeType,
-				this.invertedIndex.getValueToRecordBitmap(),
-				this.rangeIndex,
-				this.indexedDecimalPlaces,
-				null
-			);
-		} else {
-			return null;
-		}
-	}
-
-	/**
 	 * Emits this filter index's modified storage parts into `sink`. A clean index emits nothing. A
 	 * dirty index whose bucket tree spans a single leaf emits the inline `SINGLE` root (today's whole-index part); a
 	 * dirty index whose tree spans multiple leaves emits the granular `PAGED` shape: one {@link FilterIndexLeafPagePart}
@@ -1175,7 +1156,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		int entityIndexPrimaryKey, @Nonnull AttributeKeyWithIndexType streamKey, @Nonnull TrappedChanges sink
 	) {
 		if (this.invertedIndex.isPaged()) {
-			final InvertedIndex.PagedEmission emission = this.invertedIndex.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> emission = this.invertedIndex.collectChangedPages();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				sink.addChangeToStore(
 					new FilterIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets())
@@ -1215,7 +1196,7 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		int entityIndexPrimaryKey, @Nonnull AttributeKeyWithIndexType streamKey, @Nonnull TrappedChanges sink
 	) {
 		if (this.rangeIndex != null && this.rangeIndex.isPaged()) {
-			final RangeIndex.PagedEmission emission = this.rangeIndex.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> emission = this.rangeIndex.collectChangedPages();
 			for (final RangeIndex.RangePage page : emission.changedPages()) {
 				sink.addChangeToStore(
 					new RangeIndexLeafPagePart(entityIndexPrimaryKey, streamKey, page.pageSequence(), page.points())

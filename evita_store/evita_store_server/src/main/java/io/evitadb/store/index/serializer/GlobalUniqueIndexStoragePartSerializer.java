@@ -30,9 +30,9 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
-import io.evitadb.index.attribute.GlobalUniqueIndex.EntityWithTypeTuple;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -40,6 +40,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -59,17 +60,33 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 		output.writeVarLong(uniquePartId, true);
 		kryo.writeObject(output, uniqueIndex.getScope());
 		output.writeVarInt(this.keyCompressor.getId(uniqueIndex.getAttributeKey()), true);
-		final Class plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
+		final Class<?> plainType = uniqueIndex.getType().isArray() ? uniqueIndex.getType().getComponentType() : uniqueIndex.getType();
 		kryo.writeClass(output, plainType);
 
-		final Map<Serializable, EntityWithTypeTuple> uniqueValueToRecordId = uniqueIndex.getUniqueValueToRecordId();
-		output.writeVarInt(uniqueValueToRecordId.size(), true);
-		for (Entry<Serializable, EntityWithTypeTuple> entry : uniqueValueToRecordId.entrySet()) {
-			kryo.writeObject(output, entry.getKey());
-			final EntityWithTypeTuple value = entry.getValue();
-			output.writeInt(value.entityType(), true);
-			output.writeInt(value.entityPrimaryKey());
-			output.writeInt(value.locale());
+		// the PAGED/SINGLE discriminator: a PAGED root keeps the value→tuple data in GlobalUniqueIndexLeafPagePart leaf
+		// pages and carries only the page metadata here; a SINGLE root carries the whole value map inline as before. The
+		// locale map is written INLINE on the root in both shapes.
+		final boolean paged = uniqueIndex.isPaged();
+		output.writeBoolean(paged);
+		if (paged) {
+			output.writeVarInt(uniqueIndex.getHighWaterPageSequence(), true);
+			final int[] leafPageSequences = uniqueIndex.getLeafPageSequences();
+			output.writeVarInt(leafPageSequences.length, true);
+			for (final int leafPageSequence : leafPageSequences) {
+				output.writeVarInt(leafPageSequence, true);
+			}
+		} else {
+			final Serializable[] values = Objects.requireNonNull(
+				uniqueIndex.getValues(), "A SINGLE global unique part must carry the inline value column!"
+			);
+			final long[] payloads = Objects.requireNonNull(
+				uniqueIndex.getPayloads(), "A SINGLE global unique part must carry the inline payload column!"
+			);
+			output.writeVarInt(values.length, true);
+			for (int i = 0; i < values.length; i++) {
+				kryo.writeObject(output, values[i]);
+				output.writeLong(payloads[i]);
+			}
 		}
 
 		final Map<Integer, Locale> localeIndex = uniqueIndex.getLocaleIndex();
@@ -87,14 +104,30 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 		final AttributeKey attributeKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
 
-		final int uniqueValueCount = input.readVarInt(true);
-		final Map<Serializable, EntityWithTypeTuple> uniqueIndex = createHashMap(uniqueValueCount);
-		for (int i = 0; i < uniqueValueCount; i++) {
-			final Serializable key = kryo.readObject(input, attributeType);
-			final int entityType = input.readVarInt(true);
-			final int primaryKey = input.readInt();
-			final int locale = input.readInt();
-			uniqueIndex.put(key, new EntityWithTypeTuple(entityType, primaryKey, locale));
+		final boolean paged = input.readBoolean();
+		final int highWaterPageSequence;
+		final int[] leafPageSequences;
+		final Serializable[] values;
+		final long[] payloads;
+		if (paged) {
+			highWaterPageSequence = input.readVarInt(true);
+			final int leafPageCount = input.readVarInt(true);
+			leafPageSequences = new int[leafPageCount];
+			for (int i = 0; i < leafPageCount; i++) {
+				leafPageSequences[i] = input.readVarInt(true);
+			}
+			values = null;
+			payloads = null;
+		} else {
+			highWaterPageSequence = -1;
+			leafPageSequences = ArrayUtils.EMPTY_INT_ARRAY;
+			final int uniqueValueCount = input.readVarInt(true);
+			values = new Serializable[uniqueValueCount];
+			payloads = new long[uniqueValueCount];
+			for (int i = 0; i < uniqueValueCount; i++) {
+				values[i] = kryo.readObject(input, attributeType);
+				payloads[i] = input.readLong();
+			}
 		}
 
 		final int localeCount = input.readVarInt(true);
@@ -106,9 +139,13 @@ public class GlobalUniqueIndexStoragePartSerializer extends Serializer<GlobalUni
 			);
 		}
 
-		return new GlobalUniqueIndexStoragePart(
-			scope, attributeKey, attributeType, uniqueIndex, localeIndex, uniquePartId
-		);
+		return paged
+			? GlobalUniqueIndexStoragePart.paged(
+				scope, attributeKey, attributeType, highWaterPageSequence, leafPageSequences, localeIndex, uniquePartId
+			)
+			: new GlobalUniqueIndexStoragePart(
+				scope, attributeKey, attributeType, values, payloads, localeIndex, uniquePartId
+			);
 	}
 
 }

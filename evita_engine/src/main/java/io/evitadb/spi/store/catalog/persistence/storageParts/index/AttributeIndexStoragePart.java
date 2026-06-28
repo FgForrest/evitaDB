@@ -61,7 +61,7 @@ public interface AttributeIndexStoragePart extends StoragePart {
 		@Nonnull KeyCompressor keyCompressor
 	) {
 		final int id = keyCompressor.getId(new AttributeKeyWithIndexType(attributeKey, indexType));
-		return NumberUtils.join(entityIndexPrimaryKey, id);
+		return NumberUtils.pack(entityIndexPrimaryKey, id);
 	}
 
 	/**

@@ -24,57 +24,98 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.index.bPlusTree.IntRecordBucketTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.MapChanges;
-import io.evitadb.index.map.PersistentTransactionalMap;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.restorePageStream;
 import static io.evitadb.utils.Assert.isTrue;
-import static java.util.Optional.ofNullable;
 
 /**
  * Owner variant of {@link UniqueIndex}. It OWNS its value→record-id mappings and the record-id bitmap, and fully
  * participates in the commit cycle. Used for global-unique-localized attributes whose locale-less uniqueness cannot be
  * folded into the per-locale shared filter tree.
  *
- * The value to record id relation is kept in a {@link PersistentTransactionalMap} (backed by a persistent immutable
- * {@link io.evitadb.dataType.champ.ChampMap}), so look-ups run in `O(log₃₂ N)` and commits derive the next snapshot
- * by path-copying only the mutated keys instead of rebuilding the whole map.
+ * The value to record id relation is kept in a {@link TransactionalBucketBPlusTree} keyed by the unique value, where
+ * each bucket holds exactly one record id (uniqueness is enforced on insert, so the bucket's overflow bitmap is never
+ * allocated). String keys are stored in a prefix-compressed front-coded leaf column (auto-selected by
+ * {@link ValueColumnFactory#forKey}), which is the memory win driving this backing: URL-slug unique attributes share
+ * long common prefixes that a hash map cannot exploit. Persistence is granular — large indexes are written as
+ * individual {@link UniqueIndexLeafPagePart} leaf pages so a single edit rewrites one ~KB leaf instead of the whole
+ * value map (see {@link #appendStorageParts}).
+ *
+ * The index keeps RAW values (no normalization) ordered by a comparator consistent with value equality — natural order
+ * for every type except {@link BigDecimal}, which uses an exact value+scale order so {@code 1.0} and {@code 1.00} stay
+ * distinct unique keys (matching the {@code HashMap} semantics this backing replaces).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@SuppressWarnings({"rawtypes", "unchecked"})
 public final class OwnerUniqueIndex extends UniqueIndex {
 	@Serial private static final long serialVersionUID = 2639205026498958517L;
+
+	/**
+	 * Single page stream per owner unique index — its value bucket tree (mirrors {@code InvertedIndex.BUCKET_PAGE_STREAM}).
+	 */
+	private static final int UNIQUE_PAGE_STREAM = 0;
+
 	/**
 	 * Internal flag that tracks whether the index contents became dirty and need to be persisted.
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
 	/**
-	 * Keeps the unique value to record id mappings. A fairly large map is expected here, so it is backed by a
-	 * persistent immutable {@link io.evitadb.dataType.champ.ChampMap} via {@link PersistentTransactionalMap}: the
-	 * values are plain {@link Integer} record ids (no nested transactional state), so commit derives the next
-	 * snapshot in `O(Δ·log N)` instead of rebuilding the whole map. Ordering is irrelevant here — record ordering
-	 * is carried by {@link #recordIds}.
+	 * The plain (array-unwrapped) attribute type — drives the comparator and leaf-column choice for tree rebuilds.
 	 */
-	@Nonnull private final PersistentTransactionalMap<Serializable, Integer> uniqueValueToRecordId;
+	@Nonnull private final Class<? extends Serializable> plainType;
+	/**
+	 * The value order used by {@link #tree} — see {@link UniqueIndexBPlusTreeSupport#comparatorFor} (natural order, or
+	 * the scale-preserving exact order for `BigDecimal`).
+	 */
+	@Nonnull private final Comparator<Comparable<?>> comparator;
+	/**
+	 * Keeps the unique value to record id mappings. Each bucket holds exactly one record id; for String keys the leaf
+	 * column is front-coded. Large trees persist granularly as leaf pages (see {@link #pageStreamRegistry}).
+	 */
+	@Nonnull private final IntRecordBucketTree tree;
+	/**
+	 * Owner-resident page bookkeeping for the granular leaf-page storage layout (the advance-only page allocator, the
+	 * high-water and the live-page set of {@link #tree}). It lives OUTSIDE transactional memory and is carried BY
+	 * REFERENCE through {@link #createCopyWithMergedTransactionalMemory}, exactly like {@code InvertedIndex}.
+	 */
+	@Nonnull private final PageStreamRegistry pageStreamRegistry;
 	/**
 	 * Keeps information about all record ids present in this index.
 	 */
@@ -87,6 +128,22 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Nullable private transient Formula memoizedAllRecordsFormula;
 
 	/**
+	 * Creates a fresh, empty value tree (int payload column holding the owning record id) ordered by the given
+	 * comparator — see {@link UniqueIndexBPlusTreeSupport#newIntPayloadTree}.
+	 *
+	 * @param plainType  the plain (array-unwrapped) attribute type
+	 * @param comparator the value order
+	 * @return the fresh empty int-payload bucket tree
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree createEmptyTree(
+		@Nonnull Class<?> plainType,
+		@Nonnull Comparator<Comparable<?>> comparator
+	) {
+		return UniqueIndexBPlusTreeSupport.newIntPayloadTree(plainType, comparator);
+	}
+
+	/**
 	 * Creates an empty index for a freshly encountered attribute - the entry point when an entity introduces a
 	 * unique attribute that has not been indexed yet.
 	 *
@@ -97,43 +154,117 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	public OwnerUniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType) {
 		super(entityType, attributeIndexKey, attributeType);
 		this.dirty = new TransactionalBoolean();
-		this.uniqueValueToRecordId = new PersistentTransactionalMap<>(new HashMap<>());
+		this.plainType = plainTypeOf(attributeType);
+		this.comparator = comparatorFor(this.plainType);
+		this.tree = createEmptyTree(this.plainType, this.comparator);
+		this.pageStreamRegistry = new PageStreamRegistry();
 		this.recordIds = new TransactionalBitmap();
 	}
 
 	/**
-	 * Reconstructs the index from a persisted value to record id map - the path taken when loading an index back
-	 * from storage. The {@link #recordIds} bitmap is rebuilt from the map values, so no separate bitmap needs to be
-	 * persisted alongside the map.
+	 * Reconstructs a `SINGLE`-shape index from its persisted inline value/payload columns - the path taken when loading
+	 * an inline (SINGLE) index back from storage. The tree is rebuilt by inserting every `(value, recordId)` pair and the
+	 * {@link #recordIds} membership bitmap is rebuilt from the payload column (its deduplicated set), so no separate
+	 * bitmap needs to be persisted alongside the columns.
 	 *
-	 * @param entityType            type of the entity this index belongs to
-	 * @param attributeIndexKey     key identifying the indexed attribute
-	 * @param attributeType         declared type of the attribute value
-	 * @param uniqueValueToRecordId restored unique value to record id mappings
+	 * @param entityType        type of the entity this index belongs to
+	 * @param attributeIndexKey key identifying the indexed attribute
+	 * @param attributeType     declared type of the attribute value
+	 * @param values            restored unique values in ascending key order
+	 * @param recordIds         restored record ids, positionally aligned with `values`
 	 */
-	public OwnerUniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Map<Serializable, Integer> uniqueValueToRecordId) {
+	public OwnerUniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Serializable[] values, @Nonnull int[] recordIds) {
 		super(entityType, attributeIndexKey, attributeType);
 		this.dirty = new TransactionalBoolean();
-		this.uniqueValueToRecordId = new PersistentTransactionalMap<>(uniqueValueToRecordId);
-		this.recordIds = new TransactionalBitmap(uniqueValueToRecordId.values().stream().mapToInt(it -> it).toArray());
+		this.plainType = plainTypeOf(attributeType);
+		this.comparator = comparatorFor(this.plainType);
+		this.tree = createEmptyTree(this.plainType, this.comparator);
+		this.pageStreamRegistry = new PageStreamRegistry();
+		this.recordIds = new TransactionalBitmap(recordIds);
+		seedTree(values, recordIds);
 	}
 
 	/**
-	 * Reconstructs the index from both the value to record id map and an already-built record id bitmap - the path
-	 * taken when assembling a committed snapshot in {@link #createCopyWithMergedTransactionalMemory}, where the
-	 * merged bitmap is supplied directly and need not be recomputed from the map values.
+	 * Private constructor used by {@link #createCopyWithMergedTransactionalMemory} and {@link #fromPersistedPages} to
+	 * wrap an already-built tree directly (no re-seeding). The committed/assembled tree already carries its column kind
+	 * and leaf page sequences, so the page bookkeeping is carried by reference.
+	 *
+	 * @param entityType         type of the entity this index belongs to
+	 * @param attributeIndexKey  key identifying the indexed attribute
+	 * @param attributeType      declared type of the attribute value
+	 * @param tree               the already-built value tree
+	 * @param recordIds          bitmap of all record ids contained in the tree
+	 * @param pageStreamRegistry the owner-resident page bookkeeping, carried BY REFERENCE
+	 */
+	private OwnerUniqueIndex(
+		@Nonnull String entityType,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		@Nonnull TransactionalBucketBPlusTree tree,
+		@Nonnull Bitmap recordIds,
+		@Nonnull PageStreamRegistry pageStreamRegistry
+	) {
+		super(entityType, attributeIndexKey, attributeType);
+		this.dirty = new TransactionalBoolean();
+		this.plainType = plainTypeOf(attributeType);
+		this.comparator = comparatorFor(this.plainType);
+		this.tree = tree;
+		this.pageStreamRegistry = pageStreamRegistry;
+		this.recordIds = new TransactionalBitmap(recordIds);
+	}
+
+	/**
+	 * Rebuilds a `PAGED` owner unique index from its persisted leaf pages, preserving the original leaf boundaries and
+	 * page identities (mirrors {@code InvertedIndex.fromPersistedPages}). One leaf per persisted page is built, each
+	 * stamped with its page sequence, and the page-stream bookkeeping (high-water + live set) is restored, so the first
+	 * post-restart commit rewrites only genuinely-changed leaves rather than re-paginating the whole index.
 	 *
 	 * @param entityType            type of the entity this index belongs to
 	 * @param attributeIndexKey     key identifying the indexed attribute
 	 * @param attributeType         declared type of the attribute value
-	 * @param uniqueValueToRecordId unique value to record id mappings
-	 * @param recordIds             bitmap of all record ids contained in the map above
+	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order
+	 * @param perPageValues         the values of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param perPageRecordIds      the record ids of each leaf page, positionally aligned with `perPageValues`
+	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
+	 * @return the rebuilt, boundary-stable `PAGED` owner unique index
 	 */
-	public OwnerUniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Map<Serializable, Integer> uniqueValueToRecordId, @Nonnull Bitmap recordIds) {
-		super(entityType, attributeIndexKey, attributeType);
-		this.dirty = new TransactionalBoolean();
-		this.uniqueValueToRecordId = new PersistentTransactionalMap<>(uniqueValueToRecordId);
-		this.recordIds = new TransactionalBitmap(recordIds);
+	@Nonnull
+	public static OwnerUniqueIndex fromPersistedPages(
+		@Nonnull String entityType,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull Serializable[][] perPageValues,
+		@Nonnull int[][] perPageRecordIds,
+		int highWaterPageSequence
+	) {
+		Assert.isPremiseValid(
+			orderedPageSequences.length == perPageValues.length && perPageValues.length == perPageRecordIds.length,
+			"The number of page sequences must match the number of leaf-page arrays."
+		);
+		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged owner unique index must have at least one leaf page.");
+		final Class<?> plainType = plainTypeOf(attributeType);
+		final Comparator<Comparable<?>> comparator = comparatorFor(plainType);
+		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
+		final CompositeIntArray allRecordIds = new CompositeIntArray();
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final Serializable[] values = perPageValues[i];
+			final int[] records = perPageRecordIds[i];
+			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits
+			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
+			for (int j = 0; j < values.length; j++) {
+				pageTree.addRecord((Comparable) values[j], records[j]);
+				allRecordIds.add(records[j]);
+			}
+			pageTrees.add(pageTree);
+		}
+		final TransactionalBucketBPlusTree tree =
+			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+		final PageStreamRegistry pageStreamRegistry = restorePageStream(tree, UNIQUE_PAGE_STREAM, highWaterPageSequence);
+		return new OwnerUniqueIndex(
+			entityType, attributeIndexKey, attributeType, tree,
+			new TransactionalBitmap(allRecordIds.toArray()), pageStreamRegistry
+		);
 	}
 
 	@Override
@@ -149,7 +280,8 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Nullable
 	@Override
 	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
-		return this.uniqueValueToRecordId.get(value);
+		final Bitmap records = this.tree.getRecordsEqualTo((Comparable) value);
+		return records.isEmpty() ? null : records.getFirst();
 	}
 
 	@Override
@@ -178,22 +310,62 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 
 	@Override
 	public boolean isEmpty() {
-		return this.uniqueValueToRecordId.isEmpty();
+		return this.recordIds.isEmpty();
 	}
 
-	@Nullable
+	/**
+	 * Returns whether this index's value tree spans more than one leaf and is therefore persisted in the granular
+	 * `PAGED` shape (one record per leaf) rather than the inline `SINGLE` shape.
+	 *
+	 * @return true when the tree has an internal root (≥ 2 leaves)
+	 */
+	public boolean isPaged() {
+		return this.tree.isRootInternal();
+	}
+
 	@Override
-	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
-		if (this.dirty.isTrue()) {
-			return new UniqueIndexStoragePart(
-				entityIndexPrimaryKey,
-				getAttributeIndexKey(),
-				getType(),
-				this.uniqueValueToRecordId,
-				this.recordIds
+	public void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		if (!this.dirty.isTrue()) {
+			return;
+		}
+		final AttributeKeyWithIndexType streamKey =
+			new AttributeKeyWithIndexType(getAttributeIndexKey(), AttributeIndexType.UNIQUE);
+		if (this.tree.isRootInternal()) {
+			// PAGED: one leaf page per CHANGED leaf + a removal per freed leaf + a PAGED root carrying the high-water and
+			// the ordered live leaf-page list
+			final PageEmission<LeafPage> emission = collectChangedPages();
+			for (final LeafPage page : emission.changedPages()) {
+				sink.addChangeToStore(
+					new UniqueIndexLeafPagePart(
+						entityIndexPrimaryKey, streamKey, page.pageSequence(), page.values(), page.recordIds()
+					)
+				);
+			}
+			for (final int freedPageSequence : emission.freedPageSequences()) {
+				sink.addChangeToStore(new UniqueIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			sink.addChangeToStore(
+				UniqueIndexStoragePart.paged(
+					entityIndexPrimaryKey, getAttributeIndexKey(), getType(),
+					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
+				)
 			);
 		} else {
-			return null;
+			// SINGLE shape: the index spans one leaf. If it just collapsed from PAGED, remove every prior leaf page (the
+			// inline root no longer references them) BEFORE dropping the bookkeeping, then forget the stream so a later
+			// regrow into PAGED starts from a clean baseline and re-emits every leaf.
+			for (final int freedPageSequence : this.pageStreamRegistry.livePageSequences(UNIQUE_PAGE_STREAM)) {
+				sink.addChangeToStore(new UniqueIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			this.pageStreamRegistry.forget(UNIQUE_PAGE_STREAM);
+			// the small index is a single embedded leaf: capture its value/payload columns directly off the tree (no map
+			// materialization) and carry them inline on the root, exactly as a leaf page would
+			final InlineSnapshot snapshot = inlineSnapshot();
+			sink.addChangeToStore(
+				new UniqueIndexStoragePart(
+					entityIndexPrimaryKey, getAttributeIndexKey(), getType(), snapshot.values(), snapshot.recordIds()
+				)
+			);
 		}
 	}
 
@@ -202,39 +374,25 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		this.dirty.reset();
 	}
 
-	@Nullable
-	@Override
-	public TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, PersistentTransactionalMap<Serializable, Integer>> createLayer() {
-		return isTransactionAvailable() ? new TransactionalContainerChanges<>() : null;
-	}
-
-	/**
-	 * Folds the transactional diff layer onto the shared state and returns the resulting snapshot. As an
-	 * optimization, when this index was not touched during the transaction (its {@link #dirty} flag is false) the
-	 * receiver is returned unchanged, avoiding any allocation; otherwise a fresh {@link OwnerUniqueIndex} carrying the
-	 * committed map and bitmap is built.
-	 */
 	@Nonnull
 	@Override
 	public UniqueIndex createCopyWithMergedTransactionalMemory(
-		@Nullable TransactionalContainerChanges<
-			MapChanges<Serializable, Integer>,
-			Map<Serializable, Integer>,
-			PersistentTransactionalMap<Serializable, Integer>
-			> layer,
+		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
-		final boolean isDirty = transactionalLayer
-			.getStateCopyWithCommittedChanges(this.dirty);
+		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
-			final OwnerUniqueIndex uniqueKeyIndex = new OwnerUniqueIndex(
+			final TransactionalBucketBPlusTree committedTree =
+				(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.tree);
+			final Bitmap committedRecordIds = transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds);
+			// publish the page baseline staged by this commit's flush: the merge runs only AFTER the flush has durably
+			// written the changed leaf pages + root, so the staged live set now reflects what is on disk. The registry is
+			// then carried BY REFERENCE into the committed copy, so the surviving owner keeps it (mirrors InvertedIndex).
+			this.pageStreamRegistry.publishStaged();
+			return new OwnerUniqueIndex(
 				getEntityType(), getAttributeIndexKey(), getType(),
-				transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueValueToRecordId),
-				transactionalLayer.getStateCopyWithCommittedChanges(this.recordIds)
+				committedTree, committedRecordIds, this.pageStreamRegistry
 			);
-			// we can safely throw away dirty flag now
-			ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-			return uniqueKeyIndex;
 		} else {
 			return this;
 		}
@@ -242,10 +400,10 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.dirty);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		this.uniqueValueToRecordId.removeLayer(transactionalLayer);
+		this.tree.removeLayer(transactionalLayer);
 		this.recordIds.removeLayer(transactionalLayer);
-		this.dirty.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
@@ -258,13 +416,64 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 
 	@Nonnull
 	@Override
-	Map<Serializable, Integer> getUniqueValueToRecordId() {
-		return Collections.unmodifiableMap(this.uniqueValueToRecordId);
+	InlineSnapshot inlineSnapshot() {
+		final CompositeObjectArray<Serializable> snapshotValues = new CompositeObjectArray<>(Serializable.class);
+		final CompositeIntArray snapshotRecordIds = new CompositeIntArray();
+		final BucketCursor cursor = this.tree.cursor();
+		while (cursor.next()) {
+			Assert.isPremiseValid(cursor.isSingle(), "A unique index bucket must hold exactly one record!");
+			snapshotValues.add((Serializable) cursor.value());
+			snapshotRecordIds.add(cursor.singleRecordId());
+		}
+		return new InlineSnapshot(snapshotValues.toArray(), snapshotRecordIds.toArray());
 	}
 
 	/*
 		PRIVATE METHODS
 	 */
+
+	/**
+	 * Inserts every persisted `(value, recordId)` pair (positionally-aligned value/payload columns) into the (fresh)
+	 * tree. Used by the SINGLE load constructor; the values are distinct unique keys, so no overflow bitmap is ever
+	 * allocated.
+	 *
+	 * @param values    the persisted values in ascending key order
+	 * @param recordIds the persisted record ids, positionally aligned with `values`
+	 */
+	private void seedTree(@Nonnull Serializable[] values, @Nonnull int[] recordIds) {
+		for (int i = 0; i < values.length; i++) {
+			this.tree.addRecord((Comparable) values[i], recordIds[i]);
+		}
+	}
+
+	/**
+	 * Walks the value tree leaf-by-leaf and returns the granular write-path emission for this commit: the leaf pages
+	 * that changed since the last flush, the full ordered list of live leaf-page sequences (the `PAGED` root's leaf
+	 * list), the stream high-water, and the freed page sequences a leaf merge dropped. Mirrors
+	 * {@code InvertedIndex.collectChangedPages} with the slim value+pk payload.
+	 *
+	 * @return the changed leaf pages, the ordered live page-sequence list, the high-water, and the freed pages
+	 */
+	@Nonnull
+	private PageEmission<LeafPage> collectChangedPages() {
+		// this.tree is a raw bucket tree, so the handle list and its cursors are raw too — bucket values are read as
+		// Object and cast to Serializable exactly as the whole-tree snapshot does
+		final List<LeafPageHandle> handles = this.tree.leafPageHandles();
+		return this.pageStreamRegistry.collectChangedPages(
+			UNIQUE_PAGE_STREAM, handles,
+			(pageSequence, handle) -> {
+				final BucketCursor cursor = handle.cursor();
+				final CompositeObjectArray<Serializable> pageValues = new CompositeObjectArray<>(Serializable.class);
+				final CompositeIntArray pageRecordIds = new CompositeIntArray();
+				while (cursor.next()) {
+					Assert.isPremiseValid(cursor.isSingle(), "A unique index bucket must hold exactly one record!");
+					pageValues.add((Serializable) cursor.value());
+					pageRecordIds.add(cursor.singleRecordId());
+				}
+				return new LeafPage(pageSequence, pageValues.toArray(), pageRecordIds.toArray());
+			}
+		);
+	}
 
 	/**
 	 * Array-dispatching entry point for registration. When `key` is an array (an array-typed attribute), every
@@ -276,14 +485,13 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * @param recordId record id that should own the value(s)
 	 * @throws UniqueValueViolationException when any value is already owned by a different record
 	 */
-	@SuppressWarnings("unchecked")
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, int recordId) {
 		if (key instanceof @Nonnull final Object[] valueArray) {
 			verifyValueArray(key);
 			// first verify removed data without modifications
 			for (Object valueItem : valueArray) {
 				final T theValueItem = (T) valueItem;
-				final Integer existingRecordId = this.uniqueValueToRecordId.get(theValueItem);
+				final Integer existingRecordId = getRecordIdByUniqueValue(theValueItem);
 				assertUniqueKeyIsFree(theValueItem, recordId, existingRecordId);
 			}
 			// now perform alteration
@@ -313,9 +521,9 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * @throws UniqueValueViolationException when the value is already owned by a different record
 	 */
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull T key, int recordId) {
-		final Integer existingRecordId = this.uniqueValueToRecordId.get(key);
+		final Integer existingRecordId = getRecordIdByUniqueValue(key);
 		assertUniqueKeyIsFree(key, recordId, existingRecordId);
-		this.uniqueValueToRecordId.put(key, recordId);
+		this.tree.addRecord(key, recordId);
 		this.recordIds.add(recordId);
 	}
 
@@ -331,7 +539,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * @return the removed record id for a scalar key, or {@link Integer#MIN_VALUE} for the array branch
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when any value is absent or owned by a different record
 	 */
-	@SuppressWarnings("unchecked")
 	private <T extends Serializable & Comparable<T>> int unregisterUniqueKeyValue(@Nonnull Object key, int expectedRecordId) {
 		final int returnValue;
 		if (key instanceof @Nonnull final Object[] valueArray) {
@@ -339,7 +546,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			// first verify removed data without modifications
 			for (Object valueItem : valueArray) {
 				final T theValueItem = (T) valueItem;
-				final Integer existingRecordId = this.uniqueValueToRecordId.get(theValueItem);
+				final Integer existingRecordId = getRecordIdByUniqueValue(theValueItem);
 				assertUniqueKeyOwnership(theValueItem, expectedRecordId, existingRecordId);
 			}
 			// now perform alteration
@@ -373,10 +580,18 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the value is absent or owned by a different record
 	 */
 	private <T extends Serializable & Comparable<T>> int unregisterUniqueKeyValue(@Nonnull T key, int expectedRecordId) {
-		final Integer existingRecordId = this.uniqueValueToRecordId.remove(key);
+		final Integer existingRecordId = getRecordIdByUniqueValue(key);
 		// this throws unless existingRecordId is non-null AND equals expectedRecordId, so past this point the two
 		// are interchangeable; using the primitive expectedRecordId avoids unboxing the (provably non-null) Integer
 		assertUniqueKeyOwnership(key, expectedRecordId, existingRecordId);
+		this.tree.removeRecord(key, expectedRecordId);
+		// dropping the pk from the bitmap is unconditional here, yet safe for array-typed attributes where one pk owns
+		// several element keys: this single-value method is private and reached only from the array-dispatch entry point
+		// (which loops over EVERY element of the array) or the scalar path (one value per pk). The real mutation path
+		// always (un)registers the WHOLE attribute value atomically — executeAttributeUpsert/Removal pass the entire
+		// array, never a single element — so by the end of one public unregister call every value owned by the pk has
+		// left the tree and the bitmap correctly no longer contains it. A partial single-element unregister that strands
+		// a live sibling key is therefore unreachable.
 		this.recordIds.remove(expectedRecordId);
 		return expectedRecordId;
 	}
@@ -413,6 +628,17 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 				"No unique key exists for `" + getAttributeIndexKey().attributeName() + "` key: `" + key + "`" + (getAttributeIndexKey().locale() == null ? "" : " in locale `" + getAttributeIndexKey().locale().toLanguageTag() + "`") + "!" :
 				"Unique key exists for `" + getAttributeIndexKey().attributeName() + "` key: `" + key + "`" + (getAttributeIndexKey().locale() == null ? "" : " in locale `" + getAttributeIndexKey().locale().toLanguageTag() + "`") + " belongs to record with id `" + existingRecordId + "` and not `" + expectedRecordId + "` as expected!"
 		);
+	}
+
+	/**
+	 * One changed leaf page of the granular write-path emission: its page sequence and its slim `(value, recordId)`
+	 * columns in ascending key order.
+	 *
+	 * @param pageSequence the leaf's page sequence within the stream
+	 * @param values       the leaf's values in ascending key order
+	 * @param recordIds    the single record id owning each value, aligned with `values`
+	 */
+	private record LeafPage(int pageSequence, @Nonnull Serializable[] values, @Nonnull int[] recordIds) {
 	}
 
 }

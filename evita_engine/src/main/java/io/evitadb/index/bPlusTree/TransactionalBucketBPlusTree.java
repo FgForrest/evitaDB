@@ -29,7 +29,6 @@ import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
-import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -52,6 +51,7 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 
 import static io.evitadb.utils.ArrayUtils.*;
@@ -67,7 +67,8 @@ import static io.evitadb.utils.ArrayUtils.*;
  * insert-shift / split / merge / steal:
  *
  * - `K[] keys` — the value, ordered by the {@link #comparator} (natural order when `null`).
- * - `int[] records` — the single record id (pk) when `overflow == null || overflow[i] == null`.
+ * - `RecordColumn records` — the single record id (pk) when `overflow == null || overflow[i] == null`; the default
+ *   {@link IntRecordColumn} backs it with a bare `int[]`.
  * - `TransactionalBitmap[] overflow` — **lazy**: `null` until the leaf's first multi bucket, then `overflow[i] != null`
  * marks a multi bucket whose record set is the bitmap.
  *
@@ -91,9 +92,8 @@ import static io.evitadb.utils.ArrayUtils.*;
  */
 @NotThreadSafe
 public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
-	TransactionalLayerProducer<Void, TransactionalBucketBPlusTree<K>>,
-	Serializable,
-	ConsistencySensitiveDataStructure
+	IntRecordBucketTree<K>,
+	LongPayloadBucketTree<K>
 {
 	@Serial private static final long serialVersionUID = -2030749900648110509L;
 	/**
@@ -142,6 +142,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * {@link BoxedObjectColumn} otherwise. Threaded into every empty-leaf creation so the whole tree shares one kind.
 	 */
 	@Nonnull private final ValueColumnFactory<K> valueColumnFactory;
+	/**
+	 * Factory that creates a fresh empty {@link RecordColumn} of the kind chosen for this tree's single-record payload.
+	 * It picks a primitive {@link IntRecordColumn} ({@code int[]}, the 4-byte default) for the inverted / owner-unique
+	 * indexes. Threaded into every empty-leaf / split-target creation so the whole tree shares one payload kind, exactly
+	 * as {@link #valueColumnFactory} threads the key-column kind.
+	 */
+	@Nonnull private final RecordColumnFactory recordColumnFactory;
+	/**
+	 * Whether this tree stores a single `long` payload per key ({@link RecordColumnFactory#LONG}) instead of the default
+	 * `int` record-set payload ({@link RecordColumnFactory#INT}). Derived once at construction from
+	 * {@link #recordColumnFactory}. A long-payload tree is genuinely UNIQUE (one payload per key, never promoted to the
+	 * overflow bitmap) and is mutated only through the `*LongRecord*` API; the int record-set API
+	 * ({@link #addRecord}/{@link #removeRecord}/{@link #getRecordsEqualTo}) and the long API are mutually exclusive and
+	 * each cheaply guards against the wrong mode via {@link Assert#isPremiseValid}.
+	 */
+	private final boolean longPayload;
 	/**
 	 * Number of buckets in the tree.
 	 */
@@ -610,7 +626,61 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			keyType,
 			comparator,
 			valueColumnFactory,
-			new BPlusLeafTreeNode<>(valueColumnFactory.create(valueBlockSize), comparator, true),
+			RecordColumnFactory.INT,
+			new BPlusLeafTreeNode<>(
+				valueColumnFactory.create(valueBlockSize),
+				RecordColumnFactory.INT.create(valueBlockSize),
+				comparator,
+				true
+			),
+			0
+		);
+	}
+
+	/**
+	 * Builds a value→single-`long` (UNIQUE) bucket tree: each key holds exactly one `long` payload and is NEVER promoted
+	 * to the overflow bitmap. This is the additive sibling of the 7-arg {@link ValueColumnFactory}-aware constructor — it
+	 * builds the tree identically, but selects the 8-byte {@link RecordColumnFactory#LONG} payload column (both as the
+	 * tree's record factory and for the initial root leaf's payload column) so the bucket stores a packed `long` (e.g. a
+	 * `(entityType, pk)` join for the global-unique value→entity index) instead of an `int` record set. The tree is then
+	 * mutated exclusively through the `*LongRecord*` API ({@link #addLongRecord}, {@link #getLongRecordEqualTo},
+	 * {@link #removeLongRecord}); the int record-set API is rejected on a long tree (and vice versa).
+	 *
+	 * @param valueBlockSize           maximum number of buckets in a leaf node
+	 * @param minValueBlockSize        minimum number of buckets in a leaf node
+	 * @param internalNodeBlockSize    maximum number of keys in an internal node
+	 * @param minInternalNodeBlockSize minimum number of keys in an internal node
+	 * @param keyType                  the type of the keys (bucket values) stored in the tree
+	 * @param comparator               optional comparator defining the key order; `null` ⇒ natural order
+	 * @param valueColumnFactory       the factory choosing the leaf key-column representation
+	 * @param <K>                      the key (value) type
+	 * @return a new empty long-payload bucket tree
+	 */
+	@Nonnull
+	public static <K extends Comparable<K>> TransactionalBucketBPlusTree<K> withLongPayload(
+		int valueBlockSize,
+		int minValueBlockSize,
+		int internalNodeBlockSize,
+		int minInternalNodeBlockSize,
+		@Nonnull Class<K> keyType,
+		@Nullable Comparator<K> comparator,
+		@Nonnull ValueColumnFactory<K> valueColumnFactory
+	) {
+		return new TransactionalBucketBPlusTree<>(
+			valueBlockSize,
+			minValueBlockSize,
+			internalNodeBlockSize,
+			minInternalNodeBlockSize,
+			keyType,
+			comparator,
+			valueColumnFactory,
+			RecordColumnFactory.LONG,
+			new BPlusLeafTreeNode<>(
+				valueColumnFactory.create(valueBlockSize),
+				RecordColumnFactory.LONG.create(valueBlockSize),
+				comparator,
+				true
+			),
 			0
 		);
 	}
@@ -623,6 +693,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull Class<K> keyType,
 		@Nullable Comparator<K> comparator,
 		@Nonnull ValueColumnFactory<K> valueColumnFactory,
+		@Nonnull RecordColumnFactory recordColumnFactory,
 		@Nonnull BPlusTreeNode<K, ?> root,
 		int size
 	) {
@@ -658,6 +729,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		this.minInternalNodeBlockSize = minInternalNodeBlockSize;
 		this.keyType = keyType;
 		this.valueColumnFactory = valueColumnFactory;
+		this.recordColumnFactory = recordColumnFactory;
+		this.longPayload = recordColumnFactory == RecordColumnFactory.LONG;
 		this.root = new TransactionalReference<>(root);
 		this.size = new TransactionalReference<>(size);
 	}
@@ -695,7 +768,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param value the value identifying the bucket
 	 * @param pk    the record id to add (may be any int, including negative ids)
 	 */
+	@Override
 	public void addRecord(@Nonnull K value, int pk) {
+		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		final Cursor<K> cursor = createCursor(value);
 		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
 		if (leaf.addRecord(value, pk)) {
@@ -715,7 +790,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param value the value identifying the bucket
 	 * @param pks   the record ids to add; must be non-empty (may contain negative ids)
 	 */
+	@Override
 	public void addRecord(@Nonnull K value, @Nonnull int... pks) {
+		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		Assert.isTrue(pks.length > 0, "Record ids must be not null and non-empty!");
 		final Cursor<K> cursor = createCursor(value);
 		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
@@ -736,7 +813,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param value the value identifying the bucket
 	 * @param pks   the record ids to remove; must be non-empty (may contain negative ids)
 	 */
+	@Override
 	public void removeRecord(@Nonnull K value, @Nonnull int... pks) {
+		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		Assert.isTrue(pks.length > 0, "Record ids must be not null and non-empty!");
 		final Cursor<K> cursor = createCursor(value);
 		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
@@ -761,11 +840,79 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @return the record set for the value, never null
 	 */
 	@Nonnull
+	@Override
 	public Bitmap getRecordsEqualTo(@Nullable K value) {
+		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		if (value == null) {
 			return EmptyBitmap.INSTANCE;
 		}
 		return createCursor(value).leafNode().getRecords(value);
+	}
+
+	/**
+	 * Adds a value→`long` bucket holding exactly one payload. The tree is UNIQUE: the bucket is never promoted to the
+	 * overflow bitmap. The value MUST be absent — uniqueness is enforced by the caller (the global-unique index), so a
+	 * key already present here is a programming error and throws a {@link GenericEvitaInternalError}. Only available on a
+	 * tree built via {@link #withLongPayload}.
+	 *
+	 * @param value   the value identifying the bucket
+	 * @param payload the lone `long` payload to store
+	 */
+	@Override
+	public void addLongRecord(@Nonnull K value, long payload) {
+		Assert.isPremiseValid(this.longPayload, "Long-payload API is only available on a long-payload tree!");
+		final Cursor<K> cursor = createCursor(value);
+		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
+		leaf.addLongRecord(value, payload);
+		this.size.set(size() + 1);
+		if (leaf.isFull()) {
+			splitLeafNode(leaf, cursor);
+		}
+	}
+
+	/**
+	 * Returns the `long` payload of the bucket identified by the given value, or {@link OptionalLong#empty()} when the
+	 * value is absent (or `null`). Only available on a tree built via {@link #withLongPayload}.
+	 *
+	 * @param value the value to look up (may be null ⇒ empty)
+	 * @return the bucket's payload, or empty when absent
+	 */
+	@Nonnull
+	@Override
+	public OptionalLong getLongRecordEqualTo(@Nullable K value) {
+		Assert.isPremiseValid(this.longPayload, "Long-payload API is only available on a long-payload tree!");
+		if (value == null) {
+			return OptionalLong.empty();
+		}
+		final BPlusLeafTreeNode<K> leaf = createCursor(value).leafNode();
+		final int index = leaf.getValueIndex(value);
+		return index < 0 ? OptionalLong.empty() : OptionalLong.of(leaf.longRecordAt(index));
+	}
+
+	/**
+	 * Removes the value→`long` bucket identified by the given value (deleting the whole bucket), rebalancing the tree as
+	 * needed. Only available on a tree built via {@link #withLongPayload}.
+	 *
+	 * @param value the value identifying the bucket to remove
+	 * @return true if a bucket was removed, false when the value was absent
+	 */
+	@Override
+	public boolean removeLongRecord(@Nonnull K value) {
+		Assert.isPremiseValid(this.longPayload, "Long-payload API is only available on a long-payload tree!");
+		final Cursor<K> cursor = createCursor(value);
+		final BPlusLeafTreeNode<K> leaf = cursor.leafNode();
+
+		final boolean headRemoved = leaf.size() > 1 && value.equals(leaf.keyAt(0));
+		if (leaf.removeLongRecord(value)) {
+			this.size.set(size() - 1);
+			// the head of the leaf may have been removed, update parent keys accordingly
+			if (headRemoved) {
+				updateParentKeys(cursor.toCursorWithLevel());
+			}
+			consolidate(cursor);
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -775,6 +922,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param value the value to look up (may be null ⇒ 0)
 	 * @return the cardinality of the bucket
 	 */
+	@Override
 	public int cardinalityOf(@Nullable K value) {
 		if (value == null) {
 			return 0;
@@ -788,6 +936,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param value the value to look up (may be null ⇒ false)
 	 * @return true if a bucket exists for the value
 	 */
+	@Override
 	public boolean contains(@Nullable K value) {
 		if (value == null) {
 			return false;
@@ -800,6 +949,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @return the number of buckets
 	 */
+	@Override
 	public int bucketCount() {
 		return size();
 	}
@@ -809,6 +959,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @return the total record count
 	 */
+	@Override
 	public int recordCount() {
 		int total = 0;
 		final BucketCursor<K> cursor = cursor();
@@ -823,6 +974,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @return the number of buckets
 	 */
+	@Override
 	public int size() {
 		return Objects.requireNonNull(this.size.get());
 	}
@@ -833,6 +985,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @return a forward bucket cursor
 	 */
 	@Nonnull
+	@Override
 	public BucketCursor<K> cursor() {
 		return new ForwardBucketCursor<>(createLeftmostCursor());
 	}
@@ -845,6 +998,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @return a forward bucket cursor starting at the value
 	 */
 	@Nonnull
+	@Override
 	public BucketCursor<K> cursor(@Nonnull K value) {
 		return new ForwardBucketCursor<>(createCursor(value), value);
 	}
@@ -855,6 +1009,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @return a reverse bucket cursor
 	 */
 	@Nonnull
+	@Override
 	public BucketCursor<K> reverseCursor() {
 		return new ReverseBucketCursor<>(createRightmostCursor());
 	}
@@ -898,6 +1053,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.keyType,
 				this.comparator,
 				this.valueColumnFactory,
+				this.recordColumnFactory,
 				transactionalLayer.getStateCopyWithCommittedChanges(theLeafNode),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElseThrow()
 			);
@@ -909,6 +1065,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.keyType,
 				this.comparator,
 				this.valueColumnFactory,
+				this.recordColumnFactory,
 				transactionalLayer.getStateCopyWithCommittedChanges((BPlusInternalTreeNode<K>) internalNode),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.size).orElseThrow()
 			);
@@ -940,6 +1097,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @return true when the root is internal (≥ 2 leaves), false when the root itself is the only leaf
 	 */
+	@Override
 	public boolean isRootInternal() {
 		return getRoot() instanceof BPlusInternalTreeNode;
 	}
@@ -949,43 +1107,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * sequence (carried across commits by {@link BPlusTreeNode#getPageSequence()}), lets the emitter assign a freshly
 	 * allocated page to a not-yet-paged (split-born or fresh) leaf, and hands out a leaf-scoped {@link BucketCursor} the
 	 * emitter materializes the page contents from. The handles are returned in ascending key order — the very order the
-	 * persisted leaf-page list records — by {@link #leafPageHandles()}.
+	 * persisted leaf-page list records — by {@link #leafPageHandles()}. The page-bookkeeping half (page sequence, dirty
+	 * flag, page stamp) lives on the value-agnostic {@link PagedLeafHandle} super-interface this extends; this interface
+	 * adds the leaf-scoped {@link BucketCursor} access.
 	 *
 	 * @param <K> the bucket key type
 	 */
-	public interface LeafPageHandle<K extends Comparable<K>> {
-
-		/**
-		 * Returns the leaf's current page sequence, or {@link #UNASSIGNED_PAGE_SEQUENCE} when the leaf has no page yet.
-		 *
-		 * @return the page sequence or {@link #UNASSIGNED_PAGE_SEQUENCE}
-		 */
-		int getPageSequence();
-
-		/**
-		 * Returns whether this leaf has been mutated since the last flush — the deterministic change-detection signal.
-		 * The flag is read transaction-aware (the in-flight transaction's layer when one exists), so a leaf changed in
-		 * the committing transaction reads dirty at flush even though its committed instance is replaced only later, at
-		 * the commit-merge. Unlike a content hash it can never miss a real change: every mutation sets it.
-		 *
-		 * @return true when the leaf must be (re)written
-		 */
-		boolean isDirty();
-
-		/**
-		 * Clears the leaf's dirty flag — called by the emitter once the leaf page has been collected for this flush, so
-		 * the next commit suppresses it unless it is mutated again. Transaction-aware (clears the layer's flag in a
-		 * transaction; the committed instance the merge produces defaults to clean anyway).
-		 */
-		void clearDirty();
-
-		/**
-		 * Stamps a freshly allocated page sequence onto the leaf. The stamp lands on the live (source) node so the
-		 * commit-merge carries it forward into the committed tree (see {@link #createCopyWithMergedTransactionalMemory}).
-		 *
-		 * @param pageSequence the allocated page sequence (>= 0)
-		 */
-		void setPageSequence(int pageSequence);
+	public interface LeafPageHandle<K extends Comparable<K>> extends PagedLeafHandle {
 
 		/**
 		 * Returns a fresh leaf-scoped cursor over this leaf's buckets in ascending value order. The cursor reads the
@@ -1007,6 +1135,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @return the ordered leaf-page handles; never empty
 	 */
 	@Nonnull
+	@Override
 	public List<LeafPageHandle<K>> leafPageHandles() {
 		final List<BPlusLeafTreeNode<K>> leaves = enumerateLeaves();
 		final List<LeafPageHandle<K>> handles = new ArrayList<>(leaves.size());
@@ -1064,7 +1193,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	private static final class SingleLeafBucketCursor<M extends Comparable<M>> implements BucketCursor<M> {
 		@Nonnull private final ValueColumn<M> keys;
-		@Nonnull private final int[] records;
+		@Nonnull private final RecordColumn records;
 		@Nullable private final TransactionalBitmap[] overflow;
 		private final int peek;
 		private int currentIndex = -1;
@@ -1104,7 +1233,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public int singleRecordId() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			return this.records[this.currentIndex];
+			return this.records.intAt(this.currentIndex);
+		}
+
+		@Override
+		public long longRecordId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.records.longAt(this.currentIndex);
 		}
 
 		@Nonnull
@@ -1114,7 +1249,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (this.overflow != null && this.overflow[this.currentIndex] != null) {
 				return this.overflow[this.currentIndex];
 			}
-			return new SingleRecordBitmap(this.records[this.currentIndex]);
+			return new SingleRecordBitmap(this.records.intAt(this.currentIndex));
 		}
 
 		@Override
@@ -1163,6 +1298,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.keyType,
 			this.comparator,
 			this.valueColumnFactory,
+			this.recordColumnFactory,
 			assembledRoot,
 			totalBuckets
 		);
@@ -1490,6 +1626,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						this.root.set(
 							new BPlusLeafTreeNode<>(
 								this.valueColumnFactory.create(this.valueBlockSize),
+								this.recordColumnFactory.create(this.valueBlockSize),
 								this.comparator,
 								true
 							)
@@ -1578,7 +1715,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	) {
 		final int mid = this.valueBlockSize / 2;
 		final ValueColumn<K> originKeys = leaf.getKeyColumn();
-		final int[] originRecords = leaf.getRecords();
+		final RecordColumn originRecords = leaf.getRecords();
 		final TransactionalBitmap[] originOverflow = leaf.getOverflow();
 
 		// Move half the buckets to fresh arrays of the left leaf node
@@ -1587,7 +1724,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			originRecords,
 			originOverflow,
 			originKeys.allocate(this.valueBlockSize),
-			new int[this.valueBlockSize],
+			originRecords.allocate(this.valueBlockSize),
 			originOverflow == null ? null : new TransactionalBitmap[this.valueBlockSize],
 			0,
 			mid,
@@ -1603,7 +1740,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			originRecords,
 			originOverflow,
 			originKeys.allocate(this.valueBlockSize),
-			new int[this.valueBlockSize],
+			originRecords.allocate(this.valueBlockSize),
 			originOverflow == null ? null : new TransactionalBitmap[this.valueBlockSize],
 			mid,
 			leftLeaf.getKeyColumn().capacity(),
@@ -1925,6 +2062,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the single record id
 		 */
 		int singleRecordId();
+
+		/**
+		 * Returns the lone `long` payload of the current bucket. Valid only on a long-payload tree (built via
+		 * {@link #withLongPayload}), whose buckets are always single. Mirrors {@link #singleRecordId()} but reads the full
+		 * 64-bit payload.
+		 *
+		 * @return the single `long` payload
+		 */
+		long longRecordId();
 
 		/**
 		 * Returns the record set of the current bucket: a lean {@link SingleRecordBitmap} for a single bucket, the
@@ -2749,10 +2895,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		private ValueColumn<M> keys;
 		/**
-		 * The single-record column. `records[i]` is the lone pk of bucket `i` when `overflow == null || overflow[i] ==
-		 * null`; otherwise it is don't-care (never read).
+		 * The single-record column behind the pluggable {@link RecordColumn} abstraction so the leaf can hold the lone pk
+		 * in the cheapest primitive representation (the default {@link IntRecordColumn} backs it with a bare `int[]`).
+		 * `records.intAt(i)` is the lone pk of bucket `i` when `overflow == null || overflow[i] == null`; otherwise it is
+		 * don't-care (never read).
 		 */
-		private int[] records;
+		private RecordColumn records;
 		/**
 		 * The lazy multi-record column. `null` until the leaf's first multi bucket; thereafter `overflow[i] != null`
 		 * marks a multi bucket whose record set is the {@link TransactionalBitmap}, and is `null` for single buckets.
@@ -2827,20 +2975,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Creates a new empty leaf node backed by a pre-built key column. The column's capacity defines the leaf block
-		 * size, and the column kind (boxed vs. primitive) was chosen by the tree's {@link ValueColumnFactory}.
+		 * Creates a new empty leaf node backed by a pre-built key column and single-record column. The key column's
+		 * capacity defines the leaf block size, and the column kinds (boxed vs. primitive key, int vs. long payload) were
+		 * chosen by the tree's {@link ValueColumnFactory} / {@link RecordColumnFactory}.
 		 *
 		 * @param keys               the empty key column (its capacity is the block size)
+		 * @param records            the empty single-record column (same capacity, built by the tree's record factory)
 		 * @param comparator         optional comparator defining the key order; `null` ⇒ natural order
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
 		public BPlusLeafTreeNode(
 			@Nonnull ValueColumn<M> keys,
+			@Nonnull RecordColumn records,
 			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
 		) {
 			this.keys = keys;
-			this.records = new int[keys.capacity()];
+			this.records = records;
 			this.overflow = null;
 			this.comparator = comparator;
 			this.peek = -1;
@@ -2864,10 +3015,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		public BPlusLeafTreeNode(
 			@Nonnull ValueColumn<M> originKeys,
-			@Nonnull int[] originRecords,
+			@Nonnull RecordColumn originRecords,
 			@Nullable TransactionalBitmap[] originOverflow,
 			@Nonnull ValueColumn<M> keys,
-			@Nonnull int[] records,
+			@Nonnull RecordColumn records,
 			@Nullable TransactionalBitmap[] overflow,
 			int start, int end,
 			@Nullable Comparator<M> comparator,
@@ -2880,10 +3031,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (keys == originKeys) {
 				keys.fillEmpty(end - start, keys.capacity());
 			}
-			System.arraycopy(originRecords, start, records, 0, end - start);
-			//noinspection ArrayEquality
+			originRecords.copyRangeTo(start, records, 0, end - start);
 			if (records == originRecords) {
-				Arrays.fill(records, end - start, records.length, 0);
+				records.fillEmpty(end - start, records.capacity());
 			}
 			if (overflow != null) {
 				// originOverflow may be null when the source leaf carried no multi bucket but the target column was
@@ -2903,7 +3053,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		private BPlusLeafTreeNode(
 			@Nonnull ValueColumn<M> keys,
-			@Nonnull int[] records,
+			@Nonnull RecordColumn records,
 			@Nullable TransactionalBitmap[] overflow,
 			int peek,
 			@Nullable Comparator<M> comparator,
@@ -2975,7 +3125,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.peek = peek;
 				if (peek < originPeek) {
 					this.keys.fillEmpty(peek + 1, originPeek + 1);
-					Arrays.fill(this.records, peek + 1, originPeek + 1, 0);
+					this.records.fillEmpty(peek + 1, originPeek + 1);
 					if (this.overflow != null) {
 						Arrays.fill(this.overflow, peek + 1, originPeek + 1, null);
 					}
@@ -2992,12 +3142,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					// (as before), while a dense front-coded column actually drops them — a no-op for the former,
 					// mandatory for the latter, which has no harmless sentinel tail to leave behind
 					layer.keys.fillEmpty(peek + 1, originPeek + 1);
-					//noinspection ArrayEquality
 					if (layer.records == this.records) {
-						layer.records = new int[this.records.length];
-						System.arraycopy(this.records, 0, layer.records, 0, originPeek + 1);
+						// decouple by deep-copying the shared base column (its tail beyond originPeek is already zero, so
+						// the deep copy matches the former fresh-array + copy-[0, originPeek] decouple verbatim)
+						layer.records = this.records.duplicate();
 					} else {
-						Arrays.fill(layer.records, peek + 1, originPeek + 1, 0);
+						layer.records.fillEmpty(peek + 1, originPeek + 1);
 					}
 					if (layer.overflow != null) {
 						//noinspection ArrayEquality
@@ -3071,9 +3221,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
 				: null;
 			if (layer == null) {
-				return this.peek == this.records.length - 1;
+				return this.peek == this.records.capacity() - 1;
 			} else {
-				return layer.peek == layer.records.length - 1;
+				return layer.peek == layer.records.capacity() - 1;
 			}
 		}
 
@@ -3081,7 +3231,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		public void toVerboseString(@Nonnull StringBuilder sb, int level, int indentSpaces) {
 			sb.append(" ".repeat(level * indentSpaces));
 			final ValueColumn<M> theKeys;
-			final int[] theRecords;
+			final RecordColumn theRecords;
 			final TransactionalBitmap[] theOverflow;
 			final int thePeek;
 
@@ -3106,7 +3256,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (theOverflow != null && theOverflow[i] != null) {
 					sb.append(theOverflow[i]);
 				} else {
-					sb.append(theRecords[i]);
+					sb.append(theRecords.intAt(i));
 				}
 				if (i < thePeek) {
 					sb.append(", ");
@@ -3129,16 +3279,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (layer == null) {
 				ensureOverflowForSteal(previousNode.getOverflow());
 				this.keys.copyRangeTo(0, this.keys, numberOfTailValues, this.peek + 1);
-				System.arraycopy(this.records, 0, this.records, numberOfTailValues, this.peek + 1);
+				this.records.copyRangeTo(0, this.records, numberOfTailValues, this.peek + 1);
 				if (this.overflow != null) {
 					System.arraycopy(this.overflow, 0, this.overflow, numberOfTailValues, this.peek + 1);
 				}
 				previousNode.getKeyColumn().copyRangeTo(
 					previousNode.size() - numberOfTailValues, this.keys, 0, numberOfTailValues);
-				System.arraycopy(
-					previousNode.getRecords(), previousNode.size() - numberOfTailValues, this.records, 0,
-					numberOfTailValues
-				);
+				previousNode.getRecords().copyRangeTo(
+					previousNode.size() - numberOfTailValues, this.records, 0, numberOfTailValues);
 				copyOverflowRange(
 					previousNode.getOverflow(), previousNode.size() - numberOfTailValues, this.overflow, 0,
 					numberOfTailValues
@@ -3151,16 +3299,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 				ensureLayerOverflowForSteal(layer, previousNode.getOverflow());
 				layer.keys.copyRangeTo(0, layer.keys, numberOfTailValues, layer.peek + 1);
-				System.arraycopy(layer.records, 0, layer.records, numberOfTailValues, layer.peek + 1);
+				layer.records.copyRangeTo(0, layer.records, numberOfTailValues, layer.peek + 1);
 				if (layer.overflow != null) {
 					System.arraycopy(layer.overflow, 0, layer.overflow, numberOfTailValues, layer.peek + 1);
 				}
 				previousNode.getKeyColumn().copyRangeTo(
 					previousNode.size() - numberOfTailValues, layer.keys, 0, numberOfTailValues);
-				System.arraycopy(
-					previousNode.getRecords(), previousNode.size() - numberOfTailValues, layer.records, 0,
-					numberOfTailValues
-				);
+				previousNode.getRecords().copyRangeTo(
+					previousNode.size() - numberOfTailValues, layer.records, 0, numberOfTailValues);
 				copyOverflowRange(
 					previousNode.getOverflow(), previousNode.size() - numberOfTailValues, layer.overflow, 0,
 					numberOfTailValues
@@ -3185,15 +3331,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			if (layer == null) {
 				final ValueColumn<M> nextKeys = nextNode.getKeyColumnForUpdate();
-				final int[] nextRecords = nextNode.getRecordsForUpdate();
+				final RecordColumn nextRecords = nextNode.getRecordsForUpdate();
 				final TransactionalBitmap[] nextOverflow = nextNode.getOverflowForUpdate();
 				ensureOverflowForSteal(nextOverflow);
 				nextKeys.copyRangeTo(0, this.keys, this.peek + 1, numberOfHeadValues);
-				System.arraycopy(nextRecords, 0, this.records, this.peek + 1, numberOfHeadValues);
+				nextRecords.copyRangeTo(0, this.records, this.peek + 1, numberOfHeadValues);
 				copyOverflowRange(nextOverflow, 0, this.overflow, this.peek + 1, numberOfHeadValues);
 				nextKeys.copyRangeTo(numberOfHeadValues, nextKeys, 0, nextNode.size() - numberOfHeadValues);
-				System.arraycopy(
-					nextRecords, numberOfHeadValues, nextRecords, 0, nextNode.size() - numberOfHeadValues);
+				nextRecords.copyRangeTo(numberOfHeadValues, nextRecords, 0, nextNode.size() - numberOfHeadValues);
 				if (nextOverflow != null) {
 					System.arraycopy(
 						nextOverflow, numberOfHeadValues, nextOverflow, 0, nextNode.size() - numberOfHeadValues);
@@ -3205,15 +3350,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				nextNode.decoupleTransactionalArrays();
 
 				final ValueColumn<M> nextKeys = nextNode.getKeyColumnForUpdate();
-				final int[] nextRecords = nextNode.getRecordsForUpdate();
+				final RecordColumn nextRecords = nextNode.getRecordsForUpdate();
 				final TransactionalBitmap[] nextOverflow = nextNode.getOverflowForUpdate();
 				ensureLayerOverflowForSteal(layer, nextOverflow);
 				nextKeys.copyRangeTo(0, layer.keys, layer.peek + 1, numberOfHeadValues);
-				System.arraycopy(nextRecords, 0, layer.records, layer.peek + 1, numberOfHeadValues);
+				nextRecords.copyRangeTo(0, layer.records, layer.peek + 1, numberOfHeadValues);
 				copyOverflowRange(nextOverflow, 0, layer.overflow, layer.peek + 1, numberOfHeadValues);
 				nextKeys.copyRangeTo(numberOfHeadValues, nextKeys, 0, nextNode.size() - numberOfHeadValues);
-				System.arraycopy(
-					nextRecords, numberOfHeadValues, nextRecords, 0, nextNode.size() - numberOfHeadValues);
+				nextRecords.copyRangeTo(numberOfHeadValues, nextRecords, 0, nextNode.size() - numberOfHeadValues);
 				if (nextOverflow != null) {
 					System.arraycopy(
 						nextOverflow, numberOfHeadValues, nextOverflow, 0, nextNode.size() - numberOfHeadValues);
@@ -3238,12 +3382,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (layer == null) {
 				ensureOverflowForSteal(previousNode.getOverflow());
 				this.keys.copyRangeTo(0, this.keys, mergePeek + 1, this.peek + 1);
-				System.arraycopy(this.records, 0, this.records, mergePeek + 1, this.peek + 1);
+				this.records.copyRangeTo(0, this.records, mergePeek + 1, this.peek + 1);
 				if (this.overflow != null) {
 					System.arraycopy(this.overflow, 0, this.overflow, mergePeek + 1, this.peek + 1);
 				}
 				previousNode.getKeyColumn().copyRangeTo(0, this.keys, 0, mergePeek + 1);
-				System.arraycopy(previousNode.getRecords(), 0, this.records, 0, mergePeek + 1);
+				previousNode.getRecords().copyRangeTo(0, this.records, 0, mergePeek + 1);
 				copyOverflowRange(previousNode.getOverflow(), 0, this.overflow, 0, mergePeek + 1);
 				this.peek += mergePeek + 1;
 				previousNode.setPeek(-1);
@@ -3253,12 +3397,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 				ensureLayerOverflowForSteal(layer, previousNode.getOverflow());
 				layer.keys.copyRangeTo(0, layer.keys, mergePeek + 1, layer.peek + 1);
-				System.arraycopy(layer.records, 0, layer.records, mergePeek + 1, layer.peek + 1);
+				layer.records.copyRangeTo(0, layer.records, mergePeek + 1, layer.peek + 1);
 				if (layer.overflow != null) {
 					System.arraycopy(layer.overflow, 0, layer.overflow, mergePeek + 1, layer.peek + 1);
 				}
 				previousNode.getKeyColumnForUpdate().copyRangeTo(0, layer.keys, 0, mergePeek + 1);
-				System.arraycopy(previousNode.getRecordsForUpdate(), 0, layer.records, 0, mergePeek + 1);
+				previousNode.getRecordsForUpdate().copyRangeTo(0, layer.records, 0, mergePeek + 1);
 				copyOverflowRange(previousNode.getOverflowForUpdate(), 0, layer.overflow, 0, mergePeek + 1);
 				layer.peek += mergePeek + 1;
 				previousNode.setPeek(-1);
@@ -3280,7 +3424,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (layer == null) {
 				ensureOverflowForSteal(nextNode.getOverflow());
 				nextNode.getKeyColumn().copyRangeTo(0, this.keys, this.peek + 1, mergePeek + 1);
-				System.arraycopy(nextNode.getRecords(), 0, this.records, this.peek + 1, mergePeek + 1);
+				nextNode.getRecords().copyRangeTo(0, this.records, this.peek + 1, mergePeek + 1);
 				copyOverflowRange(nextNode.getOverflow(), 0, this.overflow, this.peek + 1, mergePeek + 1);
 				this.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
@@ -3290,7 +3434,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 				ensureLayerOverflowForSteal(layer, nextNode.getOverflow());
 				nextNode.getKeyColumnForUpdate().copyRangeTo(0, layer.keys, layer.peek + 1, mergePeek + 1);
-				System.arraycopy(nextNode.getRecordsForUpdate(), 0, layer.records, layer.peek + 1, mergePeek + 1);
+				nextNode.getRecordsForUpdate().copyRangeTo(0, layer.records, layer.peek + 1, mergePeek + 1);
 				copyOverflowRange(nextNode.getOverflowForUpdate(), 0, layer.overflow, layer.peek + 1, mergePeek + 1);
 				layer.peek += mergePeek + 1;
 				nextNode.setPeek(-1);
@@ -3316,7 +3460,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the records column
 		 */
 		@Nonnull
-		public int[] getRecords() {
+		public RecordColumn getRecords() {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
 				: null;
@@ -3372,17 +3516,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the records column (transaction-local copy when a layer is active)
 		 */
 		@Nonnull
-		public int[] getRecordsForUpdate() {
+		public RecordColumn getRecordsForUpdate() {
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
 				? Transaction.getOrCreateTransactionalMemoryLayer(this)
 				: null;
 			if (layer == null) {
 				return this.records;
 			} else {
-				//noinspection ArrayEquality
 				if (layer.records == this.records) {
-					layer.records = new int[this.records.length];
-					System.arraycopy(this.records, 0, layer.records, 0, this.records.length);
+					layer.records = this.records.duplicate();
 				}
 				return layer.records;
 			}
@@ -3421,7 +3563,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull
 		public Bitmap getRecords(@Nonnull M value) {
 			final ValueColumn<M> theKeys;
-			final int[] theRecords;
+			final RecordColumn theRecords;
 			final TransactionalBitmap[] theOverflow;
 			final int thePeek;
 
@@ -3449,7 +3591,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (theOverflow != null && theOverflow[index] != null) {
 				return theOverflow[index];
 			}
-			return new SingleRecordBitmap(theRecords[index]);
+			return new SingleRecordBitmap(theRecords.intAt(index));
 		}
 
 		/**
@@ -3540,7 +3682,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		/**
 		 * Captures this layer's revertable columnar state for a per-entity savepoint. The key column is
-		 * deep-copied via {@link ValueColumn#duplicate()}, the single-record column is cloned, and the lazy overflow
+		 * deep-copied via {@link ValueColumn#duplicate()}, the single-record column via {@link RecordColumn#duplicate()},
+		 * and the lazy overflow
 		 * column is shallow-cloned — the overflow {@link TransactionalBitmap}s own their own transactional layers and are
 		 * snapshotted independently, so the leaf only needs to remember which slot points to which bitmap. Independent
 		 * copies guarantee a later mutation, or a repeated {@link #restore}, cannot corrupt the memento.
@@ -3552,7 +3695,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		public BPlusLeafNodeMemento<M> snapshot() {
 			return new BPlusLeafNodeMemento<>(
 				this.keys.duplicate(),
-				this.records.clone(),
+				this.records.duplicate(),
 				this.overflow == null ? null : this.overflow.clone(),
 				this.peek
 			);
@@ -3567,7 +3710,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public void restore(@Nonnull BPlusLeafNodeMemento<M> memento) {
 			this.keys = memento.keys().duplicate();
-			this.records = memento.records().clone();
+			this.records = memento.records().duplicate();
 			this.overflow = memento.overflow() == null ? null : memento.overflow().clone();
 			this.peek = memento.peek();
 		}
@@ -3584,7 +3727,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull TransactionalLayerMaintainer transactionalLayer
 		) {
 			final ValueColumn<M> theKeys;
-			final int[] theRecords;
+			final RecordColumn theRecords;
 			final TransactionalBitmap[] theOverflow;
 			final int thePeek;
 			if (layer == null) {
@@ -3685,7 +3828,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			if (layer == null) {
 				Assert.isPremiseValid(
-					this.peek < this.records.length - 1,
+					this.peek < this.records.capacity() - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 				final InsertionPosition insertionPosition =
@@ -3699,7 +3842,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else {
 				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
-					layer.peek < layer.records.length - 1,
+					layer.peek < layer.records.capacity() - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 				final InsertionPosition insertionPosition =
@@ -3709,6 +3852,103 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					return false;
 				}
 				layer.insertNewSingleBucket(insertionPosition.position(), value, pk);
+				return true;
+			}
+		}
+
+		/**
+		 * Adds a single `long` payload bucket for `value` (create-or-reject). The bucket is UNIQUE and never promoted to
+		 * the overflow bitmap. The value MUST be absent — a present key here is a programming error (uniqueness is enforced
+		 * by the caller) and throws a {@link GenericEvitaInternalError}. Mirrors {@link #addRecord(Comparable, int)}'s
+		 * transactional / non-transactional branching. See {@link TransactionalBucketBPlusTree#addLongRecord(Comparable, long)}.
+		 *
+		 * @param value   the value identifying the bucket
+		 * @param payload the lone `long` payload to store
+		 * @return always true (a new bucket is always inserted)
+		 */
+		public boolean addLongRecord(@Nonnull M value, long payload) {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getOrCreateTransactionalMemoryLayer(this)
+				: null;
+			// adding a record mutates this leaf's page: flag it for re-emission
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
+			if (layer == null) {
+				Assert.isPremiseValid(
+					this.peek < this.records.capacity() - 1,
+					"Cannot insert into a full leaf node, split the node first!"
+				);
+				final InsertionPosition insertionPosition =
+					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
+				if (insertionPosition.alreadyPresent()) {
+					throw new GenericEvitaInternalError("value already present in a unique long-payload bucket tree");
+				}
+				insertNewSingleBucket(insertionPosition.position(), value, payload);
+				return true;
+			} else {
+				decoupleTransactionalArrays();
+				Assert.isPremiseValid(
+					layer.peek < layer.records.capacity() - 1,
+					"Cannot insert into a full leaf node, split the node first!"
+				);
+				final InsertionPosition insertionPosition =
+					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
+				if (insertionPosition.alreadyPresent()) {
+					throw new GenericEvitaInternalError("value already present in a unique long-payload bucket tree");
+				}
+				layer.insertNewSingleBucket(insertionPosition.position(), value, payload);
+				return true;
+			}
+		}
+
+		/**
+		 * Reads the `long` payload at the given bucket index (transaction-aware: resolves the record column through the
+		 * active layer, mirroring {@link #getRecords()}). Valid for a long-payload tree; an `int` tree widens its pk.
+		 *
+		 * @param index the bucket index (as returned by {@link #getValueIndex(Comparable)})
+		 * @return the `long` payload at `index`
+		 */
+		public long longRecordAt(int index) {
+			return getRecords().longAt(index);
+		}
+
+		/**
+		 * Removes the whole `long` payload bucket identified by `value`. Mirrors
+		 * {@link #removeRecords(Comparable, int...)}'s transactional / non-transactional branching but always deletes the
+		 * entire (single) bucket. See {@link TransactionalBucketBPlusTree#removeLongRecord(Comparable)}.
+		 *
+		 * @param value the value identifying the bucket to remove
+		 * @return true if a bucket was deleted, false when the value was absent
+		 */
+		public boolean removeLongRecord(@Nonnull M value) {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getOrCreateTransactionalMemoryLayer(this)
+				: null;
+			// removing a record mutates this leaf's page: flag it for re-emission
+			if (layer == null) {
+				this.dirty = true;
+			} else {
+				layer.dirty = true;
+			}
+			if (layer == null) {
+				final InsertionPosition insertionPosition =
+					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
+				if (!insertionPosition.alreadyPresent()) {
+					return false;
+				}
+				deleteBucketAt(insertionPosition.position());
+				return true;
+			} else {
+				decoupleTransactionalArrays();
+				final InsertionPosition insertionPosition =
+					layer.keys.findKeyPosition(value, 0, layer.peek + 1, this.comparator);
+				if (!insertionPosition.alreadyPresent()) {
+					return false;
+				}
+				layer.deleteBucketAt(insertionPosition.position());
 				return true;
 			}
 		}
@@ -3733,7 +3973,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			}
 			if (layer == null) {
 				Assert.isPremiseValid(
-					this.peek < this.records.length - 1,
+					this.peek < this.records.capacity() - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 				final InsertionPosition insertionPosition =
@@ -3747,7 +3987,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			} else {
 				decoupleTransactionalArrays();
 				Assert.isPremiseValid(
-					layer.peek < layer.records.length - 1,
+					layer.peek < layer.records.capacity() - 1,
 					"Cannot insert into a full leaf node, split the node first!"
 				);
 				final InsertionPosition insertionPosition =
@@ -3811,13 +4051,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return;
 			}
 			// single bucket
-			if (this.records[index] == pk) {
+			if (this.records.intAt(index) == pk) {
 				// already the sole record - no-op, stay single
 				return;
 			}
 			// second distinct record - promote to a multi-record bitmap
 			final TransactionalBitmap[] overflow = ensureOverflowColumn();
-			overflow[index] = new TransactionalBitmap(this.records[index], pk);
+			overflow[index] = new TransactionalBitmap(this.records.intAt(index), pk);
 		}
 
 		/**
@@ -3833,13 +4073,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return;
 			}
 			// single bucket
-			if (pks.length == 1 && pks[0] == this.records[index]) {
+			if (pks.length == 1 && pks[0] == this.records.intAt(index)) {
 				// the only id being added is the one already held - keep the compact form
 				return;
 			}
 			// promote to a bitmap holding the existing id plus all added ids (the bitmap dedupes & orders)
 			final TransactionalBitmap[] overflow = ensureOverflowColumn();
-			final TransactionalBitmap promoted = new TransactionalBitmap(this.records[index]);
+			final TransactionalBitmap promoted = new TransactionalBitmap(this.records.intAt(index));
 			promoted.addAll(pks);
 			overflow[index] = promoted;
 		}
@@ -3865,7 +4105,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return false;
 			}
 			// single bucket - removing its sole id deletes the bucket
-			final int held = this.records[index];
+			final int held = this.records.intAt(index);
 			for (final int pk : pks) {
 				if (pk == held) {
 					deleteBucketAt(index);
@@ -3877,15 +4117,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Inserts a new single-record bucket at `position`, shifting all three columns right by one.
+		 * Inserts a new single-record bucket at `position`, shifting all three columns right by one. The payload is widened
+		 * to `long` so the same helper serves both the `int` record-set path (an `int` pk auto-widens, then narrows back in
+		 * {@link IntRecordColumn#insertAt}) and the `long`-payload path (a packed `long` stored verbatim by
+		 * {@link LongRecordColumn#insertAt}).
 		 *
 		 * @param position the position at which to insert the new bucket
 		 * @param value    the bucket value
-		 * @param pk       the lone record id
+		 * @param payload  the lone record id (widened `int` pk) or packed `long` payload
 		 */
-		private void insertNewSingleBucket(int position, @Nonnull M value, int pk) {
+		private void insertNewSingleBucket(int position, @Nonnull M value, long payload) {
 			this.keys.insertKeyAt(position, value);
-			insertIntIntoSameArrayOnIndex(pk, this.records, position);
+			this.records.insertAt(position, payload);
 			if (this.overflow != null) {
 				shiftOverflowForSingleInsert(this.overflow, position);
 			}
@@ -3903,13 +4146,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private void insertNewBucket(int position, @Nonnull M value, @Nonnull int... pks) {
 			this.keys.insertKeyAt(position, value);
 			if (pks.length == 1) {
-				insertIntIntoSameArrayOnIndex(pks[0], this.records, position);
+				this.records.insertAt(position, pks[0]);
 				if (this.overflow != null) {
 					shiftOverflowForSingleInsert(this.overflow, position);
 				}
 			} else {
 				// multi bucket from the start - records[position] is don't-care
-				insertIntIntoSameArrayOnIndex(0, this.records, position);
+				this.records.insertAt(position, 0);
 				final TransactionalBitmap[] overflow = ensureOverflowColumn();
 				insertRecordIntoSameArrayOnIndex(new TransactionalBitmap(pks), overflow, position);
 			}
@@ -3930,9 +4173,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.overflow[this.peek] = null;
 			}
 			this.keys.removeKeyAt(index);
-			removeIntFromSameArrayOnIndex(this.records, index);
+			this.records.removeAt(index);
 			this.keys.clearAt(this.peek);
-			this.records[this.peek] = 0;
+			this.records.clearAt(this.peek);
 			this.peek--;
 		}
 
@@ -3944,7 +4187,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull
 		private TransactionalBitmap[] ensureOverflowColumn() {
 			if (this.overflow == null) {
-				this.overflow = new TransactionalBitmap[this.records.length];
+				this.overflow = new TransactionalBitmap[this.records.capacity()];
 			}
 			return this.overflow;
 		}
@@ -3957,7 +4200,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		private void ensureOverflowForSteal(@Nullable TransactionalBitmap[] siblingOverflow) {
 			if (siblingOverflow != null && this.overflow == null) {
-				this.overflow = new TransactionalBitmap[this.records.length];
+				this.overflow = new TransactionalBitmap[this.records.capacity()];
 			}
 		}
 
@@ -3971,7 +4214,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private void ensureLayerOverflowForSteal(
 			@Nonnull BPlusLeafTreeNode<M> layer, @Nullable TransactionalBitmap[] siblingOverflow) {
 			if (siblingOverflow != null && layer.overflow == null) {
-				layer.overflow = new TransactionalBitmap[layer.records.length];
+				layer.overflow = new TransactionalBitmap[layer.records.capacity()];
 			}
 		}
 
@@ -3986,10 +4229,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (layer.keys == this.keys) {
 					layer.keys = this.keys.duplicate();
 				}
-				//noinspection ArrayEquality
 				if (layer.records == this.records) {
-					layer.records = new int[this.records.length];
-					System.arraycopy(this.records, 0, layer.records, 0, this.peek + 1);
+					layer.records = this.records.duplicate();
 				}
 				//noinspection ArrayEquality
 				if (this.overflow != null && layer.overflow == this.overflow) {
@@ -4005,13 +4246,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * elements are shared by design (each owns its own snapshotted layer). See {@link #snapshot}.
 		 *
 		 * @param keys     deep copy of the key (bucket-value) column
-		 * @param records  clone of the single-record column
+		 * @param records  deep copy of the single-record column
 		 * @param overflow shallow clone of the lazy overflow column, or {@code null}
 		 * @param peek     the last occupied column index
 		 */
 		record BPlusLeafNodeMemento<M extends Comparable<M>>(
 			@Nonnull ValueColumn<M> keys,
-			@Nonnull int[] records,
+			@Nonnull RecordColumn records,
 			@Nullable TransactionalBitmap[] overflow,
 			int peek
 		) {
@@ -4031,7 +4272,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private boolean positioned;
 		private boolean exhausted;
 		private ValueColumn<M> leafKeys;
-		private int[] leafRecords;
+		private RecordColumn leafRecords;
 		@Nullable private TransactionalBitmap[] leafOverflow;
 		private int leafPeek;
 
@@ -4115,7 +4356,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public int singleRecordId() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			return this.leafRecords[this.currentIndex];
+			return this.leafRecords.intAt(this.currentIndex);
+		}
+
+		@Override
+		public long longRecordId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.leafRecords.longAt(this.currentIndex);
 		}
 
 		@Nonnull
@@ -4125,7 +4372,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (this.leafOverflow != null && this.leafOverflow[this.currentIndex] != null) {
 				return this.leafOverflow[this.currentIndex];
 			}
-			return new SingleRecordBitmap(this.leafRecords[this.currentIndex]);
+			return new SingleRecordBitmap(this.leafRecords.intAt(this.currentIndex));
 		}
 
 		@Override
@@ -4186,7 +4433,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private boolean exhausted;
 		private boolean started;
 		private ValueColumn<M> leafKeys;
-		private int[] leafRecords;
+		private RecordColumn leafRecords;
 		@Nullable private TransactionalBitmap[] leafOverflow;
 		private int leafPeek;
 
@@ -4245,7 +4492,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Override
 		public int singleRecordId() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
-			return this.leafRecords[this.currentIndex];
+			return this.leafRecords.intAt(this.currentIndex);
+		}
+
+		@Override
+		public long longRecordId() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return this.leafRecords.longAt(this.currentIndex);
 		}
 
 		@Nonnull
@@ -4255,7 +4508,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (this.leafOverflow != null && this.leafOverflow[this.currentIndex] != null) {
 				return this.leafOverflow[this.currentIndex];
 			}
-			return new SingleRecordBitmap(this.leafRecords[this.currentIndex]);
+			return new SingleRecordBitmap(this.leafRecords.intAt(this.currentIndex));
 		}
 
 		@Override

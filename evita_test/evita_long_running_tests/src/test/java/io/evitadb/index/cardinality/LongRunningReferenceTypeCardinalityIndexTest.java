@@ -96,7 +96,7 @@ class LongRunningReferenceTypeCardinalityIndexTest implements TimeBoundedTestSup
 								// add a new or already-present (indexPk, refPk) pair
 								final int indexPk = random.nextInt(20) + 1;
 								final int refPk = random.nextInt(10) + 1;
-								final long composed = NumberUtils.join(indexPk, refPk);
+								final long composed = NumberUtils.pack(indexPk, refPk);
 								original.addRecord(indexPk, refPk);
 								if (referenceCardinalities.merge(composed, 1, Integer::sum) == 1) {
 									// first occurrence: register in forward index
@@ -106,7 +106,7 @@ class LongRunningReferenceTypeCardinalityIndexTest implements TimeBoundedTestSup
 								// re-add (increment) a randomly chosen existing pair
 								final List<Long> keys = new ArrayList<>(referenceCardinalities.keySet());
 								final long composed = keys.get(random.nextInt(keys.size()));
-								final int[] parts = NumberUtils.split(composed);
+								final int[] parts = NumberUtils.unpack(composed);
 								original.addRecord(parts[0], parts[1]);
 								referenceCardinalities.merge(composed, 1, Integer::sum);
 								// forward index unchanged — pair already registered
@@ -121,12 +121,12 @@ class LongRunningReferenceTypeCardinalityIndexTest implements TimeBoundedTestSup
 								if (candidates.isEmpty()) {
 									final List<Long> keys = new ArrayList<>(referenceCardinalities.keySet());
 									final long composed = keys.get(random.nextInt(keys.size()));
-									final int[] parts = NumberUtils.split(composed);
+									final int[] parts = NumberUtils.unpack(composed);
 									original.addRecord(parts[0], parts[1]);
 									referenceCardinalities.merge(composed, 1, Integer::sum);
 								} else {
 									final long composed = candidates.get(random.nextInt(candidates.size()));
-									final int[] parts = NumberUtils.split(composed);
+									final int[] parts = NumberUtils.unpack(composed);
 									original.removeRecord(parts[0], parts[1]);
 									referenceCardinalities.merge(composed, -1, Integer::sum);
 									// forward index unchanged — pair still present
@@ -142,12 +142,12 @@ class LongRunningReferenceTypeCardinalityIndexTest implements TimeBoundedTestSup
 								if (candidates.isEmpty()) {
 									final List<Long> keys = new ArrayList<>(referenceCardinalities.keySet());
 									final long composed = keys.get(random.nextInt(keys.size()));
-									final int[] parts = NumberUtils.split(composed);
+									final int[] parts = NumberUtils.unpack(composed);
 									original.addRecord(parts[0], parts[1]);
 									referenceCardinalities.merge(composed, 1, Integer::sum);
 								} else {
 									final long composed = candidates.get(random.nextInt(candidates.size()));
-									final int[] parts = NumberUtils.split(composed);
+									final int[] parts = NumberUtils.unpack(composed);
 									original.removeRecord(parts[0], parts[1]);
 									referenceCardinalities.remove(composed);
 									// update forward index
@@ -170,8 +170,8 @@ class LongRunningReferenceTypeCardinalityIndexTest implements TimeBoundedTestSup
 						for (final Map.Entry<Long, Integer> ce : referenceCardinalities.entrySet()) {
 							final long pairKey = ce.getKey();
 							final int pairCount = ce.getValue();
-							final int[] ceParts = NumberUtils.split(pairKey);
-							expectedInternalCardinalities.merge(NumberUtils.join(ceParts[0], 0), pairCount, Integer::sum);
+							final int[] ceParts = NumberUtils.unpack(pairKey);
+							expectedInternalCardinalities.merge(NumberUtils.pack(ceParts[0], 0), pairCount, Integer::sum);
 							expectedInternalCardinalities.put(-1L * pairKey, pairCount);
 						}
 						assertEquals(expectedInternalCardinalities, committed.getCardinalities());
@@ -220,7 +220,7 @@ class LongRunningReferenceTypeCardinalityIndexTest implements TimeBoundedTestSup
 		// Build index by replaying addRecord calls — avoids touching internal key format
 		final ReferenceTypeCardinalityIndex index = new ReferenceTypeCardinalityIndex();
 		for (final Map.Entry<Long, Integer> e : pairCounts.entrySet()) {
-			final int[] parts = NumberUtils.split(e.getKey());
+			final int[] parts = NumberUtils.unpack(e.getKey());
 			final int count = e.getValue();
 			for (int i = 0; i < count; i++) {
 				index.addRecord(parts[0], parts[1]);
@@ -246,7 +246,7 @@ class LongRunningReferenceTypeCardinalityIndexTest implements TimeBoundedTestSup
 		for (int i = 0; i < count; i++) {
 			final int indexPk = random.nextInt(20) + 1;
 			final int refPk = random.nextInt(10) + 1;
-			final long composed = NumberUtils.join(indexPk, refPk);
+			final long composed = NumberUtils.pack(indexPk, refPk);
 			if (cardinalities.merge(composed, 1, Integer::sum) == 1) {
 				refPkToIndexPks.computeIfAbsent(refPk, k -> new HashSet<>()).add(indexPk);
 			}

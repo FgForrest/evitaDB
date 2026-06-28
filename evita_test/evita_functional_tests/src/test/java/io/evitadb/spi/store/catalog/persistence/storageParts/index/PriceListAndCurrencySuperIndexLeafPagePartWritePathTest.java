@@ -113,7 +113,7 @@ class PriceListAndCurrencySuperIndexLeafPagePartWritePathTest {
 			final int expectedStreamId = PriceListAndCurrencySuperIndexLeafPagePartWritePathTest.this.keyCompressor.getId(
 				new PriceLeafStreamKey(ENTITY_INDEX_PK, PRICE_INDEX_KEY)
 			);
-			final long expectedPK = NumberUtils.join(expectedStreamId, pageSequence);
+			final long expectedPK = NumberUtils.pack(expectedStreamId, pageSequence);
 
 			assertEquals(expectedStreamId, page.getStreamId(), "stream id resolved from identity");
 			assertEquals(expectedPK, resolvedPK, "PK packs the resolved stream id with the page sequence");

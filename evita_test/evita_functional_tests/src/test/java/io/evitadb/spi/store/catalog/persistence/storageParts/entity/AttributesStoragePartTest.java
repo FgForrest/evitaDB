@@ -119,7 +119,7 @@ class AttributesStoragePartTest {
 			final OptionalLong result = AttributesStoragePart.computeUniquePartId(keyCompressor, key);
 
 			assertTrue(result.isPresent());
-			assertEquals(NumberUtils.join(ENTITY_PK, compressedId), result.getAsLong());
+			assertEquals(NumberUtils.pack(ENTITY_PK, compressedId), result.getAsLong());
 		}
 
 		@Test
@@ -144,7 +144,7 @@ class AttributesStoragePartTest {
 
 			final long computedId = part.computeUniquePartIdAndSet(keyCompressor);
 
-			assertEquals(NumberUtils.join(ENTITY_PK, assignedId), computedId);
+			assertEquals(NumberUtils.pack(ENTITY_PK, assignedId), computedId);
 			assertNotNull(part.getStoragePartPK());
 			assertEquals(computedId, part.getStoragePartPK());
 		}

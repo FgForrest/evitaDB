@@ -36,7 +36,7 @@ import java.io.Serializable;
 /**
  * Identifies the per-super-price-index page STREAM under the granular price layout. A granular
  * {@link PriceListAndCurrencyPriceSuperIndex} persists its price-record tree leaves as individual
- * page storage parts keyed by `join(streamId, pageSequence)` ({@link PriceListAndCurrencySuperIndexLeafPagePart});
+ * page storage parts keyed by `pack(streamId, pageSequence)` ({@link PriceListAndCurrencySuperIndexLeafPagePart});
  * `pageSequence` is unique only WITHIN a stream, so the stream itself needs a unique, compact, restart-stable `int` id —
  * and that id must encode the FULL sub-index identity in a single `int` because the other half of the joined `long` PK is
  * consumed by `pageSequence`.

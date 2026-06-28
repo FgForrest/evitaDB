@@ -55,12 +55,9 @@ import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.map.MapChanges;
-import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
@@ -991,7 +988,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		keys.addAll(this.uniqueIndex.keySet());
 		// only folded-unique views whose shared tree still exists are advertised — a stale view key (whose tree emptied
 		// and was dropped) has no slim part to write, so it must be gated here exactly as in collectKeys() and the
-		// UniqueIndexView.createStoragePart guard, or the manifest would diverge from the live sub-index walk
+		// UniqueIndexView.appendStorageParts guard, or the manifest would diverge from the live sub-index walk
 		for (final AttributeIndexKey key : this.uniqueViewIndex.keySet()) {
 			if (this.sharedValueIndex.containsKey(key)) {
 				keys.add(key);
@@ -1098,14 +1095,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	public void getModifiedStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges trappedChanges) {
-		// UNIQUE parts: full parts from standalone (owner) indexes, slim parts from folded (view) indexes
+		// UNIQUE parts: standalone (owner) indexes emit a SINGLE inline root or granular PAGED leaf pages + a PAGED root,
+		// folded (view) indexes emit a slim part — both go through appendStorageParts.
 		for (Entry<AttributeIndexKey, UniqueIndex> entry : this.uniqueIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(trappedChanges::addChangeToStore);
+			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 		}
 		for (Entry<AttributeIndexKey, UniqueIndex> entry : this.uniqueViewIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(trappedChanges::addChangeToStore);
+			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 		}
 		// FILTER parts are produced from the shared tree via the rebuilt filter views (which carry attributeType + range).
 		// A small (single-leaf) index emits one inline SINGLE part; a large (multi-leaf) index emits granular PAGED leaf
@@ -1262,49 +1258,6 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 */
 	@Nonnull
 	public abstract AttributeScope getScope();
-
-	/**
-	 * Builds the persistent storage part for the single UNIQUE / FILTER / SORT / CHAIN sub-index addressed by
-	 * `storageKey`. A UNIQUE key resolves to a full part from a standalone owner index or a slim part from a folded view;
-	 * a FILTER key is produced from the shared tree via a freshly resolved view.
-	 *
-	 * @param entityIndexPrimaryKey the primary key of the owning entity index, embedded in the part
-	 * @param storageKey            the key identifying which sub-index part to build
-	 * @return the storage part, or `null` when the addressed sub-index has nothing to persist
-	 * @throws GenericEvitaInternalError when `storageKey` carries an unknown index type
-	 */
-	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull AttributeIndexStorageKey storageKey) {
-		final AttributeIndexType indexType = storageKey.indexType();
-		if (indexType == AttributeIndexType.UNIQUE) {
-			// UNIQUE parts: full part from a standalone (owner) index, slim part from a folded (view) index
-			final AttributeIndexKey attribute = storageKey.attribute();
-			final UniqueIndex owner = this.uniqueIndex.get(attribute);
-			if (owner != null) {
-				return owner.createStoragePart(entityIndexPrimaryKey);
-			}
-			final UniqueIndex view = this.uniqueViewIndex.get(attribute);
-			notNull(view, "Unique index for attribute `" + attribute + "` was not found!");
-			return view.createStoragePart(entityIndexPrimaryKey);
-		} else if (indexType == AttributeIndexType.FILTER) {
-			final AttributeIndexKey attribute = storageKey.attribute();
-			final FilterIndex theFilterIndex = resolveFilterView(attribute);
-			notNull(theFilterIndex, "Filter index for attribute `" + attribute + "` was not found!");
-			return theFilterIndex.createStoragePart(entityIndexPrimaryKey);
-		} else if (indexType == AttributeIndexType.SORT) {
-			final AttributeIndexKey attribute = storageKey.attribute();
-			final SortIndex theSortIndex = this.sortIndex.get(attribute);
-			notNull(theSortIndex, "Sort index for attribute `" + attribute + "` was not found!");
-			return theSortIndex.createStoragePart(entityIndexPrimaryKey);
-		} else if (indexType == AttributeIndexType.CHAIN) {
-			final AttributeIndexKey attribute = storageKey.attribute();
-			final ChainIndex theChainIndex = this.chainIndex.get(attribute);
-			notNull(theChainIndex, "Chain index for attribute `" + attribute + "` was not found!");
-			return theChainIndex.createStoragePart(entityIndexPrimaryKey);
-		} else {
-			throw new GenericEvitaInternalError("Cannot handle attribute storage part key of type `" + indexType + "`");
-		}
-	}
 
 	/**
 	 * Factory hook implemented by each {@link AttributeIndex} subclass so the merged-transactional-memory
@@ -1702,7 +1655,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	public static class AttributeIndexChanges implements Snapshotable<AttributeIndexChanges.AttributeIndexChangesMemento> {
 		// five producer containers: UNIQUE is standalone, FILTER data lives in the shared value-index container, the
 		// range structure is its own producer container, plus sort and chain.
-		private final TransactionalContainerChanges<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, PersistentTransactionalMap<Serializable, Integer>>, UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<Void, UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 		private final TransactionalContainerChanges<Void, InvertedIndex, InvertedIndex> sharedValueIndexChanges = new TransactionalContainerChanges<>();
 		private final TransactionalContainerChanges<Void, RangeIndex, RangeIndex> sharedRangeIndexChanges = new TransactionalContainerChanges<>();
 		private final TransactionalContainerChanges<SortIndexChanges, SortIndex, SortIndex> sortIndexChanges = new TransactionalContainerChanges<>();

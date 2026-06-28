@@ -31,11 +31,15 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.Map;
 
-import static io.evitadb.utils.NumberUtils.join;
-import static io.evitadb.utils.NumberUtils.split;
-import static io.evitadb.utils.NumberUtils.splitHigh;
-import static io.evitadb.utils.NumberUtils.splitLow;
+import static io.evitadb.utils.NumberUtils.pack;
+import static io.evitadb.utils.NumberUtils.unpack;
+import static io.evitadb.utils.NumberUtils.unpackHigh;
+import static io.evitadb.utils.NumberUtils.unpackHigh16;
+import static io.evitadb.utils.NumberUtils.unpackLow;
+import static io.evitadb.utils.NumberUtils.unpackLow32;
+import static io.evitadb.utils.NumberUtils.unpackMid16;
 import java.io.Serializable;
+import io.evitadb.exception.GenericEvitaInternalError;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -58,30 +62,30 @@ import static io.evitadb.test.TestTags.DATA_TYPE;
 class NumberUtilsTest {
 
 	@Nested
-	@DisplayName("Join/Split tests")
-	class JoinSplitTests {
+	@DisplayName("Pack/Unpack tests")
+	class PackUnpackTests {
 
 		@Test
-		@DisplayName("Should join and increment separately")
-		void shouldJointAndIncrementSeparately() {
-			assertEquals(4398046511105L, join(1024, 1));
-			assertEquals(4398046511105L + 1L, join(1024, 2));
+		@DisplayName("Should pack and increment separately")
+		void shouldPackAndIncrementSeparately() {
+			assertEquals(4398046511105L, pack(1024, 1));
+			assertEquals(4398046511105L + 1L, pack(1024, 2));
 		}
 
 		@Test
-		@DisplayName("Should join and decompose ints to long")
-		void shouldJoinAndDecomposeIntsToLong() {
-			assertArrayEquals(new int[]{1, 45}, split(join(1, 45)));
-			assertArrayEquals(new int[]{Integer.MAX_VALUE, Integer.MIN_VALUE}, split(join(Integer.MAX_VALUE, Integer.MIN_VALUE)));
-			assertArrayEquals(new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE}, split(join(Integer.MIN_VALUE, Integer.MIN_VALUE)));
-			assertArrayEquals(new int[]{Integer.MIN_VALUE, Integer.MAX_VALUE}, split(join(Integer.MIN_VALUE, Integer.MAX_VALUE)));
-			assertArrayEquals(new int[]{Integer.MAX_VALUE, Integer.MIN_VALUE}, split(join(Integer.MAX_VALUE, Integer.MIN_VALUE)));
-			assertArrayEquals(new int[]{-10, -564}, split(join(-10, -564)));
+		@DisplayName("Should pack and decompose ints to long")
+		void shouldPackAndDecomposeIntsToLong() {
+			assertArrayEquals(new int[]{1, 45}, unpack(pack(1, 45)));
+			assertArrayEquals(new int[]{Integer.MAX_VALUE, Integer.MIN_VALUE}, unpack(pack(Integer.MAX_VALUE, Integer.MIN_VALUE)));
+			assertArrayEquals(new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE}, unpack(pack(Integer.MIN_VALUE, Integer.MIN_VALUE)));
+			assertArrayEquals(new int[]{Integer.MIN_VALUE, Integer.MAX_VALUE}, unpack(pack(Integer.MIN_VALUE, Integer.MAX_VALUE)));
+			assertArrayEquals(new int[]{Integer.MAX_VALUE, Integer.MIN_VALUE}, unpack(pack(Integer.MAX_VALUE, Integer.MIN_VALUE)));
+			assertArrayEquals(new int[]{-10, -564}, unpack(pack(-10, -564)));
 		}
 
 		@Test
-		@DisplayName("Should decompose a joined long half-by-half without allocation")
-		void shouldSplitHighAndLowWithoutAllocation() {
+		@DisplayName("Should decompose a packed long half-by-half without allocation")
+		void shouldUnpackHighAndLowWithoutAllocation() {
 			final int[][] pairs = {
 				{1, 45},
 				{Integer.MAX_VALUE, Integer.MIN_VALUE},
@@ -92,13 +96,69 @@ class NumberUtilsTest {
 				{0, 0}
 			};
 			for (final int[] pair : pairs) {
-				final long joined = join(pair[0], pair[1]);
-				// the half-accessors must agree with the index-0 / index-1 components of split(...)
-				assertEquals(pair[0], splitHigh(joined));
-				assertEquals(pair[1], splitLow(joined));
-				assertEquals(split(joined)[0], splitHigh(joined));
-				assertEquals(split(joined)[1], splitLow(joined));
+				final long packed = pack(pair[0], pair[1]);
+				// the half-accessors must agree with the index-0 / index-1 components of unpack(...)
+				assertEquals(pair[0], unpackHigh(packed));
+				assertEquals(pair[1], unpackLow(packed));
+				assertEquals(unpack(packed)[0], unpackHigh(packed));
+				assertEquals(unpack(packed)[1], unpackLow(packed));
 			}
+		}
+	}
+
+	@Nested
+	@DisplayName("Triple pack/unpack tests (16|16|32)")
+	class TriplePackUnpackTests {
+
+		@Test
+		@DisplayName("Should round-trip the three fields of a (16|16|32) packed long")
+		void shouldRoundTripThreeFieldPack() {
+			final int[][] triples = {
+				{0, 0, 0},
+				{1, 2, 3},
+				{0xFFFF, 0xFFFF, -1},
+				{0xFFFF, 0, Integer.MAX_VALUE},
+				{0, 0xFFFF, Integer.MIN_VALUE},
+				{12345, 54321 & 0xFFFF, -987654},
+				{0xFFFF, 0x1234, 0}
+			};
+			for (final int[] triple : triples) {
+				final long packed = pack(triple[0], triple[1], triple[2]);
+				assertEquals(triple[0], unpackHigh16(packed));
+				assertEquals(triple[1], unpackMid16(packed));
+				assertEquals(triple[2], unpackLow32(packed));
+			}
+		}
+
+		@Test
+		@DisplayName("Should keep the three fields independent and non-overlapping")
+		void shouldKeepThreeFieldsIndependent() {
+			// every field set to its maximum unsigned width must not bleed into a neighbour
+			assertEquals(0xFFFF, unpackHigh16(pack(0xFFFF, 0, 0)));
+			assertEquals(0, unpackMid16(pack(0xFFFF, 0, 0)));
+			assertEquals(0, unpackLow32(pack(0xFFFF, 0, 0)));
+
+			assertEquals(0, unpackHigh16(pack(0, 0xFFFF, 0)));
+			assertEquals(0xFFFF, unpackMid16(pack(0, 0xFFFF, 0)));
+			assertEquals(0, unpackLow32(pack(0, 0xFFFF, 0)));
+
+			assertEquals(0, unpackHigh16(pack(0, 0, -1)));
+			assertEquals(0, unpackMid16(pack(0, 0, -1)));
+			assertEquals(-1, unpackLow32(pack(0, 0, -1)));
+		}
+
+		@Test
+		@DisplayName("Should reject a high field that overflows 16 unsigned bits")
+		void shouldThrowWhenHighFieldOverflows() {
+			assertThrows(GenericEvitaInternalError.class, () -> pack(0x10000, 0, 0));
+			assertThrows(GenericEvitaInternalError.class, () -> pack(-1, 0, 0));
+		}
+
+		@Test
+		@DisplayName("Should reject a mid field that overflows 16 unsigned bits")
+		void shouldThrowWhenMidFieldOverflows() {
+			assertThrows(GenericEvitaInternalError.class, () -> pack(0, 0x10000, 0));
+			assertThrows(GenericEvitaInternalError.class, () -> pack(0, -1, 0));
 		}
 	}
 

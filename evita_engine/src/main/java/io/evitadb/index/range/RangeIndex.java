@@ -42,6 +42,7 @@ import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.utils.Assert;
 import lombok.Data;
@@ -718,43 +719,17 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * @return the changed leaf pages, the ordered live page-sequence list, the high-water and the freed page sequences
 	 */
 	@Nonnull
-	public PagedEmission collectChangedPages() {
-		final List<LeafPageHandle<TransactionalRangePoint>> handles = this.ranges.leafPageHandles();
-		final int[] orderedPageSequences = new int[handles.size()];
-		final List<RangePage> changedPages = new ArrayList<>();
-		final Set<Integer> nextLive = new HashSet<>(handles.size());
-		int idx = 0;
-		for (final LeafPageHandle<TransactionalRangePoint> handle : handles) {
-			int pageSequence = handle.getPageSequence();
-			final boolean freshLeaf = pageSequence == TransactionalLongBPlusTree.UNASSIGNED_PAGE_SEQUENCE;
-			if (freshLeaf) {
-				// split-born / fresh leaf: allocate a page and stamp it onto the live node (the merge carries it forward)
-				pageSequence = this.pageStreamRegistry.allocate(RANGE_PAGE_STREAM);
-				handle.setPageSequence(pageSequence);
-			}
-			orderedPageSequences[idx++] = pageSequence;
-			nextLive.add(pageSequence);
-
-			// a leaf is (re)written iff it is brand new or its transaction-aware dirty flag is set — an exact signal a
-			// content hash cannot match: every mutation site sets it, so a real change can never be suppressed. Once the
-			// page is collected the flag is cleared so the next commit suppresses the leaf unless it is mutated again.
-			if (freshLeaf || handle.isDirty()) {
+	public PageEmission<RangePage> collectChangedPages() {
+		return this.pageStreamRegistry.collectChangedPages(
+			RANGE_PAGE_STREAM, this.ranges.<TransactionalRangePoint>leafPageHandles(),
+			(pageSequence, handle) -> {
 				final int size = handle.size();
 				final TransactionalRangePoint[] pagePoints = new TransactionalRangePoint[size];
 				for (int i = 0; i < size; i++) {
 					pagePoints[i] = handle.valueAt(i);
 				}
-				changedPages.add(new RangePage(pageSequence, pagePoints));
-				handle.clearDirty();
+				return new RangePage(pageSequence, pagePoints);
 			}
-		}
-		// pages live in the published set but absent from this commit's live leaves were dropped by a leaf merge:
-		// they must be REMOVED from storage, not merely unreferenced — the append-only OffsetIndex never reclaims a
-		// record that is neither superseded (page ids are advance-only, never re-keyed) nor explicitly removed
-		final int[] freedPageSequences = this.pageStreamRegistry.freedPageSequences(RANGE_PAGE_STREAM, nextLive);
-		this.pageStreamRegistry.stage(RANGE_PAGE_STREAM, nextLive);
-		return new PagedEmission(
-			changedPages, orderedPageSequences, this.pageStreamRegistry.highWater(RANGE_PAGE_STREAM), freedPageSequences
 		);
 	}
 
@@ -832,25 +807,6 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	 * @param points  the leaf's range points in ascending threshold order
 	 */
 	public record RangePage(int pageSequence, @Nonnull TransactionalRangePoint[] points) {
-	}
-
-	/**
-	 * The granular write-path emission for one commit: the leaf pages to (re)write this commit, the
-	 * complete ordered list of live leaf-page sequences (the `PAGED` root's leaf list, ascending threshold order), the
-	 * stream high-water to persist in the root, and the page sequences a leaf merge dropped this commit (to be removed
-	 * from storage so they don't leak).
-	 *
-	 * @param changedPages     the leaf pages whose content changed since the last baseline
-	 * @param orderedPageSequences  every live leaf's page sequence in ascending threshold order
-	 * @param highWaterPageSequence the maximum page sequence ever allocated for the stream
-	 * @param freedPageSequences    page sequences dropped this commit (merged-away leaves) that must be removed from storage
-	 */
-	public record PagedEmission(
-		@Nonnull List<RangePage> changedPages,
-		@Nonnull int[] orderedPageSequences,
-		int highWaterPageSequence,
-		@Nonnull int[] freedPageSequences
-	) {
 	}
 
 	@Nonnull

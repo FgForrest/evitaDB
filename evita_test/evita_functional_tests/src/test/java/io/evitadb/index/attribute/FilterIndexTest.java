@@ -26,6 +26,7 @@ package io.evitadb.index.attribute;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
@@ -1273,30 +1274,33 @@ class FilterIndexTest {
 	class StoragePartTest {
 
 		@Test
-		@DisplayName("createStoragePart returns null when not dirty")
-		void shouldReturnNullStoragePartWhenNotDirty() {
+		@DisplayName("appendStorageParts emits nothing when not dirty")
+		void shouldEmitNothingWhenNotDirty() {
 			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 
-			final StoragePart storagePart = index.createStoragePart(1);
+			final TrappedChanges sink = new TrappedChanges();
+			index.appendStorageParts(1, sink);
 
-			assertNull(storagePart);
+			assertEquals(0, sink.getTrappedChangesCount());
 		}
 
 		@Test
 		@DisplayName(
-			"createStoragePart returns FilterIndexStoragePart when dirty"
+			"appendStorageParts emits a FilterIndexStoragePart when dirty"
 		)
-		void shouldReturnStoragePartWhenDirty() {
+		void shouldEmitStoragePartWhenDirty() {
 			final OwnerFilterIndex index = new OwnerFilterIndex(
 				new AttributeIndexKey(null, "a", null), String.class
 			);
 			index.addRecord(1, "A");
 
-			final StoragePart storagePart = index.createStoragePart(42);
+			final TrappedChanges sink = new TrappedChanges();
+			index.appendStorageParts(42, sink);
 
-			assertNotNull(storagePart);
+			assertEquals(1, sink.getTrappedChangesCount());
+			final StoragePart storagePart = sink.getTrappedChangesIterator().next();
 			assertInstanceOf(FilterIndexStoragePart.class, storagePart);
 			final FilterIndexStoragePart filterPart =
 				(FilterIndexStoragePart) storagePart;
@@ -1316,12 +1320,16 @@ class FilterIndexTest {
 			index.addRecord(1, "A");
 
 			// should be dirty now
-			assertNotNull(index.createStoragePart(1));
+			final TrappedChanges beforeReset = new TrappedChanges();
+			index.appendStorageParts(1, beforeReset);
+			assertEquals(1, beforeReset.getTrappedChangesCount());
 
 			index.resetDirty();
 
 			// after reset, should no longer be dirty
-			assertNull(index.createStoragePart(1));
+			final TrappedChanges afterReset = new TrappedChanges();
+			index.appendStorageParts(1, afterReset);
+			assertEquals(0, afterReset.getTrappedChangesCount());
 		}
 	}
 

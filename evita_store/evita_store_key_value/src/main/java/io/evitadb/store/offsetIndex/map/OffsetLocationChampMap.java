@@ -547,31 +547,31 @@ public final class OffsetLocationChampMap implements Map<RecordKey, FileLocation
 
 	/**
 	 * Packs the record type (high 32 bits, sign-extended) and length (low 32 bits) into one long via
-	 * the established {@link NumberUtils#join(int, int)}. The byte → int widening sign-extends the type
+	 * the established {@link NumberUtils#pack(int, int)}. The byte → int widening sign-extends the type
 	 * into the high word exactly as a byte → long widening would; {@link #unpackType} truncates those
 	 * high bits back to a byte on read, so the sign extension is harmless.
 	 */
 	private static long pack(byte recordType, int recordLength) {
-		return NumberUtils.join(recordType, recordLength);
+		return NumberUtils.pack(recordType, recordLength);
 	}
 
 	/**
 	 * Extracts the record type from a packed `typeLen` slot — the high-order half written by
 	 * {@link #pack}, truncated back to the byte it originated from. Uses the allocation-free
-	 * {@link NumberUtils#splitHigh(long)} (the array-free counterpart of {@link NumberUtils#split})
+	 * {@link NumberUtils#unpackHigh(long)} (the array-free counterpart of {@link NumberUtils#unpack})
 	 * because this accessor sits on the lookup hot path.
 	 */
 	private static byte unpackType(long typeLen) {
-		return (byte) NumberUtils.splitHigh(typeLen);
+		return (byte) NumberUtils.unpackHigh(typeLen);
 	}
 
 	/**
 	 * Extracts the record length from a packed `typeLen` slot — the low-order half written by
-	 * {@link #pack}. Uses the allocation-free {@link NumberUtils#splitLow(long)} (the array-free
-	 * counterpart of {@link NumberUtils#split}) because this accessor sits on the lookup hot path.
+	 * {@link #pack}. Uses the allocation-free {@link NumberUtils#unpackLow(long)} (the array-free
+	 * counterpart of {@link NumberUtils#unpack}) because this accessor sits on the lookup hot path.
 	 */
 	private static int unpackLen(long typeLen) {
-		return NumberUtils.splitLow(typeLen);
+		return NumberUtils.unpackLow(typeLen);
 	}
 
 	/**

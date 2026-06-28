@@ -34,7 +34,7 @@ import java.io.Serializable;
 
 /**
  * Identifies the per-sub-index page STREAM under the granular FilterIndex layout. A granular
- * FilterIndex persists its bucket-tree leaves as individual page storage parts keyed by `join(streamId, pageSequence)`
+ * FilterIndex persists its bucket-tree leaves as individual page storage parts keyed by `pack(streamId, pageSequence)`
  * ({@link FilterIndexLeafPagePart}); `pageSequence` is unique only WITHIN a stream, so the stream itself needs a unique,
  * compact, restart-stable `int` id — and that id must encode the FULL sub-index identity in a single `int` because the
  * other half of the joined `long` PK is consumed by `pageSequence`.
@@ -61,7 +61,7 @@ public class LeafStreamKey implements Comparable<LeafStreamKey>, Serializable {
 	 * under the granular layout: its value bucket tree ({@link #BUCKET}) and its optional threshold
 	 * range tree ({@link #RANGE}). Both streams share the same `(entityIndexPrimaryKey, attributeKey)` identity, so the
 	 * stream kind is what makes their {@link KeyCompressor} ids — and therefore their leaf-page primary keys
-	 * `join(streamId, pageSequence)` — distinct; without it the two streams' page sequences would collide.
+	 * `pack(streamId, pageSequence)` — distinct; without it the two streams' page sequences would collide.
 	 */
 	public enum StreamKind {
 		/**

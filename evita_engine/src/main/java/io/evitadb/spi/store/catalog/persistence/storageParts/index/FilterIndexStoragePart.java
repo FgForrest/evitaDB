@@ -97,7 +97,7 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	@Getter private final int indexedDecimalPlaces;
 	/**
 	 * The `PAGED`/`SINGLE` discriminator. When `true` the bucket tree is persisted as individual
-	 * {@link FilterIndexLeafPagePart} leaf pages keyed by `join(streamId, pageSequence)` and {@link #histogramPoints} is
+	 * {@link FilterIndexLeafPagePart} leaf pages keyed by `pack(streamId, pageSequence)` and {@link #histogramPoints} is
 	 * empty; when `false` every bucket lives inline in {@link #histogramPoints}. The page stream id is deliberately NOT
 	 * persisted here: it is the {@link LeafStreamKey}'s compressed id (see {@link LeafStreamKey}), recomputed at load
 	 * from the sub-index identity via the catalog's read-only {@code KeyCompressor} — the engine that builds this part
@@ -119,7 +119,7 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	/**
 	 * The `PAGED`/`SINGLE` discriminator for the RANGE companion, independent of the bucket-tree
 	 * {@link #paged} axis. When `true` the range tree is persisted as individual {@link RangeIndexLeafPagePart} leaf
-	 * pages keyed by `join(streamId, pageSequence)` (with the range stream id) and {@link #rangeIndex} is `null`; when `false`
+	 * pages keyed by `pack(streamId, pageSequence)` (with the range stream id) and {@link #rangeIndex} is `null`; when `false`
 	 * the whole {@link #rangeIndex} is carried inline (or there is no range companion at all). The range stream id is
 	 * deliberately NOT persisted here — it is the {@link LeafStreamKey}'s compressed id resolved at load with
 	 * {@link LeafStreamKey.StreamKind#RANGE}, mirroring the bucket stream.

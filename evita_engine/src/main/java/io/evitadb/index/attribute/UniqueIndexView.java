@@ -23,16 +23,13 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.transaction.memory.TransactionalContainerChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.map.MapChanges;
-import io.evitadb.index.map.PersistentTransactionalMap;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 
@@ -40,8 +37,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * Stateless VIEW variant of {@link UniqueIndex}, folded onto the shared `value→ValueToRecord` tree owned by
@@ -152,17 +147,17 @@ public final class UniqueIndexView extends UniqueIndex {
 		return filterView == null || filterView.isEmpty();
 	}
 
-	@Nullable
 	@Override
-	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
-		// a folded view writes a SLIM part (no value map / record-id bitmap) - just the manifest signal that this
-		// attribute key is unique, so the view and its enforcement are reconstructed on reload. Emit only when the
-		// shared tree is dirty (its data lives in the FilterIndexStoragePart written separately).
+	public void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		// a folded view never pages: it emits a single SLIM part (no value map / record-id bitmap) - just the manifest
+		// signal that this attribute key is unique, so the view and its enforcement are reconstructed on reload. Emit
+		// only when the shared tree is dirty (its data lives in the shared FilterIndexStoragePart, persisted separately).
 		final FilterIndex filterView = this.sharedFilterView;
 		if (filterView != null && filterView.isDirty()) {
-			return new UniqueIndexStoragePart(entityIndexPrimaryKey, getAttributeIndexKey(), getType());
+			sink.addChangeToStore(
+				new UniqueIndexStoragePart(entityIndexPrimaryKey, getAttributeIndexKey(), getType())
+			);
 		}
-		return null;
 	}
 
 	@Override
@@ -172,20 +167,17 @@ public final class UniqueIndexView extends UniqueIndex {
 
 	@Nullable
 	@Override
-	public TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, PersistentTransactionalMap<Serializable, Integer>> createLayer() {
+	public Void createLayer() {
 		// a view never participates in a commit: it owns no transactional state, so it yields no layer (its enclosing
-		// transactional cache map deep-commits it as an identity and rebuilds it fresh over the committed shared tree)
+		// transactional cache map deep-commits it as an identity and rebuilds it fresh over the committed shared tree).
+		// Overrides the VoidTransactionMemoryProducer default (which throws) to stay defensive if ever reached.
 		return null;
 	}
 
 	@Nonnull
 	@Override
 	public UniqueIndex createCopyWithMergedTransactionalMemory(
-		@Nullable TransactionalContainerChanges<
-			MapChanges<Serializable, Integer>,
-			Map<Serializable, Integer>,
-			PersistentTransactionalMap<Serializable, Integer>
-			> layer,
+		@Nullable Void layer,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
 		// view instances are non-transactional and rebuilt fresh over the committed shared tree by AttributeIndex;
@@ -201,9 +193,9 @@ public final class UniqueIndexView extends UniqueIndex {
 
 	@Nonnull
 	@Override
-	Map<Serializable, Integer> getUniqueValueToRecordId() {
-		// a folded view owns no map - its data lives in the shared filter tree
-		return Collections.emptyMap();
+	InlineSnapshot inlineSnapshot() {
+		// a folded view owns no inline columns - its data lives in the shared filter tree
+		return new InlineSnapshot(new Serializable[0], new int[0]);
 	}
 
 }

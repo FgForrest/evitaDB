@@ -24,8 +24,8 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
@@ -38,8 +38,6 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -56,7 +54,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 class UniqueIndexTest {
-	private final UniqueIndex tested = new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "whatever", null), String.class, new HashMap<>());
+	private final UniqueIndex tested = new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "whatever", null), String.class);
 
 	@Test
 	void shouldRegisterUniqueValueAndRetrieveItBack() {
@@ -414,7 +412,7 @@ class UniqueIndexTest {
 		}
 
 		@Test
-		@DisplayName("createStoragePart() returns null when not dirty")
+		@DisplayName("appendStorageParts emits nothing when not dirty")
 		void shouldReturnNullStoragePartWhenNotDirty() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
@@ -422,12 +420,13 @@ class UniqueIndexTest {
 				String.class
 			);
 
-			final StoragePart result = index.createStoragePart(1);
-			assertNull(result);
+			final TrappedChanges sink = new TrappedChanges();
+			index.appendStorageParts(1, sink);
+			assertEquals(0, sink.getTrappedChangesCount());
 		}
 
 		@Test
-		@DisplayName("createStoragePart() returns correct part when dirty")
+		@DisplayName("appendStorageParts emits the correct part when dirty")
 		void shouldReturnStoragePartWhenDirty() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
@@ -436,8 +435,11 @@ class UniqueIndexTest {
 			);
 			index.registerUniqueKey("A", 1);
 
-			final StoragePart result = index.createStoragePart(42);
-			assertNotNull(result);
+			final TrappedChanges sink = new TrappedChanges();
+			index.appendStorageParts(42, sink);
+			assertEquals(1, sink.getTrappedChangesCount());
+
+			final StoragePart result = sink.getTrappedChangesIterator().next();
 			assertInstanceOf(UniqueIndexStoragePart.class, result);
 
 			final UniqueIndexStoragePart storagePart = (UniqueIndexStoragePart) result;
@@ -450,7 +452,7 @@ class UniqueIndexTest {
 		}
 
 		@Test
-		@DisplayName("resetDirty() clears dirty flag so createStoragePart() returns null")
+		@DisplayName("resetDirty() clears dirty flag so appendStorageParts emits nothing")
 		void shouldClearDirtyFlagOnReset() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
@@ -459,14 +461,18 @@ class UniqueIndexTest {
 			);
 			index.registerUniqueKey("A", 1);
 
-			// dirty — storage part should be non-null
-			assertNotNull(index.createStoragePart(1));
+			// dirty — a part is emitted
+			final TrappedChanges beforeReset = new TrappedChanges();
+			index.appendStorageParts(1, beforeReset);
+			assertEquals(1, beforeReset.getTrappedChangesCount());
 
 			// reset dirty flag
 			index.resetDirty();
 
-			// now createStoragePart should return null
-			assertNull(index.createStoragePart(1));
+			// now nothing is emitted
+			final TrappedChanges afterReset = new TrappedChanges();
+			index.appendStorageParts(1, afterReset);
+			assertEquals(0, afterReset.getTrappedChangesCount());
 		}
 
 		@Test
@@ -494,7 +500,7 @@ class UniqueIndexTest {
 		}
 
 		@Test
-		@DisplayName("getUniqueValueToRecordId() returns unmodifiable map")
+		@DisplayName("inlineSnapshot() exposes the registered (value, recordId) columns")
 		void shouldReturnUnmodifiableMap() {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
@@ -503,31 +509,23 @@ class UniqueIndexTest {
 			);
 			index.registerUniqueKey("A", 1);
 
-			final Map<Serializable, Integer> map = index.getUniqueValueToRecordId();
-			assertEquals(1, map.size());
-			assertEquals(1, map.get("A"));
-
-			// the map must be unmodifiable
-			assertThrows(
-				UnsupportedOperationException.class,
-				() -> map.put("B", 2)
-			);
+			final UniqueIndex.InlineSnapshot snapshot = index.inlineSnapshot();
+			assertArrayEquals(new Serializable[]{"A"}, snapshot.values());
+			assertArrayEquals(new int[]{1}, snapshot.recordIds());
 		}
 
 		@Test
-		@DisplayName("3-arg constructor with pre-populated map and bitmap")
+		@DisplayName("constructor with pre-populated value/record columns")
 		void shouldConstructFromPrePopulatedMapAndBitmap() {
-			final Map<Serializable, Integer> prePopulated = new HashMap<>();
-			prePopulated.put("X", 10);
-			prePopulated.put("Y", 20);
-			final BaseBitmap bitmap = new BaseBitmap(10, 20);
+			final Serializable[] values = {"X", "Y"};
+			final int[] recordIds = {10, 20};
 
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class,
-				prePopulated,
-				bitmap
+				values,
+				recordIds
 			);
 
 			assertFalse(index.isEmpty());

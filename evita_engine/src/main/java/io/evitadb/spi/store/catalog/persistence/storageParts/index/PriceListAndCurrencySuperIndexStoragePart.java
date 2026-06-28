@@ -68,7 +68,7 @@ public class PriceListAndCurrencySuperIndexStoragePart extends PriceListAndCurre
 	@Getter private final PriceRecordContract[] priceRecords;
 	/**
 	 * The `PAGED`/`SINGLE` discriminator. When `true` the price-record tree is persisted as individual
-	 * {@link PriceListAndCurrencySuperIndexLeafPagePart} leaf pages keyed by `join(streamId, pageSequence)` and
+	 * {@link PriceListAndCurrencySuperIndexLeafPagePart} leaf pages keyed by `pack(streamId, pageSequence)` and
 	 * {@link #priceRecords} is empty; when `false` every record lives inline in {@link #priceRecords}. The page stream id
 	 * is deliberately NOT persisted here: it is the {@link PriceLeafStreamKey}'s compressed id, recomputed at load from
 	 * the sub-index identity via the catalog's read-only `KeyCompressor`.

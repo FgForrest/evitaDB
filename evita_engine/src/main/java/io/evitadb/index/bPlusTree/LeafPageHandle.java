@@ -34,45 +34,13 @@ import javax.annotation.Nonnull;
  *
  * It is the value-agnostic emission view shared by every paging variant of the B+ tree family, so the granular
  * write path in the index consumers ({@link io.evitadb.index.range.RangeIndex} today) is written once against this
- * contract regardless of the concrete tree.
+ * contract regardless of the concrete tree. The page-bookkeeping half (page sequence, dirty flag, page stamp) lives on
+ * the value-agnostic {@link PagedLeafHandle} super-interface this extends; this interface adds the value-access methods.
  *
  * @param <T> the leaf payload (value) type
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public interface LeafPageHandle<T> {
-
-	/**
-	 * Returns the leaf's current page sequence, or {@link AbstractTransactionalBPlusTree#UNASSIGNED_PAGE_SEQUENCE} when
-	 * the leaf has no page yet.
-	 *
-	 * @return the page sequence or {@link AbstractTransactionalBPlusTree#UNASSIGNED_PAGE_SEQUENCE}
-	 */
-	int getPageSequence();
-
-	/**
-	 * Returns whether this leaf has been mutated since the last flush — the deterministic change-detection signal.
-	 * The flag is read transaction-aware (the in-flight transaction's layer when one exists), so a leaf changed in
-	 * the committing transaction reads dirty at flush even though its committed instance is replaced only later, at
-	 * the commit-merge. Unlike a content hash it can never miss a real change: every mutation sets it.
-	 *
-	 * @return true when the leaf must be (re)written
-	 */
-	boolean isDirty();
-
-	/**
-	 * Clears the leaf's dirty flag — called by the emitter once the leaf page has been collected for this flush, so
-	 * the next commit suppresses it unless it is mutated again. Transaction-aware (clears the layer's flag in a
-	 * transaction; the committed instance the merge produces defaults to clean anyway).
-	 */
-	void clearDirty();
-
-	/**
-	 * Stamps a freshly allocated page sequence onto the leaf. The stamp lands on the live (source) node so the
-	 * commit-merge carries it forward into the committed tree.
-	 *
-	 * @param pageSequence the allocated page sequence (>= 0)
-	 */
-	void setPageSequence(int pageSequence);
+public interface LeafPageHandle<T> extends PagedLeafHandle {
 
 	/**
 	 * Returns the number of values in this leaf page.

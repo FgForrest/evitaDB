@@ -46,11 +46,11 @@ import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.attribute.UniqueIndexView;
 import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
@@ -393,7 +393,7 @@ class AttributeIndexLoaderTest {
 
 		/**
 		 * Seeds a granular `PAGED` FILTER part: emits the source index's leaf pages, stores each as a
-		 * {@link FilterIndexLeafPagePart} keyed by `join(streamId, pageSequence)`, and stores the `PAGED` root carrying the
+		 * {@link FilterIndexLeafPagePart} keyed by `pack(streamId, pageSequence)`, and stores the `PAGED` root carrying the
 		 * high-water and the ordered leaf-page list. The stream id is resolved through the shared compressor exactly as
 		 * the loader resolves it on read.
 		 *
@@ -405,7 +405,7 @@ class AttributeIndexLoaderTest {
 			final int streamId = this.keyCompressor.getId(
 				new LeafStreamKey(INDEX_PK, new AttributeKeyWithIndexType(key, AttributeIndexType.FILTER))
 			);
-			final InvertedIndex.PagedEmission emission = source.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> emission = source.collectChangedPages();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
 				final long pagePk = FilterIndexLeafPagePart.computeUniquePartId(streamId, page.pageSequence());
 				this.partsById.put(
@@ -434,12 +434,11 @@ class AttributeIndexLoaderTest {
 			@Nonnull AttributeIndexKey key, @Nonnull Class<? extends Serializable> type,
 			@Nonnull Serializable value, int recordId
 		) {
-			final Map<Serializable, Integer> valueToRecord = new HashMap<>(2);
-			valueToRecord.put(value, recordId);
-			final Bitmap recordIds = new BaseBitmap(recordId);
+			final Serializable[] values = {value};
+			final int[] recordIds = {recordId};
 			seed(
 				AttributeIndexType.UNIQUE, key,
-				new UniqueIndexStoragePart(INDEX_PK, key, type, valueToRecord, recordIds)
+				new UniqueIndexStoragePart(INDEX_PK, key, type, values, recordIds)
 			);
 		}
 

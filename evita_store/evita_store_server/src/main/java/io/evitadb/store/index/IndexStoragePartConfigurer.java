@@ -119,7 +119,7 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			GlobalUniqueIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(new GlobalUniqueIndexStoragePartSerializer(this.keyCompressor), GlobalUniqueIndexStoragePart.class)
-				.addBackwardCompatibleSerializer(-8158322083280466471L, new GlobalUniqueIndexStoragePartSerializer_2024_11(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(-7216725334566367295L, new GlobalUniqueIndexStoragePartSerializer_2026_1(this.keyCompressor)),
 			index++
 		);
 		kryo.register(TransactionalBitmap.class, new SerialVersionBasedSerializer<>(new TransactionalIntegerBitmapSerializer(), TransactionalBitmap.class), index++);
@@ -211,6 +211,24 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			PriceListAndCurrencySuperIndexLeafPagePart.class,
 			new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexLeafPagePartSerializer(), PriceListAndCurrencySuperIndexLeafPagePart.class),
+			index++
+		);
+
+		// the granular standalone (OWNER) unique-index leaf-page record — a brand-new record type with no
+		// backward-compatible reader (legacy catalogs keep the value map inline on the monolithic unique part instead).
+		// Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			UniqueIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new UniqueIndexLeafPagePartSerializer(), UniqueIndexLeafPagePart.class),
+			index++
+		);
+
+		// the granular catalog-level (GLOBAL) unique-index leaf-page record — a brand-new record type with no
+		// backward-compatible reader (legacy catalogs keep the value map inline on the monolithic global-unique part
+		// instead). Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			GlobalUniqueIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new GlobalUniqueIndexLeafPagePartSerializer(), GlobalUniqueIndexLeafPagePart.class),
 			index++
 		);
 

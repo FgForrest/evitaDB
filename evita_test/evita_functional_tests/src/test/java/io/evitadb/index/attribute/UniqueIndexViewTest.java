@@ -193,7 +193,7 @@ class UniqueIndexViewTest {
 			final UniqueIndexView view = (UniqueIndexView) newUniqueView(newFilterView(newPopulatedSharedTree()));
 
 			assertNull(view.createLayer(), "a view must never produce a transactional layer!");
-			assertTrue(view.getUniqueValueToRecordId().isEmpty(), "a folded view owns no value map!");
+			assertEquals(0, view.inlineSnapshot().values().length, "a folded view owns no inline values!");
 		}
 	}
 

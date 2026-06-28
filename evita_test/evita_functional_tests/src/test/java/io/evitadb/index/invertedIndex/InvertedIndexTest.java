@@ -35,6 +35,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.store.index.serializer.InvertedIndexSerializer;
 import io.evitadb.store.index.serializer.TransactionalIntegerBitmapSerializer;
 import io.evitadb.store.index.serializer.ValueToRecordBitmapSerializer;
@@ -1485,7 +1486,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			}
 			assertTrue(index.isPaged(), "A large (multi-leaf) index must be paged.");
 
-			final InvertedIndex.PagedEmission emission = index.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> emission = index.collectChangedPages();
 			final int[] ordered = emission.orderedPageSequences();
 			assertTrue(ordered.length >= 2, "A paged index must span multiple leaf pages.");
 			// first emission: every leaf is fresh, so a dense 0..L-1 allocation and a high-water of L-1
@@ -1533,7 +1534,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			final int[] first = index.collectChangedPages().orderedPageSequences();
 			// a second emission without structural change must report the very same ordered page sequences (the leaves
 			// kept their allocated pages — no re-allocation), so the high-water does not advance
-			final InvertedIndex.PagedEmission second = index.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> second = index.collectChangedPages();
 			assertArrayEquals(first, second.orderedPageSequences(), "Unchanged leaves must keep their pages.");
 			assertEquals(first.length - 1, second.highWaterPageSequence(), "High-water must not advance.");
 		}
@@ -1547,7 +1548,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			for (int i = 0; i < 1_000; i++) {
 				index.addRecord(i, i * 10);
 			}
-			final InvertedIndex.PagedEmission first = index.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> first = index.collectChangedPages();
 			assertEquals(
 				first.orderedPageSequences().length, first.changedPages().size(), "First emission writes every leaf."
 			);
@@ -1555,7 +1556,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			index.getPageStreamRegistry().publishStaged();
 
 			// nothing changed → no leaf page is re-written
-			final InvertedIndex.PagedEmission unchanged = index.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> unchanged = index.collectChangedPages();
 			assertTrue(
 				unchanged.changedPages().isEmpty(), "An unchanged tree must re-write no leaf pages after publish."
 			);
@@ -1563,7 +1564,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 			// touch the smallest value's record set → only the first leaf (page 0) is re-emitted
 			index.addRecord(0, 999);
-			final InvertedIndex.PagedEmission afterChange = index.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> afterChange = index.collectChangedPages();
 			assertEquals(1, afterChange.changedPages().size(), "Only the changed leaf is re-written.");
 			assertEquals(
 				0, afterChange.changedPages().get(0).pageSequence(), "The first leaf (holding the smallest value) changed."
@@ -1592,7 +1593,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 				index.removeRecord(i, i * 10);
 			}
 
-			final InvertedIndex.PagedEmission afterShrink = index.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> afterShrink = index.collectChangedPages();
 			assertTrue(
 				afterShrink.orderedPageSequences().length < pagesBefore.length, "Shrinking must drop at least one leaf page."
 			);
@@ -1619,7 +1620,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					index.addRecord(i, i * 10 + 1); // some multi-record buckets
 				}
 			}
-			final InvertedIndex.PagedEmission emission = index.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> emission = index.collectChangedPages();
 			index.getPageStreamRegistry().publishStaged();
 			final int[] orderedPageSequences = emission.orderedPageSequences();
 			final int highWater = emission.highWaterPageSequence();
@@ -1642,7 +1643,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			assertEquals(index, reloaded, "Reloaded index must be content-equal to the original.");
 
 			// first post-reload commit must rewrite nothing and free nothing (identities + baseline survived the reload)
-			final InvertedIndex.PagedEmission afterReload = reloaded.collectChangedPages();
+			final PageEmission<InvertedIndex.LeafPage> afterReload = reloaded.collectChangedPages();
 			assertArrayEquals(
 				orderedPageSequences, afterReload.orderedPageSequences(), "Reload must preserve every leaf's page sequence."
 			);

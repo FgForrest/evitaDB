@@ -31,6 +31,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.range.RangeIndex.StartsEndsDTO;
 import io.evitadb.store.index.serializer.IntRangeIndexSerializer;
 import io.evitadb.store.index.serializer.TransactionalIntRangePointSerializer;
@@ -1476,7 +1477,7 @@ class RangeIndexTest {
 			final RangeIndex index = multiLeafRange(400);
 			assertTrue(index.isPaged(), "A large (multi-leaf) range must be paged.");
 
-			final RangeIndex.PagedEmission emission = index.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> emission = index.collectChangedPages();
 			final int[] ordered = emission.orderedPageSequences();
 			assertTrue(ordered.length >= 2, "A paged range must span multiple leaf pages.");
 			for (int i = 0; i < ordered.length; i++) {
@@ -1514,13 +1515,13 @@ class RangeIndexTest {
 		@DisplayName("after publishing the baseline, an unchanged range re-writes nothing and only a changed leaf re-emits")
 		void shouldSuppressUnchangedLeavesAfterPublish() {
 			final RangeIndex index = multiLeafRange(400);
-			final RangeIndex.PagedEmission first = index.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> first = index.collectChangedPages();
 			assertEquals(
 				first.orderedPageSequences().length, first.changedPages().size(), "First emission writes every leaf."
 			);
 			index.getPageStreamRegistry().publishStaged();
 
-			final RangeIndex.PagedEmission unchanged = index.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> unchanged = index.collectChangedPages();
 			assertTrue(
 				unchanged.changedPages().isEmpty(), "An unchanged range must re-write no leaf pages after publish."
 			);
@@ -1528,7 +1529,7 @@ class RangeIndexTest {
 
 			// add a record on the smallest threshold → only the first leaf (page 0) is re-emitted
 			index.addRecord(0L, 5L, 9999);
-			final RangeIndex.PagedEmission afterChange = index.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> afterChange = index.collectChangedPages();
 			assertEquals(1, afterChange.changedPages().size(), "Only the changed leaf is re-written.");
 			assertEquals(
 				0, afterChange.changedPages().get(0).pageSequence(), "The first leaf (holding the smallest threshold) changed."
@@ -1556,7 +1557,7 @@ class RangeIndexTest {
 
 			// remove the shared record; record 0 keeps the point alive (no delete, pure in-place bitmap edit)
 			index.removeRecord(0L, 5L, 9999);
-			final RangeIndex.PagedEmission afterRemove = index.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> afterRemove = index.collectChangedPages();
 			assertFalse(
 				afterRemove.changedPages().isEmpty(),
 				"Removing a record from a surviving point must re-emit its leaf (in-place value mutation)."
@@ -1581,7 +1582,7 @@ class RangeIndexTest {
 				index.removeRecord(i * 10L, i * 10L + 5, i);
 			}
 
-			final RangeIndex.PagedEmission afterShrink = index.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> afterShrink = index.collectChangedPages();
 			assertTrue(
 				afterShrink.orderedPageSequences().length < pagesBefore.length, "Shrinking must drop at least one leaf page."
 			);
@@ -1602,7 +1603,7 @@ class RangeIndexTest {
 		@DisplayName("a boundary-stable reload restores page identities and suppresses the first commit")
 		void shouldReloadBoundaryStableAndSuppressFirstCommit() {
 			final RangeIndex index = multiLeafRange(400);
-			final RangeIndex.PagedEmission emission = index.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> emission = index.collectChangedPages();
 			index.getPageStreamRegistry().publishStaged();
 			final int[] orderedPageSequences = emission.orderedPageSequences();
 			final int highWater = emission.highWaterPageSequence();
@@ -1621,7 +1622,7 @@ class RangeIndexTest {
 			assertEquals(index, reloaded, "Reloaded range must be content-equal to the original.");
 
 			// first post-reload commit must rewrite nothing and free nothing (identities + baseline survived the reload)
-			final RangeIndex.PagedEmission afterReload = reloaded.collectChangedPages();
+			final PageEmission<RangeIndex.RangePage> afterReload = reloaded.collectChangedPages();
 			assertArrayEquals(
 				orderedPageSequences, afterReload.orderedPageSequences(), "Reload must preserve every leaf's page sequence."
 			);

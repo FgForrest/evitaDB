@@ -35,6 +35,7 @@ import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.map.PersistentTransactionalMap;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.entityPrices.EntityPrices;
@@ -355,53 +356,37 @@ public class PriceListAndCurrencyPriceSuperIndex
 	 * @param sink                  the trapped-changes accumulator for this commit
 	 */
 	private void appendPagedParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
-		final List<LeafPageHandle<PriceRecordContract>> handles = this.priceRecords.leafPageHandles();
-		final int[] orderedPageSequences = new int[handles.size()];
-		final Set<Integer> nextLive = new HashSet<>(handles.size());
-		int idx = 0;
-		for (final LeafPageHandle<PriceRecordContract> handle : handles) {
-			int pageSequence = handle.getPageSequence();
-			final boolean freshLeaf = pageSequence == TransactionalElementBPlusTree.UNASSIGNED_PAGE_SEQUENCE;
-			if (freshLeaf) {
-				// split-born / fresh leaf: allocate a page and stamp it onto the live node (the merge carries it forward)
-				pageSequence = this.pageStreamRegistry.allocate(PRICE_PAGE_STREAM);
-				handle.setPageSequence(pageSequence);
-			}
-			orderedPageSequences[idx++] = pageSequence;
-			nextLive.add(pageSequence);
-
-			// a leaf is (re)written iff it is brand new or its transaction-aware dirty flag is set — an exact signal a
-			// content hash cannot match. Once the page is collected the flag is cleared so the next commit suppresses the
-			// leaf unless it is mutated again.
-			if (freshLeaf || handle.isDirty()) {
-				final int size = handle.size();
-				final PriceRecordContract[] pageRecords = new PriceRecordContract[size];
-				for (int i = 0; i < size; i++) {
-					pageRecords[i] = handle.valueAt(i);
-				}
-				sink.addChangeToStore(
-					new PriceListAndCurrencySuperIndexLeafPagePart(
+		// the page-sequence reconciliation is shared; the builder materializes this index's leaf part per changed leaf
+		final PageEmission<PriceListAndCurrencySuperIndexLeafPagePart> emission =
+			this.pageStreamRegistry.collectChangedPages(
+				PRICE_PAGE_STREAM, this.priceRecords.<PriceRecordContract>leafPageHandles(),
+				(pageSequence, handle) -> {
+					final int size = handle.size();
+					final PriceRecordContract[] pageRecords = new PriceRecordContract[size];
+					for (int i = 0; i < size; i++) {
+						pageRecords[i] = handle.valueAt(i);
+					}
+					return new PriceListAndCurrencySuperIndexLeafPagePart(
 						entityIndexPrimaryKey, this.priceIndexKey, pageSequence, pageRecords
-					)
-				);
-				handle.clearDirty();
-			}
+					);
+				}
+			);
+		for (final PriceListAndCurrencySuperIndexLeafPagePart page : emission.changedPages()) {
+			sink.addChangeToStore(page);
 		}
-		// pages live in the published set but absent from this commit's live leaves were dropped by a leaf merge: they
-		// must be REMOVED from storage (the append-only OffsetIndex never reclaims an unreferenced-but-never-removed
-		// record — page ids are advance-only and never re-keyed)
-		for (final int freedPageSequence : this.pageStreamRegistry.freedPageSequences(PRICE_PAGE_STREAM, nextLive)) {
+		// remove the leaf pages a merge dropped this commit so they don't leak (the append-only OffsetIndex never reclaims
+		// an unreferenced-but-never-removed record — page ids are advance-only and never re-keyed)
+		for (final int freedPageSequence : emission.freedPageSequences()) {
 			sink.addChangeToStore(
 				new PriceListAndCurrencySuperIndexLeafPageRemoval(
 					entityIndexPrimaryKey, this.priceIndexKey, freedPageSequence
 				)
 			);
 		}
-		this.pageStreamRegistry.stage(PRICE_PAGE_STREAM, nextLive);
 		sink.addChangeToStore(
 			PriceListAndCurrencySuperIndexStoragePart.paged(
 				entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex,
-				this.pageStreamRegistry.highWater(PRICE_PAGE_STREAM), orderedPageSequences
+				emission.highWaterPageSequence(), emission.orderedPageSequences()
 			)
 		);
 	}

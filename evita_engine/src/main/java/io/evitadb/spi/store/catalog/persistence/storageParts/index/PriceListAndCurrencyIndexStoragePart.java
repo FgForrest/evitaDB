@@ -89,7 +89,7 @@ abstract class PriceListAndCurrencyIndexStoragePart implements StoragePart, Reco
 	 * attributes belong to and compressed attribute key integer that is assigned as soon as attribute is first stored.
 	 */
 	public static long computeUniquePartId(@Nonnull Integer entityIndexPrimaryKey, @Nonnull PriceIndexKey priceIndexKey, @Nonnull KeyCompressor keyCompressor) {
-		return NumberUtils.join(entityIndexPrimaryKey, keyCompressor.getId(priceIndexKey));
+		return NumberUtils.pack(entityIndexPrimaryKey, keyCompressor.getId(priceIndexKey));
 	}
 
 	@Override

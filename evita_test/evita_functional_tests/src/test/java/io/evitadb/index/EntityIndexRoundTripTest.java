@@ -468,7 +468,7 @@ class EntityIndexRoundTripTest {
 						attrKey,
 						new OwnerUniqueIndex(
 							entityType, attrKey, uniquePart.getType(),
-							Objects.requireNonNull(uniquePart.getUniqueValueToRecordId()),
+							Objects.requireNonNull(uniquePart.getValues()),
 							Objects.requireNonNull(uniquePart.getRecordIds())
 						)
 					);

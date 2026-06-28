@@ -34,9 +34,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexSt
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
-import java.util.Map;
 
-import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Backward-compatible {@link Serializer} that reads the 2026.1 binary format of
@@ -67,18 +65,20 @@ public class UniqueIndexStoragePartSerializer_2026_1 extends Serializer<UniqueIn
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeIndexKey attributeIndexKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 		@SuppressWarnings("unchecked") final Class<? extends Serializable> attributeType = kryo.readClass(input).getType();
-		final TransactionalBitmap recordIds = kryo.readObject(input, TransactionalBitmap.class);
+		// the 2026.1 format persisted the membership bitmap explicitly; it is redundant with the payload column (the
+		// current format rebuilds it on load), so it is read to consume the bytes and then discarded
+		kryo.readObject(input, TransactionalBitmap.class);
 
 		final int uniqueValueCount = input.readVarInt(true);
-		final Map<Serializable, Integer> uniqueIndex = createHashMap(uniqueValueCount);
+		final Serializable[] values = new Serializable[uniqueValueCount];
+		final int[] recordIds = new int[uniqueValueCount];
 		for (int i = 0; i < uniqueValueCount; i++) {
-			final Serializable key = kryo.readObject(input, attributeType);
-			final int value = input.readInt();
-			uniqueIndex.put(key, value);
+			values[i] = kryo.readObject(input, attributeType);
+			recordIds[i] = input.readInt();
 		}
 
 		return new UniqueIndexStoragePart(
-			entityIndexPrimaryKey, attributeIndexKey, attributeType, uniqueIndex, recordIds, uniquePartId
+			entityIndexPrimaryKey, attributeIndexKey, attributeType, values, recordIds, uniquePartId
 		);
 	}
 

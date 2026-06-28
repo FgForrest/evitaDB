@@ -41,7 +41,6 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -270,9 +269,9 @@ public final class SortIndexView extends SortIndex {
 
 	@Nonnull
 	@Override
-	protected Map<Serializable, Integer> storagePartCardinalities() {
+	protected CardinalityColumns storagePartCardinalities() {
 		// slim view-mode part: the cardinalities are re-derivable from the shared FILTER part on load
-		return Map.of();
+		return new CardinalityColumns(ArrayUtils.EMPTY_SERIALIZABLE_ARRAY, ArrayUtils.EMPTY_INT_ARRAY);
 	}
 
 	@Override

@@ -102,7 +102,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 		);
 		if (id.isPresent()) {
 			return OptionalLong.of(
-				NumberUtils.join(
+				NumberUtils.pack(
 					key.entityPrimaryKey(),
 					id.getAsInt()
 				)
@@ -154,7 +154,7 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
 		Assert.notNull(this.entityPrimaryKey, "Entity primary key must be non-null!");
-		this.storagePartPK = NumberUtils.join(
+		this.storagePartPK = NumberUtils.pack(
 			this.associatedDataKey.entityPrimaryKey(),
 			keyCompressor.getId(
 				new AssociatedDataKey(

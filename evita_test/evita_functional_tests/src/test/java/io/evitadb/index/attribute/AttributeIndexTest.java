@@ -43,12 +43,8 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
@@ -827,108 +823,6 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	class StoragePartsTest {
 
 		@Test
-		@DisplayName("createStoragePart dispatches for UNIQUE type (standalone UniqueIndex)")
-		void shouldCreateStoragePartForUniqueType() {
-			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
-			final UniqueIndex uniqueIdx = new OwnerUniqueIndex(ENTITY_TYPE, key, String.class);
-			uniqueIdx.registerUniqueKey("ABC", 1);
-
-			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE,
-				Map.of(key, uniqueIdx),
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				new HashMap<>(),
-				new HashMap<>()
-			);
-
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
-			final AttributeIndexStorageKey storageKey =
-				new AttributeIndexStorageKey(entityIndexKey, AttributeIndexType.UNIQUE, key);
-
-			assertNotNull(index.createStoragePart(1, storageKey));
-		}
-
-		@Test
-		@DisplayName("createStoragePart dispatches for FILTER type")
-		void shouldCreateStoragePartForFilterType() {
-			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
-			final AttributeIndex index = buildFilterBackedIndex(
-				key, String.class, new int[]{1}, new Serializable[]{"Test"}
-			);
-
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
-			final AttributeIndexStorageKey storageKey =
-				new AttributeIndexStorageKey(entityIndexKey, AttributeIndexType.FILTER, key);
-
-			assertNotNull(index.createStoragePart(1, storageKey));
-		}
-
-		@Test
-		@DisplayName("createStoragePart dispatches for SORT type")
-		void shouldCreateStoragePartForSortType() {
-			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
-			final SortIndex sortIdx = new OwnerSortIndex(Integer.class, key);
-			sortIdx.addRecord(10, 1);
-
-			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE,
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				Map.of(key, sortIdx),
-				Collections.emptyMap(),
-				new HashMap<>(),
-				new HashMap<>()
-			);
-
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
-			final AttributeIndexStorageKey storageKey =
-				new AttributeIndexStorageKey(entityIndexKey, AttributeIndexType.SORT, key);
-
-			assertNotNull(index.createStoragePart(1, storageKey));
-		}
-
-		@Test
-		@DisplayName("createStoragePart dispatches for CHAIN type")
-		void shouldCreateStoragePartForChainType() {
-			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_ORDER, null);
-			final ChainIndex chainIdx = new ChainIndex(key);
-			chainIdx.upsertPredecessor(Predecessor.HEAD, 1);
-
-			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE,
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				Collections.emptyMap(),
-				Map.of(key, chainIdx),
-				new HashMap<>(),
-				new HashMap<>()
-			);
-
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
-			final AttributeIndexStorageKey storageKey =
-				new AttributeIndexStorageKey(entityIndexKey, AttributeIndexType.CHAIN, key);
-
-			assertNotNull(index.createStoragePart(1, storageKey));
-		}
-
-		@Test
-		@DisplayName("createStoragePart with unknown type throws error")
-		void shouldThrowOnUnknownStoragePartType() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
-			final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
-			final AttributeIndexStorageKey storageKey =
-				new AttributeIndexStorageKey(entityIndexKey, AttributeIndexType.CARDINALITY, key);
-
-			assertThrows(GenericEvitaInternalError.class, () -> index.createStoragePart(1, storageKey));
-		}
-
-		@Test
 		@DisplayName("getModifiedStorageParts collects from all dirty sub-indexes")
 		void shouldCollectModifiedStorageParts() {
 			final AttributeIndexKey filterKey = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
@@ -974,24 +868,25 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		}
 
 		@Test
-		@DisplayName("resetDirty clears dirty flags; createStoragePart returns null after reset")
+		@DisplayName("resetDirty clears dirty flags; getModifiedStorageParts emits nothing after reset")
 		void shouldResetDirtyOnAllSubIndexes() {
 			final AttributeIndexKey filterKey = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
 			final AttributeIndex index = buildFilterBackedIndex(
 				filterKey, String.class, new int[]{1}, new Serializable[]{"ABC"}
 			);
 
-			// first call to createStoragePart should return non-null because the filter view is dirty
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE, null);
-			final AttributeIndexStorageKey storageKey =
-				new AttributeIndexStorageKey(entityIndexKey, AttributeIndexType.FILTER, filterKey);
-			assertNotNull(index.createStoragePart(1, storageKey));
+			// before reset the dirty filter view emits at least one storage part
+			final TrappedChanges beforeReset = new TrappedChanges();
+			index.getModifiedStorageParts(1, beforeReset);
+			assertTrue(beforeReset.getTrappedChangesCount() > 0);
 
 			// reset dirty on all sub-indexes
 			index.resetDirty();
 
-			// after reset, createStoragePart returns null
-			assertNull(index.createStoragePart(1, storageKey));
+			// after reset nothing is emitted
+			final TrappedChanges afterReset = new TrappedChanges();
+			index.getModifiedStorageParts(1, afterReset);
+			assertEquals(0, afterReset.getTrappedChangesCount());
 		}
 	}
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.page;
 
+import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -30,10 +31,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -238,6 +241,60 @@ public class PageStreamRegistry implements Serializable {
 			staged.add(pageSequence);
 		}
 		stream.staged = staged;
+	}
+
+	/**
+	 * Walks one stream's leaf handles (in ascending key order) and reconciles their page sequences into the granular
+	 * write-path emission for this commit — the single shared skeleton behind every paged index's flush. For each leaf:
+	 * a not-yet-paged (split-born or fresh) leaf is assigned a freshly {@link #allocate(int) allocated} page sequence
+	 * stamped onto the live node so the commit-merge carries it forward; the leaf's sequence is recorded into the ordered
+	 * live-page list and the next live-page set. A leaf is (re)written — its {@code pageBuilder} payload collected and its
+	 * dirty flag cleared — iff it is brand new or its transaction-aware dirty flag is set, an exact signal a content hash
+	 * cannot match: every mutation site sets it, so a real change can never be suppressed. The complete next live-page set
+	 * is {@link #stage(int, Set) staged} here and becomes live only when the commit is published; the pages a leaf merge
+	 * dropped are returned as {@link #freedPageSequences(int, Set) freed} so the caller can remove them from storage.
+	 *
+	 * A clean (non-dirty) index must not call this — the caller gates on its own dirty signal.
+	 *
+	 * @param streamId    the stream being flushed
+	 * @param handles     the stream's leaf handles in ascending key order (from the tree's {@code leafPageHandles()})
+	 * @param pageBuilder materializes the per-leaf payload for each changed leaf
+	 * @param <H>         the concrete leaf-handle type the tree exposes
+	 * @param <P>         the per-leaf payload type the caller materializes
+	 * @return the changed leaf pages, the ordered live page-sequence list, the high-water and the freed page sequences
+	 */
+	@Nonnull
+	public <H extends PagedLeafHandle, P> PageEmission<P> collectChangedPages(
+		int streamId, @Nonnull List<H> handles, @Nonnull PageBuilder<H, P> pageBuilder
+	) {
+		final int[] orderedPageSequences = new int[handles.size()];
+		final List<P> changedPages = new ArrayList<>(handles.size());
+		final Set<Integer> nextLive = new HashSet<>(handles.size());
+		int idx = 0;
+		for (final H handle : handles) {
+			int pageSequence = handle.getPageSequence();
+			final boolean freshLeaf = pageSequence == PagedLeafHandle.UNASSIGNED_PAGE_SEQUENCE;
+			if (freshLeaf) {
+				// split-born / fresh leaf: allocate a page and stamp it onto the live node (the merge carries it forward)
+				pageSequence = allocate(streamId);
+				handle.setPageSequence(pageSequence);
+			}
+			orderedPageSequences[idx++] = pageSequence;
+			nextLive.add(pageSequence);
+
+			// a leaf is (re)written iff it is brand new or its transaction-aware dirty flag is set; once collected the
+			// flag is cleared so the next commit suppresses the leaf unless it is mutated again
+			if (freshLeaf || handle.isDirty()) {
+				changedPages.add(pageBuilder.build(pageSequence, handle));
+				handle.clearDirty();
+			}
+		}
+		// pages live in the published set but absent from this commit's live leaves were dropped by a leaf merge: they
+		// must be REMOVED from storage, not merely unreferenced — the append-only OffsetIndex never reclaims a record
+		// that is neither superseded (page ids are advance-only, never re-keyed) nor explicitly removed
+		final int[] freedPageSequences = freedPageSequences(streamId, nextLive);
+		stage(streamId, nextLive);
+		return new PageEmission<>(changedPages, orderedPageSequences, highWater(streamId), freedPageSequences);
 	}
 
 	/**
