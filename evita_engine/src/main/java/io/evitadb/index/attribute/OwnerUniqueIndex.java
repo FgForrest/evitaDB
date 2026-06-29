@@ -61,7 +61,6 @@ import java.util.Objects;
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
-import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.restorePageStream;
 import static io.evitadb.utils.Assert.isTrue;
 
 /**
@@ -260,7 +259,9 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		}
 		final TransactionalBucketBPlusTree tree =
 			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
-		final PageStreamRegistry pageStreamRegistry = restorePageStream(tree, UNIQUE_PAGE_STREAM, highWaterPageSequence);
+		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
+			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
+		);
 		return new OwnerUniqueIndex(
 			entityType, attributeIndexKey, attributeType, tree,
 			new TransactionalBitmap(allRecordIds.toArray()), pageStreamRegistry

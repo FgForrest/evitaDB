@@ -30,7 +30,6 @@ import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.champ.ChampMap;
-import io.evitadb.index.bPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.TransactionalElementBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -54,10 +53,8 @@ import java.io.Serial;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.of;
@@ -183,16 +180,9 @@ public class PriceListAndCurrencyPriceSuperIndex
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalElementBPlusTree<PriceRecordContract> tree =
 			newPriceRecordTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
-		// clear the replay-set dirty flags and seed the live-page set so the first post-load commit suppresses every
-		// untouched leaf
-		final List<LeafPageHandle<PriceRecordContract>> handles = tree.leafPageHandles();
-		final Set<Integer> livePages = new HashSet<>(handles.size());
-		for (final LeafPageHandle<PriceRecordContract> handle : handles) {
-			handle.clearDirty();
-			livePages.add(handle.getPageSequence());
-		}
-		final PageStreamRegistry pageStreamRegistry = new PageStreamRegistry();
-		pageStreamRegistry.restore(PRICE_PAGE_STREAM, highWaterPageSequence, livePages);
+		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
+			PRICE_PAGE_STREAM, highWaterPageSequence, tree.<PriceRecordContract>leafPageHandles()
+		);
 		// derive the entity-id / price-id bitmaps and the entityPrices map from the reassembled records, then adopt the
 		// boundary-stable tree (its leaves already carry the persisted page sequences) BY REFERENCE
 		final PriceRecordContract[] records = tree.toArray();

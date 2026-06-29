@@ -24,10 +24,15 @@
 package io.evitadb.index.component.loader;
 
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityLeafStreamKey;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 import java.util.Objects;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -60,7 +65,46 @@ public final class ReferenceTypeCardinalityLoader implements ComponentLoader {
 			"Cardinality index with id `" + entityIndexId + "` with key `" + referenceName +
 				"` was not found in persistent storage!"
 		);
-		return new LoadedComponentBundle.ReferenceTypeCardinality(part.getCardinalityIndex());
+
+		final ReferenceTypeCardinalityIndex index;
+		if (part.isPaged()) {
+			// PAGED root: fetch each live leaf page by its `pack(streamId, pageSequence)` key (the stream id folds the
+			// (entityIndexPrimaryKey, referenceName) identity), then reassemble the boundary-stable tree from the pages
+			final int streamId = service.getReadOnlyKeyCompressor().getId(
+				new ReferenceTypeCardinalityLeafStreamKey(entityIndexId, referenceName)
+			);
+			final int[] orderedPageSequences = Objects.requireNonNull(part.getLeafPageSequences());
+			final long[][] perPageKeys = new long[orderedPageSequences.length][];
+			final long[][] perPagePayloads = new long[orderedPageSequences.length][];
+			for (int i = 0; i < orderedPageSequences.length; i++) {
+				final ReferenceTypeCardinalityIndexLeafPagePart leaf = service.getStoragePart(
+					context.catalogVersion(),
+					ReferenceTypeCardinalityIndexLeafPagePart.computeUniquePartId(streamId, orderedPageSequences[i]),
+					ReferenceTypeCardinalityIndexLeafPagePart.class
+				);
+				isPremiseValid(
+					leaf != null,
+					"Cardinality leaf page " + orderedPageSequences[i] + " for index `" + entityIndexId +
+						"` reference `" + referenceName + "` was not found in persistent storage!"
+				);
+				perPageKeys[i] = leaf.getKeys();
+				perPagePayloads[i] = leaf.getPayloads();
+			}
+			index = ReferenceTypeCardinalityIndex.fromPersistedPages(
+				orderedPageSequences, perPageKeys, perPagePayloads,
+				part.getHighWaterPageSequence(), part.getReferencedPrimaryKeysIndex()
+			);
+		} else {
+			// SINGLE root: rebuild the small (≤ one leaf) index from the inline columns through the map constructor
+			final long[] keys = Objects.requireNonNull(part.getKeys());
+			final long[] payloads = Objects.requireNonNull(part.getPayloads());
+			final Map<Long, Integer> cardinalities = CollectionUtils.createHashMap(keys.length);
+			for (int i = 0; i < keys.length; i++) {
+				cardinalities.put(keys[i], (int) payloads[i]);
+			}
+			index = new ReferenceTypeCardinalityIndex(cardinalities, part.getReferencedPrimaryKeysIndex());
+		}
+		return new LoadedComponentBundle.ReferenceTypeCardinality(index);
 	}
 
 }

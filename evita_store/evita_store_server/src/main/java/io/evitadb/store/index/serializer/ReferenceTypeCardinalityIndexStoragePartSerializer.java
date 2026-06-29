@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2023-2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,9 +28,6 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.cardinality.AttributeCardinalityIndex;
-import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
-import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
@@ -39,11 +36,16 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 import static java.util.Optional.ofNullable;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link AttributeCardinalityIndex} from/to binary format.
+ * This {@link Serializer} implementation reads/writes the root {@link ReferenceTypeCardinalityIndexStoragePart} from/to
+ * binary format. A `paged` discriminator selects between the inline SINGLE shape (the composed-key → count columns ride
+ * on the root) and the PAGED shape (only the page-stream metadata rides on the root; the columns live in separate
+ * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexLeafPagePart} records).
+ * The `referencedEntityPrimaryKey → reduced-index-PK bitmap` companion map is written inline in BOTH shapes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -58,15 +60,26 @@ public class ReferenceTypeCardinalityIndexStoragePartSerializer extends Serializ
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(this.keyCompressor.getId(new ReferenceNameKey(storagePart.getReferenceName())), true);
 
-		final ReferenceTypeCardinalityIndex cardinalityIndex = storagePart.getCardinalityIndex();
-		final Map<Long, Integer> cardinalities = cardinalityIndex.getCardinalities();
-		output.writeVarInt(cardinalities.size(), true);
-		for (Entry<Long, Integer> entry : cardinalities.entrySet()) {
-			output.writeVarLong(entry.getKey(), false);
-			output.writeVarInt(entry.getValue(), false);
+		final boolean paged = storagePart.isPaged();
+		output.writeBoolean(paged);
+		if (paged) {
+			output.writeVarInt(storagePart.getHighWaterPageSequence(), true);
+			final int[] leafPageSequences = Objects.requireNonNull(storagePart.getLeafPageSequences());
+			output.writeVarInt(leafPageSequences.length, true);
+			for (final int leafPageSequence : leafPageSequences) {
+				output.writeVarInt(leafPageSequence, true);
+			}
+		} else {
+			final long[] keys = Objects.requireNonNull(storagePart.getKeys());
+			final long[] payloads = Objects.requireNonNull(storagePart.getPayloads());
+			output.writeVarInt(keys.length, true);
+			for (int i = 0; i < keys.length; i++) {
+				output.writeVarLong(keys[i], false);
+				output.writeVarInt((int) payloads[i], false);
+			}
 		}
 
-		final TransactionalMap<Integer, TransactionalBitmap> referencedPrimaryKeysIndex = cardinalityIndex.getReferencedPrimaryKeysIndex();
+		final Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex = storagePart.getReferencedPrimaryKeysIndex();
 		output.writeVarInt(referencedPrimaryKeysIndex.size(), true);
 		for (Entry<Integer, TransactionalBitmap> entry : referencedPrimaryKeysIndex.entrySet()) {
 			output.writeVarInt(entry.getKey(), true);
@@ -80,12 +93,26 @@ public class ReferenceTypeCardinalityIndexStoragePartSerializer extends Serializ
 		final long uniquePartId = input.readVarLong(true);
 		final ReferenceNameKey referenceNameKey = this.keyCompressor.getKeyForId(input.readVarInt(true));
 
-		final int cardinalityCount = input.readVarInt(true);
-		final Map<Long, Integer> cardinalities = CollectionUtils.createHashMap(cardinalityCount);
-		for (int i = 0; i < cardinalityCount; i++) {
-			final long key = input.readVarLong(false);
-			final int cardinality = input.readVarInt(false);
-			cardinalities.put(key, cardinality);
+		final boolean paged = input.readBoolean();
+		int highWaterPageSequence = 0;
+		int[] leafPageSequences = null;
+		long[] keys = null;
+		long[] payloads = null;
+		if (paged) {
+			highWaterPageSequence = input.readVarInt(true);
+			final int leafPageCount = input.readVarInt(true);
+			leafPageSequences = new int[leafPageCount];
+			for (int i = 0; i < leafPageCount; i++) {
+				leafPageSequences[i] = input.readVarInt(true);
+			}
+		} else {
+			final int cardinalityCount = input.readVarInt(true);
+			keys = new long[cardinalityCount];
+			payloads = new long[cardinalityCount];
+			for (int i = 0; i < cardinalityCount; i++) {
+				keys[i] = input.readVarLong(false);
+				payloads[i] = input.readVarInt(false);
+			}
 		}
 
 		final int referencedPrimaryKeysIndexSize = input.readVarInt(true);
@@ -96,12 +123,15 @@ public class ReferenceTypeCardinalityIndexStoragePartSerializer extends Serializ
 			referencedPrimaryKeysIndex.put(key, bitmap);
 		}
 
-		final ReferenceTypeCardinalityIndex cardinalityIndex = new ReferenceTypeCardinalityIndex(
-			cardinalities, referencedPrimaryKeysIndex
-		);
-		return new ReferenceTypeCardinalityIndexStoragePart(
-			entityIndexPrimaryKey, referenceNameKey.referenceName(), cardinalityIndex, uniquePartId
-		);
+		return paged
+			? ReferenceTypeCardinalityIndexStoragePart.paged(
+				entityIndexPrimaryKey, referenceNameKey.referenceName(),
+				highWaterPageSequence, leafPageSequences, referencedPrimaryKeysIndex, uniquePartId
+			)
+			: new ReferenceTypeCardinalityIndexStoragePart(
+				entityIndexPrimaryKey, referenceNameKey.referenceName(),
+				keys, payloads, referencedPrimaryKeysIndex, uniquePartId
+			);
 	}
 
 }

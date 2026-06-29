@@ -58,11 +58,9 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -515,17 +513,9 @@ public class InvertedIndex implements
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalBucketBPlusTree tree =
 			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
-		// the reconstructed leaves were flagged dirty by the replaying inserts above, but they are byte-identical to
-		// what is already on disk: clear the flags and seed the live-page set so the first post-load commit suppresses
-		// every untouched leaf
-		final List<LeafPageHandle> handles = tree.leafPageHandles();
-		final Set<Integer> livePages = new HashSet<>(handles.size());
-		for (final LeafPageHandle handle : handles) {
-			handle.clearDirty();
-			livePages.add(handle.getPageSequence());
-		}
-		final PageStreamRegistry pageStreamRegistry = new PageStreamRegistry();
-		pageStreamRegistry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, livePages);
+		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
+			BUCKET_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
+		);
 		return new InvertedIndex(
 			plainType, tree, normalizer, comparator, indexedDecimalPlaces, pageStreamRegistry
 		);

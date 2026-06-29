@@ -53,7 +53,10 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePartDeprecated;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
+import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+
+import java.util.Iterator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.model.header.CollectionFileReference;
@@ -548,14 +551,13 @@ public interface Migration_2025_6 {
 			final int referencedEntityIndexPrimaryKey = split[1];
 			referenceTypeCardinalityIndex.addRecord(referencedEntityIndexPrimaryKey, referencedEntityPrimaryKey);
 		}
-		final ReferenceTypeCardinalityIndexStoragePart referenceTypeCardinalityIndexStoragePart =
-			referenceTypeCardinalityIndex.createStoragePart(indexPrimaryKey, referenceName);
-		// store the new reference type cardinality index
-		if (referenceTypeCardinalityIndexStoragePart != null) {
-			collectionStoragePartService.putStoragePart(
-				catalogHeader.version(),
-				referenceTypeCardinalityIndexStoragePart
-			);
+		// persist the freshly built index through the granular append path — a small index writes one inline SINGLE root,
+		// a large one writes individual leaf pages plus a PAGED root — draining every emitted part into collection storage
+		final TrappedChanges trappedChanges = new TrappedChanges();
+		referenceTypeCardinalityIndex.appendStorageParts(indexPrimaryKey, referenceName, trappedChanges);
+		final Iterator<StoragePart> changesIterator = trappedChanges.getTrappedChangesIterator();
+		while (changesIterator.hasNext()) {
+			collectionStoragePartService.putStoragePart(catalogHeader.version(), changesIterator.next());
 		}
 	}
 

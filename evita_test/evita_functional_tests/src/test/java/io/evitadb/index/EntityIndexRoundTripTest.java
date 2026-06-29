@@ -99,6 +99,8 @@ import java.util.ArrayList;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.HashMap;
+import io.evitadb.utils.CollectionUtils;
+
 import java.util.Objects;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1194,11 +1196,18 @@ class EntityIndexRoundTripTest {
 			assertNotNull(refTypePart, "ReferencedTypeEntityIndex must emit a ref-type cardinality part");
 			final Map<String, HistogramIndex> histogramIndexes =
 				reloadHistogramIndexes(storage, REFERENCE_NAME);
-			// reconstruct ReferenceTypeCardinalityIndex via the (Map, Map) constructor so its dirty
-			// flag starts clean — production kryo deserialization has the same effect
-			final ReferenceTypeCardinalityIndex liveRefType = refTypePart.getCardinalityIndex();
+			// reconstruct ReferenceTypeCardinalityIndex from the inline SINGLE columns via the (Map, Map) constructor so
+			// its dirty flag starts clean — production kryo deserialization + loader has the same effect. The fixture is
+			// small, so the cardinality tree stays a single leaf (SINGLE shape) and never pages out.
+			assertFalse(refTypePart.isPaged(), "Small ref-type cardinality fixture must persist inline (SINGLE)");
+			final long[] refTypeKeys = Objects.requireNonNull(refTypePart.getKeys());
+			final long[] refTypePayloads = Objects.requireNonNull(refTypePart.getPayloads());
+			final Map<Long, Integer> refTypeCardinalities = CollectionUtils.createHashMap(refTypeKeys.length);
+			for (int i = 0; i < refTypeKeys.length; i++) {
+				refTypeCardinalities.put(refTypeKeys[i], (int) refTypePayloads[i]);
+			}
 			final ReferenceTypeCardinalityIndex freshRefType = new ReferenceTypeCardinalityIndex(
-				liveRefType.getCardinalities(), liveRefType.getReferencedPrimaryKeysIndex()
+				refTypeCardinalities, refTypePart.getReferencedPrimaryKeysIndex()
 			);
 			return new ReferencedTypeEntityIndex(
 				manifest.getPrimaryKey(),

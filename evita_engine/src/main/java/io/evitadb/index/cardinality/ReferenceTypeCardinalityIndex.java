@@ -23,23 +23,33 @@
 
 package io.evitadb.index.cardinality;
 
+import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.array.CompositeLongArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.bPlusTree.LongPayloadBucketTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
-import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.TransactionalMap;
+import io.evitadb.index.page.PageEmission;
+import io.evitadb.index.page.PageStreamRegistry;
 import io.evitadb.index.result.CardinalityChange;
-import io.evitadb.core.expression.trigger.DependencyType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityIndexStoragePart;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -53,9 +63,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -73,26 +88,54 @@ import static java.util.Optional.ofNullable;
  * the key is present in the index and remove it only when the last occurrence is evicted. This is where the cardinality
  * index comes in.
  *
+ * The composed-key → cardinality count map is the second-largest churn wall at scale, so it is backed by a UNIQUE
+ * {@link LongPayloadBucketTree} (composed signed `long` key → count widened to a `long` payload) and persisted
+ * GRANULARLY as individual leaf pages, exactly like {@link io.evitadb.index.attribute.GlobalUniqueIndex}: a single
+ * reference change rewrites one ~KB leaf page instead of the whole multi-MB part. The companion
+ * {@link #referencedPrimaryKeysIndex} is the smaller member and always rides inline on the root storage part.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class ReferenceTypeCardinalityIndex
 	implements VoidTransactionMemoryProducer<ReferenceTypeCardinalityIndex>, IndexDataStructure, Serializable {
 	@Serial private static final long serialVersionUID = -7416602590381722682L;
+
+	/**
+	 * Block-size geometry of the cardinality bucket tree — a 256-entry leaf with the matching minimum split thresholds
+	 * (identical to the unique-index value trees this paging clones).
+	 */
+	private static final int VALUE_BLOCK_SIZE = 256;
+	private static final int MIN_VALUE_BLOCK_SIZE = VALUE_BLOCK_SIZE / 2 - 1;
+	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
+	/**
+	 * Single page stream per cardinality index — its composed-key bucket tree (mirrors {@code OwnerUniqueIndex.UNIQUE_PAGE_STREAM}).
+	 */
+	private static final int CARDINALITY_PAGE_STREAM = 0;
+	/**
+	 * Natural signed-`long` order for the composed keys: positive whole-index-PK counters and negative per-reference
+	 * counters interleave correctly (the {@code LongKeyCodec} identity encoding preserves sign), and a positive key can
+	 * never collide with a negative one.
+	 */
+	private static final Comparator<Comparable<?>> NATURAL_ORDER = (Comparator) Comparator.naturalOrder();
+
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
 	/**
-	 * A variable that holds the cardinalities of different entities.
-	 *
-	 * The {@link PersistentTransactionalMap} is a map-like data structure that allows concurrent access and
-	 * modification of the cardinalities in a transactional manner. Each cardinality is associated with a composed
-	 * long key, which uniquely identifies the entity for which the cardinality is being stored. The map is
-	 * plain-valued and mutated exclusively through `compute`/`computeIfPresent`/`remove`, so commit folds only
-	 * the changed keys onto the persistent snapshot in `O(Δ·log N)` instead of rebuilding the whole map on every
-	 * transaction.
+	 * Holds the cardinalities of different entities as a UNIQUE single-`long` bucket tree: each composed signed `long`
+	 * key holds exactly one `long` count. Keys are `+pack(indexPrimaryKey, 0)` (the per-whole-index-PK running total,
+	 * positive) and `-pack(indexPrimaryKey, referencedEntityPrimaryKey)` (the per-tuple count, negative). Large trees
+	 * persist granularly as leaf pages (see {@link #pageStreamRegistry}).
 	 */
-	private final PersistentTransactionalMap<Long, Integer> cardinalities;
+	@Nonnull private final LongPayloadBucketTree cardinalities;
+	/**
+	 * Per-index page bookkeeping for the granular leaf-page storage layout (the advance-only page allocator, the
+	 * high-water and the live-page set of {@link #cardinalities}). It lives OUTSIDE transactional memory and is carried
+	 * BY REFERENCE through {@link #createCopyWithMergedTransactionalMemory}, exactly like {@code OwnerUniqueIndex}.
+	 */
+	@Nonnull private final PageStreamRegistry pageStreamRegistry;
 	/**
 	 * Index that for each referenced entity primary key keeps the bitmap of all reduced entity index primary keys that
 	 * contains entity primary keys referencing this entity.
@@ -104,31 +147,144 @@ public class ReferenceTypeCardinalityIndex
 	 */
 	@Nullable private volatile RoaringBitmap memoizedAllReferencedPrimaryKeys;
 
+	/**
+	 * Creates a fresh, empty cardinality bucket tree (single-`long` payload column holding the count) ordered by natural
+	 * signed-`long` key order.
+	 *
+	 * @return the fresh empty long-payload bucket tree
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree createEmptyTree() {
+		// the runtime key is always `Long`; the tree is constructed with the erased `Comparable` key type exactly like the
+		// unique-index value trees, while the `Long` value-column factory selects the primitive long[] leaf column
+		final Class keyType = Comparable.class;
+		final ValueColumnFactory factory = ValueColumnFactory.forKey(Long.class, NATURAL_ORDER);
+		return TransactionalBucketBPlusTree.withLongPayload(
+			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
+			keyType, (Comparator) NATURAL_ORDER, factory
+		);
+	}
+
+	/**
+	 * Rebuilds a `PAGED` cardinality index from its persisted leaf pages, preserving the original leaf boundaries and
+	 * page identities (mirrors {@code OwnerUniqueIndex.fromPersistedPages}). One leaf per persisted page is built from the
+	 * positionally-aligned key + count columns, each stamped with its page sequence, and the page-stream bookkeeping
+	 * (high-water + live set) is restored, so the first post-restart commit rewrites only genuinely-changed leaves rather
+	 * than re-paginating the whole index.
+	 *
+	 * @param orderedPageSequences   the persisted leaf-page sequences in ascending key order
+	 * @param perPageKeys            the composed `long` keys of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param perPagePayloads        the counts of each leaf page, positionally aligned with `perPageKeys`
+	 * @param highWaterPageSequence  the persisted stream high-water (largest page sequence ever allocated)
+	 * @param referencedPrimaryKeys  the inline companion `referencedEntityPrimaryKey → reduced-index-PK bitmap` map
+	 * @return the rebuilt, boundary-stable `PAGED` cardinality index
+	 */
+	@Nonnull
+	public static ReferenceTypeCardinalityIndex fromPersistedPages(
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull long[][] perPageKeys,
+		@Nonnull long[][] perPagePayloads,
+		int highWaterPageSequence,
+		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeys
+	) {
+		Assert.isPremiseValid(
+			orderedPageSequences.length == perPageKeys.length && perPageKeys.length == perPagePayloads.length,
+			"The number of page sequences must match the number of leaf-page arrays."
+		);
+		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged cardinality index must have at least one leaf page.");
+		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
+		for (int i = 0; i < orderedPageSequences.length; i++) {
+			final long[] keys = perPageKeys[i];
+			final long[] payloads = perPagePayloads[i];
+			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits
+			final TransactionalBucketBPlusTree pageTree = createEmptyTree();
+			for (int j = 0; j < keys.length; j++) {
+				pageTree.addLongRecord(keys[j], payloads[j]);
+			}
+			pageTrees.add(pageTree);
+		}
+		final TransactionalBucketBPlusTree tree =
+			createEmptyTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
+		final PageStreamRegistry registry = PageStreamRegistry.restoredFrom(
+			CARDINALITY_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
+		);
+		return new ReferenceTypeCardinalityIndex(tree, registry, referencedPrimaryKeys);
+	}
+
+	/**
+	 * Creates a fresh, empty cardinality index: an empty cardinality bucket tree and an empty companion
+	 * `referencedEntityPrimaryKey → reduced-index-PK bitmap` map. Used when a reference type starts being indexed and
+	 * there is no previously persisted state to restore from.
+	 */
 	public ReferenceTypeCardinalityIndex() {
 		this.dirty = new TransactionalBoolean();
-		this.cardinalities = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
+		this.cardinalities = createEmptyTree();
+		this.pageStreamRegistry = new PageStreamRegistry();
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
 			CollectionUtils.createHashMap(16), TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
+	/**
+	 * Reconstructs the index from a previously-persisted SINGLE-shape state: the composed-key → cardinality count map is
+	 * replayed into a fresh bucket tree (insert order is arbitrary; the UNIQUE tree handles it) and the companion
+	 * `referencedEntityPrimaryKey → reduced-index-PK bitmap` map is re-wrapped. Used by the SINGLE reload path in
+	 * {@link io.evitadb.index.component.loader.ReferenceTypeCardinalityLoader} and by `Migration_2025_6`.
+	 *
+	 * @param cardinalities         the persisted composed-key → cardinality count map
+	 * @param referencedPrimaryKeys the persisted `referencedEntityPrimaryKey → reduced-index-PK bitmap` companion map
+	 */
 	public ReferenceTypeCardinalityIndex(
 		@Nonnull Map<Long, Integer> cardinalities,
 		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeys
 	) {
 		this.dirty = new TransactionalBoolean();
-		this.cardinalities = new PersistentTransactionalMap<>(cardinalities);
+		final TransactionalBucketBPlusTree tree = createEmptyTree();
+		// the seeding map is unordered; addLongRecord into a UNIQUE tree handles arbitrary insert order
+		for (final Entry<Long, Integer> entry : cardinalities.entrySet()) {
+			tree.addLongRecord(entry.getKey(), entry.getValue());
+		}
+		this.cardinalities = tree;
+		this.pageStreamRegistry = new PageStreamRegistry();
 		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
 			referencedPrimaryKeys, TransactionalBitmap.class, TransactionalBitmap::new);
 	}
 
 	/**
-	 * Returns cardinalities of all keys in the index.
+	 * Private constructor used by {@link #createCopyWithMergedTransactionalMemory} and {@link #fromPersistedPages} to
+	 * adopt an already-built tree directly (no re-seeding); the assembled/committed tree already carries its leaf-page
+	 * sequences, so the page bookkeeping is carried by reference.
+	 *
+	 * @param committedTree         the already-built cardinality tree to adopt
+	 * @param pageStreamRegistry    the per-index page bookkeeping, carried BY REFERENCE
+	 * @param referencedPrimaryKeys the companion map to re-wrap into a {@link TransactionalMap}
+	 */
+	private ReferenceTypeCardinalityIndex(
+		@Nonnull LongPayloadBucketTree committedTree,
+		@Nonnull PageStreamRegistry pageStreamRegistry,
+		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeys
+	) {
+		this.dirty = new TransactionalBoolean();
+		this.cardinalities = committedTree;
+		this.pageStreamRegistry = pageStreamRegistry;
+		this.referencedPrimaryKeysIndex = new TransactionalMap<>(
+			referencedPrimaryKeys, TransactionalBitmap.class, TransactionalBitmap::new);
+	}
+
+	/**
+	 * Returns cardinalities of all keys in the index as a freshly materialized map (a cursor walk over the backing
+	 * tree). This is a test / migration / inspection helper only — the persistence hot path captures the tree's columns
+	 * directly via {@link #appendStorageParts} and never builds this map.
 	 *
 	 * @return cardinalities of all keys in the index
 	 */
 	@Nonnull
 	public Map<Long, Integer> getCardinalities() {
-		return this.cardinalities;
+		final BucketCursor cursor = this.cardinalities.cursor();
+		final Map<Long, Integer> result = CollectionUtils.createHashMap(Math.max(16, this.cardinalities.size()));
+		while (cursor.next()) {
+			result.put((Long) cursor.value(), (int) cursor.longRecordId());
+		}
+		return result;
 	}
 
 	/**
@@ -223,7 +379,7 @@ public class ReferenceTypeCardinalityIndex
 	 * @return TRUE if this contains no data
 	 */
 	public boolean isEmpty() {
-		return this.cardinalities.isEmpty();
+		return this.cardinalities.size() == 0;
 	}
 
 	/**
@@ -379,16 +535,69 @@ public class ReferenceTypeCardinalityIndex
 	}
 
 	/**
-	 * Method creates container for storing chain index from memory to the persistent storage.
+	 * Returns whether this index's cardinality tree spans more than one leaf and is therefore persisted in the granular
+	 * `PAGED` shape rather than the inline `SINGLE` shape.
+	 *
+	 * @return true when the tree has an internal root (≥ 2 leaves)
 	 */
-	@Nullable
-	public ReferenceTypeCardinalityIndexStoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull String referenceName) {
-		if (this.dirty.isTrue()) {
-			return new ReferenceTypeCardinalityIndexStoragePart(
-				entityIndexPrimaryKey, referenceName, this
+	public boolean isPaged() {
+		return this.cardinalities.isRootInternal();
+	}
+
+	/**
+	 * Appends this index's modified storage parts to the flush sink. PAGED: one leaf page per CHANGED leaf, a removal per
+	 * freed leaf, plus a PAGED root carrying the high-water, the ordered live leaf-page list and the INLINE companion
+	 * map. SINGLE: if the index just collapsed from PAGED, remove every prior leaf page, forget the stream, then write
+	 * the inline root. Mirrors {@code OwnerUniqueIndex.appendStorageParts}.
+	 *
+	 * @param entityIndexPrimaryKey primary key of the owning entity index (the sub-index identity with `referenceName`)
+	 * @param referenceName         the reference name of this sub-index
+	 * @param sink                  the flush sink receiving the changed parts
+	 */
+	public void appendStorageParts(int entityIndexPrimaryKey, @Nonnull String referenceName, @Nonnull TrappedChanges sink) {
+		if (!this.dirty.isTrue()) {
+			return;
+		}
+		if (this.cardinalities.isRootInternal()) {
+			// PAGED: one leaf page per CHANGED leaf + a removal per freed leaf + a PAGED root carrying the high-water, the
+			// ordered live leaf-page list and the inline companion map
+			final PageEmission<LeafPage> emission = collectChangedPages();
+			for (final LeafPage page : emission.changedPages()) {
+				sink.addChangeToStore(
+					new ReferenceTypeCardinalityIndexLeafPagePart(
+						entityIndexPrimaryKey, referenceName, page.pageSequence(), page.keys(), page.payloads()
+					)
+				);
+			}
+			for (final int freedPageSequence : emission.freedPageSequences()) {
+				sink.addChangeToStore(
+					new ReferenceTypeCardinalityIndexLeafPageRemoval(entityIndexPrimaryKey, referenceName, freedPageSequence)
+				);
+			}
+			sink.addChangeToStore(
+				ReferenceTypeCardinalityIndexStoragePart.paged(
+					entityIndexPrimaryKey, referenceName,
+					emission.highWaterPageSequence(), emission.orderedPageSequences(), this.referencedPrimaryKeysIndex
+				)
 			);
 		} else {
-			return null;
+			// SINGLE shape: the index spans one leaf. If it just collapsed from PAGED, remove every prior leaf page (the
+			// inline root no longer references them) BEFORE dropping the bookkeeping, then forget the stream so a later
+			// regrow into PAGED starts from a clean baseline and re-emits every leaf.
+			for (final int freedPageSequence : this.pageStreamRegistry.livePageSequences(CARDINALITY_PAGE_STREAM)) {
+				sink.addChangeToStore(
+					new ReferenceTypeCardinalityIndexLeafPageRemoval(entityIndexPrimaryKey, referenceName, freedPageSequence)
+				);
+			}
+			this.pageStreamRegistry.forget(CARDINALITY_PAGE_STREAM);
+			// the small index is a single embedded leaf: capture its key/count columns directly off the tree (no map
+			// materialization) and carry them inline on the root, exactly as a leaf page would
+			final InlineSnapshot snapshot = inlineSnapshot();
+			sink.addChangeToStore(
+				new ReferenceTypeCardinalityIndexStoragePart(
+					entityIndexPrimaryKey, referenceName, snapshot.keys(), snapshot.payloads(), this.referencedPrimaryKeysIndex
+				)
+			);
 		}
 	}
 
@@ -420,8 +629,15 @@ public class ReferenceTypeCardinalityIndex
 		// we can safely throw away dirty flag now
 		final boolean isDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		if (isDirty) {
+			final TransactionalBucketBPlusTree committedTree =
+				(TransactionalBucketBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities);
+			// publish the page baseline staged by this commit's flush: the merge runs only AFTER the flush has durably
+			// written the changed leaf pages + root, so the staged live set now reflects what is on disk. The registry is
+			// then carried BY REFERENCE into the committed copy, so the surviving index keeps it (mirrors OwnerUniqueIndex).
+			this.pageStreamRegistry.publishStaged();
 			return new ReferenceTypeCardinalityIndex(
-				transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalities),
+				committedTree,
+				this.pageStreamRegistry,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.referencedPrimaryKeysIndex)
 			);
 		} else {
@@ -429,45 +645,121 @@ public class ReferenceTypeCardinalityIndex
 		}
 	}
 
+	/*
+		PRIVATE METHODS
+	 */
+
 	/**
-	 * Increases the cardinality of the given primary key by one. If the primary key is not present
-	 * in the index, it is added with a cardinality of 1 and the method returns true.
-	 * Otherwise, the existing cardinality is increased by one, and the method returns false.
+	 * Increases the cardinality of the given composed key by one. If the key is not present in the tree, it is added
+	 * with a cardinality of 1 and the method returns true. Otherwise the existing count is overwritten with `count + 1`
+	 * (remove + re-add, since the UNIQUE tree holds exactly one payload per key) and the method returns false.
 	 *
-	 * @param composedKey the primary key of the entity index for which the cardinality is to be updated
-	 * @return true if the primary key was not already present in the index, false otherwise
+	 * @param composedKey the composed signed `long` key whose cardinality is to be updated
+	 * @return true if the key was not already present in the index, false otherwise
 	 */
 	private boolean addCardinality(long composedKey) {
-		return this.cardinalities.compute(
-			composedKey,
-			(k, v) -> v == null ? 1 : v + 1
-		) == 1;
+		final OptionalLong existing = this.cardinalities.getLongRecordEqualTo(composedKey);
+		if (existing.isEmpty()) {
+			this.cardinalities.addLongRecord(composedKey, 1L);
+			return true;
+		}
+		this.cardinalities.removeLongRecord(composedKey);
+		this.cardinalities.addLongRecord(composedKey, existing.getAsLong() + 1L);
+		return false;
 	}
 
 	/**
-	 * Decreases the cardinality associated with the given primary key by one.
-	 * If the cardinality reaches zero, the key is removed from the index, and the method returns true.
-	 * If the key does not exist in the index, an exception is thrown. Otherwise, the method returns false.
+	 * Decreases the cardinality associated with the given composed key by one. If the cardinality reaches zero, the key
+	 * is removed from the tree and the method returns true. If the key does not exist, an exception is thrown. Otherwise
+	 * the count is overwritten with `count - 1` and the method returns false.
 	 *
-	 * @param composedKey the primary key whose cardinality is to be updated
+	 * @param composedKey the composed signed `long` key whose cardinality is to be updated
 	 * @return true if the key was removed from the index, false otherwise
 	 * @throws GenericEvitaInternalError if the cardinality of the given key is null
 	 */
 	private boolean removeCardinality(long composedKey) {
-		final Integer newValue = this.cardinalities.computeIfPresent(
-			composedKey,
-			(k, v) -> v - 1
-		);
-		if (newValue == null) {
+		final OptionalLong existing = this.cardinalities.getLongRecordEqualTo(composedKey);
+		if (existing.isEmpty()) {
 			throw new GenericEvitaInternalError(
 				"Cardinality of index PK `" + composedKey + "` is null"
 			);
-		} else if (newValue == 0) {
-			this.cardinalities.remove(composedKey);
-			return true;
-		} else {
-			return false;
 		}
+		final long updated = existing.getAsLong() - 1L;
+		if (updated == 0L) {
+			this.cardinalities.removeLongRecord(composedKey);
+			return true;
+		}
+		this.cardinalities.removeLongRecord(composedKey);
+		this.cardinalities.addLongRecord(composedKey, updated);
+		return false;
+	}
+
+	/**
+	 * Returns the whole cardinality tree as sorted, positionally-aligned `(key, count)` primitive columns, built by a
+	 * single cursor walk — the same shape the `SINGLE` storage part and a leaf page carry. Allocation-lean (no map and no
+	 * boxing): feeds the inline `SINGLE` write path.
+	 *
+	 * @return the inline snapshot of every entry in ascending key order
+	 */
+	@Nonnull
+	private InlineSnapshot inlineSnapshot() {
+		final CompositeLongArray snapshotKeys = new CompositeLongArray();
+		final CompositeLongArray snapshotPayloads = new CompositeLongArray();
+		final BucketCursor cursor = this.cardinalities.cursor();
+		while (cursor.next()) {
+			snapshotKeys.add((Long) cursor.value());
+			snapshotPayloads.add(cursor.longRecordId());
+		}
+		return new InlineSnapshot(snapshotKeys.toArray(), snapshotPayloads.toArray());
+	}
+
+	/**
+	 * Walks the cardinality tree leaf-by-leaf and returns the granular write-path emission for this commit: the leaf
+	 * pages that changed since the last flush, the full ordered list of live leaf-page sequences (the `PAGED` root's leaf
+	 * list), the stream high-water, and the freed page sequences a leaf merge dropped. Mirrors
+	 * {@code OwnerUniqueIndex.collectChangedPages} with the slim `(key, count)` columns.
+	 *
+	 * @return the changed leaf pages, the ordered live page-sequence list, the high-water, and the freed pages
+	 */
+	@Nonnull
+	private PageEmission<LeafPage> collectChangedPages() {
+		// this.cardinalities is a raw bucket tree, so the handle list and its cursors are raw too — bucket keys are read
+		// as Object and cast to Long exactly as the whole-tree snapshot does
+		final List<LeafPageHandle> handles = this.cardinalities.leafPageHandles();
+		return this.pageStreamRegistry.collectChangedPages(
+			CARDINALITY_PAGE_STREAM, handles,
+			(pageSequence, handle) -> {
+				final BucketCursor cursor = handle.cursor();
+				final CompositeLongArray pageKeys = new CompositeLongArray();
+				final CompositeLongArray pagePayloads = new CompositeLongArray();
+				while (cursor.next()) {
+					pageKeys.add((Long) cursor.value());
+					pagePayloads.add(cursor.longRecordId());
+				}
+				return new LeafPage(pageSequence, pageKeys.toArray(), pagePayloads.toArray());
+			}
+		);
+	}
+
+	/**
+	 * The whole cardinality tree captured as positionally-aligned `(key, count)` primitive columns — the inline `SINGLE`
+	 * shape, the same representation a leaf page carries.
+	 *
+	 * @param keys     the composed signed `long` keys in ascending key order
+	 * @param payloads the cardinality counts, positionally aligned with `keys`
+	 */
+	private record InlineSnapshot(@Nonnull long[] keys, @Nonnull long[] payloads) {
+	}
+
+	/**
+	 * One changed leaf page of the granular write-path emission: its page sequence and its slim `(key, count)` columns in
+	 * ascending key order.
+	 *
+	 * @param pageSequence the leaf's page sequence within the stream
+	 * @param keys         the leaf's composed signed `long` keys in ascending key order
+	 * @param payloads     the cardinality count of each key, aligned with `keys`
+	 */
+	private record LeafPage(int pageSequence, @Nonnull long[] keys, @Nonnull long[] payloads) {
 	}
 
 }

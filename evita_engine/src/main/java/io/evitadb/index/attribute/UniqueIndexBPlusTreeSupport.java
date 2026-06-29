@@ -24,17 +24,12 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
-import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
-import io.evitadb.index.page.PageStreamRegistry;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Payload-agnostic building blocks shared by the two bucket-tree-backed unique indexes: {@link OwnerUniqueIndex}
@@ -156,34 +151,6 @@ final class UniqueIndexBPlusTreeSupport {
 			: new TransactionalBucketBPlusTree(
 				VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
 				keyType, comparator, factory);
-	}
-
-	/**
-	 * Finishes a paged-index reload: the freshly assembled `tree`'s leaves were flagged dirty by the replaying inserts
-	 * even though they are byte-identical to what is already on disk. This clears every leaf's dirty flag, collects the
-	 * live page set and returns a fresh {@link PageStreamRegistry} primed so the first post-load commit suppresses every
-	 * untouched leaf.
-	 *
-	 * @param tree                  the assembled value tree (leaves reconstructed from the persisted pages)
-	 * @param streamId              the page-stream id the tree's leaves belong to
-	 * @param highWaterPageSequence the maximum `pageSequence` ever allocated for the stream
-	 * @return the restored page-stream registry
-	 */
-	@Nonnull
-	static PageStreamRegistry restorePageStream(
-		@Nonnull TransactionalBucketBPlusTree<?> tree,
-		int streamId,
-		int highWaterPageSequence
-	) {
-		final List<? extends LeafPageHandle<?>> handles = tree.leafPageHandles();
-		final Set<Integer> livePages = new HashSet<>(handles.size());
-		for (final LeafPageHandle<?> handle : handles) {
-			handle.clearDirty();
-			livePages.add(handle.getPageSequence());
-		}
-		final PageStreamRegistry pageStreamRegistry = new PageStreamRegistry();
-		pageStreamRegistry.restore(streamId, highWaterPageSequence, livePages);
-		return pageStreamRegistry;
 	}
 
 }

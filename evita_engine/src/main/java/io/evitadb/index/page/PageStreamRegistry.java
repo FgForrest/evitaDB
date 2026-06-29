@@ -206,6 +206,35 @@ public class PageStreamRegistry implements Serializable {
 	}
 
 	/**
+	 * Read-path twin of {@link #collectChangedPages} and the single shared skeleton behind every paged index's reload:
+	 * builds a fresh registry seeded for a just-reassembled paged index. A tree rebuilt from its persisted leaf pages
+	 * has every leaf flagged dirty by the replaying inserts even though the leaves are byte-identical to what is already
+	 * on disk; this clears each leaf's dirty flag, collects the live-page set and {@link #restore(int, int, Set)
+	 * restores} the stream, so the first post-load commit suppresses every untouched leaf. Like
+	 * {@link #collectChangedPages} it consumes the value-agnostic {@link PagedLeafHandle} contract rather than a concrete
+	 * tree, so it serves the bucket-, long- and element-keyed trees alike.
+	 *
+	 * @param streamId              the page-stream id the reassembled tree's leaves belong to
+	 * @param highWaterPageSequence the maximum `pageSequence` ever allocated for the stream
+	 * @param handles               the reassembled tree's leaf handles (from its `leafPageHandles()`)
+	 * @param <H>                   the concrete leaf-handle type the tree exposes
+	 * @return the restored page-stream registry
+	 */
+	@Nonnull
+	public static <H extends PagedLeafHandle> PageStreamRegistry restoredFrom(
+		int streamId, int highWaterPageSequence, @Nonnull List<H> handles
+	) {
+		final Set<Integer> livePages = new HashSet<>(handles.size());
+		for (final H handle : handles) {
+			handle.clearDirty();
+			livePages.add(handle.getPageSequence());
+		}
+		final PageStreamRegistry registry = new PageStreamRegistry();
+		registry.restore(streamId, highWaterPageSequence, livePages);
+		return registry;
+	}
+
+	/**
 	 * Returns an unmodifiable view of the stream's published live-page set; empty when the stream is unknown. The view
 	 * reflects the set live at call time only — {@link #publishStaged()} swaps in a fresh set, so a view held across a
 	 * publish goes stale (it never corrupts: the live set is only ever replaced wholesale, never mutated in place).

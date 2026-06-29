@@ -86,7 +86,6 @@ import static io.evitadb.index.attribute.UniqueIndex.verifyValue;
 import static io.evitadb.index.attribute.UniqueIndex.verifyValueArray;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
-import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.restorePageStream;
 import static io.evitadb.utils.Assert.isTrue;
 import static java.util.Optional.ofNullable;
 
@@ -301,7 +300,9 @@ public class GlobalUniqueIndex implements
 		}
 		final TransactionalBucketBPlusTree tree =
 			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
-		final PageStreamRegistry pageStreamRegistry = restorePageStream(tree, UNIQUE_PAGE_STREAM, highWaterPageSequence);
+		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
+			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
+		);
 		return new GlobalUniqueIndex(
 			scope, attributeKey, attributeType, tree, pageStreamRegistry, entitiesPerTypeBase, idToLocaleIndex
 		);

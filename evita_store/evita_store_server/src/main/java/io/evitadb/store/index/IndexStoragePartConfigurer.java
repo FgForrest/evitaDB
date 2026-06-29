@@ -170,7 +170,12 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(Scope.class, new EnumNameSerializer<>(), index++);
 		kryo.register(RepresentativeReferenceKey.class, new SerialVersionBasedSerializer<>(new RepresentativeReferenceKeySerializer(), RepresentativeReferenceKey.class), index++);
 
-		kryo.register(ReferenceTypeCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ReferenceTypeCardinalityIndexStoragePartSerializer(this.keyCompressor), ReferenceTypeCardinalityIndexStoragePart.class), index++);
+		kryo.register(
+			ReferenceTypeCardinalityIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(new ReferenceTypeCardinalityIndexStoragePartSerializer(this.keyCompressor), ReferenceTypeCardinalityIndexStoragePart.class)
+				.addBackwardCompatibleSerializer(8276690113370094734L, new ReferenceTypeCardinalityIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+			index++
+		);
 		kryo.register(GroupCardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new GroupCardinalityIndexStoragePartSerializer(this.keyCompressor), GroupCardinalityIndexStoragePart.class), index++);
 		kryo.register(
 			HistogramIndexStoragePart.class,
@@ -229,6 +234,15 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			GlobalUniqueIndexLeafPagePart.class,
 			new SerialVersionBasedSerializer<>(new GlobalUniqueIndexLeafPagePartSerializer(), GlobalUniqueIndexLeafPagePart.class),
+			index++
+		);
+
+		// the granular reference-type-cardinality leaf-page record — a brand-new record type with no backward-compatible
+		// reader (legacy catalogs keep the cardinality map inline on the monolithic root part instead). Appended last to
+		// keep the preceding registration ids stable.
+		kryo.register(
+			ReferenceTypeCardinalityIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new ReferenceTypeCardinalityIndexLeafPagePartSerializer(), ReferenceTypeCardinalityIndexLeafPagePart.class),
 			index++
 		);
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.index.cardinality;
 
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -36,6 +37,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.roaringbitmap.RoaringBitmap;
 
+import javax.annotation.Nonnull;
+import java.util.Collections;
 import java.util.Map;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -468,48 +471,61 @@ class ReferenceTypeCardinalityIndexTest {
 	class DirtyFlagTest {
 
 		@Test
-		@DisplayName("createStoragePart returns null when not dirty")
-		void shouldReturnNullWhenNotDirty() {
+		@DisplayName("appendStorageParts emits nothing when not dirty")
+		void shouldEmitNothingWhenNotDirty() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
-			assertNull(index.createStoragePart(1, "ref"));
+			assertEquals(0, emittedPartCount(index));
 		}
 
 		@Test
 		@DisplayName(
-			"createStoragePart returns non-null after addRecord"
+			"appendStorageParts emits a part after addRecord"
 		)
-		void shouldReturnNonNullAfterAdd() {
+		void shouldEmitPartAfterAdd() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
-			assertNotNull(index.createStoragePart(1, "ref"));
+			assertTrue(emittedPartCount(index) > 0);
 		}
 
 		@Test
 		@DisplayName(
-			"createStoragePart returns non-null after removeRecord"
+			"appendStorageParts emits a part after removeRecord"
 		)
-		void shouldReturnNonNullAfterRemove() {
+		void shouldEmitPartAfterRemove() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
 			index.resetDirty();
 			index.removeRecord(1, 100);
-			assertNotNull(index.createStoragePart(1, "ref"));
+			assertTrue(emittedPartCount(index) > 0);
 		}
 
 		@Test
 		@DisplayName(
-			"resetDirty → createStoragePart returns null"
+			"resetDirty → appendStorageParts emits nothing"
 		)
-		void shouldReturnNullAfterReset() {
+		void shouldEmitNothingAfterReset() {
 			final ReferenceTypeCardinalityIndex index =
 				new ReferenceTypeCardinalityIndex();
 			index.addRecord(1, 100);
 			index.resetDirty();
-			assertNull(index.createStoragePart(1, "ref"));
+			assertEquals(0, emittedPartCount(index));
 		}
+	}
+
+	/**
+	 * Counts the storage parts the index appends to a fresh {@link TrappedChanges} sink — a dirty index emits at least
+	 * one (the inline SINGLE root or the PAGED leaf pages + root), a clean index emits none.
+	 *
+	 * @param index the cardinality index to flush
+	 * @return the number of emitted storage parts
+	 */
+	private static int emittedPartCount(@Nonnull ReferenceTypeCardinalityIndex index) {
+		final TrappedChanges trappedChanges = new TrappedChanges();
+		index.appendStorageParts(1, "ref", trappedChanges);
+		return trappedChanges.getTrappedChangesCount();
 	}
 
 	@Nested
@@ -518,7 +534,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 		@Test
 		@DisplayName(
-			"commit add → new instance with record (INV-7)"
+			"commit add → new instance with record"
 		)
 		void shouldCommitAddAndReturnNewInstance() {
 			final ReferenceTypeCardinalityIndex index =
@@ -540,7 +556,7 @@ class ReferenceTypeCardinalityIndexTest {
 
 		@Test
 		@DisplayName(
-			"commit with no mutations → same instance (INV-8)"
+			"commit with no mutations → same instance"
 		)
 		void shouldReturnSameInstanceWhenNotDirty() {
 			final ReferenceTypeCardinalityIndex index =
@@ -667,9 +683,7 @@ class ReferenceTypeCardinalityIndexTest {
 				original -> original.addRecord(1, 100),
 				(original, committed) -> {
 					assertNull(committed);
-					assertNull(
-						index.createStoragePart(1, "ref")
-					);
+					assertEquals(0, emittedPartCount(index));
 				}
 			);
 		}
@@ -751,7 +765,7 @@ class ReferenceTypeCardinalityIndexTest {
 	}
 
 	@Nested
-	@DisplayName("BUG-6: empty bitmap cleanup on removeRecord")
+	@DisplayName("Empty bitmap cleanup on removeRecord")
 	class EmptyBitmapCleanup {
 
 		@Test
@@ -788,6 +802,73 @@ class ReferenceTypeCardinalityIndexTest {
 				new int[]{2},
 				index.getAllReferenceIndexes(100)
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Granular paging shape")
+	class GranularPagingShape {
+
+		@Test
+		@DisplayName(
+			"stays inline while small and pages once the leaf splits"
+		)
+		void shouldStayInlineForSmallIndexAndPageWhenItGrows() {
+			final ReferenceTypeCardinalityIndex index =
+				new ReferenceTypeCardinalityIndex();
+			// a handful of tuples stays well within the 256-entry leaf (the SINGLE shape)
+			for (int i = 1; i <= 5; i++) {
+				index.addRecord(i, 1_000 + i);
+			}
+			assertFalse(index.isPaged(), "a small index must stay inline (SINGLE)");
+
+			// each addRecord writes two composed-key tree entries, so enough distinct tuples split the leaf into more
+			// than one — flipping the index to the PAGED shape on the same instance
+			for (int i = 6; i <= 300; i++) {
+				index.addRecord(i, 1_000 + i);
+			}
+			assertTrue(index.isPaged(), "a grown index must page once the leaf splits");
+		}
+
+		@Test
+		@DisplayName(
+			"fromPersistedPages rejects empty and misaligned page arrays"
+		)
+		void shouldRejectEmptyPageArraysInFromPersistedPages() {
+			// the length>0 premise: a paged index must have at least one leaf page
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferenceTypeCardinalityIndex.fromPersistedPages(
+					new int[0], new long[0][], new long[0][], 0, Collections.emptyMap()
+				)
+			);
+			// the alignment premise: the page-sequence count must match the leaf-page array counts
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferenceTypeCardinalityIndex.fromPersistedPages(
+					new int[]{0, 1}, new long[][]{{10L}}, new long[][]{{1L}}, 1, Collections.emptyMap()
+				)
+			);
+		}
+
+		@Test
+		@DisplayName(
+			"fromPersistedPages with a single page reassembles as the inline (SINGLE) shape"
+		)
+		void shouldReassembleSinglePageAsInlineShape() {
+			final long[] seedKeys = {10L, 20L, 30L};
+			final long[] seedPayloads = {1L, 2L, 3L};
+			final ReferenceTypeCardinalityIndex index =
+				ReferenceTypeCardinalityIndex.fromPersistedPages(
+					new int[]{0}, new long[][]{seedKeys}, new long[][]{seedPayloads}, 0, Collections.emptyMap()
+				);
+
+			assertFalse(index.isPaged(), "a single leaf page must reassemble as SINGLE");
+			final Map<Long, Integer> expected = CollectionUtils.createHashMap(4);
+			for (int i = 0; i < seedKeys.length; i++) {
+				expected.put(seedKeys[i], (int) seedPayloads[i]);
+			}
+			assertEquals(expected, index.getCardinalities(), "the reassembled cardinalities must equal the seed");
 		}
 	}
 

@@ -36,7 +36,6 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.bPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.TransactionalLongBPlusTree;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -55,12 +54,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -785,17 +782,9 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 		// assemble the spine over the per-page leaves, preserving boundaries and stamping each leaf's page sequence
 		final TransactionalLongBPlusTree<TransactionalRangePoint> tree =
 			createBareTree().assembleFromSingleLeafTrees(pageTrees, orderedPageSequences);
-		// the reconstructed leaves were flagged dirty by the replaying inserts above, but they are byte-identical to
-		// what is already on disk: clear the flags and seed the live-page set so the first post-load commit suppresses
-		// every untouched leaf
-		final List<LeafPageHandle<TransactionalRangePoint>> handles = tree.leafPageHandles();
-		final Set<Integer> livePages = new HashSet<>(handles.size());
-		for (final LeafPageHandle<TransactionalRangePoint> handle : handles) {
-			handle.clearDirty();
-			livePages.add(handle.getPageSequence());
-		}
-		final PageStreamRegistry pageStreamRegistry = new PageStreamRegistry();
-		pageStreamRegistry.restore(RANGE_PAGE_STREAM, highWaterPageSequence, livePages);
+		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
+			RANGE_PAGE_STREAM, highWaterPageSequence, tree.<TransactionalRangePoint>leafPageHandles()
+		);
 		return new RangeIndex(tree, pageStreamRegistry);
 	}
 

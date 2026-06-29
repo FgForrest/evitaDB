@@ -34,6 +34,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueL
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceLeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceTypeCardinalityLeafStreamKey;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_05;
 import io.evitadb.store.catalog.serializer.CatalogHeaderSerializer_2024_08;
@@ -51,6 +52,7 @@ import io.evitadb.store.index.serializer.HistogramIndexKeySerializer;
 import io.evitadb.store.index.serializer.LeafStreamKeySerializer;
 import io.evitadb.store.index.serializer.PriceIndexKeySerializer;
 import io.evitadb.store.index.serializer.PriceLeafStreamKeySerializer;
+import io.evitadb.store.index.serializer.ReferenceTypeCardinalityLeafStreamKeySerializer;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.schema.serializer.CatalogSchemaSerializer;
 import io.evitadb.utils.Assert;
@@ -121,6 +123,13 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			GlobalUniqueLeafStreamKey.class,
 			new SerialVersionBasedSerializer<>(new GlobalUniqueLeafStreamKeySerializer(), GlobalUniqueLeafStreamKey.class),
+			index++
+		);
+		// the granular reference-type-cardinality-index page-stream identity key — a brand-new key type with no
+		// backward-compatible reader. Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			ReferenceTypeCardinalityLeafStreamKey.class,
+			new SerialVersionBasedSerializer<>(new ReferenceTypeCardinalityLeafStreamKeySerializer(), ReferenceTypeCardinalityLeafStreamKey.class),
 			index++
 		);
 
