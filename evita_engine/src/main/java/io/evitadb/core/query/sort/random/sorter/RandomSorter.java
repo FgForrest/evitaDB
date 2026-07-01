@@ -98,6 +98,16 @@ public class RandomSorter implements Sorter {
 		final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
 		final int end = Math.min(filteredRecordIds.length, recomputedEndIndex);
 		final int length = Math.max(0, end - recomputedStartIndex);
+		// nothing to shuffle or copy for this page - skip the O(end) shuffle entirely instead of
+		// paying its cost just to discard the result (happens when the requested start index is at
+		// or beyond the available candidates for this sorter)
+		if (length == 0) {
+			return sortingContext.createResultContext(
+				EmptyBitmap.INSTANCE,
+				0,
+				Math.min(recomputedStartIndex, filteredRecordIdBitmap.size())
+			);
+		}
 		final Random random = this.seed == null ?
 			sortingContext.queryContext().getRandom() : new Random(this.seed);
 		// a seeded shuffle must produce the same permutation regardless of the requested page, so the
