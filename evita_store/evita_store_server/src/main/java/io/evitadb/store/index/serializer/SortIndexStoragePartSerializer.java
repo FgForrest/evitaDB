@@ -48,6 +48,19 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 /**
  * This {@link Serializer} implementation reads/writes {@link SortIndex} from/to binary format.
  *
+ * The wire format is gated by two discriminators so the common unchanged case stays byte-stable.
+ * A leading `valuesPresent` marker selects owner-SINGLE: the inline distinct values + cardinalities
+ * followed by the per-value delta-encoded `sortedRecords` blocks, byte-identical to the pre-paging
+ * format. When it is absent, a second `paged` discriminator distinguishes owner-PAGED (only the
+ * value tree's high-water page sequence and ordered live leaf-page list — the positional records
+ * and distinct values are reconstructed from the
+ * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart}
+ * records on load) from view-slim (the raw positional `sortedRecords`, its value side re-derived
+ * from the shared
+ * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart}). The
+ * `paged` flag is written only inside the no-inline-values branch, so owner-SINGLE bytes stay
+ * byte-identical to the pre-paging format and need no format or `serialVersionUID` change.
+ *
  * The `sortedRecords` array is a concatenation of per-value blocks (one block per distinct value in
  * {@link SortIndexStoragePart#getSortedRecordsValues()} order, block length =
  * {@code valueCardinalities.getOrDefault(value, 1)}); record ids WITHIN a block are sorted ascending. Owner-mode parts
@@ -110,9 +123,9 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 
 		final int[] sortedRecords = sortIndex.getSortedRecords();
 		if (valuesPresent) {
-			// owner mode: sortedRecords is a concatenation of per-value ascending blocks - delta-encode each block when
+			// owner-SINGLE: sortedRecords is a concatenation of per-value ascending blocks - delta-encode each block when
 			// every block is non-decreasing, otherwise fall back to a raw encoding (a migration-collapsed part may hold a
-			// non-ascending block - see the class javadoc).
+			// non-ascending block - see the class javadoc). This branch is byte-identical to the pre-paging format.
 			final int[] blockLengths = computeBlockLengths(sortedRecordValues, cardinalityValues, cardinalities, sortedRecords.length);
 			final boolean blockDeltaEncoded = allBlocksAscending(sortedRecords, blockLengths);
 			output.writeBoolean(blockDeltaEncoded);
@@ -127,13 +140,30 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 				output.writeInts(sortedRecords, 0, sortedRecords.length);
 			}
 		} else {
-			// view mode: block lengths are not available here (re-derived from the shared filter index on load), so the
-			// array is written raw - no win, no regression.
-			output.writeVarInt(sortedRecords.length, true);
-			output.writeInts(sortedRecords, 0, sortedRecords.length);
+			// no inline values: the part is either a granular owner-PAGED root (its value side lives in SortIndexLeafPagePart
+			// records) or a slim view-mode part (re-derived from the shared FILTER index on load). The `paged` discriminator
+			// is written ONLY in this branch, so the owner-SINGLE bytes above stay byte-identical to the pre-paging format.
+			final boolean paged = sortIndex.isPaged();
+			output.writeBoolean(paged);
+			if (paged) {
+				// owner-PAGED root: only the page-stream metadata (high-water + the ordered live leaf-page list). The
+				// positional sortedRecords and the distinct values are NOT written - they are reconstructed from the leaf
+				// pages on load.
+				output.writeVarInt(sortIndex.getHighWaterPageSequence(), true);
+				final int[] leafPageSequences = sortIndex.getLeafPageSequences();
+				Assert.notNull(leafPageSequences, "A paged sort index part must carry its leaf page sequences!");
+				output.writeVarInt(leafPageSequences.length, true);
+				output.writeInts(leafPageSequences, 0, leafPageSequences.length);
+			} else {
+				// view mode: block lengths are not available here (re-derived from the shared filter index on load), so the
+				// array is written raw - no win, no regression.
+				output.writeVarInt(sortedRecords.length, true);
+				output.writeInts(sortedRecords, 0, sortedRecords.length);
+			}
 		}
 
-		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal and compound sort attributes)
+		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal and compound sort attributes) - written LAST in
+		// all three branches (owner-SINGLE, owner-PAGED, view-slim)
 		output.writeVarInt(sortIndex.getIndexedDecimalPlaces(), true);
 	}
 
@@ -179,10 +209,11 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			cardinalities = Map.of();
 		}
 
-		final int[] sortedRecords;
 		if (valuesPresent) {
+			// owner-SINGLE: the sortedRecords blocks follow, then the trailing scale
 			final boolean blockDeltaEncoded = input.readBoolean();
 			final int sortedRecordCount = input.readVarInt(true);
+			final int[] sortedRecords;
 			if (blockDeltaEncoded) {
 				// the block lengths (and the sum == count sanity check) are recovered from the cardinalities, exactly as
 				// they were derived on write
@@ -196,14 +227,33 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 			} else {
 				sortedRecords = input.readInts(sortedRecordCount);
 			}
-		} else {
-			final int sortedRecordCount = input.readVarInt(true);
-			sortedRecords = input.readInts(sortedRecordCount);
+			final int indexedDecimalPlaces = input.readVarInt(true);
+			return new SortIndexStoragePart(
+				entityIndexPrimaryKey, attributeIndexKey, comparatorBase,
+				sortedRecords, sortedRecordValues, cardinalities, indexedDecimalPlaces, uniquePartId
+			);
 		}
 
-		// the frozen `indexedDecimalPlaces` scale (0 for non-BigDecimal and compound sort attributes)
-		final int indexedDecimalPlaces = input.readVarInt(true);
+		// no inline values: read the `paged` discriminator written in this branch
+		final boolean paged = input.readBoolean();
+		if (paged) {
+			// owner-PAGED root: the page-stream metadata, then the trailing scale. The value side (and the positional
+			// sortedRecords) live in the leaf pages and are reconstructed from the reloaded tree, so the part carries empty
+			// inline columns.
+			final int highWaterPageSequence = input.readVarInt(true);
+			final int leafPageCount = input.readVarInt(true);
+			final int[] leafPageSequences = input.readInts(leafPageCount);
+			final int indexedDecimalPlaces = input.readVarInt(true);
+			return SortIndexStoragePart.paged(
+				entityIndexPrimaryKey, attributeIndexKey, comparatorBase,
+				indexedDecimalPlaces, highWaterPageSequence, leafPageSequences, uniquePartId
+			);
+		}
 
+		// view-slim: the raw positional sortedRecords, then the trailing scale
+		final int sortedRecordCount = input.readVarInt(true);
+		final int[] sortedRecords = input.readInts(sortedRecordCount);
+		final int indexedDecimalPlaces = input.readVarInt(true);
 		return new SortIndexStoragePart(
 			entityIndexPrimaryKey, attributeIndexKey, comparatorBase,
 			sortedRecords, sortedRecordValues, cardinalities, indexedDecimalPlaces, uniquePartId
@@ -222,7 +272,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 	 * @param value              the distinct value or {@link ComparableArray} to write (must not be null)
 	 * @param comparatorBaseLength the number of comparator components (1 == scalar, &gt;1 == compound)
 	 */
-	private static void writeComparableValue(
+	static void writeComparableValue(
 		@Nonnull Kryo kryo,
 		@Nonnull Output output,
 		@Nonnull Serializable value,
@@ -250,7 +300,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 	 * @return the reconstructed value or {@link ComparableArray} (never null)
 	 */
 	@Nonnull
-	private static Serializable readComparableValue(
+	static Serializable readComparableValue(
 		@Nonnull Kryo kryo,
 		@Nonnull Input input,
 		int comparatorBaseLength

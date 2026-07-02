@@ -27,29 +27,19 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.FilterIndexView;
+import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey.StreamKind;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -233,7 +223,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 			for (int i = 0; i < orderedPageSequences.length; i++) {
 				final int pageSequence = orderedPageSequences[i];
 				final UniqueIndexLeafPagePart leafPage = service.getStoragePart(
-					catalogVersion, UniqueIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+					catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence),
 					UniqueIndexLeafPagePart.class
 				);
 				isPremiseValid(
@@ -381,7 +371,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		for (int i = 0; i < orderedPageSequences.length; i++) {
 			final int pageSequence = orderedPageSequences[i];
 			final FilterIndexLeafPagePart leafPage = service.getStoragePart(
-				catalogVersion, FilterIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+				catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence),
 				FilterIndexLeafPagePart.class
 			);
 			isPremiseValid(
@@ -435,7 +425,7 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		for (int i = 0; i < rangePageSequences.length; i++) {
 			final int pageSequence = rangePageSequences[i];
 			final RangeIndexLeafPagePart leafPage = service.getStoragePart(
-				catalogVersion, RangeIndexLeafPagePart.computeUniquePartId(rangeStreamId, pageSequence),
+				catalogVersion, AbstractLeafPagePart.computeUniquePartId(rangeStreamId, pageSequence),
 				RangeIndexLeafPagePart.class
 			);
 			isPremiseValid(
@@ -490,18 +480,55 @@ public final class AttributeIndexLoader implements ComponentLoader {
 		// values/cardinalities (the slim part omits them) and resolve cardinality from the shared tree.
 		// The supplier is resolved ONCE here to bind the view's direct shared-tree reference; the loaded map is stable and
 		// AttributeIndex's constructor re-binds every view to its committed shared tree anyway (deriveSortViews).
-		final SortIndex sortIndex = SortIndex.create(
-			comparatorBase,
-			context.referenceKey(),
-			attributeIndexKey,
-			indexedDecimalPlaces,
-			part.getSortedRecords(),
-			part.getSortedRecordsValues(),
-			part.getValueCardinalities(),
-			sharedValueIndexes.containsKey(attributeIndexKey)
-				? () -> sharedValueIndexes.get(attributeIndexKey)
-				: null
-		);
+		final boolean viewMode = sharedValueIndexes.containsKey(attributeIndexKey);
+		final SortIndex sortIndex;
+		if (viewMode) {
+			// view mode: the slim part omits the positional sortedRecords; rebuild it byte-for-byte from the shared FILTER
+			// tree (buckets in comparator order, ascending ids within each value). The persisted array is ignored even when
+			// a legacy full part still carries one, so the index self-heals to the slim shape on the next reflush.
+			final int[] sortedRecords =
+				SortIndexView.reconstructSortedRecords(sharedValueIndexes.get(attributeIndexKey));
+			sortIndex = SortIndex.create(
+				comparatorBase, context.referenceKey(), attributeIndexKey, indexedDecimalPlaces,
+				sortedRecords, part.getSortedRecordsValues(), part.getValueCardinalities(),
+				() -> sharedValueIndexes.get(attributeIndexKey)
+			);
+		} else if (part.isPaged()) {
+			// OWNER, PAGED: standalone (sort-only / compound) sort index whose owned value tree was persisted as individual
+			// leaf pages. Resolve the SORT-typed stream id from the sub-index identity (registered at the first PAGED write)
+			// and read every listed leaf page in ascending key order, then reassemble boundary-stable and reconstruct the
+			// positional sortedRecords from the reloaded tree.
+			final int streamId = service.getReadOnlyKeyCompressor().getId(
+				new LeafStreamKey(entityIndexId, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.SORT))
+			);
+			final int[] orderedPageSequences = part.getLeafPageSequencesOrThrowException();
+			final ValueToRecordBitmap[][] perPageBuckets = new ValueToRecordBitmap[orderedPageSequences.length][];
+			for (int i = 0; i < orderedPageSequences.length; i++) {
+				final int pageSequence = orderedPageSequences[i];
+				final SortIndexLeafPagePart leafPage = service.getStoragePart(
+					catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence),
+					SortIndexLeafPagePart.class
+				);
+				isPremiseValid(
+					leafPage != null,
+					"Sort index leaf page " + pageSequence + " (stream " + streamId + ") for key " + key.attribute() +
+						" was not found in persistent storage!"
+				);
+				perPageBuckets[i] = leafPage.getBuckets();
+			}
+			sortIndex = OwnerSortIndex.fromPersistedPages(
+				comparatorBase, context.referenceKey(), attributeIndexKey, indexedDecimalPlaces,
+				orderedPageSequences, perPageBuckets, part.getHighWaterPageSequence()
+			);
+		} else {
+			// OWNER, SINGLE / legacy: standalone sort index restored from its full inline part - adopt the persisted
+			// sortedRecords directly (a migration-collapsed legacy part must NOT be reconstructed from the tree — its
+			// blocks may be non-ascending)
+			sortIndex = SortIndex.create(
+				comparatorBase, context.referenceKey(), attributeIndexKey, indexedDecimalPlaces,
+				part.getSortedRecords(), part.getSortedRecordsValues(), part.getValueCardinalities(), null
+			);
+		}
 		sortIndexes.put(attributeIndexKey, sortIndex);
 	}
 

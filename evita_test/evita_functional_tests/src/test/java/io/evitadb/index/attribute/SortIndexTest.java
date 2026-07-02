@@ -29,10 +29,12 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -41,6 +43,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -525,23 +528,27 @@ class SortIndexTest {
 		}
 
 		@Test
-		@DisplayName("should return null from createStoragePart when not dirty")
-		void shouldReturnNullFromCreateStoragePartWhenNotDirty() {
+		@DisplayName("should append nothing when not dirty")
+		void shouldAppendNothingWhenNotDirty() {
 			final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
 
-			final StoragePart storagePart = sortIndex.createStoragePart(1);
-			assertNull(storagePart);
+			final TrappedChanges sink = new TrappedChanges();
+			sortIndex.appendStorageParts(1, sink);
+			assertEquals(0, sink.getTrappedChangesCount());
 		}
 
 		@Test
-		@DisplayName("should return SortIndexStoragePart when dirty")
-		void shouldReturnStoragePartWhenDirty() {
+		@DisplayName("should append SortIndexStoragePart when dirty")
+		void shouldAppendStoragePartWhenDirty() {
 			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "name", null));
 			sortIndex.addRecord("Alpha", 1);
 			sortIndex.addRecord("Beta", 2);
 
-			final StoragePart storagePart = sortIndex.createStoragePart(42);
-			assertNotNull(storagePart);
+			final TrappedChanges sink = new TrappedChanges();
+			sortIndex.appendStorageParts(42, sink);
+			assertEquals(1, sink.getTrappedChangesCount());
+
+			final StoragePart storagePart = sink.getTrappedChangesIterator().next();
 			assertInstanceOf(SortIndexStoragePart.class, storagePart);
 
 			final SortIndexStoragePart part = (SortIndexStoragePart) storagePart;
@@ -549,9 +556,10 @@ class SortIndexTest {
 			assertEquals(new AttributeIndexKey(null, "name", null), part.getAttributeIndexKey());
 			assertArrayEquals(new int[]{1, 2}, part.getSortedRecords());
 
-			// dirty is still true so subsequent call returns part
-			final StoragePart secondPart = sortIndex.createStoragePart(42);
-			assertNotNull(secondPart);
+			// dirty is still true (only resetDirty() clears it) so a subsequent append emits the part again
+			final TrappedChanges secondSink = new TrappedChanges();
+			sortIndex.appendStorageParts(42, secondSink);
+			assertEquals(1, secondSink.getTrappedChangesCount());
 		}
 
 		@Test
@@ -561,12 +569,16 @@ class SortIndexTest {
 			sortIndex.addRecord("X", 1);
 
 			// dirty after add
-			assertNotNull(sortIndex.createStoragePart(1));
+			final TrappedChanges beforeReset = new TrappedChanges();
+			sortIndex.appendStorageParts(1, beforeReset);
+			assertEquals(1, beforeReset.getTrappedChangesCount());
 
 			sortIndex.resetDirty();
 
 			// not dirty anymore
-			assertNull(sortIndex.createStoragePart(1));
+			final TrappedChanges afterReset = new TrappedChanges();
+			sortIndex.appendStorageParts(1, afterReset);
+			assertEquals(0, afterReset.getTrappedChangesCount());
 		}
 
 		@Test
@@ -680,6 +692,21 @@ class SortIndexTest {
 				() -> sortIndex.removeRecord(new Serializable[]{"Z", 99}, 10)
 			);
 			assertTrue(ex.getMessage().contains("not present"));
+		}
+
+		@Test
+		@DisplayName("should throw when cardinality requested for value absent from owned tree")
+		void shouldThrowWhenCardinalityRequestedForValueAbsentFromOwnedTree() {
+			final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", null));
+			sortIndex.addRecord("A", 1);
+
+			// owner mode owns every present value in its tree, so a cardinality miss is a broken invariant, not a query
+			// for an absent value (which callers must avoid) - it surfaces as a hard internal error
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> sortIndex.getValueCardinality("Z")
+			);
+			assertTrue(ex.getMessage().contains("Unexpected cardinality"));
 		}
 	}
 
@@ -1081,6 +1108,122 @@ class SortIndexTest {
 
 			assertNotEquals(null, a);
 			assertNotEquals("not-a-comparable-array", a);
+		}
+	}
+
+	@Nested
+	@DisplayName("Supplier array memoization")
+	class SupplierArrayMemoizationTest {
+
+		@Test
+		@DisplayName("descending supplier reflects an added record after the memo was materialized")
+		void shouldReflectAddedRecordInDescendingSupplierAfterMemoization() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// materialize the descending memo so a subsequent add must invalidate it
+			assertArrayEquals(
+				new int[]{9, 7, 3, 2, 1, 5, 4, 6},
+				sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+
+			// add a second record into the "A" block - record ids inside a block stay in natural integer order
+			sortIndex.addRecord("A", 8);
+
+			// the descending supplier must expose the NEW absolute order, not the stale memoized array
+			assertArrayEquals(
+				new int[]{9, 7, 3, 2, 1, 5, 4, 8, 6},
+				sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+		}
+
+		@Test
+		@DisplayName("both suppliers reflect a removed record after both memos were materialized")
+		void shouldReflectRemovedRecordInBothSuppliersAfterMemoization() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			// materialize BOTH per-direction memos
+			assertArrayEquals(
+				new int[]{6, 4, 5, 1, 2, 3, 7, 9},
+				sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			assertArrayEquals(
+				new int[]{9, 7, 3, 2, 1, 5, 4, 6},
+				sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+
+			// a single mutation must invalidate BOTH direction holders, not just the one that triggered it
+			sortIndex.removeRecord("C", 2);
+
+			assertArrayEquals(
+				new int[]{6, 4, 5, 1, 3, 7, 9},
+				sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			assertArrayEquals(
+				new int[]{9, 7, 3, 1, 5, 4, 6},
+				sortIndex.getDescendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+		}
+
+		@Test
+		@DisplayName("repeated calls reuse the memoized arrays but mint a fresh seeker and provider each time")
+		void shouldReturnConsistentArraysAndFreshSeekerAcrossRepeatedAscendingCalls() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			final SortedRecordsProvider first = sortIndex.getAscendingOrderRecordsSupplier();
+			final SortedRecordsProvider second = sortIndex.getAscendingOrderRecordsSupplier();
+
+			// the expensive memoized arrays/bitmap are stable across calls (no mutation in between)
+			assertArrayEquals(first.getSortedRecordIds(), second.getSortedRecordIds());
+			assertArrayEquals(first.getRecordPositions(), second.getRecordPositions());
+			assertEquals(first.getAllRecords(), second.getAllRecords());
+
+			// the stateful, monotonic seeker and the provider wrapper must be freshly built per call so concurrent
+			// queries never share a cursor
+			assertNotSame(first, second);
+			assertNotSame(
+				first.getSortedComparableForwardSeeker(),
+				second.getSortedComparableForwardSeeker()
+			);
+
+			// the same fresh-seeker contract holds for the descending direction
+			final SortedRecordsProvider firstDescending = sortIndex.getDescendingOrderRecordsSupplier();
+			final SortedRecordsProvider secondDescending = sortIndex.getDescendingOrderRecordsSupplier();
+			assertNotSame(firstDescending, secondDescending);
+			assertNotSame(
+				firstDescending.getSortedComparableForwardSeeker(),
+				secondDescending.getSortedComparableForwardSeeker()
+			);
+		}
+
+		@Test
+		@DisplayName("deriving the descending arrays does not mutate the shared ascending arrays")
+		void shouldNotMutateSharedAscendingArraysWhenDerivingDescending() {
+			final SortIndex sortIndex = createIndexWithBaseCardinalities();
+
+			final int[] ascendingIds = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
+			final int[] ascendingPositions = sortIndex.getAscendingOrderRecordsSupplier().getRecordPositions();
+			final int[] ascendingIdsCopy = ascendingIds.clone();
+			final int[] ascendingPositionsCopy = ascendingPositions.clone();
+
+			// the descending arrays are reverse()/invert() derivations - both must allocate fresh and leave the shared
+			// ascending arrays untouched
+			final SortedRecordsProvider descending = sortIndex.getDescendingOrderRecordsSupplier();
+			final int[] descendingIds = descending.getSortedRecordIds();
+			final int[] descendingPositions = descending.getRecordPositions();
+
+			// re-read the ascending arrays: they must be byte-for-byte what they were before descending was derived
+			assertArrayEquals(
+				ascendingIdsCopy,
+				sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+			);
+			assertArrayEquals(
+				ascendingPositionsCopy,
+				sortIndex.getAscendingOrderRecordsSupplier().getRecordPositions()
+			);
+
+			// and the descending arrays are exactly the reverse / inversion of the ascending ones
+			assertArrayEquals(ArrayUtils.reverse(ascendingIdsCopy), descendingIds);
+			assertArrayEquals(SortIndex.invert(ascendingPositionsCopy), descendingPositions);
 		}
 	}
 

@@ -26,22 +26,31 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
-import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree;
-import io.evitadb.index.bPlusTree.TransactionalObjectBPlusTree.EntryCursor;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecord;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
+import io.evitadb.index.page.PageEmission;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
@@ -50,90 +59,160 @@ import java.util.function.UnaryOperator;
 import static io.evitadb.utils.Assert.isTrue;
 
 /**
- * Owner variant of {@link SortIndex}. It OWNS a `value → cardinality` {@link TransactionalObjectBPlusTree} that is the
- * full source of truth for value ordering and cardinality, on top of the shared {@link SortIndex#sortedRecords} façade
- * the base orchestrates. It backs:
+ * Owner variant of {@link SortIndex}. It OWNS an {@link InvertedIndex} (value → records bitmap) that is the full source
+ * of truth for value ordering and cardinality, on top of the shared {@link SortIndex#sortedRecords} façade the base
+ * orchestrates. It backs:
  *
  * - sort-only single attributes (no both-filterable twin, so no shared filter tree to source values from), and
  * - ALL sortable attribute compounds (a compound has no shared twin by construction).
  *
- * It is a full {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} that commits both
- * {@link SortIndex#sortedRecords} (in the base) and its own {@link #sortedValues} tree.
+ * The owned tree replaces the former `value → cardinality` B+ tree: a value's cardinality is now simply the size of its
+ * record bucket (cardinality `1` is a compact single-record bucket; a drained bucket is auto-dropped). The base value-side
+ * READS (the ordered `(value, cardinality)` cursors, presence, distinct-value reconstruction) walk this tree through
+ * {@link SortIndex#valueTreeOrNull()}; this class supplies only the write hooks (add/remove a record), the persisted
+ * columns and the mode-specific {@link #getValueCardinality(Serializable)} (throw-on-miss broken-invariant guard).
+ *
+ * It is a full {@link TransactionalLayerProducer} that commits both
+ * {@link SortIndex#sortedRecords} (in the base) and its own {@link #ownedTree}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ThreadSafe
 public final class OwnerSortIndex extends SortIndex {
 	@Serial private static final long serialVersionUID = -7212759886731351L;
-	/**
-	 * Leaf block size of the {@link #sortedValues} tree. ORDER BY drives a full ordered cursor sweep over this tree,
-	 * which is cache-miss bound from chasing scattered leaf nodes; larger leaves mean fewer, longer, more sequential
-	 * runs and far fewer cold-leaf first-touch misses. Benchmarking (`SortIndexArrayVsBPlusTreeBenchmark`; results and
-	 * analysis under `documentation/performance/individual/SortIndexArrayVsBPlusTreeBenchmark/`) puts the knee at `256`
-	 * — it roughly halves the high-distinct sweep latency versus the tree default `64`, while `512`+ gives diminishing
-	 * returns and costs more per write (a commit path-copies a whole leaf, so write cost scales with this size). It is
-	 * a runtime-only parameter — it does not affect the persisted form, which is rebuilt into the tree on load.
-	 */
-	private static final int VALUE_BLOCK_SIZE = 256;
-	private static final int MIN_VALUE_BLOCK_SIZE = VALUE_BLOCK_SIZE / 2 - 1;
-	private static final int MIN_INTERNAL_NODE_BLOCK_SIZE = (int) (Math.ceil(MIN_VALUE_BLOCK_SIZE / 2.0) - 1);
 
 	/**
-	 * Comparator-ordered B+ tree holding every distinct value as a key (ordered by {@link SortIndex#comparator}) mapped
-	 * to its cardinality (the number of records sharing that value, always `>= 1`). It replaces the former parallel pair
-	 * of a `sortedRecordsValues` array plus a sparse `valueCardinalities` map: the sorted distinct values are the tree
-	 * keys, and the cardinality is stored inline as the value (so cardinality `1` is now stored explicitly rather than
-	 * being implied to save memory). Commit derives the next snapshot by path-copying only the `O(log N)` nodes on each
-	 * mutated key's root→leaf path - the same structural-sharing win already used by
-	 * {@link io.evitadb.index.invertedIndex.InvertedIndex} - instead of rebuilding a full contiguous `Serializable[]`
-	 * on every committed transaction.
+	 * Owned {@link InvertedIndex} keyed by each distinct (already-normalized) value — ordered by
+	 * {@link SortIndex#comparator} — mapped to the bitmap of every record sharing that value. The value's cardinality is
+	 * the bucket size (a single-record value is a compact primitive bucket, a multi-record value an overflow bitmap), so
+	 * the former parallel `sortedRecordsValues` array plus sparse `valueCardinalities` map collapses into this one tree.
+	 * Commit derives the next snapshot by path-copying only the `O(log N)` nodes on each mutated key's root→leaf path
+	 * instead of rebuilding a full contiguous `Serializable[]` on every committed transaction.
 	 *
-	 * The key type is the raw {@link Comparable} because compound values ({@link ComparableArray}) are ordered solely
-	 * by {@link SortIndex#comparator} and do not implement {@link Comparable} themselves; the tree always uses the
-	 * supplied comparator and never the keys' natural order, so the raw key is safe. The unchecked key casts are confined
-	 * to the private `tree*` helper methods.
+	 * The tree is built with an IDENTITY normalizer because the base {@link SortIndex#addRecord} / {@link SortIndex#removeRecord}
+	 * already normalize the value (and wrap compounds into {@link ComparableArray}) before the value-side hooks run, so the
+	 * tree must store the value verbatim. Compound values ({@link ComparableArray}) are ordered solely by
+	 * {@link SortIndex#comparator} and stored in the universal boxed key column; a single-attribute value picks the column
+	 * kind from its plain type (front-coded for `String`, boxed otherwise — the non-natural-order comparator gates out the
+	 * primitive numeric / temporal columns).
 	 */
-	@SuppressWarnings("rawtypes") private final TransactionalObjectBPlusTree sortedValues;
+	private final InvertedIndex ownedTree;
 
 	/**
-	 * Creates a fresh, empty {@link #sortedValues} tree ordered by the passed comparator (cardinality values are plain
-	 * {@link Integer}s). The cardinality value is an immutable {@link Integer} that never needs transactional wrapping,
-	 * so no value wrapper is supplied. See {@link #VALUE_BLOCK_SIZE} for the read-vs-write block-size trade-off.
+	 * Creates a fresh, empty owned {@link InvertedIndex} ordered by the passed comparator. The tree uses an IDENTITY
+	 * normalizer (the base already normalizes values before the value-side hooks) and selects its leaf key-column kind
+	 * from the plain type: a single attribute uses its declared type (front-coded `String`, boxed otherwise), a compound
+	 * uses the universal boxed key column ({@link Comparable}.class).
 	 *
-	 * @param comparator the comparator that defines the key (value) ordering
-	 * @return a new empty comparator-ordered value → cardinality tree
+	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
+	 * @param comparator           the comparator that defines the value ordering
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @return a new empty owned value → records tree
 	 */
 	@Nonnull
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static TransactionalObjectBPlusTree createEmptyTree(@Nonnull Comparator comparator) {
-		return new TransactionalObjectBPlusTree<>(
-			VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_VALUE_BLOCK_SIZE, MIN_INTERNAL_NODE_BLOCK_SIZE,
-			Comparable.class, Integer.class, comparator
+	@SuppressWarnings({"rawtypes"})
+	private static InvertedIndex createOwnedTree(
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces
+	) {
+		final Class<?> plainType = comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class;
+		return new InvertedIndex(
+			plainType,
+			Serializable.class::cast,
+			comparator,
+			indexedDecimalPlaces
 		);
 	}
 
 	/**
-	 * Builds a {@link #sortedValues} tree from the persisted arrays: every value from `sortedRecordValues` becomes a
-	 * key, with its cardinality taken from `cardinalities` (defaulting to `1` for values absent from the sparse map,
-	 * matching the legacy "cardinality 1 is implied" storage convention). The values are already sorted by `comparator`.
+	 * Builds the owned {@link InvertedIndex} from the persisted flat arrays (the SINGLE / legacy on-disk shape): the
+	 * record ids in `sortedRecords` are laid out value-block by value-block in value order, so this slices each value's
+	 * block (length = its cardinality, defaulting to `1` for values absent from the sparse `cardinalities` map) off the
+	 * front of `sortedRecords` and registers it under the value. The values are already sorted by `comparator` and already
+	 * normalized (the part stores normalized values), so the IDENTITY-normalizer tree stores them verbatim.
 	 *
-	 * @param sortedRecordValues the naturally sorted distinct values
-	 * @param cardinalities      counts for values shared by more than one record (cardinality `1` is implicit)
-	 * @param comparator         the comparator that defines the key (value) ordering
-	 * @return a populated comparator-ordered value → cardinality tree
+	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
+	 * @param comparator           the comparator that defines the value ordering
+	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param sortedRecords        record ids ordered by their associated values, blocked per value
+	 * @param sortedRecordValues   the naturally sorted distinct values backing `sortedRecords`
+	 * @param cardinalities        counts for values shared by more than one record (cardinality `1` is implicit)
+	 * @return a populated owned value → records tree
 	 */
 	@Nonnull
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	private static TransactionalObjectBPlusTree buildTree(
+	@SuppressWarnings({"rawtypes"})
+	private static InvertedIndex buildOwnedTree(
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nonnull Comparator comparator,
+		int indexedDecimalPlaces,
+		@Nonnull int[] sortedRecords,
 		@Nonnull Serializable[] sortedRecordValues,
-		@Nonnull Map<Serializable, Integer> cardinalities,
-		@Nonnull Comparator comparator
+		@Nonnull Map<Serializable, Integer> cardinalities
 	) {
-		final TransactionalObjectBPlusTree tree = createEmptyTree(comparator);
+		final InvertedIndex tree = createOwnedTree(comparatorBase, comparator, indexedDecimalPlaces);
+		int offset = 0;
 		for (final Serializable value : sortedRecordValues) {
-			tree.insert((Comparable) value, cardinalities.getOrDefault(value, 1));
+			final int cardinality = cardinalities.getOrDefault(value, 1);
+			if (cardinality == 1) {
+				tree.addRecord(value, sortedRecords[offset]);
+			} else {
+				tree.addRecord(value, Arrays.copyOfRange(sortedRecords, offset, offset + cardinality));
+			}
+			offset += cardinality;
 		}
 		return tree;
+	}
+
+	/**
+	 * Rebuilds an owner sort index from its persisted GRANULAR (`PAGED`) leaf pages — the multi-leaf counterpart of the
+	 * flat-array {@link #buildOwnedTree} bridge. The owned {@link InvertedIndex} is reassembled boundary-stable from the
+	 * persisted leaf pages via {@link InvertedIndex#fromPersistedPages}, then the positional {@link SortIndex#sortedRecords}
+	 * façade — which a PAGED owner does NOT persist — is reconstructed by concatenating the reloaded tree's buckets in
+	 * comparator order (ascending record ids within each value), reproducing byte-for-byte the array the live owner holds.
+	 *
+	 * The reassembly uses the IDENTICAL identity normalizer (`value -> (Serializable) value`), plain-type derivation
+	 * (`comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class`) and combined comparator (direction +
+	 * NULL handling) {@link #createOwnedTree} uses, so the reloaded tree is indistinguishable from a freshly built one: the
+	 * persisted leaf values are ALREADY normalized (the base normalizes before the value-side hooks), so the identity
+	 * normalizer stores them verbatim, and the comparator orders those normalized keys.
+	 *
+	 * @param comparatorBase        one descriptor per element (a single entry for plain attributes)
+	 * @param referenceKey          owning reference discriminator, or `null` for the global index
+	 * @param attributeIndexKey     identifies the indexed attribute / compound
+	 * @param indexedDecimalPlaces  decimal-places scale used to encode `BigDecimal` values (0 for other types)
+	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order (the PAGED root's leaf list)
+	 * @param perPageBuckets        the buckets of each leaf page, positionally aligned with `orderedPageSequences`
+	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
+	 * @return a rehydrated, boundary-stable PAGED owner sort index
+	 */
+	@Nonnull
+	@SuppressWarnings({"rawtypes"})
+	public static OwnerSortIndex fromPersistedPages(
+		@Nonnull ComparatorSource[] comparatorBase,
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int indexedDecimalPlaces,
+		@Nonnull int[] orderedPageSequences,
+		@Nonnull ValueToRecordBitmap[][] perPageBuckets,
+		int highWaterPageSequence
+	) {
+		// the combined comparator (direction + NULL handling) is derived exactly as the SortIndex base derives its own
+		// `comparator` from the same comparatorBase + locale, so the reloaded tree orders keys identically to a live owner
+		final Comparator comparator = comparatorBase.length == 1
+			? createComparatorFor(attributeIndexKey.locale(), comparatorBase[0])
+			: createCombinedComparatorFor(attributeIndexKey.locale(), comparatorBase);
+		final Class<?> plainType = comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class;
+		final InvertedIndex ownedTree = InvertedIndex.fromPersistedPages(
+			plainType, orderedPageSequences, perPageBuckets, highWaterPageSequence,
+			Serializable.class::cast, comparator, indexedDecimalPlaces
+		);
+		// the positional sortedRecords façade is not persisted for a PAGED owner; reconstruct it from the reloaded tree
+		final int[] sortedRecords = SortIndexView.reconstructSortedRecords(ownedTree);
+		return new OwnerSortIndex(
+			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
+			new TransactionalUnorderedIntArray(sortedRecords), ownedTree
+		);
 	}
 
 	/**
@@ -191,7 +270,7 @@ public final class OwnerSortIndex extends SortIndex {
 			indexedDecimalPlaces,
 			new TransactionalUnorderedIntArray()
 		);
-		this.sortedValues = createEmptyTree(this.comparator);
+		this.ownedTree = createOwnedTree(this.comparatorBase, this.comparator, indexedDecimalPlaces);
 	}
 
 	/**
@@ -229,7 +308,7 @@ public final class OwnerSortIndex extends SortIndex {
 			comparatorSources.length > 1,
 			"At least two comparators are required to create a compound SortIndex by this constructor!"
 		);
-		this.sortedValues = createEmptyTree(this.comparator);
+		this.ownedTree = createOwnedTree(this.comparatorBase, this.comparator, getIndexedDecimalPlaces());
 	}
 
 	/**
@@ -285,13 +364,16 @@ public final class OwnerSortIndex extends SortIndex {
 			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
 			new TransactionalUnorderedIntArray(sortedRecords)
 		);
-		this.sortedValues = buildTree(sortedRecordValues, cardinalities, this.comparator);
+		this.ownedTree = buildOwnedTree(
+			this.comparatorBase, this.comparator, indexedDecimalPlaces,
+			sortedRecords, sortedRecordValues, cardinalities
+		);
 	}
 
 	/**
 	 * Internal constructor used by {@link #copyWithMergedValueSide} to wrap the already-merged (committed) sorted-records
-	 * façade and value tree directly, instead of rebuilding them from arrays (preserves the structural sharing of the
-	 * underlying two-tree backing and the B+ tree across commits).
+	 * façade and owned tree directly, instead of rebuilding them from arrays (preserves the structural sharing of the
+	 * underlying two-tree backing and the owned {@link InvertedIndex} across commits).
 	 */
 	private OwnerSortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
@@ -299,10 +381,16 @@ public final class OwnerSortIndex extends SortIndex {
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		int indexedDecimalPlaces,
 		@Nonnull TransactionalUnorderedIntArray sortedRecords,
-		@SuppressWarnings("rawtypes") @Nonnull TransactionalObjectBPlusTree sortedValues
+		@Nonnull InvertedIndex ownedTree
 	) {
 		super(comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords);
-		this.sortedValues = sortedValues;
+		this.ownedTree = ownedTree;
+	}
+
+	@Nullable
+	@Override
+	protected InvertedIndex valueTreeOrNull() {
+		return this.ownedTree;
 	}
 
 	@Nonnull
@@ -313,62 +401,34 @@ public final class OwnerSortIndex extends SortIndex {
 
 	@Nonnull
 	@Override
-	@SuppressWarnings("rawtypes")
-	protected Comparator effectiveComparator() {
-		return this.comparator;
-	}
-
-	@Nonnull
-	@Override
 	SortIndex bindSharedTree(@Nullable InvertedIndex committedSharedTree) {
 		// owner indexes own their value tree and never source from a shared tree, so binding is a no-op: carry forward
 		return this;
 	}
 
-	@Nonnull
-	@Override
-	public Serializable[] getSortedRecordValues() {
-		final Serializable[] result = new Serializable[this.sortedValues.size()];
-		final Iterator<?> it = this.sortedValues.keyIterator();
-		int index = 0;
-		while (it.hasNext()) {
-			result[index++] = (Serializable) it.next();
-		}
-		return result;
-	}
-
 	@Override
 	int getValueCardinality(@Nonnull Serializable value) {
-		// the live sortedValues tree stores every present value explicitly (cardinality >= 1), so a miss for a value the
+		// the owned tree stores every present value explicitly (a bucket of cardinality >= 1), so a miss for a value the
 		// caller has already proven present is a broken invariant (tree out of sync with the sorted-records value index)
-		return getValueCardinalityOrThrow(value);
-	}
-
-	@Override
-	protected boolean valuePresent(@Nonnull Serializable normalizedValue) {
-		return treeSearch(normalizedValue) != null;
+		final int cardinality = this.ownedTree.cardinalityOf(value);
+		if (cardinality <= 0) {
+			throw new GenericEvitaInternalError("Unexpected cardinality: " + cardinality);
+		}
+		return cardinality;
 	}
 
 	@Override
 	protected boolean valuePresentForRemoval(@Nonnull Serializable normalizedValue, int recordId) {
-		return treeSearch(normalizedValue) != null;
-	}
-
-	@Override
-	int valueCount() {
-		return this.sortedValues.size();
+		// owner mode validates the VALUE against its owned tree BEFORE mutating (fail-before-mutate): removing a value the
+		// tree never held is an illegal argument, surfaced as IllegalArgumentException by the removeRecord precondition
+		return valuePresent(normalizedValue);
 	}
 
 	@Nonnull
 	@Override
-	ValueCardinalityCursor valueCursor() {
-		return new TreeValueCursor(this.sortedValues.entryCursor());
-	}
-
-	@Nonnull
-	@Override
-	ValueCardinalityCursor valueReverseCursor() {
-		return new TreeEntryReverseCursor(this.sortedValues.entryReverseCursor());
+	protected int[] storagePartSortedRecords() {
+		// owner mode persists its full positional array (its own source of truth for the sort order)
+		return getSortedRecords();
 	}
 
 	@Nonnull
@@ -379,19 +439,18 @@ public final class OwnerSortIndex extends SortIndex {
 
 	@Nonnull
 	@Override
-	@SuppressWarnings("rawtypes")
 	protected CardinalityColumns storagePartCardinalities() {
-		// single ascending walk of the value tree into positionally-aligned sparse columns: only values shared by more
+		// single ascending walk of the owned tree into positionally-aligned sparse columns: only values shared by more
 		// than one record are emitted (cardinality 1 is implied on load), so no intermediate map is materialized on the
 		// commit/flush hot path
 		final CompositeObjectArray<Serializable> values = new CompositeObjectArray<>(Serializable.class);
 		final CompositeIntArray cardinalities = new CompositeIntArray();
-		final EntryCursor cursor = this.sortedValues.entryCursor();
-		while (cursor.hasNext()) {
-			final Serializable value = (Serializable) cursor.next();
-			final int cardinality = (Integer) cursor.value();
+		final Iterator<ValueToRecord> it = this.ownedTree.getValueIterator();
+		while (it.hasNext()) {
+			final ValueToRecord bucket = it.next();
+			final int cardinality = bucket.size();
 			if (cardinality > 1) {
-				values.add(value);
+				values.add(bucket.getValue());
 				cardinalities.add(cardinality);
 			}
 		}
@@ -399,33 +458,73 @@ public final class OwnerSortIndex extends SortIndex {
 	}
 
 	@Override
-	protected int preRemovalCardinality(@Nonnull Serializable normalizedValue) {
-		return getValueCardinalityOrThrow(normalizedValue);
+	protected void doAppendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		// every leaf page (and removal) carries the SORT-typed sub-index identity, so its stream id is disjoint from the
+		// FILTER stream of the same attribute and resolved store-side when the page's primary key is assigned
+		final AttributeKeyWithIndexType streamKey =
+			new AttributeKeyWithIndexType(getAttributeIndexKey(), AttributeIndexType.SORT);
+		if (this.ownedTree.isPaged()) {
+			// PAGED shape: emit one leaf page per CHANGED leaf, one removal per freed leaf, and a PAGED root carrying the
+			// high-water + the ordered live leaf-page list (the positional sortedRecords / distinct values are NOT written -
+			// they are reconstructed from the reloaded leaf pages on load)
+			final PageEmission<InvertedIndex.LeafPage> emission = this.ownedTree.collectChangedPages();
+			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
+				sink.addChangeToStore(
+					new SortIndexLeafPagePart(
+						entityIndexPrimaryKey, streamKey, page.pageSequence(), page.buckets(), this.comparatorBase.length
+					)
+				);
+			}
+			// remove the leaf pages a merge dropped this commit so they don't leak (the OffsetIndex never reclaims an
+			// unreferenced-but-never-removed record - page ids are advance-only and never re-keyed)
+			for (final int freedPageSequence : emission.freedPageSequences()) {
+				sink.addChangeToStore(new SortIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+			}
+			sink.addChangeToStore(
+				SortIndexStoragePart.paged(
+					entityIndexPrimaryKey, getAttributeIndexKey(), this.comparatorBase, getIndexedDecimalPlaces(),
+					emission.highWaterPageSequence(), emission.orderedPageSequences()
+				)
+			);
+			return;
+		}
+		// SINGLE shape (possibly just collapsed from PAGED): remove every leaf page from its prior PAGED life (the SINGLE
+		// root no longer references them) BEFORE dropping the page bookkeeping, then forget the stream so a later regrow
+		// into PAGED starts from a clean baseline and re-emits every leaf
+		for (final int freedPageSequence : this.ownedTree.livePageSequences()) {
+			sink.addChangeToStore(new SortIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
+		}
+		this.ownedTree.forgetPageStream();
+		appendSingleStoragePart(entityIndexPrimaryKey, sink);
 	}
 
 	@Override
-	protected void onFirstRecordForValue(@Nonnull Serializable normalizedValue) {
-		treeInsert(normalizedValue);
+	protected void onFirstRecordForValue(@Nonnull Serializable normalizedValue, int recordId) {
+		// the value's first record creates a fresh single-record bucket
+		this.ownedTree.addRecord(normalizedValue, recordId);
 	}
 
 	@Override
-	protected void onValueCardinalityIncreased(@Nonnull Serializable normalizedValue) {
-		treeUpsert(normalizedValue, crd -> crd + 1);
+	protected void onValueCardinalityIncreased(@Nonnull Serializable normalizedValue, int recordId) {
+		// a globally-unique record id never already lives in the bucket, so the add grows its cardinality by exactly one
+		this.ownedTree.addRecord(normalizedValue, recordId);
 	}
 
 	@Override
-	protected void onValueCardinalityDecreased(@Nonnull Serializable normalizedValue) {
-		treeUpsert(normalizedValue, crd -> crd - 1);
+	protected void onValueCardinalityDecreased(@Nonnull Serializable normalizedValue, int recordId) {
+		// drop the record from the bucket; the value keeps at least one other record so the bucket survives
+		this.ownedTree.removeRecord(normalizedValue, recordId);
 	}
 
 	@Override
-	protected void onLastRecordForValueRemoved(@Nonnull Serializable normalizedValue) {
-		treeDelete(normalizedValue);
+	protected void onLastRecordForValueRemoved(@Nonnull Serializable normalizedValue, int recordId) {
+		// drop the value's last record; the drained bucket is auto-removed from the tree
+		this.ownedTree.removeRecord(normalizedValue, recordId);
 	}
 
 	@Override
 	protected void removeValueSideLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		this.sortedValues.removeLayer(transactionalLayer);
+		this.ownedTree.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
@@ -434,130 +533,16 @@ public final class OwnerSortIndex extends SortIndex {
 		@Nonnull TransactionalUnorderedIntArray mergedSortedRecords,
 		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
-		@SuppressWarnings({"rawtypes", "unchecked"}) final TransactionalObjectBPlusTree committedValues =
-			(TransactionalObjectBPlusTree) transactionalLayer.getStateCopyWithCommittedChanges(this.sortedValues);
+		final InvertedIndex committed =
+			transactionalLayer.getStateCopyWithCommittedChanges(this.ownedTree);
 		return new OwnerSortIndex(
 			this.comparatorBase,
 			getReferenceKey(),
 			getAttributeIndexKey(),
 			getIndexedDecimalPlaces(),
 			mergedSortedRecords,
-			committedValues
+			committed
 		);
-	}
-
-	/**
-	 * Owner-mode pre-removal cardinality read with a fail-fast guard (the value's presence is guaranteed by the public
-	 * `removeRecord` callers via {@link #valuePresentForRemoval}).
-	 */
-	private int getValueCardinalityOrThrow(@Nonnull Serializable normalizedValue) {
-		final Integer cardinality = treeSearch(normalizedValue);
-		if (cardinality == null) {
-			throw new GenericEvitaInternalError("Unexpected cardinality: null");
-		}
-		return cardinality;
-	}
-
-	/**
-	 * Inserts a brand-new value into {@link #sortedValues} with an initial cardinality of `1`. A value reaches this
-	 * method only via its very first record (the {@link #treeSearch} miss branch in the base `addRecordInternal`); every
-	 * later record sharing the value bumps the inline cardinality through {@link #treeUpsert}, so the initial count is
-	 * always `1`. Confines the unchecked cast of the value to the raw {@link Comparable} key type (safe because the tree
-	 * orders by {@link SortIndex#comparator}).
-	 */
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private void treeInsert(@Nonnull Serializable value) {
-		this.sortedValues.insert((Comparable) value, 1);
-	}
-
-	/**
-	 * Updates the inline cardinality of an existing value in {@link #sortedValues}. Confines the unchecked cast of the
-	 * value to the raw {@link Comparable} key type.
-	 */
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private void treeUpsert(@Nonnull Serializable value, @Nonnull UnaryOperator<Integer> updater) {
-		this.sortedValues.upsert((Comparable) value, updater);
-	}
-
-	/**
-	 * Returns the inline cardinality of the passed value, or `null` when the value is not present in
-	 * {@link #sortedValues}. Confines the unchecked cast of the value to the raw {@link Comparable} key type.
-	 */
-	@Nullable
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private Integer treeSearch(@Nonnull Serializable value) {
-		return (Integer) this.sortedValues.search((Comparable) value).orElse(null);
-	}
-
-	/**
-	 * Deletes the passed value (and its inline cardinality) from {@link #sortedValues}. Confines the unchecked cast of
-	 * the value to the raw {@link Comparable} key type.
-	 */
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private void treeDelete(@Nonnull Serializable value) {
-		this.sortedValues.delete((Comparable) value);
-	}
-
-	/**
-	 * Owner-mode {@link ValueCardinalityCursor} backed by the {@link #sortedValues} forward entry cursor.
-	 */
-	@SuppressWarnings("rawtypes")
-	private static final class TreeValueCursor implements ValueCardinalityCursor {
-		private final EntryCursor cursor;
-		private int cardinality;
-
-		TreeValueCursor(@Nonnull EntryCursor cursor) {
-			this.cursor = cursor;
-		}
-
-		@Override
-		public boolean hasNext() {
-			return this.cursor.hasNext();
-		}
-
-		@Nonnull
-		@Override
-		public Serializable next() {
-			final Serializable value = (Serializable) this.cursor.next();
-			this.cardinality = (Integer) this.cursor.value();
-			return value;
-		}
-
-		@Override
-		public int cardinality() {
-			return this.cardinality;
-		}
-	}
-
-	/**
-	 * Owner-mode reverse {@link ValueCardinalityCursor} backed by the {@link #sortedValues} reverse entry cursor.
-	 */
-	@SuppressWarnings("rawtypes")
-	private static final class TreeEntryReverseCursor implements ValueCardinalityCursor {
-		private final EntryCursor cursor;
-		private int cardinality;
-
-		TreeEntryReverseCursor(@Nonnull EntryCursor cursor) {
-			this.cursor = cursor;
-		}
-
-		@Override
-		public boolean hasNext() {
-			return this.cursor.hasNext();
-		}
-
-		@Nonnull
-		@Override
-		public Serializable next() {
-			final Serializable value = (Serializable) this.cursor.next();
-			this.cardinality = (Integer) this.cursor.value();
-			return value;
-		}
-
-		@Override
-		public int cardinality() {
-			return this.cardinality;
-		}
 	}
 
 }

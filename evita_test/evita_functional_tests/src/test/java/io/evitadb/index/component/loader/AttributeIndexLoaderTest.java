@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
@@ -72,6 +73,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -269,6 +271,45 @@ class AttributeIndexLoaderTest {
 		}
 	}
 
+	@Test
+	@DisplayName("loads a granular PAGED owner sort part by reading its leaf pages and reconstructs the owner tree")
+	void shouldLoadPagedSortAndReconstructTree() {
+		final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
+		final OwnerSortIndex source = new OwnerSortIndex(String.class, key);
+		// more than one leaf block (256) of distinct values so the owned tree spans multiple leaves and pages out
+		for (int i = 0; i < 1_000; i++) {
+			source.addRecord(String.format("value-%05d", i), i + 1);
+		}
+
+		final SeededStorage storage = new SeededStorage();
+		// NO FILTER part for the key, so the SORT must reload in owner mode (not bound to a shared tree)
+		final SortIndexStoragePart emittedRoot = storage.seedPagedSort(key, source);
+		assertTrue(emittedRoot.isPaged(), "the seeded owner must span multiple leaves (PAGED)");
+
+		final AttributeIndexes bundle = load(storage, key);
+
+		final SortIndex loaded = bundle.sortIndexes().get(key);
+		assertNotNull(loaded, "the PAGED sort part must rebuild a sort index");
+		assertInstanceOf(
+			OwnerSortIndex.class, loaded,
+			"a PAGED sort without a shared FILTER tree must reload as a standalone OwnerSortIndex"
+		);
+		// the positional sortedRecords façade (not persisted for a PAGED owner) must be reconstructed byte-for-byte
+		assertArrayEquals(
+			source.getSortedRecords(), loaded.getSortedRecords(),
+			"the reconstructed sortedRecords must equal the live source array"
+		);
+		assertArrayEquals(
+			source.getSortedRecordValues(), loaded.getSortedRecordValues(),
+			"the reconstructed ordered distinct values must equal the live source"
+		);
+		assertTrue(
+			loaded.getRecordsEqualTo("value-00000").contains(1),
+			"a representative value must resolve to its record through the reloaded owned tree"
+		);
+		assertTrue(bundle.sharedValueIndexes().isEmpty(), "no shared tree must be built without a FILTER part");
+	}
+
 	/**
 	 * Invokes the production loader against the seeded storage, wrapping the seeded parts in a
 	 * {@link LoadContext} whose manifest advertises exactly the seeded keys.
@@ -407,7 +448,7 @@ class AttributeIndexLoaderTest {
 			);
 			final PageEmission<InvertedIndex.LeafPage> emission = source.collectChangedPages();
 			for (final InvertedIndex.LeafPage page : emission.changedPages()) {
-				final long pagePk = FilterIndexLeafPagePart.computeUniquePartId(streamId, page.pageSequence());
+				final long pagePk = AbstractLeafPagePart.computeUniquePartId(streamId, page.pageSequence());
 				this.partsById.put(
 					pagePk, new FilterIndexLeafPagePart(streamId, page.pageSequence(), page.buckets(), pagePk)
 				);
@@ -419,6 +460,39 @@ class AttributeIndexLoaderTest {
 					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
 				)
 			);
+		}
+
+		/**
+		 * Seeds a granular `PAGED` OWNER-mode SORT part: drains the owner index's commit emission, stores each emitted
+		 * {@link SortIndexLeafPagePart} keyed by `pack(streamId, pageSequence)`, and seeds the `PAGED` root carrying the
+		 * high-water and the ordered leaf-page list. The SORT stream id is resolved through the shared compressor exactly
+		 * as the loader resolves it on read, keeping the SORT stream disjoint from the FILTER stream of the same attribute.
+		 *
+		 * @param key    the attribute key
+		 * @param source a multi-leaf OWNER sort index whose leaf pages are persisted
+		 * @return the emitted `PAGED` root part (so the caller can assert it is paged)
+		 */
+		@Nonnull
+		SortIndexStoragePart seedPagedSort(@Nonnull AttributeIndexKey key, @Nonnull OwnerSortIndex source) {
+			final int streamId = this.keyCompressor.getId(
+				new LeafStreamKey(INDEX_PK, new AttributeKeyWithIndexType(key, AttributeIndexType.SORT))
+			);
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			source.appendStorageParts(INDEX_PK, trappedChanges);
+			SortIndexStoragePart root = null;
+			final Iterator<StoragePart> iterator = trappedChanges.getTrappedChangesIterator();
+			while (iterator.hasNext()) {
+				final StoragePart part = iterator.next();
+				if (part instanceof SortIndexLeafPagePart leafPage) {
+					final long pagePk = AbstractLeafPagePart.computeUniquePartId(streamId, leafPage.getPageSequence());
+					this.partsById.put(pagePk, leafPage);
+				} else if (part instanceof SortIndexStoragePart sortRoot) {
+					root = sortRoot;
+				}
+			}
+			assertNotNull(root, "the owner emission must carry a SortIndexStoragePart root");
+			seed(AttributeIndexType.SORT, key, root);
+			return root;
 		}
 
 		/**

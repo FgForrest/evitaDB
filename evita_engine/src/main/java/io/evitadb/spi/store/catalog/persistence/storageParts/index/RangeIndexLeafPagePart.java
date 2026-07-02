@@ -25,15 +25,10 @@ package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey.StreamKind;
-import io.evitadb.utils.Assert;
-import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
-import lombok.Setter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -47,7 +42,8 @@ import java.io.Serial;
  * and a leaf page stores no separators. The border sentinels (`Long.MIN_VALUE` / `Long.MAX_VALUE`) live in the first /
  * last pages.
  *
- * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via {@link NumberUtils#pack}.
+ * Identity is the pair `(streamId, pageSequence)`, packed into the storage-part primary key via
+ * {@link AbstractLeafPagePart#computeUniquePartId}.
  * `streamId` is the {@link KeyCompressor} id of the sub-index's {@link LeafStreamKey} resolved with
  * {@link StreamKind#RANGE} — distinct from the same FilterIndex's {@link StreamKind#BUCKET} value stream, so the two
  * streams' page sequences never collide; `pageSequence` is the advance-only, never-reused page sequence within that stream.
@@ -59,54 +55,13 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public class RangeIndexLeafPagePart implements StoragePart {
+public class RangeIndexLeafPagePart extends AbstractLeafPagePart {
 	@Serial private static final long serialVersionUID = 6612058937401852736L;
 
-	/**
-	 * Sentinel for a `streamId` not yet resolved (a write-path page before {@link #computeUniquePartIdAndSet}).
-	 */
-	public static final int UNRESOLVED_STREAM_ID = -1;
-
-	/**
-	 * Primary key of the owning entity index — write-path identity used to resolve {@link #streamId} store-side; `null`
-	 * on a rehydrated (read-path) page.
-	 */
-	@Nullable @Getter private final Integer entityIndexPrimaryKey;
-	/**
-	 * The attribute + index-type identity of the sub-index — write-path identity used to resolve {@link #streamId}
-	 * store-side; `null` on a rehydrated (read-path) page.
-	 */
-	@Nullable @Getter private final AttributeKeyWithIndexType attributeKey;
-	/**
-	 * The {@link KeyCompressor} id of the sub-index range stream this page belongs to. {@link #UNRESOLVED_STREAM_ID} on a
-	 * write-path page until {@link #computeUniquePartIdAndSet} resolves it from the identity; already known on a
-	 * rehydrated (read-path) page.
-	 */
-	@Getter private int streamId;
-	/**
-	 * The advance-only, never-reused page sequence of this leaf within its stream.
-	 */
-	@Getter private final int pageSequence;
 	/**
 	 * The leaf's range points in ascending threshold order — (threshold, starts, ends) triples.
 	 */
 	@Nonnull @Getter private final TransactionalRangePoint[] points;
-	/**
-	 * The storage-part primary key `pack(streamId, pageSequence)`; `null` until assigned by
-	 * {@link #computeUniquePartIdAndSet(KeyCompressor)} (write path) or supplied at rehydration (read path).
-	 */
-	@Nullable @Getter @Setter private Long storagePartPK;
-
-	/**
-	 * Computes the storage-part primary key for a leaf page from its resolved identifying pair.
-	 *
-	 * @param streamId the resolved stream id
-	 * @param pageSequence  the page sequence within the stream
-	 * @return the 64-bit storage-part primary key
-	 */
-	public static long computeUniquePartId(int streamId, int pageSequence) {
-		return NumberUtils.pack(streamId, pageSequence);
-	}
 
 	/**
 	 * Creates a WRITE-PATH leaf page carrying the sub-index identity; its `streamId` and primary key are resolved
@@ -123,12 +78,8 @@ public class RangeIndexLeafPagePart implements StoragePart {
 		int pageSequence,
 		@Nonnull TransactionalRangePoint[] points
 	) {
-		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
-		this.attributeKey = attributeKey;
-		this.streamId = UNRESOLVED_STREAM_ID;
-		this.pageSequence = pageSequence;
+		super(entityIndexPrimaryKey, attributeKey, pageSequence);
 		this.points = points;
-		this.storagePartPK = null;
 	}
 
 	/**
@@ -143,33 +94,19 @@ public class RangeIndexLeafPagePart implements StoragePart {
 	public RangeIndexLeafPagePart(
 		int streamId, int pageSequence, @Nonnull TransactionalRangePoint[] points, @Nonnull Long storagePartPK
 	) {
-		this.entityIndexPrimaryKey = null;
-		this.attributeKey = null;
-		this.streamId = streamId;
-		this.pageSequence = pageSequence;
+		super(streamId, pageSequence, storagePartPK);
 		this.points = points;
-		this.storagePartPK = storagePartPK;
 	}
 
 	@Override
-	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		if (this.streamId == UNRESOLVED_STREAM_ID) {
-			// write path: resolve the RANGE stream id from the sub-index identity via the writable compressor (allocates a
-			// dictionary entry on the first PAGED write of this range stream, returns the stable id thereafter)
-			Assert.isPremiseValid(
-				this.entityIndexPrimaryKey != null && this.attributeKey != null,
-				"A leaf page must carry its sub-index identity to resolve the stream id!"
-			);
-			this.streamId = keyCompressor.getId(
-				new LeafStreamKey(this.entityIndexPrimaryKey, this.attributeKey, StreamKind.RANGE)
-			);
-		}
-		final long computedUniquePartId = computeUniquePartId(this.streamId, this.pageSequence);
-		if (this.storagePartPK == null) {
-			this.storagePartPK = computedUniquePartId;
-		} else {
-			Assert.isTrue(this.storagePartPK == computedUniquePartId, "Unique part ids must never differ!");
-		}
-		return computedUniquePartId;
+	protected int resolveStreamId(@Nonnull KeyCompressor keyCompressor) {
+		// RANGE-typed stream, distinct from this attribute's plain bucket stream
+		return keyCompressor.getId(
+			new LeafStreamKey(
+				getEntityIndexPrimaryKeyOrThrowException(),
+				getAttributeKeyOrThrowException(),
+				StreamKind.RANGE
+			)
+		);
 	}
 }

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.Transaction;
@@ -48,9 +49,10 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
 import lombok.Getter;
@@ -64,8 +66,10 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.text.Normalizer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Currency;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -87,18 +91,20 @@ import static java.util.Optional.ofNullable;
  * If no transaction is opened, changes are applied directly to the delegate data structures. In such case the class is
  * not thread safe for multiple writers!
  *
- * The class is an `abstract sealed` base of a two-variant family:
+ * The class is an `abstract sealed` base of a two-variant family. Both variants back the value side with an
+ * {@link InvertedIndex} (value → records bitmap) exposed through {@link #valueTreeOrNull()}, so the value-side READS
+ * (ordered value/cardinality cursors, presence, distinct-value reconstruction) are shared in this base:
  *
- * - {@link OwnerSortIndex} OWNS its own `value → cardinality` B+ tree and is the full source of truth for value
- * ordering and cardinality. It backs sort-only single attributes and ALL sortable attribute compounds.
+ * - {@link OwnerSortIndex} OWNS its own {@link InvertedIndex} and is the full source of truth for value ordering and
+ * cardinality. It backs sort-only single attributes and ALL sortable attribute compounds.
  * - {@link SortIndexView} owns ONLY its sort-specific {@link #sortedRecords} ordering and sources the value ordering /
  * cardinality / comparator / normalizer from the shared {@link InvertedIndex} owned by {@link AttributeIndex} (a
  * both-filterable-and-sortable single attribute). It is still a producer (it commits {@link #sortedRecords}).
  *
  * The base orchestrates the {@link #sortedRecords} façade and the {@link SortIndexChanges} help structure that both
- * variants share; the value-side operations that differ between owner and view are expressed as the abstract hooks
- * below ({@link #valueCursor()}, {@link #getValueCardinality(Serializable)}, {@link #effectiveComparator()}, …) instead
- * of a runtime flag.
+ * variants share, and reads the value side through {@link #valueTreeOrNull()}; the few value-side operations that still
+ * differ between owner and view (the write hooks, {@link #getValueCardinality(Serializable)}, the persisted columns and
+ * {@link #effectiveNormalizer()}) are expressed as the abstract hooks below instead of a runtime flag.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
@@ -290,40 +296,6 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Shared implementation behind the two public `createNormalizerFor(ComparatorSource, …)` overloads. `scaleBigDecimal`
-	 * gates the `BigDecimal` scaled-int branch: the index path enables it (keys must match the shared filter tree); the
-	 * query-comparator path leaves it off (raw `BigDecimal` natural order is already correct for sorting result rows).
-	 */
-	@Nonnull
-	private static Optional<UnaryOperator<Serializable>> createNormalizerFor(
-		@Nonnull ComparatorSource comparatorBase,
-		int indexedDecimalPlaces,
-		boolean scaleBigDecimal
-	) {
-		if (String.class.isAssignableFrom(comparatorBase.type())) {
-			return Optional.of(
-				text -> text == null
-					? null
-					: Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD)
-			);
-		} else if (Locale.class.isAssignableFrom(comparatorBase.type())) {
-			return Optional.of(value -> value == null ? null : new ComparableLocale((Locale) value));
-		} else if (Currency.class.isAssignableFrom(comparatorBase.type())) {
-			return Optional.of(value -> value == null ? null : new ComparableCurrency((Currency) value));
-		} else if (scaleBigDecimal && BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
-			// scale a real BigDecimal to its order-preserving int; an already-scaled Integer (or null) passes through
-			// so the value may be normalized twice without a ClassCastException (idempotent contract)
-			return Optional.of(
-				value -> value instanceof BigDecimal bd
-					? Integer.valueOf(NumberUtils.convertToInt(bd, indexedDecimalPlaces))
-					: value
-			);
-		} else {
-			return Optional.empty();
-		}
-	}
-
-	/**
 	 * Creates a single-attribute sort index that runs in **owner mode** when no shared tree is available, or in
 	 * **view mode** when the supplier resolves a shared {@link InvertedIndex} at construction. This is the single place
 	 * the owner-vs-view decision is made for freshly created single-attribute sort indexes (the value type drives the
@@ -387,10 +359,11 @@ public abstract sealed class SortIndex
 		final InvertedIndex sharedTree = sharedSupplier == null ? null : sharedSupplier.get();
 		return sharedTree != null
 			? new SortIndexView(
-				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords, sharedTree)
+			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords, sharedTree)
 			: new OwnerSortIndex(
 				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
-				sortedRecords, sortedRecordValues, cardinalities);
+				sortedRecords, sortedRecordValues, cardinalities
+			);
 	}
 
 	/**
@@ -421,6 +394,40 @@ public abstract sealed class SortIndex
 				"Type `" + attributeType + "` is expected to be Comparable, but it is not!"
 			);
 			return attributeType;
+		}
+	}
+
+	/**
+	 * Shared implementation behind the two public `createNormalizerFor(ComparatorSource, …)` overloads. `scaleBigDecimal`
+	 * gates the `BigDecimal` scaled-int branch: the index path enables it (keys must match the shared filter tree); the
+	 * query-comparator path leaves it off (raw `BigDecimal` natural order is already correct for sorting result rows).
+	 */
+	@Nonnull
+	private static Optional<UnaryOperator<Serializable>> createNormalizerFor(
+		@Nonnull ComparatorSource comparatorBase,
+		int indexedDecimalPlaces,
+		boolean scaleBigDecimal
+	) {
+		if (String.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(
+				text -> text == null
+					? null
+					: Normalizer.normalize(String.valueOf(text), Normalizer.Form.NFD)
+			);
+		} else if (Locale.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(value -> value == null ? null : new ComparableLocale((Locale) value));
+		} else if (Currency.class.isAssignableFrom(comparatorBase.type())) {
+			return Optional.of(value -> value == null ? null : new ComparableCurrency((Currency) value));
+		} else if (scaleBigDecimal && BigDecimal.class.isAssignableFrom(comparatorBase.type())) {
+			// scale a real BigDecimal to its order-preserving int; an already-scaled Integer (or null) passes through
+			// so the value may be normalized twice without a ClassCastException (idempotent contract)
+			return Optional.of(
+				value -> value instanceof BigDecimal bd
+					? Integer.valueOf(NumberUtils.convertToInt(bd, indexedDecimalPlaces))
+					: value
+			);
+		} else {
+			return Optional.empty();
 		}
 	}
 
@@ -558,12 +565,25 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Returns array of naturally sorted comparable values. Owner mode walks its own value tree; view mode reconstructs
-	 * the ordered distinct values from the shared {@link InvertedIndex}. Method is targeted to be used in SERIALIZATION
-	 * and nowhere else.
+	 * Returns array of naturally sorted comparable values, reconstructed from the value-side {@link InvertedIndex}
+	 * ({@link #valueTreeOrNull()}) by walking its buckets in comparator order and reading each bucket's value. Owner mode
+	 * walks its owned tree; view mode the shared one (an empty array when the tree is transiently absent). Method is
+	 * targeted to be used in SERIALIZATION and nowhere else.
 	 */
 	@Nonnull
-	public abstract Serializable[] getSortedRecordValues();
+	public Serializable[] getSortedRecordValues() {
+		final InvertedIndex tree = valueTreeOrNull();
+		if (tree == null) {
+			return ArrayUtils.EMPTY_SERIALIZABLE_ARRAY;
+		}
+		final Serializable[] result = new Serializable[tree.getBucketCount()];
+		final Iterator<ValueToRecord> it = tree.getValueIterator();
+		int index = 0;
+		while (it.hasNext()) {
+			result[index++] = it.next().getValue();
+		}
+		return result;
+	}
 
 	/**
 	 * Returns bitmap of all record ids connected with the value in the argument
@@ -622,33 +642,29 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Method creates container for storing sort index from memory to the persistent storage. Owner mode persists the
-	 * full distinct values + cardinalities; view mode persists a slim part whose values/cardinalities are re-derivable
-	 * from the shared FILTER part on load (see {@link #storagePartSortedValues()} / {@link #storagePartCardinalities()}).
+	 * Emits this sort index's modified storage part into `sink` on the commit/flush path — the single persistence
+	 * entry point for a sort index, mirroring the UNIQUE/FILTER indexes (see
+	 * {@link AttributeIndex#getModifiedStorageParts}). A clean index emits nothing. A dirty index emits one
+	 * {@link SortIndexStoragePart}: owner mode persists the full distinct values + cardinalities, view mode persists a
+	 * slim part whose values/cardinalities are re-derivable from the shared FILTER part on load (see
+	 * {@link #storagePartSortedValues()} / {@link #storagePartCardinalities()}).
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index primary key
+	 * @param sink                  the trapped-changes accumulator for this commit
 	 */
-	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
+	public void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.sortIndexChanges = null;
-			// owner mode produces the sparse cardinality columns directly from its value tree (no intermediate map); view
-			// mode emits empty columns (re-derived from the shared FILTER part on load)
-			final CardinalityColumns cardinalityColumns = storagePartCardinalities();
-			return new SortIndexStoragePart(
-				entityIndexPrimaryKey, this.attributeIndexKey, this.comparatorBase,
-				getSortedRecords(), storagePartSortedValues(),
-				cardinalityColumns.values(), cardinalityColumns.cardinalities(),
-				this.indexedDecimalPlaces,
-				null
-			);
-		} else {
-			return null;
+			// mode-specific emission: a view emits the slim SINGLE part, an owner emits the granular PAGED shape (one leaf
+			// page per changed leaf + a PAGED root) for a multi-leaf value tree and the inline SINGLE part otherwise
+			doAppendStorageParts(entityIndexPrimaryKey, sink);
 		}
 	}
 
 	/**
-	 * Clears the dirty flag once the current state has been flushed via {@link #createStoragePart(int)}, so the
-	 * index is no longer reported as needing persistence.
+	 * Clears the dirty flag once the current state has been flushed via
+	 * {@link #appendStorageParts(int, TrappedChanges)}, so the index is no longer reported as needing persistence.
 	 */
 	@Override
 	public void resetDirty() {
@@ -729,6 +745,50 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Builds and emits the inline SINGLE {@link SortIndexStoragePart} root from this index's mode-specific persisted
+	 * columns. Owner mode produces the full distinct values + sparse cardinality columns directly from its value tree (no
+	 * intermediate map); view mode emits empty columns (re-derived from the shared FILTER part on load), yielding the slim
+	 * part. Shared by both the view {@link #doAppendStorageParts} and the owner's SINGLE branch.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index primary key
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 */
+	protected final void appendSingleStoragePart(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		final CardinalityColumns cardinalityColumns = storagePartCardinalities();
+		sink.addChangeToStore(
+			new SortIndexStoragePart(
+				entityIndexPrimaryKey, this.attributeIndexKey, this.comparatorBase,
+				storagePartSortedRecords(), storagePartSortedValues(),
+				cardinalityColumns.values(), cardinalityColumns.cardinalities(),
+				this.indexedDecimalPlaces,
+				null
+			)
+		);
+	}
+
+	/**
+	 * Emits this (dirty) index's modified storage parts into `sink`. View mode delegates to
+	 * {@link #appendSingleStoragePart(int, TrappedChanges)} (the slim part); owner mode chooses between the granular PAGED
+	 * shape (a multi-leaf value tree → one {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart}
+	 * per changed leaf + the PAGED root) and the inline SINGLE shape (a single-leaf tree, possibly just collapsed from
+	 * PAGED). Invoked by {@link #appendStorageParts(int, TrappedChanges)} only after the dirty gate passes.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index primary key
+	 * @param sink                  the trapped-changes accumulator for this commit
+	 */
+	protected abstract void doAppendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink);
+
+	/**
+	 * Returns the value-side {@link InvertedIndex} (value → records bitmap) this index reads its ordered values and
+	 * per-value cardinalities from. Owner mode returns its OWNED tree (always non-null); view mode returns the shared tree
+	 * owned by {@link AttributeIndex}, which may be transiently `null` (a brand-new key whose tree the FILTER block has not
+	 * created yet, or a both-flagged remove that dropped the key mid-transaction). The base value-side reads below all
+	 * tolerate a `null` tree by yielding the empty result.
+	 */
+	@Nullable
+	protected abstract InvertedIndex valueTreeOrNull();
+
+	/**
 	 * Returns the normalizer governing this index's VALUE SPACE. Owner mode keeps its own {@link #normalizer} (built from
 	 * {@link #comparatorBase}); view mode operates entirely in the shared tree's normalized space — so OffsetDateTime keys
 	 * are folded to Instant, localized Strings to NFD, etc. — and therefore adopts the shared {@link InvertedIndex}'s
@@ -739,27 +799,45 @@ public abstract sealed class SortIndex
 	protected abstract UnaryOperator<Serializable> effectiveNormalizer();
 
 	/**
-	 * Returns the comparator governing this index's VALUE SPACE. Owner mode keeps its own {@link #comparator}; view mode
-	 * adopts the shared tree's comparator (which orders the shared normalized keys — e.g. Instant, NFD String). Every
-	 * comparison of values that originate from / are looked up in the shared tree must use this comparator, never the raw
-	 * own comparator.
+	 * Returns the comparator governing this index's VALUE SPACE: the comparator of the value-side {@link InvertedIndex}
+	 * ({@link #valueTreeOrNull()}) — which orders its normalized keys (e.g. Instant, NFD String) — or this index's own
+	 * {@link #comparator} when the tree is transiently absent. Every comparison of values that originate from / are looked
+	 * up in the value tree must use this comparator, never the raw own comparator.
 	 */
 	@Nonnull
 	@SuppressWarnings("rawtypes")
-	protected abstract Comparator effectiveComparator();
+	protected Comparator effectiveComparator() {
+		final InvertedIndex tree = valueTreeOrNull();
+		return tree != null ? tree.getComparator() : this.comparator;
+	}
 
 	/**
-	 * Returns `true` when the (already-normalized) value is currently present in this index — owner mode consults its own
-	 * value tree, view mode the shared inverted index. Used by the `getRecordsEqualTo` and `addRecord` callers.
+	 * Returns `true` when the (already-normalized) value is currently present in this index — i.e. the value-side
+	 * {@link InvertedIndex} ({@link #valueTreeOrNull()}) holds a non-empty bucket for it. Used by the `getRecordsEqualTo`
+	 * and `addRecord` callers, which read the tree in its pre-mutation state.
 	 */
-	protected abstract boolean valuePresent(@Nonnull Serializable normalizedValue);
+	protected boolean valuePresent(@Nonnull Serializable normalizedValue) {
+		final InvertedIndex tree = valueTreeOrNull();
+		return tree != null && tree.cardinalityOf(normalizedValue) > 0;
+	}
 
 	/**
-	 * Presence check for the `removeRecord` precondition. Owner mode keeps the value-based tree check; view mode asserts
-	 * the record's own presence against {@link #sortedRecords} (the structure the sort block is about to mutate) because
-	 * the value's cardinality lives in the shared tree which may legitimately hold many records for the value.
+	 * Presence check for the `removeRecord` precondition, mode-specific because the two modes own the value side
+	 * differently. Owner mode validates the VALUE against its owned tree (fail-before-mutate: removing a value the tree
+	 * never held is an illegal argument); view mode validates the RECORD's own presence against {@link #sortedRecords}
+	 * (the structure the sort block is about to mutate), because the value's cardinality lives in the shared FILTER tree
+	 * which may legitimately hold many records for the value.
 	 */
 	protected abstract boolean valuePresentForRemoval(@Nonnull Serializable normalizedValue, int recordId);
+
+	/**
+	 * Returns the positional `sortedRecords` array to persist into the {@link SortIndexStoragePart}. Owner mode emits its
+	 * full positional array (its own source of truth for the sort order); view mode emits an EMPTY array — the slim part
+	 * omits it and the loader rebuilds it byte-for-byte from the shared FILTER tree's buckets (see
+	 * {@link SortIndexView#reconstructSortedRecords}), eliminating the whole-array rewrite on every both-flagged commit.
+	 */
+	@Nonnull
+	protected abstract int[] storagePartSortedRecords();
 
 	/**
 	 * Returns the value-side distinct values to persist into the {@link SortIndexStoragePart}. Owner mode emits its full
@@ -770,7 +848,7 @@ public abstract sealed class SortIndex
 
 	/**
 	 * Returns the value-side sparse cardinality columns to persist into the {@link SortIndexStoragePart}. Owner mode walks
-	 * its value tree once, emitting only the `cardinality > 1` values in ascending order (no intermediate map); view mode
+	 * its owned tree once, emitting only the `cardinality > 1` values in ascending order (no intermediate map); view mode
 	 * emits empty columns (the slim part re-derives them from the shared FILTER part on load).
 	 */
 	@Nonnull
@@ -778,43 +856,48 @@ public abstract sealed class SortIndex
 
 	/**
 	 * Pre-removal cardinality of a value whose presence is guaranteed by the public `removeRecord` callers (always
-	 * `>= 1`). Owner mode reads its inline tree cardinality with a fail-fast guard; view mode reads the shared inverted
-	 * index in its pre-removal state (the SORT block runs before the FILTER block removes the value).
+	 * `>= 1`). Reads the bucket cardinality from the value-side {@link InvertedIndex} ({@link #valueTreeOrNull()}) in its
+	 * pre-removal state (the SORT block runs before the FILTER block removes the value). A `0` (absent value / transiently
+	 * null tree) is surfaced by {@link #removeRecordInternal}, which throws on `cardinality < 1` — preserving the owner's
+	 * broken-invariant guard.
 	 */
-	protected abstract int preRemovalCardinality(@Nonnull Serializable normalizedValue);
+	protected int preRemovalCardinality(@Nonnull Serializable normalizedValue) {
+		final InvertedIndex tree = valueTreeOrNull();
+		return tree == null ? 0 : tree.cardinalityOf(normalizedValue);
+	}
 
 	/**
-	 * Value-side maintenance when a value's FIRST record is inserted. Owner mode inserts the new value into its tree with
-	 * cardinality `1`; view mode is a no-op (the shared tree is mutated by the FILTER block).
+	 * Value-side maintenance when a value's FIRST record is inserted. Owner mode adds the record to its owned tree
+	 * (creating the bucket); view mode is a no-op (the shared tree is mutated by the FILTER block).
 	 */
-	protected abstract void onFirstRecordForValue(@Nonnull Serializable normalizedValue);
+	protected abstract void onFirstRecordForValue(@Nonnull Serializable normalizedValue, int recordId);
 
 	/**
-	 * Value-side maintenance when an already-present value gains another record. Owner mode bumps its inline cardinality;
-	 * view mode is a no-op.
+	 * Value-side maintenance when an already-present value gains another record. Owner mode adds the record to its owned
+	 * tree bucket (growing its cardinality); view mode is a no-op.
 	 */
-	protected abstract void onValueCardinalityIncreased(@Nonnull Serializable normalizedValue);
+	protected abstract void onValueCardinalityIncreased(@Nonnull Serializable normalizedValue, int recordId);
 
 	/**
-	 * Value-side maintenance when an already-present value (cardinality `> 1`) loses one record. Owner mode decrements its
-	 * inline cardinality; view mode is a no-op.
+	 * Value-side maintenance when an already-present value (cardinality `> 1`) loses one record. Owner mode removes the
+	 * record from its owned tree bucket (shrinking its cardinality); view mode is a no-op.
 	 */
-	protected abstract void onValueCardinalityDecreased(@Nonnull Serializable normalizedValue);
+	protected abstract void onValueCardinalityDecreased(@Nonnull Serializable normalizedValue, int recordId);
 
 	/**
-	 * Value-side maintenance when a value's LAST record is removed. Owner mode deletes the value from its tree; view mode
-	 * is a no-op.
+	 * Value-side maintenance when a value's LAST record is removed. Owner mode removes the record from its owned tree,
+	 * draining and dropping the bucket; view mode is a no-op.
 	 */
-	protected abstract void onLastRecordForValueRemoved(@Nonnull Serializable normalizedValue);
+	protected abstract void onLastRecordForValueRemoved(@Nonnull Serializable normalizedValue, int recordId);
 
 	/**
-	 * Discards the value-side transactional layer (owner mode removes its value tree's layer; view mode is a no-op).
+	 * Discards the value-side transactional layer (owner mode removes its owned tree's layer; view mode is a no-op).
 	 */
 	protected abstract void removeValueSideLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer);
 
 	/**
 	 * Builds the committed copy of the right concrete variant, merging the value side. The base has already merged the
-	 * shared {@link #sortedRecords} façade and passes it in. Owner mode merges its value tree into a new
+	 * shared {@link #sortedRecords} façade and passes it in. Owner mode merges its owned tree into a new
 	 * {@link OwnerSortIndex}; view mode wraps the supplier into a new {@link SortIndexView} (its committed shared tree is
 	 * re-bound by the parent's `createCopy`).
 	 *
@@ -843,32 +926,52 @@ public abstract sealed class SortIndex
 
 	/**
 	 * Returns the cardinality (number of records sharing the value, always `>= 1`) of a value known to be present.
-	 * Owner mode reads its inline tree cardinality — where every present value is stored explicitly, so an absent value
-	 * is a broken invariant and throws {@link io.evitadb.exception.GenericEvitaInternalError}. View mode reads the shared
-	 * inverted index in its pre-mutation state (the SORT block runs before the FILTER block updates the shared tree), so
-	 * the value may legitimately not be reflected there yet and the cardinality is floored to `1`.
+	 * Owner mode reads its owned tree's bucket cardinality — where every present value is stored explicitly, so an absent
+	 * value is a broken invariant and throws {@link io.evitadb.exception.GenericEvitaInternalError}. View mode reads the
+	 * shared inverted index in its pre-mutation state (the SORT block runs before the FILTER block updates the shared
+	 * tree), so the value may legitimately not be reflected there yet and the cardinality is floored to `1`.
+	 *
+	 * @throws GenericEvitaInternalError in owner mode when the value is absent from the owned tree (a broken invariant —
+	 *                                   the caller must have proven presence first)
 	 */
 	abstract int getValueCardinality(@Nonnull Serializable value);
 
 	/**
-	 * Returns the number of distinct values held by this index — owner mode the value tree size, view mode the shared
-	 * inverted index's distinct buckets. Used by {@link SortIndexChanges#getValueTree}.
+	 * Returns the number of distinct values held by this index — the value-side {@link InvertedIndex}
+	 * ({@link #valueTreeOrNull()}) distinct-bucket count (`0` when the tree is transiently absent). Used by
+	 * {@link SortIndexChanges#getValueTree}.
 	 */
-	abstract int valueCount();
+	int valueCount() {
+		final InvertedIndex tree = valueTreeOrNull();
+		return tree == null ? 0 : tree.getBucketCount();
+	}
 
 	/**
-	 * Returns an ordered ascending `(value, cardinality)` cursor over this index's distinct values — owner mode walks the
-	 * value tree, view mode the shared inverted index's buckets.
+	 * Returns an ordered ascending `(value, cardinality)` cursor over this index's distinct values, backed by the
+	 * value-side {@link InvertedIndex} ({@link #valueTreeOrNull()}) buckets (an empty cursor when the tree is transiently
+	 * absent). The tree is read in its pre-mutation state (SORT runs before FILTER).
 	 */
 	@Nonnull
-	abstract ValueCardinalityCursor valueCursor();
+	ValueCardinalityCursor valueCursor() {
+		final InvertedIndex tree = valueTreeOrNull();
+		final Iterator<ValueToRecord> it = tree == null
+			? Collections.emptyIterator()
+			: tree.getValueIterator();
+		return new InvertedIndexValueCursor(it);
+	}
 
 	/**
 	 * Returns an ordered descending `(value, cardinality)` cursor — reverse counterpart of {@link #valueCursor()} used by
 	 * the reversed seeker.
 	 */
 	@Nonnull
-	abstract ValueCardinalityCursor valueReverseCursor();
+	ValueCardinalityCursor valueReverseCursor() {
+		final InvertedIndex tree = valueTreeOrNull();
+		final Iterator<ValueToRecord> it = tree == null
+			? Collections.emptyIterator()
+			: tree.getValueReverseIterator();
+		return new InvertedIndexValueCursor(it);
+	}
 
 	/**
 	 * Shared internal implementation of the record insertion. The value-side maintenance (owner tree mutation, no-op for
@@ -890,13 +993,13 @@ public abstract sealed class SortIndex
 		// cardinality means the value was already present; owner mode consults its own value tree.
 		final boolean valueAlreadyPresent = valuePresent(normalizedValue);
 		if (valueAlreadyPresent) {
-			// value is already present - owner mode bumps its inline cardinality (view mode shares the tree)
-			onValueCardinalityIncreased(normalizedValue);
+			// value is already present - owner mode adds the record to its owned tree bucket (view mode shares the tree)
+			onValueCardinalityIncreased(normalizedValue, recordId);
 			// update help data structure
 			sortIndexChanges.valueCardinalityIncreased(normalizedValue);
 		} else {
-			// insert new value into the tree with cardinality of one (owner mode only)
-			onFirstRecordForValue(normalizedValue);
+			// the value's first record - owner mode creates the owned tree bucket (view mode shares the tree)
+			onFirstRecordForValue(normalizedValue, recordId);
 			// update help data structure
 			sortIndexChanges.valueAdded(normalizedValue);
 		}
@@ -928,12 +1031,12 @@ public abstract sealed class SortIndex
 		if (cardinality < 1) {
 			throw new GenericEvitaInternalError("Unexpected cardinality: " + cardinality);
 		} else if (cardinality > 1) {
-			// more than one record shares the value - owner mode decrements its inline cardinality
+			// more than one record shares the value - owner mode drops the record from its owned tree bucket
 			sortIndexChanges.valueCardinalityDecreased(normalizedValue);
-			onValueCardinalityDecreased(normalizedValue);
+			onValueCardinalityDecreased(normalizedValue, recordId);
 		} else {
-			// last record for the value - owner mode removes the value entirely
-			onLastRecordForValueRemoved(normalizedValue);
+			// last record for the value - owner mode drains and drops the owned tree bucket entirely
+			onLastRecordForValueRemoved(normalizedValue, recordId);
 			sortIndexChanges.valueRemoved(normalizedValue);
 		}
 
@@ -982,7 +1085,8 @@ public abstract sealed class SortIndex
 
 	/**
 	 * Mode-agnostic ordered cursor over `(value, cardinality)` pairs of a {@link SortIndex}'s distinct values. Owner mode
-	 * is backed by the {@link OwnerSortIndex} value B+ tree; view mode by the shared {@link InvertedIndex}'s buckets. Lets
+	 * is backed by the {@link OwnerSortIndex}'s owned {@link InvertedIndex} buckets; view mode by the shared
+	 * {@link InvertedIndex}'s buckets — both read the same structure, differing only in ownership. Lets
 	 * {@link SortIndexChanges} and the seekers consume the same ordered stream regardless of mode.
 	 */
 	interface ValueCardinalityCursor {
@@ -1004,11 +1108,44 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * {@link ValueCardinalityCursor} backed by a value-side {@link InvertedIndex}'s bucket iterator (the owner's owned
+	 * tree or the view's shared tree). Because the SORT block runs before the FILTER block mutates the tree, the tree is
+	 * read in its pre-mutation state, so the raw `(value, size())` bucket stream directly yields the ordered cardinalities
+	 * the prefix-sum needs — no in-flight compensation. Cardinality is read allocation-free via {@link ValueToRecord#size()}.
+	 */
+	private static final class InvertedIndexValueCursor implements ValueCardinalityCursor {
+		private final Iterator<ValueToRecord> bucketIterator;
+		private int cardinality;
+
+		InvertedIndexValueCursor(@Nonnull Iterator<ValueToRecord> bucketIterator) {
+			this.bucketIterator = bucketIterator;
+		}
+
+		@Override
+		public boolean hasNext() {
+			return this.bucketIterator.hasNext();
+		}
+
+		@Nonnull
+		@Override
+		public Serializable next() {
+			final ValueToRecord bucket = this.bucketIterator.next();
+			this.cardinality = bucket.size();
+			return bucket.getValue();
+		}
+
+		@Override
+		public int cardinality() {
+			return this.cardinality;
+		}
+	}
+
+	/**
 	 * The value-side sparse cardinality columns handed to {@link SortIndexStoragePart}: positionally-aligned distinct
 	 * values and their cardinalities, holding only entries whose `cardinality > 1` (cardinality `1` is implied). Owner
 	 * mode fills these in ascending value order directly from its value tree; view mode hands back empty columns.
 	 *
-	 * @param values       the distinct values with cardinality `> 1`, in ascending order
+	 * @param values        the distinct values with cardinality `> 1`, in ascending order
 	 * @param cardinalities the cardinalities (each `> 1`) positionally aligned with `values`
 	 */
 	public record CardinalityColumns(
@@ -1184,7 +1321,7 @@ public abstract sealed class SortIndex
 		implements SortedRecordsSupplierFactory.SortedComparableForwardSeeker {
 		/**
 		 * Factory of forward `(value, cardinality)` cursors over the owning {@link SortIndex}'s distinct values
-		 * (mode-agnostic — owner mode walks the B+ tree, view mode the shared inverted index). Recreated on {@link #reset()}.
+		 * (mode-agnostic — owner mode walks its owned inverted index, view mode the shared one). Recreated on {@link #reset()}.
 		 */
 		@Nonnull
 		private final Supplier<ValueCardinalityCursor> cursorFactory;

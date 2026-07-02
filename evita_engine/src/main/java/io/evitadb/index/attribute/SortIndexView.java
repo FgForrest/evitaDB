@@ -26,8 +26,10 @@ package io.evitadb.index.attribute;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -38,8 +40,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -153,7 +153,7 @@ public final class SortIndexView extends SortIndex {
 	@Nonnull
 	@Override
 	protected UnaryOperator<Serializable> effectiveNormalizer() {
-		final InvertedIndex shared = sharedTreeOrNull();
+		final InvertedIndex shared = this.sharedTree;
 		if (shared != null) {
 			final Function<Object, Serializable> sharedNormalizer = shared.getNormalizer();
 			return sharedNormalizer::apply;
@@ -163,16 +163,10 @@ public final class SortIndexView extends SortIndex {
 		return this.normalizer;
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
-	@SuppressWarnings("rawtypes")
-	protected Comparator effectiveComparator() {
-		final InvertedIndex shared = sharedTreeOrNull();
-		if (shared != null) {
-			return shared.getComparator();
-		}
-		// shared tree transiently absent - own comparator is order-compatible enough for the empty residual
-		return this.comparator;
+	protected InvertedIndex valueTreeOrNull() {
+		return this.sharedTree;
 	}
 
 	@Nonnull
@@ -195,20 +189,30 @@ public final class SortIndexView extends SortIndex {
 		);
 	}
 
+	/**
+	 * Rebuilds the positional `sortedRecords` array of a view-mode sort index from its shared {@link InvertedIndex} at
+	 * load time, so a slim view part need not persist it (the source of the churn elimination). Concatenates the shared
+	 * tree's buckets in comparator order (the view's sort order) and, within each value, its ascending record ids —
+	 * reproducing byte-for-byte the array the live view holds, because the both-flagged invariant guarantees the shared
+	 * tree holds exactly the view's record set. The loader uses this for every view-mode part and ignores any positional
+	 * array a legacy full part still carries (self-healing to the slim shape on the next reflush). An empty shared tree
+	 * legitimately yields an empty array.
+	 *
+	 * @param shared the shared filter tree the view folds onto (fully loaded before SORT in the loader's FILTER-first pass)
+	 * @return the reconstructed positional sorted-records array (ascending ids within each per-value block)
+	 */
 	@Nonnull
-	@Override
-	public Serializable[] getSortedRecordValues() {
-		// reconstruct the ordered distinct values from the shared tree (a view owns no value tree)
-		final InvertedIndex shared = sharedTreeOrNull();
-		if (shared == null) {
-			// shared tree transiently absent
-			return ArrayUtils.EMPTY_SERIALIZABLE_ARRAY;
-		}
-		final Serializable[] result = new Serializable[shared.getBucketCount()];
+	public static int[] reconstructSortedRecords(@Nonnull InvertedIndex shared) {
+		// pre-size to the exact total record count (sum of all bucket sizes) and fill via arraycopy - no intermediate
+		// growable buffer on the load path
+		final int[] result = new int[shared.getLength()];
 		final Iterator<ValueToRecord> it = shared.getValueIterator();
-		int index = 0;
+		int offset = 0;
 		while (it.hasNext()) {
-			result[index++] = it.next().getValue();
+			final Bitmap recordIds = it.next().getRecordIds();
+			final int[] ids = recordIds.getArray();
+			System.arraycopy(ids, 0, result, offset, ids.length);
+			offset += ids.length;
 		}
 		return result;
 	}
@@ -221,43 +225,18 @@ public final class SortIndexView extends SortIndex {
 	}
 
 	@Override
-	protected boolean valuePresent(@Nonnull Serializable normalizedValue) {
-		return sharedCardinalityOf(normalizedValue) > 0;
-	}
-
-	@Override
 	protected boolean valuePresentForRemoval(@Nonnull Serializable normalizedValue, int recordId) {
 		// the value's cardinality lives in the shared tree (possibly many records); assert the record's own presence
 		// against sortedRecords - the structure the sort block is about to mutate
 		return this.sortedRecords.indexOf(recordId) >= 0;
 	}
 
-	@Override
-	int valueCount() {
-		final InvertedIndex shared = sharedTreeOrNull();
-		return shared == null ? 0 : shared.getBucketCount();
-	}
-
 	@Nonnull
 	@Override
-	ValueCardinalityCursor valueCursor() {
-		final InvertedIndex shared = sharedTreeOrNull();
-		// the shared tree is read in its pre-mutation state (SORT runs before FILTER); a transiently absent tree
-		// (a brand-new key whose tree the FILTER block has not created yet) yields an empty bucket stream
-		final Iterator<ValueToRecord> it = shared == null
-			? Collections.emptyIterator()
-			: shared.getValueIterator();
-		return new InvertedIndexValueCursor(it);
-	}
-
-	@Nonnull
-	@Override
-	ValueCardinalityCursor valueReverseCursor() {
-		final InvertedIndex shared = sharedTreeOrNull();
-		final Iterator<ValueToRecord> it = shared == null
-			? Collections.emptyIterator()
-			: shared.getValueReverseIterator();
-		return new InvertedIndexValueCursor(it);
+	protected int[] storagePartSortedRecords() {
+		// slim view-mode part: the positional sortedRecords is re-derivable from the shared FILTER tree on load (see
+		// reconstructSortedRecords), so it is omitted to eliminate the whole-array rewrite on every both-flagged commit
+		return ArrayUtils.EMPTY_INT_ARRAY;
 	}
 
 	@Nonnull
@@ -275,27 +254,29 @@ public final class SortIndexView extends SortIndex {
 	}
 
 	@Override
-	protected int preRemovalCardinality(@Nonnull Serializable normalizedValue) {
-		return sharedCardinalityOf(normalizedValue);
+	protected void doAppendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink) {
+		// a view never owns a value tree, so it never pages: it emits a single slim SINGLE part whose empty value columns
+		// and omitted positional sortedRecords are re-derived from the shared FILTER part on load
+		appendSingleStoragePart(entityIndexPrimaryKey, sink);
 	}
 
 	@Override
-	protected void onFirstRecordForValue(@Nonnull Serializable normalizedValue) {
+	protected void onFirstRecordForValue(@Nonnull Serializable normalizedValue, int recordId) {
 		// no-op: the shared tree's value set is mutated by the FILTER block, not the view
 	}
 
 	@Override
-	protected void onValueCardinalityIncreased(@Nonnull Serializable normalizedValue) {
+	protected void onValueCardinalityIncreased(@Nonnull Serializable normalizedValue, int recordId) {
 		// no-op: cardinality lives in the shared tree
 	}
 
 	@Override
-	protected void onValueCardinalityDecreased(@Nonnull Serializable normalizedValue) {
+	protected void onValueCardinalityDecreased(@Nonnull Serializable normalizedValue, int recordId) {
 		// no-op: cardinality lives in the shared tree
 	}
 
 	@Override
-	protected void onLastRecordForValueRemoved(@Nonnull Serializable normalizedValue) {
+	protected void onLastRecordForValueRemoved(@Nonnull Serializable normalizedValue, int recordId) {
 		// no-op: the shared tree's value set is mutated by the FILTER block, not the view
 	}
 
@@ -323,56 +304,12 @@ public final class SortIndexView extends SortIndex {
 	}
 
 	/**
-	 * Resolves the shared {@link InvertedIndex} for view mode, or `null` when it is (defensively) absent. A view is born
-	 * with a non-null tree and re-bound to a non-null committed tree at every commit, so in practice this is non-null;
-	 * callers still tolerate `null` (cardinality `0`, an empty value cursor) for robustness, and an orphaned-but-emptied
-	 * tree (a both-flagged remove dropped the key mid-transaction) reads as empty exactly as a `null` would.
-	 */
-	@Nullable
-	private InvertedIndex sharedTreeOrNull() {
-		return this.sharedTree;
-	}
-
-	/**
 	 * Allocation-free read of the shared inverted index cardinality of an already-normalized value.
 	 */
 	private int sharedCardinalityOf(@Nonnull Serializable normalizedValue) {
-		final InvertedIndex shared = sharedTreeOrNull();
+		final InvertedIndex shared = this.sharedTree;
 		// shared tree transiently absent ⇒ cardinality 0
 		return shared == null ? 0 : shared.cardinalityOf(normalizedValue);
-	}
-
-	/**
-	 * View-mode {@link ValueCardinalityCursor} backed by the shared {@link InvertedIndex}'s bucket iterator. Because the
-	 * SORT block runs before the FILTER block mutates the tree, the shared tree is read in its pre-mutation state, so the
-	 * raw `(value, size())` bucket stream directly yields the ordered cardinalities the prefix-sum needs — no in-flight
-	 * compensation. Cardinality is read allocation-free via {@link ValueToRecord#size()}.
-	 */
-	private static final class InvertedIndexValueCursor implements ValueCardinalityCursor {
-		private final Iterator<ValueToRecord> bucketIterator;
-		private int cardinality;
-
-		InvertedIndexValueCursor(@Nonnull Iterator<ValueToRecord> bucketIterator) {
-			this.bucketIterator = bucketIterator;
-		}
-
-		@Override
-		public boolean hasNext() {
-			return this.bucketIterator.hasNext();
-		}
-
-		@Nonnull
-		@Override
-		public Serializable next() {
-			final ValueToRecord bucket = this.bucketIterator.next();
-			this.cardinality = bucket.size();
-			return bucket.getValue();
-		}
-
-		@Override
-		public int cardinality() {
-			return this.cardinality;
-		}
 	}
 
 }

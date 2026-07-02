@@ -23,8 +23,11 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import io.evitadb.dataType.bPlusTree.CumulativeWeightBPlusTree;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 
@@ -37,7 +40,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 
 import static io.evitadb.index.attribute.SortIndex.invert;
-import static java.util.Optional.ofNullable;
 
 /**
  * Class contains intermediate computation data structures that speed up access to the {@link SortedRecordsSupplier}
@@ -76,6 +78,24 @@ public class SortIndexChanges
 	 */
 	@Nullable private transient CumulativeWeightBPlusTree<Serializable> valueLocationTree;
 
+	/**
+	 * Memoized ascending-direction supplier arrays (see {@link MaterializedSortRecords}), rebuilt lazily on first
+	 * request after each `sortedRecords` mutation. Transient rebuildable cache, never persisted.
+	 */
+	@Nullable private transient MaterializedSortRecords memoizedAscending;
+
+	/**
+	 * Memoized descending-direction supplier arrays (see {@link MaterializedSortRecords}), rebuilt lazily on first
+	 * request after each `sortedRecords` mutation. Transient rebuildable cache, never persisted.
+	 */
+	@Nullable private transient MaterializedSortRecords memoizedDescending;
+
+	/**
+	 * Memoized, direction-independent record-id bitmap shared by {@link #memoizedAscending} and
+	 * {@link #memoizedDescending}. Transient rebuildable cache, never persisted.
+	 */
+	@Nullable private transient Bitmap memoizedAllRecords;
+
 	public SortIndexChanges(
 		@Nonnull SortIndex sortIndex,
 		@SuppressWarnings("rawtypes") @Nonnull Comparator valueComparator
@@ -85,59 +105,111 @@ public class SortIndexChanges
 	}
 
 	/**
-	 * Returns {@link SortedRecordsSupplier} that contains records ids sorted by value in ascending order.
-	 * Result of the method is cached and additional calls obtain memoized result.
+	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in ascending order.
+	 *
+	 * The expensive materialized arrays (record-id order, record positions and the record-id bitmap — each an
+	 * `O(N log N)` derivation of the owning index's `sortedRecords`) are memoized per direction and reused across calls
+	 * until the next `sortedRecords` mutation invalidates them (see {@link #invalidateSupplierArrays()}). A fresh,
+	 * lightweight forward seeker and provider wrapper are nonetheless built on every call: the seeker is a stateful,
+	 * monotonic cursor and must never be shared between concurrent queries.
 	 */
 	@Nonnull
 	public SortedRecordsSupplier getAscendingOrderRecordsSupplier() {
-		return ofNullable(this.sortIndex.getReferenceKey())
-			.map(
-				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
-					this.sortIndex.sortedRecords.getId(),
-					this.sortIndex.sortedRecords.getArray(),
-					this.sortIndex.sortedRecords.getPositions(),
-					this.sortIndex.sortedRecords.getRecordIds(),
-					this.sortIndex.createSortedComparableForwardSeeker(),
-					referenceKey
-				)
+		return buildSupplier(getAscendingArrays(), this.sortIndex.createSortedComparableForwardSeeker());
+	}
+
+	/**
+	 * Returns {@link SortedRecordsSupplier} that contains record ids sorted by value in descending order.
+	 *
+	 * Like the ascending counterpart, the materialized arrays are memoized per direction and reused until the next
+	 * `sortedRecords` mutation invalidates them; the stateful seeker and provider wrapper are rebuilt on every call.
+	 */
+	@Nonnull
+	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
+		return buildSupplier(getDescendingArrays(), this.sortIndex.createReversedSortedComparableForwardSeeker());
+	}
+
+	/**
+	 * Wraps the memoized direction-specific {@code arrays} and the caller-supplied {@code seeker} in a provider:
+	 * a {@link ReferenceSortedRecordsProvider} when the owning index carries a reference key, otherwise a plain
+	 * {@link SortedRecordsSupplier}. The seeker is built fresh by the caller and passed in per request — it is a
+	 * stateful, monotonic cursor and MUST NOT be memoized or shared between concurrent queries.
+	 */
+	@Nonnull
+	private SortedRecordsSupplier buildSupplier(
+		@Nonnull MaterializedSortRecords arrays,
+		@Nonnull SortedRecordsSupplierFactory.SortedComparableForwardSeeker seeker
+	) {
+		final RepresentativeReferenceKey referenceKey = this.sortIndex.getReferenceKey();
+		return referenceKey != null
+			? new ReferenceSortedRecordsProvider(
+				arrays.id(), arrays.sortedRecordIds(), arrays.recordPositions(), arrays.allRecords(),
+				seeker, referenceKey
 			)
-			.orElseGet(
-				() -> new SortedRecordsSupplier(
-					this.sortIndex.sortedRecords.getId(),
-					this.sortIndex.sortedRecords.getArray(),
-					this.sortIndex.sortedRecords.getPositions(),
-					this.sortIndex.sortedRecords.getRecordIds(),
-					this.sortIndex.createSortedComparableForwardSeeker()
-				)
+			: new SortedRecordsSupplier(
+				arrays.id(), arrays.sortedRecordIds(), arrays.recordPositions(), arrays.allRecords(),
+				seeker
 			);
 	}
 
 	/**
-	 * Returns {@link SortedRecordsSupplier} that contains records ids sorted by value in descending order.
-	 * Result of the method is cached and additional calls obtain memoized result.
+	 * Lazily materializes and memoizes the ascending-direction supplier arrays from the owning index's `sortedRecords`:
+	 * the record-id order, the record positions and (shared) record-id bitmap, built once and reused until a mutation
+	 * invalidates them via {@link #invalidateSupplierArrays()}.
 	 */
 	@Nonnull
-	public SortedRecordsSupplier getDescendingOrderRecordsSupplier() {
-		return ofNullable(this.sortIndex.getReferenceKey())
-			.map(
-				referenceKey -> (SortedRecordsSupplier) new ReferenceSortedRecordsProvider(
-					this.sortIndex.getId(),
-					ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
-					invert(this.sortIndex.sortedRecords.getPositions()),
-					this.sortIndex.sortedRecords.getRecordIds(),
-					this.sortIndex.createReversedSortedComparableForwardSeeker(),
-					referenceKey
-				)
-			)
-			.orElseGet(
-				() -> new SortedRecordsSupplier(
-					this.sortIndex.getId(),
-					ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
-					invert(this.sortIndex.sortedRecords.getPositions()),
-					this.sortIndex.sortedRecords.getRecordIds(),
-					this.sortIndex.createReversedSortedComparableForwardSeeker()
-				)
+	private MaterializedSortRecords getAscendingArrays() {
+		if (this.memoizedAscending == null) {
+			this.memoizedAscending = new MaterializedSortRecords(
+				this.sortIndex.sortedRecords.getId(),
+				this.sortIndex.sortedRecords.getArray(),
+				this.sortIndex.sortedRecords.getPositions(),
+				getMemoizedAllRecords()
 			);
+		}
+		return this.memoizedAscending;
+	}
+
+	/**
+	 * Lazily materializes and memoizes the descending-direction supplier arrays: the ascending record-id order reversed
+	 * and the ascending positions inverted (both fresh allocations — {@link ArrayUtils#reverse(int[])} and
+	 * {@link SortIndex#invert(int[])} never mutate their input, so the shared ascending arrays are untouched). The
+	 * record-id bitmap is direction-independent and shared with the ascending holder.
+	 */
+	@Nonnull
+	private MaterializedSortRecords getDescendingArrays() {
+		if (this.memoizedDescending == null) {
+			this.memoizedDescending = new MaterializedSortRecords(
+				this.sortIndex.getId(),
+				ArrayUtils.reverse(this.sortIndex.sortedRecords.getArray()),
+				invert(this.sortIndex.sortedRecords.getPositions()),
+				getMemoizedAllRecords()
+			);
+		}
+		return this.memoizedDescending;
+	}
+
+	/**
+	 * Lazily materializes and memoizes the direction-independent record-id bitmap (all record ids in natural id order).
+	 * Shared by both the ascending and descending holders and across reader threads — it is READ-ONLY, never mutate it.
+	 */
+	@Nonnull
+	private Bitmap getMemoizedAllRecords() {
+		if (this.memoizedAllRecords == null) {
+			this.memoizedAllRecords = this.sortIndex.sortedRecords.getRecordIds();
+		}
+		return this.memoizedAllRecords;
+	}
+
+	/**
+	 * Drops the memoized per-direction supplier arrays and the shared record-id bitmap so the next supplier request
+	 * rematerializes them from the current `sortedRecords` state. Invoked from every `sortedRecords` mutation hook and
+	 * on {@link #restore(SortIndexChangesMemento)}, mirroring the rebuild-on-change discipline of {@link #valueLocationTree}.
+	 */
+	private void invalidateSupplierArrays() {
+		this.memoizedAscending = null;
+		this.memoizedDescending = null;
+		this.memoizedAllRecords = null;
 	}
 
 	/**
@@ -176,6 +248,8 @@ public class SortIndexChanges
 	public void valueAdded(@Nonnull Serializable value) {
 		// a value's FIRST record: insert it with cardinality one (the tree rejects an already-present value)
 		getValueTree().insert(value, 1);
+		// the sorted record order changed - drop the memoized supplier arrays
+		invalidateSupplierArrays();
 	}
 
 	/**
@@ -184,6 +258,8 @@ public class SortIndexChanges
 	public void valueCardinalityIncreased(@Nonnull Serializable value) {
 		// one more record for an already-present value: bump its weight (the tree rejects an absent value)
 		getValueTree().updateWeight(value, 1);
+		// the sorted record order changed - drop the memoized supplier arrays
+		invalidateSupplierArrays();
 	}
 
 	/**
@@ -201,6 +277,8 @@ public class SortIndexChanges
 	public void valueRemoved(@Nonnull Serializable value) {
 		// the value's LAST record was removed: drop it entirely (the tree rejects an absent value)
 		getValueTree().remove(value);
+		// the sorted record order changed - drop the memoized supplier arrays
+		invalidateSupplierArrays();
 	}
 
 	/**
@@ -209,6 +287,8 @@ public class SortIndexChanges
 	public void valueCardinalityDecreased(@Nonnull Serializable value) {
 		// one fewer record for a value that keeps at least one: drop its weight by one
 		getValueTree().updateWeight(value, -1);
+		// the sorted record order changed - drop the memoized supplier arrays
+		invalidateSupplierArrays();
 	}
 
 	/**
@@ -255,47 +335,70 @@ public class SortIndexChanges
 	 * was never built) by reference. No B+ tree nodes are deep-copied; on rollback the tree is rebuilt from the
 	 * already-restored authoritative sibling structures.
 	 *
-	 * @return a memento that {@link #restore(SortIndexChangesMemento)} uses to invalidate the cache
+	 * @return a memento that {@link #restore(SortIndexChangesMemento)} uses to invalidate the derived caches
 	 */
 	@Nonnull
 	@Override
 	public SortIndexChangesMemento snapshot() {
-		// O(1): capture the current cache reference (possibly null); the tree is a rebuildable cache and is
-		// never deep-copied — restore() drops it and getValueTree() lazily rebuilds it from the SortIndex
+		// O(1): capture the current value-tree reference (possibly null); it and the memoized supplier arrays are all
+		// rebuildable caches and are never deep-copied — restore() drops them and they are lazily rebuilt from the SortIndex
 		return new SortIndexChangesMemento(this.valueLocationTree);
 	}
 
 	/**
-	 * Restores this layer to the captured savepoint state by invalidating the memoized
-	 * {@link #valueLocationTree}.
+	 * Restores this layer to the captured savepoint state by invalidating its rebuildable derived caches — the
+	 * memoized {@link #valueLocationTree} and the memoized per-direction supplier arrays
+	 * ({@link #memoizedAscending} / {@link #memoizedDescending} / {@link #memoizedAllRecords}).
 	 *
-	 * The value tree is a pure, rebuildable cache of {@link SortIndex} state, so the correct rollback is to drop
-	 * the cache and let {@link #getValueTree()} rebuild it lazily from the (already-restored) authoritative
-	 * sibling structures — {@link SortIndex#sortedRecords} and, in owner mode, the value-side tree — on the next
-	 * access. This is O(1), always consistent given those siblings are restored by their own
+	 * All of these are pure, rebuildable caches of {@link SortIndex} state, so the correct rollback is to drop them
+	 * and let {@link #getValueTree()} / {@link #getAscendingArrays()} rebuild them lazily from the (already-restored)
+	 * authoritative sibling structures — {@link SortIndex#sortedRecords} and, in owner mode, the value-side tree — on
+	 * the next access. This is O(1), always consistent given those siblings are restored by their own
 	 * {@link io.evitadb.core.transaction.memory.Snapshotable} implementations, and is safe to invoke repeatedly
-	 * with the same memento (each call simply nulls the cache).
+	 * with the same memento (each call simply nulls the caches).
 	 *
 	 * @param memento a memento previously produced by {@link #snapshot()} on this same layer
 	 */
 	@Override
 	public void restore(@Nonnull SortIndexChangesMemento memento) {
-		// O(1): drop the memoized cache so getValueTree() rebuilds it from the restored SortIndex on next access
+		// O(1): drop the memoized caches so they rebuild from the restored SortIndex on next access
 		this.valueLocationTree = null;
+		invalidateSupplierArrays();
 	}
 
 	/**
 	 * Immutable memento carrying the savepoint state of a {@link SortIndexChanges} layer. The single captured
 	 * value is the memoized {@link SortIndexChanges#valueLocationTree} reference at snapshot time (held by
-	 * reference only, never deep-copied, possibly `null`). Because the tree is a rebuildable derived cache,
-	 * {@link #restore} ignores the captured tree and simply invalidates the live cache; the field is retained to
-	 * faithfully record the snapshot moment and keep the memento a self-describing carrier of the layer's sole
-	 * mutable field.
+	 * reference only, never deep-copied, possibly `null`). The layer's other rebuildable derived caches (the
+	 * memoized per-direction supplier arrays) are not captured because {@link #restore} drops every derived cache
+	 * unconditionally; the value-tree reference is retained to faithfully record the snapshot moment.
 	 *
 	 * @param valueLocationTree the memoized value tree reference at snapshot time, or `null` if not yet built
 	 */
 	public record SortIndexChangesMemento(
 		@Nullable CumulativeWeightBPlusTree<Serializable> valueLocationTree
+	) {
+	}
+
+	/**
+	 * Immutable holder of the memoized, expensive-to-build supplier arrays for one sort direction: the record-id order,
+	 * the record positions and the record-id bitmap (each an `O(N log N)` derivation of the owning index's
+	 * `sortedRecords`). A fresh stateful forward seeker and provider wrapper are built around these on every supplier
+	 * request, so the seeker is never shared across queries.
+	 *
+	 * All three array/bitmap fields are READ-ONLY and shared across reader threads and (for {@link #allRecords}) across
+	 * both directions — they must never be mutated in place.
+	 *
+	 * @param id              the transactional id carried by the produced provider
+	 * @param sortedRecordIds record ids in sorted (value) order
+	 * @param recordPositions record positions aligned with the sorted record ids
+	 * @param allRecords      bitmap of all record ids in natural id order (direction-independent, shared)
+	 */
+	private record MaterializedSortRecords(
+		long id,
+		@Nonnull int[] sortedRecordIds,
+		@Nonnull int[] recordPositions,
+		@Nonnull Bitmap allRecords
 	) {
 	}
 

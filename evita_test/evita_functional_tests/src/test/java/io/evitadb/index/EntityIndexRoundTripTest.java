@@ -52,6 +52,7 @@ import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
@@ -476,6 +477,7 @@ class EntityIndexRoundTripTest {
 					);
 				}
 			} else if (part instanceof SortIndexStoragePart sortPart) {
+				final boolean sortViewMode = sharedValueIndexes.containsKey(attrKey);
 				sortIndexes.put(
 					attrKey,
 					SortIndex.create(
@@ -484,10 +486,14 @@ class EntityIndexRoundTripTest {
 						attrKey,
 						// the scale is no longer persisted; these round-trips index no BigDecimal attribute, so it is 0
 						0,
-						sortPart.getSortedRecords(),
+						// view mode: the slim part omits the positional sortedRecords; rebuild it from the shared tree,
+						// mirroring AttributeIndexLoader.fetchSort (the persisted array is ignored even when present)
+						sortViewMode
+							? SortIndexView.reconstructSortedRecords(sharedValueIndexes.get(attrKey))
+							: sortPart.getSortedRecords(),
 						sortPart.getSortedRecordsValues(),
 						sortPart.getValueCardinalities(),
-						sharedValueIndexes.containsKey(attrKey)
+						sortViewMode
 							? () -> sharedValueIndexes.get(attrKey)
 							: null
 					)

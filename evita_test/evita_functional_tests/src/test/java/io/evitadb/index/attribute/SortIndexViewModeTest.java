@@ -23,8 +23,13 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -41,6 +46,8 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Proves that a both-flagged (filterable + sortable) {@link SortIndex} running in **view mode** over an
@@ -320,5 +327,145 @@ class SortIndexViewModeTest {
 		h.insert("čaj", 7);   // existing block
 		h.remove("auto", 2);
 		h.remove("cena", 1);
+	}
+
+	@Test
+	@DisplayName("dirty view mode emits a slim SortIndexStoragePart with no persisted positional data")
+	void shouldEmitSlimStoragePartInViewMode() {
+		final Harness h = new Harness(Integer.class);
+		h.insert(10, 1);
+		h.insert(20, 2);
+		h.insert(20, 3);
+
+		final TrappedChanges sink = new TrappedChanges();
+		h.view.appendStorageParts(7, sink);
+
+		// a dirty view emits exactly one part
+		assertEquals(1, sink.getTrappedChangesCount());
+		final StoragePart storagePart = sink.getTrappedChangesIterator().next();
+		assertInstanceOf(SortIndexStoragePart.class, storagePart);
+
+		final SortIndexStoragePart part = (SortIndexStoragePart) storagePart;
+		// the slim view shape: nothing positional is persisted — the sortedRecords array AND the distinct-value /
+		// cardinality columns are all empty, all re-derived from the shared FILTER part on load (the churn win)
+		assertEquals(7, part.getEntityIndexPrimaryKey());
+		assertEquals(KEY, part.getAttributeIndexKey());
+		assertEquals(0, part.getSortedRecords().length, "a view part must not persist the positional sortedRecords");
+		assertEquals(0, part.getSortedRecordsValues().length);
+		assertEquals(0, part.getCardinalityValues().length);
+		assertEquals(0, part.getCardinalities().length);
+		// and the omitted array is rebuilt byte-for-byte from the shared tree at load time
+		assertArrayEquals(h.view.getSortedRecords(), SortIndexView.reconstructSortedRecords(h.shared));
+	}
+
+	@Test
+	@DisplayName("reconstructSortedRecords rebuilds an empty array from an empty shared tree")
+	void shouldReconstructEmptyArrayFromEmptySharedTree() {
+		final Harness h = new Harness(Integer.class);
+		// the shared FILTER tree holds no buckets - the degenerate load-path branch (getLength() == 0, loop skipped)
+		final int[] reconstructed = SortIndexView.reconstructSortedRecords(h.shared);
+		assertEquals(0, reconstructed.length, "an empty shared tree must reconstruct an empty positional array");
+		assertArrayEquals(h.view.getSortedRecords(), reconstructed);
+	}
+
+	@Test
+	@DisplayName("view-mode cardinality floors to one for a value absent from the shared tree while owner mode throws")
+	void shouldFloorCardinalityToOneForValueAbsentFromSharedTree() {
+		final Harness h = new Harness(Integer.class);
+		h.insert(10, 1);
+		h.insert(20, 2);
+
+		// view mode reads cardinality from the shared tree and floors a never-inserted value to 1 (it treats the miss as
+		// a brand-new single-record block for predecessor computation rather than a broken invariant)
+		assertEquals(1, h.view.getValueCardinality(999));
+		// owner mode owns every present value, so the same miss is a broken invariant surfaced as a hard internal error
+		assertThrows(GenericEvitaInternalError.class, () -> h.owner.getValueCardinality(999));
+	}
+
+	@Test
+	@DisplayName("removing a record absent from the view's sortedRecords throws")
+	void shouldThrowWhenRemovingRecordAbsentFromViewSortedRecords() {
+		final Harness h = new Harness(Integer.class);
+		h.insert(10, 1);
+		h.insert(20, 2);
+		h.insert(20, 3);
+
+		// the view validates the RECORD against its own sortedRecords before mutating; a record it never held is illegal
+		final IllegalArgumentException ex = assertThrows(
+			IllegalArgumentException.class,
+			() -> h.view.removeRecord(20, 9999)
+		);
+		assertTrue(ex.getMessage().contains("not present"));
+	}
+
+	@Test
+	@DisplayName("view supplier reflects a mutation after the memo was materialized")
+	void shouldReflectMutationInViewSupplierAfterMemoization() {
+		final Harness h = new Harness(Integer.class);
+		h.insert(10, 1);
+		h.insert(30, 2);
+		h.insert(20, 3);
+
+		// materialize the view's ascending memo - this absolute order is what a stale memo would keep returning
+		assertArrayEquals(
+			new int[]{1, 3, 2},
+			h.view.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+		);
+
+		// drive only the VIEW index in coarse-orchestration order: the SORT block (the view) reads the pristine shared
+		// tree first, then the FILTER block writes the shared bucket. The owner reference is intentionally left out.
+		h.view.addRecord(20, 4);
+		h.shared.addRecord(20, 4);
+
+		// the supplier must invalidate and rebuild from the view's own state - the new record joins the 20-block - and
+		// the asserted order is computed independently of the owner reference
+		assertArrayEquals(
+			new int[]{1, 3, 4, 2},
+			h.view.getAscendingOrderRecordsSupplier().getSortedRecordIds()
+		);
+	}
+
+	@Test
+	@DisplayName("forward and reversed value seekers traverse identically in view and owner mode")
+	void shouldTraverseValueSeekersIdenticallyToOwnerMode() {
+		final Harness h = new Harness(Integer.class);
+		// mixed cardinalities: a block of three records, a block of one, and a block of two
+		h.insert(10, 1);
+		h.insert(10, 2);
+		h.insert(10, 3);
+		h.insert(20, 4);
+		h.insert(30, 5);
+		h.insert(30, 6);
+
+		final int size = h.owner.size();
+
+		// forward (ascending) value cursor: owner walks its owned tree, the view the shared tree - the value stream must
+		// be identical
+		final SortedComparableForwardSeeker ownerForward = h.owner.createSortedComparableForwardSeeker();
+		final SortedComparableForwardSeeker viewForward = h.view.createSortedComparableForwardSeeker();
+		final Serializable[] ownerForwardValues = new Serializable[size];
+		final Serializable[] viewForwardValues = new Serializable[size];
+		for (int i = 0; i < size; i++) {
+			ownerForwardValues[i] = ownerForward.getValueToCompareOn(i);
+			viewForwardValues[i] = viewForward.getValueToCompareOn(i);
+		}
+		assertArrayEquals(
+			ownerForwardValues, viewForwardValues,
+			"forward value cursor diverged between owner and view mode!"
+		);
+
+		// reversed (descending) value cursor: the genuinely-distinct reverse traversal over the shared tree must also match
+		final SortedComparableForwardSeeker ownerReversed = h.owner.createReversedSortedComparableForwardSeeker();
+		final SortedComparableForwardSeeker viewReversed = h.view.createReversedSortedComparableForwardSeeker();
+		final Serializable[] ownerReversedValues = new Serializable[size];
+		final Serializable[] viewReversedValues = new Serializable[size];
+		for (int i = 0; i < size; i++) {
+			ownerReversedValues[i] = ownerReversed.getValueToCompareOn(i);
+			viewReversedValues[i] = viewReversed.getValueToCompareOn(i);
+		}
+		assertArrayEquals(
+			ownerReversedValues, viewReversedValues,
+			"reversed value cursor diverged between owner and view mode!"
+		);
 	}
 }

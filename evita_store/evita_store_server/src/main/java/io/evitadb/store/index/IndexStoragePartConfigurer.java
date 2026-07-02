@@ -246,6 +246,15 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
+		// the granular OWNER-mode sort-index value-tree leaf-page record — a brand-new record type with no
+		// backward-compatible reader (legacy / small owner catalogs keep the flat sortedRecords + value columns inline on
+		// the monolithic root part instead). Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			SortIndexLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(new SortIndexLeafPagePartSerializer(), SortIndexLeafPagePart.class),
+			index++
+		);
+
 		Assert.isPremiseValid(index < 700, "Index count overflow.");
 	}
 

@@ -1112,9 +1112,10 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 				view.appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 			}
 		}
+		// SORT parts: owner mode emits its full part, view mode a slim part — both go through appendStorageParts,
+		// mirroring the UNIQUE/FILTER loops above.
 		for (Entry<AttributeIndexKey, SortIndex> entry : this.sortIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
-				.ifPresent(trappedChanges::addChangeToStore);
+			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 		}
 		for (Entry<AttributeIndexKey, ChainIndex> entry : this.chainIndex.entrySet()) {
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))

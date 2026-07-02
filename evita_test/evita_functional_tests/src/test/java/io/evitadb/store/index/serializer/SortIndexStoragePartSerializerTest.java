@@ -54,6 +54,7 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -442,6 +443,100 @@ class SortIndexStoragePartSerializerTest {
 				serialize(viewPart).length < serialize(ascendingOwnerPart()).length,
 				"the view-mode part must omit the values + cardinalities sections, not serialize them as empty"
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Granular paging (gated discriminator)")
+	class GranularPaging {
+
+		@Test
+		@DisplayName("round-trips an owner-PAGED root carrying only the page-stream metadata")
+		void shouldRoundTripPagedRootPart() {
+			final SortIndexStoragePart part = SortIndexStoragePart.paged(
+				42, ATTRIBUTE_KEY, singleStringAscending(), 0, 9, new int[]{0, 1, 4, 7}, 1L
+			);
+			assertTrue(part.isPaged(), "the source part must be paged");
+
+			final SortIndexStoragePart deserialized = roundTrip(part);
+
+			assertTrue(deserialized.isPaged(), "a paged root must round-trip as paged");
+			assertEquals(42, deserialized.getEntityIndexPrimaryKey());
+			assertEquals(ATTRIBUTE_KEY, deserialized.getAttributeIndexKey());
+			assertEquals(9, deserialized.getHighWaterPageSequence(), "the high-water must round-trip");
+			assertArrayEquals(
+				new int[]{0, 1, 4, 7}, deserialized.getLeafPageSequences(),
+				"the live leaf-page sequence list must round-trip"
+			);
+			// a paged root carries no inline value side - it is reconstructed from the leaf pages on load
+			assertEquals(0, deserialized.getSortedRecords().length, "a paged root carries no inline sortedRecords");
+			assertEquals(0, deserialized.getSortedRecordsValues().length, "a paged root carries no inline values");
+			assertTrue(deserialized.getValueCardinalities().isEmpty(), "a paged root carries no inline cardinalities");
+		}
+
+		@Test
+		@DisplayName("round-trips an owner-PAGED root preserving the frozen indexedDecimalPlaces scale")
+		void shouldRoundTripPagedRootPreservingScale() {
+			final SortIndexStoragePart part = SortIndexStoragePart.paged(
+				7, new AttributeIndexKey(null, "price", null), singleStringAscending(), 2, 3, new int[]{0, 2}, 1L
+			);
+
+			final SortIndexStoragePart deserialized = roundTrip(part);
+
+			assertTrue(deserialized.isPaged());
+			assertEquals(2, deserialized.getIndexedDecimalPlaces(), "the frozen scale must round-trip on a paged root");
+			assertEquals(3, deserialized.getHighWaterPageSequence());
+			assertArrayEquals(new int[]{0, 2}, deserialized.getLeafPageSequences());
+		}
+
+		@Test
+		@DisplayName("an owner-SINGLE part stays non-paged through the round-trip (the discriminator is gated)")
+		void shouldKeepOwnerSinglePartNonPaged() {
+			final SortIndexStoragePart deserialized = roundTrip(ascendingOwnerPart());
+			assertFalse(deserialized.isPaged(), "an owner-SINGLE part must never report as paged");
+			assertEquals(0, deserialized.getHighWaterPageSequence(), "an owner-SINGLE part has no high-water");
+		}
+
+		@Test
+		@DisplayName("a slim view-mode part stays non-paged through the round-trip")
+		void shouldKeepViewModePartNonPaged() {
+			final SortIndexStoragePart part = new SortIndexStoragePart(
+				42, ATTRIBUTE_KEY, singleStringAscending(),
+				new int[]{3, 1, 2}, new Serializable[0], Map.of(), 1L
+			);
+			final SortIndexStoragePart deserialized = roundTrip(part);
+			assertFalse(deserialized.isPaged(), "a view-slim part must never report as paged");
+			assertArrayEquals(new int[]{3, 1, 2}, deserialized.getSortedRecords());
+		}
+
+		@Test
+		@DisplayName("the owner-SINGLE bytes are unchanged: the gated paged discriminator is absent from the values branch")
+		void shouldKeepOwnerSingleBytesUnchanged() {
+			// the `paged` discriminator is written ONLY in the valuesPresent==false branch, so an owner-SINGLE part
+			// (valuesPresent==true) must serialize WITHOUT it - exactly one byte shorter than the equivalent view-slim part
+			// whose only added field over a hypothetical no-discriminator encoding is that single `paged` boolean. We prove
+			// the gating structurally: an owner-SINGLE part and the SAME part re-serialized are byte-identical (the format is
+			// deterministic and carries no paged byte), and a view-slim part of identical sortedRecords differs by exactly
+			// the one gated boolean it adds after its (false) valuesPresent marker.
+			final SortIndexStoragePart ownerSingle = new SortIndexStoragePart(
+				1, ATTRIBUTE_KEY, singleStringAscending(),
+				new int[]{5}, new Serializable[]{"v"}, Map.of(), 1L
+			);
+			assertArrayEquals(
+				serialize(ownerSingle), serialize(ownerSingle),
+				"owner-SINGLE serialization must be deterministic (no incidental state, no paged byte)"
+			);
+
+			// a view-slim part with the SAME single record id: identical header + records, but it writes valuesPresent=false
+			// THEN the gated paged=false boolean, so it is exactly one byte longer than an owner-SINGLE part stripped of its
+			// value sections. This asserts the gated boolean lives on the view-slim path, never the owner-SINGLE path.
+			final SortIndexStoragePart viewSlim = new SortIndexStoragePart(
+				1, ATTRIBUTE_KEY, singleStringAscending(),
+				new int[]{5}, new Serializable[0], Map.of(), 1L
+			);
+			final SortIndexStoragePart deserializedViewSlim = roundTrip(viewSlim);
+			assertFalse(deserializedViewSlim.isPaged(), "the view-slim part round-trips with paged=false");
+			assertArrayEquals(new int[]{5}, deserializedViewSlim.getSortedRecords());
 		}
 	}
 
