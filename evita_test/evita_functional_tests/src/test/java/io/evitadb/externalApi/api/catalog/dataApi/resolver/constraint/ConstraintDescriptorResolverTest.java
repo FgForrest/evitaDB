@@ -225,13 +225,13 @@ public class ConstraintDescriptorResolverTest {
 	}
 
 	@Test
-	void shouldResolveCollapsedGroupHavingKey() {
-		// `groupHaving` is the collapsed wire form of the GroupHaving descriptor — the duplicate-prefix
-		// collapse strips the doubled "group" word. The parent locator simulates the runtime context
-		// at the moment HistogramHaving's @Child(domain=GROUP_ENTITY) parameter has already flipped
-		// the locator to the group entity (`categoryGroup`). For a GROUP-typed constraint,
-		// DataLocatorResolver's `case GROUP -> parentDataLocator` means the inner locator equals the
-		// parent, so children of `groupHaving` keep resolving against `categoryGroup`.
+	void shouldResolveGroupHavingKey() {
+		// `groupHaving` decomposes into prefix "group" (GROUP property type) + fullName "having".
+		// The parent locator simulates the runtime context at the moment HistogramHaving's
+		// @Child(domain=GROUP_ENTITY) parameter has already flipped the locator to the group entity
+		// (`categoryGroup`). For a GROUP-typed constraint, DataLocatorResolver's
+		// `case GROUP -> parentDataLocator` means the inner locator equals the parent, so children
+		// of `groupHaving` keep resolving against `categoryGroup`.
 		final Optional<ParsedConstraintDescriptor> parsed = parser.resolve(
 			new ConstraintResolveContext(new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup"))),
 			"groupHaving"
@@ -248,30 +248,9 @@ public class ConstraintDescriptorResolverTest {
 	}
 
 	@Test
-	void shouldResolveDoubledGroupHavingKey() {
-		// the verbose, non-collapsed wire form (`groupGroupHaving`) must still resolve to the same
-		// descriptor — the first prefix-strip lookup matches `(GROUP, "groupHaving", null)` directly
-		// because GroupHaving's fullName already starts with the prefix word
-		final Optional<ParsedConstraintDescriptor> parsed = parser.resolve(
-			new ConstraintResolveContext(new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup"))),
-			"groupGroupHaving"
-		);
-		assertEquals(
-			new ParsedConstraintDescriptor(
-				"groupGroupHaving",
-				null,
-				ConstraintDescriptorProvider.getConstraint(GroupHaving.class),
-				new EntityDataLocator(new ManagedEntityTypePointer("categoryGroup"))
-			),
-			parsed.orElseThrow()
-		);
-	}
-
-	@Test
-	void shouldNotInfiniteLoopOnReprependLookupFailure() {
-		// `groupBogus` matches the "group" prefix but no constraint with fullName "bogus" or
-		// "groupBogus" exists — the re-prepend `.or(...)` fallback must terminate cleanly with
-		// Optional.empty rather than spinning forever on the word-shifting loop
+	void shouldReturnEmptyForUnknownGroupPrefixedKey() {
+		// `groupBogus` matches the "group" prefix but no GROUP-typed constraint with fullName "bogus"
+		// exists — the resolver must terminate cleanly with Optional.empty
 		assertTrue(
 			parser.resolve(
 				new ConstraintResolveContext(new ReferenceDataLocator(new ManagedEntityTypePointer(Entities.PRODUCT), Entities.CATEGORY)),

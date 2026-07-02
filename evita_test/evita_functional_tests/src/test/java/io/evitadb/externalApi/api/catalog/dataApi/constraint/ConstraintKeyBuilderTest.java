@@ -48,16 +48,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for [ConstraintKeyBuilder] pinning the wire-format key shapes the GraphQL/REST schema builders
- * emit per descriptor, with special emphasis on the duplicate-prefix collapse rule
- * (e.g. `groupGroupHaving` -> `groupHaving`).
+ * emit per descriptor.
  *
- * The collapse keeps wire keys compact when a constraint's natural Java name already encodes the
- * property-type prefix and the simplification rule (same-domain child) does not fire. The tests
- * here exercise:
+ * The tests here exercise:
  *
  * - The three documented base formats (generic, prefix-only, prefix+classifier+fullName).
- * - Duplicate-prefix collapse on real-world descriptors (`groupHaving`, `entityFetch`).
- * - The package-private collapse helper directly, branch by branch.
+ * - The parallel wire shapes of {@link EntityHaving} and {@link GroupHaving} — both use fullName
+ *   `having` and rely on the property-type prefix (`entity` / `group`) to disambiguate.
  * - Defensive premise validation when a classifier is required but no supplier is provided.
  *
  * @author JNO, FG Forrest a.s. (c) 2026
@@ -91,12 +88,12 @@ class ConstraintKeyBuilderTest {
 		}
 
 		@Test
-		@DisplayName("should build prefix-only key for non-generic constraint without classifier")
-		void shouldBuildPropertyTypePrefixedKey() {
-			// EntityHaving has ENTITY property type and no classifier; collapse fires because
-			// fullName ("having") would not start with "entity", so the literal key is `entityHaving`
+		@DisplayName("should build prefix-only key for EntityHaving (property-type prefix + `having`)")
+		void shouldBuildPrefixOnlyKeyForEntityHaving() {
+			// EntityHaving has propertyType=ENTITY (prefix="entity") and fullName="having".
+			// Rendered at REFERENCE parent (cross-domain) with no classifier — the raw join yields
+			// the wire key "entityHaving".
 			final ConstraintDescriptor descriptor = ConstraintDescriptorProvider.getConstraint(EntityHaving.class);
-			// Build at root with reference parent so EntityHaving is rendered cross-domain
 			final ConstraintBuildContext context = rootContext(referenceCategoryLocator());
 
 			final String key = ConstraintKeyBuilderTest.this.keyBuilder.build(context, descriptor, null);
@@ -105,89 +102,29 @@ class ConstraintKeyBuilderTest {
 		}
 
 		@Test
+		@DisplayName("should build prefix-only key for GroupHaving (property-type prefix + `having`)")
+		void shouldBuildPrefixOnlyKeyForGroupHaving() {
+			// GroupHaving has propertyType=GROUP (prefix="group") and fullName="having" — mirrors
+			// EntityHaving. Rendered at REFERENCE parent (cross-domain) with no classifier, the raw
+			// join yields the wire key "groupHaving".
+			final ConstraintDescriptor descriptor = ConstraintDescriptorProvider.getConstraint(GroupHaving.class);
+			final ConstraintBuildContext context = rootContext(referenceCategoryLocator());
+
+			final String key = ConstraintKeyBuilderTest.this.keyBuilder.build(context, descriptor, null);
+
+			assertEquals("groupHaving", key);
+		}
+
+		@Test
 		@DisplayName("should build prefix+classifier+fullName key when classifier supplied")
 		void shouldBuildPropertyTypePrefixClassifierFullNameKey() {
-			// AttributeEquals has ATTRIBUTE property type, requires a classifier supplier; the
-			// fullName "equals" never starts with "attribute" so the collapse does not fire
+			// AttributeEquals has ATTRIBUTE property type, requires a classifier supplier
 			final ConstraintDescriptor descriptor = ConstraintDescriptorProvider.getConstraint(AttributeEquals.class);
 			final ConstraintBuildContext context = rootContext(genericProductLocator());
 
 			final String key = ConstraintKeyBuilderTest.this.keyBuilder.build(context, descriptor, () -> "code");
 
 			assertEquals("attributeCodeEquals", key);
-		}
-	}
-
-	@Nested
-	@DisplayName("Duplicate-prefix collapse")
-	class DuplicatePrefixCollapseTest {
-
-		@Test
-		@DisplayName("should collapse doubled `group` prefix on GroupHaving rendered cross-domain")
-		void shouldCollapseDuplicatePrefixForGroupHaving() {
-			// GroupHaving has propertyType=GROUP (prefix="group") and fullName="groupHaving".
-			// Rendered at REFERENCE parent (cross-domain) with no classifier, the simplification
-			// rule does NOT fire (different domains), so the raw join would yield "groupGroupHaving";
-			// the collapse strips the doubled "group" leaving "groupHaving".
-			final ConstraintDescriptor descriptor = ConstraintDescriptorProvider.getConstraint(GroupHaving.class);
-			final ConstraintBuildContext root = rootContext(referenceCategoryLocator());
-
-			final String key = ConstraintKeyBuilderTest.this.keyBuilder.build(root, descriptor, null);
-
-			assertEquals("groupHaving", key);
-		}
-
-	}
-
-	@Nested
-	@DisplayName("Duplicate-prefix collapse helper")
-	class CollapseHelperTest {
-
-		// Direct unit tests on the package-private collapseDuplicatePrefix helper. The helper takes
-		// the leading prefix and the trailing fullName as raw strings, so these tests exercise the
-		// collapse logic in isolation — no descriptor fixture, no mocking, no schema setup.
-
-		@Test
-		@DisplayName("collapses doubled `group` prefix at a camelCase word boundary")
-		void shouldCollapseAtWordBoundary() {
-			assertEquals("Having", ConstraintKeyBuilder.collapseDuplicatePrefix("group", "groupHaving"));
-		}
-
-		@Test
-		@DisplayName("does not collapse when prefix match is not at a camelCase word boundary")
-		void shouldNotCollapsePrefixThatIsNotAWordBoundary() {
-			// Without the word-boundary guard a raw `regionMatches` would strip the leading "group"
-			// from "groupiness" leaving "iness" — a wire-format-breaking outcome. The guard requires
-			// the next character after the prefix to be uppercase (camelCase boundary).
-			assertEquals("groupiness", ConstraintKeyBuilder.collapseDuplicatePrefix("group", "groupiness"));
-		}
-
-		@Test
-		@DisplayName("does not collapse when fullName does not start with the prefix")
-		void shouldNotCollapseWhenPrefixIsNotALeadingMatch() {
-			assertEquals("equals", ConstraintKeyBuilder.collapseDuplicatePrefix("attribute", "equals"));
-		}
-
-		@Test
-		@DisplayName("does not collapse when leading prefix is empty (generic constraint)")
-		void shouldNotCollapseWhenLeadingPrefixIsEmpty() {
-			assertEquals("and", ConstraintKeyBuilder.collapseDuplicatePrefix("", "and"));
-		}
-
-		@Test
-		@DisplayName("does not collapse when fullName length equals prefix length (would yield empty)")
-		void shouldNotCollapseWhenFullNameEqualsPrefixExactly() {
-			// the `length > prefix.length` guard prevents an empty result — pin it directly
-			assertEquals("group", ConstraintKeyBuilder.collapseDuplicatePrefix("group", "group"));
-		}
-
-		@Test
-		@DisplayName("matches case-insensitively but still requires uppercase boundary")
-		void shouldMatchCaseInsensitivelyOnPrefix() {
-			// fullName starts with PASCAL_CASE in production; the case-insensitive match accepts a
-			// lowercase prefix (as fed in by ConstraintProcessingUtils) against the capitalised
-			// camelCase head — boundary check on the next character still applies
-			assertEquals("Having", ConstraintKeyBuilder.collapseDuplicatePrefix("group", "GroupHaving"));
 		}
 	}
 
@@ -239,7 +176,7 @@ class ConstraintKeyBuilderTest {
 
 	/**
 	 * Convenience factory for a Product → Category reference locator — used to render constraints
-	 * cross-domain so the simplification rule does not fire and the collapse path is exercised.
+	 * cross-domain so the simplification rule does not fire.
 	 *
 	 * @return a reference locator from Product to Category
 	 */

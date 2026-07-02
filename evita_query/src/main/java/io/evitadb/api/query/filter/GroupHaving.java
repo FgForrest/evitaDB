@@ -120,7 +120,7 @@ import java.io.Serializable;
  * @author Jan Novotný, FG Forrest a.s. (c) 2026
  */
 @ConstraintDefinition(
-	name = "groupHaving",
+	name = "having",
 	shortDescription = "The container that shifts the filtering scope to the group entity of the reference, " +
 		"allowing to filter by its attributes and other properties rather than by the reference relation " +
 		"or referenced entity attributes.",

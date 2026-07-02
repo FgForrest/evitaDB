@@ -58,10 +58,6 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
  * - `{propertyType}{fullName}` - if it's not generic constraint and doesn't have classifier
  * - `{propertyType}{classifier}{fullName}` - if it's not generic constraint and has classifier
  *
- * After concatenation, a duplicate-prefix collapse drops the leading prefix from the trailing fullName when they
- * overlap (e.g. `groupGroupHaving` collapses to `groupHaving`). The inverse happens during parsing in
- * {@link io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorResolver}.
- *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
@@ -121,42 +117,6 @@ public class ConstraintKeyBuilder {
 		for (int i = 1; i < keyBuilder.size(); i++) {
 			keyBuilder.set(i, StringUtils.toSpecificCase(keyBuilder.get(i), PROPERTY_NAME_PART_NAMING_CONVENTION));
 		}
-
-		// only collapse when prefix and fullName are adjacent (no classifier between them) — a
-		// classifier-bearing key (size==3) would compare prefix against fullName across the
-		// classifier and could silently mangle the wire key for a future classifier'd constraint
-		// whose fullName happens to start with its property-type prefix
-		if (keyBuilder.size() == 2) {
-			keyBuilder.set(1, collapseDuplicatePrefix(keyBuilder.get(0), keyBuilder.get(1)));
-		}
 		return String.join("", keyBuilder);
-	}
-
-	/**
-	 * Drops `leadingPrefix` from the start of `fullNamePart` when they overlap at a camelCase word
-	 * boundary, returning the trimmed remainder; otherwise returns `fullNamePart` unchanged. The
-	 * resolver re-prepends the prefix on lookup (see `ConstraintDescriptorResolver`), so the
-	 * round-trip is preserved even when the verbose form is sent over the wire.
-	 *
-	 * The word-boundary check (next character uppercase) prevents stripping a raw character prefix
-	 * that bleeds into a different word — without it, a hypothetical descriptor named `groupiness`
-	 * would emit the wire-broken key `iness`. The trailing `fullNamePart` is in PASCAL_CASE here,
-	 * so an uppercase next character reliably marks a word boundary.
-	 *
-	 * @param leadingPrefix the first segment of the assembled key (typically the property-type prefix
-	 *                      such as `group` or `entity`); may be empty for generic constraints
-	 * @param fullNamePart  the trailing segment of the assembled key (the constraint's `fullName`)
-	 * @return `fullNamePart` with `leadingPrefix` stripped if it overlaps at a camelCase boundary,
-	 *         otherwise `fullNamePart` unchanged
-	 */
-	@Nonnull
-	static String collapseDuplicatePrefix(@Nonnull String leadingPrefix, @Nonnull String fullNamePart) {
-		if (!leadingPrefix.isEmpty() &&
-			fullNamePart.length() > leadingPrefix.length() &&
-			fullNamePart.regionMatches(true, 0, leadingPrefix, 0, leadingPrefix.length()) &&
-			Character.isUpperCase(fullNamePart.charAt(leadingPrefix.length()))) {
-			return fullNamePart.substring(leadingPrefix.length());
-		}
-		return fullNamePart;
 	}
 }

@@ -257,10 +257,8 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 	void shouldResolveHistogramHavingFullArityWithGroupSelector() {
 		// full-arity histogramHaving with a groupHaving child — the `@Child GroupHaving groupHaving`
 		// parameter is single-variant, so the GraphQL/REST schema flattens the field name to the
-		// parameter name `groupHaving`, and the inner constraint key simplifies to `groupHaving`
-		// (since GroupHaving's domain matches HistogramHaving's parent domain — see
-		// ConstraintKeyBuilder.build's simplification rule). The resolver finds the value via the
-		// simplified constraint key.
+		// parameter name `groupHaving`, and the inner constraint key is `groupHaving` (the `group`
+		// property-type prefix combined with GroupHaving's fullName `having`, mirroring EntityHaving).
 		assertEquals(
 			histogramHaving(
 				"CATEGORY",

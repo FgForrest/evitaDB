@@ -125,30 +125,6 @@ class ConstraintDescriptorResolver {
 					}
 					return Optional.empty();
 				})
-				// Inverse of ConstraintKeyBuilder's duplicate-prefix collapse: when the key-builder stripped
-				// a doubled prefix, the parser sees a truncated fullName and we re-add the prefix here.
-				// The collapse fires only when there is no classifier, so we preserve that pre-condition
-				// on the lookup.
-				//
-				// Gate on iter-1 only (`classifierWords.isEmpty()`): once classifier-shifting has begun,
-				// the right resolution path is the shifted lookup — re-prepending here cannot help and
-				// only wastes a Map probe per iteration. `possibleClassifier == null` already implies
-				// the same thing today via `constructClassifier(empty)=Optional.empty`, but the explicit
-				// `classifierWords.isEmpty()` check makes the iter-1 contract self-evident and resilient
-				// to future changes in classifier construction semantics.
-				.or(() -> {
-					if (!prefixPart.isEmpty() && possibleClassifier == null && !possibleFullName.isEmpty()
-						&& classifierWords.isEmpty()) {
-						final String reconstructedFullName = prefixPart + StringUtils.capitalize(possibleFullName);
-						return ConstraintDescriptorProvider.getConstraint(
-							this.constraintType,
-							derivedPropertyType,
-							reconstructedFullName,
-							null
-						);
-					}
-					return Optional.empty();
-				})
 				.orElse(null);
 
 			if (constraintDescriptor == null) {

@@ -232,8 +232,8 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		// child — the outer wrapper is the @Child parameter name `groupHaving` (schema flattens
 		// single-variant concrete @Child to the parameter name). The inner constraint key is
 		// `groupHaving` — the descriptor key builder applies the `group` prefix derived from
-		// `GroupConstraint` and then the duplicate-prefix collapse strips the doubled "group"
-		// from the fullName, leaving the compact form `groupHaving`.
+		// `GroupConstraint` to the fullName `having`, mirroring how EntityHaving becomes
+		// `entityHaving`.
 		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
 		wrapperObject.putIfAbsent("histogramName", jsonNodeFactory.textNode("basicUnitValue"));
 		wrapperObject.putIfAbsent("from", jsonNodeFactory.numberNode(50));
