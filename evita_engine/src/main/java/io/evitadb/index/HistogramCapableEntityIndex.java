@@ -63,31 +63,51 @@ public interface HistogramCapableEntityIndex {
 	 * Inserts a histogram value for the given owner entity. Delegates to the appropriate
 	 * {@link HistogramIndex}, creating it lazily if needed.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param locale        the locale for localized histograms, or `null` for non-localized
-	 * @param value         the histogram value in its original numeric type
-	 * @param ownerPK       the primary key of the owner entity
-	 * @param valueType     the numeric type of the value (used for lazy index creation)
+	 * This is the single scale-normalization boundary for histogram-index writes: the supplied
+	 * `value` is re-encoded to `indexedDecimalPlaces` via
+	 * {@link io.evitadb.utils.NumberUtils#normalizeForIndexing(Serializable, int)} before storage,
+	 * symmetric to how {@code AttributeIndexMutator.executeAttributeUpsert} is the boundary for the
+	 * standard attribute-index path. Callers therefore pass the value in its raw type and the source
+	 * attribute schema's indexed decimal places — they must NOT pre-normalize.
+	 *
+	 * @param histogramName        the name of the histogram definition
+	 * @param locale               the locale for localized histograms, or `null` for non-localized
+	 * @param value                the histogram value in its original type (a `Number` for plain numeric
+	 *                             attributes or a `Range` instance for Range-typed attributes)
+	 * @param ownerPK              the primary key of the owner entity
+	 * @param valueType            the plain type of the value (used for lazy index creation)
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places — the scale at
+	 *                             which `BigDecimal`/`BigDecimalNumberRange` values are encoded
 	 */
 	void insertHistogramValue(
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	);
 
 	/**
 	 * Removes a histogram value for the given owner entity. Delegates to the appropriate
 	 * {@link HistogramIndex} and removes it from the map if it becomes empty.
 	 *
-	 * @param histogramName the name of the histogram definition
-	 * @param locale        the locale for localized histograms, or `null` for non-localized
-	 * @param value         the histogram value in its original numeric type
-	 * @param ownerPK       the primary key of the owner entity
+	 * Applies the same `indexedDecimalPlaces` normalization as {@link #insertHistogramValue} so the
+	 * removed value's encoded form matches what was stored — insert and remove must stay symmetric.
+	 *
+	 * @param histogramName        the name of the histogram definition
+	 * @param locale               the locale for localized histograms, or `null` for non-localized
+	 * @param value                the histogram value in its original numeric type
+	 * @param ownerPK              the primary key of the owner entity
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places — must match
+	 *                             the scale used at insert time
 	 */
 	void removeHistogramValue(
-		@Nonnull String histogramName, @Nullable Locale locale, @Nonnull Serializable value, int ownerPK
+		@Nonnull String histogramName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		int ownerPK,
+		int indexedDecimalPlaces
 	);
 
 }

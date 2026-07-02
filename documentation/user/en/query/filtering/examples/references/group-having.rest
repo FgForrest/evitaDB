@@ -2,20 +2,29 @@ POST /rest/evita/Product/query
 
 {
   "filterBy" : {
-    "referenceBrandHaving" : [
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "macbooks"
+      }
+    },
+    "referenceParameterValuesHaving" : [
       {
-        "groupHaving" : {
-          "attributeCodeEquals" : "TODO JNO"
+        "entityGroupHaving" : {
+          "attributeCodeEquals" : "ram-memory"
         }
       }
     ]
   },
   "require" : {
+    "page" : {
+      "number" : 1,
+      "size" : 5
+    },
     "entityFetch" : {
       "attributeContent" : [
         "code"
       ],
-      "referenceBrandContent" : {
+      "referenceParameterValuesContentWithAttributes" : {
         "entityFetch" : {
           "attributeContent" : [
             "code"
@@ -25,6 +34,11 @@ POST /rest/evita/Product/query
           "attributeContent" : [
             "code"
           ]
+        },
+        "filterBy" : {
+          "entityHaving" : {
+            "attributeCodeStartsWith" : "ram-memory"
+          }
         }
       }
     }

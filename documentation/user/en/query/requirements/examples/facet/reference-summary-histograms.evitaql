@@ -1,0 +1,21 @@
+query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "e-readers")
+        ),
+        entityLocaleEquals("en")
+    ),
+    require(
+        page(1, 5),
+        entityFetch(attributeContent("code")),
+        referenceSummaryOfReferenceWithHistograms(
+            "parameterValues",
+            COUNTS,
+            entityFetch(attributeContent("code")),
+            entityGroupFetch(attributeContent("code")),
+            histogramStatistics(20, "intervalParameterValues")
+        )
+    )
+)

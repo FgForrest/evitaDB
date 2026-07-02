@@ -28,15 +28,20 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Range;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -44,6 +49,7 @@ import io.evitadb.index.invertedIndex.InvertedIndex.MonotonicRowCorruptedExcepti
 import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
@@ -57,13 +63,18 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Array;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.Currency;
+import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -79,10 +90,36 @@ import static java.util.Optional.ofNullable;
  */
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, IndexDataStructure, Serializable {
-	public static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
-	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
-	public static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
+	private static final String ERROR_RANGE_TYPE_NOT_SUPPORTED = "This filter index doesn't handle Range type!";
+	static final Comparator<Comparable> DEFAULT_COMPARATOR = Comparator.naturalOrder();
+
+	public static final Function<Object, Serializable> NO_NORMALIZATION = Serializable.class::cast;
+
+	/**
+	 * Aggregation lambda used by {@link #getRangeHistogramOfAllRecords(Class, int)} when producing the subset's
+	 * {@link InvertedIndexSubSet#getFormula()}. Range histogram buckets overlap by design (a single record may
+	 * span multiple thresholds and therefore appear in multiple buckets), so an `OR` over each bucket's
+	 * `recordIds` is the correct distinct-union aggregator. Empty / single-bucket inputs short-circuit to avoid
+	 * spurious formula tree allocations.
+	 */
+	private static final BiFunction<Long, ValueToRecordBitmap[], Formula> RANGE_HISTOGRAM_AGGREGATION_LAMBDA =
+		(indexTransactionId, histogramBuckets) -> {
+			if (histogramBuckets.length == 0) {
+				return EmptyFormula.INSTANCE;
+			}
+			final Bitmap[] bitmaps = new Bitmap[histogramBuckets.length];
+			for (int i = 0; i < histogramBuckets.length; i++) {
+				bitmaps[i] = histogramBuckets[i].getRecordIds();
+			}
+			if (bitmaps.length == 1) {
+				return bitmaps[0].isEmpty()
+					? EmptyFormula.INSTANCE
+					: new ConstantFormula(bitmaps[0]);
+			}
+			return new OrFormula(new long[] {indexTransactionId}, bitmaps);
+		};
+
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains key identifying the attribute.
@@ -123,6 +160,18 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * needs to perform costly join of all internally held bitmaps and that's why we memoize the result.
 	 */
 	@Nullable private transient Formula memoizedAllRecordsFormula;
+	/**
+	 * Memoized result of {@link #getRangeHistogramOfAllRecords(Class, int)}. The cached subset is keyed implicitly
+	 * by the leaf's {@link RangeIndex} state — the steady-state query path against an unchanged leaf pays zero
+	 * allocation. Set to `null` whenever the index is mutated outside a transaction (mirrors
+	 * {@link #memoizedAllRecordsFormula}); the merged-transactional copy starts fresh.
+	 *
+	 * The inner numeric type passed by callers is invariant for a given leaf — it is derived from
+	 * {@link #attributeType} via {@link EvitaDataTypes#resolveRangeInnerNumericType(Class)} — so it does not
+	 * need to be tracked alongside the cached subset; a fail-fast assertion in
+	 * {@link #getRangeHistogramOfAllRecords(Class, int)} guards against schema/index drift.
+	 */
+	@Nullable private transient InvertedIndexSubSet memoizedRangeHistogramSubSet;
 
 	/**
 	 * Verifies that the provided value is an array of Serializable objects and
@@ -213,6 +262,77 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		} else {
 			return DEFAULT_COMPARATOR;
 		}
+	}
+
+	/**
+	 * Converts a `RangeIndex` `long` threshold back into the source attribute's natural numeric type. The
+	 * threshold originated from a `NumberRange` subtype's `getFrom()` / `getTo()` and is therefore guaranteed
+	 * to fit into the destination type for `Byte`, `Short`, `Integer`, `Long`. For `BigDecimal`, the encoding
+	 * is `value.setScale(places, HALF_UP).scaleByPowerOfTen(places).longValueExact()` (see
+	 * {@link BigDecimalNumberRange#toComparableLong(BigDecimal, int, long)}), and the inverse is
+	 * `BigDecimal.valueOf(threshold, places)` — same magnitude, restored scale.
+	 *
+	 * @param threshold             the `long` value sourced from `TransactionalRangePoint.getThreshold()`
+	 * @param innerNumericType      the inner numeric type to materialize
+	 * @param retainedDecimalPlaces decimal-places scale used by `BigDecimalNumberRange` to encode the
+	 *                              threshold; ignored for non-`BigDecimal` inner types
+	 * @return the bucket key value as a `Serializable` instance of `innerNumericType`
+	 */
+	@Nonnull
+	static Serializable toBucketKey(
+		long threshold,
+		@Nonnull Class<? extends Number> innerNumericType,
+		int retainedDecimalPlaces
+	) {
+		if (innerNumericType == Byte.class) {
+			return (byte) threshold;
+		} else if (innerNumericType == Short.class) {
+			return (short) threshold;
+		} else if (innerNumericType == Integer.class) {
+			return (int) threshold;
+		} else if (innerNumericType == Long.class) {
+			return threshold;
+		} else if (innerNumericType == BigDecimal.class) {
+			return BigDecimal.valueOf(threshold, retainedDecimalPlaces);
+		} else {
+			throw new GenericEvitaInternalError(
+				"Unsupported inner numeric type for range histogram: " + innerNumericType.getName() +
+					" — only Byte, Short, Integer, Long, BigDecimal are valid Range source types."
+			);
+		}
+	}
+
+	/**
+	 * Converts a histogram boundary value back into its `long` threshold for `RangeIndex` lookups.
+	 * This is the inverse of {@link #toBucketKey(long, Class, int)}: any value previously emitted
+	 * by the bucket-key encoder will round-trip through this method to recover the original
+	 * `long` threshold that fed it.
+	 *
+	 * Encoding contract for `BigDecimal`: bucket-keys emitted as
+	 * `BigDecimal.valueOf(threshold, retainedDecimalPlaces)` carry an intrinsic scale equal to
+	 * `retainedDecimalPlaces`, so reversing the scale via `scaleByPowerOfTen` recovers the
+	 * original `long` without needing the decimal-places parameter explicitly.
+	 *
+	 * @param value the boundary value emitted by the histogram sweep — one of Byte, Short,
+	 *              Integer, Long, BigDecimal
+	 * @return the comparable long-encoded threshold
+	 */
+	public static long fromBucketKey(@Nonnull Serializable value) {
+		if (value instanceof BigDecimal bd) {
+			// inverse of `BigDecimal.valueOf(threshold, retainedDecimalPlaces)` in toBucketKey;
+			// round-trip keys always carry scale >= 0, so the Math.max is a no-op there — it is a
+			// belt-and-suspenders guard for direct callers passing externally-built negative-scale
+			// BigDecimals (e.g. `1E+2`, scale -2) so those still decode to the correct long
+			final int scale = Math.max(bd.scale(), 0);
+			return bd.scaleByPowerOfTen(scale).longValueExact();
+		}
+		if (value instanceof Number n) {
+			return n.longValue();
+		}
+		throw new GenericEvitaInternalError(
+			"Cannot convert histogram boundary value `" + value + "` of type `" +
+				value.getClass().getName() + "` to a long threshold — only numeric scalar types are supported."
+		);
 	}
 
 	public FilterIndex(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<?> attributeType) {
@@ -409,6 +529,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 		if (!isTransactionAvailable()) {
 			this.memoizedAllRecordsFormula = null;
+			this.memoizedRangeHistogramSubSet = null;
 		}
 		this.dirty.setToTrue();
 	}
@@ -446,6 +567,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 		if (!isTransactionAvailable()) {
 			this.memoizedAllRecordsFormula = null;
+			this.memoizedRangeHistogramSubSet = null;
 		}
 		this.dirty.setToTrue();
 	}
@@ -487,6 +609,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 		if (!isTransactionAvailable()) {
 			this.memoizedAllRecordsFormula = null;
+			this.memoizedRangeHistogramSubSet = null;
 		}
 		this.dirty.setToTrue();
 	}
@@ -525,6 +648,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 		if (!isTransactionAvailable()) {
 			this.memoizedAllRecordsFormula = null;
+			this.memoizedRangeHistogramSubSet = null;
 		}
 		this.dirty.setToTrue();
 	}
@@ -565,6 +689,107 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
+	 * Returns a histogram subset built from this filter index's {@link RangeIndex} companion by performing
+	 * a forward sweep over the sorted ranges. The emitted buckets are keyed by the source attribute's natural
+	 * numeric type (`Byte`, `Short`, `Integer`, `Long`, `BigDecimal`) and follow closed-interval semantics:
+	 * a record whose range is `[a, b]` participates in every bucket `V` such that `a <= V <= b`.
+	 *
+	 * The sentinel thresholds `Long.MIN_VALUE` and `Long.MAX_VALUE` that {@link RangeIndex} always carries do
+	 * not emit a bucket of their own (they cannot be materialized as the inner numeric type), but their
+	 * `starts` / `ends` bitmaps are still applied to the rolling active set so that records with open-ended
+	 * ranges (`from == null` / `to == null`) participate in / exit the appropriate buckets. The result is
+	 * memoized — outside transactions, repeated calls return the cached subset; on mutation the cache is
+	 * invalidated alongside {@link #memoizedAllRecordsFormula}.
+	 *
+	 * Throws {@link GenericEvitaInternalError} when invoked on a filter index that has no range companion.
+	 *
+	 * @param innerNumericType      the inner numeric type of the source `NumberRange` (e.g. `Integer` for
+	 *                              `IntegerNumberRange`); used to materialize bucket keys
+	 * @param retainedDecimalPlaces decimal-places scale used by `BigDecimalNumberRange` to encode its
+	 *                              `long` threshold; ignored for all other inner numeric types
+	 * @return histogram subset whose `ValueToRecordBitmap[]` is sorted ascending by threshold
+	 */
+	@Nonnull
+	public InvertedIndexSubSet getRangeHistogramOfAllRecords(
+		@Nonnull Class<? extends Number> innerNumericType,
+		int retainedDecimalPlaces
+	) {
+		if (this.rangeIndex == null) {
+			throw new GenericEvitaInternalError(
+				"getRangeHistogramOfAllRecords called on a FilterIndex without a RangeIndex companion " +
+					"(attribute `" + this.attributeIndexKey + "`)."
+			);
+		}
+		// the inner numeric type is fully determined by the leaf's attribute type — a mismatch
+		// here can only originate from schema/index drift or a caller bug, so fail fast instead
+		// of silently recomputing under a divergent key
+		final Class<? extends Number> expectedInnerType =
+			EvitaDataTypes.resolveRangeInnerNumericType(this.attributeType);
+		if (expectedInnerType != innerNumericType) {
+			throw new GenericEvitaInternalError(
+				"getRangeHistogramOfAllRecords called with innerNumericType `" + innerNumericType +
+					"` but FilterIndex attributeType `" + this.attributeType.getName() +
+					"` resolves to inner type `" + expectedInnerType +
+					"` (attribute `" + this.attributeIndexKey + "`) — schema/index drift."
+			);
+		}
+		// memoization fast-path: only outside transactions; mutation invalidates the cache
+		if (!isTransactionAvailable() && this.memoizedRangeHistogramSubSet != null) {
+			return this.memoizedRangeHistogramSubSet;
+		}
+		// pre-size the buffer to the exact bucket count to avoid grow-copies during the sweep;
+		// outside transactions `getRangePointCount()` is O(1) and yields a tight upper bound
+		// (point count minus the two skipped sentinels). Inside transactions the call would
+		// force a merge, so fall back to a constant hint there.
+		final int capacityHint = isTransactionAvailable()
+			? 16
+			: Math.max(16, this.rangeIndex.getRangePointCount() - 2);
+		final List<ValueToRecordBitmap> buckets = new ArrayList<>(capacityHint);
+		// the active set is mutated in place; we snapshot via clone() into each emitted bucket
+		final BaseBitmap activeSet = new BaseBitmap();
+		final Iterator<TransactionalRangePoint> iterator = this.rangeIndex.rangesIterator();
+		while (iterator.hasNext()) {
+			final TransactionalRangePoint point = iterator.next();
+			final long threshold = point.getThreshold();
+			final Bitmap starts = point.getStarts();
+			if (!starts.isEmpty()) {
+				activeSet.addAll(starts);
+			}
+			// sentinel thresholds (Long.MIN_VALUE / Long.MAX_VALUE) cannot be materialized as
+			// bucket keys — they would overflow the inner numeric type. Their `starts` / `ends`
+			// bitmaps MUST still mutate the active set, however: records with open-ended ranges
+			// (`from == null` -> `Long.MIN_VALUE`; `to == null` -> `Long.MAX_VALUE`) are
+			// registered exclusively on the sentinel points, and skipping them entirely would
+			// drop unbounded-from records from every bucket
+			if (threshold != Long.MIN_VALUE && threshold != Long.MAX_VALUE) {
+				// snapshot BEFORE removing ends to honor closed-interval semantics — a single-point range
+				// (from == to) carries the record in both `starts` and `ends`, so the bucket emitted here
+				// must include it before the upcoming `removeAll(ends)` strips it
+				buckets.add(
+					new ValueToRecordBitmap(
+						toBucketKey(threshold, innerNumericType, retainedDecimalPlaces),
+						new BaseBitmap(activeSet)
+					)
+				);
+			}
+			final Bitmap ends = point.getEnds();
+			if (!ends.isEmpty()) {
+				activeSet.removeAll(ends);
+			}
+		}
+		final ValueToRecordBitmap[] bucketArray = buckets.toArray(new ValueToRecordBitmap[0]);
+		final InvertedIndexSubSet result = new InvertedIndexSubSet(
+			getId(),
+			bucketArray,
+			RANGE_HISTOGRAM_AGGREGATION_LAMBDA
+		);
+		if (!isTransactionAvailable()) {
+			this.memoizedRangeHistogramSubSet = result;
+		}
+		return result;
+	}
+
+	/**
 	 * Returns all records present in filter index as {@link Bitmap}.
 	 */
 	@Nonnull
@@ -574,14 +799,23 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 	/**
 	 * Returns all records present in filter index as {@link AbstractFormula}.
+	 *
+	 * The returned formula is an opaque {@link ConstantFormula} wrapping the materialized bitmap (or
+	 * {@link EmptyFormula#INSTANCE} when the index has no records). Returning a flat constant rather than the
+	 * raw OR-of-buckets tree from {@link InvertedIndexSubSet#getFormula()} prevents query-planner rewrites that
+	 * would otherwise distribute surrounding {@code NOT(OR(b₁..b_N), U)} via De Morgan into a wide
+	 * {@code AND(NOT b₁ ... NOT b_N)} — a transformation that explodes cost for high-cardinality indexes.
 	 */
 	public Formula getAllRecordsFormula() {
 		// if there is transaction open, there might be changes in the histogram data, and we can't easily use cache
 		if (isTransactionAvailable() && this.dirty.isTrue()) {
-			return getHistogramOfAllRecords().getFormula();
+			final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
+			return allRecords.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 		} else {
 			if (this.memoizedAllRecordsFormula == null) {
-				this.memoizedAllRecordsFormula = getHistogramOfAllRecords().getFormula();
+				final Bitmap allRecords = getHistogramOfAllRecords().getFormula().compute();
+				this.memoizedAllRecordsFormula = allRecords.isEmpty() ?
+					EmptyFormula.INSTANCE : new ConstantFormula(allRecords);
 			}
 			return this.memoizedAllRecordsFormula;
 		}
@@ -723,6 +957,16 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	public Formula getRecordsValidInFormula(long thePoint) {
 		Assert.notNull(this.rangeIndex, ERROR_RANGE_TYPE_NOT_SUPPORTED);
 		return this.rangeIndex.getRecordsEnvelopingInclusive(thePoint);
+	}
+
+	/**
+	 * Cache-aware variant of {@link #getRecordsValidInFormula(long)} intended for the
+	 * {@code attributeInRangeNow} flow. Delegates to {@link RangeIndex#getRecordsValidNowFormula(long)}
+	 * which memoizes the materialized bitmap for the interval of {@code now} values that yield the same result.
+	 */
+	public Formula getRecordsValidNowFormula(long thePoint) {
+		Assert.notNull(this.rangeIndex, ERROR_RANGE_TYPE_NOT_SUPPORTED);
+		return this.rangeIndex.getRecordsValidNowFormula(thePoint);
 	}
 
 	/**

@@ -86,6 +86,7 @@ import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.compu
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -705,6 +706,273 @@ class OffsetIndexTest implements EvitaTestSupport {
 		}
 	}
 
+	@DisplayName("count() should return the correct value at a catalog version that was never flushed")
+	@Test
+	void shouldReturnCorrectCountAtUnflushedCatalogVersionBetweenHistoricalVersions() {
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.temporary(),
+			DEFAULT_TRANSACTION_OPTIONS
+		);
+		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+			final OffsetIndex offsetIndex = createNewOffsetIndex(
+				0L,
+				storageSettings,
+				createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry
+			);
+			try {
+				// version 1: insert R1, flush
+				offsetIndex.put(1L, new EntityBodyStoragePart(1));
+				offsetIndex.flush(1L);
+				// version 2: insert R2, flush
+				offsetIndex.put(2L, new EntityBodyStoragePart(2));
+				offsetIndex.flush(2L);
+				// no activity at version 3 — create a gap in historicalVersions
+				// version 4: insert R4, flush
+				offsetIndex.put(4L, new EntityBodyStoragePart(4));
+				offsetIndex.flush(4L);
+
+				// sanity: count at each recorded version
+				assertEquals(1, offsetIndex.count(1L), "count at v1 should see only R1");
+				assertEquals(2, offsetIndex.count(2L), "count at v2 should see R1, R2");
+				assertEquals(3, offsetIndex.count(4L), "count at v4 should see R1, R2, R4");
+
+				// the bug: querying the gap version 3 incorrectly returned 3 (the current keyToLocations size)
+				// because the binary search insertion point was excluded from the diff-subtraction loop
+				assertEquals(
+					2,
+					offsetIndex.count(3L),
+					"count at gap version 3 should match count at v2 (no records were added at v3)"
+				);
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+		}
+	}
+
+	@DisplayName("count() should return the correct value at a catalog version older than every historical entry")
+	@Test
+	void shouldReturnCorrectCountAtCatalogVersionPrecedingAllHistoricalVersions() {
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.temporary(),
+			DEFAULT_TRANSACTION_OPTIONS
+		);
+		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+			final OffsetIndex offsetIndex = createNewOffsetIndex(
+				0L,
+				storageSettings,
+				createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry
+			);
+			try {
+				// only one flushed version — simulates the state right after compaction discards older
+				// historicalVersions while keyToLocations still holds records
+				offsetIndex.put(5L, new EntityBodyStoragePart(1));
+				offsetIndex.put(5L, new EntityBodyStoragePart(2));
+				offsetIndex.flush(5L);
+
+				// querying any catalog version preceding hv[0]=5 should subtract every diff and return
+				// the state that existed before flush(5) — empty
+				assertEquals(0, offsetIndex.count(3L), "count at v3 should be 0 (nothing was added before v5)");
+				assertEquals(0, offsetIndex.count(4L), "count at v4 should be 0 (nothing was added before v5)");
+				assertEquals(2, offsetIndex.count(5L), "count at v5 should see both records");
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+		}
+	}
+
+	@DisplayName("get() should resolve a record at past catalog versions across flushes")
+	@Test
+	void shouldResolveGetAtPastCatalogVersionAcrossFlushes() {
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.temporary(),
+			DEFAULT_TRANSACTION_OPTIONS
+		);
+		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+			final OffsetIndex offsetIndex = createNewOffsetIndex(
+				0L,
+				storageSettings,
+				createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry
+			);
+			try {
+				final EntityBodyStoragePart originalR1 = bodyPartWithLocale(1, 1, Locale.ENGLISH);
+				final EntityBodyStoragePart updatedR1 = bodyPartWithLocale(2, 1, Locale.GERMAN);
+
+				// version 1: insert R1, flush
+				offsetIndex.put(1L, originalR1);
+				offsetIndex.flush(1L);
+				// version 2: overwrite R1 with a distinguishable payload, flush
+				offsetIndex.put(2L, updatedR1);
+				offsetIndex.flush(2L);
+				// version 3: remove an unrelated record R2 so the historical state advances again
+				offsetIndex.put(3L, new EntityBodyStoragePart(2));
+				offsetIndex.remove(3L, 2, EntityBodyStoragePart.class);
+				offsetIndex.flush(3L);
+
+				assertEquals(
+					originalR1,
+					offsetIndex.get(1L, 1, EntityBodyStoragePart.class),
+					"get at v1 should return the original payload"
+				);
+				assertEquals(
+					updatedR1,
+					offsetIndex.get(2L, 1, EntityBodyStoragePart.class),
+					"get at v2 should return the overwritten payload"
+				);
+				assertEquals(
+					updatedR1,
+					offsetIndex.get(3L, 1, EntityBodyStoragePart.class),
+					"get at the current version should return the latest payload"
+				);
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+		}
+	}
+
+	@DisplayName("contains() should resolve presence at past and future catalog versions")
+	@Test
+	void shouldResolveContainsAtPastAndFutureCatalogVersions() {
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.temporary(),
+			DEFAULT_TRANSACTION_OPTIONS
+		);
+		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+			final OffsetIndex offsetIndex = createNewOffsetIndex(
+				0L,
+				storageSettings,
+				createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry
+			);
+			try {
+				// establish an earlier flushed version so v1 precedes the record's insertion
+				offsetIndex.put(1L, new EntityBodyStoragePart(9));
+				offsetIndex.flush(1L);
+				// version 2: insert R, flush
+				offsetIndex.put(2L, new EntityBodyStoragePart(1));
+				offsetIndex.flush(2L);
+
+				assertFalse(
+					offsetIndex.contains(1L, 1, EntityBodyStoragePart.class),
+					"contains at v1 should be false (R was added at v2)"
+				);
+				assertTrue(
+					offsetIndex.contains(2L, 1, EntityBodyStoragePart.class),
+					"contains at v2 should be true"
+				);
+
+				// version 3: remove R, flush
+				offsetIndex.remove(3L, 1, EntityBodyStoragePart.class);
+				offsetIndex.flush(3L);
+
+				assertTrue(
+					offsetIndex.contains(2L, 1, EntityBodyStoragePart.class),
+					"contains at v2 should still be true after later removal"
+				);
+				assertFalse(
+					offsetIndex.contains(3L, 1, EntityBodyStoragePart.class),
+					"contains at v3 should be false after removal"
+				);
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+		}
+	}
+
+	@DisplayName("getBinary() should resolve a record at past catalog versions across flushes")
+	@Test
+	void shouldResolveGetBinaryAtPastCatalogVersionAcrossFlushes() {
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.temporary(),
+			DEFAULT_TRANSACTION_OPTIONS
+		);
+		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+			final OffsetIndex offsetIndex = createNewOffsetIndex(
+				0L,
+				storageSettings,
+				createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry
+			);
+			try {
+				final EntityBodyStoragePart originalR1 = bodyPartWithLocale(1, 1, Locale.ENGLISH);
+				final EntityBodyStoragePart updatedR1 = bodyPartWithLocale(2, 1, Locale.GERMAN);
+
+				// version 1: insert R1, flush
+				offsetIndex.put(1L, originalR1);
+				offsetIndex.flush(1L);
+				// version 2: overwrite R1 with a distinguishable payload, flush
+				offsetIndex.put(2L, updatedR1);
+				offsetIndex.flush(2L);
+				// version 3: remove an unrelated record R2 so the historical state advances again
+				offsetIndex.put(3L, new EntityBodyStoragePart(2));
+				offsetIndex.remove(3L, 2, EntityBodyStoragePart.class);
+				offsetIndex.flush(3L);
+
+				final VersionedKryo kryo = createKryo()
+					.apply(new VersionedKryoKeyInputs(offsetIndex.getReadOnlyKeyCompressor(), 1));
+
+				assertEquals(
+					originalR1,
+					deserialize(kryo, offsetIndex.getBinary(1L, 1, EntityBodyStoragePart.class)),
+					"getBinary at v1 should return the original payload"
+				);
+				assertEquals(
+					updatedR1,
+					deserialize(kryo, offsetIndex.getBinary(2L, 1, EntityBodyStoragePart.class)),
+					"getBinary at v2 should return the overwritten payload"
+				);
+				assertEquals(
+					updatedR1,
+					deserialize(kryo, offsetIndex.getBinary(3L, 1, EntityBodyStoragePart.class)),
+					"getBinary at the current version should return the latest payload"
+				);
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+		}
+	}
+
+	@DisplayName("flush() with no intervening writes should advance the key catalog version")
+	@Test
+	void shouldAdvanceKeyCatalogVersionOnEmptyFlush() {
+		final StorageSettings storageSettings = new StorageSettings(
+			StorageOptions.temporary(),
+			DEFAULT_TRANSACTION_OPTIONS
+		);
+		try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+			final OffsetIndex offsetIndex = createNewOffsetIndex(
+				0L,
+				storageSettings,
+				createWriteOnlyFileHandle(this.targetFile, storageSettings, observableOutputKeeper),
+				this.offsetIndexRecordTypeRegistry
+			);
+			try {
+				final EntityBodyStoragePart r1 = new EntityBodyStoragePart(1);
+				// version 1: insert R1, flush
+				offsetIndex.put(1L, r1);
+				offsetIndex.flush(1L);
+				// version 2: empty flush — advances the key catalog version with no writes
+				offsetIndex.flush(2L);
+
+				assertEquals(
+					r1,
+					offsetIndex.get(1L, 1, EntityBodyStoragePart.class),
+					"get at v1 should still return R1 after an empty flush"
+				);
+				assertEquals(
+					r1,
+					offsetIndex.get(2L, 1, EntityBodyStoragePart.class),
+					"get at the advanced version should resolve R1 from current state"
+				);
+				assertEquals(1, offsetIndex.count(2L), "count at v2 should still see R1");
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+		}
+	}
+
 	@DisplayName("No operation should be allowed after close")
 	@Test
 	void shouldRefuseOperationAfterClose() {
@@ -833,6 +1101,45 @@ class OffsetIndexTest implements EvitaTestSupport {
 			this.offsetIndexRecordTypeRegistry
 		);
 		return createRecordsInFileOffsetIndex(fileOffsetIndex, recordCount, removedRecords, iterationCount);
+	}
+
+	/**
+	 * Builds an {@link EntityBodyStoragePart} that is distinguishable by its `version` and `locales`
+	 * while sharing the supplied `primaryKey`. This lets a test overwrite a record at the same key
+	 * with a payload that is not {@link Object#equals(Object) equal} to the previous one.
+	 *
+	 * @param version    entity version stored in the payload
+	 * @param primaryKey primary key shared across overwrites of the same record
+	 * @param locale     single locale used to make the payload distinguishable
+	 * @return a new, immutable payload instance
+	 */
+	@Nonnull
+	private static EntityBodyStoragePart bodyPartWithLocale(int version, int primaryKey,
+		@Nonnull Locale locale) {
+		return new EntityBodyStoragePart(
+			version,
+			primaryKey,
+			Scope.LIVE,
+			null,
+			new HashSet<>(Set.of(locale)),
+			new HashSet<>(),
+			new HashSet<>(),
+			-1
+		);
+	}
+
+	/**
+	 * Deserializes the binary payload returned by {@link OffsetIndex#getBinary(long, long, Class)}
+	 * back into an {@link EntityBodyStoragePart} using the supplied configured {@link VersionedKryo}.
+	 *
+	 * @param kryo   configured Kryo instance bound to the index key compressor
+	 * @param binary serialized payload (never `null` in the covered scenarios)
+	 * @return the deserialized payload
+	 */
+	@Nonnull
+	private static EntityBodyStoragePart deserialize(@Nonnull VersionedKryo kryo,
+		@Nonnull byte[] binary) {
+		return kryo.readObject(new Input(binary), EntityBodyStoragePart.class);
 	}
 
 	private enum ChecksumCheck {

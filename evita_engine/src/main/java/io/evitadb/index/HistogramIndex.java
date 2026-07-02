@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -37,8 +38,6 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.BiConsumer;
-
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 
 /**
  * Abstract transactional data structure encapsulating a single named histogram definition.
@@ -97,12 +96,13 @@ public abstract class HistogramIndex
 	 * to decide when to actually add to the filter index (only on 0 -> 1 transition).
 	 *
 	 * @param locale  the locale for localized histograms, or `null` for non-localized
-	 * @param value   the numeric histogram value
+	 * @param value   the histogram value in its original type (a `Number` for plain numeric attributes
+	 *                or a `Range` instance for Range-typed attributes)
 	 * @param ownerPK the primary key of the owner entity
 	 */
 	public abstract void insertValue(
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK
 	);
 

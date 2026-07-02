@@ -35,8 +35,9 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -104,6 +105,17 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	 */
 	public static final String REFERENCE_HISTOGRAM_LARGE = "referenceHistogramLarge";
 
+	/**
+	 * Name of the range-typed source attribute fixture. Provisions a single product →
+	 * parameterValue → parameter graph where the referenced entity carries an
+	 * `IntegerNumberRange`-typed `validRange` attribute plus an `active` Boolean flag.
+	 * The reference declares TWO histograms over the same source value — an unfiltered
+	 * {@link #HISTOGRAM_RANGE} and an `assignedWhen`-filtered {@link #HISTOGRAM_RANGE_ACTIVE}
+	 * — so the unfiltered range sweep and the partition-selector AND-combination can be
+	 * verified against a single shared catalog.
+	 */
+	public static final String REFERENCE_HISTOGRAM_RANGE = "referenceHistogramRange";
+
 	// ---------------------------------------------------------------------
 	// shared entity / reference / attribute / histogram names
 	// ---------------------------------------------------------------------
@@ -132,6 +144,20 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	protected static final String ATTR_NAME = "name";
 
 	/**
+	 * Range-fixture attribute — source of both the {@link #HISTOGRAM_RANGE} and
+	 * {@link #HISTOGRAM_RANGE_ACTIVE} histograms in the range fixture.
+	 */
+	protected static final String ATTR_RANGE = "validRange";
+
+	/**
+	 * Range-fixture Boolean attribute used as the partition-selector predicate for the
+	 * {@link #HISTOGRAM_RANGE_ACTIVE} `assignedWhen` filter — PVs flagged `false` are
+	 * excluded from the filtered histogram, while the unfiltered {@link #HISTOGRAM_RANGE}
+	 * still admits them.
+	 */
+	protected static final String ATTR_ACTIVE = "active";
+
+	/**
 	 * Histogram name used by both fixtures. In the small fixture it sources
 	 * {@link #ATTR_BASIC_UNIT_VALUE}; in the large fixture it sources {@link #ATTR_PRICE}.
 	 */
@@ -142,6 +168,25 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	 * fixtures under the same name.
 	 */
 	protected static final String HISTOGRAM_MARKET_SHARE = "marketShareBucket";
+
+	/**
+	 * Range-fixture histogram name — unfiltered range-typed bucket sweep over
+	 * {@link #ATTR_RANGE} on the referenced entity.
+	 */
+	protected static final String HISTOGRAM_RANGE = "rangeBucket";
+
+	/**
+	 * Range-fixture histogram name — same source value as {@link #HISTOGRAM_RANGE} but
+	 * with a per-histogram `assignedWhen` partition selector restricting contributions
+	 * to PVs whose {@link #ATTR_ACTIVE} flag is `true`.
+	 */
+	protected static final String HISTOGRAM_RANGE_ACTIVE = "rangeBucketActive";
+
+	/**
+	 * Parameter group hosting every product / PV in the range fixture — a single group
+	 * suffices because the range tests exercise the bucket sweep, not multi-group routing.
+	 */
+	protected static final int RANGE_GROUP_PK = 1;
 
 	// ---------------------------------------------------------------------
 	// large-fixture fixed sizes — kept on the base so subclasses can iterate
@@ -386,6 +431,136 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	}
 
 	// ---------------------------------------------------------------------
+	// range-fixture schema + seed (provisions REFERENCE_HISTOGRAM_RANGE)
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Defines a `product → parameterValue → parameter` schema where the referenced
+	 * `parameterValue` entity carries an `IntegerNumberRange`-typed {@link #ATTR_RANGE}
+	 * attribute and a Boolean {@link #ATTR_ACTIVE} flag. The product reference declares
+	 * two histograms over the same source value:
+	 *
+	 * - {@link #HISTOGRAM_RANGE} — unfiltered range-aware bucket sweep;
+	 * - {@link #HISTOGRAM_RANGE_ACTIVE} — same source, gated by an `assignedWhen`
+	 *   partition selector `referencedEntity.attributes['active'] == true`.
+	 *
+	 * Co-locating both histograms on the same reference lets the unfiltered and filtered
+	 * paths share a single provisioned catalog.
+	 */
+	protected static void defineRangeSchema(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(ENTITY_PARAMETER)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+			.withAttribute(ATTR_NAME, String.class, whichIs -> whichIs.filterable().nullable())
+			.withAttribute(
+				ATTR_RANGE, IntegerNumberRange.class,
+				whichIs -> whichIs.filterable().nullable()
+			)
+			.withAttribute(
+				ATTR_ACTIVE, Boolean.class,
+				whichIs -> whichIs.filterable().nullable()
+			)
+			.updateVia(session);
+
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withReferenceToEntity(
+				REF_PARAM_VALUES, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
+					.faceted()
+					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
+					.bucketed(
+						HISTOGRAM_RANGE,
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['" + ATTR_RANGE + "']"
+						)
+					)
+					.bucketedInScope(
+						Scope.DEFAULT_SCOPE,
+						HISTOGRAM_RANGE_ACTIVE,
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['" + ATTR_RANGE + "']"
+						),
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['" + ATTR_ACTIVE + "'] == true"
+						)
+					)
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Seeds the range fixture: a single parameter group ({@link #RANGE_GROUP_PK}), four
+	 * parameter values carrying overlapping integer ranges, and four products each wired
+	 * to one PV inside that group.
+	 *
+	 * Layout (PV → range, active):
+	 *
+	 * - PV 1 → `[10, 20]`, active
+	 * - PV 2 → `[15, 25]`, active
+	 * - PV 3 → `[20, 30]`, active
+	 * - PV 4 → `[25, 35]`, inactive
+	 *
+	 * The first three PVs alone span `[10, 30]`; including PV 4 stretches the span to
+	 * `[10, 35]`. Tests against {@link #HISTOGRAM_RANGE} therefore see all four PVs in
+	 * the sweep while tests against {@link #HISTOGRAM_RANGE_ACTIVE} see PV 4 removed by
+	 * the partition selector — exposing both the unfiltered range sweep and the
+	 * `assignedWhen` AND-combination.
+	 */
+	protected static void seedRangeData(@Nonnull EvitaSessionContract session) {
+		session.createNewEntity(ENTITY_PARAMETER, RANGE_GROUP_PK)
+			.setAttribute(ATTR_NAME, "validity")
+			.upsertVia(session);
+
+		createParameterValueWithRange(session, 1, IntegerNumberRange.between(10, 20), true);
+		createParameterValueWithRange(session, 2, IntegerNumberRange.between(15, 25), true);
+		createParameterValueWithRange(session, 3, IntegerNumberRange.between(20, 30), true);
+		createParameterValueWithRange(session, 4, IntegerNumberRange.between(25, 35), false);
+
+		createProductReferencingPv(session, 100, 1);
+		createProductReferencingPv(session, 101, 2);
+		createProductReferencingPv(session, 102, 3);
+		createProductReferencingPv(session, 103, 4);
+	}
+
+	/**
+	 * Creates a single parameter-value entity for the range fixture with the supplied
+	 * range and active flag.
+	 */
+	private static void createParameterValueWithRange(
+		@Nonnull EvitaSessionContract session,
+		int pk,
+		@Nonnull IntegerNumberRange range,
+		boolean active
+	) {
+		session.createNewEntity(ENTITY_PARAMETER_VALUE, pk)
+			.setAttribute(ATTR_NAME, "pv-" + pk)
+			.setAttribute(ATTR_RANGE, range)
+			.setAttribute(ATTR_ACTIVE, active)
+			.upsertVia(session);
+	}
+
+	/**
+	 * Creates a single product entity for the range fixture, wired to one PV inside
+	 * {@link #RANGE_GROUP_PK}.
+	 */
+	private static void createProductReferencingPv(
+		@Nonnull EvitaSessionContract session,
+		int productPk,
+		int pvPk
+	) {
+		session.createNewEntity(ENTITY_PRODUCT, productPk)
+			.setReference(
+				REF_PARAM_VALUES, pvPk,
+				whichIs -> whichIs.setGroup(ENTITY_PARAMETER, RANGE_GROUP_PK)
+			)
+			.upsertVia(session);
+	}
+
+	// ---------------------------------------------------------------------
 	// large-fixture oracle helpers (drive boundary-resolution assertions)
 	// ---------------------------------------------------------------------
 
@@ -550,13 +725,42 @@ public abstract class AbstractReferenceSummaryHistogramFunctionalTest implements
 	 * Installs the deterministic 60-product read-only schema and data into the provided
 	 * Evita. Three parameter groups each carry 10 parameter values with `price` in
 	 * disjoint ranges; products are scattered across the groups by a seeded PRNG.
+	 *
+	 * Exposes the seeded products (with reference content + attribute content) under the
+	 * `originalProducts` carrier name so tests can pick PKs dynamically by inspecting the
+	 * real fixture rather than hard-coding constants that drift when the seed changes.
 	 */
 	@DataSet(REFERENCE_HISTOGRAM_LARGE)
 	DataCarrier setUpLarge(@Nonnull Evita evita) {
-		evita.updateCatalog(
+		return evita.updateCatalog(
 			TEST_CATALOG, session -> {
 				defineLargeSchema(session);
 				seedLargeData(session);
+				final List<SealedEntity> originalProducts = new ArrayList<>(PRODUCT_COUNT);
+				for (int productPk = 1; productPk <= PRODUCT_COUNT; productPk++) {
+					session.getEntity(
+						ENTITY_PRODUCT, productPk,
+						QueryConstraints.attributeContentAll(),
+						QueryConstraints.referenceContentAllWithAttributes()
+					).ifPresent(originalProducts::add);
+				}
+				return new DataCarrier(DataCarrier.tuple("originalProducts", originalProducts));
+			}
+		);
+	}
+
+	/**
+	 * Installs the range-typed source attribute fixture: the schema declared by
+	 * {@link #defineRangeSchema(EvitaSessionContract)} plus the four-PV / four-product
+	 * seed from {@link #seedRangeData(EvitaSessionContract)}. The catalog is read-only
+	 * after provisioning so multiple test methods can share the same instance.
+	 */
+	@DataSet(REFERENCE_HISTOGRAM_RANGE)
+	DataCarrier setUpRange(@Nonnull Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG, session -> {
+				defineRangeSchema(session);
+				seedRangeData(session);
 			}
 		);
 		return new DataCarrier();

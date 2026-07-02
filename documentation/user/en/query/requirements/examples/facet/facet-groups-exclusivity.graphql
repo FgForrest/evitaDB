@@ -24,7 +24,7 @@
     }
   ) {
     extraResults {
-      facetSummary {
+      referenceSummary {
         parameterValues(
           filterGroupBy: {
             attributeCodeInSet: [

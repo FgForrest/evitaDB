@@ -34,6 +34,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
@@ -47,9 +49,13 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Tests for {@link HistogramHaving} pinning its public API contract — the four factory arities, the
  * normalisation of an empty `histogramName` to null, the bound-validation invariants (at-least-one-bound
- * rule, ordered-bounds-when-same-type rule), the `GroupHaving`-only child whitelist enforced via
+ * rule, ordered-bounds rule), the `GroupHaving`-only child whitelist enforced via
  * `getCopyWithNewChildren`, and the standard applicability / necessity / equality / toString contract
  * inherited from `AbstractFilterConstraintContainer`.
+ *
+ * Bounds are canonical {@link BigDecimal} on the constraint; the friendly factories on {@code QueryConstraints}
+ * accept any {@link Number} and coerce on the way in, so int literals in test source still work but assertions
+ * compare against the canonical BigDecimal form.
  *
  * Each test is written to break when the corresponding invariant is weakened — weakening any assert
  * here would hide a regression that impacts how `userFilter(histogramHaving(...))` is parsed, validated
@@ -87,8 +93,8 @@ class HistogramHavingTest {
 
 			assertEquals("price-range", constraint.getReferenceName());
 			assertNull(constraint.getHistogramName());
-			assertEquals(50, (Integer) constraint.getFrom());
-			assertEquals(120, (Integer) constraint.getTo());
+			assertEquals(new BigDecimal("50"), constraint.getFrom());
+			assertEquals(new BigDecimal("120"), constraint.getTo());
 			assertNull(constraint.getGroupHaving());
 			assertEquals(0, constraint.getChildren().length);
 		}
@@ -102,8 +108,8 @@ class HistogramHavingTest {
 
 			assertEquals("parameterValues", constraint.getReferenceName());
 			assertEquals("basicUnitValue", constraint.getHistogramName());
-			assertEquals(50, (Integer) constraint.getFrom());
-			assertEquals(120, (Integer) constraint.getTo());
+			assertEquals(new BigDecimal("50"), constraint.getFrom());
+			assertEquals(new BigDecimal("120"), constraint.getTo());
 			assertNull(constraint.getGroupHaving());
 		}
 
@@ -117,8 +123,8 @@ class HistogramHavingTest {
 
 			assertEquals("parameterValues", constraint.getReferenceName());
 			assertNull(constraint.getHistogramName());
-			assertEquals(50, (Integer) constraint.getFrom());
-			assertEquals(120, (Integer) constraint.getTo());
+			assertEquals(new BigDecimal("50"), constraint.getFrom());
+			assertEquals(new BigDecimal("120"), constraint.getTo());
 			assertSame(selector, constraint.getGroupHaving());
 			assertEquals(1, constraint.getChildren().length);
 		}
@@ -133,8 +139,8 @@ class HistogramHavingTest {
 
 			assertEquals("parameterValues", constraint.getReferenceName());
 			assertEquals("basicUnitValue", constraint.getHistogramName());
-			assertEquals(50, (Integer) constraint.getFrom());
-			assertEquals(120, (Integer) constraint.getTo());
+			assertEquals(new BigDecimal("50"), constraint.getFrom());
+			assertEquals(new BigDecimal("120"), constraint.getTo());
 			assertSame(selector, constraint.getGroupHaving());
 		}
 
@@ -186,7 +192,7 @@ class HistogramHavingTest {
 		void shouldBuildWithOnlyTheLowerBoundSet() {
 			final HistogramHaving constraint = histogramHaving("price-range", 50, null);
 
-			assertEquals(50, (Integer) constraint.getFrom());
+			assertEquals(new BigDecimal("50"), constraint.getFrom());
 			assertNull(constraint.getTo());
 			assertTrue(constraint.isApplicable());
 		}
@@ -197,7 +203,7 @@ class HistogramHavingTest {
 			final HistogramHaving constraint = histogramHaving("price-range", null, 120);
 
 			assertNull(constraint.getFrom());
-			assertEquals(120, (Integer) constraint.getTo());
+			assertEquals(new BigDecimal("120"), constraint.getTo());
 			assertTrue(constraint.isApplicable());
 		}
 
@@ -205,7 +211,7 @@ class HistogramHavingTest {
 		@DisplayName("should allow null group selector without rejecting construction")
 		void shouldAllowNullGroupSelectorWithoutRejectingConstruction() {
 			final HistogramHaving constraint = new HistogramHaving(
-				"parameterValues", "basicUnitValue", 50, 120, null
+				"parameterValues", "basicUnitValue", new BigDecimal("50"), new BigDecimal("120"), null
 			);
 
 			// null group selector is the non-grouped slot — children must be empty, not a single-null slot
@@ -225,7 +231,7 @@ class HistogramHavingTest {
 			// empty string must be normalised so downstream consumers only ever see null-or-populated
 			final HistogramHaving viaFactory = histogramHaving("parameterValues", "", 50, 120);
 			final HistogramHaving viaConstructor = new HistogramHaving(
-				"parameterValues", "", 50, 120, null
+				"parameterValues", "", new BigDecimal("50"), new BigDecimal("120"), null
 			);
 
 			assertNull(viaFactory.getHistogramName());
@@ -237,7 +243,7 @@ class HistogramHavingTest {
 		void shouldKeepNonEmptyHistogramNameVerbatim() {
 			// non-empty is load-bearing; only "" is treated as "not supplied"
 			final HistogramHaving constraint = new HistogramHaving(
-				"parameterValues", "basicUnitValue", 50, 120, null
+				"parameterValues", "basicUnitValue", new BigDecimal("50"), new BigDecimal("120"), null
 			);
 
 			assertEquals("basicUnitValue", constraint.getHistogramName());
@@ -263,12 +269,12 @@ class HistogramHavingTest {
 		}
 
 		@Test
-		@DisplayName("should throw when from > to for same Comparable type")
-		void shouldThrowWhenFromGreaterThanToForSameComparableType() {
+		@DisplayName("should throw when from > to")
+		void shouldThrowWhenFromGreaterThanTo() {
 			// inverted range would silently yield an empty result set — reject early so users see the typo
 			final EvitaInvalidUsageException ex = assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> new HistogramHaving("price-range", null, 120, 50, null)
+				() -> new HistogramHaving("price-range", null, new BigDecimal("120"), new BigDecimal("50"), null)
 			);
 			assertTrue(
 				ex.getMessage().contains("less than or equal"),
@@ -277,51 +283,15 @@ class HistogramHavingTest {
 		}
 
 		@Test
-		@DisplayName("should allow from equal to to for same Comparable type")
-		void shouldAllowFromEqualToToForSameComparableType() {
+		@DisplayName("should allow from equal to to")
+		void shouldAllowFromEqualToTo() {
 			// equal bounds are the degenerate-but-valid single-point slider — must be accepted
 			final HistogramHaving constraint = new HistogramHaving(
-				"price-range", null, 42, 42, null
+				"price-range", null, new BigDecimal("42"), new BigDecimal("42"), null
 			);
 
-			assertEquals(42, (Integer) constraint.getFrom());
-			assertEquals(42, (Integer) constraint.getTo());
-		}
-
-		@Test
-		@DisplayName("should throw when from and to differ in plain type")
-		void shouldThrowWhenFromAndToDifferInPlainType() {
-			// mixed plain types are always a user mistake — a `from` of type Long paired with a `to` of type
-			// BigDecimal (or Integer paired with String) cannot be ordered against each other and always
-			// produces a runtime surprise downstream. Reject at construction with an actionable message that
-			// names both simple class names so the user can locate the offending pair in their query.
-			final EvitaInvalidUsageException mixedNumeric = assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> new HistogramHaving("price-range", null, 10L, java.math.BigDecimal.valueOf(5), null)
-			);
-			assertTrue(
-				mixedNumeric.getMessage().contains("same plain type"),
-				"unexpected message: " + mixedNumeric.getMessage()
-			);
-			assertTrue(
-				mixedNumeric.getMessage().contains("Long") && mixedNumeric.getMessage().contains("BigDecimal"),
-				"exception should name both mismatched simple class names: " + mixedNumeric.getMessage()
-			);
-
-			// coverage for the Integer / String pair too — any cross-type pair must fall through the same
-			// rejection path so the validator never silently lets a type mismatch slip past construction
-			final EvitaInvalidUsageException mixedIntString = assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> new HistogramHaving("price-range", null, 50, "120", null)
-			);
-			assertTrue(
-				mixedIntString.getMessage().contains("same plain type"),
-				"unexpected message: " + mixedIntString.getMessage()
-			);
-			assertTrue(
-				mixedIntString.getMessage().contains("Integer") && mixedIntString.getMessage().contains("String"),
-				"exception should name both mismatched simple class names: " + mixedIntString.getMessage()
-			);
+			assertEquals(new BigDecimal("42"), constraint.getFrom());
+			assertEquals(new BigDecimal("42"), constraint.getTo());
 		}
 	}
 
@@ -425,8 +395,8 @@ class HistogramHavingTest {
 			// arguments must be carried verbatim — arguments array is reused, not rebuilt
 			assertEquals("parameterValues", copied.getReferenceName());
 			assertEquals("basicUnitValue", copied.getHistogramName());
-			assertEquals(50, (Integer) copied.getFrom());
-			assertEquals(120, (Integer) copied.getTo());
+			assertEquals(new BigDecimal("50"), copied.getFrom());
+			assertEquals(new BigDecimal("120"), copied.getTo());
 		}
 
 		@Test
@@ -494,15 +464,15 @@ class HistogramHavingTest {
 			);
 
 			final FilterConstraint cloned = original.cloneWithArguments(
-				new Serializable[] { "otherReference", "otherHistogram", 10, 20 }
+				new Serializable[] { "otherReference", "otherHistogram", new BigDecimal("10"), new BigDecimal("20") }
 			);
 
 			final HistogramHaving copy = assertInstanceOf(HistogramHaving.class, cloned);
 			assertNotSame(original, copy);
 			assertEquals("otherReference", copy.getReferenceName());
 			assertEquals("otherHistogram", copy.getHistogramName());
-			assertEquals(10, (Integer) copy.getFrom());
-			assertEquals(20, (Integer) copy.getTo());
+			assertEquals(new BigDecimal("10"), copy.getFrom());
+			assertEquals(new BigDecimal("20"), copy.getTo());
 			// children (the group selector) must pass through untouched — arguments and children are disjoint
 			assertSame(selector, copy.getGroupHaving());
 		}

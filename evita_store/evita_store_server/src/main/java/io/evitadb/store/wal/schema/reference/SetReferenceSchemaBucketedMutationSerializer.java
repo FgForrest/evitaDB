@@ -72,7 +72,8 @@ public class SetReferenceSchemaBucketedMutationSerializer
 
 	/**
 	 * Writes a non-null array of {@link ScopedHistogramIndexDefinition} to the output.
-	 * Each entry is written as: Scope + String (nameOfTheIndex) + nullable Expression (valueExpression).
+	 * Each entry is written as: Scope + String (nameOfTheIndex) + nullable Expression
+	 * (valueExpression) + nullable Expression (assignedWhen).
 	 *
 	 * @param kryo   the Kryo instance to use for serialization
 	 * @param output the Output instance to write to
@@ -93,12 +94,19 @@ public class SetReferenceSchemaBucketedMutationSerializer
 				output.writeBoolean(true);
 				kryo.writeObject(output, entry.valueExpression());
 			}
+			if (entry.assignedWhen() == null) {
+				output.writeBoolean(false);
+			} else {
+				output.writeBoolean(true);
+				kryo.writeObject(output, entry.assignedWhen());
+			}
 		}
 	}
 
 	/**
 	 * Reads a non-null array of {@link ScopedHistogramIndexDefinition} from the input.
-	 * Each entry is read as: Scope + String (nameOfTheIndex) + nullable Expression (valueExpression).
+	 * Each entry is read as: Scope + String (nameOfTheIndex) + nullable Expression
+	 * (valueExpression) + nullable Expression (assignedWhen).
 	 *
 	 * @param kryo  the Kryo instance to use for deserialization
 	 * @param input the Input instance to read from
@@ -117,7 +125,12 @@ public class SetReferenceSchemaBucketedMutationSerializer
 			final Expression valueExpression = input.readBoolean()
 				? kryo.readObject(input, Expression.class)
 				: null;
-			result[i] = new ScopedHistogramIndexDefinition(scope, nameOfTheIndex, valueExpression);
+			final Expression assignedWhen = input.readBoolean()
+				? kryo.readObject(input, Expression.class)
+				: null;
+			result[i] = new ScopedHistogramIndexDefinition(
+				scope, nameOfTheIndex, valueExpression, assignedWhen
+			);
 		}
 		return result;
 	}

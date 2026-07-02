@@ -564,6 +564,11 @@ public class EntitySchemaConverter {
 							StringValue.of(definition.valueExpression().toExpressionString())
 						);
 					}
+					if (definition.assignedWhen() != null) {
+						bhBuilder.setAssignedWhen(
+							StringValue.of(definition.assignedWhen().toExpressionString())
+						);
+					}
 					builder.addBucketed(bhBuilder);
 				}
 			}
@@ -1048,6 +1053,9 @@ public class EntitySchemaConverter {
 				grpcEntry.getNameOfTheIndex(),
 				grpcEntry.hasValueExpression()
 					? ExpressionFactory.parse(grpcEntry.getValueExpression().getValue())
+					: null,
+				grpcEntry.hasAssignedWhen()
+					? ExpressionFactory.parse(grpcEntry.getAssignedWhen().getValue())
 					: null
 			);
 		}

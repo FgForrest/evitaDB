@@ -23,6 +23,7 @@
 
 package io.evitadb.core.expression.trigger;
 
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.expression.visitor.AccessedDataFinder;
 import io.evitadb.api.query.expression.visitor.PathItem;
 import io.evitadb.api.query.filter.FilterBy;
@@ -51,8 +52,9 @@ import java.util.function.Function;
 
 /**
  * Stateless utility that builds {@link HistogramExpressionTrigger} instances from
- * {@link ReferenceSchemaContract} data. Processes `bucketedPartially` condition expressions
- * and histogram index definitions to produce triggers with combined dependency paths.
+ * {@link ReferenceSchemaContract} data. Processes the reference-level `bucketedPartially`
+ * eligibility gate together with each histogram's `assignedWhen` partition selector and
+ * value expression to produce triggers with combined dependency paths.
  *
  * Follows the same classification pattern as {@link FacetExpressionTriggerFactory} for
  * cross-entity dependency detection, extended with value expression path analysis and
@@ -93,7 +95,7 @@ public class HistogramExpressionTriggerFactory {
 			allDefinitions.entrySet()) {
 			final Scope scope = scopeEntry.getKey();
 			final Map<String, HistogramIndexDefinition> definitions = scopeEntry.getValue();
-			final Expression conditionExpression = conditionExpressions.get(scope);
+			final Expression scopeConditionExpression = conditionExpressions.get(scope);
 
 			for (final Entry<String, HistogramIndexDefinition> defEntry : definitions.entrySet()) {
 				final String histogramName = defEntry.getKey();
@@ -105,6 +107,17 @@ public class HistogramExpressionTriggerFactory {
 					continue;
 				}
 
+				// AND-combine the reference-level eligibility gate (`bucketedPartially`) with the
+				// per-histogram partition selector (`assignedWhen`). The two roles are conceptually
+				// distinct: the gate decides whether a referenced entity participates in any histogram
+				// at all; the partition selector decides — among the eligible set — which specific
+				// histogram the entity is assigned to. At runtime both predicates must hold, which is
+				// why they AND-combine here. Either, both, or neither may be null --
+				// `ExpressionFactory.and(...)` handles all cases.
+				final Expression effectiveCondition = ExpressionFactory.and(
+					scopeConditionExpression, definition.assignedWhen()
+				);
+
 				final HistogramValueDescriptor valueResolution =
 					HistogramValueDescriptorFactory.build(
 						valueExpression, referenceName, histogramName,
@@ -113,7 +126,7 @@ public class HistogramExpressionTriggerFactory {
 
 				buildTriggersForHistogram(
 					ownerEntityType, referenceSchema, referenceName, scope,
-					conditionExpression, valueExpression,
+					effectiveCondition, valueExpression,
 					histogramName, valueResolution, triggers
 				);
 			}

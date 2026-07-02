@@ -32,6 +32,7 @@ import io.evitadb.spi.store.catalog.exception.PersistenceServiceClosed;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -250,6 +251,16 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	public KeyCompressor getReadOnlyKeyCompressor() {
 		if (this.offsetIndex.isOperative()) {
 			return this.offsetIndex.getReadOnlyKeyCompressor();
+		} else {
+			throw new PersistenceServiceClosed();
+		}
+	}
+
+	@Nonnull
+	@Override
+	public KeyCompressorSnapshot getKeyCompressorSnapshot() {
+		if (this.offsetIndex.isOperative()) {
+			return this.offsetIndex.getKeyCompressorSnapshot();
 		} else {
 			throw new PersistenceServiceClosed();
 		}

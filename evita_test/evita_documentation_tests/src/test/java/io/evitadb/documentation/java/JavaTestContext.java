@@ -49,6 +49,8 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -65,6 +67,16 @@ import static io.evitadb.documentation.java.JavaExecutable.toJavaSnippets;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class JavaTestContext implements TestContext {
+	/**
+	 * Process-wide lock serializing every {@link JShell#eval(String)} invocation across all
+	 * {@link JavaTestContext} instances. JShell instances are documented as not thread-safe, and
+	 * even separate instances share non-thread-safe javac internals (notably
+	 * `JavacFileManager.pathsAndContainers` and the `JavacTaskPool`), so concurrent evaluation from
+	 * parallel documentation tests triggers `ConcurrentModificationException` deep in javac.
+	 * Fair ordering prevents starvation when many language containers queue behind each other.
+	 */
+	private static final Lock JSHELL_EVAL_LOCK = new ReentrantLock(true);
+
 	/**
 	 * Field contains contents of the `META-INF/documentation/imports.java` file that contains all imports required
 	 * by the tests (code snippets).
@@ -116,23 +128,30 @@ public class JavaTestContext implements TestContext {
 	}
 
 	public JavaTestContext(@Nonnull Environment profile) {
-		this.jShell = JShell.builder()
-			// this is faster because JVM is not forked for each test
-			.executionEngine(new LocalExecutionControlProvider(), Collections.emptyMap())
-			.out(System.out)
-			.err(System.err)
-			.build();
-		// we copy the entire classpath of this test to the JShell instance
-		Arrays.stream(System.getProperty("java.class.path").split(":"))
-			.forEach(this.jShell::addToClasspath);
-		// and now pre initialize all necessary imports
-		final List<String> snippets = Stream.concat(
-			Stream.of("var documentationProfile = \"" + profile.name() + "\";"),
-			toJavaSnippets(this.jShell, STATIC_IMPORT).stream()
-		).toList();
-		final InvocationResult invocationResult = executeJShellCommandsInternal(snippets);
-		if (invocationResult.exception() != null) {
-			throw new IllegalStateException(invocationResult.exception());
+		// build + classpath wiring + initial eval all touch shared javac internals -
+		// serialize the whole construction with other JShell activity
+		JSHELL_EVAL_LOCK.lock();
+		try {
+			this.jShell = JShell.builder()
+				// this is faster because JVM is not forked for each test
+				.executionEngine(new LocalExecutionControlProvider(), Collections.emptyMap())
+				.out(System.out)
+				.err(System.err)
+				.build();
+			// we copy the entire classpath of this test to the JShell instance
+			Arrays.stream(System.getProperty("java.class.path").split(":"))
+				.forEach(this.jShell::addToClasspath);
+			// and now pre initialize all necessary imports
+			final List<String> snippets = Stream.concat(
+				Stream.of("var documentationProfile = \"" + profile.name() + "\";"),
+				toJavaSnippets(this.jShell, STATIC_IMPORT).stream()
+			).toList();
+			final InvocationResult invocationResult = executeJShellCommandsInternal(snippets);
+			if (invocationResult.exception() != null) {
+				throw new IllegalStateException(invocationResult.exception());
+			}
+		} finally {
+			JSHELL_EVAL_LOCK.unlock();
 		}
 	}
 
@@ -157,43 +176,54 @@ public class JavaTestContext implements TestContext {
 	 */
 	@Nonnull
 	public InvocationResult executeJShellCommands(@Nonnull List<String> snippets, @Nonnull SideEffect sideEffect, @Nullable UnaryOperator<InvocationResult> lambda) {
-		int index = 0;
-		if (this.lastInvocationResult != null) {
-			final int leastSize = Math.min(this.lastInvocationResult.snippets.size(), snippets.size());
-			for (; index < leastSize; index++) {
-				if (!this.lastInvocationResult.snippets.get(index).source().equals(snippets.get(index))) {
-					break;
+		// hold the lock for the whole orchestration - `lastInvocationResult` is shared across
+		// concurrent language containers (REST/GraphQL/Java) that wrap the same JavaTestContext
+		// via JavaWrappingExecutable. Without the lock another thread can null the field
+		// between the read at line ~180 and the dereference at line ~195, surfacing as
+		// NullPointerException or as bogus JavaCompilationExceptions when snippets are
+		// dropped underneath an in-flight eval. Inner calls re-enter the same reentrant lock.
+		JSHELL_EVAL_LOCK.lock();
+		try {
+			int index = 0;
+			if (this.lastInvocationResult != null) {
+				final int leastSize = Math.min(this.lastInvocationResult.snippets.size(), snippets.size());
+				for (; index < leastSize; index++) {
+					if (!this.lastInvocationResult.snippets.get(index).source().equals(snippets.get(index))) {
+						break;
+					}
 				}
+				cleanJShell(this.lastInvocationResult.snippets().subList(index, this.lastInvocationResult.snippets.size()));
 			}
-			cleanJShell(this.lastInvocationResult.snippets().subList(index, this.lastInvocationResult.snippets.size()));
-		}
 
-		InvocationResult invocationResult;
-		if (index > 0) {
-			final InvocationResult intermediateResult = executeJShellCommandsInternal(snippets.subList(index, snippets.size()));
-			invocationResult = new InvocationResult(
-				Streams.concat(
-					this.lastInvocationResult.snippets().subList(0, index).stream(),
-					intermediateResult.snippets().stream()
-				).toList(),
-				intermediateResult.exception()
-			);
-		} else {
-			invocationResult = executeJShellCommandsInternal(snippets);
-		}
+			InvocationResult invocationResult;
+			if (index > 0) {
+				final InvocationResult intermediateResult = executeJShellCommandsInternal(snippets.subList(index, snippets.size()));
+				invocationResult = new InvocationResult(
+					Streams.concat(
+						this.lastInvocationResult.snippets().subList(0, index).stream(),
+						intermediateResult.snippets().stream()
+					).toList(),
+					intermediateResult.exception()
+				);
+			} else {
+				invocationResult = executeJShellCommandsInternal(snippets);
+			}
 
-		if (lambda != null) {
-			invocationResult = lambda.apply(invocationResult);
-		}
+			if (lambda != null) {
+				invocationResult = lambda.apply(invocationResult);
+			}
 
-		// if there was exception - clean context entirely and reset last invocation result
-		if (invocationResult.exception() != null || sideEffect == SideEffect.WITH_SIDE_EFFECT) {
-			cleanJShell(invocationResult.snippets());
-			this.lastInvocationResult = null;
-		} else {
-			this.lastInvocationResult = invocationResult;
+			// if there was exception - clean context entirely and reset last invocation result
+			if (invocationResult.exception() != null || sideEffect == SideEffect.WITH_SIDE_EFFECT) {
+				cleanJShell(invocationResult.snippets());
+				this.lastInvocationResult = null;
+			} else {
+				this.lastInvocationResult = invocationResult;
+			}
+			return invocationResult;
+		} finally {
+			JSHELL_EVAL_LOCK.unlock();
 		}
-		return invocationResult;
 	}
 
 	/**
@@ -201,34 +231,42 @@ public class JavaTestContext implements TestContext {
 	 * the new snippet list.
 	 */
 	public void cleanJShell(@Nonnull List<SourceToSnippets> sourceToSnippets) {
-		for (int i = sourceToSnippets.size() - 1; i >= 0; i--) {
-			final SourceToSnippets sourceToSnippet = sourceToSnippets.get(i);
-			final List<Snippet> snippets = sourceToSnippet.snippets();
-			for (int j = snippets.size() - 1; j >= 0; j--) {
-				final Snippet snippet = snippets.get(j);
-				// if the snippet declared an AutoCloseable variable, we need to close it
-				if (snippet instanceof VarSnippet varSnippet) {
-					// there is no way how to get the reference of the variable - so the clean up
-					// must be performed by another snippet
-					executeJShellCommandsInternal(
-						Arrays.asList(
-							// instanceof / cast throws a compiler exception, so that we need to
-							// work around it by runtime evaluation
-							"if (AutoCloseable.class.isInstance(" + varSnippet.name() + ")) {\n\t" +
-								"AutoCloseable.class.cast(" + varSnippet.name() + ").close();\n" +
-								"}\n",
-							// retrieve the folder location
-							"String evitaStoragePathToClear = Evita.class.isInstance(" + varSnippet.name() + ") ? " +
-								"Evita.class.cast(" + varSnippet.name() + ").getConfiguration().storage()" +
-								".storageDirectory().toAbsolutePath().toString() : \"\";\n"
+		// hold the lock for the whole cleanup - drop()/varValue() touch JShell state and must
+		// be serialized with eval() across all contexts (reentrant lock allows the nested
+		// executeJShellCommandsInternal call to re-acquire on the same thread)
+		JSHELL_EVAL_LOCK.lock();
+		try {
+			for (int i = sourceToSnippets.size() - 1; i >= 0; i--) {
+				final SourceToSnippets sourceToSnippet = sourceToSnippets.get(i);
+				final List<Snippet> snippets = sourceToSnippet.snippets();
+				for (int j = snippets.size() - 1; j >= 0; j--) {
+					final Snippet snippet = snippets.get(j);
+					// if the snippet declared an AutoCloseable variable, we need to close it
+					if (snippet instanceof VarSnippet varSnippet) {
+						// there is no way how to get the reference of the variable - so the clean up
+						// must be performed by another snippet
+						executeJShellCommandsInternal(
+							Arrays.asList(
+								// instanceof / cast throws a compiler exception, so that we need to
+								// work around it by runtime evaluation
+								"if (AutoCloseable.class.isInstance(" + varSnippet.name() + ")) {\n\t" +
+									"AutoCloseable.class.cast(" + varSnippet.name() + ").close();\n" +
+									"}\n",
+								// retrieve the folder location
+								"String evitaStoragePathToClear = Evita.class.isInstance(" + varSnippet.name() + ") ? " +
+									"Evita.class.cast(" + varSnippet.name() + ").getConfiguration().storage()" +
+									".storageDirectory().toAbsolutePath().toString() : \"\";\n"
+							)
 						)
-					)
-						.snippets()
-						.forEach(it -> clearOnTearDown(this.jShell, it));
+							.snippets()
+							.forEach(it -> clearOnTearDown(this.jShell, it));
+					}
+					// each snippet is "dropped" by the JShell instance (undone)
+					this.jShell.drop(snippet);
 				}
-				// each snippet is "dropped" by the JShell instance (undone)
-				this.jShell.drop(snippet);
 			}
+		} finally {
+			JSHELL_EVAL_LOCK.unlock();
 		}
 	}
 
@@ -236,10 +274,15 @@ public class JavaTestContext implements TestContext {
 	 * Cleans context and closes JShell instance.
 	 */
 	public void tearDown() {
-		if (this.lastInvocationResult != null) {
-			cleanJShell(this.lastInvocationResult.snippets());
+		JSHELL_EVAL_LOCK.lock();
+		try {
+			if (this.lastInvocationResult != null) {
+				cleanJShell(this.lastInvocationResult.snippets());
+			}
+			this.jShell.close();
+		} finally {
+			JSHELL_EVAL_LOCK.unlock();
 		}
-		this.jShell.close();
 	}
 
 	/**
@@ -251,51 +294,59 @@ public class JavaTestContext implements TestContext {
 		final List<RuntimeException> exceptions = new LinkedList<>();
 		final List<SourceToSnippets> executedSources = new ArrayList<>(snippets.size());
 
-		// iterate over snippets and execute them
-		for (String snippet : snippets) {
-			final List<SnippetEvent> events = this.jShell.eval(snippet);
-			final ArrayList<Snippet> executedSnippets = new ArrayList<>(events.size());
-			// verify the output events triggered by the execution
-			for (SnippetEvent event : events) {
-				// if the snippet is not active
-				if (!event.status().isActive()) {
-					// collect the compilation error and the problematic position and register exception
-					exceptions.add(
-						new JavaCompilationException(
-							this.jShell.diagnostics(event.snippet())
-								.map(it ->
-									"\n- [" + it.getStartPosition() + "-" + it.getEndPosition() + "] " +
-										it.getMessage(Locale.ENGLISH)
-								)
-								.collect(Collectors.joining()),
-							event.snippet().source()
-						)
-					);
-					// it the event contains exception
-				} else if (event.exception() != null) {
-					// it means, that code was successfully compiled, but threw exception upon evaluation
-					exceptions.add(
-						new JavaExecutionException(event.exception())
-					);
-					// add the snippet to the list of executed ones
-					if (event.status() == Status.VALID) {
+		// serialize all JShell evaluation across threads - JShell and the underlying javac
+		// internals are not thread-safe and concurrent eval() invocations from parallel
+		// documentation tests trigger ConcurrentModificationException deep in javac
+		JSHELL_EVAL_LOCK.lock();
+		try {
+			// iterate over snippets and execute them
+			for (String snippet : snippets) {
+				final List<SnippetEvent> events = this.jShell.eval(snippet);
+				final ArrayList<Snippet> executedSnippets = new ArrayList<>(events.size());
+				// verify the output events triggered by the execution
+				for (SnippetEvent event : events) {
+					// if the snippet is not active
+					if (!event.status().isActive()) {
+						// collect the compilation error and the problematic position and register exception
+						exceptions.add(
+							new JavaCompilationException(
+								this.jShell.diagnostics(event.snippet())
+									.map(it ->
+										"\n- [" + it.getStartPosition() + "-" + it.getEndPosition() + "] " +
+											it.getMessage(Locale.ENGLISH)
+									)
+									.collect(Collectors.joining()),
+								event.snippet().source()
+							)
+						);
+						// it the event contains exception
+					} else if (event.exception() != null) {
+						// it means, that code was successfully compiled, but threw exception upon evaluation
+						exceptions.add(
+							new JavaExecutionException(event.exception())
+						);
+						// add the snippet to the list of executed ones
+						if (event.status() == Status.VALID) {
+							executedSnippets.add(event.snippet());
+						}
+					} else {
+						// it means, that code was successfully compiled and executed without exception
 						executedSnippets.add(event.snippet());
 					}
-				} else {
-					// it means, that code was successfully compiled and executed without exception
-					executedSnippets.add(event.snippet());
+				}
+				executedSources.add(
+					new SourceToSnippets(
+						snippet,
+						executedSnippets
+					)
+				);
+				// if the exception is not null, fail fast and report the exception
+				if (!exceptions.isEmpty()) {
+					break;
 				}
 			}
-			executedSources.add(
-				new SourceToSnippets(
-					snippet,
-					executedSnippets
-				)
-			);
-			// if the exception is not null, fail fast and report the exception
-			if (!exceptions.isEmpty()) {
-				break;
-			}
+		} finally {
+			JSHELL_EVAL_LOCK.unlock();
 		}
 
 		// return all snippets that has been executed and report exception if occurred

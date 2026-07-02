@@ -11,7 +11,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         		)
         	),
         	Require(
-        		FacetSummaryOfReference(
+        		ReferenceSummaryOfReference(
         			"parameterValues",
         			Impact,
         			FilterGroupBy(

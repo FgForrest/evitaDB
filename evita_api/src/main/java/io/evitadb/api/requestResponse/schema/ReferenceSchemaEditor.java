@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.Scope;
@@ -264,13 +263,17 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * When a reference is bucketed, evitaDB creates and maintains a histogram index that allows
 	 * computation of bucketed histogram statistics for the reference.
 	 *
+	 * Convenience overload that installs the histogram in {@link Scope#DEFAULT_SCOPE} with no
+	 * per-histogram `assignedWhen` partition selector. Use
+	 * {@link #bucketedInScope(Scope, String, Expression, Expression)} for the full form.
+	 *
 	 * @param nameOfTheIndex the name identifying the histogram index
 	 * @param valueExpression the expression computing the histogram bucket value
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
 	default T bucketed(@Nonnull String nameOfTheIndex, @Nullable Expression valueExpression) {
-		return bucketedInScope(Scope.DEFAULT_SCOPE, nameOfTheIndex, valueExpression);
+		return bucketedInScope(Scope.DEFAULT_SCOPE, nameOfTheIndex, valueExpression, null);
 	}
 
 	/**
@@ -278,13 +281,45 @@ public interface ReferenceSchemaEditor<T extends ReferenceSchemaEditor<T>> exten
 	 * When a reference is bucketed, evitaDB creates and maintains a histogram index that allows
 	 * computation of bucketed histogram statistics for the reference.
 	 *
+	 * Thin default delegating to {@link #bucketedInScope(Scope, String, Expression, Expression)}
+	 * with {@code null} per-histogram partition selector.
+	 *
 	 * @param scope the scope where the bucketed histogram should be enabled
 	 * @param nameOfTheIndex the name identifying the histogram index
 	 * @param valueExpression the expression computing the histogram bucket value
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
-	T bucketedInScope(@Nonnull Scope scope, @Nonnull String nameOfTheIndex, @Nullable Expression valueExpression);
+	default T bucketedInScope(
+		@Nonnull Scope scope,
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression
+	) {
+		return bucketedInScope(scope, nameOfTheIndex, valueExpression, null);
+	}
+
+	/**
+	 * Enables bucketed histogram indexing for this reference in the specified scope, with an
+	 * optional per-histogram partition selector that decides — among the references already
+	 * eligible per the reference- or scope-level `bucketedPartially` gate — which entities
+	 * are assigned to this specific histogram. Mechanically the expression AND-combines with
+	 * the eligibility gate at trigger-construction time, but conceptually the two roles are
+	 * distinct: the gate decides participation, the partition selector decides classification.
+	 *
+	 * @param scope           the scope where the bucketed histogram should be enabled
+	 * @param nameOfTheIndex  the name identifying the histogram index
+	 * @param valueExpression the expression computing the histogram bucket value, or null
+	 * @param assignedWhen    the optional per-histogram partition selector, or null when no
+	 *                        per-histogram restriction is needed
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T bucketedInScope(
+		@Nonnull Scope scope,
+		@Nonnull String nameOfTheIndex,
+		@Nullable Expression valueExpression,
+		@Nullable Expression assignedWhen
+	);
 
 	/**
 	 * Disables bucketed histogram indexing in all scopes.

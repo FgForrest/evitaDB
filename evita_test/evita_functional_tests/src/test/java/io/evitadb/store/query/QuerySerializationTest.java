@@ -457,10 +457,12 @@ public class QuerySerializationTest {
 
 		/**
 		 * Round-trips every meaningful {@link HistogramHaving} argument permutation — classifier-only,
-		 * classifier + histogram name, open lower / upper bound, grouped selector, and each of the four
-		 * {@link java.io.Serializable} bound payload types (Integer, Long, {@link BigDecimal}, String).
-		 * Exercises the reflectively-registered {@code HistogramHavingSerializer} bridge; see the
-		 * enclosing class's {@link #kryo} field for the registration.
+		 * classifier + histogram name, open lower / upper bound, grouped selector, and the supported numeric
+		 * bound payload types (Integer, Long, {@link BigDecimal}). All numeric inputs are coerced to
+		 * {@link BigDecimal} by the factory before construction; the on-disk shape is therefore always
+		 * BigDecimal regardless of the input literal. Exercises the reflectively-registered
+		 * {@code HistogramHavingSerializer} bridge; see the enclosing class's {@link #kryo} field for the
+		 * registration.
 		 */
 		@Nested
 		@DisplayName("histogramHaving")
@@ -484,8 +486,6 @@ public class QuerySerializationTest {
 						histogramHaving("parameterValues", 50L, 120L)),
 					arguments("classifier + from/to, BigDecimal",
 						histogramHaving("parameterValues", BigDecimal.ZERO, BigDecimal.TEN)),
-					arguments("classifier + from/to, String",
-						histogramHaving("parameterValues", "A", "Z")),
 					arguments("classifier + histogramName + from/to",
 						histogramHaving("parameterValues", "basicUnitValue", 50, 120)),
 					arguments("classifier + histogramName + from/to, BigDecimal",

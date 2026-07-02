@@ -194,10 +194,12 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 	@Test
 	void shouldResolveHistogramHavingWithBoundsOnly() {
 		// histogramHaving with only classifier and bounds (no histogramName, no groupSelector)
-		// renders as COMPLEX wrapper object whose keys mirror the creator parameter names
+		// renders as COMPLEX wrapper object whose keys mirror the creator parameter names.
+		// Bounds are BigDecimal on the constraint, so the JSON serializer emits them as text nodes
+		// (the JS-precision-safe convention shared with the production REST/GraphQL wire format).
 		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
-		wrapperObject.putIfAbsent("from", jsonNodeFactory.numberNode(10));
-		wrapperObject.putIfAbsent("to", jsonNodeFactory.numberNode(20));
+		wrapperObject.putIfAbsent("from", jsonNodeFactory.textNode("10"));
+		wrapperObject.putIfAbsent("to", jsonNodeFactory.textNode("20"));
 
 		assertEquals(
 			new JsonConstraint("referenceCategoryHistogramHaving", wrapperObject),
@@ -214,8 +216,8 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		// is rendered as a named field inside the wrapper object alongside `from` and `to`
 		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
 		wrapperObject.putIfAbsent("histogramName", jsonNodeFactory.textNode("basicUnitValue"));
-		wrapperObject.putIfAbsent("from", jsonNodeFactory.numberNode(50));
-		wrapperObject.putIfAbsent("to", jsonNodeFactory.numberNode(120));
+		wrapperObject.putIfAbsent("from", jsonNodeFactory.textNode("50"));
+		wrapperObject.putIfAbsent("to", jsonNodeFactory.textNode("120"));
 
 		assertEquals(
 			new JsonConstraint("referenceCategoryHistogramHaving", wrapperObject),
@@ -236,8 +238,8 @@ class FilterConstraintToJsonConverterTest extends ConstraintToJsonConverterTest 
 		// `entityHaving`.
 		final ObjectNode wrapperObject = jsonNodeFactory.objectNode();
 		wrapperObject.putIfAbsent("histogramName", jsonNodeFactory.textNode("basicUnitValue"));
-		wrapperObject.putIfAbsent("from", jsonNodeFactory.numberNode(50));
-		wrapperObject.putIfAbsent("to", jsonNodeFactory.numberNode(120));
+		wrapperObject.putIfAbsent("from", jsonNodeFactory.textNode("50"));
+		wrapperObject.putIfAbsent("to", jsonNodeFactory.textNode("120"));
 
 		final ObjectNode groupHavingValue = jsonNodeFactory.objectNode();
 		groupHavingValue.putIfAbsent("attributeNameEquals", jsonNodeFactory.textNode("height"));

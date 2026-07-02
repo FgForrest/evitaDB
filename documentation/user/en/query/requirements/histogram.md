@@ -42,6 +42,21 @@ The histogram data structure is optimized for frontend rendering. It contains th
       and the bucket threshold lies within the range (inclusive) of the constraint
     - contains `false` otherwise
 
+<Note type="info">
+
+The identity `overallCount = sum of bucket occurrences` always holds. For histograms built over a **range-typed
+source** (reference histograms only — see [reference histograms](../../use/schema.md#reference-histograms)), a single
+element can fall into several buckets at once, so `overallCount` may exceed the number of distinct contributing
+elements. For every scalar-source histogram the two are equal.
+
+`relativeFrequency` stays a valid 0–100 visualization in both cases — it is a ratio of `occurrences` to `overallCount`
+(standard buckets still sum to 100, equalized buckets are still normalized to 100), and for a range source both
+numerator and denominator count the same overlap attributions. The only difference is interpretive: a range-source
+bucket's height reflects the share of **(element × overlapped-bucket) attributions** rather than the share of distinct
+elements, so positions covered by more overlapping ranges appear proportionally taller.
+
+</Note>
+
 ## Attribute histogram
 
 <LS to="e,j,r,c">
@@ -291,6 +306,17 @@ prices actually reachable under the user's current attribute range and facet pic
 
 The [`priceType`](price.md#price-type) requirement the source price property for the histogram computation. If no
 requirement, the histogram visualizes the price with tax.
+
+### Price histogram granularity and inner-record handling {#price-histogram-granularity}
+
+The histogram answers *"what prices are reachable in the candidate pool?"* The answer depends on how the collection
+handles inner records (`PriceInnerRecordHandling`), because that determines what constitutes one price data point:
+
+| Inner-record handling | Histogram data point per entity |
+|-----------------------|--------------------------------|
+| `NONE`                | One — the price for sale of the entity |
+| `SUM`                 | One — the cumulated price of all inner records |
+| `LOWEST_PRICE`        | **One per inner-record id** — the winning price of each variant |
 
 To demonstrate the use of the histogram, we will use the following example:
 

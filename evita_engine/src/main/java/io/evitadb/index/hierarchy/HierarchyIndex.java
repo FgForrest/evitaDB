@@ -27,6 +27,7 @@ import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
@@ -34,6 +35,8 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
+import io.evitadb.index.component.EntityIndexManifest;
+import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.array.TransactionalIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -99,7 +102,7 @@ import static java.util.Optional.ofNullable;
 public class HierarchyIndex
 	implements HierarchyIndexContract,
 	VoidTransactionMemoryProducer<HierarchyIndex>,
-	IndexDataStructure, Serializable {
+	IndexDataStructure, IndexComponent, Serializable {
 	@Serial private static final long serialVersionUID = 4121668650337515744L;
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
@@ -886,6 +889,31 @@ public class HierarchyIndex
 			);
 		} else {
 			return null;
+		}
+	}
+
+	/**
+	 * Component-loop entry point: emits a dirty `HierarchyIndexStoragePart` into `trappedChanges`
+	 * if hierarchy data has changed, and announces presence into the manifest whenever this index
+	 * carries any data — so the parent `EntityIndex` knows to flip the `hierarchyIndex` bit on the
+	 * `EntityIndexStoragePart`.
+	 *
+	 * @param entityIndexPrimaryKey the parent entity index PK, used to link the storage part back
+	 * @param manifest the shared manifest gathered for this commit cycle
+	 * @param trappedChanges the accumulator collecting modified storage parts
+	 */
+	@Override
+	public void collectModifiedStorageParts(
+		int entityIndexPrimaryKey,
+		@Nonnull EntityIndexManifest manifest,
+		@Nonnull TrappedChanges trappedChanges
+	) {
+		final StoragePart part = createStoragePart(entityIndexPrimaryKey);
+		if (part != null) {
+			trappedChanges.addChangeToStore(part);
+		}
+		if (!isHierarchyIndexEmpty()) {
+			manifest.markHierarchyPresent();
 		}
 	}
 

@@ -35,13 +35,13 @@ query(
       referenceContentWithAttributes("stocks", attributeContent("quantityOnStock")),
       priceContentRespectingFilter("reference")
     ),
-    facetSummaryOfReference(
+    referenceSummaryOfReference(
       "brand",
       IMPACT,
       orderBy(attributeNatural("name", ASC)),
       entityFetch(attributeContent("name"))
     ),
-    facetSummaryOfReference(
+    referenceSummaryOfReference(
       "parameterValues",
       IMPACT,
       filterGroupBy(attributeEquals("isVisibleInFilter", true)),

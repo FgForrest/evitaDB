@@ -47,6 +47,9 @@ import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConve
 public class ClientChangeSystemCaptureProcessor extends
 	ClientChangeCapturePublisher<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureRequest, GrpcRegisterSystemChangeCaptureResponse> {
 
+	/**
+	 * @see ClientChangeCapturePublisher#ClientChangeCapturePublisher(int, Duration, ExecutorService, Consumer, Consumer)
+	 */
 	public ClientChangeSystemCaptureProcessor(
 		int queueSize,
 		@Nonnull Duration streamingTimeout,
@@ -60,7 +63,8 @@ public class ClientChangeSystemCaptureProcessor extends
 	@Nonnull
 	@Override
 	protected Optional<HeartBeat> deserializeAcknowledgementResponse(GrpcRegisterSystemChangeCaptureResponse itemResponse) {
-		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT || itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT) {
+		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT
+			|| itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT) {
 			return Optional.of(toHeartBeat(itemResponse.getUuid(), itemResponse.getHeartBeat()));
 		} else {
 			return Optional.empty();

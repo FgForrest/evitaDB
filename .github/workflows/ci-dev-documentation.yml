@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.1 checkout sources
+    - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3 checkout sources
       with:
         persist-credentials: false
 
@@ -34,7 +34,7 @@ jobs:
          cache: 'maven'
 
     - name: Setup dotnet
-      uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309 # v5.1.0
+      uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
       with:
         dotnet-version: '8.0.X'    # setup dotnet 8.0.X for building
 
@@ -43,7 +43,7 @@ jobs:
         mvn -T 1C -B package -P documentation -V --fail-at-end -Dmaven.test.skip=false --file pom.xml
 
     - name: Upload test results    # upload XML with unit test results for debugging
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: success() || failure()
       with:
         name: test-results

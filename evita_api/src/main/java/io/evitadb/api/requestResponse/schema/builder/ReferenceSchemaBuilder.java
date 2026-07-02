@@ -139,7 +139,8 @@ public final class ReferenceSchemaBuilder
 								.map(def -> new ScopedHistogramIndexDefinition(
 									scopeEntry.getKey(),
 									def.nameOfTheIndex(),
-									def.valueExpression()
+									def.valueExpression(),
+									def.assignedWhen()
 								))
 						)
 						.toArray(ScopedHistogramIndexDefinition[]::new),
@@ -419,16 +420,17 @@ public final class ReferenceSchemaBuilder
 	public ReferenceSchemaBuilder bucketedInScope(
 		@Nonnull Scope scope,
 		@Nonnull String nameOfTheIndex,
-		@Nullable Expression valueExpression
+		@Nullable Expression valueExpression,
+		@Nullable Expression assignedWhen
 	) {
 		// compute complete state: current bucketed definitions + additive new entry
-		final Map<Scope, Map<String, HistogramIndexDefinition>> currentBucketed = this.getAllHistogramIndexDefinitions();
-		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed = new EnumMap<>(Scope.class);
-		for (final Map.Entry<Scope, Map<String, HistogramIndexDefinition>> entry : currentBucketed.entrySet()) {
-			allBucketed.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
-		}
+		final Map<Scope, Map<String, HistogramIndexDefinition>> allBucketed =
+			deepCopyHistogramIndexDefinitions(this.getAllHistogramIndexDefinitions());
 		allBucketed.computeIfAbsent(scope, k -> new LinkedHashMap<>(8))
-			.put(nameOfTheIndex, HistogramIndexDefinition.of(nameOfTheIndex, valueExpression));
+			.put(
+				nameOfTheIndex,
+				HistogramIndexDefinition.of(nameOfTheIndex, valueExpression, assignedWhen)
+			);
 		// compute complete bucketedPartially: filter existing to retained scopes
 		final Map<Scope, Expression> filteredPartially = filterBucketedPartiallyToScopes(allBucketed.keySet());
 		return emitBucketedMutationWithAutoIndex(

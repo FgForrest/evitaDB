@@ -169,10 +169,23 @@ public class EntityDecorator implements SealedEntity {
 	private List<PriceContract> filteredPrices;
 
 	/**
-	 * Method sorts and filters the data in `references` using `referenceFilter` and `referenceComparator` but only
-	 * within bounds specified by `start` (inclusive) and `end` (exclusive).
+	 * Sorts and filters the supplied `references` slice in place using `referenceFilter` and
+	 * `referenceComparator`, operating only within `[start, end)`. Filtering runs first (matching
+	 * elements move to the front of the slice, filtered-out ones are pushed to the tail); sorting
+	 * then walks the `referenceComparator` chain over the surviving prefix, recursing into the
+	 * unsorted tail at each link — see the inline notes for the cumulative-counter invariant.
 	 *
-	 * @return count of filtered out references
+	 * @param entityPrimaryKey    primary key of the source entity owning the references; forwarded
+	 *                            to every {@link ReferenceComparator.EntityPrimaryKeyAwareComparator}
+	 *                            link in the chain so it can scope its lookups
+	 * @param references          array containing the references; the `[start, end)` slice is mutated
+	 *                            in place (filtered + sorted)
+	 * @param referencePredicate  predicate identifying references the caller actually requested
+	 * @param referenceFilter     optional additional filter; {@code null} means "accept everything"
+	 * @param referenceComparator head of the comparator chain; {@code null} skips sorting entirely
+	 * @param start               inclusive lower bound of the slice to process
+	 * @param end                 exclusive upper bound of the slice to process
+	 * @return number of references filtered out of the slice (pushed to the tail of `[start, end)`)
 	 */
 	protected static int sortAndFilterSubList(
 		int entityPrimaryKey,
@@ -192,24 +205,38 @@ public class EntityDecorator implements SealedEntity {
 				entityPrimaryKey, references, referencePredicate, theReferenceFilter, start, end
 			);
 		} else {
-			if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
-				epkAware.setEntityPrimaryKey(entityPrimaryKey);
-			}
 			final int filteredOutCount = filterOutReferences(
 				entityPrimaryKey, references, referencePredicate,
 				theReferenceFilter,
 				start, end
 			);
 			final int sortEnd = end - filteredOutCount;
-			// now do the sorting in multiple passes if needed
-			int nonSortedReferenceCount;
-			do {
-				// Just sort the current window
+			// Walk the comparator chain; at each link sort the still-unsorted window and recurse on
+			// whatever the comparator could not rank. Two invariants drive the math (and mirror
+			// `BitmapSlicer#sortReferencesByComparatorChain` so pre-fetch and post-fetch agree):
+			//   1. `setEntityPrimaryKey` must fire on EVERY EPK-aware link, not just the head — the
+			//      EPK-aware link can sit anywhere in the chain (e.g. a `ReferencePredecessorComparator`
+			//      behind a plain attribute comparator) and a missing scope yields NPE or a wrong sort.
+			//   2. `getNonSortedReferenceCount()` is a cumulative cross-entity accumulator on some
+			//      concrete comparators (notably `EntityNestedQueryComparator`) — it never resets
+			//      between source-entity passes. Snapshot before/after each `Arrays.sort` and clamp
+			//      the per-pass delta to `[0, sortEnd - start]` so a stale or oversized cumulative
+			//      reading cannot drive `start` past `sortEnd` and trip the next sort with a
+			//      backwards range.
+			while (referenceComparator != null && start < sortEnd) {
+				if (referenceComparator instanceof ReferenceComparator.EntityPrimaryKeyAwareComparator epkAware) {
+					epkAware.setEntityPrimaryKey(entityPrimaryKey);
+				}
+				final int nonSortedBefore = referenceComparator.getNonSortedReferenceCount();
 				Arrays.sort(references, start, sortEnd, referenceComparator);
-				nonSortedReferenceCount = referenceComparator.getNonSortedReferenceCount();
-				start = start + (sortEnd - nonSortedReferenceCount);
+				final int nonSortedAfter = referenceComparator.getNonSortedReferenceCount();
+				final int delta = Math.max(0, Math.min(nonSortedAfter - nonSortedBefore, sortEnd - start));
+				if (delta == 0) {
+					break;
+				}
+				start = Math.max(sortEnd - delta, start);
 				referenceComparator = referenceComparator.getNextComparator();
-			} while (referenceComparator != null && nonSortedReferenceCount > 0);
+			}
 
 			return filteredOutCount;
 		}
@@ -1742,6 +1769,11 @@ public class EntityDecorator implements SealedEntity {
 	 * and handles cases where duplicate references (with the same {@link ReferenceKey}) are allowed
 	 * based on their schema definitions.
 	 *
+	 * Each qualifying reference that is not already a {@link ReferenceDecorator} is wrapped in one so that
+	 * the attribute predicate — including the `dropped()` filter for soft-deleted attribute values — is applied
+	 * uniformly on this lazy fill path, matching the behaviour of the eager
+	 * `fillFilteredSortedAndFetchedReferences` path.
+	 *
 	 * If the references allow duplicates, they are tracked separately in an internal map.
 	 * For references that do not allow duplicates, the values are stored directly in the returned map.
 	 *
@@ -1784,6 +1816,16 @@ public class EntityDecorator implements SealedEntity {
 								: lastResolvedSchema.getCardinality().allowsDuplicates();
 						}
 
+						// wrap into ReferenceDecorator so the attribute predicate (incl. exists() check
+						// for soft-deleted attributes) is consistently applied to every reference exposed
+						// from this entity — matches the eager fillFilteredSortedAndFetchedReferences path
+						final ReferenceContract wrappedReference = reference instanceof ReferenceDecorator ?
+							reference :
+							new ReferenceDecorator(
+								reference,
+								this.referencePredicate.getAttributePredicate(referenceName)
+							);
+
 						if (lastReferenceKey != null && lastReferenceKey.equalsInGeneral(referenceKey)) {
 							if (duplicatesAllowed) {
 								if (duplicatedIndexedReferences == null) {
@@ -1792,6 +1834,8 @@ public class EntityDecorator implements SealedEntity {
 								final ReferenceKey genericKey = referenceKey.isUnknownReference() ?
 									referenceKey :
 									new ReferenceKey(referenceKey.referenceName(), referenceKey.primaryKey());
+								// `previous` was stored in a prior iteration via the else branch below
+								// and is therefore already wrapped — do not re-wrap it here
 								final ReferenceContract previous = indexedReferences.remove(lastReferenceKey);
 								final List<ReferenceContract> duplicatedList;
 								if (previous == DUPLICATE_REFERENCE) {
@@ -1803,13 +1847,13 @@ public class EntityDecorator implements SealedEntity {
 								} else {
 									duplicatedList = Objects.requireNonNull(duplicatedIndexedReferences.get(genericKey));
 								}
-								duplicatedList.add(reference);
+								duplicatedList.add(wrappedReference);
 								indexedReferences.put(genericKey, DUPLICATE_REFERENCE);
 							} else {
 								throw new ReferenceAllowsDuplicatesException(referenceKey.referenceName(), schema, Operation.CREATE);
 							}
 						} else {
-							indexedReferences.put(referenceKey, reference);
+							indexedReferences.put(referenceKey, wrappedReference);
 						}
 						lastReferenceKey = referenceKey;
 					}
@@ -1830,6 +1874,11 @@ public class EntityDecorator implements SealedEntity {
 	 * If the references have not been previously filtered, this method processes the delegate's
 	 * references, applies the filtering, groups them by name, and transforms them into data chunks.
 	 *
+	 * Each qualifying reference that is not already a {@link ReferenceDecorator} is wrapped in one so that
+	 * the attribute predicate — including the `dropped()` filter for soft-deleted attribute values — is applied
+	 * uniformly on this lazy fill path, matching the behaviour of the eager
+	 * `fillFilteredSortedAndFetchedReferences` path.
+	 *
 	 * @return a non-null map where keys are reference names and values are DataChunk objects containing filtered references.
 	 */
 	@Nonnull
@@ -1841,12 +1890,22 @@ public class EntityDecorator implements SealedEntity {
 			);
 			for (ReferenceContract reference : references) {
 				if (this.referencePredicate.test(reference)) {
+					final String referenceName = reference.getReferenceName();
+					// wrap into ReferenceDecorator so the attribute predicate (incl. exists() check
+					// for soft-deleted attributes) is consistently applied to every reference exposed
+					// from this entity — matches the eager fillFilteredSortedAndFetchedReferences path
+					final ReferenceContract wrappedReference = reference instanceof ReferenceDecorator ?
+						reference :
+						new ReferenceDecorator(
+							reference,
+							this.referencePredicate.getAttributePredicate(referenceName)
+						);
 					allReferencesByName
 						.computeIfAbsent(
-							reference.getReferenceName(),
+							referenceName,
 							s -> new ArrayList<>(references.size() / this.entitySchema.getReferences().size())
 						)
-						.add(reference);
+						.add(wrappedReference);
 				}
 			}
 			this.filteredReferencesByName = allReferencesByName

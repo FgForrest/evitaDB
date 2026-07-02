@@ -40,7 +40,7 @@ jobs:
     steps:
 
     - name: Download release branch info
-      uses: dawidd6/action-download-artifact@0bd50d53a6d7fb5cb921e607957e9cc12b4ce392 # v12
+      uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
       if: ${{ github.event.workflow_run.conclusion == 'success' }}
       with:
         workflow: ${{ github.event.workflow_run.workflow_id }}
@@ -74,7 +74,7 @@ jobs:
         fi
 
     - name: Checkout code
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.1 checkout sources
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3 checkout sources
       with:
         ref: ${{ github.event.workflow_run.conclusion == 'success' && steps.read_branch.outputs.branch || github.ref }}
         fetch-depth: 0
@@ -161,7 +161,10 @@ jobs:
         # version rewritten too — otherwise the deploy below fails resolving
         # the now-mismatched -SNAPSHOT parent reference.
         mvn -P full versions:set -DnewVersion=$NEW_VERSION
-        mvn -T 1C -B -P release-sign-artifacts,full -Dmaven.test.skip=true javadoc:jar source:jar deploy --file pom.xml
+        # `evita_long_running_tests` is excluded from the release deploy: it depends on the `test-jar` of
+        # `evita_functional_tests`, which is not produced under `-Dmaven.test.skip=true`, so it would fail
+        # dependency resolution. It is a non-published leaf test module, so excluding it is safe.
+        mvn -T 1C -B -P release-sign-artifacts,full -Dmaven.test.skip=true javadoc:jar source:jar deploy -pl '!:evita_long_running_tests' --file pom.xml
       env:
         EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
@@ -348,7 +351,7 @@ jobs:
     - name: Cache Claude Code CLI
       id: cache_claude_cli
       if: success()
-      uses: actions/cache@v4
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: |
           ~/.local/bin/claude
@@ -421,7 +424,7 @@ jobs:
     # offline for inspection — even if the PATCH step skipped or failed.
     - name: Upload release-notes.md artifact
       if: always() && hashFiles('release-notes.md') != ''
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: release-notes-${{ steps.release_version.outputs.version }}
         path: release-notes.md
@@ -484,14 +487,14 @@ jobs:
         asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: success()
       with:
         name: evita-server.jar
         path: 'evita_server/target/evita-server.jar'
 
     - name: Upload evitaDB version.txt
-      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       if: success()
       with:
         name: version.txt

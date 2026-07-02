@@ -269,6 +269,17 @@ stále užšího a užšího rozsahu a nakonec by skončil ve slepé uličce.
 Požadavek [`priceType`](price.md#typ-ceny) určuje zdrojovou vlastnost ceny pro výpočet histogramu. Pokud není
 požadavek zadán, histogram zobrazuje cenu s daní.
 
+### Granularita cenového histogramu a zpracování vnitřních záznamů {#price-histogram-granularity}
+
+Histogram odpovídá na otázku *„jaké ceny jsou dosažitelné v kandidátské množině?"* Odpověď závisí na způsobu
+zpracování vnitřních záznamů (`PriceInnerRecordHandling`), protože ten určuje, co tvoří jeden datový bod ceny:
+
+| Zpracování vnitřních záznamů | Datový bod histogramu na entitu |
+|------------------------------|--------------------------------|
+| `NONE`                       | Jeden — prodejní cena entity |
+| `SUM`                        | Jeden — kumulovaná cena všech vnitřních záznamů |
+| `LOWEST_PRICE`               | **Jeden za id vnitřního záznamu** — vítězná cena každé varianty |
+
 Pro ukázku použití histogramu použijeme následující příklad:
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>

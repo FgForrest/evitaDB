@@ -1,7 +1,7 @@
 ---
 title: Schéma
 perex: Schéma je logické znázornění katalogu, které určuje typy entit, jež mohou být uloženy, a vztahy mezi nimi. Umožňuje udržovat konzistenci vašich dat a je velmi užitečné pro automatické generování webových API nad tímto schématem.
-date: '17.1.2023'
+date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 preferredLang: java
@@ -512,7 +512,7 @@ Pro každou z referencí definovaných ve schématu entity musíte zvolit úrove
 
 Partitioning indexy jsou reprezentovány <SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> a takový index je vytvořen pro každou referenci použitou v jakékoliv entitě ve schématu a bude obsahovat podmnožinu indexů atributů, cen a dalších, zredukovanou pouze na entity s danou referencí. Uveďme příklad – máme typ entity `Product`, který má referenci `categories` na typ entity `Category`, která je indexována jako `FOR_FILTERING_AND_PARTITIONING`. Představme si, že potřebujeme najít všechny produkty zařazené do konkrétní kategorie, které zároveň splňují dalších deset podmínek (jsou publikované, aktuálně platné, mají dostupnou cenu v uživatelském cenovém seznamu a v EUR atd.). Takový dotaz můžeme vyhodnotit nad jedním velkým indexem, kde jsou tyto informace dostupné pro všechny známé produkty v databázi, nebo (pokud použijeme partitioning) můžeme použít mnohem menší index, ve kterém najdeme všechny potřebné informace pouze pro produkty, které mají platný odkaz na kategorii, pro kterou dotaz vyhodnocujeme. Logicky bude odpověď na dotaz výrazně rychlejší, protože množství prohledávaných dat je výrazně menší. Nevýhodou tohoto přístupu je, že vyžaduje poměrně velké množství paměti.
 
-Pokud je reference označena jako *faceted*, je pro typ entity vytvořen speciální <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass>. Tento index obsahuje optimalizované datové struktury pro výpočet [souhrnu facet](../query/requirements/facet.md). Všechny instance referencí daného typu jsou pak vloženy do *facet reference indexu* (není možné vyloučit referenci z indexování ve facet reference indexu). Reference mohou (ale nemusí) být organizovány do facet skupin, které odkazují na *spravovaný* nebo *nespravovaný* typ entity.
+Pokud je reference označena jako *faceted*, je pro typ entity vytvořen speciální <SourceClass>evita_engine/src/main/java/io/evitadb/index/facet/FacetReferenceIndex.java</SourceClass>. Tento index obsahuje optimalizované datové struktury pro výpočet [souhrnu referencí](../query/requirements/reference.md). Všechny instance referencí daného typu jsou pak vloženy do *facet reference indexu* (není možné vyloučit referenci z indexování ve facet reference indexu). Reference mohou (ale nemusí) být organizovány do facet skupin, které odkazují na *spravovaný* nebo *nespravovaný* typ entity.
 
 #### Kardinalita reference
 

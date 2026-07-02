@@ -30,7 +30,12 @@
 
 java \
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8005 \
+        -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints \
         --add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
+        --add-opens java.base/java.lang=ALL-UNNAMED \
+        --add-opens java.base/java.lang.invoke=ALL-UNNAMED \
+        --add-opens java.base/java.math=ALL-UNNAMED \
+        --add-opens java.base/java.util=ALL-UNNAMED \
         -javaagent:target/evita-server.jar \
         -jar "target/evita-server.jar" \
         "configDir=../conf/" \

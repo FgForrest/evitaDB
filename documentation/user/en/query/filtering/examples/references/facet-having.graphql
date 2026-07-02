@@ -20,7 +20,7 @@
     }
   ) {
     extraResults {
-      facetSummary {
+      referenceSummary {
         brand {
           count
           facetStatistics {

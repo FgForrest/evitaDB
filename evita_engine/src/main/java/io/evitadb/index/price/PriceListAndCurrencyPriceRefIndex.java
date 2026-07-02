@@ -26,6 +26,7 @@ package io.evitadb.index.price;
 import io.evitadb.api.CatalogState;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogRelatedDataStructure;
+import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
@@ -49,6 +50,7 @@ import io.evitadb.utils.StringUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Objects;
@@ -218,6 +220,16 @@ public class PriceListAndCurrencyPriceRefIndex
 		markDirtyAndInvalidateCache();
 
 		return priceRecord;
+	}
+
+	@Nonnull
+	@Override
+	public PriceIdContainerFormula getIndexedRecordIdsValidNowFormula(@Nonnull OffsetDateTime theMoment) {
+		assertNotTerminated();
+		final long thePoint = DateTimeRange.toComparableLong(theMoment);
+		return new PriceIdContainerFormula(
+			this, this.validityIndex.getRecordsValidNowFormula(thePoint)
+		);
 	}
 
 	@Nullable

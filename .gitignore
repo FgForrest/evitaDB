@@ -110,3 +110,8 @@ mcp-jdwp-inspector.log
 /evita_server/logs
 /evita_test/evita_functional_tests/export/*
 /evita_test/evita_functional_tests/data/*
+
+### Agent plans and reproduction notes (never committed)
+
+/.repro/
+/.claude/scheduled_tasks.lock

@@ -1,0 +1,40 @@
+query(
+    collection("Product"),
+    filterBy(
+        entityLocaleEquals("en"),
+        hierarchyWithin("categories", attributeEquals("code", "e-readers")),
+        priceInPriceLists("basic"),
+        priceInCurrency("EUR"),
+        priceValidInNow(),
+        userFilter(
+            facetHaving(
+                "brand",
+                entityHaving(attributeEquals("code", "amazon"))
+            ),
+            priceBetween(50, 200),
+            histogramHaving(
+                "parameterValues", "intervalParameterValues",
+                200, 400,
+                groupHaving(attributeEquals("code", "weight"))
+            )
+        )
+    ),
+    require(
+        page(1, 16),
+        entityFetch(attributeContent("code", "name")),
+        referenceSummaryOfReference(
+            "brand",
+            IMPACT,
+            entityFetch(attributeContent("code", "name"))
+        ),
+        referenceSummaryOfReference(
+            "parameterValues",
+            IMPACT,
+            filterGroupBy(attributeEquals("isVisibleInFilter", true)),
+            histogramStatistics(20, "intervalParameterValues"),
+            entityFetch(attributeContent("code", "name")),
+            entityGroupFetch(attributeContent("code", "name"))
+        ),
+        priceHistogram(20)
+    )
+)

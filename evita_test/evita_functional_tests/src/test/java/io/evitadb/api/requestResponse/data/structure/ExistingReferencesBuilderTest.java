@@ -29,6 +29,7 @@ import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
@@ -1210,6 +1211,284 @@ class ExistingReferencesBuilderTest extends AbstractBuilderTest {
 			// removing and re-adding the same reference
 			// with identical content cancels out
 			assertTrue(mutations.isEmpty());
+		}
+	}
+
+	@Nested
+	@DisplayName(
+		"RESET-mode merge produces correct queue under "
+			+ "multi-setReference within a single builder"
+	)
+	class ResetModeMergeSemanticsTest {
+
+		private static final String COUNTRY_OFFICE = "countryOffice";
+		private static final String PRIORITY = "priority";
+
+		/**
+		 * Schema with one ZERO_OR_ONE store reference carrying
+		 * declared `countryOffice` (String) and `priority`
+		 * (Integer) attributes. Tests exercise the merge path
+		 * that runs when RESET-mode setReference fires twice
+		 * against the same reference within one builder.
+		 */
+		@Nonnull
+		private EntitySchemaContract
+		createSchemaForResetMergeTests() {
+			return new InternalEntitySchemaBuilder(
+				CATALOG_SCHEMA, PRODUCT_SCHEMA
+			)
+				.withReferenceToEntity(
+					STORE, STORE, Cardinality.ZERO_OR_ONE,
+					r -> r
+						.withAttribute(
+							COUNTRY_OFFICE, String.class
+						)
+						.withAttribute(
+							PRIORITY, Integer.class
+						)
+				)
+				.toInstance();
+		}
+
+		/**
+		 * Base References with STORE/1 holding only
+		 * `countryOffice=CZ`. `priority` is intentionally
+		 * absent so the missed-remove scenario has a clean
+		 * baseline.
+		 */
+		@Nonnull
+		private References createBaseForResetMergeTests(
+			@Nonnull EntitySchemaContract schema
+		) {
+			final InitialReferencesBuilder builder =
+				new InitialReferencesBuilder(schema);
+			builder.setReference(
+				STORE, 1,
+				ref -> ref.setAttribute(
+					COUNTRY_OFFICE, "CZ"
+				)
+			);
+			return builder.build();
+		}
+
+		/**
+		 * Reads the raw mutation queue stored on the builder
+		 * for the given reference, bypassing the version-based
+		 * filtering in {@link ExistingReferencesBuilder#buildChangeSet()}
+		 * (which drops idempotent no-op mutations and therefore
+		 * masks merge-level correctness defects).
+		 *
+		 * Working-layer indexes / histograms are updated from
+		 * this raw queue eagerly during the session, *before*
+		 * the version filter ever runs; that is the layer where
+		 * the histogram drift bug at seed `-1128235571`
+		 * surfaces.
+		 */
+		@Nonnull
+		private List<ReferenceMutation<?>> readRawQueue(
+			@Nonnull ExistingReferencesBuilder builder,
+			@Nonnull String referenceName,
+			int referencedPrimaryKey
+		) {
+			try {
+				final java.lang.reflect.Field field =
+					ExistingReferencesBuilder.class
+						.getDeclaredField("referenceMutations");
+				field.setAccessible(true);
+				@SuppressWarnings("unchecked")
+				final java.util.Map<ReferenceKey, java.util.Map<Integer, List<ReferenceMutation<?>>>>
+					all = (java.util.Map<ReferenceKey, java.util.Map<Integer, List<ReferenceMutation<?>>>>) field.get(builder);
+				if (all == null) {
+					return List.of();
+				}
+				final ReferenceKey businessKey =
+					new ReferenceKey(referenceName, referencedPrimaryKey);
+				final java.util.Map<Integer, List<ReferenceMutation<?>>>
+					byInternalId = all.get(businessKey);
+				if (byInternalId == null || byInternalId.isEmpty()) {
+					return List.of();
+				}
+				// single ZERO_OR_ONE reference - one entry
+				return byInternalId.values().iterator().next();
+			} catch (NoSuchFieldException | IllegalAccessException e) {
+				throw new AssertionError(
+					"Reflection access to referenceMutations failed", e
+				);
+			}
+		}
+
+		@Test
+		@Tag(REFERENCE)
+		@DisplayName(
+			"should keep Upsert in raw queue after intra-session "
+				+ "removal followed by re-add to base value"
+		)
+		void shouldPreserveAttributeReAddAfterIntraSessionRemoval() {
+			final EntitySchemaContract schema =
+				createSchemaForResetMergeTests();
+			final References base =
+				createBaseForResetMergeTests(schema);
+			final ExistingReferencesBuilder builder =
+				createBuilder(schema, base);
+
+			// Call 1 (RESET): configurator omits countryOffice
+			// → merge emits Remove(countryOffice). Working-layer
+			// indexes see the remove and drop bucket entries.
+			builder.setReference(STORE, 1, ref -> {});
+
+			// Call 2 (RESET): configurator re-sets the original
+			// base value. The re-add MUST appear in the raw
+			// queue — comparing the new value against the frozen
+			// `refInBase` snapshot would mark it as "same as
+			// before" and drop it, leaving working-layer indexes
+			// stuck on the prior remove.
+			builder.setReference(
+				STORE, 1,
+				ref -> ref.setAttribute(
+					COUNTRY_OFFICE, "CZ"
+				)
+			);
+
+			final List<ReferenceMutation<?>> queue =
+				readRawQueue(builder, STORE, 1);
+
+			final boolean hasCountryUpsert = queue.stream()
+				.anyMatch(m ->
+					m instanceof ReferenceAttributeMutation ram
+						&& ram.getAttributeMutation()
+						instanceof UpsertAttributeMutation up
+						&& up.getAttributeKey()
+						.attributeName()
+						.equals(COUNTRY_OFFICE)
+				);
+			assertTrue(
+				hasCountryUpsert,
+				"Upsert(countryOffice,CZ) must survive the "
+					+ "intra-session round-trip in the raw "
+					+ "queue — the engine's working-layer "
+					+ "indexes read mutations eagerly before "
+					+ "the version-based filter at "
+					+ "buildChangeSet() runs."
+			);
+		}
+
+		@Test
+		@Tag(REFERENCE)
+		@DisplayName(
+			"should emit Remove for attribute added by prior "
+				+ "RESET when subsequent RESET configurator omits it"
+		)
+		void shouldEmitRemovalForAttributeOmittedAfterPriorReset() {
+			final EntitySchemaContract schema =
+				createSchemaForResetMergeTests();
+			final References base =
+				createBaseForResetMergeTests(schema);
+			final ExistingReferencesBuilder builder =
+				createBuilder(schema, base);
+
+			// Call 1 (RESET): adds priority=7 (not in base).
+			// Working-layer indexes register priority=7 for
+			// STORE/1 eagerly.
+			builder.setReference(STORE, 1, ref -> {
+				ref.setAttribute(COUNTRY_OFFICE, "CZ");
+				ref.setAttribute(PRIORITY, 7);
+			});
+
+			// Call 2 (RESET): omits priority. RESET semantics
+			// dictate that the reference's complete attribute
+			// set is now just countryOffice; priority must
+			// disappear. Without an explicit Remove(priority)
+			// in the raw queue, working-layer indexes that
+			// processed Upsert(priority,7) in call 1 leak past
+			// call 2.
+			builder.setReference(
+				STORE, 1,
+				ref -> ref.setAttribute(
+					COUNTRY_OFFICE, "CZ"
+				)
+			);
+
+			final List<ReferenceMutation<?>> queue =
+				readRawQueue(builder, STORE, 1);
+
+			final boolean hasPriorityUpsert = queue.stream()
+				.anyMatch(m ->
+					m instanceof ReferenceAttributeMutation ram
+						&& ram.getAttributeMutation()
+						instanceof UpsertAttributeMutation up
+						&& up.getAttributeKey()
+						.attributeName()
+						.equals(PRIORITY)
+				);
+			assertFalse(
+				hasPriorityUpsert,
+				"Upsert(priority,7) from call 1 must NOT "
+					+ "survive call 2's queue replacement."
+			);
+
+			final boolean hasPriorityRemove = queue.stream()
+				.anyMatch(m ->
+					m instanceof ReferenceAttributeMutation ram
+						&& ram.getAttributeMutation()
+						instanceof RemoveAttributeMutation
+						&& ram.getAttributeMutation()
+						.getAttributeKey()
+						.attributeName()
+						.equals(PRIORITY)
+				);
+			assertTrue(
+				hasPriorityRemove,
+				"Raw queue must contain Remove(priority) — "
+					+ "without it, working-layer indexes that "
+					+ "registered priority=7 in call 1 leak."
+			);
+		}
+
+		@Test
+		@Tag(REFERENCE)
+		@DisplayName(
+			"should drop redundant upsert from merged queue "
+				+ "when value already matches effective state"
+		)
+		void shouldDropRedundantUpsertWhenValueMatchesBase() {
+			final EntitySchemaContract schema =
+				createSchemaForResetMergeTests();
+			final References base =
+				createBaseForResetMergeTests(schema);
+			final ExistingReferencesBuilder builder =
+				createBuilder(schema, base);
+
+			// Single RESET re-asserting the base value. The
+			// projection-based filter must recognise this as
+			// a no-op and drop the upsert from the queue —
+			// otherwise working-layer indexes do redundant
+			// histogram re-evaluation work on every such call.
+			builder.setReference(
+				STORE, 1,
+				ref -> ref.setAttribute(
+					COUNTRY_OFFICE, "CZ"
+				)
+			);
+
+			final List<ReferenceMutation<?>> queue =
+				readRawQueue(builder, STORE, 1);
+
+			final boolean hasCountryUpsert = queue.stream()
+				.anyMatch(m ->
+					m instanceof ReferenceAttributeMutation ram
+						&& ram.getAttributeMutation()
+						instanceof UpsertAttributeMutation up
+						&& up.getAttributeKey()
+						.attributeName()
+						.equals(COUNTRY_OFFICE)
+				);
+			assertFalse(
+				hasCountryUpsert,
+				"Setting an attribute to its existing base "
+					+ "value must not enqueue a redundant "
+					+ "Upsert — the projection-based filter "
+					+ "must drop it."
+			);
 		}
 	}
 }

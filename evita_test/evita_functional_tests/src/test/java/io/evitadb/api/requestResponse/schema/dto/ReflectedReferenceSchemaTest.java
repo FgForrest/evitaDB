@@ -37,7 +37,6 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedHistogramIndexDefinition;
-import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedBucketedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedFacetedPartially;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
@@ -1679,7 +1678,7 @@ class ReflectedReferenceSchemaTest {
 				null,
 				null,
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "myOwnHist", null)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "myOwnHist", null, null)
 				},
 				null,
 				Collections.emptyMap(),
@@ -1788,7 +1787,7 @@ class ReflectedReferenceSchemaTest {
 				null,    // faceted inherited
 				null,
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHist", null)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHist", null, null)
 				},
 				null,
 				Collections.emptyMap(),

@@ -668,11 +668,10 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	@DisplayName("Debug user documentation")
 	@TestFactory
-	@Disabled
 	Stream<DynamicNode> testSingleFileDocumentation() {
 		final FileTestResult result = this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/use/connectors/grpc.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/reference.md"),
 			new ExampleFilter[]{
 				/*ExampleFilter.CSHARP,*/
 				ExampleFilter.JAVA,

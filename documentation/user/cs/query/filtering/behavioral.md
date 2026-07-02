@@ -1,6 +1,6 @@
 ---
 title: Kontejnery pro behaviorální filtrování
-date: '29.11.2024'
+date: '11.5.2026'
 perex: Speciální kontejnery pro behaviorální filtrační omezení se používají k definování rozsahu filtračního omezení, který má odlišné zacházení při výpočtech, nebo k určení rozsahu, ve kterém jsou entity vyhledávány.
 author: Ing. Jan Novotný
 proofreading: done
@@ -116,7 +116,7 @@ userFilter(
 <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/UserFilter.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/UserFilter.cs</SourceClass></LS>
 funguje totožně jako podmínka [`and`](logical.md#and), ale rozlišuje rozsah filtru, který je ovládán uživatelem
 prostřednictvím nějakého uživatelského rozhraní, od zbytku dotazu, který obsahuje povinné podmínky na výslednou
-množinu. Uživatelsky definovaný rozsah lze měnit během určitých výpočtů (například při výpočtu [facety](../requirements/facet.md#fasetový-souhrn)
+množinu. Uživatelsky definovaný rozsah lze měnit během určitých výpočtů (například při výpočtu [souhrnu referencí](../requirements/reference.md#souhrn-referencí)
 nebo [histogramu](../requirements/histogram.md)), zatímco povinná část mimo `userFilter` zůstává neměnná.
 
 Podívejme se na příklad, kde je podmínka [`facetHaving`](references.md#facet-having) použita uvnitř

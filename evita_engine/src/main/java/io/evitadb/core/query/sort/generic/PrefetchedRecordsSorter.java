@@ -32,6 +32,7 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.utils.Assert;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
@@ -60,6 +61,38 @@ public class PrefetchedRecordsSorter implements Sorter {
 		this.entityComparator = entityComparator;
 	}
 
+	/**
+	 * Sorts the candidate record set using the pre-fetched entity bodies and slices the result to the requested page.
+	 *
+	 * **Early-exit:** when {@link QueryExecutionContext#getPrefetchedEntities()} returns `null`, the sorter skips
+	 * itself entirely and returns the incoming `sortingContext` unchanged so the next sorter in the chain can handle
+	 * the full candidate set.
+	 *
+	 * **When prefetched entities are present:**
+	 *
+	 * 1. Translates each candidate record ID from `sortingContext.nonSortedKeys()` to its `EntityContract`
+	 *    via `QueryExecutionContext.translateToEntity`.
+	 * 2. Sorts the entity list with `entityComparator`. If the comparator implements
+	 *    {@link EntityReferenceSensitiveComparator} and a `referenceKey` is set on the context, sorting is
+	 *    scoped to that reference key.
+	 * 3. Entities that the comparator could not sort (returned by `getNonSortedEntities()`) are collected into
+	 *    a `notFoundRecords` bitmap and excluded from the sortable slice `[0, entitiesCount)`.
+	 * 4. The sortable slice is paged and written into `result`; skipped records are reported to
+	 *    `skippedRecordsConsumer` if provided.
+	 * 5. Returns a new `SortingContext` carrying the unsortable records so the next sorter can place them.
+	 *
+	 * **Partition invariant:** every primary key reported by `entityComparator.getNonSortedEntities()` MUST
+	 * fall outside the sortable slice. By cardinality the two slices are fixed-size partitions, so verifying
+	 * the trailing slice `[entitiesCount, entities.size())` consists exclusively of PKs from `notFoundRecords`
+	 * is sufficient — and cheap, costing O(notFoundRecordsCnt) instead of O(entitiesCount). If the comparator
+	 * places a non-sortable entity inside the sortable slice, downstream sorters would emit duplicate primary
+	 * keys; {@link Assert#isPremiseValid} throws immediately in that case to surface the violation early.
+	 *
+	 * @param sortingContext      the current sorting state including candidate keys and pagination window
+	 * @param result              output array that receives sorted primary keys for the requested page slice
+	 * @param skippedRecordsConsumer optional consumer called for each primary key skipped before the page window
+	 * @return updated `SortingContext` with unsortable records passed to the next sorter in the chain
+	 */
 	@Nonnull
 	@Override
 	public SortingContext sortAndSlice(
@@ -105,6 +138,22 @@ public class PrefetchedRecordsSorter implements Sorter {
 			final AtomicInteger index = new AtomicInteger();
 			final int entitiesCount = selectedRecordIds.size() - notFoundRecordsCnt;
 			final List<EntityContract> entityContracts = entities.subList(0, entitiesCount);
+			// invariant: the trailing slice [entitiesCount, entities.size()) must contain exactly
+			// the non-sortable PKs reported by the comparator. By cardinality the two slices are
+			// fixed-size partitions, so verifying the trailing slice is sufficient and costs
+			// O(notFoundRecordsCnt) — preferred over scanning the full sortable slice on this hot path.
+			if (notFoundRecordsCnt > 0) {
+				final int totalSize = entities.size();
+				for (int i = entitiesCount; i < totalSize; i++) {
+					final int pk = queryContext.translateEntity(entities.get(i));
+					Assert.isPremiseValid(
+						notFoundRecords.contains(pk),
+						() -> "Entity comparator " + this.entityComparator.getClass().getName() +
+							" kept sortable entity #" + pk + " inside the trailing non-sortable slice" +
+							" — sort/non-sort partitions disagree; downstream sorters would emit duplicates."
+					);
+				}
+			}
 			final int skippedItems = Math.min(recomputedStartIndex, entitiesCount);
 			final int appendedItems = Math.min(Math.min(recomputedEndIndex, entitiesCount), skippedItems + result.length - peak);
 			if (skippedRecordsConsumer != null) {

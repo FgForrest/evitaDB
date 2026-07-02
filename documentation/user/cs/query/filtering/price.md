@@ -1,6 +1,6 @@
 ---
 title: Filtrování podle ceny
-date: '7.11.2023'
+date: '11.5.2026'
 perex: 'V oblasti e-commerce uživatelé očekávají, že uvidí ceny přizpůsobené jejich kontextu: místní měnu pro snadné porozumění, přesné prodejní ceny ze správného ceníku a aktuální nabídky, které mohou platit pouze v určitých obdobích. Splnění těchto očekávání pomocí sofistikovaného filtrování v databázi nejen zlepšuje uživatelský zážitek, ale také zjednodušuje nákupní proces, což zvyšuje spokojenost i prodeje.'
 author: Ing. Jan Novotný
 proofreading: done
@@ -331,7 +331,7 @@ Constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/Pr
 omezuje výslednou množinu na položky, které mají prodejní cenu v zadaném cenovém rozmezí. Tento constraint je
 typicky nastaven uživatelským rozhraním, aby uživatel mohl filtrovat produkty podle ceny, a měl by být vnořen do
 kontejneru constraintu [`userFilter`](behavioral.md#uživatelský-filtr), aby mohl být správně zpracován výpočty
-[facety](../requirements/facet.md) nebo [histogramu](../requirements/histogram.md).
+[souhrnu referencí](../requirements/reference.md) nebo [histogramu](../requirements/histogram.md).
 
 </LS>
 
@@ -352,7 +352,7 @@ Constraint <SourceClass>EvitaDB.Client/Queries/Filter/PriceBetween.cs</SourceCla
 omezuje výslednou množinu na položky, které mají prodejní cenu v zadaném cenovém rozmezí. Tento constraint je
 typicky nastaven uživatelským rozhraním, aby uživatel mohl filtrovat produkty podle ceny, a měl by být vnořen do
 kontejneru constraintu [`userFilter`](behavioral.md#uživatelský-filtr), aby mohl být správně zpracován výpočty
-[facety](../requirements/facet.md) nebo [histogramu](../requirements/histogram.md).
+[souhrnu referencí](../requirements/reference.md) nebo [histogramu](../requirements/histogram.md).
 
 </LS>
 

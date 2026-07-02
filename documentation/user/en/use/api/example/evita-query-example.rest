@@ -41,7 +41,7 @@ POST /rest/evita/Product/query
       "number" : 1,
       "size" : 20
     },
-    "facetSummary" : {
+    "referenceSummary" : {
       "statisticsDepth" : "IMPACT"
     },
     "priceType" : "WITH_TAX",

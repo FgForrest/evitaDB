@@ -29,6 +29,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -69,6 +70,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.HISTOGRAM;
@@ -379,11 +381,31 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
-		@DisplayName("should not grow group 1 histogram overallCount when a userFilter facet selection is applied")
-		void shouldNotGrowGroup1HistogramOverallCountUnderUserFilterFacet(@Nonnull Evita evita) {
-			// Pick a handful of parameter values in group 1 and assert that the histogram for
-			// group 1 does not grow under the facet selection (it may shrink or stay equal).
-			final Integer[] selectedPvs = new Integer[]{1, 2};
+		@DisplayName("should not grow anchor-group histogram overallCount when a userFilter facet selection is applied")
+		void shouldNotGrowAnchorGroupHistogramOverallCountUnderUserFilterFacet(
+			@Nonnull Evita evita,
+			@Nonnull List<SealedEntity> originalProducts
+		) {
+			// Pick any product carrying parameter-value refs and reuse its PVs as the facet
+			// selection. Resolving the anchor product (and its group) from the real fixture
+			// keeps the test invariant under fixture reshuffles and avoids the AND-between-
+			// groups trap: every PV pulled from one product shares the same parent group, so
+			// the facet filter is satisfiable by construction.
+			final SealedEntity anchorProduct = originalProducts.stream()
+				.filter(p -> !p.getReferences(REF_PARAM_VALUES).isEmpty())
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"Fixture must contain at least one product with a non-empty " + REF_PARAM_VALUES
+						+ " reference set"));
+			final Integer[] selectedPvs = anchorProduct.getReferences(REF_PARAM_VALUES).stream()
+				.map(ReferenceContract::getReferencedPrimaryKey)
+				.distinct()
+				.toArray(Integer[]::new);
+			final int anchorGroupPk = anchorProduct.getReferences(REF_PARAM_VALUES).iterator().next()
+				.getGroup()
+				.map(io.evitadb.api.requestResponse.data.EntityReferenceContract::getPrimaryKey)
+				.orElseThrow(() -> new AssertionError("Anchor product's reference must carry a group"));
+
 			final Map<Integer, Integer> unfiltered = runAndCollectOverallCounts(evita, null);
 			final Map<Integer, Integer> withFacet = runAndCollectOverallCounts(
 				evita,
@@ -394,10 +416,17 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 				)
 			);
 
-			// group 1 must see a narrower-or-equal overallCount
+			// the anchor's group must see a narrower-or-equal overallCount; a zero on both
+			// sides would silently pass, so additionally require the unfiltered count to be
+			// strictly positive — confirms the assertion actually exercises a populated group
+			final Integer unfilteredCount = unfiltered.get(anchorGroupPk);
+			assertNotNull(unfilteredCount,
+				"Unfiltered histogram must populate the anchor group " + anchorGroupPk);
+			assertTrue(unfilteredCount > 0,
+				"Unfiltered anchor-group histogram must carry at least one reference");
 			assertTrue(
-				withFacet.getOrDefault(1, 0) <= unfiltered.get(1),
-				"Facet-narrowed histogram for group 1 must be <= unfiltered"
+				withFacet.getOrDefault(anchorGroupPk, 0) <= unfilteredCount,
+				"Facet-narrowed histogram for anchor group " + anchorGroupPk + " must be <= unfiltered"
 			);
 		}
 
@@ -595,7 +624,35 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 		@Test
 		@UseDataSet(REFERENCE_HISTOGRAM_LARGE)
 		@DisplayName("should still populate at least one group histogram under attributeBetween + userFilter facet")
-		void shouldPopulateHistogramUnderCompoundAttributeAndUserFilter(@Nonnull Evita evita) {
+		void shouldPopulateHistogramUnderCompoundAttributeAndUserFilter(
+			@Nonnull Evita evita,
+			@Nonnull List<SealedEntity> originalProducts
+		) {
+			// Pick a real product matching the base filter and reuse ITS parameter-value
+			// references as the facet selection. This keeps the test invariant under fixture
+			// reshuffles and guarantees the compound filter is satisfiable — picking PVs
+			// across two groups would AND-between-groups to empty (facetHaving defaults to OR
+			// within a group, AND between groups), zeroing every histogram.
+			final BigDecimal quantityLow = new BigDecimal("1");
+			final BigDecimal quantityHigh = new BigDecimal("80");
+			final SealedEntity anchorProduct = originalProducts.stream()
+				.filter(p -> {
+					final BigDecimal q = p.getAttribute(ATTR_QUANTITY, BigDecimal.class);
+					return q != null
+						&& q.compareTo(quantityLow) >= 0
+						&& q.compareTo(quantityHigh) <= 0
+						&& !p.getReferences(REF_PARAM_VALUES).isEmpty();
+				})
+				.findFirst()
+				.orElseThrow(() -> new AssertionError(
+					"Fixture must contain at least one product with quantity in ["
+						+ quantityLow + ", " + quantityHigh + "] and a non-empty " + REF_PARAM_VALUES
+						+ " reference set"));
+			final Integer[] selectedPvs = anchorProduct.getReferences(REF_PARAM_VALUES).stream()
+				.map(ReferenceContract::getReferencedPrimaryKey)
+				.distinct()
+				.toArray(Integer[]::new);
+
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -604,9 +661,9 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 							collection(ENTITY_PRODUCT),
 							filterBy(
 								and(
-									attributeBetween(ATTR_QUANTITY, new BigDecimal("1"), new BigDecimal("80")),
+									attributeBetween(ATTR_QUANTITY, quantityLow, quantityHigh),
 									userFilter(
-										facetHaving(REF_PARAM_VALUES, entityPrimaryKeyInSet(1, 2, 11, 12))
+										facetHaving(REF_PARAM_VALUES, entityPrimaryKeyInSet(selectedPvs))
 									)
 								)
 							),
@@ -622,8 +679,9 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					);
 					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 					assertNotNull(referenceSummary);
-					// At least one group must carry a populated histogram — the compound filter
-					// narrows products but cannot empty every group in the large fixture.
+					// At least one group must carry a populated histogram — the anchor product
+					// is in the result set by construction, so its own group's histogram cannot
+					// be empty.
 					boolean any = false;
 					for (int groupPk = 1; groupPk <= GROUP_COUNT; groupPk++) {
 						final ReferenceGroupStatistics group =
@@ -835,6 +893,193 @@ public class ReferenceSummaryHistogramFunctionalTest extends AbstractReferenceSu
 					assertArrayEquals(
 						new String[]{HISTOGRAM_PRICE},
 						group2.getHistogramStatistics().keySet().toArray(new String[0])
+					);
+					return null;
+				}
+			);
+		}
+
+		@Test
+		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
+		@DisplayName("filterGroupBy selecting one group must drop the other group's histogram")
+		void shouldOnlyEmitHistogramForGroupSelectedByFilterGroupBy(@Nonnull Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummaryOfReferenceWithHistograms(
+									REF_PARAM_VALUES, FacetStatisticsDepth.COUNTS,
+									null,                                       // facetFilterBy
+									filterGroupBy(entityPrimaryKeyInSet(1)),    // facetGroupFilterBy: only group 1
+									null, null,                                 // facetOrderBy, facetGroupOrderBy
+									null, null,                                 // entityFetch, entityGroupFetch
+									histogramStatistics(10, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+					// filterGroupBy picks only group 1 — the histogram-stats path must honour it the
+					// same way the facet path does: group 1 stays (with its histogram) and group 2 is gone
+					final ReferenceGroupStatistics group1 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 1
+					);
+					final ReferenceGroupStatistics group2 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 2
+					);
+					assertNotNull(group1, "Group 1 must appear — it was selected by filterGroupBy");
+					assertArrayEquals(
+						new String[]{HISTOGRAM_PRICE},
+						group1.getHistogramStatistics().keySet().toArray(new String[0]),
+						"Selected group 1 must expose exactly the requested histogram entry"
+					);
+					assertNull(
+						group2,
+						"Group 2 must be absent — it was not selected by filterGroupBy"
+					);
+					return null;
+				}
+			);
+		}
+
+		@Test
+		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
+		@DisplayName("all-references fan-out filterGroupBy selecting one group must drop the other group's histogram")
+		void shouldOnlyEmitHistogramForGroupSelectedByAllReferencesFilterGroupBy(@Nonnull Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummaryWithHistograms(
+									FacetStatisticsDepth.COUNTS,
+									null,                                       // facetFilterBy
+									filterGroupBy(entityPrimaryKeyInSet(1)),    // facetGroupFilterBy: only group 1
+									null, null,                                 // facetOrderBy, facetGroupOrderBy
+									null, null,                                 // entityFetch, entityGroupFetch
+									histogramStatistics(10, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+					// the all-references fan-out leaves the reference out of `referenceSummaryRequests`,
+					// so group-predicate resolution falls to the `defaultRequest`-derived branch — that
+					// branch must honour filterGroupBy identically: group 1 (with its histogram) survives
+					// and group 2 is dropped
+					final ReferenceGroupStatistics group1 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 1
+					);
+					final ReferenceGroupStatistics group2 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 2
+					);
+					assertNotNull(group1, "Group 1 must appear — it was selected by filterGroupBy");
+					assertArrayEquals(
+						new String[]{HISTOGRAM_PRICE},
+						group1.getHistogramStatistics().keySet().toArray(new String[0]),
+						"Selected group 1 must expose exactly the requested histogram entry"
+					);
+					assertNull(
+						group2,
+						"Group 2 must be absent — it was not selected by filterGroupBy"
+					);
+					return null;
+				}
+			);
+		}
+
+		@Test
+		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
+		@DisplayName("filterGroupBy matching no group must drop every group's histogram")
+		void shouldEmitNoGroupHistogramWhenFilterGroupBySelectsNoGroup(@Nonnull Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummaryOfReferenceWithHistograms(
+									REF_PARAM_VALUES, FacetStatisticsDepth.COUNTS,
+									null,                                         // facetFilterBy
+									filterGroupBy(entityPrimaryKeyInSet(999)),    // facetGroupFilterBy: no such group
+									null, null,                                   // facetOrderBy, facetGroupOrderBy
+									null, null,                                   // entityFetch, entityGroupFetch
+									histogramStatistics(10, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+					// group 999 does not exist, so the predicate matches no group — every group's
+					// histogram is dropped with no all-groups fallback and no exception
+					final ReferenceGroupStatistics group1 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 1
+					);
+					final ReferenceGroupStatistics group2 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 2
+					);
+					assertNull(group1, "Group 1 must be absent — filterGroupBy matched no group");
+					assertNull(group2, "Group 2 must be absent — filterGroupBy matched no group");
+					return null;
+				}
+			);
+		}
+
+		@Test
+		@UseDataSet(REFERENCE_HISTOGRAM_SMALL)
+		@DisplayName("NONE depth + filterGroupBy selecting one group must drop the other group's histogram")
+		void shouldOnlyEmitHistogramForGroupSelectedByFilterGroupByWithNoneDepth(@Nonnull Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReferenceContract> result = session.query(
+						query(
+							collection(ENTITY_PRODUCT),
+							require(
+								referenceSummaryOfReferenceWithHistograms(
+									REF_PARAM_VALUES, FacetStatisticsDepth.NONE,
+									null,                                       // facetFilterBy
+									filterGroupBy(entityPrimaryKeyInSet(1)),    // facetGroupFilterBy: only group 1
+									null, null,                                 // facetOrderBy, facetGroupOrderBy
+									null, null,                                 // entityFetch, entityGroupFetch
+									histogramStatistics(10, HISTOGRAM_PRICE)
+								)
+							)
+						),
+						EntityReferenceContract.class
+					);
+					final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
+					assertNotNull(referenceSummary);
+					// NONE depth strips the reference from the statistics map before histogram injection,
+					// so each surviving group is synthesised purely from histogram data — that synthesis must
+					// still honour filterGroupBy: group 1 emerges (carrying its histogram) and group 2 is gone
+					final ReferenceGroupStatistics group1 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 1
+					);
+					final ReferenceGroupStatistics group2 = referenceSummary.getReferenceGroupStatistics(
+						REF_PARAM_VALUES, 2
+					);
+					assertNotNull(group1, "Group 1 must appear as a histogram-only synthetic group");
+					assertArrayEquals(
+						new String[]{HISTOGRAM_PRICE},
+						group1.getHistogramStatistics().keySet().toArray(new String[0]),
+						"Selected group 1 must expose exactly the requested histogram entry"
+					);
+					assertNull(
+						group2,
+						"Group 2 must be absent — filtered out by filterGroupBy even in NONE depth"
 					);
 					return null;
 				}

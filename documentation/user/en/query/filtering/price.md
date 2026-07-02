@@ -1,6 +1,6 @@
 ---
 title: Price filtering
-date: '7.11.2023'
+date: '11.5.2026'
 perex: |
   In the realm of e-commerce, users expect to see prices that are personalized to their context: local currency for easy
   understanding, accurate selling prices from the correct price list, and timely offers that may only be valid during
@@ -360,7 +360,7 @@ The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceBetw
 restricts the result set to items that have a price for sale within the specified price range. This constraint is
 typically set by the user interface to allow the user to filter products by price, and should be nested inside
 the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by
-the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
+the [reference summary](../requirements/reference.md) or [histogram](../requirements/histogram.md) computations.
 
 </LS>
 
@@ -383,7 +383,7 @@ The <SourceClass>EvitaDB.Client/Queries/Filter/PriceBetween.cs</SourceClass> con
 restricts the result set to items that have a price for sale within the specified price range. This constraint is
 typically set by the user interface to allow the user to filter products by price, and should be nested inside
 the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by
-the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
+the [reference summary](../requirements/reference.md) or [histogram](../requirements/histogram.md) computations.
 
 </LS>
 

@@ -34,26 +34,16 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.api.exception.ConflictingCatalogCommutativeMutationException;
-import io.evitadb.api.exception.ConflictingCatalogMutationException;
-import io.evitadb.api.exception.ReadOnlyException;
-import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.file.FileForFetch;
-import io.evitadb.api.query.QueryConstraints;
-import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
-import io.evitadb.api.requestResponse.mutation.EngineMutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
+import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -61,20 +51,16 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.system.MaterializedVersionBlock;
 import io.evitadb.api.requestResponse.system.TimeFlow;
 import io.evitadb.api.requestResponse.system.WriteAheadLogVersionDescriptor;
-import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.core.transaction.Transaction;
-import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.function.Functions;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.function.TriFunction;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
@@ -129,26 +115,23 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static io.evitadb.test.generator.DataGenerator.*;
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.test.TestTags.SLOW;
+import static io.evitadb.test.TestTags.TRANSACTION;
+import static io.evitadb.test.generator.DataGenerator.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This comprehensive test class validates the transactional behavior of evitaDB, including:
@@ -226,150 +209,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 	@Nonnull
 	private static BiFunction<String, Faker, Integer> createRandomEntityPicker(@Nonnull EvitaSessionContract session) {
 		return (entityType, faker) -> RANDOM_ENTITY_PICKER.apply(entityType, session, faker);
-	}
-
-	/**
-	 * Asserts that an entity with the given type and primary key exists in the session.
-	 *
-	 * @param session    the evita session to query
-	 * @param entityType the entity type
-	 * @param primaryKey the primary key
-	 * @return the found entity
-	 */
-	@Nonnull
-	private static SealedEntity assertEntityPresent(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull String entityType,
-		int primaryKey
-	) {
-		final Optional<SealedEntity> entity = session.getEntity(entityType, primaryKey, entityFetchAllContent());
-		assertTrue(entity.isPresent(), "Entity " + entityType + ":" + primaryKey + " should be present");
-		return entity.get();
-	}
-
-	/**
-	 * Asserts that an entity with the given type and primary key does not exist in the session.
-	 *
-	 * @param session    the evita session to query
-	 * @param entityType the entity type
-	 * @param primaryKey the primary key
-	 */
-	private static void assertEntityAbsent(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull String entityType,
-		int primaryKey
-	) {
-		final Optional<SealedEntity> entity = session.getEntity(entityType, primaryKey, entityFetchAllContent());
-		assertFalse(entity.isPresent(), "Entity " + entityType + ":" + primaryKey + " should not be present");
-	}
-
-	/**
-	 * Asserts that two entities are equal.
-	 *
-	 * @param expected the expected entity
-	 * @param actual   the actual entity
-	 */
-	private static void assertEntityEquals(@Nonnull SealedEntity expected, @Nonnull SealedEntity actual) {
-		assertEquals(expected, actual, "Entities should be equal");
-	}
-
-	/**
-	 * Executes a concurrent update in a separate thread and waits for it to complete.
-	 * This is a common pattern in conflict testing where one thread updates while another
-	 * thread waits and then attempts a conflicting operation.
-	 *
-	 * @param evita       the evita instance to use
-	 * @param catalogName the catalog name
-	 * @param updateLogic the update logic to execute in the concurrent thread
-	 * @throws InterruptedException if the waiting thread is interrupted
-	 */
-	private static void executeConcurrentUpdate(
-		@Nonnull EvitaContract evita,
-		@Nonnull String catalogName,
-		@Nonnull Consumer<EvitaSessionContract> updateLogic
-	) throws InterruptedException {
-		final CountDownLatch latch = new CountDownLatch(1);
-		new Thread(() -> {
-			try {
-				evita.updateCatalog(catalogName, updateLogic);
-			} finally {
-				latch.countDown();
-			}
-		}).start();
-
-		if (!latch.await(10, TimeUnit.SECONDS)) {
-			fail("Concurrent update timed out!");
-		}
-	}
-
-	/**
-	 * Reinitializes Evita with a custom configuration. Closes the original instance first.
-	 *
-	 * @param originalEvita        the original evita instance to close
-	 * @param configurationBuilder a function that modifies the configuration builder
-	 * @return the new evita instance with the custom configuration
-	 */
-	@Nonnull
-	private static Evita reinitializeEvitaWithConfig(
-		@Nonnull EvitaContract originalEvita,
-		@Nonnull UnaryOperator<EvitaConfiguration.Builder> configurationBuilder
-	) throws Exception {
-		final EvitaConfiguration originalConfiguration = ((Evita) originalEvita).getConfiguration();
-		originalEvita.close();
-
-		final EvitaConfiguration.Builder builder = EvitaConfiguration.builder()
-			.name(originalConfiguration.name())
-			.storage(originalConfiguration.storage())
-			.export(originalConfiguration.export())
-			.server(originalConfiguration.server())
-			.cache(originalConfiguration.cache())
-			.transaction(originalConfiguration.transaction());
-
-		final Evita evita = new Evita(configurationBuilder.apply(builder).build());
-		evita.waitUntilFullyInitialized();
-		return evita;
-	}
-
-	/**
-	 * Verifies the contents of the catalog in the given Evita instance.
-	 *
-	 * @param secondInstance    The Evita instance to verify.
-	 * @param generatedEntities The map of generated entities for verification.
-	 * @param expectedVersion   The expected version of the catalog.
-	 * @return The catalog version after verification.
-	 */
-	private static long verifyCatalogContents(
-		@Nonnull Evita secondInstance,
-		@Nonnull Map<Long, List<EntityContract>> generatedEntities,
-		long expectedVersion
-	) {
-		long catalogVersion = 0L;
-		for (int i = 0; i < 100_000; i++) {
-			catalogVersion = secondInstance.queryCatalog(
-				TEST_CATALOG,
-				EvitaSessionContract::getCatalogVersion
-			);
-			if (catalogVersion == expectedVersion) {
-				// the WAL has been processed
-				secondInstance.queryCatalog(
-					TEST_CATALOG,
-					session -> {
-						generatedEntities.values().stream()
-							.flatMap(List::stream)
-							.forEach(entity -> {
-								final Optional<SealedEntity> fetchedEntity = session.getEntity(
-									entity.getType(), entity.getPrimaryKey(), QueryConstraints.entityFetchAllContent()
-								);
-								assertTrue(fetchedEntity.isPresent());
-								assertFalse(entity.differsFrom(fetchedEntity.get()));
-							});
-					}
-				);
-
-				break;
-			}
-		}
-		return catalogVersion;
 	}
 
 	/* ======================================================================================== */
@@ -562,70 +401,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 		);
 
 		return primaryKeysWithTxIds;
-	}
-
-	/**
-	 * Returns the number of Write-Ahead Log (WAL) files in the catalog directory.
-	 * WAL files have the suffix defined by {@link CatalogPersistenceService#WAL_FILE_SUFFIX}.
-	 *
-	 * @param catalogPath the path to the catalog directory to scan
-	 * @return the number of WAL files found
-	 * @throws IOException when the directory cannot be read
-	 */
-	private static int numberOfWalFiles(@Nonnull Path catalogPath) throws IOException {
-		try (final Stream<Path> list = Files.list(catalogPath)) {
-			return list
-				.filter(it -> it.getFileName().toString().endsWith(PersistenceService.WAL_FILE_SUFFIX))
-				.mapToInt(it -> 1)
-				.sum();
-		}
-	}
-
-	/**
-	 * Returns the lowest index of catalog data files in the catalog directory.
-	 * This is used to verify that old catalog files have been removed during compaction.
-	 * Catalog data files have the suffix defined by {@link CatalogPersistenceService#CATALOG_FILE_SUFFIX}.
-	 *
-	 * @param catalogPath the path to the catalog directory to scan
-	 * @return the minimum index found, or 0 if no files exist
-	 * @throws IOException when the directory cannot be read
-	 */
-	private static int firstIndexOfCatalogDataFile(@Nonnull Path catalogPath) throws IOException {
-		try (final Stream<Path> list = Files.list(catalogPath)) {
-			return list
-				.filter(it -> it.getFileName().toString().endsWith(CatalogPersistenceService.CATALOG_FILE_SUFFIX))
-				.mapToInt(it -> CatalogPersistenceService.getIndexFromCatalogFileName(it.getFileName().toString()))
-				.min()
-				.orElse(0);
-		}
-	}
-
-	/**
-	 * Returns the lowest index of entity collection data files for the specified entity type in the catalog directory.
-	 * This is used to verify that old entity collection files have been removed during compaction.
-	 * Entity collection files have the suffix defined by {@link CatalogPersistenceService#ENTITY_COLLECTION_FILE_SUFFIX}.
-	 *
-	 * @param catalogPath the path to the catalog directory to scan
-	 * @param entityType  the entity type to search for (e.g., "Product")
-	 * @return the minimum index found
-	 * @throws IOException                      when the directory cannot be read
-	 * @throws java.util.NoSuchElementException if no files are found for the given entity type
-	 */
-	private static int firstIndexOfCollectionDataFile(
-		@Nonnull Path catalogPath, @Nonnull String entityType) throws IOException {
-		try (final Stream<Path> list = Files.list(catalogPath)) {
-			return list
-				.filter(it -> it.getFileName()
-					.toString()
-					.endsWith(CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX) && it.getFileName()
-					.toString()
-					.toLowerCase()
-					.startsWith(entityType.toLowerCase() + "-"))
-				.mapToInt(it -> CatalogPersistenceService.getEntityPrimaryKeyAndIndexFromEntityCollectionFileName(
-					it.getFileName().toString()).fileIndex())
-				.min()
-				.orElseThrow();
-		}
 	}
 
 	@DataSet(value = TRANSACTIONAL_DATA_SET, readOnly = false)

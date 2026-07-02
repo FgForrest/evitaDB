@@ -37,10 +37,12 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.Refl
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -80,9 +82,18 @@ import static java.util.Optional.ofNullable;
  * Analyzer is a stateful class, that traverses record / class getters or fields for annotations from `io.data.annotation`
  * package and sets up the entity / catalog schema accordingly.
  *
- * The analyzer only creates or expands existing schema and never removes anything from it. The expected form of use is
- * to define new entity properties and mark old one as deprecated. When the already deprecated properties are about to be
- * removed completely the removal should occur in an explicit way (command or API call) outside this analyzer.
+ * Schema reconciliation contract:
+ *
+ * - **Structural elements** (attributes, associated data, references, sortable compounds) are
+ *   only created or expanded — the analyzer never removes them. Removal of a deprecated property
+ *   must happen explicitly outside this analyzer.
+ * - **Annotation flag reconciliation** is symmetric for booleans and their enum analogues
+ *   (`nullable`, `localized`, `representative`, `filterable`, `sortable`, `unique`, `uniqueGlobally`,
+ *   `faceted`, …). The class annotation is the source of truth: if a flag is `false` / `NOT_UNIQUE`
+ *   on the annotation but `true` on the schema, the analyzer flips the schema back to match.
+ *   This means a bare `@Attribute String foo()` is a strong assertion that every default-valued
+ *   flag must be at its default — re-analyzing such a class clears any previously-set flag on
+ *   the same attribute.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  * @see Entity
@@ -356,35 +367,44 @@ public class ClassSchemaAnalyzer {
 				isStringNotEqual(editor.getDeprecationNotice(), attributeAnnotation.deprecated())) {
 				editor.deprecated(attributeAnnotation.deprecated());
 			}
-			// nullable - only set if not already nullable
+			// nullable - reconcile with annotation
 			if (attributeAnnotation.nullable() && !editor.isNullable()) {
 				editor.nullable();
+			} else if (!attributeAnnotation.nullable() && editor.isNullable()) {
+				editor.nonNullable();
 			}
 
 			applyAttributeScopedProperties(editor, attributeAnnotation);
 
-			// representative - only set if not already representative
+			// representative - reconcile with annotation
 			if (attributeAnnotation.representative() && !editor.isRepresentative()) {
 				editor.representative();
+			} else if (!attributeAnnotation.representative() && editor.isRepresentative()) {
+				editor.representative(() -> false);
 			}
-			// localized - only set if not already localized
+			// localized - reconcile with annotation
 			if (attributeAnnotation.localized() && !editor.isLocalized()) {
 				editor.localized();
+			} else if (!attributeAnnotation.localized() && editor.isLocalized()) {
+				editor.nonLocalized();
 			}
-			// indexed decimal places - only set if different
-			if (BigDecimal.class.equals(attributeType) &&
+			// indexed decimal places - applies to BigDecimal and BigDecimalNumberRange (incl. array variants),
+			// whose values are scaled to comparable longs using this decimal-places count for filtering/sorting
+			final Class<?> indexedBaseType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
+			if ((BigDecimal.class.equals(indexedBaseType) || BigDecimalNumberRange.class.equals(indexedBaseType)) &&
 				editor.getIndexedDecimalPlaces() != attributeAnnotation.indexedDecimalPlaces()) {
 				editor.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
 			}
 		};
 
-		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
+		// An attribute is promoted to a (catalog-level) global attribute only when global uniqueness is requested -
+		// either via `global=true`, the default-scope `uniqueGlobally`, or a per-scope `uniqueGlobally`. A per-scope
+		// plain `unique` (within-collection) is an entity-level property and must NOT make the attribute global,
+		// otherwise its uniqueness mutation is emitted at the catalog level and silently no-ops on the entity attribute.
 		if (attributeAnnotation.global() ||
 			attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE ||
 			Arrays.stream(attributeAnnotation.scope()).anyMatch(
-				it -> it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) ||
-			(!ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition) && Arrays.stream(scopedDefinition).anyMatch(
-				it -> it.unique() != AttributeUniquenessType.NOT_UNIQUE || it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE))
+				it -> it.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE)
 		) {
 			Assert.notNull(
 				catalogBuilder,
@@ -397,6 +417,8 @@ public class ClassSchemaAnalyzer {
 
 					if (attributeAnnotation.representative() && !whichIs.isRepresentative()) {
 						whichIs.representative();
+					} else if (!attributeAnnotation.representative() && whichIs.isRepresentative()) {
+						whichIs.representative(() -> false);
 					}
 
 					applyGlobalAttributeScopedProperties(whichIs, attributeAnnotation);
@@ -623,7 +645,7 @@ public class ClassSchemaAnalyzer {
 		@Nonnull Reference reference
 	) {
 		final ScopeReferenceSettings[] scopedDefinition = reference.scope();
-		final Histogram bucketedProperty = reference.bucketed();
+		final Histogram[] bucketedProperty = reference.bucketed();
 		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
 			// general settings apply to DEFAULT_SCOPE
 			applyReferenceIndexType(
@@ -633,21 +655,17 @@ public class ClassSchemaAnalyzer {
 				null
 			);
 			applyReferenceIndexedComponents(editor, reference.indexedComponents(), Scope.DEFAULT_SCOPE);
+			// faceted - reconcile DEFAULT_SCOPE with annotation
 			if (reference.faceted() && !editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
 				editor.faceted();
+			} else if (!reference.faceted() && editor.isFacetedInScope(Scope.DEFAULT_SCOPE)) {
+				editor.nonFaceted(Scope.DEFAULT_SCOPE);
 			}
 			final String facetedPartiallyExpr = reference.facetedPartially().value();
 			if (!facetedPartiallyExpr.isEmpty()) {
 				editor.facetedPartially(ExpressionFactory.parse(facetedPartiallyExpr));
 			}
-			final String bucketedIndexName = bucketedProperty.nameOfTheIndex();
-			final String bucketedValueExpr = bucketedProperty.value().value();
-			if (!bucketedIndexName.isEmpty() || !bucketedValueExpr.isEmpty()) {
-				editor.bucketed(
-					bucketedIndexName,
-					bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr)
-				);
-			}
+			applyBucketedHistograms(editor, Scope.DEFAULT_SCOPE, bucketedProperty);
 			final String bucketedPartiallyExpr = reference.bucketedPartially().value();
 			if (!bucketedPartiallyExpr.isEmpty()) {
 				editor.bucketedPartially(ExpressionFactory.parse(bucketedPartiallyExpr));
@@ -673,8 +691,7 @@ public class ClassSchemaAnalyzer {
 					"(and thus it doesn't make sense to set it)!"
 			);
 			Assert.isTrue(
-				bucketedProperty.nameOfTheIndex().isEmpty() &&
-					bucketedProperty.value().value().isEmpty(),
+				ArrayUtils.isEmptyOrItsValuesNull(bucketedProperty),
 				"When `scope` is defined in `@Reference` annotation, " +
 					"the value of `bucketed` property is not taken into an account " +
 					"(and thus it doesn't make sense to set it)!"
@@ -698,14 +715,21 @@ public class ClassSchemaAnalyzer {
 			for (ScopeReferenceSettings ss : scopedDefinition) {
 				final Scope scope = ss.scope();
 				applyReferenceIndexedComponents(editor, ss.indexedComponents(), scope);
-				if (ss.faceted() && !editor.isFacetedInScope(scope)) {
+				if (ss.faceted()) {
 					facetedScopes.add(scope);
 				}
 			}
 			// 3) `facetedInScope` MUST be called before any per-scope `facetedPartiallyInScope` —
 			// the builder's `facetedInScope` filters existing partial expressions to the scopes it's
 			// passed, so a later partial call cannot recover dropped state.
-			if (!facetedScopes.isEmpty()) {
+			//
+			// Fire only when the desired faceted-scope set differs from the current state so the
+			// reconciliation is idempotent on repeat analysis but still narrows when the annotation
+			// drops a previously faceted scope.
+			final EnumSet<Scope> currentFacetedScopes = collectScopes(
+				Scope.values(), editor::isFacetedInScope
+			);
+			if (!facetedScopes.equals(currentFacetedScopes)) {
 				editor.facetedInScope(facetedScopes.toArray(Scope[]::new));
 			}
 			// 4) remaining per-scope settings — ordering between them is independent.
@@ -715,21 +739,70 @@ public class ClassSchemaAnalyzer {
 				if (!fpExpr.isEmpty()) {
 					editor.facetedPartiallyInScope(scope, ExpressionFactory.parse(fpExpr));
 				}
-				final Histogram bucketed = ss.bucketed();
-				final String bucketedIndexName = bucketed.nameOfTheIndex();
-				final String bucketedValueExpr = bucketed.value().value();
-				if (!bucketedIndexName.isEmpty() || !bucketedValueExpr.isEmpty()) {
-					editor.bucketedInScope(
-						scope,
-						bucketedIndexName,
-						bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr)
-					);
-				}
+				applyBucketedHistograms(editor, scope, ss.bucketed());
 				final String bpExpr = ss.bucketedPartially().value();
 				if (!bpExpr.isEmpty()) {
 					editor.bucketedPartiallyInScope(scope, ExpressionFactory.parse(bpExpr));
 				}
 			}
+		}
+	}
+
+	/**
+	 * Iterates over the {@link Histogram} array declared on a {@link Reference} or
+	 * {@link ScopeReferenceSettings} annotation and emits one
+	 * {@link ReferenceSchemaEditor#bucketedInScope} call per entry. Validates that each
+	 * entry carries a non-blank {@code nameOfTheIndex} (blank histogram entries inside a
+	 * non-empty array are rejected) and that names are unique within the (reference, scope)
+	 * pair. A {@code null} entry inside a non-empty array is a programming error and surfaces
+	 * as a {@link GenericEvitaInternalError}.
+	 *
+	 * @param editor     the reference schema editor to configure
+	 * @param scope      the scope under which the histograms should be installed
+	 * @param histograms the histogram annotation entries (may be empty)
+	 */
+	private static void applyBucketedHistograms(
+		@Nonnull ReferenceSchemaEditor<?> editor,
+		@Nonnull Scope scope,
+		@Nullable Histogram[] histograms
+	) {
+		if (ArrayUtils.isEmptyOrItsValuesNull(histograms)) {
+			return;
+		}
+		final Set<String> seenNames = CollectionUtils.createHashSet(histograms.length);
+		for (final Histogram histogram : histograms) {
+			// `isEmptyOrItsValuesNull` only short-circuits on all-null arrays; a mixed array
+			// like `{validHistogram, null}` reaches this loop and would NPE on the next line.
+			// Surface this as a programming-error (defensive-design rule) before dereferencing.
+			if (histogram == null) {
+				throw new GenericEvitaInternalError(
+					"Reference '" + editor.getName() + "' declares a null @Histogram entry — null " +
+						"histogram entries inside a non-empty array are not allowed."
+				);
+			}
+			final String bucketedIndexName = histogram.nameOfTheIndex();
+			if (bucketedIndexName.isBlank()) {
+				throw new InvalidSchemaMutationException(
+					"Reference '" + editor.getName() + "' declares a @Histogram with a blank " +
+						"nameOfTheIndex — blank histogram entries inside a non-empty array " +
+						"are not allowed."
+				);
+			}
+			if (!seenNames.add(bucketedIndexName)) {
+				throw new InvalidSchemaMutationException(
+					"Reference '" + editor.getName() + "' declares histogram index name '" +
+						bucketedIndexName + "' more than once in scope " + scope +
+						" — names must be unique within a (reference, scope)."
+				);
+			}
+			final String bucketedValueExpr = histogram.value().value();
+			final String assignedWhenExpr = histogram.assignedWhen().value();
+			editor.bucketedInScope(
+				scope,
+				bucketedIndexName,
+				bucketedValueExpr.isEmpty() ? null : ExpressionFactory.parse(bucketedValueExpr),
+				assignedWhenExpr.isEmpty() ? null : ExpressionFactory.parse(assignedWhenExpr)
+			);
 		}
 	}
 
@@ -847,19 +920,29 @@ public class ClassSchemaAnalyzer {
 	) {
 		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
 		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+			// unique - reconcile DEFAULT_SCOPE with annotation enum
+			final AttributeUniquenessType currentUniqueType = editor.getUniquenessType(Scope.DEFAULT_SCOPE);
 			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION &&
-				!editor.isUniqueInScope(Scope.DEFAULT_SCOPE)) {
+				currentUniqueType != AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION) {
 				editor.unique();
-			}
-			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE &&
-				!editor.isUniqueWithinLocaleInScope(Scope.DEFAULT_SCOPE)) {
+			} else if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE &&
+				currentUniqueType != AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE) {
 				editor.uniqueWithinLocale();
+			} else if (attributeAnnotation.unique() == AttributeUniquenessType.NOT_UNIQUE &&
+				currentUniqueType != AttributeUniquenessType.NOT_UNIQUE) {
+				editor.nonUniqueInScope(Scope.DEFAULT_SCOPE);
 			}
+			// filterable - reconcile DEFAULT_SCOPE with annotation
 			if (attributeAnnotation.filterable() && !editor.isFilterableInScope(Scope.DEFAULT_SCOPE)) {
 				editor.filterable();
+			} else if (!attributeAnnotation.filterable() && editor.isFilterableInScope(Scope.DEFAULT_SCOPE)) {
+				editor.nonFilterableInScope(Scope.DEFAULT_SCOPE);
 			}
+			// sortable - reconcile DEFAULT_SCOPE with annotation
 			if (attributeAnnotation.sortable() && !editor.isSortableInScope(Scope.DEFAULT_SCOPE)) {
 				editor.sortable();
+			} else if (!attributeAnnotation.sortable() && editor.isSortableInScope(Scope.DEFAULT_SCOPE)) {
+				editor.nonSortableInScope(Scope.DEFAULT_SCOPE);
 			}
 		} else {
 			Assert.isTrue(
@@ -881,39 +964,112 @@ public class ClassSchemaAnalyzer {
 					"(and thus it doesn't make sense to set it to true)!"
 			);
 
-			final Scope[] uniqueInScopes = Arrays.stream(scopedDefinition)
-				.filter(it -> it.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
-				.map(ScopeAttributeSettings::scope)
-				.filter(scope -> !editor.isUniqueInScope(scope))
-				.toArray(Scope[]::new);
-			if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueInScopes)) {
-				editor.uniqueInScope(uniqueInScopes);
+			// unique - reconcile per-scope from a single pre-mutation snapshot. Both
+			// `uniqueInScope` and `uniqueWithinLocaleInScope` emit a SetAttributeSchemaUniqueMutation
+			// that replaces the whole uniqueness map, and combineWith keeps only the last of them -
+			// so emitting both would let one silently clobber the other. A single full-replacement
+			// call for the requested kind already expresses the complete desired state (it clears
+			// the opposite kind as well). Mixing both kinds across scopes on one attribute cannot be
+			// expressed by these kind-specific setters and is surfaced rather than silently corrupted.
+			final EnumSet<Scope> desiredUniqueScopes = collectScopesByUnique(
+				scopedDefinition, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			);
+			final EnumSet<Scope> desiredUniqueLocaleScopes = collectScopesByUnique(
+				scopedDefinition, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
+			);
+			final EnumSet<Scope> currentUniqueScopes = collectScopes(
+				Scope.values(), s -> editor.getUniquenessType(s) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+			);
+			final EnumSet<Scope> currentUniqueLocaleScopes = collectScopes(
+				Scope.values(), s -> editor.getUniquenessType(s) == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
+			);
+			if (!desiredUniqueScopes.equals(currentUniqueScopes) ||
+				!desiredUniqueLocaleScopes.equals(currentUniqueLocaleScopes)) {
+				if (desiredUniqueLocaleScopes.isEmpty()) {
+					editor.uniqueInScope(desiredUniqueScopes.toArray(Scope[]::new));
+				} else if (desiredUniqueScopes.isEmpty()) {
+					editor.uniqueWithinLocaleInScope(desiredUniqueLocaleScopes.toArray(Scope[]::new));
+				} else {
+					throw new GenericEvitaInternalError(
+						"Attribute `" + editor.getName() + "` mixes `UNIQUE_WITHIN_COLLECTION` and " +
+							"`UNIQUE_WITHIN_COLLECTION_LOCALE` uniqueness across scopes, which the class " +
+							"schema analyzer cannot apply within a single mutation."
+					);
+				}
 			}
-			final Scope[] uniqueWithinLocaleInScopes = Arrays.stream(scopedDefinition)
-				.filter(it -> it.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE)
-				.map(ScopeAttributeSettings::scope)
-				.filter(scope -> !editor.isUniqueWithinLocaleInScope(scope))
-				.toArray(Scope[]::new);
-			if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueWithinLocaleInScopes)) {
-				editor.uniqueWithinLocaleInScope(uniqueWithinLocaleInScopes);
+			// filterable - reconcile per-scope desired set
+			final EnumSet<Scope> desiredFilterableScopes = collectScopesByPredicate(
+				scopedDefinition, ScopeAttributeSettings::filterable
+			);
+			final EnumSet<Scope> currentFilterableScopes = collectScopes(
+				Scope.values(), editor::isFilterableInScope
+			);
+			if (!desiredFilterableScopes.equals(currentFilterableScopes)) {
+				editor.filterableInScope(desiredFilterableScopes.toArray(Scope[]::new));
 			}
-			final Scope[] filterableInScopes = Arrays.stream(scopedDefinition)
-				.filter(ScopeAttributeSettings::filterable)
-				.map(ScopeAttributeSettings::scope)
-				.filter(scope -> !editor.isFilterableInScope(scope))
-				.toArray(Scope[]::new);
-			if (!ArrayUtils.isEmptyOrItsValuesNull(filterableInScopes)) {
-				editor.filterableInScope(filterableInScopes);
-			}
-			final Scope[] sortableInScopes = Arrays.stream(scopedDefinition)
-				.filter(ScopeAttributeSettings::sortable)
-				.map(ScopeAttributeSettings::scope)
-				.filter(scope -> !editor.isSortableInScope(scope))
-				.toArray(Scope[]::new);
-			if (!ArrayUtils.isEmptyOrItsValuesNull(sortableInScopes)) {
-				editor.sortableInScope(sortableInScopes);
+			// sortable - reconcile per-scope desired set
+			final EnumSet<Scope> desiredSortableScopes = collectScopesByPredicate(
+				scopedDefinition, ScopeAttributeSettings::sortable
+			);
+			final EnumSet<Scope> currentSortableScopes = collectScopes(
+				Scope.values(), editor::isSortableInScope
+			);
+			if (!desiredSortableScopes.equals(currentSortableScopes)) {
+				editor.sortableInScope(desiredSortableScopes.toArray(Scope[]::new));
 			}
 		}
+	}
+
+	/**
+	 * Returns the {@link EnumSet} of scopes for which the predicate is `true`.
+	 */
+	@Nonnull
+	private static EnumSet<Scope> collectScopes(
+		@Nonnull Scope[] scopes,
+		@Nonnull Predicate<Scope> predicate
+	) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final Scope scope : scopes) {
+			if (predicate.test(scope)) {
+				result.add(scope);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Returns the {@link EnumSet} of scopes in `scopedDefinition` whose predicate is `true`.
+	 */
+	@Nonnull
+	private static EnumSet<Scope> collectScopesByPredicate(
+		@Nonnull ScopeAttributeSettings[] scopedDefinition,
+		@Nonnull Predicate<ScopeAttributeSettings> predicate
+	) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final ScopeAttributeSettings settings : scopedDefinition) {
+			if (predicate.test(settings)) {
+				result.add(settings.scope());
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Returns the {@link EnumSet} of scopes in `scopedDefinition` whose `unique()` matches
+	 * `target`.
+	 */
+	@Nonnull
+	private static EnumSet<Scope> collectScopesByUnique(
+		@Nonnull ScopeAttributeSettings[] scopedDefinition,
+		@Nonnull AttributeUniquenessType target
+	) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final ScopeAttributeSettings settings : scopedDefinition) {
+			if (settings.unique() == target) {
+				result.add(settings.scope());
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -927,13 +1083,18 @@ public class ClassSchemaAnalyzer {
 	) {
 		final ScopeAttributeSettings[] scopedDefinition = attributeAnnotation.scope();
 		if (ArrayUtils.isEmptyOrItsValuesNull(scopedDefinition)) {
+			// uniqueGlobally - reconcile DEFAULT_SCOPE with annotation enum
+			final GlobalAttributeUniquenessType currentGlobalUniqueType =
+				editor.getGlobalUniquenessType(Scope.DEFAULT_SCOPE);
 			if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG &&
-				!editor.isUniqueGloballyInScope(Scope.DEFAULT_SCOPE)) {
+				currentGlobalUniqueType != GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
 				editor.uniqueGlobally();
-			}
-			if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE &&
-				!editor.isUniqueGloballyWithinLocaleInScope(Scope.DEFAULT_SCOPE)) {
+			} else if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE &&
+				currentGlobalUniqueType != GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE) {
 				editor.uniqueGloballyWithinLocale();
+			} else if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.NOT_UNIQUE &&
+				currentGlobalUniqueType != GlobalAttributeUniquenessType.NOT_UNIQUE) {
+				editor.nonUniqueGloballyInScope(Scope.DEFAULT_SCOPE);
 			}
 		} else {
 			Assert.isTrue(
@@ -942,23 +1103,58 @@ public class ClassSchemaAnalyzer {
 					"the value of `uniqueGlobally` property is not taken into an account " +
 					"(and thus it doesn't make sense to set it to any value)!"
 			);
-			final Scope[] uniqueGloballyInScopes = Arrays.stream(scopedDefinition)
-				.filter(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
-				.map(ScopeAttributeSettings::scope)
-				.filter(scope -> !editor.isUniqueGloballyInScope(scope))
-				.toArray(Scope[]::new);
-			if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueGloballyInScopes)) {
-				editor.uniqueGloballyInScope(uniqueGloballyInScopes);
-			}
-			final Scope[] uniqueGloballyWithinLocaleInScopes = Arrays.stream(scopedDefinition)
-				.filter(it -> it.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE)
-				.map(ScopeAttributeSettings::scope)
-				.filter(scope -> !editor.isUniqueGloballyWithinLocaleInScope(scope))
-				.toArray(Scope[]::new);
-			if (!ArrayUtils.isEmptyOrItsValuesNull(uniqueGloballyWithinLocaleInScopes)) {
-				editor.uniqueGloballyWithinLocaleInScope(uniqueGloballyWithinLocaleInScopes);
+			// uniqueGlobally per-scope - reconcile from a single pre-mutation snapshot. As with
+			// entity-level uniqueness, both global setters emit a full-replacement mutation that
+			// combineWith collapses to the last one, so a single call for the requested kind
+			// expresses the complete desired state (clearing the opposite kind too). Mixing both
+			// global kinds across scopes is surfaced rather than silently corrupted.
+			final EnumSet<Scope> desiredUniqueGloballyScopes = collectScopesByUniqueGlobally(
+				scopedDefinition, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+			);
+			final EnumSet<Scope> desiredUniqueGloballyLocaleScopes = collectScopesByUniqueGlobally(
+				scopedDefinition, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
+			);
+			final EnumSet<Scope> currentUniqueGloballyScopes = collectScopes(
+				Scope.values(), s -> editor.getGlobalUniquenessType(s) == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+			);
+			final EnumSet<Scope> currentUniqueGloballyLocaleScopes = collectScopes(
+				Scope.values(), s -> editor.getGlobalUniquenessType(s) == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
+			);
+			if (!desiredUniqueGloballyScopes.equals(currentUniqueGloballyScopes) ||
+				!desiredUniqueGloballyLocaleScopes.equals(currentUniqueGloballyLocaleScopes)) {
+				if (desiredUniqueGloballyLocaleScopes.isEmpty()) {
+					editor.uniqueGloballyInScope(desiredUniqueGloballyScopes.toArray(Scope[]::new));
+				} else if (desiredUniqueGloballyScopes.isEmpty()) {
+					editor.uniqueGloballyWithinLocaleInScope(
+						desiredUniqueGloballyLocaleScopes.toArray(Scope[]::new)
+					);
+				} else {
+					throw new GenericEvitaInternalError(
+						"Attribute `" + editor.getName() + "` mixes `UNIQUE_WITHIN_CATALOG` and " +
+							"`UNIQUE_WITHIN_CATALOG_LOCALE` global uniqueness across scopes, which the " +
+							"class schema analyzer cannot apply within a single mutation."
+					);
+				}
 			}
 		}
+	}
+
+	/**
+	 * Returns the {@link EnumSet} of scopes in `scopedDefinition` whose `uniqueGlobally()`
+	 * matches `target`.
+	 */
+	@Nonnull
+	private static EnumSet<Scope> collectScopesByUniqueGlobally(
+		@Nonnull ScopeAttributeSettings[] scopedDefinition,
+		@Nonnull GlobalAttributeUniquenessType target
+	) {
+		final EnumSet<Scope> result = EnumSet.noneOf(Scope.class);
+		for (final ScopeAttributeSettings settings : scopedDefinition) {
+			if (settings.uniqueGlobally() == target) {
+				result.add(settings.scope());
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -1362,13 +1558,17 @@ public class ClassSchemaAnalyzer {
 				) {
 					whichIs.deprecated(associatedDataAnnotation.deprecated());
 				}
-				// nullable - only set if not already nullable
+				// nullable - reconcile with annotation
 				if (associatedDataAnnotation.nullable() && !whichIs.isNullable()) {
 					whichIs.nullable();
+				} else if (!associatedDataAnnotation.nullable() && whichIs.isNullable()) {
+					whichIs.nullable(() -> false);
 				}
-				// localized - only set if not already localized
+				// localized - reconcile with annotation
 				if (associatedDataAnnotation.localized() && !whichIs.isLocalized()) {
 					whichIs.localized();
+				} else if (!associatedDataAnnotation.localized() && whichIs.isLocalized()) {
+					whichIs.localized(() -> false);
 				}
 			}
 		);

@@ -65,7 +65,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						),
 						priceContentRespectingFilter("reference")
 					),
-					facetSummaryOfReference(
+					referenceSummaryOfReference(
 						"brand",
 						IMPACT,
 						orderBy(
@@ -75,7 +75,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 							attributeContent("name")
 						)
 					),
-					facetSummaryOfReference(
+					referenceSummaryOfReference(
 						"parameterValues",
 						IMPACT,
 						filterGroupBy(

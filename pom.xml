@@ -126,7 +126,7 @@
 		<slf4j.version>2.0.17</slf4j.version>
 		<logback.version>1.5.32</logback.version>
 		<kryo.version>5.6.2</kryo.version>
-		<jackson.version>2.21.1</jackson.version>
+		<jackson.version>2.21.3</jackson.version>
 		<jackson.annotations.version>2.21</jackson.annotations.version>
 		<snakeyaml.version>2.6</snakeyaml.version>
 		<roaringbitmap.version>1.6.12</roaringbitmap.version>
@@ -135,18 +135,18 @@
 		<assertj.version>3.27.7</assertj.version>
 		<maven.compiler.version>3.15.0</maven.compiler.version>
 		<maven.toolchains.version>3.2.0</maven.toolchains.version>
-		<lombok.version>1.18.42</lombok.version>
-		<grpc.version>1.78.0</grpc.version>
-		<bouncyCastle.version>1.83</bouncyCastle.version>
+		<lombok.version>1.18.46</lombok.version>
+		<grpc.version>1.80.0</grpc.version>
+		<bouncyCastle.version>1.84</bouncyCastle.version>
 		<swagger.version>2.2.43</swagger.version>
-		<armeria.version>1.36.0</armeria.version>
-		<prometheus.version>1.5.0</prometheus.version>
-		<micrometer.version>1.16.3</micrometer.version>
+		<armeria.version>1.39.0</armeria.version>
+		<prometheus.version>1.6.1</prometheus.version>
+		<micrometer.version>1.16.5</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
 		<okhttp.version>5.3.2</okhttp.version>
-		<opentelemetry.version>1.59.0</opentelemetry.version>
-		<opentelemetry.semconv.version>1.40.0</opentelemetry.semconv.version>
+		<opentelemetry.version>1.62.0</opentelemetry.version>
+		<opentelemetry.semconv.version>1.41.1</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
 	</properties>
 
@@ -312,6 +312,26 @@
 				<groupId>org.junit.platform</groupId>
 				<artifactId>junit-platform-launcher</artifactId>
 				<version>${junit.jupiter.version}</version>
+			</dependency>
+			<!--
+				Force Bouncy Castle to ${bouncyCastle.version} across all modules.
+				Without this, io.minio:minio drags in a vulnerable bcprov-jdk18on
+				transitively into evita_export_s3 (CVE-2026-5598, CVE-2026-0636).
+			-->
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcprov-jdk18on</artifactId>
+				<version>${bouncyCastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcpkix-jdk18on</artifactId>
+				<version>${bouncyCastle.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.bouncycastle</groupId>
+				<artifactId>bcutil-jdk18on</artifactId>
+				<version>${bouncyCastle.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
@@ -514,7 +534,7 @@
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-shade-plugin</artifactId>
-					<version>3.6.1</version>
+					<version>3.6.2</version>
 				</plugin>
 				<plugin>
 					<!--
@@ -546,7 +566,7 @@
 					-->
 					<groupId>io.github.git-commit-id</groupId>
 					<artifactId>git-commit-id-maven-plugin</artifactId>
-					<version>9.0.2</version>
+					<version>10.0.0</version>
 					<executions>
 						<execution>
 							<id>get-the-git-infos</id>
@@ -594,7 +614,7 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.4</version>
+				<version>3.5.5</version>
 				<configuration>
 					<forkCount>1</forkCount>
 					<reuseForks>true</reuseForks>
@@ -689,7 +709,7 @@
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.8</version>
+				<version>0.8.14</version>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>
@@ -707,7 +727,7 @@
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>versions-maven-plugin</artifactId>
-				<version>2.19.1</version>
+				<version>2.21.0</version>
 				<configuration>
 					<ignoredVersions>(?i).*[.-](alpha|beta|rc|ea|m)[.-]?\d*</ignoredVersions>
 				</configuration>

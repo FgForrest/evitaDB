@@ -161,7 +161,7 @@
 		<dependency>
 			<groupId>commons-codec</groupId>
 			<artifactId>commons-codec</artifactId>
-			<version>1.21.0</version>
+			<version>1.22.0</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -200,7 +200,7 @@
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
 			<artifactId>json-unit</artifactId>
-			<version>5.1.0</version>
+			<version>5.1.1</version>
 		</dependency>
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
@@ -250,7 +250,7 @@
 					<plugin>
 						<groupId>org.codehaus.mojo</groupId>
 						<artifactId>exec-maven-plugin</artifactId>
-						<version>3.5.0</version>
+						<version>3.6.3</version>
 						<executions>
 							<execution>
 								<goals>

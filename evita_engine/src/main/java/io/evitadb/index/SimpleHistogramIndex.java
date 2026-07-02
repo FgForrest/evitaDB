@@ -27,6 +27,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
+import io.evitadb.index.result.CardinalityChange;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStoragePart;
@@ -104,10 +105,10 @@ public class SimpleHistogramIndex extends HistogramIndex {
 	@Override
 	public void insertValue(
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK
 	) {
-		if (this.cardinality.addRecord(value, ownerPK)) {
+		if (this.cardinality.addRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
 			this.filterIndex.addRecord(ownerPK, value);
 		}
 	}
@@ -118,7 +119,7 @@ public class SimpleHistogramIndex extends HistogramIndex {
 		@Nonnull Serializable value,
 		int ownerPK
 	) {
-		if (this.cardinality.removeRecord(value, ownerPK)) {
+		if (this.cardinality.removeRecord(value, ownerPK) == CardinalityChange.BOUNDARY_CROSSED) {
 			this.filterIndex.removeRecord(ownerPK, value);
 		}
 	}

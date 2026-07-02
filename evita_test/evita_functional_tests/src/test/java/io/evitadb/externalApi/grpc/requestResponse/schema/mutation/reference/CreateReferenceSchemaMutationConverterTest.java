@@ -250,7 +250,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			new Scope[]{Scope.LIVE},
 			null,
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpr)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpr, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, bucketedPartiallyExpr)
@@ -298,7 +298,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			new Scope[]{Scope.LIVE},
 			null,
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "histogram", null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "histogram", null, null)
 			},
 			null
 		);
@@ -310,5 +310,53 @@ class CreateReferenceSchemaMutationConverterTest {
 		assertEquals(1, roundTripped.getBucketedInScopes().length);
 		assertEquals("histogram", roundTripped.getBucketedInScopes()[0].nameOfTheIndex());
 		assertNull(roundTripped.getBucketedInScopes()[0].valueExpression());
+	}
+
+	/**
+	 * Pins the gRPC encode path for the per-histogram `assignedWhen` partition selector
+	 * on `CreateReferenceSchemaMutation`. The encoder helper used to silently drop this
+	 * field — proto round-tripping would return `null` regardless of the input — so this
+	 * test exercises a non-null assignedWhen end-to-end.
+	 */
+	@Test
+	@DisplayName("should round-trip assignedWhen partition selector on bucketed histogram")
+	void shouldRoundTripAssignedWhenOnBucketedHistogram() {
+		final Expression valueExpr = ExpressionFactory.parse("$price * $quantity");
+		final Expression assignedWhen = ExpressionFactory.parse("$active == 1");
+		final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+			"tags",
+			"desc",
+			null,
+			Cardinality.ZERO_OR_MORE,
+			"tag",
+			false,
+			"tagGroup",
+			false,
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			},
+			null,
+			new Scope[]{Scope.LIVE},
+			null,
+			new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpr, assignedWhen)
+			},
+			null
+		);
+
+		final CreateReferenceSchemaMutation roundTripped =
+			converter.convert(converter.convert(mutation));
+
+		assertEquals(mutation, roundTripped);
+		assertNotNull(roundTripped.getBucketedInScopes());
+		assertEquals(1, roundTripped.getBucketedInScopes().length);
+		assertNotNull(
+			roundTripped.getBucketedInScopes()[0].assignedWhen(),
+			"assignedWhen must survive gRPC round-trip"
+		);
+		assertEquals(
+			assignedWhen.toExpressionString(),
+			roundTripped.getBucketedInScopes()[0].assignedWhen().toExpressionString()
+		);
 	}
 }

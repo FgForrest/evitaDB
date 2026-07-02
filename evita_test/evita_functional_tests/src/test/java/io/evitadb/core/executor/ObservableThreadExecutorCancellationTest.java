@@ -28,547 +28,686 @@ import io.evitadb.api.requestResponse.progress.UnrejectableTask;
 import io.evitadb.core.executor.ObservableThreadExecutor.ObservableCallable;
 import io.evitadb.core.executor.ObservableThreadExecutor.ObservableRunnable;
 import io.evitadb.function.Functions;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.TASK;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Tests verifying cancellation behavior of {@link ObservableRunnable} and {@link ObservableCallable}.
+ * Tests verifying the cancellation, queue-counter, queue-limit and wrapper semantics of
+ * {@link ObservableThreadExecutor} together with its {@link ObservableRunnable} / {@link ObservableCallable}
+ * task wrappers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @SuppressWarnings("ResultOfMethodCallIgnored")
 @Tag(ENGINE)
 @Tag(TASK)
+@DisplayName("ObservableThreadExecutor cancellation, queue tracking & wrapper semantics")
 class ObservableThreadExecutorCancellationTest {
 
-	// ---- Bug 2: dangling result future on pre-start cancellation ----
+	/** Maximum thread count used by the saturation / queue-limit fixtures. */
+	private static final int FIXTURE_MAX_THREADS = 2;
+	/** Backlog limit used by the saturation / queue-limit fixtures. */
+	private static final int FIXTURE_QUEUE_LIMIT = 3;
+	/**
+	 * Generous upper bound for every assertion-gating wait. The suite runs heavily parallelized on a
+	 * CPU-saturated host, so a tight cap would produce starvation-induced false failures; a large cap costs
+	 * nothing on the passing path because each `await` / `join` returns the instant its signal fires.
+	 */
+	private static final long AWAIT_SECONDS = 30L;
 
-	@Test
-	void withoutPropagateCompletion_externalFutureHangsOnPreStartCancel() {
-		final ObservableRunnable task = new ObservableRunnable(
-			"test-dangling-future",
-			() -> { throw new IllegalStateException("Should not execute"); },
-			Functions.noOpRunnable()
-		);
-
-		final CompletableFuture<String> externalResult = new CompletableFuture<>();
-		// intentionally NOT wiring completion propagation
-
-		task.cancel();
-		task.run();
-
-		assertTrue(task.isFinished(), "Task should be finished (cancelled)");
-		assertFalse(externalResult.isDone(), "External result should NOT be completed without completion propagation");
-	}
-
-	@Test
-	void withPropagateCompletion_externalFutureCompletesOnPreStartCancel() {
-		final ObservableRunnable task = new ObservableRunnable(
-			"test-propagated-future",
-			() -> { throw new IllegalStateException("Should not execute"); },
-			Functions.noOpRunnable()
-		);
-
-		final CompletableFuture<String> externalResult = new CompletableFuture<>();
-		task.completionStage().whenComplete((v, ex) -> {
-			if (!externalResult.isDone()) {
-				externalResult.cancel(false);
-			}
-		});
-
-		task.cancel();
-		task.run();
-
-		assertTrue(task.isFinished(), "Task should be finished (cancelled)");
-		assertTrue(externalResult.isDone(), "External result should be completed via completion propagation");
-		assertTrue(externalResult.isCancelled(), "External result should be cancelled");
-	}
-
-	// ---- General cancellation behavior tests ----
-
-	@Test
-	void cancelDuringRunShouldInterruptExecutingThread() throws Exception {
-		final CountDownLatch taskStarted = new CountDownLatch(1);
-		final AtomicBoolean wasInterrupted = new AtomicBoolean(false);
-
-		final ObservableRunnable task = new ObservableRunnable(
-			"test-cancel-during-run",
-			() -> {
-				taskStarted.countDown();
-				try {
-					Thread.sleep(10_000);
-				} catch (InterruptedException e) {
-					wasInterrupted.set(true);
-				}
-			},
-			Functions.noOpRunnable()
-		);
-
-		final Thread worker = new Thread(task, "test-worker");
-		worker.start();
-		assertTrue(taskStarted.await(5, TimeUnit.SECONDS), "Task should have started");
-
-		task.cancel();
-
-		worker.join(5_000);
-		assertFalse(worker.isAlive(), "Worker thread should have finished");
-		assertTrue(wasInterrupted.get(), "Worker thread should have been interrupted");
-		assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
-	}
-
-	@Test
-	void cancelDuringCallShouldInterruptExecutingThread() throws Exception {
-		final CountDownLatch taskStarted = new CountDownLatch(1);
-		final AtomicBoolean wasInterrupted = new AtomicBoolean(false);
-
-		final ObservableCallable<String> task = new ObservableCallable<>(
-			"test-cancel-during-call",
-			() -> {
-				taskStarted.countDown();
-				try {
-					Thread.sleep(10_000);
-					return "should-not-reach";
-				} catch (InterruptedException e) {
-					wasInterrupted.set(true);
-					return "interrupted";
-				}
-			},
-			Functions.noOpRunnable()
-		);
-
-		final Thread worker = new Thread(() -> {
-			try {
-				task.call();
-			} catch (Exception e) {
-				// expected
-			}
-		}, "test-worker");
-		worker.start();
-		assertTrue(taskStarted.await(5, TimeUnit.SECONDS), "Task should have started");
-
-		task.cancel();
-
-		worker.join(5_000);
-		assertFalse(worker.isAlive(), "Worker thread should have finished");
-		assertTrue(wasInterrupted.get(), "Worker thread should have been interrupted");
-		assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
-	}
-
-	@Test
-	void cancelBeforeRunShouldSkipExecution() {
-		final AtomicBoolean delegateExecuted = new AtomicBoolean(false);
-
-		final ObservableRunnable task = new ObservableRunnable(
-			"test-cancel-before-run",
-			() -> delegateExecuted.set(true),
-			Functions.noOpRunnable()
-		);
-
-		task.cancel();
-		task.run();
-
-		assertFalse(delegateExecuted.get(), "Delegate should not have been executed");
-		assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
-	}
-
-	@Test
-	void cancelBeforeCallShouldSkipExecution() throws Exception {
-		final AtomicBoolean delegateExecuted = new AtomicBoolean(false);
-
-		final ObservableCallable<String> task = new ObservableCallable<>(
-			"test-cancel-before-call",
-			() -> {
-				delegateExecuted.set(true);
-				return "result";
-			},
-			Functions.noOpRunnable()
-		);
-
-		task.cancel();
-		task.call();
-
-		assertFalse(delegateExecuted.get(), "Delegate should not have been executed");
-		assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
-	}
-
-	// ---- Double-decrement bug regression tests ----
-
-	@Test
-	void cancelBeforeRunShouldDecrementQueueSizeExactlyOnce() {
-		final AtomicInteger queueSize = new AtomicInteger(1);
-
-		final ObservableRunnable task = new ObservableRunnable(
-			"test-double-decrement",
-			() -> {},
-			queueSize::decrementAndGet
-		);
-
-		task.cancel();
-		task.run();
-
-		assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-before-run)");
-	}
-
-	@Test
-	void cancelDuringRunShouldDecrementQueueSizeExactlyOnce() throws Exception {
-		final AtomicInteger queueSize = new AtomicInteger(1);
-		final CountDownLatch taskStarted = new CountDownLatch(1);
-
-		final ObservableRunnable task = new ObservableRunnable(
-			"test-double-decrement-during",
-			() -> {
-				taskStarted.countDown();
-				try {
-					Thread.sleep(10_000);
-				} catch (InterruptedException e) {
-					// expected
-				}
-			},
-			queueSize::decrementAndGet
-		);
-
-		final Thread worker = new Thread(task, "test-worker");
-		worker.start();
-		assertTrue(taskStarted.await(5, TimeUnit.SECONDS), "Task should have started");
-
-		task.cancel();
-		worker.join(5_000);
-
-		assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-during-run)");
-	}
-
-	@Test
-	void cancelAfterRunCompletionShouldDecrementQueueSizeExactlyOnce() {
-		final AtomicInteger queueSize = new AtomicInteger(1);
-
-		final ObservableRunnable task = new ObservableRunnable(
-			"test-double-decrement-after",
-			() -> {},
-			queueSize::decrementAndGet
-		);
-
-		task.run();
-		task.cancel();
-
-		assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-after-completion)");
-	}
-
-	@Test
-	void cancelBeforeCallShouldDecrementQueueSizeExactlyOnce() throws Exception {
-		final AtomicInteger queueSize = new AtomicInteger(1);
-
-		final ObservableCallable<String> task = new ObservableCallable<>(
-			"test-double-decrement-callable",
-			() -> "result",
-			queueSize::decrementAndGet
-		);
-
-		task.cancel();
-		task.call();
-
-		assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-before-call)");
-	}
-
-	@Test
-	void cancelDuringCallShouldDecrementQueueSizeExactlyOnce() throws Exception {
-		final AtomicInteger queueSize = new AtomicInteger(1);
-		final CountDownLatch taskStarted = new CountDownLatch(1);
-
-		final ObservableCallable<String> task = new ObservableCallable<>(
-			"test-double-decrement-callable-during",
-			() -> {
-				taskStarted.countDown();
-				try {
-					Thread.sleep(10_000);
-					return "should-not-reach";
-				} catch (InterruptedException e) {
-					return "interrupted";
-				}
-			},
-			queueSize::decrementAndGet
-		);
-
-		final Thread worker = new Thread(() -> {
-			try {
-				task.call();
-			} catch (Exception e) {
-				// expected
-			}
-		}, "test-worker");
-		worker.start();
-		assertTrue(taskStarted.await(5, TimeUnit.SECONDS), "Task should have started");
-
-		task.cancel();
-		worker.join(5_000);
-
-		assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-during-call)");
-	}
-
-	// ---- Queue size limit tests ----
-
-	@Test
-	void queueSizeLimitShouldRejectExcessTasks() throws Exception {
-		final int queueLimit = 3;
-		final ObservableThreadExecutor executor = new ObservableThreadExecutor(
-			"test-queue-limit",
-			new ThreadPoolOptions(1, 2, Thread.NORM_PRIORITY, queueLimit),
+	/**
+	 * Builds a fresh production-mode executor. Each test gets its own instance because the tests mutate pool
+	 * state (saturate it, fill the backlog, cancel queued tasks) — sharing one across tests would leak state.
+	 *
+	 * @param name  logical pool name, surfaced in thread names and rejection messages
+	 * @param max   maximum thread count
+	 * @param queue backlog limit once all worker threads are busy
+	 * @return a new executor that the caller must shut down
+	 */
+	@Nonnull
+	private static ObservableThreadExecutor newExecutor(@Nonnull String name, int max, int queue) {
+		return new ObservableThreadExecutor(
+			name,
+			new ThreadPoolOptions(1, max, Thread.NORM_PRIORITY, queue),
 			false
 		);
-		try {
-			final CountDownLatch blockTasks = new CountDownLatch(1);
+	}
 
-			// Submit queueLimit + 1 tasks (the check is "> queueLimit", so queueLimit+1 tasks are accepted)
-			final List<CancellableRunnable> tasks = new ArrayList<>();
-			for (int i = 0; i <= queueLimit; i++) {
-				final CancellableRunnable task = executor.createTask("blocking-task-" + i, () -> {
-					try {
-						blockTasks.await(10, TimeUnit.SECONDS);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-					}
-				});
-				executor.execute(task);
-				tasks.add(task);
+	/**
+	 * Deterministically saturates the executor: starts {@code maxThreads} blocking tasks (confirmed
+	 * running via a started-latch so every worker thread is occupied) and then fills {@code queueLimit}
+	 * backlog slots. On return the pool holds exactly {@code maxThreads} running + {@code queueLimit}
+	 * queued tasks, so the next ordinary submission is rejected.
+	 *
+	 * The threads-first {@link ObservableThreadExecutor} grows the pool to {@code maxThreads} *before* it
+	 * queues anything, so admission is {@code maxThreads + queueLimit} — not {@code queueLimit} alone.
+	 * Occupying every worker before filling the backlog is essential: were any worker idle, it would drain
+	 * the queue as we fill it and the exact rejection point would become timing-dependent.
+	 *
+	 * @param executor   the executor to saturate
+	 * @param maxThreads the pool's maximum thread count
+	 * @param queueLimit the pool's backlog limit
+	 * @param outTasks   collects every submitted task so the caller can await / cancel them
+	 * @return a latch that releases all submitted blocking tasks when counted down
+	 */
+	private static CountDownLatch saturate(
+		ObservableThreadExecutor executor,
+		int maxThreads,
+		int queueLimit,
+		List<CancellableRunnable> outTasks
+	) throws InterruptedException {
+		final CountDownLatch release = new CountDownLatch(1);
+		final CountDownLatch started = new CountDownLatch(maxThreads);
+		// occupy every worker thread first, so the backlog cannot be drained while we fill it
+		for (int i = 0; i < maxThreads; i++) {
+			final CancellableRunnable task = executor.createTask("running-" + i, () -> {
+				started.countDown();
+				try {
+					release.await(AWAIT_SECONDS, TimeUnit.SECONDS);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			});
+			executor.execute(task);
+			outTasks.add(task);
+		}
+		assertTrue(started.await(AWAIT_SECONDS, TimeUnit.SECONDS), "All " + maxThreads + " worker threads should be running");
+		// now fill the backlog up to the limit — workers are blocked, so nothing is drained
+		for (int i = 0; i < queueLimit; i++) {
+			final CancellableRunnable task = executor.createTask("queued-" + i, () -> {
+				try {
+					release.await(AWAIT_SECONDS, TimeUnit.SECONDS);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			});
+			executor.execute(task);
+			outTasks.add(task);
+		}
+		return release;
+	}
+
+	/**
+	 * Waits until the executor has physically drained any cancelled tombstone tasks from its backlog.
+	 *
+	 * Cancelling a task that is still waiting in the backlog completes its {@code completionStage}
+	 * immediately, but the task itself lingers in the {@link java.util.concurrent.ThreadPoolExecutor}'s
+	 * work queue until a worker pulls and discards it. A probe task is submitted (retried while the
+	 * backlog is still full) and awaited; once it runs, all tombstones ahead of it have been drained, so
+	 * a subsequent {@link #saturate} starts from an empty backlog.
+	 *
+	 * @param executor the executor to drain
+	 */
+	private static void awaitDrained(ObservableThreadExecutor executor) throws Exception {
+		final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_SECONDS);
+		while (System.nanoTime() < deadline) {
+			try {
+				final CancellableRunnable probe = executor.createTask("drain-probe", () -> {});
+				executor.execute(probe);
+				probe.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
+				return;
+			} catch (RejectedExecutionException | TimeoutException e) {
+				// backlog still holds undrained tombstones (rejected) or the probe has not run yet under a
+				// starved worker (timeout) — short courtesy backoff, then retry. This sleep is a poll backoff,
+				// not an assertion-gating fixed wait, and onSpinWait would burn a core on the saturated host.
+				Thread.sleep(10);
 			}
+		}
+		// the backlog never drained within the deadline — fail fast with a clear cause instead of returning
+		// silently and letting a later assertion fail with a misleading, timing-dependent symptom
+		fail("Executor backlog did not drain within " + AWAIT_SECONDS + " seconds — cancelled tombstone tasks were never reclaimed by a worker");
+	}
 
-			// The next submission should be rejected
+	@Nested
+	@DisplayName("Completion propagation on pre-start cancellation")
+	class CompletionPropagation {
+
+		@Test
+		@DisplayName("leaves an unwired external future untouched when a cancelled task runs")
+		void shouldLeaveExternalFutureUntouchedWhenCompletionNotPropagated() {
+			final ObservableRunnable task = new ObservableRunnable(
+				"test-dangling-future",
+				() -> { throw new IllegalStateException("Should not execute"); },
+				Functions.noOpRunnable()
+			);
+
+			final CompletableFuture<String> externalResult = new CompletableFuture<>();
+			// intentionally NOT wiring completion propagation
+
+			task.cancel();
+			task.run();
+
+			assertTrue(task.isFinished(), "Task should be finished (cancelled)");
+			assertFalse(externalResult.isDone(), "External result should NOT be completed without completion propagation");
+		}
+
+		@Test
+		@DisplayName("cancels a wired external future when a cancelled task runs")
+		void shouldCancelExternalFutureWhenCompletionPropagated() {
+			final ObservableRunnable task = new ObservableRunnable(
+				"test-propagated-future",
+				() -> { throw new IllegalStateException("Should not execute"); },
+				Functions.noOpRunnable()
+			);
+
+			final CompletableFuture<String> externalResult = new CompletableFuture<>();
+			task.completionStage().whenComplete((v, ex) -> {
+				if (!externalResult.isDone()) {
+					externalResult.cancel(false);
+				}
+			});
+
+			task.cancel();
+			task.run();
+
+			assertTrue(task.isFinished(), "Task should be finished (cancelled)");
+			assertTrue(externalResult.isDone(), "External result should be completed via completion propagation");
+			assertTrue(externalResult.isCancelled(), "External result should be cancelled");
+		}
+	}
+
+	@Nested
+	@DisplayName("Cancellation interrupts a running task")
+	class CancellationInterruptsExecution {
+
+		@Test
+		@DisplayName("interrupts the worker thread when a running runnable is cancelled")
+		void shouldInterruptWorkerThreadWhenRunningRunnableCancelled() throws Exception {
+			final CountDownLatch taskStarted = new CountDownLatch(1);
+			final AtomicBoolean wasInterrupted = new AtomicBoolean(false);
+
+			final ObservableRunnable task = new ObservableRunnable(
+				"test-cancel-during-run",
+				() -> {
+					taskStarted.countDown();
+					try {
+						// park on a latch that is never counted down: it survives starvation (won't wake on its
+						// own before the test interrupts it) yet stays interruptible, so cancel() drives the path
+						new CountDownLatch(1).await(AWAIT_SECONDS, TimeUnit.SECONDS);
+					} catch (InterruptedException e) {
+						wasInterrupted.set(true);
+					}
+				},
+				Functions.noOpRunnable()
+			);
+
+			final Thread worker = new Thread(task, "test-worker");
+			worker.start();
+			assertTrue(taskStarted.await(AWAIT_SECONDS, TimeUnit.SECONDS), "Task should have started");
+
+			task.cancel();
+
+			worker.join(AWAIT_SECONDS * 1_000);
+			assertFalse(worker.isAlive(), "Worker thread should have finished");
+			assertTrue(wasInterrupted.get(), "Worker thread should have been interrupted");
+			assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
+		}
+
+		@Test
+		@DisplayName("interrupts the worker thread when a running callable is cancelled")
+		void shouldInterruptWorkerThreadWhenRunningCallableCancelled() throws Exception {
+			final CountDownLatch taskStarted = new CountDownLatch(1);
+			final AtomicBoolean wasInterrupted = new AtomicBoolean(false);
+
+			final ObservableCallable<String> task = new ObservableCallable<>(
+				"test-cancel-during-call",
+				() -> {
+					taskStarted.countDown();
+					try {
+						// park on a latch that is never counted down: it survives starvation (won't wake on its
+						// own before the test interrupts it) yet stays interruptible, so cancel() drives the path
+						new CountDownLatch(1).await(AWAIT_SECONDS, TimeUnit.SECONDS);
+						return "should-not-reach";
+					} catch (InterruptedException e) {
+						wasInterrupted.set(true);
+						return "interrupted";
+					}
+				},
+				Functions.noOpRunnable()
+			);
+
+			final Thread worker = new Thread(() -> {
+				try {
+					task.call();
+				} catch (Exception e) {
+					// expected
+				}
+			}, "test-worker");
+			worker.start();
+			assertTrue(taskStarted.await(AWAIT_SECONDS, TimeUnit.SECONDS), "Task should have started");
+
+			task.cancel();
+
+			worker.join(AWAIT_SECONDS * 1_000);
+			assertFalse(worker.isAlive(), "Worker thread should have finished");
+			assertTrue(wasInterrupted.get(), "Worker thread should have been interrupted");
+			assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
+		}
+	}
+
+	@Nested
+	@DisplayName("Pre-start cancellation skips execution")
+	class PreStartCancellationSkipsExecution {
+
+		@Test
+		@DisplayName("does not invoke the delegate when a runnable is cancelled before it runs")
+		void shouldSkipDelegateWhenRunnableCancelledBeforeRun() {
+			final AtomicBoolean delegateExecuted = new AtomicBoolean(false);
+
+			final ObservableRunnable task = new ObservableRunnable(
+				"test-cancel-before-run",
+				() -> delegateExecuted.set(true),
+				Functions.noOpRunnable()
+			);
+
+			task.cancel();
+			task.run();
+
+			assertFalse(delegateExecuted.get(), "Delegate should not have been executed");
+			assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
+		}
+
+		@Test
+		@DisplayName("does not invoke the delegate when a callable is cancelled before it runs")
+		void shouldSkipDelegateWhenCallableCancelledBeforeCall() throws Exception {
+			final AtomicBoolean delegateExecuted = new AtomicBoolean(false);
+
+			final ObservableCallable<String> task = new ObservableCallable<>(
+				"test-cancel-before-call",
+				() -> {
+					delegateExecuted.set(true);
+					return "result";
+				},
+				Functions.noOpRunnable()
+			);
+
+			task.cancel();
+			task.call();
+
+			assertFalse(delegateExecuted.get(), "Delegate should not have been executed");
+			assertTrue(task.isFinished(), "Task should be marked as finished (cancelled)");
+		}
+	}
+
+	@Nested
+	@DisplayName("Queue counter is decremented exactly once")
+	class QueueCounterDecrement {
+
+		@Test
+		@DisplayName("decrements the queue counter once when a runnable is cancelled before it runs")
+		void shouldDecrementOnceWhenRunnableCancelledBeforeRun() {
+			final AtomicInteger queueSize = new AtomicInteger(1);
+
+			final ObservableRunnable task = new ObservableRunnable(
+				"test-double-decrement",
+				() -> {},
+				queueSize::decrementAndGet
+			);
+
+			task.cancel();
+			task.run();
+
+			assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-before-run)");
+		}
+
+		@Test
+		@DisplayName("decrements the queue counter once when a runnable is cancelled while running")
+		void shouldDecrementOnceWhenRunnableCancelledDuringRun() throws Exception {
+			final AtomicInteger queueSize = new AtomicInteger(1);
+			final CountDownLatch taskStarted = new CountDownLatch(1);
+
+			final ObservableRunnable task = new ObservableRunnable(
+				"test-double-decrement-during",
+				() -> {
+					taskStarted.countDown();
+					try {
+						// park on a never-released latch: survives starvation yet stays interruptible by cancel()
+						new CountDownLatch(1).await(AWAIT_SECONDS, TimeUnit.SECONDS);
+					} catch (InterruptedException e) {
+						// expected
+					}
+				},
+				queueSize::decrementAndGet
+			);
+
+			final Thread worker = new Thread(task, "test-worker");
+			worker.start();
+			assertTrue(taskStarted.await(AWAIT_SECONDS, TimeUnit.SECONDS), "Task should have started");
+
+			task.cancel();
+			worker.join(AWAIT_SECONDS * 1_000);
+
+			assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-during-run)");
+		}
+
+		@Test
+		@DisplayName("decrements the queue counter once when a completed runnable is cancelled afterwards")
+		void shouldDecrementOnceWhenRunnableCancelledAfterCompletion() {
+			final AtomicInteger queueSize = new AtomicInteger(1);
+
+			final ObservableRunnable task = new ObservableRunnable(
+				"test-double-decrement-after",
+				() -> {},
+				queueSize::decrementAndGet
+			);
+
+			task.run();
+			task.cancel();
+
+			assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-after-completion)");
+		}
+
+		@Test
+		@DisplayName("decrements the queue counter once when a callable is cancelled before it runs")
+		void shouldDecrementOnceWhenCallableCancelledBeforeCall() throws Exception {
+			final AtomicInteger queueSize = new AtomicInteger(1);
+
+			final ObservableCallable<String> task = new ObservableCallable<>(
+				"test-double-decrement-callable",
+				() -> "result",
+				queueSize::decrementAndGet
+			);
+
+			task.cancel();
+			task.call();
+
+			assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-before-call)");
+		}
+
+		@Test
+		@DisplayName("decrements the queue counter once when a callable is cancelled while running")
+		void shouldDecrementOnceWhenCallableCancelledDuringCall() throws Exception {
+			final AtomicInteger queueSize = new AtomicInteger(1);
+			final CountDownLatch taskStarted = new CountDownLatch(1);
+
+			final ObservableCallable<String> task = new ObservableCallable<>(
+				"test-double-decrement-callable-during",
+				() -> {
+					taskStarted.countDown();
+					try {
+						// park on a never-released latch: survives starvation yet stays interruptible by cancel()
+						new CountDownLatch(1).await(AWAIT_SECONDS, TimeUnit.SECONDS);
+						return "should-not-reach";
+					} catch (InterruptedException e) {
+						return "interrupted";
+					}
+				},
+				queueSize::decrementAndGet
+			);
+
+			final Thread worker = new Thread(() -> {
+				try {
+					task.call();
+				} catch (Exception e) {
+					// expected
+				}
+			}, "test-worker");
+			worker.start();
+			assertTrue(taskStarted.await(AWAIT_SECONDS, TimeUnit.SECONDS), "Task should have started");
+
+			task.cancel();
+			worker.join(AWAIT_SECONDS * 1_000);
+
+			assertEquals(0, queueSize.get(), "queueSize should be decremented exactly once (cancel-during-call)");
+		}
+	}
+
+	@Nested
+	@DisplayName("Queue-size limit enforcement")
+	class QueueSizeLimitEnforcement {
+
+		/** Per-test executor with the uniform fixture sizing; rebuilt for every test and torn down after. */
+		private ObservableThreadExecutor executor;
+
+		@BeforeEach
+		void setUp() {
+			this.executor = newExecutor("test-queue-limit", FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT);
+		}
+
+		@AfterEach
+		void tearDown() {
+			this.executor.shutdownNow();
+		}
+
+		@Test
+		@DisplayName("rejects a task once all threads are busy and the backlog is full, then accepts again once drained")
+		void shouldRejectExcessTaskWhenSaturatedAndAcceptAfterDrain() throws Exception {
+			final List<CancellableRunnable> tasks = new ArrayList<>();
+			final CountDownLatch release = saturate(this.executor, FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT, tasks);
+
+			// the next submission should be rejected — all threads busy AND the backlog is full
 			assertThrows(
 				RejectedExecutionException.class,
-				() -> executor.execute(executor.createTask("excess-task", () -> {})),
-				"Submitting beyond queue limit should throw RejectedExecutionException"
+				() -> this.executor.execute(this.executor.createTask("excess-task", () -> {})),
+				"Submitting beyond maxThreadCount + queueSize should throw RejectedExecutionException"
 			);
 
 			// Unblock all tasks and wait for completion
-			blockTasks.countDown();
+			release.countDown();
 			for (CancellableRunnable task : tasks) {
-				task.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+				task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
 			}
 
 			// After all tasks complete, we should be able to submit again
 			final AtomicBoolean executed = new AtomicBoolean(false);
-			final CancellableRunnable postTask = executor.createTask("post-limit-task", () -> executed.set(true));
-			executor.execute(postTask);
-			postTask.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+			final CancellableRunnable postTask = this.executor.createTask("post-limit-task", () -> executed.set(true));
+			this.executor.execute(postTask);
+			postTask.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
 			assertTrue(executed.get(), "Task submitted after queue drained should execute successfully");
-		} finally {
-			executor.shutdownNow();
 		}
-	}
 
-	@Test
-	void queueSizeShouldNotDriftNegativeAfterCancellations() throws Exception {
-		final int queueLimit = 5;
-		final ObservableThreadExecutor executor = new ObservableThreadExecutor(
-			"test-queue-drift",
-			new ThreadPoolOptions(1, 2, Thread.NORM_PRIORITY, queueLimit),
-			false
-		);
-		try {
-			// Submit and cancel tasks repeatedly to stress-test the queue size tracking
-			for (int round = 0; round < 3; round++) {
-				final CountDownLatch blockTasks = new CountDownLatch(1);
-				final List<CancellableRunnable> tasks = new ArrayList<>();
+		@Test
+		@DisplayName("keeps enforcing the limit after repeated saturate-and-cancel cycles (counter does not drift negative)")
+		void shouldKeepEnforcingLimitAfterRepeatedCancellations() throws Exception {
+			// this test needs a deeper backlog than the shared fixture, so it uses its own executor
+			final int maxThreads = 2;
+			final int queueLimit = 5;
+			final ObservableThreadExecutor driftExecutor = newExecutor("test-queue-drift", maxThreads, queueLimit);
+			try {
+				// Submit and cancel a full pool's worth of tasks repeatedly to stress queue-size tracking
+				for (int round = 0; round < 3; round++) {
+					final List<CancellableRunnable> tasks = new ArrayList<>();
+					final CountDownLatch release = saturate(driftExecutor, maxThreads, queueLimit, tasks);
 
-				// Fill up to the limit
-				for (int i = 0; i <= queueLimit; i++) {
-					final CancellableRunnable task = executor.createTask("drift-task-" + round + "-" + i, () -> {
+					// Cancel all tasks (this should only decrement queueSize once per task)
+					for (CancellableRunnable task : tasks) {
+						task.cancel();
+					}
+					release.countDown();
+
+					// Wait for all tasks to finish (cancelled tasks throw CancellationException)
+					for (CancellableRunnable task : tasks) {
 						try {
-							blockTasks.await(10, TimeUnit.SECONDS);
-						} catch (InterruptedException e) {
-							Thread.currentThread().interrupt();
+							task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
+						} catch (CancellationException | ExecutionException e) {
+							// expected for cancelled tasks
 						}
-					});
-					executor.execute(task);
-					tasks.add(task);
-				}
-
-				// Cancel all tasks (this should only decrement queueSize once per task)
-				for (CancellableRunnable task : tasks) {
-					task.cancel();
-				}
-				blockTasks.countDown();
-
-				// Wait for all tasks to finish (cancelled tasks throw CancellationException)
-				for (CancellableRunnable task : tasks) {
-					try {
-						task.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
-					} catch (CancellationException | ExecutionException e) {
-						// expected for cancelled tasks
 					}
+					// cancelling a queued task completes its stage immediately but leaves a tombstone in the
+					// backlog until a worker drains it; wait for that drain so the next saturate starts clean
+					awaitDrained(driftExecutor);
 				}
-			}
 
-			// If queueSize drifted negative, we would be able to submit infinitely many tasks
-			// (negative value > positive queueLimit is always false).
-			// Verify the limit is still enforced by filling the queue again.
-			final CountDownLatch blockFinal = new CountDownLatch(1);
-			final List<CancellableRunnable> finalTasks = new ArrayList<>();
-			for (int i = 0; i <= queueLimit; i++) {
-				final CancellableRunnable task = executor.createTask("final-task-" + i, () -> {
-					try {
-						blockFinal.await(10, TimeUnit.SECONDS);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-					}
-				});
-				executor.execute(task);
-				finalTasks.add(task);
-			}
+				// If queueSize drifted negative the limit would no longer be enforced. Saturate once more
+				// and prove the next ordinary submission is still rejected.
+				final List<CancellableRunnable> finalTasks = new ArrayList<>();
+				final CountDownLatch releaseFinal = saturate(driftExecutor, maxThreads, queueLimit, finalTasks);
 
-			// This must still be rejected — proves the queue size didn't drift negative
-			assertThrows(
-				RejectedExecutionException.class,
-				() -> executor.execute(executor.createTask("must-reject", () -> {})),
-				"Queue limit must still be enforced after cancellations (queueSize should not have drifted negative)"
-			);
+				// This must still be rejected — proves the queue size didn't drift negative
+				assertThrows(
+					RejectedExecutionException.class,
+					() -> driftExecutor.execute(driftExecutor.createTask("must-reject", () -> {})),
+					"Queue limit must still be enforced after cancellations (queueSize should not have drifted negative)"
+				);
 
-			blockFinal.countDown();
-			for (CancellableRunnable task : finalTasks) {
-				task.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+				releaseFinal.countDown();
+				for (CancellableRunnable task : finalTasks) {
+					task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
+				}
+			} finally {
+				driftExecutor.shutdownNow();
 			}
-		} finally {
-			executor.shutdownNow();
 		}
-	}
 
-	// ---- Unrejectable task bypass tests ----
-
-	@Test
-	void unrejectableTaskShouldBypassQueueLimit() throws Exception {
-		final int queueLimit = 3;
-		final ObservableThreadExecutor executor = new ObservableThreadExecutor(
-			"test-unrejectable-bypass",
-			new ThreadPoolOptions(1, 2, Thread.NORM_PRIORITY, queueLimit),
-			false
-		);
-		try {
-			final CountDownLatch blockTasks = new CountDownLatch(1);
+		@Test
+		@DisplayName("rejects an ordinary task when all threads are busy and the backlog is full")
+		void shouldRejectNormalTaskWhenQueueFull() throws Exception {
 			final List<CancellableRunnable> tasks = new ArrayList<>();
-
-			// Fill queue to limit
-			for (int i = 0; i <= queueLimit; i++) {
-				final CancellableRunnable task = executor.createTask("blocking-task-" + i, () -> {
-					try {
-						blockTasks.await(10, TimeUnit.SECONDS);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-					}
-				});
-				executor.execute(task);
-				tasks.add(task);
-			}
+			final CountDownLatch release = saturate(this.executor, FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT, tasks);
 
 			// Normal task should be rejected
 			assertThrows(
 				RejectedExecutionException.class,
-				() -> executor.execute(executor.createTask("normal-excess-task", () -> {})),
-				"Normal task should be rejected when queue is full"
+				() -> this.executor.execute(this.executor.createTask("normal-task", () -> {})),
+				"Normal task should be rejected when all threads are busy and the backlog is full"
+			);
+
+			release.countDown();
+			for (CancellableRunnable task : tasks) {
+				task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
+			}
+		}
+
+		@Test
+		@DisplayName("balances the in-flight counter when invokeAll is rejected on a saturated pool")
+		void shouldBalanceInFlightCounterWhenInvokeAllRejected() throws Exception {
+			final List<CancellableRunnable> tasks = new ArrayList<>();
+			final CountDownLatch release = saturate(this.executor, FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT, tasks);
+
+			// the saturation tasks are all blocked, so the in-flight counter is stable at this baseline
+			final int inFlightBefore = this.executor.getInFlightTaskCount();
+			final long submittedBefore = this.executor.getSubmittedTaskCount();
+
+			// invokeAll wraps every task (incrementing the in-flight counter once per task in wrapToCancellableTask)
+			// before delegating to the pool; on a saturated pool the pool rejects and the exception propagates out.
+			// The rejected (and never-run) tasks must have their increments balanced back, or the in-flight counter
+			// would drift upward and permanently skew the TaskQueue grow heuristic.
+			assertThrows(
+				RejectedExecutionException.class,
+				() -> this.executor.invokeAll(List.of(
+					(Callable<String>) () -> "a",
+					(Callable<String>) () -> "b"
+				)),
+				"invokeAll on a saturated pool must surface the RejectedExecutionException"
+			);
+
+			assertEquals(
+				inFlightBefore, this.executor.getInFlightTaskCount(),
+				"A rejected invokeAll must return the in-flight counter to its pre-call baseline"
+			);
+			assertEquals(
+				submittedBefore, this.executor.getSubmittedTaskCount(),
+				"A rejected invokeAll must not increment the submitted-task count"
+			);
+
+			// release and drain the legitimate saturation tasks
+			release.countDown();
+			for (CancellableRunnable task : tasks) {
+				task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
+			}
+			awaitDrained(this.executor);
+
+			// once everything has drained the counter must settle back to zero — no residual drift. Poll on the
+			// real signal (the counter) with a generous deadline and a small courtesy backoff (a poll backoff,
+			// not an assertion-gating fixed wait; onSpinWait would burn a core on the saturated host).
+			final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_SECONDS);
+			while (this.executor.getInFlightTaskCount() != 0 && System.nanoTime() < deadline) {
+				Thread.sleep(10);
+			}
+			assertEquals(
+				0, this.executor.getInFlightTaskCount(),
+				"After every task has drained the in-flight counter must settle back to zero"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Unrejectable task bypass")
+	class UnrejectableBypass {
+
+		/** Per-test executor with the uniform fixture sizing; rebuilt for every test and torn down after. */
+		private ObservableThreadExecutor executor;
+
+		@BeforeEach
+		void setUp() {
+			this.executor = newExecutor("test-unrejectable", FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT);
+		}
+
+		@AfterEach
+		void tearDown() {
+			this.executor.shutdownNow();
+		}
+
+		@Test
+		@DisplayName("admits a bare unrejectable runnable past the full backlog and runs it")
+		void shouldBypassQueueLimitForUnrejectableRunnable() throws Exception {
+			final List<CancellableRunnable> tasks = new ArrayList<>();
+			final CountDownLatch release = saturate(this.executor, FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT, tasks);
+
+			// Normal task should be rejected
+			assertThrows(
+				RejectedExecutionException.class,
+				() -> this.executor.execute(this.executor.createTask("normal-excess-task", () -> {})),
+				"Normal task should be rejected when all threads are busy and the backlog is full"
 			);
 
 			// Unrejectable task should NOT be rejected
-			final AtomicBoolean unrejectableExecuted = new AtomicBoolean(false);
-			final Runnable unrejectableRunnable = new UnrejectableTestRunnable(() -> {
-				unrejectableExecuted.set(true);
-			});
+			final CountDownLatch executed = new CountDownLatch(1);
+			final Runnable unrejectableRunnable = new UnrejectableTestRunnable(executed::countDown);
 			assertDoesNotThrow(
-				() -> executor.execute(unrejectableRunnable),
+				() -> this.executor.execute(unrejectableRunnable),
 				"Unrejectable task should bypass queue limit"
 			);
 
 			// Unblock all tasks and wait
-			blockTasks.countDown();
+			release.countDown();
 			for (CancellableRunnable task : tasks) {
-				task.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+				task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
 			}
 
-			// Give the unrejectable task time to execute
-			Thread.sleep(200);
-			assertTrue(unrejectableExecuted.get(), "Unrejectable task should have been executed");
-		} finally {
-			executor.shutdownNow();
-		}
-	}
-
-	@Test
-	void normalTaskShouldStillBeRejectedWhenQueueFull() throws Exception {
-		final int queueLimit = 3;
-		final ObservableThreadExecutor executor = new ObservableThreadExecutor(
-			"test-normal-rejected",
-			new ThreadPoolOptions(1, 2, Thread.NORM_PRIORITY, queueLimit),
-			false
-		);
-		try {
-			final CountDownLatch blockTasks = new CountDownLatch(1);
-			final List<CancellableRunnable> tasks = new ArrayList<>();
-
-			// Fill queue to limit
-			for (int i = 0; i <= queueLimit; i++) {
-				final CancellableRunnable task = executor.createTask("blocking-task-" + i, () -> {
-					try {
-						blockTasks.await(10, TimeUnit.SECONDS);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-					}
-				});
-				executor.execute(task);
-				tasks.add(task);
-			}
-
-			// Normal task should be rejected
-			assertThrows(
-				RejectedExecutionException.class,
-				() -> executor.execute(executor.createTask("normal-task", () -> {})),
-				"Normal task should be rejected when queue is full"
+			// wait on the real signal: the unrejectable task counts the latch down from inside its body
+			assertTrue(
+				executed.await(AWAIT_SECONDS, TimeUnit.SECONDS),
+				"Unrejectable task should have been executed"
 			);
-
-			blockTasks.countDown();
-			for (CancellableRunnable task : tasks) {
-				task.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
-			}
-		} finally {
-			executor.shutdownNow();
 		}
-	}
 
-	@Test
-	void observableRunnableWithUnrejectableDelegateShouldBypassQueueLimit() throws Exception {
-		final int queueLimit = 3;
-		final ObservableThreadExecutor executor = new ObservableThreadExecutor(
-			"test-observable-unrejectable",
-			new ThreadPoolOptions(1, 2, Thread.NORM_PRIORITY, queueLimit),
-			false
-		);
-		try {
-			final CountDownLatch blockTasks = new CountDownLatch(1);
+		@Test
+		@DisplayName("admits a pre-wrapped ObservableRunnable with an unrejectable delegate past the full backlog")
+		void shouldBypassQueueLimitForObservableRunnableWithUnrejectableDelegate() throws Exception {
 			final List<CancellableRunnable> tasks = new ArrayList<>();
-
-			// Fill queue to limit
-			for (int i = 0; i <= queueLimit; i++) {
-				final CancellableRunnable task = executor.createTask("blocking-task-" + i, () -> {
-					try {
-						blockTasks.await(10, TimeUnit.SECONDS);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-					}
-				});
-				executor.execute(task);
-				tasks.add(task);
-			}
+			final CountDownLatch release = saturate(this.executor, FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT, tasks);
 
 			// Pre-wrapped ObservableRunnable with UnrejectableTask delegate should bypass
 			final AtomicBoolean executed = new AtomicBoolean(false);
@@ -578,100 +717,246 @@ class ObservableThreadExecutorCancellationTest {
 			);
 			assertTrue(observableUnrejectable.isUnrejectable(), "ObservableRunnable with UnrejectableTask delegate should report isUnrejectable()=true");
 			assertDoesNotThrow(
-				() -> executor.execute(observableUnrejectable),
+				() -> this.executor.execute(observableUnrejectable),
 				"ObservableRunnable with UnrejectableTask delegate should bypass queue limit"
 			);
 
-			blockTasks.countDown();
+			release.countDown();
 			for (CancellableRunnable task : tasks) {
-				task.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+				task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
 			}
 
-			observableUnrejectable.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+			observableUnrejectable.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
 			assertTrue(executed.get(), "ObservableRunnable with unrejectable delegate should have executed");
-		} finally {
-			executor.shutdownNow();
 		}
-	}
 
-	@Test
-	void queueSizeTrackingBalancedForUnrejectableTasks() throws Exception {
-		final int queueLimit = 3;
-		final ObservableThreadExecutor executor = new ObservableThreadExecutor(
-			"test-unrejectable-queue-tracking",
-			new ThreadPoolOptions(1, 2, Thread.NORM_PRIORITY, queueLimit),
-			false
-		);
-		try {
-			final CountDownLatch blockTasks = new CountDownLatch(1);
+		@Test
+		@DisplayName("keeps queue tracking balanced so the limit is still enforced after unrejectable tasks complete")
+		void shouldKeepQueueTrackingBalancedAfterUnrejectableTasks() throws Exception {
 			final List<CancellableRunnable> tasks = new ArrayList<>();
-
-			// Fill queue to limit
-			for (int i = 0; i <= queueLimit; i++) {
-				final CancellableRunnable task = executor.createTask("blocking-task-" + i, () -> {
-					try {
-						blockTasks.await(10, TimeUnit.SECONDS);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-					}
-				});
-				executor.execute(task);
-				tasks.add(task);
-			}
+			final CountDownLatch release = saturate(this.executor, FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT, tasks);
 
 			// Submit unrejectable tasks beyond the limit (using raw UnrejectableTestRunnable
-			// so that wrapToCancellableTask wraps them with the correct queueSizeDecrementer)
-			for (int i = 0; i < 3; i++) {
-				executor.execute(new UnrejectableTestRunnable(() -> {}));
+			// so that wrapToCancellableTask wraps them with the correct queueSizeDecrementer). Each counts the
+			// latch down from its body so we can wait on the real completion signal rather than a fixed sleep.
+			final int unrejectableCount = 3;
+			final CountDownLatch unrejectableExecuted = new CountDownLatch(unrejectableCount);
+			for (int i = 0; i < unrejectableCount; i++) {
+				assertDoesNotThrow(
+					() -> this.executor.execute(new UnrejectableTestRunnable(unrejectableExecuted::countDown)),
+					"Unrejectable tasks must never be rejected even past the backlog limit"
+				);
 			}
 
 			// Unblock everything
-			blockTasks.countDown();
+			release.countDown();
 			for (CancellableRunnable task : tasks) {
-				task.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+				task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
 			}
-			// Give unrejectable tasks time to complete
-			Thread.sleep(200);
+			// wait on the real signal: every unrejectable task must have run before we re-saturate
+			assertTrue(
+				unrejectableExecuted.await(AWAIT_SECONDS, TimeUnit.SECONDS),
+				"All unrejectable tasks must have executed before the pool is re-saturated"
+			);
 
 			// After all tasks complete, the queue should be back to accepting normal tasks.
-			// Verify by filling the queue again — if queueSize drifted, this would fail.
-			final CountDownLatch blockFinal = new CountDownLatch(1);
+			// Saturate again and verify the limit is still enforced — if queueSize drifted, this would fail.
 			final List<CancellableRunnable> finalTasks = new ArrayList<>();
-			for (int i = 0; i <= queueLimit; i++) {
-				final CancellableRunnable task = executor.createTask("final-task-" + i, () -> {
-					try {
-						blockFinal.await(10, TimeUnit.SECONDS);
-					} catch (InterruptedException e) {
-						Thread.currentThread().interrupt();
-					}
-				});
-				executor.execute(task);
-				finalTasks.add(task);
-			}
+			final CountDownLatch releaseFinal = saturate(this.executor, FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT, finalTasks);
 
 			// This should still be rejected — proves queue tracking is balanced
 			assertThrows(
 				RejectedExecutionException.class,
-				() -> executor.execute(executor.createTask("must-reject", () -> {})),
+				() -> this.executor.execute(this.executor.createTask("must-reject", () -> {})),
 				"Queue limit must still be enforced after unrejectable tasks complete"
 			);
 
-			blockFinal.countDown();
+			releaseFinal.countDown();
 			for (CancellableRunnable task : finalTasks) {
-				task.completionStage().toCompletableFuture().get(5, TimeUnit.SECONDS);
+				task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
 			}
-		} finally {
-			executor.shutdownNow();
+		}
+
+		@Test
+		@DisplayName("admits an unrejectable callable submitted via submit on a saturated pool and runs it")
+		void shouldAdmitUnrejectableCallableWhenSubmittedToSaturatedPool() throws Exception {
+			final List<CancellableRunnable> tasks = new ArrayList<>();
+			final CountDownLatch release = saturate(this.executor, FIXTURE_MAX_THREADS, FIXTURE_QUEUE_LIMIT, tasks);
+
+			// submit(Callable) hands the ObservableCallable to ThreadPoolExecutor.submit(), which would otherwise
+			// wrap it in a plain FutureTask and hide the unrejectable marker from the rejection handler. The
+			// executor instead routes an unrejectable submission through a marker-carrying future, so the bypass
+			// survives and the task is force-enqueued rather than rejected.
+			final Future<String> future = assertDoesNotThrow(
+				() -> this.executor.submit(new UnrejectableTestCallable<>(() -> "unrejectable-result")),
+				"An unrejectable callable submitted via submit must never be rejected, even on a saturated pool"
+			);
+
+			// unblock the saturation tasks so a worker becomes free to run the force-enqueued unrejectable task
+			release.countDown();
+			for (CancellableRunnable task : tasks) {
+				task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS);
+			}
+
+			// the force-enqueued task must actually run and yield its result
+			assertEquals(
+				"unrejectable-result", future.get(AWAIT_SECONDS, TimeUnit.SECONDS),
+				"The force-enqueued unrejectable callable must run once a worker frees up"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Wrapper string representation")
+	class WrapperStringRepresentation {
+
+		@Test
+		@DisplayName("returns the configured name from a named runnable wrapper")
+		void shouldReturnNameFromNamedRunnable() {
+			final ObservableRunnable task = new ObservableRunnable(
+				"named-runnable",
+				Functions.noOpRunnable(),
+				Functions.noOpRunnable()
+			);
+
+			assertEquals("named-runnable", task.toString(), "A named runnable wrapper must return its name");
+		}
+
+		@Test
+		@DisplayName("delegates to the delegate's toString for an unnamed runnable wrapper")
+		void shouldDelegateToStringForUnnamedRunnable() {
+			final Runnable delegate = new Runnable() {
+				@Override
+				public void run() {
+					// no-op
+				}
+
+				@Override
+				public String toString() {
+					return "delegate-runnable-string";
+				}
+			};
+			final ObservableRunnable task = new ObservableRunnable(delegate, Functions.noOpRunnable());
+
+			assertEquals(
+				"delegate-runnable-string", task.toString(),
+				"An unnamed runnable wrapper must fall back to its delegate's toString"
+			);
+		}
+
+		@Test
+		@DisplayName("returns the configured name from a named callable wrapper")
+		void shouldReturnNameFromNamedCallable() {
+			final ObservableCallable<String> task = new ObservableCallable<>(
+				"named-callable",
+				() -> "result",
+				Functions.noOpRunnable()
+			);
+
+			assertEquals("named-callable", task.toString(), "A named callable wrapper must return its name");
+		}
+
+		@Test
+		@DisplayName("delegates to the delegate's toString for an unnamed callable wrapper")
+		void shouldDelegateToStringForUnnamedCallable() {
+			final Callable<String> delegate = new Callable<>() {
+				@Override
+				public String call() {
+					return "result";
+				}
+
+				@Override
+				public String toString() {
+					return "delegate-callable-string";
+				}
+			};
+			final ObservableCallable<String> task = new ObservableCallable<>(delegate, Functions.noOpRunnable());
+
+			assertEquals(
+				"delegate-callable-string", task.toString(),
+				"An unnamed callable wrapper must fall back to its delegate's toString"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Callable exception propagation")
+	class CallableExceptionPropagation {
+
+		@Test
+		@DisplayName("surfaces a checked exception as its original type and completes the stage exceptionally with it")
+		void shouldSurfaceCheckedExceptionAsOriginalType() {
+			final IOException thrown = new IOException("checked-boom");
+			final ObservableCallable<String> task = new ObservableCallable<>(
+				"checked-failing-callable",
+				() -> { throw thrown; },
+				Functions.noOpRunnable()
+			);
+
+			final IOException caught = assertThrows(
+				IOException.class,
+				task::call,
+				"A checked exception must surface to the caller as its original checked type"
+			);
+			assertSame(thrown, caught, "The original checked exception instance must be surfaced unchanged");
+
+			final ExecutionException stageFailure = assertThrows(
+				ExecutionException.class,
+				() -> task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS),
+				"The completion stage must complete exceptionally when the delegate throws"
+			);
+			assertSame(thrown, stageFailure.getCause(), "The completion stage must carry the original checked exception as its cause");
+		}
+
+		@Test
+		@DisplayName("propagates a runtime exception unchanged without wrapping it")
+		void shouldPropagateRuntimeExceptionUnchanged() {
+			final IllegalStateException thrown = new IllegalStateException("runtime-boom");
+			final ObservableCallable<String> task = new ObservableCallable<>(
+				"runtime-failing-callable",
+				() -> { throw thrown; },
+				Functions.noOpRunnable()
+			);
+
+			final IllegalStateException caught = assertThrows(
+				IllegalStateException.class,
+				task::call,
+				"A runtime exception must propagate as-is, not wrapped in a transport exception"
+			);
+			assertSame(thrown, caught, "The original runtime exception instance must be propagated unchanged");
+
+			final ExecutionException stageFailure = assertThrows(
+				ExecutionException.class,
+				() -> task.completionStage().toCompletableFuture().get(AWAIT_SECONDS, TimeUnit.SECONDS),
+				"The completion stage must complete exceptionally when the delegate throws"
+			);
+			assertInstanceOf(
+				IllegalStateException.class, stageFailure.getCause(),
+				"The completion stage must carry the original runtime exception as its cause"
+			);
 		}
 	}
 
 	/**
 	 * A test helper: a Runnable that also implements UnrejectableTask.
 	 */
-	private record UnrejectableTestRunnable(@javax.annotation.Nonnull Runnable delegate) implements Runnable, UnrejectableTask {
+	private record UnrejectableTestRunnable(@Nonnull Runnable delegate) implements Runnable, UnrejectableTask {
 		@Override
 		public void run() {
 			this.delegate.run();
+		}
+	}
+
+	/**
+	 * A test helper: a Callable that also implements UnrejectableTask, used to verify that the unrejectable
+	 * bypass survives the {@code submit(Callable)} path.
+	 *
+	 * @param <V> the result type produced by the delegate
+	 */
+	private record UnrejectableTestCallable<V>(@Nonnull Callable<V> delegate) implements Callable<V>, UnrejectableTask {
+		@Override
+		public V call() throws Exception {
+			return this.delegate.call();
 		}
 	}
 }

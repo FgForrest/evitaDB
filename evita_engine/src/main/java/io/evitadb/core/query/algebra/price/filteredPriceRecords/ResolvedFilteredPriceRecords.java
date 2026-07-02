@@ -42,7 +42,13 @@ import java.util.function.Consumer;
 @ThreadSafe
 public class ResolvedFilteredPriceRecords implements FilteredPriceRecords {
 	@Serial private static final long serialVersionUID = -6208329253169611746L;
-	private static final PriceRecordContract[] EMPTY_PRICE_RECORDS = new PriceRecordContract[0];
+	/**
+	 * Shared empty array reused by callers that need to return "no price records" without per-call
+	 * allocation. Package-private so siblings in this package (notably
+	 * {@link FilteredPriceRecords#mergePerInnerRecordHistogramRecords}) can hand it back from the
+	 * zero-total fast path.
+	 */
+	static final PriceRecordContract[] EMPTY_PRICE_RECORDS = new PriceRecordContract[0];
 
 	/**
 	 * Collected price records that corresponds with the formula {@link Formula#compute()} output.

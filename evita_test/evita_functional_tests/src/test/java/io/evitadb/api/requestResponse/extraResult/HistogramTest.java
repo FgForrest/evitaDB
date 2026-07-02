@@ -359,6 +359,49 @@ class HistogramTest implements EvitaTestSupport {
 		}
 	}
 
+	@Nested
+	@DisplayName("Explicit overall count")
+	class ExplicitOverallCount {
+
+		@Test
+		@DisplayName("should retain an explicit overall count distinct from the bucket sum")
+		void shouldRetainExplicitOverallCountDistinctFromBucketSum() {
+			// buckets sum to 5 + 3 + 2 = 10, but the range (overlap) histogram carries 4 distinct records
+			final Bucket[] buckets = new Bucket[]{
+				new Bucket(BigDecimal.ONE, 5, false, new BigDecimal("50")),
+				new Bucket(new BigDecimal("5"), 3, false, new BigDecimal("30")),
+				new Bucket(BigDecimal.TEN, 2, false, new BigDecimal("20"))
+			};
+			final int explicitOverallCount = 4;
+			final Histogram histogram = new Histogram(
+				buckets, new BigDecimal("20"), explicitOverallCount, null, null
+			);
+
+			assertEquals(
+				explicitOverallCount, histogram.getOverallCount(),
+				"explicit overall count must be returned verbatim, not the bucket sum"
+			);
+		}
+
+		@Test
+		@DisplayName("should default overall count to the bucket sum via the legacy constructor")
+		void shouldDefaultOverallCountToBucketSumViaLegacyConstructor() {
+			final Bucket[] buckets = new Bucket[]{
+				new Bucket(BigDecimal.ONE, 5, false, new BigDecimal("50")),
+				new Bucket(new BigDecimal("5"), 3, false, new BigDecimal("30")),
+				new Bucket(BigDecimal.TEN, 2, false, new BigDecimal("20"))
+			};
+
+			// the two-argument constructor must default overallCount to the sum of bucket occurrences
+			final Histogram twoArg = new Histogram(buckets, new BigDecimal("20"));
+			assertEquals(10, twoArg.getOverallCount(), "two-arg constructor must sum bucket occurrences");
+
+			// the four-argument (anchor) constructor must likewise default to the bucket sum
+			final Histogram fourArg = new Histogram(buckets, new BigDecimal("20"), null, null);
+			assertEquals(10, fourArg.getOverallCount(), "four-arg constructor must sum bucket occurrences");
+		}
+	}
+
 	private static Histogram createHistogram() {
 		final Bucket[] buckets = new Bucket[]{
 			new Bucket(BigDecimal.ONE, 5, false, new BigDecimal("50")),

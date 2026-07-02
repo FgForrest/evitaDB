@@ -4,7 +4,7 @@ perex: |
   The query language is the core of any database machine. evitaDB has chosen a functional form of the language instead
   of a SQL-like language, which is more consistent with how it works internally and, most importantly, much more open
   to transformations.
-date: '15.12.2022'
+date: '11.5.2026'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'evitaql'
@@ -559,20 +559,21 @@ organizes the entities into a more understandable tree-like categorization:
 - [node](requirements/hierarchy.md#node)
 - [statistics](requirements/hierarchy.md#statistics)
 
-### Facets
+### References
 
-Facet requirements trigger the computation of an additional data structure that lists all entity faceted references,
-organized into a group with a calculated count of all entities that match each respective facet. Alternatively,
-the summary could include a calculation of how many entities will be left when that particular facet is added to
-the filter:
+Reference summary requirements trigger the computation of an additional data structure that lists all faceted
+references on the entity, organised into groups with a calculated count of all entities that match each option.
+Alternatively, the summary can include a prediction of how many entities will be left when that particular option
+is added to the filter, plus optional per-group numeric histograms for slider-driven filters:
 
-- [facet summary](requirements/facet.md#facet-summary)
+- [reference summary](requirements/reference.md#reference-summary)
 <LS to="e,j,r,c">
-- [facet summary of reference](requirements/facet.md#facet-summary-of-reference)
+- [reference summary of reference](requirements/reference.md#reference-summary-of-reference)
 </LS>
-- [facet conjunction](requirements/facet.md#facet-groups-conjunction)
-- [facet disjunction](requirements/facet.md#facet-groups-disjunction)
-- [facet negation](requirements/facet.md#facet-groups-negation)
+- [histogram statistics](requirements/reference.md#histogram-statistics)
+- [facet groups conjunction](requirements/reference.md#facet-groups-conjunction)
+- [facet groups disjunction](requirements/reference.md#facet-groups-disjunction)
+- [facet groups negation](requirements/reference.md#facet-groups-negation)
 
 ### Histogram
 

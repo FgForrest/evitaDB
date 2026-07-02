@@ -1,0 +1,53 @@
+final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
+	"evita",
+	session -> {
+		return session.querySealedEntity(
+			query(
+				collection("Product"),
+				filterBy(
+					hierarchyWithin(
+						"categories",
+						attributeEquals("code", "e-readers")
+					),
+					userFilter(
+						histogramHaving(
+							"parameterValues",
+							"intervalParameterValues",
+							200,
+							400,
+							groupHaving(
+								attributeEquals("code", "weight")
+							)
+						),
+						histogramHaving(
+							"parameterValues",
+							"intervalParameterValues",
+							6,
+							10,
+							groupHaving(
+								attributeEquals("code", "thickness")
+							)
+						)
+					)
+				),
+				require(
+					page(1, 5),
+					entityFetch(
+						attributeContent("code")
+					),
+					referenceSummaryOfReferenceWithHistograms(
+						"parameterValues",
+						FacetStatisticsDepth.NONE,
+						entityFetch(
+							attributeContent("code")
+						),
+						entityGroupFetch(
+							attributeContent("code")
+						),
+						histogramStatistics(20, STANDARD, "intervalParameterValues")
+					)
+				)
+			)
+		);
+	}
+);

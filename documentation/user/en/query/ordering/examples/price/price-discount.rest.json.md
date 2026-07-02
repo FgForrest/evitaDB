@@ -47,6 +47,28 @@
           "priceWithTax" : "4884.77",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 35634,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "4037.0",
+          "priceWithTax" : "4884.77",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 35634,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "4037.0",
+          "priceWithTax" : "4884.77",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -85,6 +107,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 34426,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "4007.0",
+          "priceWithTax" : "4848.47",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 34426,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "4007.0",
+          "priceWithTax" : "4848.47",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 34426,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -141,6 +185,28 @@
           "priceWithTax" : "4654.87",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 22760,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3847.0",
+          "priceWithTax" : "4654.87",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 22760,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3847.0",
+          "priceWithTax" : "4654.87",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -179,6 +245,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 32598,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3847.0",
+          "priceWithTax" : "4654.87",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32598,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3847.0",
+          "priceWithTax" : "4654.87",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 32598,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -235,6 +323,28 @@
           "priceWithTax" : "4654.87",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32600,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3847.0",
+          "priceWithTax" : "4654.87",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 32600,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3847.0",
+          "priceWithTax" : "4654.87",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -273,6 +383,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 32592,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3815.0",
+          "priceWithTax" : "4616.15",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32592,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3815.0",
+          "priceWithTax" : "4616.15",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 32592,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -329,6 +461,28 @@
           "priceWithTax" : "4556.86",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 22756,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3766.0",
+          "priceWithTax" : "4556.86",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 22756,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3766.0",
+          "priceWithTax" : "4556.86",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -367,6 +521,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 32594,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3782.0",
+          "priceWithTax" : "4576.22",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32594,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3782.0",
+          "priceWithTax" : "4576.22",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 32594,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -423,6 +599,28 @@
           "priceWithTax" : "4576.22",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32596,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3782.0",
+          "priceWithTax" : "4576.22",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 32596,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3782.0",
+          "priceWithTax" : "4576.22",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -461,6 +659,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 32602,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3750.0",
+          "priceWithTax" : "4537.5",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32602,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3750.0",
+          "priceWithTax" : "4537.5",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 32602,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -517,6 +737,28 @@
           "priceWithTax" : "4537.5",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32604,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3750.0",
+          "priceWithTax" : "4537.5",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 32604,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3750.0",
+          "priceWithTax" : "4537.5",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -555,6 +797,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 22754,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3686.0",
+          "priceWithTax" : "4460.06",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 22754,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3686.0",
+          "priceWithTax" : "4460.06",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 22754,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -611,6 +875,28 @@
           "priceWithTax" : "4450.38",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32606,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3678.0",
+          "priceWithTax" : "4450.38",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 32606,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3678.0",
+          "priceWithTax" : "4450.38",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -649,6 +935,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 32608,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3678.0",
+          "priceWithTax" : "4450.38",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32608,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3678.0",
+          "priceWithTax" : "4450.38",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 32608,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -926,6 +1234,28 @@
           "taxRate" : "21.0",
           "validity" : null
         },
+        "priceForSaleMin" : {
+          "priceId" : 32610,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : 111157,
+          "indexed" : true,
+          "priceWithoutTax" : "3638.0",
+          "priceWithTax" : "4401.98",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 32598,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : 111151,
+          "indexed" : true,
+          "priceWithoutTax" : "3847.0",
+          "priceWithTax" : "4654.87",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
         "multiplePricesForSaleAvailable" : true
       },
       {
@@ -964,6 +1294,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 32610,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3638.0",
+          "priceWithTax" : "4401.98",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32610,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3638.0",
+          "priceWithTax" : "4401.98",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 32610,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -1020,6 +1372,28 @@
           "priceWithTax" : "4401.98",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 32612,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3638.0",
+          "priceWithTax" : "4401.98",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 32612,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3638.0",
+          "priceWithTax" : "4401.98",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -1058,6 +1432,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 22740,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3606.0",
+          "priceWithTax" : "4363.26",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 22740,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3606.0",
+          "priceWithTax" : "4363.26",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 22740,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",
@@ -1114,6 +1510,28 @@
           "priceWithTax" : "4363.26",
           "taxRate" : "21.0",
           "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 22744,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3606.0",
+          "priceWithTax" : "4363.26",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
+          "priceId" : 22744,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3606.0",
+          "priceWithTax" : "4363.26",
+          "taxRate" : "21.0",
+          "validity" : null
         }
       },
       {
@@ -1152,6 +1570,28 @@
           }
         ],
         "priceForSale" : {
+          "priceId" : 22764,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3606.0",
+          "priceWithTax" : "4363.26",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMin" : {
+          "priceId" : 22764,
+          "priceList" : "b2b-basic-price",
+          "currency" : "EUR",
+          "innerRecordId" : null,
+          "indexed" : true,
+          "priceWithoutTax" : "3606.0",
+          "priceWithTax" : "4363.26",
+          "taxRate" : "21.0",
+          "validity" : null
+        },
+        "priceForSaleMax" : {
           "priceId" : 22764,
           "priceList" : "b2b-basic-price",
           "currency" : "EUR",

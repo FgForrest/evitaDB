@@ -27,7 +27,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				),
 				require(
 					page(1, 20),
-					facetSummary(IMPACT),
+					referenceSummary(IMPACT),
 					priceType(WITH_TAX),
 					priceHistogram(30, STANDARD)
 				)

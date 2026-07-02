@@ -83,9 +83,9 @@ public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 		tester.testWebSocket(
 			TEST_CATALOG,
 			CATALOG_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
-				writer.write(createPingMessage());
-				writer.write(createConnectionInitMessage());
+			ctx -> {
+				ctx.writer().write(createPingMessage());
+				ctx.writer().write(createConnectionInitMessage());
 			},
 			2, receivedEvents -> {
 				assertThatJson(receivedEvents.get(0)).node("type").isEqualTo("pong");
@@ -109,15 +109,19 @@ public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 		tester.testWebSocket(
 			newCatalogName,
 			CATALOG_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
+			ctx -> {
 				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"{ \"sinceVersion\": \"" + startVersion + "\" }"
 				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
 
 				// apply operation to trigger a new event
 				evita.updateCatalog(
@@ -154,7 +158,7 @@ public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 		tester.testWebSocket(
 			newCatalogName,
 			CATALOG_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
+			ctx -> {
 				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
 
 				// apply operation to trigger a new event
@@ -166,8 +170,8 @@ public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 				);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"{ \"sinceVersion\": \"" + startVersion + "\", \"content\": \"BODY\" }"
 				));
@@ -207,7 +211,7 @@ public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 		tester.testWebSocket(
 			newCatalogName,
 			CATALOG_CHANGE_CAPTURE_URL_PATH,
-			writer -> {
+			ctx -> {
 				final long startVersion = getStartVersionForEvitaCDC(evita, newCatalogName);
 
 				// apply operation to trigger a new event
@@ -219,8 +223,8 @@ public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 				);
 
 				// open subscription
-				writer.write(createConnectionInitMessage());
-				writer.write(createSubscriptionQueryMessage(
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
 					subscriptionId,
 					"{ " +
 						"\"sinceVersion\": \"" + startVersion + "\", " +

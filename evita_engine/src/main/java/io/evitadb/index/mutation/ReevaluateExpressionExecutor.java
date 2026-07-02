@@ -30,6 +30,7 @@ import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -59,6 +60,7 @@ import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.roaringbitmap.RoaringBitmap;
 import org.roaringbitmap.RoaringBitmapWriter;
@@ -251,28 +253,43 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			refTypeIndex = null;
 		}
 
+		// Apply the *same* presence-aware decision matrix the local indexing path uses
+		// (ReferenceIndexMutator#applyFacetDecisionMatrix). The cross-entity executor never migrates a
+		// reference's group — group affiliation only ever changes via local SetReferenceGroupMutation /
+		// RemoveReferenceGroupMutation on the owner entity. A cross-entity trigger merely flips the
+		// faceted/not-faceted *decision* for the owner's reference in its current (resolved) group.
+		// By the time this executor runs, the local path may have already added the facet, removed it, or
+		// left it in a now-stale bucket; the decision matrix scans for the facet's actual location and
+		// reconciles it deterministically — missing bucket is a no-op, already-present is a no-op, a
+		// wrong bucket is a self-healing move. This eliminates the blind add/removeFacet calls that
+		// raised `Facet ... not found in index (group: ...)!` and the symmetric orphan-duplicate on add.
 		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
-			globalIndex.addFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
+			ReferenceIndexMutator.applyFacetDecisionMatrix(
+				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), true, null
+			);
 			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, true);
 		}
 		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldNotBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
-			globalIndex.removeFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
+			ReferenceIndexMutator.applyFacetDecisionMatrix(
+				globalIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), false, null
+			);
 			applyFacetToReducedIndexes(target, refTypeIndex, refSchema, refKey, entry, false);
 		}
 	}
 
 	/**
-	 * Propagates a facet add/remove to every reduced index covering the given referenced entity.
-	 * No-op when `refTypeIndex` is `null` (non-partitioned schemas).
+	 * Propagates the facet decision to every reduced index covering the given referenced entity, using the
+	 * same presence-aware {@link ReferenceIndexMutator#applyFacetDecisionMatrix} as the global index. No-op
+	 * when `refTypeIndex` is `null` (non-partitioned schemas).
 	 *
 	 * @param target        access to the entity collection's index store
 	 * @param refTypeIndex  the `REFERENCED_ENTITY_TYPE` index, or `null` for non-partitioned schemas
 	 * @param refSchema     schema of the reference being updated
 	 * @param refKey        the `(referenceName, referencedEntityPK)` key
 	 * @param entry         the `(referencedEntityPK, groupPK, ownerPK)` triple
-	 * @param add           `true` to add, `false` to remove
+	 * @param nowFaceted    `true` when the owner should be faceted in `entry.groupPK()`, `false` otherwise
 	 */
 	private static void applyFacetToReducedIndexes(
 		@Nonnull IndexMutationTarget target,
@@ -280,7 +297,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull ReferenceSchemaContract refSchema,
 		@Nonnull ReferenceKey refKey,
 		@Nonnull AffectedReferenceEntry entry,
-		boolean add
+		boolean nowFaceted
 	) {
 		if (refTypeIndex == null) {
 			return;
@@ -293,11 +310,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				"Expected reduced index with storage PK " + reducedStoragePK +
 					" to exist for referenced entity PK " + entry.referencedEntityPK()
 			);
-			if (add) {
-				reducedIndex.addFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
-			} else {
-				reducedIndex.removeFacet(refSchema, refKey, entry.groupPK(), entry.ownerPK());
-			}
+			ReferenceIndexMutator.applyFacetDecisionMatrix(
+				reducedIndex, refSchema, refKey, entry.groupPK(), entry.ownerPK(), nowFaceted, null
+			);
 		}
 	}
 
@@ -417,10 +432,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			(depType == DependencyType.REFERENCED_ENTITY_ATTRIBUTE
 				|| depType == DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE)
 				&& affected.groups().stream().anyMatch(g -> g.groupPK() != null)
-				&& FinderVisitor.findConstraint(
+				&& !FinderVisitor.findConstraints(
 					trigger.getFilterByConstraint(),
 					GroupHaving.class::isInstance
-				) != null;
+				).isEmpty();
 
 		if (needsPerGroupEvaluation) {
 			return evaluateConditionPerGroup(trigger, mutation, target, affected);
@@ -513,21 +528,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (groupPK == null) {
 			return parameterize(triggerFilterBy, referenceName, mutatedEntityPK, dependencyType);
 		}
-		// inject group PK scope into the ORIGINAL filter first (before entity PK injection),
-		// so that injectPkScope can find the GroupHaving at the top of ReferenceHaving's children
+		// Inject group PK scope into the ORIGINAL filter first (before entity PK injection); the
+		// recursive rewrite reaches every matching ReferenceHaving regardless of nesting (Or/And/Not),
+		// and injectPkScope merges the PK into every GroupHaving sibling in each match.
 		final EntityPrimaryKeyInSet groupPkConstraint = new EntityPrimaryKeyInSet(groupPK);
-		final FilterConstraint[] topChildren = triggerFilterBy.getChildren();
-		final FilterConstraint[] newTopChildren = new FilterConstraint[topChildren.length];
-		for (int i = 0; i < topChildren.length; i++) {
-			if (topChildren[i] instanceof ReferenceHaving rh
-				&& rh.getReferenceName().equals(referenceName)
-			) {
-				newTopChildren[i] = injectPkScope(rh, referenceName, groupPkConstraint, true);
-			} else {
-				newTopChildren[i] = topChildren[i];
-			}
-		}
-		final FilterBy groupScoped = new FilterBy(newTopChildren);
+		final FilterBy groupScoped = rewriteMatchingReferenceHavings(
+			triggerFilterBy, referenceName, groupPkConstraint, true
+		);
 		// then apply the standard entity PK scoping
 		return parameterize(groupScoped, referenceName, mutatedEntityPK, dependencyType);
 	}
@@ -640,7 +647,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 		// when the value source attribute was itself mutated, use captured pre-mutation values
 		// for deterministic removal (the source FilterIndex already reflects the NEW values)
-		final Number[] knownOldValues;
+		final Serializable[] knownOldValues;
 		if (preMutationValues != null) {
 			final Serializable rawOldValue = preMutationValues.get(locale);
 			knownOldValues = ReferenceIndexMutator.resolveHistogramValues(rawOldValue, resolution);
@@ -659,24 +666,24 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 			if (!matched.isEmpty()) {
 				// determine values to remove: known old values (value-change) or current source values (condition-change)
-				final List<Number> valuesToRemove;
+				final List<? extends Serializable> valuesToRemove;
 				if (knownOldValues != null) {
 					// value source changed: use pre-captured old values for deterministic removal
 					valuesToRemove = knownOldValues.length > 0 ? List.of(knownOldValues) : List.of();
 				} else {
 					// condition-only change: current source values == old values (value is unchanged)
 					valuesToRemove = resolveAllRefEntityValues(
-						sourceFilterIndex, group.referencedEntityPK(), resolution.defaultValue()
+						sourceFilterIndex, group.referencedEntityPK(), resolution
 					);
 				}
 
 				// remove each (value, ownerPK) pair from both RGEI and RTEI; skip when the histogram
 				// does not contain the entry (never created — condition was false, or different scope)
-				for (final Number value : valuesToRemove) {
+				for (final Serializable value : valuesToRemove) {
 					for (int ownerPK : matched) {
 						removeHistogramValue(
 							histogramName, locale, value, ownerPK,
-							group, rtei, isGrouped, target
+							group, rtei, isGrouped, target, resolution.indexedDecimalPlaces()
 						);
 					}
 				}
@@ -685,41 +692,91 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	}
 
 	/**
+	 * Dispatches on the descriptor's `plainType` to produce the value a histogram should emit
+	 * for a single source FilterIndex bucket. Range histograms see raw `Range` bucket values
+	 * (sourced from the FilterIndex's `InvertedIndex` shadow); scalar histograms see `Number`
+	 * instances. Returns `null` to signal the caller should skip the bucket (a non-`Number`
+	 * scalar bucket is the only legitimate skip case). Range-typed mismatches with the
+	 * descriptor's `plainType` are treated as index/schema drift and surface as a defensive
+	 * throw rather than a silent skip.
+	 *
+	 * @param bucketValue         raw bucket value pulled from the source FilterIndex
+	 * @param rangeSource         `true` when the histogram is range-typed (precomputed from
+	 *                            {@link HistogramValueDescriptor#innerNumericType()})
+	 * @param plainType           the descriptor's `plainType` — authoritative for value typing
+	 * @param sourceAttributeName name of the source attribute, used for error reporting
+	 * @return the typed value to emit, or `null` to skip the bucket
+	 */
+	@Nullable
+	private static Serializable resolveEmittedBucketValue(
+		@Nonnull Serializable bucketValue,
+		boolean rangeSource,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull String sourceAttributeName
+	) {
+		if (rangeSource) {
+			if (!plainType.isInstance(bucketValue)) {
+				throw new GenericEvitaInternalError(
+					"Source FilterIndex for range histogram attribute `" +
+						sourceAttributeName + "` emitted bucket value of type `" +
+						bucketValue.getClass().getName() + "` but plainType is `" +
+						plainType.getName() + "` — index/schema drift."
+				);
+			}
+			return bucketValue;
+		}
+		return bucketValue instanceof Number numericValue ? numericValue : null;
+	}
+
+	/**
 	 * Resolves ALL histogram values for the given referenced entity PK by scanning the source
 	 * FilterIndex. For scalar attributes returns a singleton list; for array-typed attributes
-	 * the entity may appear in multiple source buckets — all matching values are returned.
-	 * Falls back to a singleton list containing `defaultValue` if the entity is not in any bucket.
+	 * the entity may appear in multiple source buckets — all matching values are returned. For
+	 * range-typed source attributes the matching buckets carry raw `Range` instances (sourced from
+	 * the `InvertedIndex` shadow) and are returned as-is.
+	 *
+	 * Falls back to a singleton list containing
+	 * {@link HistogramValueDescriptor#defaultValue()} if the entity is not in any bucket; the
+	 * descriptor enforces `defaultValue == null` for range-typed sources, so the fallback is
+	 * scalar-only by construction.
 	 *
 	 * @param sourceFilterIndex the source collection's FilterIndex for the value attribute
 	 * @param refEntityPK       primary key of the referenced entity
-	 * @param defaultValue      default value from the histogram descriptor, or `null`
-	 * @return list of resolved numeric values; empty if no value can be determined
+	 * @param resolution        value resolution metadata; used to detect range-typed sources and
+	 *                          to enforce the descriptor's `plainType` invariant on bucket values
+	 * @return list of resolved values typed to {@link HistogramValueDescriptor#plainType()}; empty
+	 *         if no value can be determined
 	 */
 	@Nonnull
-	private static List<Number> resolveAllRefEntityValues(
+	private static List<? extends Serializable> resolveAllRefEntityValues(
 		@Nullable FilterIndex sourceFilterIndex,
 		int refEntityPK,
-		@Nullable Number defaultValue
+		@Nonnull HistogramValueDescriptor resolution
 	) {
-		if (sourceFilterIndex == null) {
-			return defaultValue != null ? List.of(defaultValue) : List.of();
-		} else {
+		final Number defaultValue = resolution.defaultValue();
+		if (sourceFilterIndex != null) {
+			final boolean rangeSource = resolution.innerNumericType() != null;
+			final Class<? extends Serializable> plainType = resolution.plainType();
 			final ValueToRecordBitmap[] buckets = sourceFilterIndex.getHistogramOfAllRecords().getHistogramBuckets();
-			List<Number> result = null;
+			List<Serializable> result = null;
 			for (final ValueToRecordBitmap bucket : buckets) {
-				if (bucket.getRecordIds().contains(refEntityPK)
-					&& bucket.getValue() instanceof Number num) {
-					if (result == null) {
-						result = new ArrayList<>(4);
+				if (bucket.getRecordIds().contains(refEntityPK)) {
+					final Serializable emittedValue = resolveEmittedBucketValue(
+						bucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
+					);
+					if (emittedValue != null) {
+						if (result == null) {
+							result = new ArrayList<>(4);
+						}
+						result.add(emittedValue);
 					}
-					result.add(num);
 				}
 			}
 			if (result != null) {
 				return result;
 			}
-			return defaultValue != null ? List.of(defaultValue) : List.of();
 		}
+		return defaultValue != null ? List.of(defaultValue) : List.of();
 	}
 
 	/**
@@ -847,6 +904,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			}
 		} else {
 			final Class<? extends Serializable> plainType = resolution.plainType();
+			final boolean rangeSource = resolution.innerNumericType() != null;
 			final RoaringBitmap shouldBeIndexedBitmap =
 				getRoaringBitmap(histogramShouldBeIndexed);
 			final ValueToRecordBitmap[] sourceBuckets =
@@ -855,25 +913,27 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final RoaringBitmapWriter<RoaringBitmap> encounteredRefPKsWriter = buildWriter();
 
 			for (final ValueToRecordBitmap sourceBucket : sourceBuckets) {
-				final Serializable bucketValue = sourceBucket.getValue();
-				// Only numeric attribute values are valid histogram bucket values; skip non-numeric types.
-				if (bucketValue instanceof Number numericValue) {
-					final RoaringBitmap refPKsInBucket = getRoaringBitmap(sourceBucket.getRecordIds());
+				final Serializable emittedValue = resolveEmittedBucketValue(
+					sourceBucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
+				);
+				if (emittedValue == null) {
+					continue;
+				}
+				final RoaringBitmap refPKsInBucket = getRoaringBitmap(sourceBucket.getRecordIds());
 
-					for (final AffectedReferenceGroup group : affected.groups()) {
-						// Check whether this group's referenced entity is present in the current source bucket.
-						if (refPKsInBucket.contains(group.referencedEntityPK())) {
-							encounteredRefPKsWriter.add(group.referencedEntityPK());
-							final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
-							// Intersect "should be indexed" with the group's owner PKs
-							// to avoid touching unrelated entities.
-							final RoaringBitmap matched = and(shouldBeIndexedBitmap, ownerPKs);
-							for (int ownerPK : matched) {
-								insertHistogramValue(
-									histogramName, locale, numericValue, ownerPK, group, rtei, isGrouped,
-									target, plainType
-								);
-							}
+				for (final AffectedReferenceGroup group : affected.groups()) {
+					// Check whether this group's referenced entity is present in the current source bucket.
+					if (refPKsInBucket.contains(group.referencedEntityPK())) {
+						encounteredRefPKsWriter.add(group.referencedEntityPK());
+						final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
+						// Intersect "should be indexed" with the group's owner PKs
+						// to avoid touching unrelated entities.
+						final RoaringBitmap matched = and(shouldBeIndexedBitmap, ownerPKs);
+						for (int ownerPK : matched) {
+							insertHistogramValue(
+								histogramName, locale, emittedValue, ownerPK, group, rtei, isGrouped,
+								target, plainType, resolution.indexedDecimalPlaces()
+							);
 						}
 					}
 				}
@@ -891,7 +951,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 						for (int ownerPK : matched) {
 							insertHistogramValue(
 								histogramName, locale, defaultValue, ownerPK, group, rtei, isGrouped,
-								target, plainType
+								target, plainType, resolution.indexedDecimalPlaces()
 							);
 						}
 					}
@@ -1031,7 +1091,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			resolution, filterIndex, shouldBeIndexedBitmap, group,
 			(value, ownerPK) -> insertHistogramValue(
 				histogramName, locale, value, ownerPK, group, rtei, isGrouped,
-				target, plainType
+				target, plainType, resolution.indexedDecimalPlaces()
 			)
 		);
 	}
@@ -1042,25 +1102,37 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * and invokes the given action for each matched (value, ownerPK) pair. Falls back to
 	 * {@link HistogramValueDescriptor#defaultValue()} for eligible PKs that have no matching bucket.
 	 *
+	 * For range-typed source attributes (signalled by
+	 * {@link HistogramValueDescriptor#innerNumericType()} being non-null), each bucket's value is a
+	 * raw `Range` instance (sourced from the `InvertedIndex` shadow of the source `FilterIndex`); the
+	 * action receives the `Range` directly. For scalar numeric sources the action receives a `Number`.
+	 * The descriptor's `plainType` is the authoritative source of truth and any type mismatch surfaces
+	 * as a defensive-design throw.
+	 *
 	 * @param resolution   value resolution metadata
 	 * @param filterIndex  the FilterIndex for the reference attribute, or `null`
 	 * @param eligiblePKs  bitmap of owner PKs to process
 	 * @param group        the group being processed
-	 * @param action       callback invoked for each (numericValue, ownerPK) pair
+	 * @param action       callback invoked for each (value, ownerPK) pair; the value type matches
+	 *                     {@link HistogramValueDescriptor#plainType()}
 	 */
 	private static void processRefAttrFilterIndexBuckets(
 		@Nonnull HistogramValueDescriptor resolution,
 		@Nullable FilterIndex filterIndex,
 		@Nonnull RoaringBitmap eligiblePKs,
 		@Nonnull AffectedReferenceGroup group,
-		@Nonnull ObjIntConsumer<Number> action
+		@Nonnull ObjIntConsumer<Serializable> action
 	) {
 		final RoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
+		final boolean rangeSource = resolution.innerNumericType() != null;
+		final Class<? extends Serializable> plainType = resolution.plainType();
+		// both `eligiblePKs` and `ownerPKs` are loop-invariant within this method —
+		// intersect once and reuse across every bucket and the default-fill block
+		final RoaringBitmap eligibleOwnerPKs = and(eligiblePKs, ownerPKs);
 		if (filterIndex == null) {
 			final Number defaultValue = resolution.defaultValue();
 			if (defaultValue != null) {
-				final RoaringBitmap matched = and(eligiblePKs, ownerPKs);
-				for (int ownerPK : matched) {
+				for (int ownerPK : eligibleOwnerPKs) {
 					action.accept(defaultValue, ownerPK);
 				}
 			}
@@ -1069,23 +1141,29 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final RoaringBitmap encountered = new RoaringBitmap();
 
 			for (final ValueToRecordBitmap bucket : buckets) {
-				final Serializable bucketValue = bucket.getValue();
-				if (bucketValue instanceof Number numericValue) {
-					final RoaringBitmap bucketPKs = getRoaringBitmap(bucket.getRecordIds());
-					final RoaringBitmap matched = and(and(eligiblePKs, ownerPKs), bucketPKs);
-					if (!matched.isEmpty()) {
-						encountered.or(matched);
-						for (int ownerPK : matched) {
-							action.accept(numericValue, ownerPK);
-						}
+				final Serializable emittedValue = resolveEmittedBucketValue(
+					bucket.getValue(), rangeSource, plainType, resolution.sourceAttributeName()
+				);
+				if (emittedValue == null) {
+					// non-Range scalar histograms only accept Number buckets; anything else is a value
+					// the source FilterIndex shouldn't have produced for this attribute
+					continue;
+				}
+				final RoaringBitmap bucketPKs = getRoaringBitmap(bucket.getRecordIds());
+				final RoaringBitmap matched = and(eligibleOwnerPKs, bucketPKs);
+				if (!matched.isEmpty()) {
+					encountered.or(matched);
+					for (int ownerPK : matched) {
+						action.accept(emittedValue, ownerPK);
 					}
 				}
 			}
 
+			// defaults are scalar-only by construction — HistogramValueDescriptor enforces
+			// `defaultValue == null` for range-typed plainType
 			final Number defaultValue = resolution.defaultValue();
 			if (defaultValue != null) {
-				final RoaringBitmap eligible = and(eligiblePKs, ownerPKs);
-				final RoaringBitmap missing = andNot(eligible, encountered);
+				final RoaringBitmap missing = andNot(eligibleOwnerPKs, encountered);
 				for (int ownerPK : missing) {
 					action.accept(defaultValue, ownerPK);
 				}
@@ -1192,7 +1270,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		processRefAttrFilterIndexBuckets(
 			resolution, filterIndex, ownerPKsToRemove, group,
 			(value, ownerPK) -> removeHistogramValue(
-				histogramName, locale, value, ownerPK, group, rtei, isGrouped, target
+				histogramName, locale, value, ownerPK, group, rtei, isGrouped, target,
+				resolution.indexedDecimalPlaces()
 			)
 		);
 	}
@@ -1206,11 +1285,12 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	private static void removeHistogramValue(
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value, int ownerPK,
+		@Nonnull Serializable value, int ownerPK,
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
-		@Nonnull IndexMutationTarget target
+		@Nonnull IndexMutationTarget target,
+		int indexedDecimalPlaces
 	) {
 		if (isGrouped && group.groupPK() != null) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
@@ -1218,13 +1298,21 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
 					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
 				);
-				if (histogramContainsOwner(rgei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
-					rgei.removeHistogramValue(histogramName, locale, value, ownerPK);
+				if (
+					histogramContainsOwner(
+						rgei.getHistogramIndex(histogramName), locale, value, ownerPK, indexedDecimalPlaces
+					)
+				) {
+					rgei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 				}
 			}
 		}
-		if (histogramContainsOwner(rtei.getHistogramIndex(histogramName), locale, value, ownerPK)) {
-			rtei.removeHistogramValue(histogramName, locale, value, ownerPK);
+		if (
+			histogramContainsOwner(
+				rtei.getHistogramIndex(histogramName), locale, value, ownerPK, indexedDecimalPlaces
+			)
+		) {
+			rtei.removeHistogramValue(histogramName, locale, value, ownerPK, indexedDecimalPlaces);
 		}
 	}
 
@@ -1232,12 +1320,18 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * Checks whether the histogram index contains the given (value, ownerPK) pair. Returns false when
 	 * the histogram index is null, the FilterIndex for the locale is null, or the specific value bucket
 	 * does not contain the ownerPK.
+	 *
+	 * Comparison uses `Object.equals` on the bucket value — `Range` subtypes implement value-based equality
+	 * over both bounds (and inner numeric type), so the lookup is symmetric for both scalar `Number` values
+	 * and range-typed bucket values. The probe `value` is normalized to `indexedDecimalPlaces` first so it
+	 * matches the stored bucket value, which was normalized at the histogram-index write boundary.
 	 */
 	private static boolean histogramContainsOwner(
 		@Nullable HistogramIndex histogramIndex,
 		@Nullable Locale locale,
-		@Nonnull Number value,
-		int ownerPK
+		@Nonnull Serializable value,
+		int ownerPK,
+		int indexedDecimalPlaces
 	) {
 		if (histogramIndex == null) {
 			return false;
@@ -1246,9 +1340,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (filterIndex == null) {
 			return false;
 		}
+		final Serializable normalizedValue = NumberUtils.normalizeForIndexing(value, indexedDecimalPlaces);
 		final ValueToRecordBitmap[] buckets = filterIndex.getHistogramOfAllRecords().getHistogramBuckets();
 		for (final ValueToRecordBitmap bucket : buckets) {
-			if (bucket.getValue().equals(value)) {
+			if (bucket.getValue().equals(normalizedValue)) {
 				return bucket.getRecordIds().contains(ownerPK);
 			}
 		}
@@ -1261,24 +1356,28 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param histogramName  name of the histogram definition
 	 * @param locale         locale for the histogram index, or `null` for non-localized
-	 * @param value          the numeric value to insert
+	 * @param value          the value to insert (a `Number` for plain numeric attributes or a `Range`
+	 *                       instance for Range-typed attributes)
 	 * @param ownerPK        primary key of the owner entity
 	 * @param group          the group for reduced-index routing
 	 * @param rtei           the top-level referenced-type index
-	 * @param isGrouped      `true` when the reference has a group type
-	 * @param target         access to entity collection indexes
-	 * @param valueType      the plain numeric type of the attribute
+	 * @param isGrouped            `true` when the reference has a group type
+	 * @param target               access to entity collection indexes
+	 * @param valueType            the plain type of the attribute
+	 * @param indexedDecimalPlaces the source attribute schema's indexed decimal places, threaded to the
+	 *                             histogram-index write boundary for scale normalization
 	 */
 	private static void insertHistogramValue(
 		@Nonnull String histogramName,
 		@Nullable Locale locale,
-		@Nonnull Number value,
+		@Nonnull Serializable value,
 		int ownerPK,
 		@Nonnull AffectedReferenceGroup group,
 		@Nonnull ReferencedTypeEntityIndex rtei,
 		boolean isGrouped,
 		@Nonnull IndexMutationTarget target,
-		@Nonnull Class<? extends Serializable> valueType
+		@Nonnull Class<? extends Serializable> valueType,
+		int indexedDecimalPlaces
 	) {
 		if (isGrouped && group.groupPK() != null) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(group.groupPK());
@@ -1286,10 +1385,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				final ReducedGroupEntityIndex rgei = asReducedGroupEntityIndex(
 					target.getOrCreateIndexByPrimaryKey(storagePK), storagePK
 				);
-				rgei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+				rgei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 			}
 		}
-		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType);
+		rtei.insertHistogramValue(histogramName, locale, value, ownerPK, valueType, indexedDecimalPlaces);
 	}
 
 	/**
@@ -1663,25 +1762,68 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final EntityPrimaryKeyInSet pkConstraint = new EntityPrimaryKeyInSet(mutatedEntityPK);
 		final boolean isGroupScope = dependencyType == DependencyType.GROUP_ENTITY_ATTRIBUTE
 			|| dependencyType == DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
-		// Walk the top-level children and inject the PK-scope into the matching referenceHaving clause.
-		final FilterConstraint[] topChildren = triggerFilterBy.getChildren();
-		final FilterConstraint[] newTopChildren = new FilterConstraint[topChildren.length];
-		for (int i = 0; i < topChildren.length; i++) {
-			if (topChildren[i] instanceof ReferenceHaving rh
-				&& rh.getReferenceName().equals(referenceName)) {
-				newTopChildren[i] = injectPkScope(rh, referenceName, pkConstraint, isGroupScope);
-			} else {
-				newTopChildren[i] = topChildren[i];
-			}
-		}
-		return new FilterBy(newTopChildren);
+		return rewriteMatchingReferenceHavings(triggerFilterBy, referenceName, pkConstraint, isGroupScope);
 	}
 
 	/**
-	 * Injects the given PK constraint into the matching {@link ReferenceHaving} clause. If the clause already
-	 * contains an {@link EntityHaving} (or {@link GroupHaving} for group-scoped dependencies), the PK constraint
-	 * is merged into that existing scope container so that only a single scope shift is used. Otherwise, a new
-	 * scope container wrapping the PK constraint is appended as an additional And-sibling.
+	 * Rewrites every owner-scope {@link ReferenceHaving} whose reference name matches `referenceName`
+	 * anywhere in `filterBy` by passing it through {@link #injectPkScope}. The traversal is full-tree
+	 * (handles `Or`, `And`, `Not`, and any other container the constraint model defines), so the
+	 * rewrite reaches every owner-scope match regardless of nesting depth — not just top-level direct
+	 * children of the {@link FilterBy}.
+	 *
+	 * The translator can emit nested `referenceHaving(otherRef, ...)` inside an enclosing
+	 * `entityHaving(...)` / `groupHaving(...)` (paths `REFERENCED_ENTITY_REFERENCE_ATTRIBUTE` and
+	 * `GROUP_ENTITY_REFERENCE_ATTRIBUTE`). Those inner clauses live in a *different* entity scope
+	 * (the referenced entity, not the owner), so their PK constraints must NOT be merged with the
+	 * owner-scope mutation's PK. The guard `!visitor.isWithin(EntityHaving.class)
+	 * && !visitor.isWithin(GroupHaving.class)` skips such inner clauses even when they happen to
+	 * carry the same `referenceName` as the owner-scope reference (e.g. self-referencing schemas).
+	 *
+	 * @param filterBy       the filter to rewrite
+	 * @param referenceName  the reference whose `ReferenceHaving` instances receive the PK scope
+	 * @param pkConstraint   the PK constraint to merge into each matching `ReferenceHaving`
+	 * @param isGroupScope   `true` for {@link GroupHaving}-scoped injection, `false` for
+	 *                       {@link EntityHaving}-scoped injection
+	 * @return the rewritten filter; structurally identical when no owner-scope `ReferenceHaving`
+	 *         matched
+	 */
+	@Nonnull
+	private static FilterBy rewriteMatchingReferenceHavings(
+		@Nonnull FilterBy filterBy,
+		@Nonnull String referenceName,
+		@Nonnull EntityPrimaryKeyInSet pkConstraint,
+		boolean isGroupScope
+	) {
+		final FilterBy rewritten = (FilterBy) ConstraintCloneVisitor.clone(
+			filterBy,
+			(visitor, constraint) -> constraint instanceof final ReferenceHaving rh
+				&& rh.getReferenceName().equals(referenceName)
+				&& !visitor.isWithin(EntityHaving.class)
+				&& !visitor.isWithin(GroupHaving.class)
+				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope)
+				: constraint
+		);
+		// ConstraintCloneVisitor.clone is @Nullable because it returns null when the cloned tree
+		// collapses to a non-applicable constraint. That cannot happen here: the trigger `filterBy`
+		// always carries an applicable `referenceHaving`, and the translator only injects PK scope —
+		// it never drops children — so the clone is at least as applicable as the input. Assert the
+		// invariant explicitly to keep the @Nonnull contract sound rather than propagate a silent null.
+		return Objects.requireNonNull(
+			rewritten,
+			"Rewritten referenceHaving filter unexpectedly collapsed to null — the trigger `filterBy` " +
+				"must always retain an applicable constraint after PK-scope injection."
+		);
+	}
+
+	/**
+	 * Injects the given PK constraint into the matching {@link ReferenceHaving} clause. Every existing
+	 * {@link GroupHaving} (or {@link EntityHaving} for entity-scoped dependencies) child receives the
+	 * PK constraint merged into its body, so a {@link ReferenceHaving} carrying multiple sibling
+	 * scope containers (produced by the expression translator when the same reference declares more
+	 * than one `groupEntity?.…` / `entity?.…` predicate) is correctly constrained on every branch.
+	 * When no scope container is present, a new one wrapping the PK constraint is appended as an
+	 * And-sibling.
 	 *
 	 * @param rh            the original referenceHaving clause
 	 * @param referenceName the reference name for the new ReferenceHaving
@@ -1698,38 +1840,33 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		boolean isGroupScope
 	) {
 		final FilterConstraint[] rhChildren = rh.getChildren();
-		// Find an existing EntityHaving or GroupHaving to merge the PK constraint into.
-		int scopeIndex = -1;
+		final FilterConstraint[] updatedChildren = new FilterConstraint[rhChildren.length];
+		boolean scopeContainerFound = false;
 		for (int j = 0; j < rhChildren.length; j++) {
-			if (isGroupScope ? rhChildren[j] instanceof GroupHaving : rhChildren[j] instanceof EntityHaving) {
-				scopeIndex = j;
-				break;
+			final FilterConstraint child = rhChildren[j];
+			if (isGroupScope && child instanceof final GroupHaving existing) {
+				updatedChildren[j] = new GroupHaving(new And(existing.getChild(), pkConstraint));
+				scopeContainerFound = true;
+			} else if (!isGroupScope && child instanceof final EntityHaving existing) {
+				updatedChildren[j] = new EntityHaving(new And(existing.getChild(), pkConstraint));
+				scopeContainerFound = true;
+			} else {
+				updatedChildren[j] = child;
 			}
 		}
-		if (scopeIndex >= 0) {
-			// Merge PK constraint into the existing scope container to avoid multiple scope shifts.
-			final FilterConstraint[] updatedChildren = new FilterConstraint[rhChildren.length];
-			System.arraycopy(rhChildren, 0, updatedChildren, 0, rhChildren.length);
-			if (isGroupScope) {
-				final GroupHaving existing = (GroupHaving) rhChildren[scopeIndex];
-				updatedChildren[scopeIndex] = new GroupHaving(new And(existing.getChild(), pkConstraint));
-			} else {
-				final EntityHaving existing = (EntityHaving) rhChildren[scopeIndex];
-				updatedChildren[scopeIndex] = new EntityHaving(new And(existing.getChild(), pkConstraint));
-			}
+		if (scopeContainerFound) {
 			return updatedChildren.length == 1
 				? new ReferenceHaving(referenceName, updatedChildren[0])
 				: new ReferenceHaving(referenceName, new And(updatedChildren));
-		} else {
-			// No existing scope container — wrap PK in a new one and add as an And-sibling.
-			final FilterConstraint pkScope = isGroupScope
-				? new GroupHaving(pkConstraint)
-				: new EntityHaving(pkConstraint);
-			final FilterConstraint[] andChildren = new FilterConstraint[rhChildren.length + 1];
-			System.arraycopy(rhChildren, 0, andChildren, 0, rhChildren.length);
-			andChildren[rhChildren.length] = pkScope;
-			return new ReferenceHaving(referenceName, new And(andChildren));
 		}
+		// No existing scope container — wrap PK in a new one and add as an And-sibling.
+		final FilterConstraint pkScope = isGroupScope
+			? new GroupHaving(pkConstraint)
+			: new EntityHaving(pkConstraint);
+		final FilterConstraint[] andChildren = new FilterConstraint[rhChildren.length + 1];
+		System.arraycopy(rhChildren, 0, andChildren, 0, rhChildren.length);
+		andChildren[rhChildren.length] = pkScope;
+		return new ReferenceHaving(referenceName, new And(andChildren));
 	}
 
 	/**

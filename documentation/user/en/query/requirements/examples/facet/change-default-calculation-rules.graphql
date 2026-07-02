@@ -8,7 +8,7 @@
     }
   ) {
     extraResults {
-      facetSummary {
+      referenceSummary {
         parameterValues {
           count
           groupEntity {

@@ -23,7 +23,7 @@
     }
   ) {
     extraResults {
-      facetSummary {
+      referenceSummary {
         categories {
           count
           facetStatistics {

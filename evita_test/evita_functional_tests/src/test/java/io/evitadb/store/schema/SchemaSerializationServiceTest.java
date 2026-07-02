@@ -50,9 +50,11 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
 import lombok.Data;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Serial;
@@ -67,6 +69,7 @@ import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.Assertions.assertExactlyEquals;
 import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.SCHEMA;
 
@@ -121,7 +124,8 @@ class SchemaSerializationServiceTest {
 		final EntitySchemaContract createdSchema = constructSchemaWithBucketedReferences(
 			createEntitySchemaBuilder(),
 			valueExpression,
-			partiallyExpression
+			partiallyExpression,
+			null
 		);
 
 		final EntitySchema deserialized = roundTripEntitySchema(kryo, createdSchema);
@@ -148,6 +152,74 @@ class SchemaSerializationServiceTest {
 		final ReferenceSchemaContract categoryRef = deserialized.getReference(Entities.CATEGORY).orElseThrow();
 		assertTrue(categoryRef.getAllHistogramIndexDefinitions().isEmpty());
 		assertTrue(categoryRef.getBucketedPartiallyInScopes().isEmpty());
+	}
+
+	/**
+	 * Verifies that the per-histogram `assignedWhen` partition selector — the fourth-positional
+	 * component of {@link HistogramIndexDefinition} — survives a full Kryo round-trip
+	 * through the entity-schema serializer. Pins the `writeBucketedHistogramMap` /
+	 * `readBucketedHistogramMap` branch that codecs the optional expression behind a
+	 * boolean prefix: one histogram on the brand reference carries the partition selector,
+	 * the second histogram on the same reference carries `null` — both arms of
+	 * the codec branch are exercised in a single round-trip.
+	 */
+	@Test
+	@Tag(HISTOGRAM)
+	@DisplayName("should round-trip assignedWhen partition selector through entity schema serializer")
+	void shouldRoundTripAssignedWhenThroughEntitySchemaSerializer() {
+		final Kryo kryo = createKryo();
+		final Expression filteredValueExpr = ExpressionFactory.parse("$price * 1.21");
+		final Expression assignedWhen = ExpressionFactory.parse("$active == 1");
+		final Expression plainValueExpr = ExpressionFactory.parse("$quantity + 1");
+
+		final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
+			.verifySchemaButAllow(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_REFERENCES)
+			.withReferenceToEntity(
+				Entities.BRAND,
+				Entities.BRAND,
+				Cardinality.ZERO_OR_ONE,
+				whichIs -> whichIs
+					.faceted()
+					.bucketedInScope(
+						Scope.DEFAULT_SCOPE, "filteredHistogram",
+						filteredValueExpr, assignedWhen
+					)
+					.bucketedInScope(
+						Scope.DEFAULT_SCOPE, "plainHistogram", plainValueExpr, null
+					)
+			)
+			.toInstance();
+
+		final EntitySchema deserialized = roundTripEntitySchema(kryo, createdSchema);
+
+		assertEquals(createdSchema, deserialized);
+		assertExactlyEquals(createdSchema, deserialized);
+
+		final ReferenceSchemaContract brandRef =
+			deserialized.getReference(Entities.BRAND).orElseThrow();
+
+		final HistogramIndexDefinition filteredDef =
+			brandRef.getHistogramIndexDefinition(Scope.DEFAULT_SCOPE, "filteredHistogram");
+		assertNotNull(filteredDef, "filteredHistogram must survive round-trip");
+		assertEquals(filteredValueExpr, filteredDef.valueExpression());
+		assertNotNull(
+			filteredDef.assignedWhen(),
+			"Per-histogram assignedWhen must be preserved through entity-schema serialization"
+		);
+		assertEquals(
+			assignedWhen.toExpressionString(),
+			filteredDef.assignedWhen().toExpressionString(),
+			"Per-histogram assignedWhen expression must round-trip unchanged"
+		);
+
+		final HistogramIndexDefinition plainDef =
+			brandRef.getHistogramIndexDefinition(Scope.DEFAULT_SCOPE, "plainHistogram");
+		assertNotNull(plainDef, "plainHistogram must survive round-trip");
+		assertEquals(plainValueExpr, plainDef.valueExpression());
+		assertNull(
+			plainDef.assignedWhen(),
+			"Histogram declared without a per-histogram partition selector must round-trip with null"
+		);
 	}
 
 	/**
@@ -440,13 +512,17 @@ class SchemaSerializationServiceTest {
 
 	/**
 	 * Builds an entity schema with references that exercise various bucketed histogram configurations:
-	 * - brand reference: bucketed with a value expression and a partially expression
+	 * - brand reference: bucketed with a value expression, a reference-level `bucketedPartially`
+	 *   eligibility gate, and an optional per-histogram `assignedWhen` partition selector
 	 * - stock reference: bucketed with null value expression (no expression branch)
 	 * - category reference: no bucketed configuration (empty bucketed maps)
 	 *
 	 * @param schemaBuilder       the entity schema builder to use
 	 * @param valueExpression     the expression for the bucketed histogram value
-	 * @param partiallyExpression the expression for bucketed partially filtering
+	 * @param partiallyExpression the reference-level eligibility gate expression
+	 * @param assignedWhen        the optional per-histogram partition selector applied to the brand
+	 *                            reference's `priceHistogram` only; `null` means no per-histogram
+	 *                            restriction
 	 * @return the built entity schema
 	 */
 	@Nonnull
@@ -454,7 +530,8 @@ class SchemaSerializationServiceTest {
 	private static EntitySchemaContract constructSchemaWithBucketedReferences(
 		@Nonnull InternalEntitySchemaBuilder schemaBuilder,
 		@Nonnull Expression valueExpression,
-		@Nonnull Expression partiallyExpression
+		@Nonnull Expression partiallyExpression,
+		@Nullable Expression assignedWhen
 	) {
 		return schemaBuilder
 			.verifySchemaButAllow(EvolutionMode.ADDING_ASSOCIATED_DATA, EvolutionMode.ADDING_REFERENCES)
@@ -470,7 +547,9 @@ class SchemaSerializationServiceTest {
 				Cardinality.ZERO_OR_ONE,
 				whichIs -> whichIs
 					.faceted()
-					.bucketed("priceHistogram", valueExpression)
+					.bucketedInScope(
+						Scope.DEFAULT_SCOPE, "priceHistogram", valueExpression, assignedWhen
+					)
 					.bucketedPartially(partiallyExpression)
 			)
 			.withReferenceTo(

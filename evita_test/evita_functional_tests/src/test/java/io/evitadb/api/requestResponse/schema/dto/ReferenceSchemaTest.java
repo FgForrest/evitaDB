@@ -1021,7 +1021,7 @@ class ReferenceSchemaTest {
 				Scope.NO_SCOPE,
 				null,
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "hist", null)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "hist", null, null)
 				},
 				new ScopedBucketedPartially[]{
 					new ScopedBucketedPartially(Scope.LIVE, partiallyExpr)
@@ -1360,8 +1360,8 @@ class ReferenceSchemaTest {
 		void shouldConvertScopedHistogramIndexDefinitionToMap() {
 			final Expression expr = ExpressionFactory.parse("$price");
 			final ScopedHistogramIndexDefinition[] input = new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "liveHist", expr),
-				new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHist", null)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "liveHist", expr, null),
+				new ScopedHistogramIndexDefinition(Scope.ARCHIVED, "archivedHist", null, null)
 			};
 
 			final Map<Scope, Map<String, HistogramIndexDefinition>> result =
@@ -1393,8 +1393,8 @@ class ReferenceSchemaTest {
 			final Expression priceExpr = ExpressionFactory.parse("$price");
 			final Expression quantityExpr = ExpressionFactory.parse("$quantity");
 			final ScopedHistogramIndexDefinition[] input = new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHist", priceExpr),
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "quantityHist", quantityExpr)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHist", priceExpr, null),
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "quantityHist", quantityExpr, null)
 			};
 
 			final Map<Scope, Map<String, HistogramIndexDefinition>> result =
@@ -1426,8 +1426,8 @@ class ReferenceSchemaTest {
 			final Expression expr1 = ExpressionFactory.parse("$price");
 			final Expression expr2 = ExpressionFactory.parse("$quantity");
 			final ScopedHistogramIndexDefinition[] input = new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr1),
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr2)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr1, null),
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "price", expr2, null)
 			};
 
 			assertThrows(

@@ -34,6 +34,9 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
+import java.nio.BufferOverflowException;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Objects;
@@ -67,6 +70,7 @@ import java.util.function.Consumer;
  * @author Jan Novotný, FG Forrest a.s. (c) 2025
  */
 @Slf4j
+@ThreadSafe
 public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ, RES>
 	implements ChangeCapturePublisher<C> {
 
@@ -134,10 +138,12 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	/**
 	 * Registers a new subscriber to receive change captures from this publisher.
 	 *
-	 * This method creates an internal subscriber that wraps the provided subscriber,
-	 * initializes the gRPC stream, creates a new subscription, and registers it with
-	 * the publisher. The subscriber will start receiving captures once it requests them
-	 * through the subscription.
+	 * The wiring order matters: the subscription must be attached to the internal
+	 * subscriber and registered with this publisher **before** the gRPC stream
+	 * initializer runs. The server ACK that primes the inbound credit window can
+	 * land on a different thread, and any of the surrounding bookkeeping (cleanup
+	 * on a synchronous init failure, `onNext` dereferencing the subscription
+	 * field) must already be in place when it does.
 	 *
 	 * @param subscriber the subscriber to register
 	 * @throws IllegalStateException if the publisher has been closed
@@ -150,7 +156,8 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 			subscriber,
 			this::deserializeAcknowledgementResponse,
 			this::deserializeCaptureResponse,
-			this.streamingTimeout
+			this.streamingTimeout,
+			this.queueSize
 		);
 
 		final ClientSubscription<C, REQ, RES> subscription = new ClientSubscription<>(
@@ -167,12 +174,24 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 			}
 		);
 
-		// initialize the subscriber
-		this.streamInitializer.accept(internalSubscriber);
-		internalSubscriber.onSubscribe(subscription);
-		// register the subscription with the publisher
+		// attach the subscription to the internal subscriber BEFORE the stream initializer
+		// opens the inbound credit window — otherwise a server ACK that lands on a different
+		// thread between `beforeStart` and `onSubscribe` would dereference a null field
+		internalSubscriber.attachSubscription(subscription);
+		// register the subscription with the publisher BEFORE the stream initializer runs so
+		// a synchronous failure during initialization has the subscription available for cleanup
 		this.subscriptions.add(subscription);
-
+		// initialize the gRPC stream now that the subscription is wired and registered;
+		// a synchronous failure here must remove the zombie subscription before rethrowing,
+		// otherwise it would linger in `subscriptions` and keep the publisher from auto-closing
+		try {
+			this.streamInitializer.accept(internalSubscriber);
+		} catch (Throwable ex) {
+			this.subscriptions.remove(subscription);
+			throw ex;
+		}
+		// notify the delegate that it has a subscription it can drive
+		internalSubscriber.onSubscribe(subscription);
 	}
 
 	/**
@@ -246,6 +265,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	 * @param <REQ> type of request sent to the server
 	 * @param <RES> type of response received from the server
 	 */
+	@ThreadSafe
 	static class ClientSubscription<C extends ChangeCapture, REQ, RES>
 		implements Subscription, Comparable<ClientSubscription<C, REQ, RES>> {
 		/**
@@ -381,20 +401,27 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		/**
 		 * Adds a new capture to this subscription's queue.
 		 *
-		 * If the queue is full, the thread is blocked, which applies backpressure to the publisher.
-		 * After adding the item, consumption is triggered if the subscriber has requested items.
+		 * Uses a non-blocking `offer` so the calling thread — typically an Armeria event-loop
+		 * thread carrying every multiplexed gRPC stream for the channel — can never be parked
+		 * by a slow downstream consumer. With manual gRPC flow control in place (see
+		 * `ClientChangeCaptureSubscriber.beforeStart`) the queue cannot fill under normal
+		 * operation; if it ever does, the subscription is marked dead with a
+		 * `BufferOverflowException` instead of stalling the shared event loop.
 		 *
 		 * @param item the capture to add
 		 */
 		public void produce(@Nonnull C item) {
-			if (this.walkingDead.get() == null) {
-				try {
-					this.items.put(item);
-					consume();
-				} catch (InterruptedException ex) {
-					Thread.currentThread().interrupt();
-					this.walkingDead.set(ex);
-				}
+			if (this.walkingDead.get() != null) {
+				return;
+			}
+			if (this.items.offer(item)) {
+				consume();
+			} else {
+				this.walkingDead.compareAndSet(
+					null,
+					new BufferOverflowException()
+				);
+				consume();
 			}
 		}
 
@@ -410,7 +437,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * ID
 		 */
 		@Override
-		public int compareTo(ClientSubscription o) {
+		public int compareTo(@Nonnull ClientSubscription<C, REQ, RES> o) {
 			return Long.compare(this.id, o.id);
 		}
 
@@ -433,7 +460,7 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		 * @return true if the objects are equal, false otherwise
 		 */
 		@Override
-		public final boolean equals(Object o) {
+		public final boolean equals(@Nullable Object o) {
 			if (!(o instanceof final ClientSubscription<?, ?, ?> that))
 				return false;
 
@@ -441,23 +468,41 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 		}
 
 		/**
-		 * Processes buffered items if the subscriber has requested them.
+		 * Drains buffered items into the delegate subscriber while honouring the
+		 * outstanding request count.
 		 *
-		 * This method is executed asynchronously to avoid blocking the publisher.
-		 * It delivers items to the subscriber until either the queue is empty or
-		 * the number of requested items is exhausted.
+		 * Uses a `currentlyConsuming` CAS so at most one executor task drains the
+		 * queue at a time. After the draining loop releases the flag the method
+		 * re-checks both the queue and the `walkingDead` slot: a producer (or
+		 * `produce()` that raised the overflow signal) that lost the CAS while we
+		 * were resetting could otherwise leave its item — or the terminal
+		 * failure — stranded forever. The `!cancelled` guard prevents an
+		 * infinite reschedule loop once the subscription is dead: `walkingDead`
+		 * stays set after the terminal `onError`, but no further work is owed.
+		 *
+		 * If draining throws, the queue is cleared and the exception is parked
+		 * in `walkingDead` so the fall-through delivers it to the subscriber and
+		 * cancels the subscription.
 		 */
 		private void consume() {
-			if (this.walkingDead.get() == null && this.currentlyConsuming.compareAndSet(false, true)) {
+			// the walking-dead path still has to drain — schedule a tick to fire `onError`
+			// even if the queue is currently empty; otherwise we'd silently stall a
+			// subscription whose overflow happened before any consume() was triggered
+			if (this.currentlyConsuming.compareAndSet(false, true)) {
 				try {
 					this.executorService.execute(
 						() -> {
 							try {
-								while (!this.items.isEmpty() && this.requested.getAndUpdate(
-									counter -> counter > 0 ? counter - 1 : 0) > 0) {
+								while (this.walkingDead.get() == null
+									&& !this.items.isEmpty()
+									&& this.requested.getAndUpdate(
+										counter -> counter > 0 ? counter - 1 : 0) > 0) {
 									this.internalSubscriber.onDelegateNext(
 										Objects.requireNonNull(this.items.poll())
 									);
+									// restore one gRPC credit per delivered item — keeps the in-flight
+									// window bounded by `queueSize` without sacrificing throughput
+									this.internalSubscriber.requestOneMore();
 								}
 							} catch (Throwable ex) {
 								// if an error occurs during consumption, we need to report it to the subscriber
@@ -465,16 +510,30 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 								this.items.clear();
 								this.walkingDead.compareAndSet(null, ex);
 							}
-							// if there are no more items in the queue and the walking dead exception is set,
-							// we need to notify the subscriber about the error (which effectively closes the subscription)
-							if (this.items.isEmpty() && this.walkingDead.get() != null) {
-								this.internalSubscriber.onError(
+							// if the walking dead exception is set, notify the subscriber (which closes the
+							// subscription); any unconsumed items are dropped because the stream is doomed.
+							// `notifyClientFailureAndClose` keeps `serverSideClosed=false` so the subsequent
+							// `cancel()` still propagates the cancellation to the gRPC stream — without it
+							// the server would keep pushing into a dead client.
+							if (this.walkingDead.get() != null) {
+								this.items.clear();
+								this.internalSubscriber.notifyClientFailureAndClose(
 									this.walkingDead.get()
 								);
 								this.cancel();
 							}
 							// reset the consuming flag
 							this.currentlyConsuming.set(false);
+							// re-check after releasing the flag — a producer thread that lost the CAS
+							// while we were resetting could otherwise stall its enqueued item or its
+							// freshly raised walking-dead signal forever. The `!cancelled` guard
+							// prevents an infinite reschedule loop once the subscription has already
+							// been terminated (walkingDead stays set, but no further work is owed).
+							if (!this.cancelled.get()
+								&& (this.walkingDead.get() != null
+									|| (!this.items.isEmpty() && this.requested.get() > 0))) {
+								this.consume();
+							}
 						}
 					);
 				} catch (Exception ex) {

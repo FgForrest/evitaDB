@@ -445,11 +445,14 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 	/**
 	 * Converts an array of {@link ScopedHistogramIndexDefinition} objects into a nested map
 	 * linking {@link Scope} to a map of histogram names to {@link HistogramIndexDefinition}.
-	 * Multiple entries with the same scope but different names produce multiple entries in the
-	 * inner map. If the input array is null or empty, an empty map is returned.
+	 * Names must be unique within a (reference, scope) pair; multiple entries sharing the same
+	 * scope but with different names produce multiple entries in the inner map. If the input
+	 * array is null or empty, an empty map is returned.
 	 *
 	 * @param scopedBucketedHistograms an array of scoped bucketed histogram entries, may be null
 	 * @return a nested map: scope to (histogram name to definition)
+	 * @throws InvalidSchemaMutationException if the same `nameOfTheIndex` is declared more than
+	 *                                        once within the same scope
 	 */
 	@Nonnull
 	public static Map<Scope, Map<String, HistogramIndexDefinition>> toBucketedHistogramMap(
@@ -464,12 +467,17 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 				.computeIfAbsent(entry.scope(), k -> new LinkedHashMap<>())
 				.put(
 					entry.nameOfTheIndex(),
-					HistogramIndexDefinition.of(entry.nameOfTheIndex(), entry.valueExpression())
+					HistogramIndexDefinition.of(
+						entry.nameOfTheIndex(),
+						entry.valueExpression(),
+						entry.assignedWhen()
+					)
 				);
 			if (previous != null) {
 				throw new InvalidSchemaMutationException(
-					"Duplicate histogram name `" + entry.nameOfTheIndex() +
-						"` in scope " + entry.scope() + "!"
+					"Histogram index name '" + entry.nameOfTheIndex() +
+						"' is declared more than once in scope " + entry.scope() +
+						" — names must be unique within a (reference, scope)."
 				);
 			}
 		}

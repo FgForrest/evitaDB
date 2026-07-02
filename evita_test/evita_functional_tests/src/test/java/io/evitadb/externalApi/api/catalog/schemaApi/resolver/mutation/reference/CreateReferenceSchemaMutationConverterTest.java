@@ -47,6 +47,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.Ref
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.resolver.mutation.PassThroughMutationObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -412,7 +413,7 @@ class CreateReferenceSchemaMutationConverterTest {
 			new Scope[]{Scope.LIVE},
 			null,
 			new ScopedHistogramIndexDefinition[]{
-				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression)
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression, null)
 			},
 			new ScopedBucketedPartially[]{
 				new ScopedBucketedPartially(Scope.LIVE, bucketedPartiallyExpr)
@@ -444,9 +445,87 @@ class CreateReferenceSchemaMutationConverterTest {
 	}
 
 	/**
-	 * Verifies that input parsing without BUCKETED_IN_SCOPES and BUCKETED_PARTIALLY_IN_SCOPES
-	 * produces a mutation with empty bucketed arrays (null defaults to empty).
+	 * Pins the input-parse path for the per-histogram `assignedWhen` partition selector
+	 * on `CreateReferenceSchemaMutation` — a non-null `assignedWhen` field in the input
+	 * map must end up on the parsed `ScopedHistogramIndexDefinition`.
 	 */
+	@Test
+	@DisplayName("should resolve input with bucketed histogram and assignedWhen partition selector")
+	void shouldResolveInputWithBucketedHistogramAndAssignedWhen() {
+		final CreateReferenceSchemaMutation convertedMutation =
+			this.converter.convertFromInput(
+				map()
+					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
+					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
+					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
+					.e(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED.name(), false)
+					.e(CreateReferenceSchemaMutationDescriptor.BUCKETED_IN_SCOPES.name(), list().i(
+						map()
+							.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE)
+							.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
+							.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$price * $quantity")
+							.e(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(), "$active == 1")
+					))
+					.build()
+			);
+
+		assertEquals(1, convertedMutation.getBucketedInScopes().length);
+		assertNotNull(
+			convertedMutation.getBucketedInScopes()[0].assignedWhen(),
+			"assignedWhen must be parsed from input"
+		);
+		assertEquals(
+			"$active == 1",
+			convertedMutation.getBucketedInScopes()[0].assignedWhen().toExpressionString()
+		);
+	}
+
+	/**
+	 * Pins the output-serialize path for `assignedWhen` on `CreateReferenceSchemaMutation`
+	 * — a non-null `assignedWhen` on a histogram entry must emit under the `ASSIGNED_WHEN`
+	 * property of the serialized map.
+	 */
+	@Test
+	@DisplayName("should serialize output with assignedWhen partition selector")
+	void shouldSerializeOutputWithAssignedWhen() {
+		final Expression valueExpression = ExpressionFactory.parse("$price * $quantity");
+		final Expression assignedWhen = ExpressionFactory.parse("$active == 1");
+		final CreateReferenceSchemaMutation inputMutation = new CreateReferenceSchemaMutation(
+			"tags",
+			"desc",
+			"depr",
+			Cardinality.ZERO_OR_MORE,
+			"tag",
+			true,
+			"tagGroup",
+			true,
+			new ScopedReferenceIndexType[]{
+				new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+			},
+			null,
+			new Scope[]{Scope.LIVE},
+			null,
+			new ScopedHistogramIndexDefinition[]{
+				new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", valueExpression, assignedWhen)
+			},
+			null
+		);
+
+		//noinspection unchecked
+		final Map<String, Object> serializedMutation =
+			(Map<String, Object>) this.converter.convertToOutput(inputMutation);
+		//noinspection unchecked
+		final List<Map<String, Object>> bucketedList =
+			(List<Map<String, Object>>) serializedMutation.get(
+				CreateReferenceSchemaMutationDescriptor.BUCKETED_IN_SCOPES.name()
+			);
+		assertEquals(1, bucketedList.size());
+		assertEquals(
+			"$active == 1",
+			bucketedList.get(0).get(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name())
+		);
+	}
+
 	@Test
 	void shouldResolveInputWithoutBucketedFields() {
 		final CreateReferenceSchemaMutation convertedMutation =

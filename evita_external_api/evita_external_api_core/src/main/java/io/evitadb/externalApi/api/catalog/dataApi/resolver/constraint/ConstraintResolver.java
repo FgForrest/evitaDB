@@ -36,6 +36,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
@@ -493,6 +494,10 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 				listArgument
 			);
 		} else {
+			final Class<? extends Serializable> declaredType = valueParameterDescriptor.type();
+			if (Number.class.isAssignableFrom(declaredType) && argument instanceof Serializable serializableArgument) {
+				return EvitaDataTypes.toTargetType(serializableArgument, declaredType);
+			}
 			return argument;
 		}
 	}

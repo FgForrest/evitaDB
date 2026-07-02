@@ -46,12 +46,15 @@ import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.NumberUtils;
@@ -250,6 +253,16 @@ class HavingTranslatorHelper {
 	 * @param referenceSchema           the reference schema
 	 * @param targetEntityType          the type of the target entity (referenced or group)
 	 * @param isTargetManaged           whether the target entity type is managed by evitaDB
+	 * @param typeLevelIndexType        identifies which type-level index this constraint is filtering
+	 *                                  against: {@link EntityIndexType#REFERENCED_ENTITY_TYPE} when
+	 *                                  invoked from {@code EntityHavingTranslator} (target PKs are
+	 *                                  referenced entity PKs), or
+	 *                                  {@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} when
+	 *                                  invoked from {@code GroupHavingTranslator} (target PKs are
+	 *                                  group entity PKs). The two index spaces are keyed by different
+	 *                                  PK universes, so the discovery-phase branch below must skip
+	 *                                  the referenced-entity PK translation when the target is the
+	 *                                  group type.
 	 * @param reducedIndexLookup        the function to look up reduced entity indexes for a target PK
 	 * @param nestedQueryDescription    a supplier for the description of this nested query
 	 * @return a formula computing matching owner entity primary keys
@@ -262,6 +275,7 @@ class HavingTranslatorHelper {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String targetEntityType,
 		boolean isTargetManaged,
+		@Nonnull EntityIndexType typeLevelIndexType,
 		@Nonnull ReducedIndexLookup reducedIndexLookup,
 		@Nonnull Supplier<String> nestedQueryDescription
 	) {
@@ -279,25 +293,44 @@ class HavingTranslatorHelper {
 				.stream()
 				.map(nestedResult -> {
 					if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
-						return FormulaFactory.or(
-							processingScope
-								.getIndexStream()
-								.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
-								.map(ReferencedTypeEntityIndex.class::cast)
-								.map(
-									it -> new ReferencedEntityIndexPrimaryKeyTranslatingFormula(
-										referenceSchema,
-										targetEntityType,
-										isTargetManaged,
-										filterByVisitor::getGlobalEntityIndexIfExists,
-										it,
-										nestedResult.filter(),
-										processingScope.getScopes(),
-										processingScope.getReferencedEntityExpansionFunction()
+						return switch (typeLevelIndexType) {
+							// In the index-discovery phase (scope holds a ReferencedTypeEntityIndex), we cannot
+							// narrow ReducedEntityIndex PKs by group entity PKs directly — the type-level index
+							// in scope is keyed by referenced entity PKs, not group PKs. Returning the *unrestricted*
+							// set of reduced-index PKs keeps the AND with sibling constraints correct and lets the
+							// outer reference filter (ReferenceHavingTranslator.applySearchOnIndexes) compute the
+							// group filter through BRANCH B (reducedIndexLookup) where it works correctly.
+							case REFERENCED_GROUP_ENTITY_TYPE -> FormulaFactory.or(
+								processingScope
+									.getIndexStream()
+									.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
+									.map(ReferencedTypeEntityIndex.class::cast)
+									.map(HavingTranslatorHelper::allReducedIndexPksFormula)
+									.toArray(Formula[]::new)
+							);
+							case REFERENCED_ENTITY_TYPE -> FormulaFactory.or(
+								processingScope
+									.getIndexStream()
+									.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
+									.map(ReferencedTypeEntityIndex.class::cast)
+									.map(
+										it -> new ReferencedEntityIndexPrimaryKeyTranslatingFormula(
+											referenceSchema,
+											targetEntityType,
+											isTargetManaged,
+											filterByVisitor::getGlobalEntityIndexIfExists,
+											it,
+											nestedResult.filter(),
+											processingScope.getScopes(),
+											processingScope.getReferencedEntityExpansionFunction()
+										)
 									)
-								)
-								.toArray(Formula[]::new)
-						);
+									.toArray(Formula[]::new)
+							);
+							default -> throw new GenericEvitaInternalError(
+								"Unsupported type-level index type for having constraint: " + typeLevelIndexType
+							);
+						};
 					} else {
 						if (nestedResult.globalIndex() == null) {
 							return EmptyFormula.INSTANCE;
@@ -351,6 +384,32 @@ class HavingTranslatorHelper {
 				})
 				.toArray(Formula[]::new)
 		);
+	}
+
+	/**
+	 * Returns a constant formula carrying *all* reduced-index primary keys tracked by the supplied
+	 * REFERENCED_ENTITY_TYPE index. Used by {@link GroupHaving} during the reference index-discovery
+	 * phase: the type-level index in scope is keyed by referenced entity PKs, so it cannot narrow
+	 * reduced-index PKs by group entity PKs. By returning the full set we keep AND-composition with
+	 * sibling constraints (EntityHaving, attribute filters) intact while letting the outer
+	 * `ReferenceHavingTranslator.applySearchOnIndexes` pass produce the correct group filter through
+	 * the reducedIndexLookup branch.
+	 *
+	 * @param scopeIndex the {@link ReferencedTypeEntityIndex} currently in the processing scope
+	 * @return formula yielding the full bitmap of reduced-index PKs from the index
+	 */
+	@Nonnull
+	private static Formula allReducedIndexPksFormula(@Nonnull ReferencedTypeEntityIndex scopeIndex) {
+		final Bitmap allReferenced = scopeIndex.getAllReferencedPrimaryKeys();
+		if (allReferenced.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		}
+		final Bitmap allIndexPks = scopeIndex.getIndexPrimaryKeys(
+			RoaringBitmapBackedBitmap.getRoaringBitmap(allReferenced)
+		);
+		return allIndexPks.isEmpty()
+			? EmptyFormula.INSTANCE
+			: new ConstantFormula(allIndexPks);
 	}
 
 	private HavingTranslatorHelper() {

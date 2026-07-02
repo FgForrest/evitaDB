@@ -141,10 +141,17 @@ public abstract class ReferenceSchemaMutationConverter<M extends ReferenceSchema
 					final Expression valueExpression = valueExpressionString != null
 						? ExpressionFactory.parse(valueExpressionString)
 						: null;
+					final String assignedWhenString = nestedInput.getOptionalProperty(
+						ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name()
+					);
+					final Expression assignedWhen = assignedWhenString != null
+						? ExpressionFactory.parse(assignedWhenString)
+						: null;
 					return new ScopedHistogramIndexDefinition(
 						nestedInput.getProperty(ScopedDataDescriptor.SCOPE),
 						nestedInput.getProperty(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX),
-						valueExpression
+						valueExpression,
+						assignedWhen
 					);
 				}
 			)
@@ -164,11 +171,16 @@ public abstract class ReferenceSchemaMutationConverter<M extends ReferenceSchema
 		if (bucketedInScopes != null) {
 			final List<Map<String, Object>> serialized = new ArrayList<>(bucketedInScopes.length);
 			for (ScopedHistogramIndexDefinition entry : bucketedInScopes) {
-				final Map<String, Object> entryMap = new LinkedHashMap<>(3);
+				final Map<String, Object> entryMap = new LinkedHashMap<>(4);
 				entryMap.put("scope", entry.scope());
 				entryMap.put("nameOfTheIndex", entry.nameOfTheIndex());
 				final Expression expr = entry.valueExpression();
 				entryMap.put("valueExpression", expr != null ? expr.toExpressionString() : null);
+				final Expression assignedWhen = entry.assignedWhen();
+				entryMap.put(
+					"assignedWhen",
+					assignedWhen != null ? assignedWhen.toExpressionString() : null
+				);
 				serialized.add(entryMap);
 			}
 			output.setProperty("bucketedInScopes", serialized);

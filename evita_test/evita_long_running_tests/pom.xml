@@ -135,12 +135,6 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>com.adobe.testing</groupId>
-			<artifactId>s3mock-junit5</artifactId>
-			<version>4.11.0</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_traffic_engine</artifactId>
 			<version>${project.parent.version}</version>
@@ -192,7 +186,7 @@
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>
 			<artifactId>json-unit</artifactId>
-			<version>5.1.0</version>
+			<version>5.1.1</version>
 		</dependency>
 		<dependency>
 			<groupId>net.javacrumbs.json-unit</groupId>

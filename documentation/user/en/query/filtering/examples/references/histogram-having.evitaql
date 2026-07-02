@@ -1,4 +1,3 @@
-TODO JNO - this is wrong example
 query(
     collection("Product"),
     filterBy(
@@ -8,27 +7,26 @@ query(
         ),
         userFilter(
             histogramHaving(
-                "parameterValues", "basicUnitValue",
-                50, 120,
-                entityHaving(attributeEquals("code", "height"))
+                "parameterValues", "intervalParameterValues",
+                200, 400,
+                groupHaving(attributeEquals("code", "weight"))
             ),
             histogramHaving(
-                "parameterValues", "basicUnitValue",
-                90, 140,
-                entityHaving(attributeEquals("code", "weight"))
-            ),
-            facetHaving(
-                "brand",
-                entityHaving(attributeInSet("code", "amazon"))
-            ),
-            priceBetween(100, 500)
+                "parameterValues", "intervalParameterValues",
+                6, 10,
+                groupHaving(attributeEquals("code", "thickness"))
+            )
         )
     ),
     require(
-        facetSummaryOfReference(
-            "brand",
-            IMPACT,
-            entityFetch(attributeContent("code"))
+        page(1, 5),
+        entityFetch(attributeContent("code")),
+        referenceSummaryOfReferenceWithHistograms(
+            "parameterValues",
+            NONE,
+            entityFetch(attributeContent("code")),
+            entityGroupFetch(attributeContent("code")),
+            histogramStatistics(20, "intervalParameterValues")
         )
     )
 )

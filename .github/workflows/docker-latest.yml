@@ -7,6 +7,22 @@ on:
     workflows: ['CI Release branch']                     # runs after CI workflow
     types:
       - completed
+  # Manual recovery / re-run path. Use when the upstream CI Release run failed
+  # late (e.g. release-drafter step failed, no workflow artifacts uploaded) but
+  # you have already manually created the GitHub release with `dist.zip`. The
+  # workflow downloads `dist.zip` from the release asset, extracts the JAR,
+  # and proceeds as in the normal flow.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag (e.g. v2025.7.18) — must already be a published GitHub release with the evitaDB-<version>.zip asset.'
+        required: true
+        type: string
+      push_latest:
+        description: 'Also push the :latest tag. Only enable when this version is the newest across all branches (i.e. master).'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read          # Required for actions/checkout to read the repository
@@ -15,43 +31,91 @@ permissions:
 jobs:
   on-success:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # workflow_dispatch always runs; workflow_run only runs on upstream success.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.1        # checkout from Git
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3        # checkout from Git
         with:
           ref: master  # Always checks out the master branch (due to config file)
           persist-credentials: false
 
+      # Resolve where the JAR comes from and whether :latest gets pushed.
+      # Normal CI flow: JAR comes from the upstream workflow's artifact;
+      #   :latest is pushed only when that workflow ran on master, otherwise
+      #   a legacy maintenance-branch release (e.g. release_2025-7) would
+      #   regress :latest away from the newest master release.
+      # Recovery flow: JAR comes from the release's dist.zip asset; the
+      #   operator chooses push_latest explicitly via the dispatch input.
+      - name: Resolve build inputs
+        id: inputs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PUSH_LATEST: ${{ inputs.push_latest }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "source=release_asset" >> "$GITHUB_OUTPUT"
+            echo "version_tag=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "push_latest=$INPUT_PUSH_LATEST" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=workflow_artifact" >> "$GITHUB_OUTPUT"
+            if [ "$HEAD_BRANCH" = "master" ]; then
+              echo "push_latest=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "push_latest=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - name: Download a JAR file to deploy # download `evita-server.jar` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@0bd50d53a6d7fb5cb921e607957e9cc12b4ce392 # v12
+        if: steps.inputs.outputs.source == 'workflow_artifact'
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           run_id: ${{ github.event.workflow_run.id }}
           name: evita-server.jar
           path: docker
 
       - name: Download a version information # download `version.txt` artifact if the workflow we react to was successful
-        uses: dawidd6/action-download-artifact@0bd50d53a6d7fb5cb921e607957e9cc12b4ce392 # v12
+        if: steps.inputs.outputs.source == 'workflow_artifact'
+        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151 # v21
         with:
           run_id: ${{ github.event.workflow_run.id }}
           name: version.txt
 
+      # Recovery path: pull dist.zip from the release, extract evita-server.jar
+      # into ./docker, and synthesise version.txt so the downstream "Extract
+      # major version" step (and Dockerfile build args) keep working unchanged.
+      - name: Download dist.zip from release
+        if: steps.inputs.outputs.source == 'release_asset'
+        env:
+          VERSION_TAG: ${{ steps.inputs.outputs.version_tag }}
+        run: |
+          gh release download "$VERSION_TAG" \
+            --repo "${{ github.repository }}" \
+            --pattern "evitaDB-${VERSION_TAG}.zip" \
+            --output dist.zip
+          unzip -j dist.zip 'dist/evita-server.jar' -d docker/
+          printf '%s\n' "${VERSION_TAG#v}" > version.txt
+
       - name: Set up QEMU
         # Add support for more platforms with QEMU (optional)
         # https://github.com/docker/setup-qemu-action
-        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
       - name: Configure QEMU
         # Configure QEMU for Docker Buildx, see https://github.com/docker/buildx/issues/1170#issuecomment-2424530330
         run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes -c yes
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
         with:
           buildkitd-flags: --debug
           platforms: linux/amd64,linux/arm64/v8
 
       - name: Login to DockerHub
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           username: ${{ vars.CI_REGISTRY_USER }}
           password: ${{ secrets.CI_REGISTRY_PASSWORD }}
@@ -62,28 +126,31 @@ jobs:
           if ! grep -Eq '^[0-9]{4}\.[0-9]+\.[0-9]+$' version.txt; then
             echo "Invalid version format in version.txt"
             exit 1
-          fi  
+          fi
           export sanitizedVersionContents=$(tr -d '\r\n' < version.txt)
           fullVersion=$sanitizedVersionContents
           version=$(echo "$sanitizedVersionContents" | cut -d '.' -f1,2)
           echo "fullVersion=$fullVersion" >> "$GITHUB_ENV"
           echo "version=$version" >> "$GITHUB_ENV"
           releaseDate=$(date +%Y-%m-%d)
-          echo "releaseDate=$releaseDate" >> "$GITHUB_ENV"    
+          echo "releaseDate=$releaseDate" >> "$GITHUB_ENV"
 
       - name: Build and push Docker image
         env:
           RELEASE_IMAGE: "evitadb:latest"
           EVITA_JAR_NAME: evita-server.jar
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: ./docker
           file: ./docker/Dockerfile
           pull: true
           push: true
-          # push the image with two tags: latest and the version from the version.txt file
+          # The :latest tag is gated on push_latest (resolved above) so that a
+          # legacy maintenance-branch release (e.g. v2025.7.x) does not regress
+          # :latest away from a newer master release. Empty lines in the tag
+          # list are filtered by docker/build-push-action.
           tags: |
-            ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
+            ${{ steps.inputs.outputs.push_latest == 'true' && format('{0}/{1}', vars.CI_REGISTRY_USER, env.RELEASE_IMAGE) || '' }}
             ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.version }}
             ${{ vars.CI_REGISTRY_USER }}/evitadb:${{ env.fullVersion }}
           platforms: linux/amd64,linux/arm64/v8

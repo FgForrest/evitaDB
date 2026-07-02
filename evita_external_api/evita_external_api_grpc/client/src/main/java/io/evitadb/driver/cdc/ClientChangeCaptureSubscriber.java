@@ -29,17 +29,20 @@ import com.linecorp.armeria.common.util.TimeoutMode;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher.ClientSubscription;
 import io.evitadb.driver.exception.PublisherClosedByClientException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.IOUtils;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
@@ -66,7 +69,7 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @Slf4j
-@RequiredArgsConstructor
+@ThreadSafe
 public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	implements Flow.Subscriber<RES>, ClientResponseObserver<REQ, RES>, AutoCloseable {
 
@@ -95,6 +98,15 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	private final Duration streamingTimeout;
 
 	/**
+	 * Size of the in-flight window the server may push without further acknowledgement.
+	 * After the subscription is established this number of credits is requested from the
+	 * server in a single batch and is then topped up by one for every message the client
+	 * consumes — making HTTP/2 flow control the actual backpressure mechanism and preventing
+	 * the bounded item queue from ever overflowing under normal operation.
+	 */
+	private final int flowControlWindow;
+
+	/**
 	 * Flag indicating whether this subscriber has been closed.
 	 * Used to prevent multiple close operations and ensure proper cleanup.
 	 */
@@ -109,18 +121,63 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * The gRPC observer that sends requests to and receives responses from the server.
 	 * This is initialized in the beforeStart method and used to cancel the stream when closing.
 	 */
-	private ClientCallStreamObserver<REQ> serverObserver;
+	@Nullable
+	private volatile ClientCallStreamObserver<REQ> serverObserver;
 
 	/**
 	 * The subscription that manages the flow control between this subscriber and the publisher.
-	 * This is set in the onSubscribe method when the publisher creates a subscription for this subscriber.
+	 * Set by {@link #attachSubscription} when the publisher creates a subscription for this
+	 * subscriber — deliberately *before* the stream initializer runs so the gRPC inbound
+	 * thread cannot observe a null field. {@link #onSubscribe} only forwards the subscription
+	 * to the delegate; it does not assign this field.
+	 *
+	 * Declared `volatile` so writes from the `subscribe()` thread (via
+	 * {@link #attachSubscription}) are visible to the gRPC inbound thread reading the
+	 * field in {@link #onNext} without relying on transitive happens-before through
+	 * gRPC stub internals.
 	 */
-	private ClientSubscription<C, REQ, RES> subscription;
+	@Nullable
+	private volatile ClientSubscription<C, REQ, RES> subscription;
 
 	/**
 	 * The last heartbeat received from the server, used to monitor the connection health.
+	 *
+	 * Declared `volatile` because {@link #toString} may be invoked from arbitrary threads
+	 * (logging, diagnostics) and must observe the most recent value written by the gRPC
+	 * inbound thread in {@link #onNext}.
 	 */
-	private HeartBeat lastHeartBeat;
+	@Nullable
+	private volatile HeartBeat lastHeartBeat;
+
+	/**
+	 * Creates a subscriber bound to a delegate `Flow.Subscriber` and the gRPC-side
+	 * deserialization callbacks supplied by the owning publisher.
+	 *
+	 * @param delegate                       downstream subscriber that receives deserialized captures
+	 * @param deserializeAcknowledgeResponse decodes ACK and heartbeat envelopes
+	 * @param deserializeCaptureResponse     decodes capture payloads
+	 * @param streamingTimeout               per-message response deadline applied after every onNext
+	 * @param flowControlWindow              number of credits requested from the server after ACK and
+	 *                                       the maximum number of in-flight messages allowed at any time
+	 * @throws GenericEvitaInternalError if {@code flowControlWindow <= 0}
+	 */
+	public ClientChangeCaptureSubscriber(
+		@Nonnull Flow.Subscriber<? super C> delegate,
+		@Nonnull Function<RES, Optional<HeartBeat>> deserializeAcknowledgeResponse,
+		@Nonnull Function<RES, Optional<C>> deserializeCaptureResponse,
+		@Nonnull Duration streamingTimeout,
+		int flowControlWindow
+	) {
+		Assert.isPremiseValid(
+			flowControlWindow > 0,
+			"Flow control window must be positive."
+		);
+		this.delegate = delegate;
+		this.deserializeAcknowledgeResponse = deserializeAcknowledgeResponse;
+		this.deserializeCaptureResponse = deserializeCaptureResponse;
+		this.streamingTimeout = streamingTimeout;
+		this.flowControlWindow = flowControlWindow;
+	}
 
 	/**
 	 * Called by gRPC before starting the stream to provide the observer for sending requests to the server.
@@ -128,61 +185,104 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * This method initializes the serverObserver field which is later used to cancel the stream when closing.
 	 * It ensures that the subscriber can only be started once.
 	 *
+	 * Inbound auto-flow-control is disabled so the server may only push messages this client
+	 * has explicitly acknowledged. A single credit is requested for the ACK message; the
+	 * `flowControlWindow` is primed after the ACK arrives and refilled one credit at a time
+	 * as messages are drained — see {@link #requestOneMore()}.
+	 *
 	 * @param observer the gRPC observer for sending requests to the server
-	 * @throws IllegalArgumentException if the subscriber has already been started
+	 * @throws GenericEvitaInternalError if the subscriber has already been started
 	 */
 	@Override
-	public void beforeStart(ClientCallStreamObserver<REQ> observer) {
+	public void beforeStart(@Nonnull ClientCallStreamObserver<REQ> observer) {
 		Assert.isPremiseValid(
 			this.serverObserver == null,
 			"ClientChangeCaptureSubscriber can only be started once. It is already started."
 		);
 
-		// Initialize gRPC flow control by requesting the acknowledgement message.
-		// Note: Armeria/Netty may use auto flow control for subsequent messages.
 		this.serverObserver = observer;
-		// Request the acknowledgement message
-		observer.request(1);
+		// take over inbound flow control from gRPC defaults so the server cannot outpace us;
+		// explicitly ask for the single ACK message that primes the credit window
+		observer.disableAutoRequestWithInitial(1);
 	}
 
 	/**
-	 * Called when this subscriber is subscribed to a publisher.
+	 * Wires the owning subscription into this subscriber **before** the stream
+	 * initializer opens the inbound credit window.
 	 *
-	 * This method stores the subscription for later use in flow control and cancellation.
+	 * The gRPC ACK reply can land on a different thread between
+	 * {@link #beforeStart} (which calls `disableAutoRequestWithInitial(1)`) and
+	 * the publisher's call to {@link #onSubscribe}. Without an early field
+	 * assignment {@link #onNext} would dereference a still-null `subscription`.
+	 * {@link #onSubscribe} is reserved for notifying the downstream delegate.
 	 *
 	 * @param subscription the subscription created by the publisher
 	 */
-	@SuppressWarnings("unchecked")
+	void attachSubscription(@Nonnull ClientSubscription<C, REQ, RES> subscription) {
+		this.subscription = subscription;
+	}
+
+	/**
+	 * Forwards the subscription to the delegate.
+	 *
+	 * The field-level binding happens in {@link #attachSubscription} and must
+	 * precede the stream-initialization step that opens the inbound credit
+	 * window; this method intentionally does no field assignment.
+	 *
+	 * @param subscription the subscription created by the publisher
+	 */
 	@Override
-	public void onSubscribe(Subscription subscription) {
-		this.subscription = (ClientSubscription<C, REQ, RES>) subscription;
+	public void onSubscribe(@Nonnull Subscription subscription) {
 		this.delegate.onSubscribe(subscription);
 	}
 
 	/**
 	 * Called when a new response is received from the server.
 	 *
-	 * This method deserializes the response into a change capture object and
-	 * forwards it to the subscription for processing.
+	 * The very first response on a stream must be the subscription
+	 * acknowledgement — it carries the server-assigned subscription id and
+	 * unlocks the full inbound flow-control window. Subsequent responses are
+	 * deserialized into change captures (enqueued onto the subscription) or
+	 * heartbeats (credit restored immediately so periodic heartbeats do not
+	 * starve the capture window).
 	 *
 	 * @param itemResponse the response received from the server
+	 * @throws GenericEvitaInternalError if the first received message is not an
+	 *         acknowledgement
 	 */
 	@Override
 	public void onNext(RES itemResponse) {
+		// pin the @Nullable fields to non-null locals once: gRPC guarantees `beforeStart`
+		// runs before any inbound callback, and the publisher's `subscribe` calls
+		// `attachSubscription` before triggering the stream initializer — so both are
+		// in practice non-null here. The `requireNonNull` calls double as a contract guard
+		// (would surface a violated invariant as a descriptive NPE) and as a hint to the
+		// IDE / static analyzers that the subsequent dereferences are safe.
+		final ClientCallStreamObserver<REQ> observer = Objects.requireNonNull(
+			this.serverObserver,
+			"`serverObserver` must be initialized by `beforeStart` before `onNext` is invoked."
+		);
+		final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(
+			this.subscription,
+			"Subscription must be attached by the publisher before `onNext` is invoked."
+		);
 		// restart the response deadline from now so a silent stream unblocks us within
-		// `streamingTimeout` of the last event, regardless of how many have arrived
-		ClientRequestContext.current().setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.streamingTimeout);
+		// `streamingTimeout` of the last event, regardless of how many have arrived;
+		// `currentOrNull` keeps the subscriber safely callable outside an Armeria request scope
+		final ClientRequestContext requestContext = ClientRequestContext.currentOrNull();
+		if (requestContext != null) {
+			requestContext.setResponseTimeout(TimeoutMode.SET_FROM_NOW, this.streamingTimeout);
+		}
 		// first item is always subscription acknowledge response
 		this.deserializeAcknowledgeResponse.apply(itemResponse)
 			.ifPresent(heartBeat -> {
-				if (this.lastHeartBeat != null) {
-					if (this.lastHeartBeat.index() + 1 != heartBeat.index()) {
-						log.warn(
-							"Missed heartbeat(s)! Last heartbeat index: {}, new heartbeat index: {}",
-							this.lastHeartBeat.index(),
-							heartBeat.index()
-						);
-					}
+				final HeartBeat previous = this.lastHeartBeat;
+				if (previous != null && previous.index() + 1 != heartBeat.index()) {
+					log.warn(
+						"Missed heartbeat(s)! Last heartbeat index: {}, new heartbeat index: {}",
+						previous.index(),
+						heartBeat.index()
+					);
 				}
 				this.lastHeartBeat = heartBeat;
 				if (this.delegate instanceof HeartBeatSensor heartBeatSensor) {
@@ -193,11 +293,44 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 					}
 				}
 			});
-		if (this.subscription.getSubscriptionId() == null) {
-			this.subscription.setSubscriptionId(this.lastHeartBeat.subscriptionId());
+		if (activeSubscription.getSubscriptionId() == null) {
+			// the very first message MUST be the acknowledgement — otherwise the
+			// protocol is being violated and the heartbeat field is still null;
+			// `isPremiseValid` is the project's idiomatic precondition check and
+			// surfaces the violation as `GenericEvitaInternalError` with the descriptive message
+			Assert.isPremiseValid(
+				this.lastHeartBeat != null,
+				"Expected ACKNOWLEDGEMENT as first message but got something else."
+			);
+			// IDE-friendly capture: the assert above already proved non-null, so this
+			// `requireNonNull` is a no-op at runtime but tells static analyzers the dereference is safe
+			final HeartBeat acknowledgement = Objects.requireNonNull(this.lastHeartBeat);
+			activeSubscription.setSubscriptionId(acknowledgement.subscriptionId());
+			// ACK consumed: open the full window so the server may start streaming captures
+			observer.request(this.flowControlWindow);
 		} else {
-			this.deserializeCaptureResponse.apply(itemResponse)
-				.ifPresent(it -> this.subscription.produce(it));
+			final Optional<C> capture = this.deserializeCaptureResponse.apply(itemResponse);
+			if (capture.isPresent()) {
+				// enqueued capture: credit is restored from `consume()` after the delegate receives it
+				activeSubscription.produce(capture.get());
+			} else {
+				// non-enqueued envelope (e.g. heartbeat): restore the consumed credit immediately
+				// so the server can keep pushing captures despite the periodic heartbeat traffic
+				observer.request(1);
+			}
+		}
+	}
+
+	/**
+	 * Restores one inbound flow-control credit with the server.
+	 *
+	 * Called by the owning {@link ClientSubscription} after each capture is delivered
+	 * to the delegate. Guarded against post-close calls so a slow consumer that finishes
+	 * draining the queue after the stream has been torn down cannot resurrect the channel.
+	 */
+	void requestOneMore() {
+		if (this.serverObserver != null && !this.closed.get() && !this.serverSideClosed.get()) {
+			this.serverObserver.request(1);
 		}
 	}
 
@@ -230,12 +363,50 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			} else {
 				log.error("Error occurred in the client change capture publisher.", throwable);
 			}
+			// the publisher always attaches the subscription before the stream initializer runs,
+			// so by the time `onError` fires the subscription is guaranteed non-null
+			final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(
+				this.subscription,
+				"Subscription must be attached before `onError` is invoked."
+			);
 			// we notify the subscriber about the error
 			try {
-				this.subscription.getExecutorService().execute(() -> this.delegate.onError(rootCause));
+				activeSubscription.getExecutorService().execute(() -> this.delegate.onError(rootCause));
 			} finally {
 				// this handles cleanup and calling #close on this instance
-				this.subscription.cancel();
+				activeSubscription.cancel();
+			}
+		}
+	}
+
+	/**
+	 * Reports a client-internal failure (typically a queue overflow because the
+	 * delegate cannot keep up) and tears the subscription down.
+	 *
+	 * Unlike {@link #onError} this method does **not** flip `serverSideClosed`
+	 * — the server still believes the stream is open, so the follow-up
+	 * {@link #close} must invoke `serverObserver.cancel(...)` to release the
+	 * gRPC stream. Conflating server-originated and client-originated failures
+	 * would short-circuit the close path and leave the server pushing into a
+	 * dead client.
+	 *
+	 * @param cause exception describing the client-internal failure
+	 */
+	void notifyClientFailureAndClose(@Nonnull Throwable cause) {
+		if (!this.closed.get()) {
+			log.error("Client-side change capture subscription failed.", cause);
+			// invoked from `ClientSubscription.consume`, which can only exist once the
+			// publisher has attached this subscription, so the field is always non-null
+			final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(
+				this.subscription,
+				"Subscription must be attached before `notifyClientFailureAndClose` is invoked."
+			);
+			try {
+				activeSubscription.getExecutorService().execute(() -> this.delegate.onError(cause));
+			} finally {
+				// triggers `close()` which still sees `serverSideClosed == false` and therefore
+				// propagates the cancellation to the gRPC stream
+				activeSubscription.cancel();
 			}
 		}
 	}
@@ -250,11 +421,17 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	public void onComplete() {
 		this.serverSideClosed.set(true);
 		if (!this.closed.get()) {
+			// gRPC calls `onComplete` only after `beforeStart` returned, by which point
+			// the publisher has already attached the subscription
+			final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(
+				this.subscription,
+				"Subscription must be attached before `onComplete` is invoked."
+			);
 			try {
-				this.subscription.getExecutorService().execute(this.delegate::onComplete);
+				activeSubscription.getExecutorService().execute(this.delegate::onComplete);
 			} finally {
 				// this handles cleanup and calling #close on this instance
-				this.subscription.cancel();
+				activeSubscription.cancel();
 			}
 		}
 	}
@@ -294,13 +471,18 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 		if (this.subscription != null && !this.subscription.isCanceled()) {
 			this.subscription.cancel();
 		} else if (this.closed.compareAndSet(false, true)) {
-			// this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
-			if (!this.serverSideClosed.get()) {
-				this.serverObserver.cancel("Closed manually by the client.", new PublisherClosedByClientException());
+			// `close()` can legitimately fire before `beforeStart` (user-initiated abort during
+			// stream setup), so the observer and the subscription may both still be null here.
+			// snapshot the @Nullable fields and guard each dereference explicitly
+			final ClientCallStreamObserver<REQ> observer = this.serverObserver;
+			if (observer != null && !this.serverSideClosed.get()) {
+				// this will eventually trigger the `onComplete` callback (through `onError` callback) and close this publisher
+				observer.cancel("Closed manually by the client.", new PublisherClosedByClientException());
 			}
 			// if the delegate is closeable, close it quietly
-			if (this.delegate instanceof AutoCloseable closeable) {
-				this.subscription.getExecutorService().execute(() -> IOUtils.closeQuietly(closeable::close));
+			final ClientSubscription<C, REQ, RES> activeSubscription = this.subscription;
+			if (activeSubscription != null && this.delegate instanceof AutoCloseable closeable) {
+				activeSubscription.getExecutorService().execute(() -> IOUtils.closeQuietly(closeable::close));
 			}
 		}
 	}

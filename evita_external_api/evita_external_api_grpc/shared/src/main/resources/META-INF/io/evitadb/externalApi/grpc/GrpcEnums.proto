@@ -543,6 +543,8 @@ enum GrpcQueryPhase {
   FETCHING_REFERENCES = 19;
   // Fetching parent entities from the storage based on parent primary keys information.
   FETCHING_PARENTS = 20;
+  // Aggregate phase covering orchestration of all referenced entity loads (predicate setup, ID collection, dedup, recursive dispatch).
+  FETCHING_REFERENCE_BODIES = 21;
 }
 
 // Contains set of all possible expected states for the entity.

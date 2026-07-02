@@ -327,6 +327,107 @@ class HistogramIndexTest {
 				() -> this.histogramIndex.removeValue(null, 42, 10)
 			);
 		}
+
+		/**
+		 * Deterministic replay of the operation trace reported by `LongRunningHistogramIndexTest`
+		 * on GitHub Actions run 25644343839 (ubuntu-X64, seed 1219861460) — the seed alone does
+		 * not reproduce across JVMs because `pickRandomEntry` iterates `HashMap.entrySet()` whose
+		 * order is JVM-specific. After the trace, the long-running test asserted that value 49
+		 * had 1 record but found 2 — that exact mismatch is replayed here as a focused test.
+		 */
+		@Test
+		@DisplayName("should not retain stale record after multi-transaction insert/remove sequence (CI replay)")
+		void shouldNotRetainStaleRecordAfterReplaySequence() {
+			final AtomicReference<HistogramIndex> committedRef = new AtomicReference<>();
+
+			// Build the starting state reported on the failing CI generation.
+			assertStateAfterCommit(
+				this.histogramIndex,
+				original -> {
+					original.insertValue(null, 0, 17);
+					original.insertValue(null, 2, 22);
+					original.insertValue(null, 3, 18);
+					original.insertValue(null, 5, 14);
+					original.insertValue(null, 10, 15);
+					original.insertValue(null, 12, 23);
+					original.insertValue(null, 23, 17);
+					original.insertValue(null, 23, 13);
+					original.insertValue(null, 30, 8);
+					original.insertValue(null, 31, 27);
+					original.insertValue(null, 32, 28);
+					original.insertValue(null, 35, 9);
+					original.insertValue(null, 39, 4);
+					original.insertValue(null, 39, 28);
+					original.insertValue(null, 39, 6);
+					original.insertValue(null, 43, 3);
+					original.insertValue(null, 45, 9);
+					original.insertValue(null, 49, 10);
+					original.insertValue(null, 49, 21);
+				},
+				(original, committed) -> committedRef.set(committed)
+			);
+
+			// Apply the exact operation trace from the failing generation, then verify.
+			assertStateAfterCommit(
+				committedRef.get(),
+				original -> {
+					original.removeValue(null, 31, 27);
+					original.insertValue(null, 34, 14);
+					original.insertValue(null, 40, 29);
+					original.removeValue(null, 43, 3);
+					original.removeValue(null, 49, 10);
+					original.removeValue(null, 34, 14);
+					original.removeValue(null, 5, 14);
+					original.removeValue(null, 39, 6);
+					original.removeValue(null, 3, 18);
+					original.insertValue(null, 11, 6);
+					original.removeValue(null, 0, 17);
+					original.removeValue(null, 39, 28);
+					original.removeValue(null, 12, 23);
+					original.removeValue(null, 32, 28);
+					original.insertValue(null, 31, 8);
+					original.insertValue(null, 32, 1);
+					original.removeValue(null, 10, 15);
+					original.removeValue(null, 30, 8);
+					original.removeValue(null, 40, 29);
+					original.insertValue(null, 14, 19);
+					original.removeValue(null, 23, 13);
+					original.removeValue(null, 39, 4);
+					original.removeValue(null, 45, 9);
+					original.removeValue(null, 32, 1);
+					original.removeValue(null, 31, 8);
+					original.removeValue(null, 11, 6);
+					original.insertValue(null, 45, 30);
+					original.insertValue(null, 16, 27);
+					original.removeValue(null, 16, 27);
+					original.insertValue(null, 18, 7);
+					original.removeValue(null, 2, 22);
+					original.removeValue(null, 45, 30);
+					original.removeValue(null, 14, 19);
+					original.insertValue(null, 18, 18);
+					original.removeValue(null, 18, 18);
+					original.insertValue(null, 9, 2);
+					original.removeValue(null, 18, 7);
+					original.insertValue(null, 37, 12);
+					original.removeValue(null, 23, 17);
+					original.insertValue(null, 29, 8);
+					original.insertValue(null, 31, 5);
+				},
+				(original, committed) -> {
+					assertNotNull(committed, "Committed copy must not be null");
+					final FilterIndex filter = committed.getFilterIndex(null);
+					assertNotNull(filter, "FilterIndex should exist — data is still present");
+
+					final Bitmap value49 = filter.getRecordsEqualTo(49);
+					assertEquals(
+						1, value49.size(),
+						"After remove(49, 10), value 49 should have exactly one owner (21); got " + value49
+					);
+					assertTrue(value49.contains(21), "Owner 21 should still be in value 49");
+					assertFalse(value49.contains(10), "Owner 10 should NOT be in value 49 anymore");
+				}
+			);
+		}
 	}
 
 	/**

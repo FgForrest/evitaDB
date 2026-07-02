@@ -201,8 +201,8 @@
 			"path": "/query/requirements/behavioral.md"
 		  },
 		  {
-			"title": "Facet",
-			"path": "/query/requirements/facet.md"
+			"title": "Reference",
+			"path": "/query/requirements/reference.md"
 		  },
 		  {
 			"title": "Fetching",

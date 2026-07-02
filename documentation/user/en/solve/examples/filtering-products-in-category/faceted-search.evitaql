@@ -8,7 +8,7 @@ query(
     )
   ),
   require(
-    facetSummaryOfReference(
+    referenceSummaryOfReference(
       "parameterValues",
       IMPACT,
       filterGroupBy(attributeEquals("isVisibleInFilter", true)),

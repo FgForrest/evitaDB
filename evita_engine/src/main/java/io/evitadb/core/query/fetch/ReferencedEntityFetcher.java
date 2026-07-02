@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
+import io.evitadb.api.requestResponse.chunk.NoTransformer;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -483,7 +484,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				subReferenceFetcher, existingEntityRetriever
 			);
 		} finally {
-			nestedQueryContext.popStep();
+			executionContext.popStep();
 		}
 		return entityIndex;
 	}
@@ -1525,6 +1526,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param existingEntityRetriever             a provider for retrieving existing entities by their primary keys
 	 * @param referencedEntityIdsFormula          a function to compute formulas for referenced entity IDs based on a given
 	 *                                            reference name and an integer parameter
+	 * @param referenceContractsAccessor          per-source-entity accessor returning the reference contracts (with
+	 *                                            attributes) so the slicer can pre-sort by the configured `orderBy`
+	 *                                            before fetching
 	 * @param groupToReferencedEntityIdTranslator a function for translating group IDs to the referenced entity IDs for
 	 *                                            a specific reference
 	 * @param referencedEntityToGroupIdTranslator a function for translating referenced entity IDs to group IDs based on
@@ -1545,6 +1549,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
+		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> referenceContractsAccessor,
 		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
 		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
 		@Nonnull Map<Scope, int[]> entityPrimaryKey,
@@ -1559,14 +1564,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			globalPrefetchCollector.addRequirementsToPrefetch(requirements.attributeContent());
 		}
 
-		final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
-			.map(ob -> ReferenceOrderByVisitor.getComparator(
-				     executionContext.getQueryContext(),
-				     globalPrefetchCollector,
-				     ob,
-				     entitySchema,
-				     referenceSchema
-			     )
+		final OrderingDescriptor orderingDescriptor = requirements.orderBy() == null
+			? null
+			: ReferenceOrderByVisitor.getComparator(
+				executionContext.getQueryContext(),
+				globalPrefetchCollector,
+				requirements.orderBy(),
+				entitySchema,
+				referenceSchema
 			);
 
 		final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(
@@ -1575,12 +1580,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 		final int[] filteredReferencedEntityIdsArray;
 		final Map<Integer, ServerEntityDecorator> entityIndex;
+		final ReferenceSlicingMode slicingMode = resolveSlicingMode(orderingDescriptor, requirements);
+		final EntityNestedQueryComparator nestedQueryComparator = slicingMode.nestedQueryComparator();
+		final boolean preSortViable = slicingMode.preSortViable();
 		final BitmapSlicer slicer = new BitmapSlicer(
 			entityPrimaryKey,
 			referenceName,
 			referencedEntityIdsFormula,
 			referencedEntityToGroupIdTranslator,
-			ServerChunkTransformerAccessor.convertIfNecessary(requirements.referenceChunkTransformer())
+			slicingMode.chunkTransformer()
 		);
 
 		final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
@@ -1593,21 +1601,35 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			requirements.managedReferencesBehaviour(),
 			requirements.filterBy(),
 			validityMapping,
-			orderingDescriptor
-				.map(OrderingDescriptor::nestedQueryComparator)
-				.orElse(null),
+			nestedQueryComparator,
 			referencedEntityIdsFormula,
 			groupToReferencedEntityIdTranslator
 		);
+		// when pre-sort is viable the comparator needs its filteredEntities prepared
+		// before slicing; group filter is unused in this path so an empty array suffices
+		if (preSortViable && nestedQueryComparator != null) {
+			nestedQueryComparator.setFilteredEntities(
+				filteredReferencedEntityIds.getArray(),
+				ArrayUtils.EMPTY_INT_ARRAY,
+				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
+			);
+		}
 		// apply chunking if necessary
 		if (requirements.entityFetch() != null) {
 			if (!referenceSchema.isReferencedEntityTypeManaged()) {
 				throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
 			}
-			final Bitmap filteredAndSlicedReferencedIds = slicer.sliceEntityIds(
-				toFormula(filteredReferencedEntityIds),
-				validityMapping
-			);
+			final Bitmap filteredAndSlicedReferencedIds = preSortViable
+				? slicer.sliceEntityIdsSorted(
+					toFormula(filteredReferencedEntityIds),
+					validityMapping,
+					referenceContractsAccessor,
+					slicingMode.preSortComparator()
+				)
+				: slicer.sliceEntityIds(
+					toFormula(filteredReferencedEntityIds),
+					validityMapping
+				);
 			if (!filteredAndSlicedReferencedIds.isEmpty()) {
 				// if so, fetch them
 				entityIndex = fetchReferencedEntities(
@@ -1641,7 +1663,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				null,
 				null,
 				null,
-				slicer::getGroupIds,
+				(refName, epk) -> slicer.getGroupIds(epk),
 				null
 			);
 
@@ -1667,16 +1689,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			entityGroupIndex = Collections.emptyMap();
 		}
 
-		// set them to the comparator instance, if such is provided
-		// this prepares the "pre-sorted" arrays in this comparator for faster sorting
-		orderingDescriptor
-			.map(OrderingDescriptor::nestedQueryComparator)
-			.ifPresent(
-				comparator -> comparator.setFilteredEntities(
-					filteredReferencedEntityIdsArray, filteredReferencedGroupEntityIdsArray,
-					entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
-				)
+		// set them to the comparator instance, if such is provided — this prepares the
+		// "pre-sorted" arrays in this comparator for faster sorting. See
+		// ReferenceSlicingMode.requiresPostSliceFilteredEntities() for the condition rationale.
+		if (nestedQueryComparator != null && slicingMode.requiresPostSliceFilteredEntities()) {
+			nestedQueryComparator.setFilteredEntities(
+				filteredReferencedEntityIdsArray,
+				filteredReferencedGroupEntityIdsArray,
+				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
 			);
+		}
 
 		return new PrefetchedEntities(
 			entityIndex,
@@ -1684,10 +1706,113 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				requirements.managedReferencesBehaviour() == ManagedReferencesBehaviour.ANY ?
 				null : validityMapping,
 			entityGroupIndex,
-			orderingDescriptor
-				.map(OrderingDescriptor::comparator)
-				.orElse(null)
+			orderingDescriptor == null ? null : orderingDescriptor.comparator()
 		);
+	}
+
+	/**
+	 * Decides whether the order-aware pre-fetch slice can engage for the current reference and
+	 * pre-computes the comparator/chunk-transformer that should drive the slice.
+	 * The three relevant cases are:
+	 *
+	 *   - no orderBy or comparator is DEFAULT (PK-ascending): bitmap slice agrees with the
+	 *     post-fetch sort, so the plain PK-bitmap fast path applies.
+	 *   - non-DEFAULT comparator without group ordering: pre-sort each source entity's
+	 *     ReferenceContracts using the comparator chain and slice that — `preSortViable` is true
+	 *     and `chunkTransformer` carries the requested page/strip.
+	 *   - non-DEFAULT comparator WITH group ordering (EntityGroupProperty): the nested query
+	 *     comparator needs both filteredEntities and filteredEntityGroups before it can rank;
+	 *     the group filter is computed only after the slice, so the optimization can't engage.
+	 *     We fall back to fetching all filtered referenced bodies (chunkTransformer is
+	 *     {@link NoTransformer#INSTANCE}); the post-fetch sort+chunk in EntityDecorator still
+	 *     produces a correct result.
+	 *
+	 * @param orderingDescriptor parsed orderBy descriptor for the reference, if any was configured
+	 * @param requirements       requirement context whose `referenceChunkTransformer` is used for the page/strip
+	 *                           when slicing applies
+	 * @return the slicing-mode decision — see {@link ReferenceSlicingMode}
+	 */
+	@Nonnull
+	private static ReferenceSlicingMode resolveSlicingMode(
+		@Nullable OrderingDescriptor orderingDescriptor,
+		@Nonnull RequirementContext requirements
+	) {
+		final EntityNestedQueryComparator nestedQueryComparator = orderingDescriptor == null
+			? null
+			: orderingDescriptor.nestedQueryComparator();
+		final ReferenceComparator candidateComparator = orderingDescriptor == null
+			? null
+			: orderingDescriptor.comparator();
+		final ReferenceComparator orderingComparator = candidateComparator == ReferenceComparator.DEFAULT
+			? null
+			: candidateComparator;
+		final boolean groupSortActive = nestedQueryComparator != null
+			&& nestedQueryComparator.getGroupOrderBy() != null;
+		final boolean preSortViable = orderingComparator != null && !groupSortActive;
+		final ChunkTransformer chunkTransformer = orderingComparator == null || preSortViable
+			? ServerChunkTransformerAccessor.convertIfNecessary(requirements.referenceChunkTransformer())
+			: NoTransformer.INSTANCE;
+		return new ReferenceSlicingMode(
+			nestedQueryComparator,
+			orderingComparator,
+			preSortViable,
+			groupSortActive,
+			chunkTransformer
+		);
+	}
+
+	/**
+	 * Captures the slicing-mode decision for a single reference: which comparators participate,
+	 * whether the order-aware pre-slice can engage, and which chunk transformer drives the slice.
+	 * See {@link #resolveSlicingMode(OrderingDescriptor, RequirementContext)} for the decision logic.
+	 *
+	 * @param nestedQueryComparator nested-query comparator extracted from the orderBy descriptor (drives both the
+	 *                              pre- and post-slice `setFilteredEntities` calls); {@code null} when no orderBy is
+	 *                              configured
+	 * @param orderingComparator    head of the comparator chain that ranks the references; {@code null} when the
+	 *                              orderBy resolves to {@link ReferenceComparator#DEFAULT} (PK-ascending — the bitmap
+	 *                              fast path already matches it)
+	 * @param preSortViable         {@code true} when the order-aware pre-fetch slice
+	 *                              ({@link BitmapSlicer#sliceEntityIdsSorted}) can run: a non-DEFAULT comparator is
+	 *                              present AND no group sort is active (group sort needs both filtered entities and
+	 *                              filtered groups, the latter only known post-slice)
+	 * @param groupSortActive       {@code true} when the orderBy includes an `EntityGroupProperty` ordering — the
+	 *                              optimization can't engage and we fall back to the full-fetch path
+	 * @param chunkTransformer      transformer that supplies the page/strip math to {@link BitmapSlicer}; carries
+	 *                              the requested page/strip when slicing applies, otherwise {@link NoTransformer#INSTANCE}
+	 */
+	private record ReferenceSlicingMode(
+		@Nullable EntityNestedQueryComparator nestedQueryComparator,
+		@Nullable ReferenceComparator orderingComparator,
+		boolean preSortViable,
+		boolean groupSortActive,
+		@Nonnull ChunkTransformer chunkTransformer
+	) {
+		/**
+		 * Indicates that the post-slice {@code setFilteredEntities} call on the nested-query comparator is
+		 * required. Returns {@code true} either on the PK-bitmap fast path (no pre-sort happened) or when group
+		 * sort is active (the comparator needs the real group array, which only exists after the slice).
+		 * Returns {@code false} on the pre-sort path where the comparator was already prepared upfront with the
+		 * same entity array and an empty group array — calling it again would needlessly redo a sort that
+		 * already ran.
+		 */
+		boolean requiresPostSliceFilteredEntities() {
+			return !this.preSortViable || this.groupSortActive;
+		}
+
+		/**
+		 * Returns the comparator chain that drives the pre-sort slice — must only be called when
+		 * {@link #preSortViable} is {@code true}. The invariant `preSortViable ⇒ orderingComparator != null`
+		 * is established in {@link #resolveSlicingMode}; this accessor makes it explicit at call sites that
+		 * need a non-null comparator for the order-aware slicing path.
+		 */
+		@Nonnull
+		ReferenceComparator preSortComparator() {
+			return Objects.requireNonNull(
+				this.orderingComparator,
+				"orderingComparator must be non-null when preSortViable is true"
+			);
+		}
 	}
 
 	/**
@@ -1851,7 +1976,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 						.toArray()
 				),
+			// reference contract accessor — gives access to the source entity's references
+			// (including their reference attributes) so BitmapSlicer can sort them by the
+			// configured orderBy comparator before deciding which referenced entity bodies
+			// to actually fetch
+			(referenceName, entityPk) -> theEntity.getReferences(referenceName),
 			(referenceName, groupId) -> {
+				// allocation-optimized: hot path, avoids two stream allocations per group filter
 				final Collection<ReferenceContract> references = theEntity.getReferences(referenceName);
 				final int[] buffer = new int[references.size()];
 				int count = 0;
@@ -1924,23 +2055,30 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 
 		// prefetch the entities
-		this.envelopingEntityRequest = prefetchEntities(
-			this.referenceFetch,
-			this.namedReferenceFetch,
-			this.defaultRequirementContext,
-			this.executionContext,
-			internalCollection.getInternalSchema(),
-			this.existingEntityRetriever,
-			(referenceName, entityPk) -> toFormula(
-				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
-					.stream()
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray()
-			),
-			groupToEntityIdMapping::getReferencedEntityPrimaryKeys,
-			groupToEntityIdMapping::getGroup,
-			getPrimaryKeysIndexedByScope(entities)
-		);
+		this.executionContext.pushStep(QueryPhase.FETCHING_REFERENCE_BODIES);
+		try {
+			this.envelopingEntityRequest = prefetchEntities(
+				this.referenceFetch,
+				this.namedReferenceFetch,
+				this.defaultRequirementContext,
+				this.executionContext,
+				internalCollection.getInternalSchema(),
+				this.existingEntityRetriever,
+				(referenceName, entityPk) -> toFormula(
+					entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				),
+				// reference contract accessor — see single-entity branch for rationale
+				(referenceName, entityPk) -> entityIndexSupplier.get().get(entityPk).getReferences(referenceName),
+				groupToEntityIdMapping::getReferencedEntityPrimaryKeys,
+				groupToEntityIdMapping::getGroup,
+				getPrimaryKeysIndexedByScope(entities)
+			);
+		} finally {
+			this.executionContext.popStep();
+		}
 
 		return entities;
 	}
@@ -2054,6 +2192,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entitySchema                        the schema of the entity
 	 * @param existingEntityRetriever             function that provides access to already fetched referenced entities (relict of last enrichment)
 	 * @param referencedEntityIdsFormula          the formula containing superset of all possible referenced entities
+	 * @param referenceContractsAccessor          per-source-entity accessor returning the reference contracts (with
+	 *                                            attributes) so the slicer can pre-sort by the configured `orderBy`
+	 *                                            before fetching
 	 * @param groupToReferencedEntityIdTranslator the function that translates group ids to referenced entity ids
 	 * @param referencedEntityToGroupIdTranslator the function that translates referenced entity ids to group ids
 	 * @param entityPrimaryKey                    the array of top entity primary keys for which the references are being fetched
@@ -2067,6 +2208,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
+		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> referenceContractsAccessor,
 		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
 		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
 		@Nonnull Map<Scope, int[]> entityPrimaryKey
@@ -2088,6 +2230,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							entitySchema,
 							existingEntityRetriever,
 							referencedEntityIdsFormula,
+							referenceContractsAccessor,
 							groupToReferencedEntityIdTranslator,
 							referencedEntityToGroupIdTranslator,
 							entityPrimaryKey,
@@ -2122,6 +2265,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 									entitySchema,
 									existingEntityRetriever,
 									referencedEntityIdsFormula,
+									referenceContractsAccessor,
 									groupToReferencedEntityIdTranslator,
 									referencedEntityToGroupIdTranslator,
 									entityPrimaryKey,

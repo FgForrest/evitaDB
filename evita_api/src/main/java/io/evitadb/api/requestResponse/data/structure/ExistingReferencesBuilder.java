@@ -200,19 +200,38 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 	}
 
 	/**
-	 * Merges the given reference mutation change set with the current state of the reference, ensuring that
-	 * the resulting mutations reflect any removals and redundant operations are skipped. This method is designed
-	 * to restore removals for groups or attributes that were not re-upserted after a prior removal, ensuring the
-	 * minimal and correct set of mutations is generated.
+	 * Merges the configurator-produced mutations (`changeSet`) with the projected working
+	 * state of the reference, emitting only the minimal set of mutations needed to bring
+	 * the working layer from its current effective state to the desired state.
 	 *
-	 * @param changeSet    a list of reference mutations to be merged and filtered
-	 * @param refInBase    the base reference state, which is used to compare the existing state with the incoming mutations
-	 * @param referenceKey the key that identifies the reference being mutated
-	 * @return a list of merged and filtered reference mutations, including any necessary removal mutations and excluding redundant operations
+	 * The effective working state is `refInBase` overlaid with `priorMutations` — i.e.
+	 * any already-queued mutations from earlier in-session setReference calls. Comparing
+	 * the configurator's intent against this projection (rather than against the frozen
+	 * `refInBase` snapshot alone) is required for two correctness properties:
+	 *
+	 * 1. **Filter only genuinely redundant upserts.** If an earlier in-session call
+	 *    removed an attribute, `refInBase` still reports the pre-transaction value; a
+	 *    naive filter against `refInBase` would drop the re-add and leave working-layer
+	 *    indexes stuck on the prior remove.
+	 *
+	 * 2. **Emit removes for attributes added by prior in-session RESETs but omitted by
+	 *    the current one.** RESET-mode semantics say the configurator describes the
+	 *    complete attribute set; attributes the previous call added must disappear.
+	 *    Iterating only `refInBase.getAttributeValues()` would miss those keys.
+	 *
+	 * @param changeSet       the new builder's mutations (post-`upsertModification`),
+	 *                        which describe the desired complete state in RESET mode
+	 * @param priorMutations  snapshot of the queue *before* the new builder's mutations
+	 *                        were merged in; used to project effective working state
+	 * @param refInBase       the base reference state (frozen at builder construction)
+	 * @param referenceKey    the key that identifies the reference being mutated
+	 * @param referenceSchema the schema (for default-value handling on attribute removal)
+	 * @return minimal merged list of mutations producing the desired working-layer state
 	 */
 	@Nonnull
-	private static List<ReferenceMutation<?>> collectMergedReferenceMutations(
+	static List<ReferenceMutation<?>> collectMergedReferenceMutations(
 		@Nonnull List<ReferenceMutation<?>> changeSet,
+		@Nonnull List<ReferenceMutation<?>> priorMutations,
 		@Nonnull ReferenceContract refInBase,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ReferenceSchemaContract referenceSchema
@@ -239,9 +258,16 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 		final Set<AttributeKey> finalAttributesUpsertedOrRemoved =
 			attributesUpsertedOrRemoved != null ? attributesUpsertedOrRemoved : Collections.emptySet();
 
+		// Build the projection map ONLY when there are prior in-session mutations on this
+		// reference. With an empty queue, `refInBase` IS the effective working state and is
+		// consulted directly below — no HashMap allocation, no per-upsert linear rescan.
+		final Map<AttributeKey, Serializable> projectedState = priorMutations.isEmpty()
+			? null
+			: projectEffectiveState(refInBase, priorMutations);
+
 		// Build merged mutation list with minimal allocations
 		// Heuristic capacity: original + possible removals
-		List<ReferenceMutation<?>> merged = new ArrayList<>(changeSet.size() + 8);
+		final List<ReferenceMutation<?>> merged = new ArrayList<>(changeSet.size() + 8);
 
 		// If group was NOT upserted, add removal of previous group (if any)
 		if (!groupUpserted) {
@@ -254,28 +280,19 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			}
 		}
 
-		// For attributes not upserted, add their removals if they existed before
-		final Collection<AttributeValue> attrs = refInBase.getAttributeValues();
-		for (final AttributeValue av : attrs) {
-			if (av.exists()) {
-				final AttributeKey key = av.key();
+		// For attributes that are currently effective but not re-asserted by this RESET's
+		// configurator, emit a removal (or an upsert-to-default if the schema has one).
+		if (projectedState == null) {
+			// Fast path: only refInBase contributes effective keys.
+			for (final AttributeValue av : refInBase.getAttributeValues()) {
+				if (av.exists() && !finalAttributesUpsertedOrRemoved.contains(av.key())) {
+					appendRemoveOrDefault(merged, referenceKey, referenceSchema, av.key());
+				}
+			}
+		} else {
+			for (final AttributeKey key : projectedState.keySet()) {
 				if (!finalAttributesUpsertedOrRemoved.contains(key)) {
-					final Serializable defaultValue = referenceSchema
-						.getAttribute(key.attributeName())
-						.map(AttributeSchemaContract::getDefaultValue)
-						.orElse(null);
-					if (defaultValue == null) {
-						merged.add(
-							new ReferenceAttributeMutation(referenceKey, new RemoveAttributeMutation(key))
-						);
-					} else {
-						merged.add(
-							new ReferenceAttributeMutation(
-								referenceKey,
-								new UpsertAttributeMutation(key, defaultValue)
-							)
-						);
-					}
+					appendRemoveOrDefault(merged, referenceKey, referenceSchema, key);
 				}
 			}
 		}
@@ -302,25 +319,28 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 				}
 			}
 
-			// Skip redundant attribute upserts if value equals previous one
-			if (rm instanceof ReferenceAttributeMutation ram) {
-				final AttributeMutation am = ram.getAttributeMutation();
-				if (am instanceof UpsertAttributeMutation upsert) {
-					boolean sameAsBefore = false;
-					final AttributeKey aKey = am.getAttributeKey();
-
-					// Check schema existence before reading value, as in original logic
-					final boolean schemaPresent = refInBase
-						.getAttributeSchema(aKey.attributeName())
-						.isPresent();
-					if (schemaPresent) {
-						final Optional<AttributeValue> avOpt = refInBase.getAttributeValue(aKey);
-						if (avOpt.isPresent()) {
-							final AttributeValue prev = avOpt.get();
-							sameAsBefore = Objects.equals(prev.value(), upsert.getAttributeValue());
-						}
+			// Skip redundant attribute upsert when the new value matches the projected
+			// effective value. Comparing against the *projection* (refInBase + priorMutations)
+			// rather than against `refInBase` alone keeps the optimization safe across
+			// multiple in-session RESET calls on the same reference.
+			if (rm instanceof ReferenceAttributeMutation ram
+				&& ram.getAttributeMutation() instanceof UpsertAttributeMutation upsert) {
+				final AttributeKey aKey = upsert.getAttributeKey();
+				// Schema check preserves the original behaviour: only filter against a
+				// known-schema attribute (avoid comparing locally-implicit attribute types).
+				if (refInBase.getAttributeSchema(aKey.attributeName()).isPresent()) {
+					final Serializable effective;
+					if (projectedState == null) {
+						// Fast path: refInBase directly, no Optional chain allocation.
+						final AttributeValue av = refInBase
+							.getAttributeValue(aKey)
+							.orElse(null);
+						effective = (av != null && av.exists()) ? av.value() : null;
+					} else {
+						// O(1) lookup against the prebuilt projection (null = absent).
+						effective = projectedState.get(aKey);
 					}
-					if (sameAsBefore) {
+					if (effective != null && Objects.equals(effective, upsert.getAttributeValue())) {
 						continue;
 					}
 				}
@@ -329,6 +349,73 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			merged.add(rm);
 		}
 		return merged;
+	}
+
+	/**
+	 * Emits the trailing-mutation for an attribute that was effective on the reference but
+	 * not re-asserted by the current RESET configurator. If the schema defines a default
+	 * value, falls back to upserting that default; otherwise emits an outright remove.
+	 */
+	private static void appendRemoveOrDefault(
+		@Nonnull List<ReferenceMutation<?>> merged,
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeKey attributeKey
+	) {
+		final Serializable defaultValue = referenceSchema
+			.getAttribute(attributeKey.attributeName())
+			.map(AttributeSchemaContract::getDefaultValue)
+			.orElse(null);
+		if (defaultValue == null) {
+			merged.add(
+				new ReferenceAttributeMutation(referenceKey, new RemoveAttributeMutation(attributeKey))
+			);
+		} else {
+			merged.add(
+				new ReferenceAttributeMutation(
+					referenceKey,
+					new UpsertAttributeMutation(attributeKey, defaultValue)
+				)
+			);
+		}
+	}
+
+	/**
+	 * Projects the effective working state of the reference — `refInBase` overlaid with all
+	 * already-queued mutations from earlier in-session calls — into a single map. Returned
+	 * map contains only currently-present attributes (`UpsertAttributeMutation` puts, base
+	 * values seed, `RemoveAttributeMutation` evicts), so iterating its key set yields the
+	 * effective key set and `get(key)` yields the effective value (or `null` if absent).
+	 *
+	 * Linear walk in mutation order — the latest matching op on this `(refKey, attrKey)` wins.
+	 * Called only when `priorMutations` is non-empty; the empty case is handled inline by the
+	 * caller against `refInBase` directly to avoid any intermediate allocation.
+	 */
+	@Nonnull
+	private static Map<AttributeKey, Serializable> projectEffectiveState(
+		@Nonnull ReferenceContract refInBase,
+		@Nonnull List<ReferenceMutation<?>> priorMutations
+	) {
+		final Collection<AttributeValue> baseAttrs = refInBase.getAttributeValues();
+		final Map<AttributeKey, Serializable> state = CollectionUtils.createHashMap(
+			baseAttrs.size() + priorMutations.size()
+		);
+		for (final AttributeValue av : baseAttrs) {
+			if (av.exists()) {
+				state.put(av.key(), av.value());
+			}
+		}
+		for (final ReferenceMutation<?> rm : priorMutations) {
+			if (rm instanceof ReferenceAttributeMutation ram) {
+				final AttributeMutation am = ram.getAttributeMutation();
+				if (am instanceof UpsertAttributeMutation upsert) {
+					state.put(upsert.getAttributeKey(), upsert.getAttributeValue());
+				} else if (am instanceof RemoveAttributeMutation) {
+					state.remove(am.getAttributeKey());
+				}
+			}
+		}
+		return state;
 	}
 
 	@Nonnull
@@ -1042,6 +1129,13 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			.map(it -> it.get(referenceKey.internalPrimaryKey()))
 			.map(ArrayList::new)
 			.orElseGet(() -> new ArrayList<>(16));
+		// Snapshot the queue BEFORE the new builder's mutations are merged in. The merge path
+		// needs this to project the effective working state (refInBase + queued earlier-in-session
+		// mutations) so it can both: (1) filter genuinely redundant upserts and (2) emit removes
+		// for attributes added by prior in-session RESET calls that the current call omits.
+		final List<ReferenceMutation<?>> priorMutationsSnapshot = changeSet.isEmpty()
+			? List.of()
+			: List.copyOf(changeSet);
 		referenceBuilder
 			.buildChangeSet()
 			.forEach(newMutation -> upsertModification(changeSet, newMutation));
@@ -1087,7 +1181,7 @@ public class ExistingReferencesBuilder implements ReferencesBuilder {
 			} else {
 				final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceKey.referenceName());
 				final List<ReferenceMutation<?>> merged = collectMergedReferenceMutations(
-					changeSet, refInBaseOpt.get(), referenceKey, referenceSchema
+					changeSet, priorMutationsSnapshot, refInBaseOpt.get(), referenceKey, referenceSchema
 				);
 
 				replaceChangeSet(

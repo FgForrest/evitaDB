@@ -147,13 +147,12 @@ public class AttributeIsTranslator extends AbstractAttributeTranslator
 						attributeSchema,
 						attributeSchema.isLocalized() ? filterByVisitor.getLocale() : null
 					);
-					if (filterIndex == null) {
-						return it.getAllPrimaryKeysFormula();
-					}
-					return new NotFormula(
-						filterIndex.getAllRecordsFormula(),
-						it.getAllPrimaryKeysFormula()
-					);
+					return filterIndex == null ?
+						it.getAllPrimaryKeysFormula() :
+						new NotFormula(
+							filterIndex.getAllRecordsFormula(),
+							it.getAllPrimaryKeysFormula()
+						);
 				}
 			)
 			.toArray(Formula[]::new);

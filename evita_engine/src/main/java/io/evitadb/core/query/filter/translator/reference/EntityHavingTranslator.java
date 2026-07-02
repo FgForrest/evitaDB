@@ -34,6 +34,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.EntityIndexType;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -82,6 +83,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 				referenceSchema,
 				referencedEntityType,
 				referenceSchema.isReferencedEntityTypeManaged(),
+				EntityIndexType.REFERENCED_ENTITY_TYPE,
 				filterByVisitor::getReferencedEntityIndexes,
 				nestedQueryDescription
 			);

@@ -242,6 +242,13 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		 */
 		FETCHING,
 		/**
+		 * Aggregate phase that covers the orchestration of loading all referenced entities for a result page —
+		 * per-reference predicate setup, referenced primary key collection, deduplication, recursive dispatch
+		 * into nested reference fetches, and the actual storage reads that show up nested as
+		 * [[FETCHING_REFERENCES]] children.
+		 */
+		FETCHING_REFERENCE_BODIES,
+		/**
 		 * Fetching referenced entities and entity groups from the storage based on referenced primary keys information.
 		 */
 		FETCHING_REFERENCES,

@@ -448,7 +448,7 @@ class CreateReferenceSchemaMutationTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 				},
 				new ScopedBucketedPartially[]{
 					new ScopedBucketedPartially(Scope.LIVE, expression)
@@ -643,7 +643,7 @@ class CreateReferenceSchemaMutationTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", expression)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", expression, null)
 				},
 				new ScopedBucketedPartially[]{
 					new ScopedBucketedPartially(Scope.LIVE, expression)
@@ -660,6 +660,138 @@ class CreateReferenceSchemaMutationTest {
 				referenceSchema.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram").nameOfTheIndex()
 			);
 			assertNotNull(referenceSchema.getBucketedPartiallyInScope(Scope.LIVE));
+		}
+
+		/**
+		 * Verifies that a non-null `assignedWhen` partition selector supplied on
+		 * {@link ScopedHistogramIndexDefinition} survives `mutate(...)` and lands unchanged on
+		 * the resulting {@link io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition}.
+		 * Guards against a refactor that silently drops the field while building the schema.
+		 */
+		@Test
+		@DisplayName("should preserve non-null assignedWhen through mutate round-trip")
+		void shouldPreserveNonNullAssignedWhenInMutateRoundTrip() {
+			final Expression valueExpr = ExpressionFactory.parse("$reference.attributes['quantity']");
+			final Expression assignedWhenExpr = ExpressionFactory.parse("$active == 1");
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", valueExpr, assignedWhenExpr
+					)
+				},
+				null
+			);
+
+			final ReferenceSchemaContract referenceSchema =
+				mutation.mutate(Mockito.mock(EntitySchemaContract.class), null);
+
+			assertNotNull(referenceSchema);
+			final Expression preserved = referenceSchema
+				.getHistogramIndexDefinition(Scope.LIVE, "priceHistogram")
+				.assignedWhen();
+			assertNotNull(preserved, "assignedWhen must survive mutate(...)");
+			assertEquals(
+				assignedWhenExpr.toExpressionString(),
+				preserved.toExpressionString(),
+				"assignedWhen expression must round-trip unchanged"
+			);
+		}
+
+		/**
+		 * Verifies that when the only difference between the created and existing reference
+		 * versions is the per-histogram `assignedWhen` selector, the diff path inside
+		 * {@code combineWith(...)} still emits a {@link SetReferenceSchemaBucketedMutation}.
+		 * Pins the equality check on `getAllHistogramIndexDefinitions()` against a regression
+		 * that ignores the `assignedWhen` slot.
+		 */
+		@Test
+		@DisplayName("should emit bucketed diff when only assignedWhen differs")
+		void shouldEmitBucketedDiffWhenOnlyAssignedWhenDiffers() {
+			final Expression existingAssignedWhen = ExpressionFactory.parse("$active == 1");
+			final Expression createdAssignedWhen = ExpressionFactory.parse("$active == 2");
+			final ReferenceSchemaContract existingSchema = ReferenceSchema._internalBuild(
+				REFERENCE_NAME,
+				NamingConvention.generate(REFERENCE_NAME),
+				"description",
+				"deprecationNotice",
+				REFERENCE_TYPE,
+				NamingConvention.generate(REFERENCE_TYPE),
+				false,
+				Cardinality.ZERO_OR_MORE,
+				null,
+				Collections.emptyMap(),
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", null, existingAssignedWhen
+					)
+				},
+				null,
+				Collections.emptyMap(),
+				Collections.emptyMap()
+			);
+			final CreateReferenceSchemaMutation mutation = new CreateReferenceSchemaMutation(
+				REFERENCE_NAME,
+				"description",
+				"deprecationNotice",
+				Cardinality.ZERO_OR_MORE,
+				REFERENCE_TYPE,
+				false,
+				GROUP_TYPE,
+				false,
+				new ScopedReferenceIndexType[]{
+					new ScopedReferenceIndexType(Scope.LIVE, ReferenceIndexType.FOR_FILTERING)
+				},
+				null,
+				new Scope[]{Scope.LIVE},
+				null,
+				new ScopedHistogramIndexDefinition[]{
+					new ScopedHistogramIndexDefinition(
+						Scope.LIVE, "priceHistogram", null, createdAssignedWhen
+					)
+				},
+				null
+			);
+			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
+			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
+				.thenReturn(of(existingSchema));
+			final RemoveReferenceSchemaMutation removeMutation =
+				new RemoveReferenceSchemaMutation(REFERENCE_NAME);
+
+			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
+				Mockito.mock(CatalogSchemaContract.class), entitySchema, removeMutation
+			);
+
+			assertNotNull(result);
+			final SetReferenceSchemaBucketedMutation[] bucketedMutations =
+				Arrays.stream(result.current())
+					.filter(SetReferenceSchemaBucketedMutation.class::isInstance)
+					.map(SetReferenceSchemaBucketedMutation.class::cast)
+					.toArray(SetReferenceSchemaBucketedMutation[]::new);
+			assertEquals(
+				1, bucketedMutations.length,
+				"assignedWhen-only diff must still emit a SetReferenceSchemaBucketedMutation"
+			);
 		}
 	}
 
@@ -810,7 +942,7 @@ class CreateReferenceSchemaMutationTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				new ScopedHistogramIndexDefinition[]{
-					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null)
+					new ScopedHistogramIndexDefinition(Scope.LIVE, "priceHistogram", null, null)
 				},
 				new ScopedBucketedPartially[]{
 					new ScopedBucketedPartially(Scope.LIVE, ExpressionFactory.parse("1 > 0"))

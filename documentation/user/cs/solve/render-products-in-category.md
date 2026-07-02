@@ -1,7 +1,7 @@
 ---
 title: Zobrazení produktů v kategorii
 perex: Výpis a filtrování produktů přiřazených k hierarchické entitě (obvykle kategorii) je jedním z nejběžnějších úkolů v katalogových e-commerce systémech. Zároveň však patří mezi nejnáročnější z hlediska výkonu a použitelnosti. Tento článek nabízí sadu osvědčených postupů a příkladů pro implementaci této funkce ve vaší aplikaci.
-date: '10.2.2024'
+date: '11.5.2026'
 author: Ing. Jan Novotný
 proofreading: done
 commit: cef96d8320d36c91c100c5dfc9c45020b5a7ad0d
@@ -233,7 +233,7 @@ Vrácené značky jsou seřazeny podle názvu vzestupně, značka *Apple* je ozn
 
 Tato pravidla vzešla z uživatelského testování jako nejintuitivnější a nejpřátelštější způsob vykreslení filtru. Ale klidně experimentujte s vlastním nastavením. Vykreslený filtr podle výše uvedených pravidel by vypadal takto:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[Výsledek pro facetové filtry značky](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[Výsledek pro facetové filtry značky](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search-brand.evitaql.string.md)</MDInclude>
 
 Vztah značky je jednoduchý, ale hodnoty parametrů jsou složitější. Hodnota parametru (např. *modrá* nebo *červená*) patří k parametru, který slouží ke skupinování podobných hodnot (např. *barva*). Také chceme ovládat přítomnost parametru ve filtru pomocí vlastnosti nastavené na entitě parametru, aby administrátor mohl jednoduše rozhodnout, které parametry jsou relevantní pro filtrování a které ne.
 
@@ -249,7 +249,7 @@ Konečný facetový dotaz vypadá takto:
 
 Na odpověď aplikujeme stejnou logiku vykreslení a výsledek je následující:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[Výsledek pro facetové filtry značky](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.ReferenceSummary">[Výsledek pro facetové filtry značky](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
 
 Nakonec budete chtít mít oba požadavky v jednom dotazu, ale projdeme si ještě několik dalších požadavků pro stránku detailu kategorie [než vše spojíme](#kompletní-dotazy-na-výpis-produktů-včetně-filtrování-a-řazení).
 

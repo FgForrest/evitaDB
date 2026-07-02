@@ -26,12 +26,15 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesForHistogram;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
+import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.predicate.PricePredicate;
+import io.evitadb.core.query.algebra.price.termination.LowestPriceTerminationFormula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
@@ -58,7 +61,25 @@ import java.util.function.ToIntFunction;
 import static java.util.Optional.ofNullable;
 
 /**
- * DTO that aggregates all data necessary for computing histogram for prices.
+ * Computes the price histogram extra result from the filtering formula tree. The computer is instantiated by
+ * {@link io.evitadb.core.query.extraResult.translator.histogram.PriceHistogramTranslator} and its
+ * {@link #compute()} method is called lazily by the extra-result fabrication phase.
+ *
+ * The computation strategy depends on what {@link io.evitadb.api.requestResponse.data.PriceInnerRecordHandling}
+ * the matched entities use:
+ *
+ * - **`NONE` / `SUM`**: the per-entity price records collected by the main formula path are fed directly to the
+ *   histogram cruncher via the existing {@link FilteredPriceRecordsCollector} path.
+ * - **`LOWEST_PRICE`**: the filter planner constructs every outer {@link LowestPriceTerminationFormula} in
+ *   the filtering tree with its `collectPerInnerRecordPrices` flag enabled, so {@code computeInternal()}
+ *   populates a per-inner-record side-output funnel alongside the regular per-entity result. When every
+ *   {@link FilteredPriceRecordAccessor} in {@link #filteredPriceRecordAccessors} exposes that side-output
+ *   (checked by {@link #allAccessorsExposePerInnerRecordHistogram()}), the
+ *   {@link FilteredPriceRecordsCollector} is bypassed and the per-inner-record records are merged directly.
+ *   This ensures the histogram reports one bucket data point per inner-record-id rather than one per entity.
+ *
+ * The computed result is memoized in {@link #memoizedResult}; the intermediate price records array is memoized in
+ * {@link #memoizedPriceRecords}. Both fields are `null` until {@link #compute()} is first invoked.
  */
 public class PriceHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
 	/**
@@ -250,14 +271,19 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 			}
 		);
 		this.transactionalIds = filteringFormula.gatherTransactionalIds();
+		// construction-time only — stream OK here (allocation-free hot paths use this hash, but the hashing
+		// itself runs exactly once per producer instance)
 		this.transactionalIdHash = HASH_FUNCTION.hashLongs(
 			Arrays.stream(this.transactionalIds)
 				.distinct()
 				.sorted()
 				.toArray()
 		);
+		// floor((size + 1) / 2) — equivalent to ceil(size / 2.0) without floating-point arithmetic. The
+		// previous formulation `size / 2` collapsed to 0 for the common single-accessor case, hiding the
+		// per-record operation cost contribution from the planner's cost estimate.
 		this.estimatedCost = filteringFormula.getEstimatedCardinality() *
-			(filteredPriceRecordAccessors.size() / 2) *
+			Math.max(1, (filteredPriceRecordAccessors.size() + 1) / 2) *
 			getOperationCost();
 	}
 
@@ -265,6 +291,14 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	public void initialize(@Nonnull QueryExecutionContext executionContext) {
 		this.context = executionContext;
 		this.filteringFormula.initialize(executionContext);
+		if (this.filteringFormulaWithFilteredOutRecords != null) {
+			// the relaxed clone produced by UserFilterRelaxer reuses subtrees from filteringFormula,
+			// but rebuilt container nodes (root and ancestors of any peeled UserFilter) are fresh
+			// instances whose executionContext is null. Walking the relaxed tree here matches the
+			// pattern in AttributeHistogramComputer and removes the contract violation hiding
+			// behind the fact that today's container formulas happen not to read executionContext
+			this.filteringFormulaWithFilteredOutRecords.initialize(executionContext);
+		}
 	}
 
 	@Override
@@ -405,44 +439,106 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 	 * Collects the price records to compute price histogram from. It finds out all price related formulas and extracts
 	 * the price records that survived filtering. The logic also "disables" the {@link PricePredicate} used in formulas
 	 * within {@link UserFilterFormula}. These must be ignored while computing price histogram.
+	 *
+	 * Branching:
+	 *
+	 * - When every accessor in {@link #filteredPriceRecordAccessors} exposes the per-inner-record
+	 *   side-output prepared at construction time by {@link LowestPriceTerminationFormula} (or its
+	 *   flattened cache sibling {@link FlattenedFormulaWithFilteredPricesForHistogram}), the
+	 *   {@link FilteredPriceRecordsCollector} is bypassed entirely so the histogram reports one bucket
+	 *   data point per inner record id, not per entity. The {@code PriceHistogramTranslator} collects
+	 *   this accessor list from a {@code withoutUserFilter} view of the filtering tree so the inner
+	 *   {@link LowestPriceTerminationFormula} produced by {@code priceBetween} (which would otherwise
+	 *   double-count the same entities) does not show up here.
+	 * - Otherwise (`NONE`/`SUM` handling, mixed catalog, or no LOWEST_PRICE LP at all) the existing
+	 *   collector path runs unchanged.
 	 */
 	private PriceRecordContract[] getPriceRecords() {
 		if (this.memoizedPriceRecords == null) {
-			// create price records collector reusing existing data or computing them from scratch
-			final FilteredPriceRecordsCollector priceRecordsCollector = this.priceRecordsLookupResult == null ?
-				new FilteredPriceRecordsCollector(
-					RoaringBitmapBackedBitmap.getRoaringBitmap(this.filteringFormula.compute()),
-					this.filteredPriceRecordAccessors,
-					this.context
-				) :
-				new FilteredPriceRecordsCollector(
-					this.priceRecordsLookupResult,
-					this.filteredPriceRecordAccessors,
-					this.context
-				);
-
-			// collect all price records that match filtering formula computation (ignoring price between query)
-			final PriceRecordContract[] priceRecords;
-			if (this.filteringFormulaWithFilteredOutRecords == null) {
-				// there were no entity pks filtered out due to price between query, we can simply reuse
-				// the filtering query result
-				priceRecords = priceRecordsCollector.getResult().getPriceRecords();
+			if (allAccessorsExposePerInnerRecordHistogram()) {
+				this.memoizedPriceRecords = collectPerInnerRecordHistogramRecords();
 			} else {
-				// now compute the remainder with altered filtering formula
-				final Bitmap pricePredicateFilteredOutEntities = this.filteringFormulaWithFilteredOutRecords.compute();
-				if (pricePredicateFilteredOutEntities.isEmpty()) {
-					// we can simply reuse the filtering query result as is, nothing has been filtered out
-					priceRecords = priceRecordsCollector.getResult().getPriceRecords();
-				} else {
-					// we have to combine filtering query result with computed remainder in order to get all price records
-					// regardless of the price between query
-					priceRecords = priceRecordsCollector.combineResultWithAndReturnPriceRecords(
-						RoaringBitmapBackedBitmap.getRoaringBitmap(pricePredicateFilteredOutEntities)
-					);
-				}
+				this.memoizedPriceRecords = collectViaPriceRecordsCollector();
 			}
-			this.memoizedPriceRecords = priceRecords;
 		}
 		return this.memoizedPriceRecords;
+	}
+
+	/**
+	 * Returns `true` when every accessor in {@link #filteredPriceRecordAccessors} exposes a per-inner-record
+	 * histogram side-output (see {@link FilteredPriceRecordAccessor#exposesPerInnerRecordHistogramRecords()}).
+	 *
+	 * The capability probe is virtual rather than `instanceof`-based so wrapper accessors — currently
+	 * `io.evitadb.core.query.algebra.prefetch.SelectionFormula` inserted by `PriceInPriceListsTranslator`
+	 * for prefetch-eligible queries — can propagate the capability from their inner histogram-aware
+	 * `LowestPriceTerminationFormula` without the histogram producer having to know about them.
+	 *
+	 * Delegates to {@link FilteredPriceRecords#allAccessorsExposePerInnerRecordHistogram(Collection)}
+	 * so the "all-or-nothing" rule stays in one place.
+	 */
+	private boolean allAccessorsExposePerInnerRecordHistogram() {
+		return FilteredPriceRecords.allAccessorsExposePerInnerRecordHistogram(this.filteredPriceRecordAccessors);
+	}
+
+	/**
+	 * Concatenates per-inner-record histogram price records from every accessor into a single flat
+	 * array. Delegates to
+	 * {@link FilteredPriceRecords#mergePerInnerRecordHistogramRecords(Collection, QueryExecutionContext)}
+	 * so the merge algorithm stays in one place — `SelectionFormula` calls the same helper when it
+	 * has to flatten the side-output of wrapped accessors.
+	 */
+	@Nonnull
+	private PriceRecordContract[] collectPerInnerRecordHistogramRecords() {
+		return FilteredPriceRecords.mergePerInnerRecordHistogramRecords(
+			this.filteredPriceRecordAccessors, this.context
+		);
+	}
+
+	/**
+	 * Original per-entity collector path used for `NONE`/`SUM` handling — bypassed by the per-inner-record
+	 * histogram path above when every accessor exposes the histogram-aware side-output. Three sub-branches:
+	 *
+	 * 1. **No price-between user filter** (`filteringFormulaWithFilteredOutRecords == null`) — the
+	 *    filtering result itself is the full histogram baseline; the collector's per-entity output is
+	 *    returned verbatim.
+	 * 2. **Price-between user filter present, no records filtered out** — the filtering result still
+	 *    covers the baseline since no entity was actually excluded by the price-between predicate; the
+	 *    collector's output is returned verbatim, avoiding a redundant combine call.
+	 * 3. **Price-between user filter present, with filtered-out records** — the relaxed remainder is
+	 *    combined with the filtering-result records so the histogram reflects the entities that would be
+	 *    reachable if the user cleared the price slider.
+	 */
+	@Nonnull
+	private PriceRecordContract[] collectViaPriceRecordsCollector() {
+		// create price records collector reusing existing data or computing them from scratch
+		final FilteredPriceRecordsCollector priceRecordsCollector = this.priceRecordsLookupResult == null ?
+			new FilteredPriceRecordsCollector(
+				RoaringBitmapBackedBitmap.getRoaringBitmap(this.filteringFormula.compute()),
+				this.filteredPriceRecordAccessors,
+				this.context
+			) :
+			new FilteredPriceRecordsCollector(
+				this.priceRecordsLookupResult,
+				this.filteredPriceRecordAccessors,
+				this.context
+			);
+
+		// collect all price records that match filtering formula computation (ignoring price between query)
+		if (this.filteringFormulaWithFilteredOutRecords == null) {
+			// there were no entity pks filtered out due to price between query, we can simply reuse
+			// the filtering query result
+			return priceRecordsCollector.getResult().getPriceRecords();
+		}
+		// now compute the remainder with altered filtering formula
+		final Bitmap pricePredicateFilteredOutEntities = this.filteringFormulaWithFilteredOutRecords.compute();
+		if (pricePredicateFilteredOutEntities.isEmpty()) {
+			// we can simply reuse the filtering query result as is, nothing has been filtered out
+			return priceRecordsCollector.getResult().getPriceRecords();
+		}
+		// we have to combine filtering query result with computed remainder in order to get all price records
+		// regardless of the price between query
+		return priceRecordsCollector.combineResultWithAndReturnPriceRecords(
+			RoaringBitmapBackedBitmap.getRoaringBitmap(pricePredicateFilteredOutEntities)
+		);
 	}
 }

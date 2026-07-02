@@ -27,7 +27,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
 				),
 				Require(
 					Page(1, 20),
-					FacetSummary(Impact),
+					ReferenceSummary(Impact),
 					PriceType(WithTax),
 					PriceHistogram(30)
 				)

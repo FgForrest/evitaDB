@@ -10,7 +10,7 @@
     }
   ) {
     extraResults {
-      facetSummary {
+      referenceSummary {
         parameterValues(
           filterGroupBy: {
             attributeIsVisibleInFilterEquals: true

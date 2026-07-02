@@ -263,6 +263,17 @@ public abstract class SchemaJsonSerializer {
 				} else {
 					bucketedHistogramNode.putNull(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name());
 				}
+				final Expression assignedWhen = definition.assignedWhen();
+				if (assignedWhen != null) {
+					bucketedHistogramNode.put(
+						ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(),
+						assignedWhen.toExpressionString()
+					);
+				} else {
+					bucketedHistogramNode.putNull(
+						ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name()
+					);
+				}
 				bucketedHistogramArray.add(bucketedHistogramNode);
 			}
 		}

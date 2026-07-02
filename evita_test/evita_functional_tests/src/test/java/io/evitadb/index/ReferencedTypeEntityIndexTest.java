@@ -1103,7 +1103,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 				ReferencedTypeEntityIndexTest.this.index,
 				original -> {
 					original.insertPrimaryKeyIfMissing(10, 1);
-					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 42, 10, Integer.class, 0);
 
 					final FilterIndex filter = original.getHistogramFilterIndex(HISTOGRAM_NAME, null);
 					assertNotNull(filter, "Filter index should be accessible via convenience method");
@@ -1125,7 +1125,7 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 			assertStateAfterCommit(
 				ReferencedTypeEntityIndexTest.this.index,
 				original -> {
-					original.insertHistogramValue(HISTOGRAM_NAME, null, 99, 10, Integer.class);
+					original.insertHistogramValue(HISTOGRAM_NAME, null, 99, 10, Integer.class, 0);
 					assertFalse(original.isEmpty(), "Index with histogram data should not be empty");
 				},
 				(original, committed) -> {
@@ -1139,10 +1139,10 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@DisplayName("should isolate histogram values per locale so one locale's records never leak into another")
 		void shouldIsolateHistogramValuesPerLocale() {
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class
+				HISTOGRAM_NAME, Locale.ENGLISH, 42, 10, Integer.class, 0
 			);
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, Locale.GERMAN, 42, 11, Integer.class
+				HISTOGRAM_NAME, Locale.GERMAN, 42, 11, Integer.class, 0
 			);
 
 			final FilterIndex englishFilter = ReferencedTypeEntityIndexTest.this.index
@@ -1162,14 +1162,14 @@ class ReferencedTypeEntityIndexTest extends AbstractEntityIndexTest<ReferencedTy
 		@DisplayName("should dispose the histogram filter index once the last value under a given name/locale is removed")
 		void shouldDisposeHistogramFilterIndexWhenLastValueRemoved() {
 			ReferencedTypeEntityIndexTest.this.index.insertHistogramValue(
-				HISTOGRAM_NAME, null, 42, 10, Integer.class
+				HISTOGRAM_NAME, null, 42, 10, Integer.class, 0
 			);
 			assertNotNull(
 				ReferencedTypeEntityIndexTest.this.index.getHistogramFilterIndex(HISTOGRAM_NAME, null)
 			);
 
 			ReferencedTypeEntityIndexTest.this.index.removeHistogramValue(
-				HISTOGRAM_NAME, null, 42, 10
+				HISTOGRAM_NAME, null, 42, 10, 0
 			);
 
 			assertNull(

@@ -24,9 +24,9 @@
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.core.Evita;
@@ -40,24 +40,24 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.List;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
-import static io.evitadb.test.TestTags.GRAPHQL;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for GraphQL updating entity schema.
@@ -1025,6 +1025,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									scope
 									nameOfTheIndex
 									valueExpression
+									assignedWhen
 								}
 								bucketedPartially {
 									scope
@@ -1054,6 +1055,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 											.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "priceHistogram")
 											.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), "$reference.attributes['quantity']")
+											.e(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(), null)
 									)
 								)
 								.e(
@@ -1124,6 +1126,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 									scope
 									nameOfTheIndex
 									valueExpression
+									assignedWhen
 								}
 								bucketedPartially {
 									scope
@@ -1153,6 +1156,7 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 											.e(ScopedDataDescriptor.SCOPE.name(), Scope.LIVE.name())
 											.e(ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name(), "countHistogram")
 											.e(ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name(), null)
+											.e(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name(), null)
 									)
 								)
 								.e(

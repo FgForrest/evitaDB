@@ -38,7 +38,7 @@
       }
     }
     extraResults {
-      facetSummary {
+      referenceSummary {
         parameterValues {
           groupEntity {
             primaryKey

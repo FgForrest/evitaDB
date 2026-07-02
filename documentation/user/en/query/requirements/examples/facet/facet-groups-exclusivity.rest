@@ -15,7 +15,7 @@ POST /rest/evita/Product/query
     ]
   },
   "require" : {
-    "facetParameterValuesSummary" : {
+    "referenceParameterValuesSummary" : {
       "statisticsDepth" : "IMPACT",
       "requirements" : {
         "entityFetch" : {
