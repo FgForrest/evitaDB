@@ -233,7 +233,8 @@ public class DataLocatorResolver {
 					// if reference constraint doesn't have classifier, it means it is either in another reference container or it is some more general constraint
 					if (constraintDescriptor.propertyType().equals(ConstraintPropertyType.REFERENCE)) {
 						if (parentDataLocator instanceof AbstractReferenceDataLocator ||
-							parentDataLocator instanceof EntityDataLocator) {
+							parentDataLocator instanceof EntityDataLocator ||
+							parentDataLocator instanceof GenericDataLocator) {
 							yield parentDataLocator;
 						}
 						throw new ExternalApiInternalError("Reference constraints without classifier must be encapsulated in parent reference or entity containers.");
