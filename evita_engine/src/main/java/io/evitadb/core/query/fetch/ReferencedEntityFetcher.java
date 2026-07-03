@@ -124,8 +124,8 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -717,10 +717,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
 			result = EmptyBitmap.INSTANCE;
 		} else {
-			final RoaringBitmap referencedPrimaryKeys;
+			final PersistentRoaringBitmap referencedPrimaryKeys;
 			if (filterBy == null) {
 				// if there is no filtering, we can quickly return all referenced pks
-				final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
+				final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
 				writeAllReferencedPrimaryKeys(allReferencedEntityPks, referencedPrimaryKeysWriter);
 
 				initNestedQueryComparator(
@@ -785,7 +785,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								}
 							}
 
-							final RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
+							final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
 							final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityPks.size());
 							// if there is at least one indexed scope, we need to process the indexes
 							if (nonIndexedScopes.size() < examinedScopes.size()) {
@@ -994,7 +994,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		}
 
 		// map matching group PKs to allowed referenced entity PKs
-		final RoaringBitmapWriter<RoaringBitmap> allowedWriter = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> allowedWriter = RoaringBitmapBackedBitmap.buildWriter();
 		final OfInt groupIt = matchingGroupPks.iterator();
 		while (groupIt.hasNext()) {
 			final int[] referencedByGroup = groupToReferencedEntityIdTranslator.apply(
@@ -1004,7 +1004,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				allowedWriter.add(refPk);
 			}
 		}
-		final RoaringBitmap allowedBitmap = allowedWriter.get();
+		final PersistentRoaringBitmap allowedBitmap = allowedWriter.get();
 		final Bitmap allowedByGroupFilter = allowedBitmap.isEmpty()
 			? EmptyBitmap.INSTANCE
 			: new BaseBitmap(allowedBitmap);
@@ -1022,12 +1022,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nonnull
 	private static Bitmap combineWithOr(@Nonnull Collection<Bitmap> values) {
-		final RoaringBitmap[] bitmaps = new RoaringBitmap[values.size()];
+		final PersistentRoaringBitmap[] bitmaps = new PersistentRoaringBitmap[values.size()];
 		int i = 0;
 		for (Bitmap value : values) {
 			bitmaps[i++] = RoaringBitmapBackedBitmap.getRoaringBitmap(value);
 		}
-		final RoaringBitmap orResult = RoaringBitmap.or(bitmaps);
+		final PersistentRoaringBitmap orResult = PersistentRoaringBitmap.or(bitmaps);
 		return orResult.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(orResult);
 	}
 
@@ -1051,7 +1051,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull Set<Scope> examinedScopes
 	) {
 		if (entityCollection != null) {
-			final RoaringBitmap allPks = RoaringBitmapBackedBitmap.getRoaringBitmap(
+			final PersistentRoaringBitmap allPks = RoaringBitmapBackedBitmap.getRoaringBitmap(
 				allReferencedEntityIdsIncludingNonExisting);
 			final Map<Scope, Bitmap> existingEntityIdsByScope = CollectionUtils.createHashMap(examinedScopes.size());
 			for (Scope scope : examinedScopes) {
@@ -1060,7 +1060,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						new EntityIndexKey(EntityIndexType.GLOBAL, scope)
 					);
 				if (indexByKeyIfExists != null) {
-					final RoaringBitmap andResult = RoaringBitmap.and(
+					final PersistentRoaringBitmap andResult = PersistentRoaringBitmap.and(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(indexByKeyIfExists.getAllPrimaryKeys()),
 						allPks
 					);
@@ -1114,7 +1114,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	private static void writeAllReferencedPrimaryKeys(
 		@Nonnull Bitmap allReferencedEntityIds,
-		@Nonnull RoaringBitmapWriter<RoaringBitmap> referencedPrimaryKeysWriter
+		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter
 	) {
 		final OfInt it = allReferencedEntityIds.iterator();
 		while (it.hasNext()) {
@@ -1134,7 +1134,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static void addBitmapToSetAndWriter(
 		@Nonnull Bitmap bitmap,
 		@Nonnull IntSet targetSet,
-		@Nonnull RoaringBitmapWriter<RoaringBitmap> targetWriter
+		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> targetWriter
 	) {
 		final OfInt it = bitmap.iterator();
 		while (it.hasNext()) {
@@ -1431,7 +1431,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull QueryPlanningContext queryPlanningContext,
 		@Nonnull QueryExecutionContext queryExecutionContext,
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable RoaringBitmapWriter<RoaringBitmap> allReferencedParents,
+		@Nullable RoaringBitmapWriter<PersistentRoaringBitmap> allReferencedParents,
 		@Nonnull IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences,
 		int[] parentIds
 	) {
@@ -2313,7 +2313,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(
 				parentCount);
 			final boolean bodyRequired = hierarchyContent.getEntityFetch().isPresent();
-			final RoaringBitmapWriter<RoaringBitmap> allReferencedParents = bodyRequired ?
+			final RoaringBitmapWriter<PersistentRoaringBitmap> allReferencedParents = bodyRequired ?
 				RoaringBitmapBackedBitmap.buildWriter() : null;
 
 			// initialize used data structures

@@ -54,8 +54,8 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -242,7 +242,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	@Override
 	protected Bitmap computeInternal() {
 		// retrieve filtered entity ids from the delegate formula
-		final RoaringBitmap computedRoaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(getDelegate().compute());
+		final PersistentRoaringBitmap computedRoaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(getDelegate().compute());
 
 		// if there are any entities found
 		if (!computedRoaringBitmap.isEmpty()) {
@@ -262,9 +262,9 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 			final CompositeObjectArray<PriceRecordContract> priceRecordsFunnel = new CompositeObjectArray<>(PriceRecordContract.class, false);
 
 			// create new roaring bitmap builder for matching records
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// create new roaring bitmap builder for records excluded by predicate
-			final RoaringBitmapWriter<RoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
 			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
 			try {
 				final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(

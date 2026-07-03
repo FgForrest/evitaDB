@@ -32,7 +32,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -191,7 +191,7 @@ class LongRunningReferenceTypeCardinalityIndexTest implements TimeBoundedTestSup
 						if (!refPkToIndexPks.isEmpty()) {
 							final int[] allRefPks = refPkToIndexPks.keySet().stream()
 								.mapToInt(Integer::intValue).toArray();
-							final RoaringBitmap query = RoaringBitmap.bitmapOf(allRefPks);
+							final PersistentRoaringBitmap query = PersistentRoaringBitmap.bitmapOf(allRefPks);
 							final Bitmap result = committed.getIndexPrimaryKeys(query);
 							final Set<Integer> expectedIndexPks = new HashSet<>();
 							for (final Set<Integer> s : refPkToIndexPks.values()) {

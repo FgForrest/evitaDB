@@ -62,8 +62,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Functions;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -769,9 +769,9 @@ final class ReferenceHistogramAccumulator {
 		if (candidates.isEmpty()) {
 			return null;
 		}
-		final RoaringBitmap candidatesRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(candidates);
-		final RoaringBitmap inScopeRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(inScope);
-		final RoaringBitmap intersection = RoaringBitmap.and(candidatesRoaring, inScopeRoaring);
+		final PersistentRoaringBitmap candidatesRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(candidates);
+		final PersistentRoaringBitmap inScopeRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(inScope);
+		final PersistentRoaringBitmap intersection = PersistentRoaringBitmap.and(candidatesRoaring, inScopeRoaring);
 		if (intersection.isEmpty()) {
 			return null;
 		}
@@ -1100,7 +1100,7 @@ final class ReferenceHistogramAccumulator {
 			// collect (entityType, entityFetchKey) → RoaringBitmapWriter of PKs; entityFetchKey is
 			// the EntityFetch reference (or a sentinel) so identical fetches collapse to one call —
 			// pre-size to `pending.size()` so the fabrication hot path never rehashes
-			final Map<FetchTuple, RoaringBitmapWriter<RoaringBitmap>> pksByTuple =
+			final Map<FetchTuple, RoaringBitmapWriter<PersistentRoaringBitmap>> pksByTuple =
 				createLinkedHashMap(pending.size());
 			// defensive tracker: detects the contract violation where the same (entityType, pk) is
 			// registered under two different EntityFetch references — would otherwise cause the
@@ -1134,7 +1134,7 @@ final class ReferenceHistogramAccumulator {
 			// outer size bounded by distinct entity types (≤ pksByTuple.size()), not entity count
 			final Map<String, Map<Integer, SealedEntity>> out =
 				createLinkedHashMap(Math.min(pksByTuple.size(), 64));
-			for (final Entry<FetchTuple, RoaringBitmapWriter<RoaringBitmap>> entry : pksByTuple.entrySet()) {
+			for (final Entry<FetchTuple, RoaringBitmapWriter<PersistentRoaringBitmap>> entry : pksByTuple.entrySet()) {
 				final FetchTuple tuple = entry.getKey();
 				final int[] pks = entry.getValue().get().toArray();
 				if (pks.length == 0) {

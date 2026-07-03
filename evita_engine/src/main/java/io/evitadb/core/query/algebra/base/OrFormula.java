@@ -32,7 +32,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -175,13 +175,13 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 	@Override
 	protected Bitmap computeInternal() {
 		final Bitmap theResult;
-		final RoaringBitmap[] theBitmaps = getRoaringBitmaps();
+		final PersistentRoaringBitmap[] theBitmaps = getRoaringBitmaps();
 		if (theBitmaps.length == 0) {
 			theResult = EmptyBitmap.INSTANCE;
 		} else if (theBitmaps.length == 1) {
 			theResult = new BaseBitmap(theBitmaps[0]);
 		} else {
-			theResult = new BaseBitmap(RoaringBitmap.or(theBitmaps));
+			theResult = new BaseBitmap(PersistentRoaringBitmap.or(theBitmaps));
 		}
 		return theResult.isEmpty() ? EmptyBitmap.INSTANCE : theResult;
 	}
@@ -191,16 +191,16 @@ public class OrFormula extends AbstractBitmapCacheableFormula {
 	 */
 
 	@Nonnull
-	private RoaringBitmap[] getRoaringBitmaps() {
+	private PersistentRoaringBitmap[] getRoaringBitmaps() {
 		if (this.bitmaps != null) {
-			final RoaringBitmap[] result = new RoaringBitmap[this.bitmaps.length];
+			final PersistentRoaringBitmap[] result = new PersistentRoaringBitmap[this.bitmaps.length];
 			for (int i = 0; i < this.bitmaps.length; i++) {
 				result[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(this.bitmaps[i]);
 			}
 			return result;
 		} else {
 			final Formula[] formulas = getInnerFormulas();
-			final RoaringBitmap[] result = new RoaringBitmap[formulas.length];
+			final PersistentRoaringBitmap[] result = new PersistentRoaringBitmap[formulas.length];
 			for (int i = 0; i < formulas.length; i++) {
 				result[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(formulas[i].compute());
 			}

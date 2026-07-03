@@ -44,9 +44,9 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.spi.store.catalog.trafficRecorder.model.SessionLocation;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
-import org.roaringbitmap.longlong.ImmutableLongBitmapDataProvider;
-import org.roaringbitmap.longlong.ImmutableLongBitmapDataProvider.RoaringOfLong;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
+import io.evitadb.roaringbitmap.ImmutableLongBitmapDataProvider;
+import io.evitadb.roaringbitmap.ImmutableLongBitmapDataProvider.RoaringOfLong;
+import io.evitadb.roaringbitmap.PersistentLongRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -91,15 +91,15 @@ public class TrafficRecordingIndex implements
 	private final Deque<Long> sessionsToRemove;
 
 	/**
-	 * Converts an iterator of Long values into a Roaring64Bitmap by adding each element from the iterator
+	 * Converts an iterator of Long values into a PersistentLongRoaringBitmap by adding each element from the iterator
 	 * to the bitmap.
 	 *
-	 * @param it an iterator of Long values to be added to the Roaring64Bitmap, must not be null
-	 * @return a Roaring64Bitmap containing all Long values from the iterator
+	 * @param it an iterator of Long values to be added to the PersistentLongRoaringBitmap, must not be null
+	 * @return a PersistentLongRoaringBitmap containing all Long values from the iterator
 	 */
 	@Nonnull
-	private static Roaring64Bitmap toRoaringBitmap(@Nonnull Iterator<Long> it) {
-		final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+	private static PersistentLongRoaringBitmap toRoaringBitmap(@Nonnull Iterator<Long> it) {
+		final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
 		while (it.hasNext()) {
 			bitmap.add(it.next());
 		}
@@ -328,7 +328,7 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Stream<SessionLocation> getSessionStream(@Nonnull TrafficRecordingCaptureRequest request) {
-		final List<Roaring64Bitmap> streams = Stream.of(
+		final List<PersistentLongRoaringBitmap> streams = Stream.of(
 				Stream.of(
 						request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.greaterOrEqualValueIterator(request.sinceSessionSequenceId()),
 						request.since() == null ? null : this.sessionCreationIndex.greaterOrEqualValueIterator(request.since()),
@@ -354,7 +354,7 @@ public class TrafficRecordingIndex implements
 				.filter(Objects::nonNull);
 		} else {
 			return streams.stream()
-				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
+				.reduce((a, b) -> PersistentLongRoaringBitmap.and(a, b))
 				.stream().flatMapToLong(ImmutableLongBitmapDataProvider::stream)
 				.mapToObj(this.sessionLocationIndex::get)
 				.filter(Objects::nonNull);
@@ -372,7 +372,7 @@ public class TrafficRecordingIndex implements
 	 */
 	@Nonnull
 	public Stream<SessionLocation> getSessionReversedStream(@Nonnull TrafficRecordingCaptureRequest request) {
-		final List<Roaring64Bitmap> streams = Stream.of(
+		final List<PersistentLongRoaringBitmap> streams = Stream.of(
 				Stream.of(
 						request.sinceSessionSequenceId() == null ? null : this.sessionSequenceOrderIndex.lesserOrEqualValueIterator(request.sinceSessionSequenceId()),
 						request.since() == null ? null : this.sessionCreationIndex.lesserOrEqualValueIterator(request.since()),
@@ -398,7 +398,7 @@ public class TrafficRecordingIndex implements
 				.filter(Objects::nonNull);
 		} else {
 			return streams.stream()
-				.reduce((a, b) -> Roaring64Bitmap.and(a, b))
+				.reduce((a, b) -> PersistentLongRoaringBitmap.and(a, b))
 				.stream()
 				.flatMapToLong(it -> {
 					int characteristics = Spliterator.ORDERED | Spliterator.DISTINCT | Spliterator.SIZED;
@@ -518,16 +518,16 @@ public class TrafficRecordingIndex implements
 	}
 
 	/**
-	 * Retrieves a stream of Roaring64Bitmap objects that represent the intersection of the results of searching
+	 * Retrieves a stream of PersistentLongRoaringBitmap objects that represent the intersection of the results of searching
 	 * the label index for each label in the given array. Each label in the provided array is matched against
 	 * the internal label index. If the corresponding bitmaps for all matches can be intersected, the resulting
 	 * bitmap is returned as part of the stream. If the label array is null, an empty stream is returned.
 	 *
 	 * @param labels an array of Label objects to filter entries, may be null. If null, an empty stream is returned.
-	 * @return a Stream of Roaring64Bitmap objects representing the intersection of bitmaps matched by the given labels.
+	 * @return a Stream of PersistentLongRoaringBitmap objects representing the intersection of bitmaps matched by the given labels.
 	 */
 	@Nonnull
-	private Stream<Roaring64Bitmap> getLabelsMatchingStream(@Nonnull Map<String, List<Serializable>> labels) {
+	private Stream<PersistentLongRoaringBitmap> getLabelsMatchingStream(@Nonnull Map<String, List<Serializable>> labels) {
 		return labels.entrySet()
 			.stream()
 			.map(
@@ -543,44 +543,44 @@ public class TrafficRecordingIndex implements
 				.map(Optional::get)
 				.map(TransactionalObjectBPlusTree::valueIterator)
 				.map(TrafficRecordingIndex::toRoaringBitmap)
-				.reduce((a, b) -> Roaring64Bitmap.or(a, b))
+				.reduce((a, b) -> PersistentLongRoaringBitmap.or(a, b))
 				.orElse(null))
 			.filter(Objects::nonNull)
-			.reduce((a, b) -> Roaring64Bitmap.and(a, b))
+			.reduce((a, b) -> PersistentLongRoaringBitmap.and(a, b))
 			.stream();
 	}
 
 	/**
-	 * Retrieves a stream of Roaring64Bitmap objects based on the given array of TrafficRecordingType.
+	 * Retrieves a stream of PersistentLongRoaringBitmap objects based on the given array of TrafficRecordingType.
 	 * If the input array is null, an empty stream is returned. Otherwise, for each type in the array,
 	 * it fetches the corresponding session recording type index, filters out null values,
-	 * converts them to Roaring64Bitmap instances, and combines them using a logical OR operation.
+	 * converts them to PersistentLongRoaringBitmap instances, and combines them using a logical OR operation.
 	 *
 	 * @param types an array of TrafficRecordingType objects, may be null.
 	 *              If null, an empty stream is returned.
-	 * @return a Stream of Roaring64Bitmap objects representing the combined bitmaps
+	 * @return a Stream of PersistentLongRoaringBitmap objects representing the combined bitmaps
 	 * for the provided types, or an empty stream if the input is null.
 	 */
 	@Nonnull
-	private Stream<Roaring64Bitmap> getTypesMatchingStream(@Nullable TrafficRecordingType[] types) {
+	private Stream<PersistentLongRoaringBitmap> getTypesMatchingStream(@Nullable TrafficRecordingType[] types) {
 		return types == null ?
 			Stream.empty() :
 			Arrays.stream(types).map(this.sessionRecordingTypeIndex::get)
 				.filter(Objects::nonNull)
 				.map(TransactionalObjectBPlusTree::valueIterator)
 				.map(TrafficRecordingIndex::toRoaringBitmap)
-				.reduce((a, b) -> Roaring64Bitmap.or(a, b))
+				.reduce((a, b) -> PersistentLongRoaringBitmap.or(a, b))
 				.stream();
 	}
 
 	/**
-	 * Retrieves a stream of Roaring64Bitmap that corresponds to the provided session UUIDs.
+	 * Retrieves a stream of PersistentLongRoaringBitmap that corresponds to the provided session UUIDs.
 	 *
 	 * @param uuids an array of UUIDs representing session identifiers. May be null, in which case an empty stream is returned.
-	 * @return a stream containing Roaring64Bitmap objects created from the provided session UUIDs. If the input is null, an empty stream is returned.
+	 * @return a stream containing PersistentLongRoaringBitmap objects created from the provided session UUIDs. If the input is null, an empty stream is returned.
 	 */
 	@Nonnull
-	private Stream<Roaring64Bitmap> getSessionMatchingStream(@Nullable UUID[] uuids) {
+	private Stream<PersistentLongRoaringBitmap> getSessionMatchingStream(@Nullable UUID[] uuids) {
 		return uuids == null ?
 			Stream.empty() :
 			Stream.of(

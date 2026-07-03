@@ -32,8 +32,8 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -128,7 +128,7 @@ public class PrefetchedRecordsSorter implements Sorter {
 			}
 
 			int notFoundRecordsCnt = 0;
-			final RoaringBitmap notFoundRecords = new RoaringBitmap();
+			final PersistentRoaringBitmap notFoundRecords = new PersistentRoaringBitmap();
 			for (EntityContract entityContract : this.entityComparator.getNonSortedEntities()) {
 				if (notFoundRecords.checkedAdd(queryContext.translateEntity(entityContract))) {
 					notFoundRecordsCnt++;

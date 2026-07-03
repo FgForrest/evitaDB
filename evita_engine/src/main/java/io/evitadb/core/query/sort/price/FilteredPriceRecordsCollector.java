@@ -34,7 +34,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -64,7 +64,7 @@ public class FilteredPriceRecordsCollector {
 	@Nonnull private final QueryExecutionContext context;
 
 	public FilteredPriceRecordsCollector(
-		@Nonnull RoaringBitmap filteredResults,
+		@Nonnull PersistentRoaringBitmap filteredResults,
 		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
 		@Nonnull QueryExecutionContext context
 	) {
@@ -90,7 +90,7 @@ public class FilteredPriceRecordsCollector {
 	 * collapsed and only distinct {@link PriceRecord} are returned to the output of this method.
 	 */
 	@Nonnull
-	public PriceRecordContract[] combineResultWithAndReturnPriceRecords(@Nonnull RoaringBitmap filteredResults) {
+	public PriceRecordContract[] combineResultWithAndReturnPriceRecords(@Nonnull PersistentRoaringBitmap filteredResults) {
 		// compute new lookup result for passed entity primary keys
 		final FilteredPriceRecordsLookupResult subResult = computeResult(filteredResults, this.filteredPriceRecordAccessors, this.context);
 		// these two arrays will be merged together
@@ -132,7 +132,7 @@ public class FilteredPriceRecordsCollector {
 	 */
 	@Nonnull
 	protected FilteredPriceRecordsLookupResult computeResult(
-		@Nonnull RoaringBitmap filteredResults,
+		@Nonnull PersistentRoaringBitmap filteredResults,
 		@Nonnull Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors,
 		@Nonnull QueryExecutionContext context
 	) {

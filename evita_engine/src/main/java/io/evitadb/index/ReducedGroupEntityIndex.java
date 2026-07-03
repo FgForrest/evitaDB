@@ -64,8 +64,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramInde
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.StringUtils;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -401,7 +401,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		if (this.referencedPrimaryKeysIndex.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		}
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (final Integer referencedPk : this.referencedPrimaryKeysIndex.keySet()) {
 			writer.add(referencedPk);
 		}
@@ -445,14 +445,14 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		if (indexPrimaryKeys.isEmpty() || this.referencedPrimaryKeysIndex.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		}
-		final RoaringBitmap indexPksRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(indexPrimaryKeys);
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final PersistentRoaringBitmap indexPksRoaring = RoaringBitmapBackedBitmap.getRoaringBitmap(indexPrimaryKeys);
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		for (final Integer referencedPk : this.referencedPrimaryKeysIndex.keySet()) {
 			if (indexPksRoaring.contains(referencedPk)) {
 				writer.add(referencedPk);
 			}
 		}
-		final RoaringBitmap result = writer.get();
+		final PersistentRoaringBitmap result = writer.get();
 		return result.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
 	}
 

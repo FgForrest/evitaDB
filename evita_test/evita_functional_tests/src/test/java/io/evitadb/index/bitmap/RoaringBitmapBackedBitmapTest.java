@@ -26,8 +26,8 @@ package io.evitadb.index.bitmap;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.TestTags.INDEXING;
@@ -47,7 +47,7 @@ class RoaringBitmapBackedBitmapTest {
 	@DisplayName("should compute AND on negative bitmaps")
 	void shouldExecuteAndOnNegativeBitmaps() {
 		final Bitmap result = RoaringBitmapBackedBitmap.and(
-			new RoaringBitmap[]{
+			new PersistentRoaringBitmap[]{
 				creatRoaringBitmap(Integer.MIN_VALUE, -1000, 0, 15, 78),
 				creatRoaringBitmap(-1000, 1, 2, 3),
 				creatRoaringBitmap(-1000, 1000, Integer.MAX_VALUE)
@@ -63,7 +63,7 @@ class RoaringBitmapBackedBitmapTest {
 	@DisplayName("should compute AND on positive bitmaps")
 	void shouldExecuteAndOnPositiveBitmaps() {
 		final Bitmap result = RoaringBitmapBackedBitmap.and(
-			new RoaringBitmap[]{
+			new PersistentRoaringBitmap[]{
 				creatRoaringBitmap(0, 1, 15, 78),
 				creatRoaringBitmap(0, 1, 2, 3),
 				creatRoaringBitmap(0, 1, 1000, Integer.MAX_VALUE)
@@ -80,7 +80,7 @@ class RoaringBitmapBackedBitmapTest {
 	void shouldExecuteAndOnPositiveBitmapsWithDifferentMinima() {
 		// bitmaps with different first() values to exercise the min/max range computation
 		final Bitmap result = RoaringBitmapBackedBitmap.and(
-			new RoaringBitmap[]{
+			new PersistentRoaringBitmap[]{
 				creatRoaringBitmap(5, 100, 200, 500),
 				creatRoaringBitmap(100, 200, 300, 500)
 			}
@@ -91,8 +91,8 @@ class RoaringBitmapBackedBitmapTest {
 		);
 	}
 
-	private static RoaringBitmap creatRoaringBitmap(int... ints) {
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+	private static PersistentRoaringBitmap creatRoaringBitmap(int... ints) {
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		writer.addMany(ints);
 		return writer.get();
 	}

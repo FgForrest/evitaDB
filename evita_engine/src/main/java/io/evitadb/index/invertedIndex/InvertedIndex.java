@@ -79,7 +79,7 @@ import java.util.function.Predicate;
  * instead of reallocating the whole structure - this is the key write-latency improvement of this representation.
  *
  * The tree stores each bucket in a columnar leaf: the value is the tree key, single-record buckets keep their lone id
- * in a primitive `int` column (no {@link org.roaringbitmap.RoaringBitmap}), and multi-record buckets keep a mutable
+ * in a primitive `int` column (no {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap}), and multi-record buckets keep a mutable
  * {@link io.evitadb.index.bitmap.TransactionalBitmap} in a sparse overflow column. A single-record bucket promotes to a
  * bitmap when a second distinct record id is added; there is no demotion back. The {@link ValueToRecord} hierarchy
  * survives only as a transient flyweight materialized on demand (serializer DTO + iterator bridge); the tree never

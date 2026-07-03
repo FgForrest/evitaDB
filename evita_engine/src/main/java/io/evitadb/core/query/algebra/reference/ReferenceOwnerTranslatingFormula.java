@@ -35,7 +35,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.PrimitiveIterator.OfInt;
@@ -124,14 +124,14 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 		} else if (cnt == 1) {
 			return this.primaryKeyExpander.apply(referencedEntityIds.getFirst());
 		} else {
-			final RoaringBitmap[] theBitmaps = new RoaringBitmap[cnt];
+			final PersistentRoaringBitmap[] theBitmaps = new PersistentRoaringBitmap[cnt];
 			final OfInt it = referencedEntityIds.iterator();
 			for (int i = 0; i < cnt; i++) {
 				theBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(
 					this.primaryKeyExpander.apply(it.next())
 				);
 			}
-			return new BaseBitmap(RoaringBitmap.or(theBitmaps));
+			return new BaseBitmap(PersistentRoaringBitmap.or(theBitmaps));
 		}
 	}
 

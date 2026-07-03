@@ -37,9 +37,9 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.PeekableIntIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PeekableIntIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import java.util.PrimitiveIterator.OfInt;
@@ -82,11 +82,11 @@ class ValidEntityToReferenceMapping {
 	 */
 	private final IntObjectMap<RepresentativeMapping> mapping;
 	/**
-	 * Internal helper variable containing a {@link RoaringBitmap} with all source entity primary keys present
+	 * Internal helper variable containing a {@link PersistentRoaringBitmap} with all source entity primary keys present
 	 * in {@link #mapping}. Lazily initialized on the first call to
 	 * {@link #restrictTo(RepresentativeReferenceKey, Bitmap)} and cached for subsequent calls.
 	 */
-	private RoaringBitmap knownEntityPrimaryKeys;
+	private PersistentRoaringBitmap knownEntityPrimaryKeys;
 
 	/**
 	 * Creates a new validity mapping for tracking which referenced entities are allowed for each source entity.
@@ -223,13 +223,13 @@ class ValidEntityToReferenceMapping {
 	) {
 		if (representativeReferenceKey.representativeAttributeValues().length == 0) {
 			if (this.knownEntityPrimaryKeys == null) {
-				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+				final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 				for (IntObjectCursor<RepresentativeMapping> entry : this.mapping) {
 					writer.add(entry.key);
 				}
 				this.knownEntityPrimaryKeys = writer.get();
 			}
-			final RoaringBitmap invalidRecords = RoaringBitmap.andNot(
+			final PersistentRoaringBitmap invalidRecords = PersistentRoaringBitmap.andNot(
 				this.knownEntityPrimaryKeys,
 				RoaringBitmapBackedBitmap.getRoaringBitmap(
 					entityPrimaryKeys

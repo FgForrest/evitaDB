@@ -35,7 +35,7 @@ import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.util.function.Supplier;
@@ -49,7 +49,7 @@ import java.util.function.Supplier;
  * - **multiple** children → the appropriate boolean container with nested same-type containers flattened
  *
  * The {@link #or(Supplier, Formula...)} overload additionally handles {@link FutureNotFormula} post-processing
- * and eagerly merges all-{@link ConstantFormula} inputs into a single {@link ConstantFormula} via RoaringBitmap OR.
+ * and eagerly merges all-{@link ConstantFormula} inputs into a single {@link ConstantFormula} via PersistentRoaringBitmap OR.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -66,7 +66,7 @@ public class FormulaFactory {
 	 *    {@link FutureNotFormula#postProcess(Formula[], EnclosingContainerRelation, Supplier)} to compose
 	 *    the final {@link NotFormula}
 	 * 4. all elements are {@link ConstantFormula} or {@link EmptyFormula} → eagerly computes the bitmap union
-	 *    via {@link RoaringBitmap#or(RoaringBitmap...)} and returns a single {@link ConstantFormula}
+	 *    via {@link PersistentRoaringBitmap#or(PersistentRoaringBitmap...)} and returns a single {@link ConstantFormula}
 	 * 5. otherwise → wraps in {@link OrFormula}
 	 *
 	 * @param superSetFormulaSupplier supplies the superset formula used by {@link FutureNotFormula} post-processing
@@ -103,19 +103,19 @@ public class FormulaFactory {
 						constantCount++;
 					}
 				}
-				final RoaringBitmap[] bitmaps = new RoaringBitmap[constantCount];
+				final PersistentRoaringBitmap[] bitmaps = new PersistentRoaringBitmap[constantCount];
 				int idx = 0;
 				for (final Formula innerFormula : innerFormulas) {
 					if (innerFormula instanceof ConstantFormula constantFormula) {
 						final Bitmap delegate = constantFormula.getDelegate();
 						bitmaps[idx++] = delegate instanceof RoaringBitmapBackedBitmap rbbb ?
 							rbbb.getRoaringBitmap() :
-							RoaringBitmap.bitmapOf(delegate.getArray());
+							PersistentRoaringBitmap.bitmapOf(delegate.getArray());
 					}
 				}
 				return bitmaps.length == 0
 					? EmptyFormula.INSTANCE
-					: new ConstantFormula(new BaseBitmap(RoaringBitmap.or(bitmaps)));
+					: new ConstantFormula(new BaseBitmap(PersistentRoaringBitmap.or(bitmaps)));
 			} else {
 				return new OrFormula(innerFormulas);
 			}

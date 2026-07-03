@@ -52,7 +52,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
+import io.evitadb.roaringbitmap.PersistentLongRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -235,7 +235,7 @@ class StorageRecordTest {
 		this.kryo = new Kryo();
 		this.kryo.register(ByteChunk.class, new ByteChunkSerializer());
 		this.kryo.register(LongSetChunk.class, new LongSetChunkSerializer());
-		this.kryo.register(Roaring64Bitmap.class, new Roaring64BitmapSerializer());
+		this.kryo.register(PersistentLongRoaringBitmap.class, new Roaring64BitmapSerializer());
 	}
 
 	@AfterEach
@@ -552,18 +552,18 @@ class StorageRecordTest {
 			}
 		}
 
-		@DisplayName("Should persist and read Roaring64Bitmap over multiple records")
+		@DisplayName("Should persist and read PersistentLongRoaringBitmap over multiple records")
 		@ParameterizedTest
 		@MethodSource("io.evitadb.store.offsetIndex.model.StorageRecordTest#combineSettings")
 		void shouldWriteAndReadLongBitmapOverMultipleRecords(
 			ChecksumCheck crc32Check, Compression compression) throws IOException {
 			final int cardinality = 4065427;
-			final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+			final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
 			for (int i = 0; i < cardinality; i++) {
 				bitmap.add(i);
 			}
 
-			final StorageRecord<Roaring64Bitmap> record;
+			final StorageRecord<PersistentLongRoaringBitmap> record;
 			try (
 				final ObservableOutput<?> output =
 					createOutputWithFlush(new FileOutputStream(StorageRecordTest.this.tempFile), 512, 1024, 0, crc32Check, compression)
@@ -575,9 +575,9 @@ class StorageRecordTest {
 				final ObservableInput<?> input =
 					createInput(new FileInputStream(StorageRecordTest.this.tempFile), 8_192, crc32Check, compression)
 			) {
-				final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
+				final StorageRecord<PersistentLongRoaringBitmap> loadedRecord = StorageRecord.read(
 					StorageRecordTest.this.kryo, input,
-					fl -> Roaring64Bitmap.class
+					fl -> PersistentLongRoaringBitmap.class
 				);
 				assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 				assertEquals(record, loadedRecord);
@@ -594,9 +594,9 @@ class StorageRecordTest {
 					8_192, crc32Check, compression
 				)
 			) {
-				final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
+				final StorageRecord<PersistentLongRoaringBitmap> loadedRecord = StorageRecord.read(
 					input, record.fileLocation(),
-					(stream, length, control) -> StorageRecordTest.this.kryo.readObject(stream, Roaring64Bitmap.class)
+					(stream, length, control) -> StorageRecordTest.this.kryo.readObject(stream, PersistentLongRoaringBitmap.class)
 				);
 				assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 				assertEquals(record, loadedRecord);
@@ -776,12 +776,12 @@ class StorageRecordTest {
 			assumeTrue(crc32Check == ChecksumCheck.YES, "Cumulative checksum requires checksum to be enabled");
 
 			final int cardinality = 4065427;
-			final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+			final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
 			for (int i = 0; i < cardinality; i++) {
 				bitmap.add(i);
 			}
 
-			final StorageRecord<Roaring64Bitmap> record;
+			final StorageRecord<PersistentLongRoaringBitmap> record;
 			// use small flush/buffer sizes to force record to span multiple physical records
 			try (final ObservableOutput<?> output = createOutputWithFlush(
 				new FileOutputStream(StorageRecordTest.this.tempFile), 512, 1024, 0, crc32Check, compression)) {
@@ -794,9 +794,9 @@ class StorageRecordTest {
 
 			try (final ObservableInput<?> input = createInput(
 				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, crc32Check, compression)) {
-				final StorageRecordWithChecksum<Roaring64Bitmap> result = StorageRecord.readWithChecksum(
+				final StorageRecordWithChecksum<PersistentLongRoaringBitmap> result = StorageRecord.readWithChecksum(
 					input,
-					(stream, length) -> StorageRecordTest.this.kryo.readObject(stream, Roaring64Bitmap.class)
+					(stream, length) -> StorageRecordTest.this.kryo.readObject(stream, PersistentLongRoaringBitmap.class)
 				);
 				assertEquals(record.fileLocation(), result.record().fileLocation());
 				assertEquals(record, result.record());
@@ -1454,10 +1454,10 @@ class StorageRecordTest {
 
 	}
 
-	private static class Roaring64BitmapSerializer extends Serializer<Roaring64Bitmap> {
+	private static class Roaring64BitmapSerializer extends Serializer<PersistentLongRoaringBitmap> {
 
 		@Override
-		public void write(Kryo kryo, Output output, Roaring64Bitmap object) {
+		public void write(Kryo kryo, Output output, PersistentLongRoaringBitmap object) {
 			try {
 				object.serialize(new KryoDataOutput(output));
 			} catch (IOException e) {
@@ -1466,8 +1466,8 @@ class StorageRecordTest {
 		}
 
 		@Override
-		public Roaring64Bitmap read(Kryo kryo, Input input, Class<? extends Roaring64Bitmap> type) {
-			final Roaring64Bitmap bitmap = new Roaring64Bitmap();
+		public PersistentLongRoaringBitmap read(Kryo kryo, Input input, Class<? extends PersistentLongRoaringBitmap> type) {
+			final PersistentLongRoaringBitmap bitmap = new PersistentLongRoaringBitmap();
 			try {
 				bitmap.deserialize(new KryoDataInput(input));
 			} catch (IOException e) {

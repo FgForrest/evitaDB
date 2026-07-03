@@ -78,7 +78,7 @@ public interface BatchArrayIterator {
 	 * The benefit of calling advanceIfNeeded is that each such call can be much faster than repeated calls to "next".
 	 * The underlying implementation can "skip" over some data.
 	 *
-	 * The method copies the approach in `org.roaringbitmap.BatchIterator#advanceIfNeeded(int)`
+	 * The method copies the approach in `io.evitadb.roaringbitmap.BatchIterator#advanceIfNeeded(int)`
 	 */
 	void advanceIfNeeded(int target);
 

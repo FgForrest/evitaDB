@@ -30,7 +30,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -220,9 +220,9 @@ public class AndFormula extends AbstractBitmapCacheableFormula {
 	 */
 
 	@Nonnull
-	private RoaringBitmap[] getRoaringBitmaps() {
+	private PersistentRoaringBitmap[] getRoaringBitmaps() {
 		if (this.bitmaps != null) {
-			final RoaringBitmap[] result = new RoaringBitmap[this.bitmaps.length];
+			final PersistentRoaringBitmap[] result = new PersistentRoaringBitmap[this.bitmaps.length];
 			for (int i = 0; i < this.bitmaps.length; i++) {
 				result[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(this.bitmaps[i]);
 			}

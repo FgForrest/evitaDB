@@ -24,8 +24,8 @@
 package io.evitadb.test.utils;
 
 import io.evitadb.utils.ArrayUtils;
-import org.roaringbitmap.BatchIterator;
-import org.roaringbitmap.ImmutableBitmapDataProvider;
+import io.evitadb.roaringbitmap.BatchIterator;
+import io.evitadb.roaringbitmap.ImmutableBitmapDataProvider;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;

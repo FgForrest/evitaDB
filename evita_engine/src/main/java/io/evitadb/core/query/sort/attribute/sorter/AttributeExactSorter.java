@@ -37,8 +37,8 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -142,12 +142,12 @@ public class AttributeExactSorter implements Sorter {
 			);
 		} else {
 			// otherwise, collect the not sorted record ids
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			for (int i = lastSortedItem; i < entireResult.length; i++) {
 				writer.add(entireResult[i]);
 			}
 			// pass them to another sorter
-			final RoaringBitmap outputBitmap = writer.get();
+			final PersistentRoaringBitmap outputBitmap = writer.get();
 			return sortingContext.createResultContext(
 				outputBitmap.isEmpty() ?
 					EmptyBitmap.INSTANCE : new BaseBitmap(outputBitmap),
@@ -191,7 +191,7 @@ public class AttributeExactSorter implements Sorter {
 
 		// collect entity primary keys that miss the attribute we sort along
 		int notFoundRecordsCnt = 0;
-		final RoaringBitmap notFoundRecords = new RoaringBitmap();
+		final PersistentRoaringBitmap notFoundRecords = new PersistentRoaringBitmap();
 		for (EntityContract entityContract : entityComparator.getNonSortedEntities()) {
 			if (notFoundRecords.checkedAdd(queryContext.translateEntity(entityContract))) {
 				notFoundRecordsCnt++;

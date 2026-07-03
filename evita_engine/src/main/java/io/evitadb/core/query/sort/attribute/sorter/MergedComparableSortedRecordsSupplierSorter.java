@@ -37,10 +37,10 @@ import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.BatchIterator;
-import org.roaringbitmap.RoaringBatchIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.BatchIterator;
+import io.evitadb.roaringbitmap.RoaringBatchIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -75,7 +75,7 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 	private static MaskResult getMask(
 		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull SortedRecordsProvider sortedRecordsProvider,
-		@Nonnull RoaringBitmap selectedRecordIds,
+		@Nonnull PersistentRoaringBitmap selectedRecordIds,
 		int selectedRecordCount
 	) {
 		final int[] unsortedRecordsBuffer = queryContext.borrowBuffer();
@@ -84,8 +84,8 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 			final Bitmap unsortedRecordIds = sortedRecordsProvider.getAllRecords();
 			final int[] recordPositions = sortedRecordsProvider.getRecordPositions();
 
-			final RoaringBitmapWriter<RoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
-			final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
 
 			final BatchIterator unsortedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(unsortedRecordIds).getBatchIterator();
 			final BatchIterator selectedRecordIdsIt = selectedRecordIds.getBatchIterator();
@@ -147,7 +147,7 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 				int alreadyRead = 0;
 				int toSkip = startIndex;
 
-				RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
+				PersistentRoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
 				int recordsToSortCount = selectedRecordIds.size();
 
 				// first we need to create masks for all selected record ids using provided sorted record providers
@@ -260,8 +260,8 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 	 * @param notFoundRecordsCount Count of records not found in presorted set at all.
 	 */
 	private record MaskResult(
-		@Nonnull RoaringBitmap mask,
-		@Nonnull RoaringBitmap notFoundRecords,
+		@Nonnull PersistentRoaringBitmap mask,
+		@Nonnull PersistentRoaringBitmap notFoundRecords,
 		int notFoundRecordsCount
 	) {
 	}
@@ -331,7 +331,7 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 		public SortedRecordsProviderBuffer(
 			@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
 			@Nonnull SortedRecordsProvider sortedRecordsProvider,
-			@Nonnull RoaringBitmap mask,
+			@Nonnull PersistentRoaringBitmap mask,
 			@Nonnull QueryExecutionContext queryContext
 		) {
 			this.comparator = comparator;

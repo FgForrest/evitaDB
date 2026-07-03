@@ -34,7 +34,7 @@ import java.io.Serializable;
 
 /**
  * Immutable single-record {@link ValueToRecord} bucket: it stores the lone record id as a bare `int`, with no
- * {@link org.roaringbitmap.RoaringBitmap} and no inner {@link io.evitadb.index.bitmap.TransactionalBitmap}. This
+ * {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap} and no inner {@link io.evitadb.index.bitmap.TransactionalBitmap}. This
  * is the long-tail / near-unique case of a (mixed) inverted index; it costs roughly an order of magnitude less heap
  * than the {@link ValueToRecordBitmap} representation of the same single id.
  *
@@ -88,7 +88,7 @@ public class ValueToRecordPrimitive implements ValueToRecord {
 	@Nonnull
 	@Override
 	public Bitmap getRecordIds() {
-		// leanest possible view: one int, no backing array / RoaringBitmap; allocated on demand for the query path
+		// leanest possible view: one int, no backing array / PersistentRoaringBitmap; allocated on demand for the query path
 		return new SingleRecordBitmap(this.recordId);
 	}
 

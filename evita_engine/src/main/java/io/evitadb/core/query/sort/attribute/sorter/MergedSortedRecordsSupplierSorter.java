@@ -38,10 +38,10 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.CollectionUtils;
-import org.roaringbitmap.BatchIterator;
-import org.roaringbitmap.RoaringBatchIterator;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.BatchIterator;
+import io.evitadb.roaringbitmap.RoaringBatchIterator;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -129,7 +129,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	@Nonnull
 	private static PartialSortResult fetchSlice(
 		@Nonnull SortedRecordsProvider sortedRecordsProvider,
-		@Nonnull RoaringBitmap positions,
+		@Nonnull PersistentRoaringBitmap positions,
 		@Nonnull IntSet alreadySortedRecordIds,
 		int skip,
 		int length,
@@ -198,7 +198,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	private static MaskResult getMask(
 		@Nonnull QueryExecutionContext queryContext,
 		@Nonnull SortedRecordsProvider sortedRecordsProvider,
-		@Nonnull RoaringBitmap selectedRecordIds,
+		@Nonnull PersistentRoaringBitmap selectedRecordIds,
 		int selectedRecordCount
 	) {
 		final int[] unsortedRecordsBuffer = queryContext.borrowBuffer();
@@ -207,8 +207,8 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 			final Bitmap unsortedRecordIds = sortedRecordsProvider.getAllRecords();
 			final int[] recordPositions = sortedRecordsProvider.getRecordPositions();
 
-			final RoaringBitmapWriter<RoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
-			final RoaringBitmapWriter<RoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> mask = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> notFound = RoaringBitmapBackedBitmap.buildWriter();
 
 			final BatchIterator unsortedRecordIdsIt = RoaringBitmapBackedBitmap.getRoaringBitmap(unsortedRecordIds).getBatchIterator();
 			final BatchIterator selectedRecordIdsIt = selectedRecordIds.getBatchIterator();
@@ -279,7 +279,7 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 				int alreadyRead = 0;
 				int skipped = 0;
 
-				RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
+				PersistentRoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
 				final IntSet alreadySortedRecordIds = new IntHashSet(selectedRecordIds.size());
 				int recordsToSortCount = selectedRecordIds.size();
 				for (int i = offsetAndLimit.offset(); i < offsetAndLimit.limit(); i++) {
@@ -347,8 +347,8 @@ public final class MergedSortedRecordsSupplierSorter implements Sorter, MergedSo
 	 * @param notFoundRecordsCount Count of records not found in presorted set at all.
 	 */
 	private record MaskResult(
-		@Nonnull RoaringBitmap mask,
-		@Nonnull RoaringBitmap notFoundRecords,
+		@Nonnull PersistentRoaringBitmap mask,
+		@Nonnull PersistentRoaringBitmap notFoundRecords,
 		int notFoundRecordsCount
 	) {
 	}

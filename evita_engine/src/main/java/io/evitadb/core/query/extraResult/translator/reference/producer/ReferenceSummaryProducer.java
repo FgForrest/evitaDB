@@ -62,8 +62,8 @@ import io.evitadb.utils.Assert;
 import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -767,7 +767,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			// in practice all accumulators within a single per-reference bucket share the same reference
 			// schema, so the map usually holds a single entry — still keyed by reference name for callers
 			// that rely on the grouped shape
-			Map<String, RoaringBitmapWriter<RoaringBitmap>> writers = null;
+			Map<String, RoaringBitmapWriter<PersistentRoaringBitmap>> writers = null;
 			for (final GroupAccumulator acc : entityAcc.values()) {
 				final Integer groupId = acc.getGroupId();
 				if (groupId == null) {
@@ -784,7 +784,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				return Map.of();
 			}
 			final Map<String, Bitmap> result = createHashMap(writers.size());
-			for (final Entry<String, RoaringBitmapWriter<RoaringBitmap>> entry : writers.entrySet()) {
+			for (final Entry<String, RoaringBitmapWriter<PersistentRoaringBitmap>> entry : writers.entrySet()) {
 				result.put(entry.getKey(), new BaseBitmap(entry.getValue().get()));
 			}
 			return result;
@@ -857,7 +857,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			@Nonnull Map<Integer, FacetAccumulator> theFacetStatistics,
 			@Nonnull NestedContextSorter sorter
 		) {
-			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// iterate the accumulators directly to read the facet id as primitive int — avoids boxing each Integer key
 			for (final FacetAccumulator facetAcc : theFacetStatistics.values()) {
 				writer.add(facetAcc.getFacetId());

@@ -54,8 +54,8 @@ import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import io.evitadb.utils.NumberUtils;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -608,7 +608,7 @@ public interface Migration_2026_2 {
 		@Nonnull ValueToRecordBitmap[] points,
 		int indexedDecimalPlaces
 	) {
-		final TreeMap<Integer, RoaringBitmapWriter<RoaringBitmap>> mergedByScaledInt = new TreeMap<>();
+		final TreeMap<Integer, RoaringBitmapWriter<PersistentRoaringBitmap>> mergedByScaledInt = new TreeMap<>();
 		for (final ValueToRecordBitmap point : points) {
 			final Serializable rawValue = point.getValue();
 			// idempotent guard: an already-scaled Integer (re-run) keeps its key; only a real BigDecimal is scaled
@@ -624,7 +624,7 @@ public interface Migration_2026_2 {
 						"the v5 to v6 scaled-int re-key cannot proceed."
 				);
 			}
-			final RoaringBitmapWriter<RoaringBitmap> writer = mergedByScaledInt.computeIfAbsent(
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = mergedByScaledInt.computeIfAbsent(
 				scaledKey, __ -> RoaringBitmapBackedBitmap.buildWriter()
 			);
 			final OfInt recordIterator = point.getRecordIds().iterator();
@@ -635,7 +635,7 @@ public interface Migration_2026_2 {
 
 		final ValueToRecordBitmap[] rekeyedPoints = new ValueToRecordBitmap[mergedByScaledInt.size()];
 		int i = 0;
-		for (final Entry<Integer, RoaringBitmapWriter<RoaringBitmap>> entry : mergedByScaledInt.entrySet()) {
+		for (final Entry<Integer, RoaringBitmapWriter<PersistentRoaringBitmap>> entry : mergedByScaledInt.entrySet()) {
 			rekeyedPoints[i++] = new ValueToRecordBitmap(
 				entry.getKey(),
 				new BaseBitmap(entry.getValue().get())
@@ -729,7 +729,7 @@ public interface Migration_2026_2 {
 		@Nonnull ValueToRecordBitmap[] points,
 		@Nonnull Comparator<Serializable> comparator
 	) {
-		final TreeMap<Serializable, RoaringBitmapWriter<RoaringBitmap>> mergedByNfd = new TreeMap<>(comparator);
+		final TreeMap<Serializable, RoaringBitmapWriter<PersistentRoaringBitmap>> mergedByNfd = new TreeMap<>(comparator);
 		boolean anyKeyChanged = false;
 		for (final ValueToRecordBitmap point : points) {
 			final Serializable rawValue = point.getValue();
@@ -746,7 +746,7 @@ public interface Migration_2026_2 {
 			if (!nfdValue.equals(rawString)) {
 				anyKeyChanged = true;
 			}
-			final RoaringBitmapWriter<RoaringBitmap> writer = mergedByNfd.computeIfAbsent(
+			final RoaringBitmapWriter<PersistentRoaringBitmap> writer = mergedByNfd.computeIfAbsent(
 				nfdValue, __ -> RoaringBitmapBackedBitmap.buildWriter()
 			);
 			final OfInt recordIterator = point.getRecordIds().iterator();
@@ -762,7 +762,7 @@ public interface Migration_2026_2 {
 
 		final ValueToRecordBitmap[] rekeyedPoints = new ValueToRecordBitmap[mergedByNfd.size()];
 		int i = 0;
-		for (final Entry<Serializable, RoaringBitmapWriter<RoaringBitmap>> entry : mergedByNfd.entrySet()) {
+		for (final Entry<Serializable, RoaringBitmapWriter<PersistentRoaringBitmap>> entry : mergedByNfd.entrySet()) {
 			rekeyedPoints[i++] = new ValueToRecordBitmap(
 				entry.getKey(),
 				new BaseBitmap(entry.getValue().get())

@@ -39,7 +39,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -120,7 +120,7 @@ public class FilteredPricesSorter implements Sorter {
 		@Nullable IntConsumer skippedRecordsConsumer
 	) {
 		// compute entire set of entity pks that needs to be sorted
-		final RoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(sortingContext.nonSortedKeys());
+		final PersistentRoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(sortingContext.nonSortedKeys());
 		// collect price records from the filtering formulas
 		final QueryExecutionContext queryContext = sortingContext.queryContext();
 		this.priceRecordsLookupResult = new FilteredPriceRecordsCollector(
@@ -145,7 +145,7 @@ public class FilteredPricesSorter implements Sorter {
 				notFoundEntities = notSortedRecordsProvider.getNonSortedRecords();
 			} else {
 				notFoundEntities = new BaseBitmap(
-					RoaringBitmap.or(
+					PersistentRoaringBitmap.or(
 						RoaringBitmapBackedBitmap.getRoaringBitmap(notFoundEntities),
 						RoaringBitmapBackedBitmap.getRoaringBitmap(notSortedRecordsProvider.getNonSortedRecords())
 					)
@@ -218,7 +218,7 @@ public class FilteredPricesSorter implements Sorter {
 		 */
 		void setPriceRecordsLookupResult(
 			@Nonnull QueryExecutionContext queryContext,
-			@Nonnull RoaringBitmap filteredEntityPrimaryKeys,
+			@Nonnull PersistentRoaringBitmap filteredEntityPrimaryKeys,
 			@Nonnull FilteredPriceRecordsLookupResult priceRecordsLookupResult
 		);
 

@@ -34,8 +34,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -136,7 +136,7 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 		final Bitmap thatFacetIds = b.getFacetIds();
 		final Bitmap[] thatFacetBitmaps = b.getBitmaps();
 
-		final RoaringBitmapWriter<RoaringBitmap> collectedFacetIds = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> collectedFacetIds = RoaringBitmapBackedBitmap.buildWriter();
 		final IntObjectMap<Bitmap> aggregatedBitmaps = new IntObjectHashMap<>(thisFacetIds.size() + thatFacetIds.size());
 		final OfInt thisFacetIdsIterator = thisFacetIds.iterator();
 		int thisFacetIdsIndex = 0;
@@ -152,7 +152,7 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 			final int facetId = thatFacetIdsIterator.next();
 			final Bitmap bitmap = thatFacetBitmaps[thatFacetIdsIndex++];
 			final Bitmap combinedBitmaps = ofNullable(aggregatedBitmaps.get(facetId))
-				.map(it -> (Bitmap) new BaseBitmap(RoaringBitmap.or(getRoaringBitmap(it), getRoaringBitmap(bitmap))))
+				.map(it -> (Bitmap) new BaseBitmap(PersistentRoaringBitmap.or(getRoaringBitmap(it), getRoaringBitmap(bitmap))))
 				.orElse(bitmap);
 			collectedFacetIds.add(facetId);
 			aggregatedBitmaps.put(facetId, combinedBitmaps);

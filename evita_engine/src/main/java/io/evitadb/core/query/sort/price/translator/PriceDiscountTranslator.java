@@ -76,7 +76,7 @@ import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -414,7 +414,7 @@ public class PriceDiscountTranslator implements OrderingConstraintTranslator<Pri
 		@Override
 		public void setPriceRecordsLookupResult(
 			@Nonnull QueryExecutionContext queryContext,
-			@Nonnull RoaringBitmap filteredEntityPrimaryKeys,
+			@Nonnull PersistentRoaringBitmap filteredEntityPrimaryKeys,
 			@Nonnull FilteredPriceRecordsLookupResult priceRecordsLookupResult
 		) {
 			// initialize the selling price records

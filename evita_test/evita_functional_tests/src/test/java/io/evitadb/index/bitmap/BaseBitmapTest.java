@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import java.util.PrimitiveIterator.OfInt;
 import org.junit.jupiter.api.Tag;
@@ -82,9 +82,9 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should create bitmap from RoaringBitmap")
+		@DisplayName("should create bitmap from PersistentRoaringBitmap")
 		void shouldCreateBitmapFromRoaringBitmap() {
-			final RoaringBitmap roaring = RoaringBitmap.bitmapOf(10, 20, 30);
+			final PersistentRoaringBitmap roaring = PersistentRoaringBitmap.bitmapOf(10, 20, 30);
 			final BaseBitmap bitmap = new BaseBitmap(roaring);
 			assertEquals(3, bitmap.size());
 			assertArrayEquals(new int[]{10, 20, 30}, bitmap.getArray());
@@ -198,10 +198,10 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should expose RoaringBitmap")
+		@DisplayName("should expose PersistentRoaringBitmap")
 		void shouldExposeRoaringBitmap() {
 			final BaseBitmap tested = new BaseBitmap(1, 2, 3);
-			final RoaringBitmap roaringBitmap = tested.getRoaringBitmap();
+			final PersistentRoaringBitmap roaringBitmap = tested.getRoaringBitmap();
 			assertNotNull(roaringBitmap);
 			assertEquals(3, roaringBitmap.getCardinality());
 		}
@@ -294,7 +294,7 @@ class BaseBitmapTest {
 		}
 
 		@Test
-		@DisplayName("should removeAll from non-RoaringBitmap Bitmap instance")
+		@DisplayName("should removeAll from non-PersistentRoaringBitmap Bitmap instance")
 		void shouldRemoveAllFromNonRoaringBitmapInstance() {
 			final BaseBitmap tested = new BaseBitmap(1, 2, 3, 4, 5);
 			// ArrayBitmap is not a RoaringBitmapBackedBitmap, so the iteration path is used
@@ -987,7 +987,7 @@ class BaseBitmapTest {
 
 	/**
 	 * Guards the `removeAll` / `retainAll` predicate paths against regressions tied to the
-	 * container-boundary transitions of the underlying `RoaringBitmap`. The chosen sizes
+	 * container-boundary transitions of the underlying `PersistentRoaringBitmap`. The chosen sizes
 	 * straddle the critical thresholds: 16 lives in the small/array container range, 64 sits
 	 * right at the array→bitmap container flip, and 1024 is solidly inside the bitmap
 	 * container. The fine-grained 63/64/65 cadence is already covered by dedicated tests
@@ -1045,7 +1045,7 @@ class BaseBitmapTest {
 	}
 
 	/**
-	 * Signed-ordering contract around `Integer.MIN_VALUE` / `Integer.MAX_VALUE`. `RoaringBitmap`
+	 * Signed-ordering contract around `Integer.MIN_VALUE` / `Integer.MAX_VALUE`. `PersistentRoaringBitmap`
 	 * internally uses unsigned 32-bit container keys, so a naive `toArray()` would place negative
 	 * values after positives. `BaseBitmap.getArray()` must expose a strictly signed (arithmetic)
 	 * ordering — these tests pin that contract at the extremes so any regression in sign
@@ -1102,7 +1102,7 @@ class BaseBitmapTest {
 		@Test
 		@DisplayName("should order the -1/0 pair negative-before-positive (unsigned order would invert it)")
 		void shouldOrderNegativeOneBeforeZero() {
-			// In the native RoaringBitmap unsigned ordering -1 (0xFFFFFFFF) would sort AFTER 0;
+			// In the native PersistentRoaringBitmap unsigned ordering -1 (0xFFFFFFFF) would sort AFTER 0;
 			// signed ordering must place -1 before 0.
 			final BaseBitmap bitmap = new BaseBitmap(-1, 0);
 

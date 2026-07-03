@@ -35,8 +35,8 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -283,7 +283,7 @@ public class DisentangleFormula extends AbstractCacheableFormula implements Cach
 			(this.mainBitmap == null && this.innerFormulas[0] == this.innerFormulas[1])) {
 			return EmptyBitmap.INSTANCE;
 		}
-		final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 		final OfInt controlIt = this.controlBitmap != null
 			? this.controlBitmap.iterator()
 			: this.innerFormulas[1].compute().iterator();

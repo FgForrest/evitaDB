@@ -34,8 +34,8 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import org.roaringbitmap.RoaringBitmap;
-import org.roaringbitmap.RoaringBitmapWriter;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -105,7 +105,7 @@ public class SegmentSorter implements Sorter {
 			final int recomputedEndIndex = Math.min(sortingContext.startIndex() + result.length, sortingContext.skipped() + sortingContext.peak() + physicalLimit);
 
 			// all the skipped records will be written to this bitmap
-			final RoaringBitmapWriter<RoaringBitmap> drainedRecordPks = RoaringBitmapBackedBitmap.buildWriter();
+			final RoaringBitmapWriter<PersistentRoaringBitmap> drainedRecordPks = RoaringBitmapBackedBitmap.buildWriter();
 			SortingContext subResult = new SortingContext(
 				queryContext,
 				keysToSort,
@@ -146,7 +146,7 @@ public class SegmentSorter implements Sorter {
 				}
 
 				final int writtenRecords = subResult.peak() - sortingContext.peak();
-				final RoaringBitmap drainedRecordIds = drainedRecordPks.get();
+				final PersistentRoaringBitmap drainedRecordIds = drainedRecordPks.get();
 				int skippedRecords = drainedRecordIds.getCardinality() - (writtenRecords);
 				// and filter the filtered input to next query to avoid records that has been already consumed
 				// by this segment

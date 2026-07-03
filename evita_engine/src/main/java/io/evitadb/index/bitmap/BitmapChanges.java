@@ -24,7 +24,7 @@
 package io.evitadb.index.bitmap;
 
 import io.evitadb.core.transaction.memory.Snapshotable;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,27 +42,27 @@ public class BitmapChanges implements Snapshotable<BitmapChanges.BitmapChangesMe
 	/**
 	 * Unmodifiable underlying bitmap.
 	 */
-	private final RoaringBitmap originalBitmap;
+	private final PersistentRoaringBitmap originalBitmap;
 	/**
-	 * RoaringBitmap of record ids added to the bitmap.
+	 * PersistentRoaringBitmap of record ids added to the bitmap.
 	 */
-	private final RoaringBitmap insertions = new RoaringBitmap();
+	private final PersistentRoaringBitmap insertions = new PersistentRoaringBitmap();
 	/**
-	 * RoaringBitmap of record ids removed from the bitmap.
+	 * PersistentRoaringBitmap of record ids removed from the bitmap.
 	 */
-	private final RoaringBitmap removals = new RoaringBitmap();
+	private final PersistentRoaringBitmap removals = new PersistentRoaringBitmap();
 	/**
 	 * Temporary intermediate result of the last {@link #getMergedBitmap()} operation. Nullified immediately with next
 	 * change.
 	 */
-	@Nullable private volatile RoaringBitmap memoizedMergedBitmap;
+	@Nullable private volatile PersistentRoaringBitmap memoizedMergedBitmap;
 
 	/**
 	 * Creates a new diff layer over the given immutable baseline bitmap.
 	 *
 	 * @param original the immutable baseline bitmap
 	 */
-	BitmapChanges(@Nonnull RoaringBitmap original) {
+	BitmapChanges(@Nonnull PersistentRoaringBitmap original) {
 		this.originalBitmap = original;
 	}
 
@@ -76,7 +76,7 @@ public class BitmapChanges implements Snapshotable<BitmapChanges.BitmapChangesMe
 		if (this.originalBitmap.isEmpty()) {
 			return true;
 		}
-		return RoaringBitmap.andNotCardinality(this.originalBitmap, this.removals) == 0;
+		return PersistentRoaringBitmap.andNotCardinality(this.originalBitmap, this.removals) == 0;
 	}
 
 	/**
@@ -131,17 +131,17 @@ public class BitmapChanges implements Snapshotable<BitmapChanges.BitmapChangesMe
 	 * upon it.
 	 */
 	@Nonnull
-	RoaringBitmap getMergedBitmap() {
+	PersistentRoaringBitmap getMergedBitmap() {
 		if (this.insertions.isEmpty() && this.removals.isEmpty()) {
 			// if there are no insertions / removals - return the original
 			return this.originalBitmap;
 		} else {
 			// compute results only when we can't reuse previous computation
-			final RoaringBitmap memoizedBitmap = this.memoizedMergedBitmap;
+			final PersistentRoaringBitmap memoizedBitmap = this.memoizedMergedBitmap;
 			if (memoizedBitmap == null) {
 				// memoize costly computation and return
-				final RoaringBitmap mergedBitmap = RoaringBitmap.andNot(
-					RoaringBitmap.or(this.originalBitmap, this.insertions),
+				final PersistentRoaringBitmap mergedBitmap = PersistentRoaringBitmap.andNot(
+					PersistentRoaringBitmap.or(this.originalBitmap, this.insertions),
 					this.removals
 				);
 				// compress run containers for better memory and iteration performance
@@ -176,7 +176,7 @@ public class BitmapChanges implements Snapshotable<BitmapChanges.BitmapChangesMe
 	@Nonnull
 	@Override
 	public BitmapChangesMemento snapshot() {
-		// clone() is the established deep-copy primitive for RoaringBitmap in this codebase
+		// clone() is the established deep-copy primitive for PersistentRoaringBitmap in this codebase
 		return new BitmapChangesMemento(this.insertions.clone(), this.removals.clone());
 	}
 
@@ -209,8 +209,8 @@ public class BitmapChanges implements Snapshotable<BitmapChanges.BitmapChangesMe
 	 *                   insertions)
 	 */
 	public record BitmapChangesMemento(
-		@Nonnull RoaringBitmap insertions,
-		@Nonnull RoaringBitmap removals
+		@Nonnull PersistentRoaringBitmap insertions,
+		@Nonnull PersistentRoaringBitmap removals
 	) {
 	}
 

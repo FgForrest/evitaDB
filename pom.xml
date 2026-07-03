@@ -25,7 +25,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>2026.2-SNAPSHOT</version>
+	<version>2026.2.1252-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -161,6 +161,7 @@
 	-->
 	<modules>
 		<module>evita_common</module>
+		<module>evita_roaring_bitmap</module>
 		<module>evita_api</module>
 		<module>evita_query</module>
 		<module>evita_engine</module>

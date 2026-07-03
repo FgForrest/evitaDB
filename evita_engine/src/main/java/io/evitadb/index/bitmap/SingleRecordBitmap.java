@@ -31,7 +31,7 @@ import java.util.PrimitiveIterator.OfInt;
 
 /**
  * Immutable {@link Bitmap} holding exactly one record id, stored as a bare `int`. It is the leanest possible bitmap
- * representation - a single object with one `int` field and no backing array, {@link org.roaringbitmap.RoaringBitmap},
+ * representation - a single object with one `int` field and no backing array, {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap},
  * or {@link io.evitadb.dataType.array.CompositeIntArray}. It exists for the single-record hot path (notably the
  * {@link io.evitadb.index.invertedIndex.ValueToRecordPrimitive} bucket view) where allocating a heavier
  * {@link ArrayBitmap} or {@link BaseBitmap} for one id is pure waste.

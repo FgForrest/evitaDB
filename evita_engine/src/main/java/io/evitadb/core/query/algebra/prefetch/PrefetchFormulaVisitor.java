@@ -42,7 +42,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -159,10 +159,10 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 				if (entitiesToPrefetch == null) {
 					entitiesToPrefetch = conjunctiveEntities;
 				} else {
-					final RoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch);
-					final RoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(conjunctiveEntities);
+					final PersistentRoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch);
+					final PersistentRoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(conjunctiveEntities);
 					entitiesToPrefetch = new BaseBitmap(
-						RoaringBitmap.or(roaringBitmapA, roaringBitmapB)
+						PersistentRoaringBitmap.or(roaringBitmapA, roaringBitmapB)
 					);
 				}
 				if (!(this.targetIndexes.isGlobalIndex() || this.targetIndexes.isCatalogIndex())) {
@@ -173,16 +173,16 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 						"Only reduced entity indexes are supported"
 					);
 					final List<?> indexes = this.targetIndexes.getIndexes();
-					final RoaringBitmap[] indexBitmaps = new RoaringBitmap[indexes.size()];
+					final PersistentRoaringBitmap[] indexBitmaps = new PersistentRoaringBitmap[indexes.size()];
 					for (int i = 0; i < indexes.size(); i++) {
 						indexBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(
 							((AbstractReducedEntityIndex) indexes.get(i)).getAllPrimaryKeys()
 						);
 					}
 					entitiesToPrefetch = RoaringBitmapBackedBitmap.and(
-						new RoaringBitmap[]{
+						new PersistentRoaringBitmap[]{
 							RoaringBitmapBackedBitmap.getRoaringBitmap(entitiesToPrefetch),
-							RoaringBitmap.or(indexBitmaps)
+							PersistentRoaringBitmap.or(indexBitmaps)
 						}
 					);
 				}
@@ -267,11 +267,11 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		}
 		Bitmap result = this.conjunctiveEntityIds.get(0);
 		for (int i = 1; i < this.conjunctiveEntityIds.size(); i++) {
-			final RoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(result);
-			final RoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(
+			final PersistentRoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(result);
+			final PersistentRoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(
 				this.conjunctiveEntityIds.get(i)
 			);
-			result = new BaseBitmap(RoaringBitmap.and(roaringBitmapA, roaringBitmapB));
+			result = new BaseBitmap(PersistentRoaringBitmap.and(roaringBitmapA, roaringBitmapB));
 		}
 		return result;
 	}

@@ -34,7 +34,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import net.openhft.hashing.LongHashFunction;
-import org.roaringbitmap.IntIterator;
+import io.evitadb.roaringbitmap.IntIterator;
 
 import javax.annotation.Nonnull;
 import java.util.PriorityQueue;

@@ -64,7 +64,7 @@ import one.edee.oss.proxycian.PredicateMethodClassification;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyDispatcherInvocationHandler;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
 import one.edee.oss.proxycian.util.ReflectionUtils;
-import org.roaringbitmap.RoaringBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -406,7 +406,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	/**
 	 * Returns the referenced entity primary keys (forward-mapping keys) whose reduced-index PK bitmaps
 	 * overlap with the given set of index primary keys. This is the reverse lookup of
-	 * {@link #getIndexPrimaryKeys(RoaringBitmap)}.
+	 * {@link #getIndexPrimaryKeys(PersistentRoaringBitmap)}.
 	 *
 	 * For a `REFERENCED_GROUP_ENTITY_TYPE` index this translates reduced-group-index PKs back to
 	 * group entity primary keys.
@@ -499,7 +499,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	@Nonnull
 	public Bitmap getIndexPrimaryKeys(
-		@Nonnull RoaringBitmap referencedEntityPrimaryKeys
+		@Nonnull PersistentRoaringBitmap referencedEntityPrimaryKeys
 	) {
 		return this.indexPrimaryKeyCardinality.getIndexPrimaryKeys(referencedEntityPrimaryKeys);
 	}
