@@ -537,7 +537,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 		final List<OBJECT_FIELD> fields = new LinkedList<>();
 
-		// build constraint with dynamic classifier only, others are currently not needed
+		// build constraint without dynamic classifier
 		final Set<ConstraintDescriptor> referenceConstraintsWithoutClassifier = referenceConstraints.stream()
 			.filter(cd -> !cd.creator().hasClassifierParameter())
 			.collect(Collectors.toUnmodifiableSet());
@@ -547,7 +547,10 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				allowedChildrenPredicate,
 				referenceConstraintsWithoutClassifier,
 				constraintDescriptor -> buildFieldFromConstraintDescriptor(
-					buildContext, // references without classifier cannot be container and thus shouldn't use reference domain
+					buildContext.switchToChildContext(new ReferenceDataLocator(
+						buildContext.dataLocator().entityTypePointer(),
+						(buildContext.dataLocator() instanceof DataLocatorWithReference dataLocatorWithReference) ? dataLocatorWithReference.referenceName() : null
+					)),
 					constraintDescriptor,
 					null,
 					null
@@ -555,7 +558,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			)
 		);
 
-		// build constraint with dynamic classifier only, others are currently not needed
+		// build constraint with dynamic classifier
 		final Set<ConstraintDescriptor> referenceConstraintsWithDynamicClassifier = referenceConstraints.stream()
 			.filter(cd -> cd.creator().hasClassifierParameter())
 			.collect(Collectors.toUnmodifiableSet());
@@ -985,16 +988,17 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 				.toList();
 		}
 		if (dataLocator instanceof final AbstractReferenceDataLocator referenceDataLocator) {
-			final ReferenceSchemaContract reference = ofNullable(referenceDataLocator.referenceName())
+			return ofNullable(referenceDataLocator.referenceName())
 				.flatMap(it -> this.sharedContext.getEntitySchemaOrThrowException(referenceDataLocator.entityType()).getReference(it))
-				.orElseThrow(() -> createSchemaBuildingError(
-					"Missing reference `" + referenceDataLocator.referenceName() + "` in entity `" + referenceDataLocator.entityType() + "`."
-				));
-			return reference.getAttributes()
-				.values()
-				.stream()
-				.filter(getAttributeSchemaFilter())
-				.toList();
+				.map(
+					reference ->
+					     reference.getAttributes()
+							.values()
+							.stream()
+							.filter(getAttributeSchemaFilter())
+							.toList()
+				)
+				.orElseGet(Collections::emptyList);
 		}
 
 		return Collections.emptyList();

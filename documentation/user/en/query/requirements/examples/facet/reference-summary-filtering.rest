@@ -12,7 +12,7 @@ POST /rest/evita/Product/query
               "attributeContent" : [
                 "code"
               ]
-            },
+            }
         },
         {
             "entityGroupFetch" : {
