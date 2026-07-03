@@ -345,12 +345,17 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			for (final int freedPageSequence : emission.freedPageSequences()) {
 				sink.addChangeToStore(new UniqueIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 			}
-			sink.addChangeToStore(
-				UniqueIndexStoragePart.paged(
-					entityIndexPrimaryKey, getAttributeIndexKey(), getType(),
-					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
-				)
-			);
+			// the PAGED root carries only the high-water + ordered live leaf-page list (plus the immutable value type), so
+			// it needs rewriting only when that list changed (a leaf was allocated or freed). A commit that just mutated
+			// leaf CONTENT leaves the persisted root byte-identical — skip it, collapsing the steady-state root cost to O(1)
+			if (emission.pageListChanged()) {
+				sink.addChangeToStore(
+					UniqueIndexStoragePart.paged(
+						entityIndexPrimaryKey, getAttributeIndexKey(), getType(),
+						emission.highWaterPageSequence(), emission.orderedPageSequences(), null
+					)
+				);
+			}
 		} else {
 			// SINGLE shape: the index spans one leaf. If it just collapsed from PAGED, remove every prior leaf page (the
 			// inline root no longer references them) BEFORE dropping the bookkeeping, then forget the stream so a later
@@ -368,6 +373,12 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 				)
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public int[] currentLeafPageSequences() {
+		return this.pageStreamRegistry.pendingLivePageSequences(UNIQUE_PAGE_STREAM);
 	}
 
 	@Override

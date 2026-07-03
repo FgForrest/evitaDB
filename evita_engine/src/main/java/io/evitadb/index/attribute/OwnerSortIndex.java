@@ -480,12 +480,17 @@ public final class OwnerSortIndex extends SortIndex {
 			for (final int freedPageSequence : emission.freedPageSequences()) {
 				sink.addChangeToStore(new SortIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 			}
-			sink.addChangeToStore(
-				SortIndexStoragePart.paged(
-					entityIndexPrimaryKey, getAttributeIndexKey(), this.comparatorBase, getIndexedDecimalPlaces(),
-					emission.highWaterPageSequence(), emission.orderedPageSequences()
-				)
-			);
+			// the PAGED root carries only the high-water + ordered live leaf-page list (plus the immutable comparator base
+			// and decimal-places schema), so it needs rewriting only when that list changed (a leaf was allocated or freed).
+			// A commit that just mutated leaf CONTENT leaves the persisted root byte-identical — skip it (steady-state O(1))
+			if (emission.pageListChanged()) {
+				sink.addChangeToStore(
+					SortIndexStoragePart.paged(
+						entityIndexPrimaryKey, getAttributeIndexKey(), this.comparatorBase, getIndexedDecimalPlaces(),
+						emission.highWaterPageSequence(), emission.orderedPageSequences()
+					)
+				);
+			}
 			return;
 		}
 		// SINGLE shape (possibly just collapsed from PAGED): remove every leaf page from its prior PAGED life (the SINGLE
@@ -496,6 +501,12 @@ public final class OwnerSortIndex extends SortIndex {
 		}
 		this.ownedTree.forgetPageStream();
 		appendSingleStoragePart(entityIndexPrimaryKey, sink);
+	}
+
+	@Nonnull
+	@Override
+	public int[] currentLeafPageSequences() {
+		return this.ownedTree.currentLeafPageSequences();
 	}
 
 	@Override

@@ -60,10 +60,15 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -80,6 +85,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -208,7 +214,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * through the from-maps constructor), and again at the end of every {@link #getModifiedStorageParts} so a reused
 	 * instance (warm-up flushes, or the same instance flushed repeatedly) stays current without a rebuild-from-copy.
 	 *
-	 * It exists solely to close landmine G: when an emptied chain is dropped from {@link #chainIndex}, the dropped
+	 * It exists solely to close the empty-drop leaf-page leak: when an emptied chain is dropped from {@link #chainIndex}, the dropped
 	 * {@link ChainIndex}'s own {@link ChainIndex#appendStorageParts} never runs again, so this snapshot is the only
 	 * remaining record of its live leaf pages. {@link #getModifiedStorageParts} diffs it against the surviving chain key
 	 * set and emits a {@link ChainIndexLeafPageRemoval} for every page of a vanished key, or those pages would leak
@@ -216,6 +222,36 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * writer during flush/commit), mirroring the residency of the per-chain page-stream registry.
 	 */
 	@Nonnull private Map<AttributeIndexKey, int[]> persistedChainLeafPages;
+
+	/**
+	 * Empty-drop-reclaim on-disk leaf-page snapshot for the FILTER value (inverted) sub-index — the twin of
+	 * {@link #persistedChainLeafPages} for {@link #sharedValueIndex}. When a filter empties and its shared value tree is
+	 * dropped from the map, that tree's own flush never runs again, so this is the only remaining record of its live leaf
+	 * pages: {@link #getModifiedStorageParts} diffs it against the surviving keys and emits a
+	 * {@link FilterIndexLeafPageRemoval} for every orphaned page. Maintained at the same two points, with the same
+	 * residency, as {@link #persistedChainLeafPages}.
+	 */
+	@Nonnull private Map<AttributeIndexKey, int[]> persistedFilterInvertedLeafPages;
+
+	/**
+	 * Empty-drop-reclaim on-disk leaf-page snapshot for the FILTER range companion ({@link #sharedRangeIndex}); the range twin of
+	 * {@link #persistedFilterInvertedLeafPages}, reclaimed via a {@link RangeIndexLeafPageRemoval} per orphaned page.
+	 */
+	@Nonnull private Map<AttributeIndexKey, int[]> persistedFilterRangeLeafPages;
+
+	/**
+	 * Empty-drop-reclaim on-disk leaf-page snapshot for the owner UNIQUE sub-index ({@link #uniqueIndex}); reclaimed via a
+	 * {@link UniqueIndexLeafPageRemoval} per orphaned page when an emptied owner unique index is dropped. Folded VIEW
+	 * unique indexes own no pages and never appear here.
+	 */
+	@Nonnull private Map<AttributeIndexKey, int[]> persistedUniqueLeafPages;
+
+	/**
+	 * Empty-drop-reclaim on-disk leaf-page snapshot for the owner SORT sub-index ({@link #sortIndex}); reclaimed via a
+	 * {@link SortIndexLeafPageRemoval} per orphaned page when an emptied owner sort index is dropped. VIEW-mode sort
+	 * indexes own no pages (they reuse the FILTER tree) and never appear here.
+	 */
+	@Nonnull private Map<AttributeIndexKey, int[]> persistedSortLeafPages;
 
 	/**
 	 * Verifies that a value of a localized attribute carries a locale and that the locale is among those permitted by
@@ -386,29 +422,92 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
-	 * Snapshots the on-disk leaf-page sequences of every PAGED {@link ChainIndex} in `chainIndex` into a fresh map, the
-	 * baseline {@link #getModifiedStorageParts} diffs to reclaim the leaf pages of an empty-dropped chain (landmine G).
-	 * SINGLE / never-paged chains (empty live-page set) are skipped so the map holds only keys that actually own leaf
-	 * pages on disk. The returned map is a plain, non-transactional {@link java.util.HashMap} (single-writer flush use).
+	 * Snapshots the on-disk leaf-page sequences of every PAGED sub-index in `index` into a fresh map — the baseline
+	 * {@link #getModifiedStorageParts} diffs to reclaim the leaf pages of an empty-dropped sub-index. The
+	 * per-value `pageAccessor` yields each sub-index's current on-disk page set (empty for a SINGLE / never-paged one, so
+	 * the map holds only keys that actually own leaf pages on disk). Shared across every paged family — CHAIN, owner
+	 * UNIQUE, owner SORT and both FILTER axes — by supplying the family's `currentLeafPageSequences` accessor. The
+	 * returned map is a plain, non-transactional {@link java.util.HashMap} (single-writer flush use).
 	 *
-	 * @param chainIndex the committed chain sub-index map (already published or restored from disk)
-	 * @return the per-key on-disk leaf-page snapshot, or an empty map when no chain is paged
+	 * @param index        the committed sub-index map (already published or restored from disk)
+	 * @param pageAccessor yields the on-disk leaf-page sequences of one sub-index (empty when it is not paged)
+	 * @param <V>          the sub-index type
+	 * @return the per-key on-disk leaf-page snapshot, or an empty map when nothing is paged
 	 */
 	@Nonnull
-	private static Map<AttributeIndexKey, int[]> snapshotChainLeafPages(
-		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex
+	private static <V> Map<AttributeIndexKey, int[]> snapshotLeafPages(
+		@Nonnull Map<AttributeIndexKey, V> index, @Nonnull Function<V, int[]> pageAccessor
 	) {
 		Map<AttributeIndexKey, int[]> snapshot = null;
-		for (final Entry<AttributeIndexKey, ChainIndex> entry : chainIndex.entrySet()) {
-			final int[] pages = entry.getValue().currentLeafPageSequences();
+		for (final Entry<AttributeIndexKey, V> entry : index.entrySet()) {
+			final int[] pages = pageAccessor.apply(entry.getValue());
 			if (pages.length > 0) {
 				if (snapshot == null) {
-					snapshot = CollectionUtils.createHashMap(chainIndex.size());
+					snapshot = CollectionUtils.createHashMap(index.size());
 				}
 				snapshot.put(entry.getKey(), pages);
 			}
 		}
 		return snapshot == null ? Map.of() : snapshot;
+	}
+
+	/**
+	 * Empty-drop reclaim for one paged family: emits a leaf-page removal for every on-disk page of a sub-index that was
+	 * emptied and dropped from its map this commit. The dropped sub-index's own {@code appendStorageParts} never runs
+	 * again, so its last leaf pages would otherwise be copied forward forever by the append-only OffsetIndex; this diffs
+	 * the pre-commit on-disk `snapshot` against the keys that survived (`stillPresent`) and removes the orphaned pages of
+	 * every vanished key. Surviving sub-indexes reclaim their own split/merge-freed pages through their own flush — this
+	 * only covers the whole-index drop the child can no longer see.
+	 *
+	 * @param entityIndexPrimaryKey the owning entity index pk
+	 * @param snapshot              the per-key on-disk leaf-page snapshot captured before this commit
+	 * @param stillPresent          whether a snapshot key still has a live sub-index (its own flush handled its pages)
+	 * @param indexType             the sub-index discriminator carried by each removal's stream key
+	 * @param trappedChanges        the trapped-changes accumulator for this commit
+	 * @param removalFactory        builds the family-specific removal part for one freed page
+	 */
+	private static void emitDroppedLeafPageRemovals(
+		int entityIndexPrimaryKey,
+		@Nonnull Map<AttributeIndexKey, int[]> snapshot,
+		@Nonnull Predicate<AttributeIndexKey> stillPresent,
+		@Nonnull AttributeIndexType indexType,
+		@Nonnull TrappedChanges trappedChanges,
+		@Nonnull LeafPageRemovalFactory removalFactory
+	) {
+		if (snapshot.isEmpty()) {
+			return;
+		}
+		for (final Entry<AttributeIndexKey, int[]> entry : snapshot.entrySet()) {
+			if (!stillPresent.test(entry.getKey())) {
+				final AttributeKeyWithIndexType streamKey = new AttributeKeyWithIndexType(entry.getKey(), indexType);
+				for (final int freedPageSequence : entry.getValue()) {
+					trappedChanges.addChangeToStore(
+						removalFactory.create(entityIndexPrimaryKey, streamKey, freedPageSequence)
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Factory for a family-specific leaf-page removal part, letting {@link #emitDroppedLeafPageRemovals} stay generic over
+	 * the CHAIN / FILTER / range / UNIQUE / SORT removal types (all share the same `(pk, streamKey, pageSequence)` shape).
+	 */
+	@FunctionalInterface
+	private interface LeafPageRemovalFactory {
+
+		/**
+		 * Builds the removal part for a single freed leaf page.
+		 *
+		 * @param entityIndexPrimaryKey the owning entity index pk
+		 * @param streamKey             the dropped sub-index's stream identity (attribute key + index type)
+		 * @param pageSequence          the freed leaf-page sequence to remove from storage
+		 * @return the family-specific removal storage part
+		 */
+		@Nonnull
+		StoragePart create(
+			int entityIndexPrimaryKey, @Nonnull AttributeKeyWithIndexType streamKey, int pageSequence
+		);
 	}
 
 	/**
@@ -526,8 +625,13 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		this.filterIndex = new TransactionalMap<>(CollectionUtils.createHashMap(32));
 		this.uniqueViewIndex = new TransactionalMap<>(
 			CollectionUtils.createHashMap(32), UniqueIndex.class, Function.identity());
-		// a fresh index has nothing on disk yet; the snapshot is rebuilt from committed chains at the next commit / load
+		// a fresh index has nothing on disk yet; the snapshots are rebuilt from the committed sub-indexes at the next
+		// commit / load
 		this.persistedChainLeafPages = Map.of();
+		this.persistedFilterInvertedLeafPages = Map.of();
+		this.persistedFilterRangeLeafPages = Map.of();
+		this.persistedUniqueLeafPages = Map.of();
+		this.persistedSortLeafPages = Map.of();
 	}
 
 	/**
@@ -568,11 +672,21 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		this.uniqueIndex = new PersistentTransactionalProducerMap<>(
 			uniqueIndex, UniqueIndex.class, Function.identity());
 		this.chainIndex = new PersistentTransactionalProducerMap<>(chainIndex, ChainIndex.class, Function.identity());
-		// snapshot each committed PAGED chain's on-disk leaf pages BEFORE any mutation, so a later empty-drop of a chain
-		// can still reclaim its now-orphaned leaf pages (landmine G — see the field javadoc). The committed chains have
-		// already published their page streams (merge-copy) or been restored from disk (cold load), so their live-page
-		// sets mirror what is on disk at this instant.
-		this.persistedChainLeafPages = snapshotChainLeafPages(chainIndex);
+		// snapshot each committed PAGED sub-index's on-disk leaf pages BEFORE any mutation, so a later empty-drop of that
+		// sub-index can still reclaim its now-orphaned leaf pages (see the field javadoc). The committed
+		// sub-indexes have already published their page streams (merge-copy) or been restored from disk (cold load), so
+		// their live-page sets mirror what is on disk at this instant. Applied symmetrically to every paged family:
+		// CHAIN, owner UNIQUE, owner SORT and both FILTER axes (shared value tree + range companion).
+		this.persistedChainLeafPages =
+			snapshotLeafPages(chainIndex, ChainIndex::currentLeafPageSequences);
+		this.persistedFilterInvertedLeafPages =
+			snapshotLeafPages(sharedValueIndex, InvertedIndex::currentLeafPageSequences);
+		this.persistedFilterRangeLeafPages =
+			snapshotLeafPages(sharedRangeIndex, RangeIndex::currentLeafPageSequences);
+		this.persistedUniqueLeafPages =
+			snapshotLeafPages(uniqueIndex, UniqueIndex::currentLeafPageSequences);
+		this.persistedSortLeafPages =
+			snapshotLeafPages(sortIndex, SortIndex::currentLeafPageSequences);
 		// derive the SORT views bound to the committed shared trees: each view-mode index is carried forward by reference
 		// when its wrapped tree is identity-unchanged, or replaced by a fresh immutable copy (sharing the committed
 		// sorted-records façade) when the tree was replaced. Owner-mode indexes carry forward unchanged. Never mutated in
@@ -1168,36 +1282,46 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 		for (Entry<AttributeIndexKey, SortIndex> entry : this.sortIndex.entrySet()) {
 			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 		}
-		// CHAIN landmine G: a PAGED chain emptied and dropped from the map this commit still has its leaf pages on disk,
-		// but the dropped index's own appendStorageParts never runs again — so diff the last durable on-disk snapshot
-		// against the surviving chain keys and emit a removal for every leaf page of a vanished key, or the append-only
-		// OffsetIndex copies those orphaned pages forward on every compaction forever. The surviving chains reclaim their
-		// own freed pages through their appendStorageParts below; this only covers the whole-index drop the child can no
-		// longer see. NOTE: the sibling PAGED families (Filter / OwnerUnique / OwnerSort) share this latent empty-drop
-		// leak — the mechanism is fixed here for CHAIN only; the family-wide fix is a follow-up (see the field javadoc).
-		if (!this.persistedChainLeafPages.isEmpty()) {
-			for (final Entry<AttributeIndexKey, int[]> snapshot : this.persistedChainLeafPages.entrySet()) {
-				if (!this.chainIndex.containsKey(snapshot.getKey())) {
-					final AttributeKeyWithIndexType streamKey =
-						new AttributeKeyWithIndexType(snapshot.getKey(), AttributeIndexType.CHAIN);
-					for (final int freedPageSequence : snapshot.getValue()) {
-						trappedChanges.addChangeToStore(
-							new ChainIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence)
-						);
-					}
-				}
-			}
-		}
+		// Empty-drop reclaim: a PAGED sub-index emptied and dropped from its map this commit still has its leaf pages on disk, but
+		// the dropped index's own appendStorageParts never runs again — so for each paged family diff the pre-commit
+		// on-disk snapshot against the surviving keys and emit a removal for every leaf page of a vanished key, or the
+		// append-only OffsetIndex copies those orphaned pages forward on every compaction forever. Applied symmetrically
+		// to CHAIN, owner UNIQUE, owner SORT and both FILTER axes (shared value tree + range companion); each surviving
+		// sub-index still reclaims its own split/merge-freed pages through its appendStorageParts above.
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedChainLeafPages, this.chainIndex::containsKey,
+			AttributeIndexType.CHAIN, trappedChanges, ChainIndexLeafPageRemoval::new
+		);
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedUniqueLeafPages, this.uniqueIndex::containsKey,
+			AttributeIndexType.UNIQUE, trappedChanges, UniqueIndexLeafPageRemoval::new
+		);
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedSortLeafPages, this.sortIndex::containsKey,
+			AttributeIndexType.SORT, trappedChanges, SortIndexLeafPageRemoval::new
+		);
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedFilterInvertedLeafPages, this.sharedValueIndex::containsKey,
+			AttributeIndexType.FILTER, trappedChanges, FilterIndexLeafPageRemoval::new
+		);
+		emitDroppedLeafPageRemovals(
+			entityIndexPrimaryKey, this.persistedFilterRangeLeafPages, this.sharedRangeIndex::containsKey,
+			AttributeIndexType.FILTER, trappedChanges, RangeIndexLeafPageRemoval::new
+		);
 		// CHAIN parts: a small (single-leaf) chain index emits one inline SINGLE part; a large (multi-leaf) index emits
 		// granular PAGED leaf pages + a PAGED root - both go through appendStorageParts, mirroring the loops above.
 		for (Entry<AttributeIndexKey, ChainIndex> entry : this.chainIndex.entrySet()) {
 			entry.getValue().appendStorageParts(entityIndexPrimaryKey, trappedChanges);
 		}
-		// refresh the landmine-G snapshot from the surviving chains now that each has staged this commit's page set: a
-		// reused instance (warm-up / repeated flush) then diffs the next drop against the pages just written here, not a
-		// stale construction-time snapshot. Idempotent: re-running it (the baseline-capture pass) reproduces the same map,
+		// refresh the empty-drop-reclaim snapshots from the surviving sub-indexes now that each has staged this commit's page set:
+		// a reused instance (warm-up / repeated flush) then diffs the next drop against the pages just written here, not a
+		// stale construction-time snapshot. Idempotent: re-running it (the baseline-capture pass) reproduces the same maps,
 		// and on a transactional commit the pre-merge instance this mutates is discarded (the merge-copy rebuilds afresh).
-		this.persistedChainLeafPages = snapshotChainLeafPages(this.chainIndex);
+		this.persistedChainLeafPages = snapshotLeafPages(this.chainIndex, ChainIndex::currentLeafPageSequences);
+		this.persistedFilterInvertedLeafPages = snapshotLeafPages(this.sharedValueIndex, InvertedIndex::currentLeafPageSequences);
+		this.persistedFilterRangeLeafPages = snapshotLeafPages(this.sharedRangeIndex, RangeIndex::currentLeafPageSequences);
+		this.persistedUniqueLeafPages = snapshotLeafPages(this.uniqueIndex, UniqueIndex::currentLeafPageSequences);
+		this.persistedSortLeafPages = snapshotLeafPages(this.sortIndex, SortIndex::currentLeafPageSequences);
 	}
 
 	@Nullable

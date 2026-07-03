@@ -1005,6 +1005,21 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Returns the leaf-page sequences this inverted index WILL have on disk once the in-flight commit is durable (the
+	 * staged set mid-flush, else the published live set), or an empty array when it is inline (SINGLE) / never paged.
+	 * Unlike {@link #livePageSequences()} (always the published set), this reflects the CURRENT tree shape at any point
+	 * of the flush, so the owning {@link io.evitadb.index.attribute.AttributeIndex} can snapshot "what disk holds after
+	 * this commit" and, when the sub-index is later emptied and dropped from its map — after which this index's own
+	 * flush never runs again — still reclaim the now-orphaned leaf pages instead of leaking them forever.
+	 *
+	 * @return the current on-disk leaf-page sequences, or an empty array for a SINGLE / never-paged index
+	 */
+	@Nonnull
+	public int[] currentLeafPageSequences() {
+		return this.pageStreamRegistry.pendingLivePageSequences(BUCKET_PAGE_STREAM);
+	}
+
+	/**
 	 * One leaf page produced by the granular write path: its stable page sequence and its buckets in ascending value
 	 * order.
 	 *

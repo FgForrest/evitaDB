@@ -373,6 +373,13 @@ public class PriceListAndCurrencyPriceSuperIndex
 				)
 			);
 		}
+		// NOTE: unlike the pure page-list roots (Chain / OwnerUnique / OwnerSort / FilterIndex), this root also carries
+		// the inline validityIndex (a RangeIndex that changes with the prices) — so it is re-emitted every dirty commit
+		// and CANNOT use the PageEmission.pageListChanged() skip. This is inherent, not a deferred optimization: every
+		// addPrice/removePrice writes validityIndex unconditionally (addValidity/removeValidity emit a range on both
+		// branches — a null validity still writes the MIN..MAX range — and a price change is a remove+add, never an
+		// in-place update), so validityIndex moves in strict lockstep with the price-record tree. Splitting it into its
+		// own sibling part would re-emit that sibling on every dirty commit anyway, gaining nothing.
 		sink.addChangeToStore(
 			PriceListAndCurrencySuperIndexStoragePart.paged(
 				entityIndexPrimaryKey, this.priceIndexKey, this.validityIndex,

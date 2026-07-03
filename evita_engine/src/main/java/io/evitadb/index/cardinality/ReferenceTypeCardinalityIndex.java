@@ -574,6 +574,10 @@ public class ReferenceTypeCardinalityIndex
 					new ReferenceTypeCardinalityIndexLeafPageRemoval(entityIndexPrimaryKey, referenceName, freedPageSequence)
 				);
 			}
+			// NOTE: unlike the pure page-list roots (Chain / OwnerUnique / OwnerSort / FilterIndex), this root also
+			// carries the inline referencedPrimaryKeysIndex, which moves in lockstep with the tree — so it is re-emitted
+			// every dirty commit and CANNOT use the PageEmission.pageListChanged() skip. Making it O(1) would need that
+			// companion map split into its own sibling storage part (follow-up).
 			sink.addChangeToStore(
 				ReferenceTypeCardinalityIndexStoragePart.paged(
 					entityIndexPrimaryKey, referenceName,

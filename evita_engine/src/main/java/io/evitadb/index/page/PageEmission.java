@@ -37,17 +37,27 @@ import java.util.List;
  * per-leaf shape (slim value/payload columns, bucket bitmaps, range points, price records) while the page-sequence
  * reconciliation around it is shared.
  *
+ * The {@link #pageListChanged} flag lets a caller whose `PAGED` root carries nothing but the page-sequence list (plus
+ * immutable schema) skip re-emitting that root when the list is byte-identical to what is already on disk — the
+ * O(pages)-per-commit root write then collapses to O(1) in the steady state. It is exact: the ordered list changes
+ * this commit iff a leaf was freshly allocated (a split/first page) or a leaf was freed (a merge), so the flag is
+ * `false` precisely when the persisted root already describes the live leaves.
+ *
  * @param <P>                   the per-leaf payload type the caller's page builder produces
  * @param changedPages          the leaf pages whose content changed since the last baseline
  * @param orderedPageSequences  every live leaf's page sequence in ascending key order (the `PAGED` root's leaf list)
  * @param highWaterPageSequence the maximum page sequence ever allocated for the stream
  * @param freedPageSequences    page sequences dropped this commit (merged-away leaves) that must be removed from storage
+ * @param pageListChanged       whether the live page-list differs from the persisted root this commit (a leaf was
+ *                              allocated or freed); when `false` the `PAGED` root is byte-identical to disk and its
+ *                              re-emit can be skipped
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public record PageEmission<P>(
 	@Nonnull List<P> changedPages,
 	@Nonnull int[] orderedPageSequences,
 	int highWaterPageSequence,
-	@Nonnull int[] freedPageSequences
+	@Nonnull int[] freedPageSequences,
+	boolean pageListChanged
 ) {
 }

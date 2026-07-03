@@ -31,6 +31,7 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -212,12 +213,28 @@ public abstract sealed class UniqueIndex implements
 	 * entry point for a unique index. A clean index emits nothing. A dirty OWNER index whose value tree spans a single
 	 * leaf emits the inline `SINGLE` root; a dirty OWNER index whose tree spans multiple leaves emits the granular
 	 * `PAGED` shape (one {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart}
-	 * per CHANGED leaf plus the `PAGED` root). A folded VIEW index emits only its slim part.
+	 * per CHANGED leaf plus the `PAGED` root, which is re-emitted only when the live leaf-page list changed — a
+	 * content-only commit leaves it byte-identical, so the root is skipped). A folded VIEW index emits only its
+	 * slim part.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index pk
 	 * @param sink                  the trapped-changes accumulator for this commit
 	 */
 	public abstract void appendStorageParts(int entityIndexPrimaryKey, @Nonnull TrappedChanges sink);
+
+	/**
+	 * Returns the leaf-page sequences this unique index WILL have on disk once the in-flight commit is durable, or an
+	 * empty array. A folded VIEW (and a SINGLE / never-paged owner) owns no leaf pages and returns empty; a PAGED OWNER
+	 * overrides this to return its current on-disk page set so the owning {@link AttributeIndex} can reclaim those pages
+	 * if the whole sub-index is later emptied and dropped from its map — after which this index's own flush never runs
+	 * again — instead of leaking them forever in the append-only OffsetIndex.
+	 *
+	 * @return the current on-disk leaf-page sequences, or an empty array when the index owns no leaf pages
+	 */
+	@Nonnull
+	public int[] currentLeafPageSequences() {
+		return ArrayUtils.EMPTY_INT_ARRAY;
+	}
 
 	/**
 	 * Returns the whole value tree as sorted, positionally-aligned `(value, recordId)` columns — the inline `SINGLE`

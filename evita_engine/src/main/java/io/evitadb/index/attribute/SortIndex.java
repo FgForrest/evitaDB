@@ -663,6 +663,20 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Returns the leaf-page sequences this sort index WILL have on disk once the in-flight commit is durable, or an
+	 * empty array. A VIEW (which reuses the FILTER family's shared tree and owns no pages of its own) and a SINGLE /
+	 * never-paged owner return empty; a PAGED OWNER overrides this to return its current on-disk page set so the owning
+	 * {@link AttributeIndex} can reclaim those pages if the whole sub-index is later emptied and dropped from its map —
+	 * after which this index's own flush never runs again — instead of leaking them forever.
+	 *
+	 * @return the current on-disk leaf-page sequences, or an empty array when the index owns no leaf pages
+	 */
+	@Nonnull
+	public int[] currentLeafPageSequences() {
+		return ArrayUtils.EMPTY_INT_ARRAY;
+	}
+
+	/**
 	 * Clears the dirty flag once the current state has been flushed via
 	 * {@link #appendStorageParts(int, TrappedChanges)}, so the index is no longer reported as needing persistence.
 	 */
@@ -770,7 +784,8 @@ public abstract sealed class SortIndex
 	 * Emits this (dirty) index's modified storage parts into `sink`. View mode delegates to
 	 * {@link #appendSingleStoragePart(int, TrappedChanges)} (the slim part); owner mode chooses between the granular PAGED
 	 * shape (a multi-leaf value tree → one {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart}
-	 * per changed leaf + the PAGED root) and the inline SINGLE shape (a single-leaf tree, possibly just collapsed from
+	 * per changed leaf + a PAGED root re-emitted only when the live leaf-page list changed) and the inline SINGLE
+	 * shape (a single-leaf tree, possibly just collapsed from
 	 * PAGED). Invoked by {@link #appendStorageParts(int, TrappedChanges)} only after the dirty gate passes.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index primary key

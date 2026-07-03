@@ -821,7 +821,7 @@ public class ChainIndex implements
 	 * is inline (SINGLE) or has never paged. The owning {@link AttributeIndex} snapshots this so that when a PAGED chain
 	 * is later emptied and dropped from the sub-index map — after which THIS index's own {@link #appendStorageParts}
 	 * never runs again — the parent still knows the now-orphaned leaf pages and can emit a {@link ChainIndexLeafPageRemoval}
-	 * for each instead of leaking them forever in the append-only OffsetIndex (landmine G). Reading the staged set (not
+	 * for each instead of leaking them forever in the append-only OffsetIndex. Reading the staged set (not
 	 * merely the published one) keeps the snapshot correct even when taken right after this commit's flush staged a new
 	 * page set but before it was published.
 	 *
@@ -836,7 +836,9 @@ public class ChainIndex implements
 	 * Emits this (dirty) index's modified storage parts into `sink`. The SINGLE/PAGED decision mirrors
 	 * {@link OwnerSortIndex#doAppendStorageParts}: a multi-leaf element tree
 	 * ({@link TransactionalUnorderedIntArray#isRootInternal()}) persists granularly (one leaf page per changed leaf +
-	 * removals for freed leaves + a PAGED root), a single-leaf tree persists inline (the SINGLE root). A PAGED→SINGLE
+	 * removals for freed leaves + a PAGED root that is re-emitted only when the live leaf-page list changed (a
+	 * content-only commit leaves it byte-identical, so the root is skipped), a single-leaf tree persists inline
+	 * (the SINGLE root). A PAGED→SINGLE
 	 * collapse first removes every prior live leaf page and forgets the page stream (the registry AND the per-leaf
 	 * bookkeeping) so a later regrow into PAGED starts from a clean baseline and re-emits every leaf.
 	 *
@@ -869,17 +871,18 @@ public class ChainIndex implements
 			for (final int freedPageSequence : emission.freedPageSequences()) {
 				sink.addChangeToStore(new ChainIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 			}
-			// NOTE: the PAGED root re-emits the full ordered live leaf-page list on every commit, so the root write is
-			// O(live pages) — ~40 KB at 10M elements with ~1 K-record leaves — not strictly O(1). It is still ~1000-2700x
-			// cheaper than the monolithic flush it replaces, and the leaf-page parts above are already granular (dirty
-			// leaves only). Headroom / follow-up: skip this root re-emit when the leaf-page LIST is structurally unchanged
-			// (leaf contents may still have changed), which would collapse the steady-state root cost to O(1).
-			sink.addChangeToStore(
-				ChainIndexStoragePart.paged(
-					entityIndexPrimaryKey, this.attributeIndexKey,
-					emission.highWaterPageSequence(), emission.orderedPageSequences()
-				)
-			);
+			// the PAGED root carries nothing but the high-water + ordered live leaf-page list, so it only needs rewriting
+			// when that list actually changed (a leaf was allocated or freed). A commit that merely mutated leaf CONTENT
+			// (no split/merge) leaves the persisted root byte-identical, so skip it — the steady-state root cost is O(1),
+			// not O(live pages) (~40 KB at 10M elements). The changed leaf pages above are always emitted (dirty leaves).
+			if (emission.pageListChanged()) {
+				sink.addChangeToStore(
+					ChainIndexStoragePart.paged(
+						entityIndexPrimaryKey, this.attributeIndexKey,
+						emission.highWaterPageSequence(), emission.orderedPageSequences()
+					)
+				);
+			}
 			return;
 		}
 		// SINGLE shape (possibly just collapsed from PAGED): remove every leaf page from its prior PAGED life (the SINGLE

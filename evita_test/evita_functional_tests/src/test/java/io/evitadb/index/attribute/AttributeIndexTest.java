@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
@@ -48,6 +49,17 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ChainIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
@@ -96,6 +108,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	private static final String ATTRIBUTE_LOCALE_UNIQUE_NAME = "localeUniqueName";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
 	private static final String ATTRIBUTE_ORDER = "order";
+	private static final String ATTRIBUTE_RANGE = "range";
 	private static final String REFERENCE_NAME = "brand";
 	private static final Set<Locale> ALLOWED_LOCALES = Set.of(Locale.ENGLISH, new Locale("cs"));
 	/**
@@ -121,6 +134,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	 * - `localeUniqueName` — localized + unique WITHIN a locale
 	 * - `priority` — {@link Integer} sortable (sort index)
 	 * - `order` — {@link Predecessor} sortable (chain index)
+	 * - `range` — {@link IntegerNumberRange} filterable (filter value index + range companion)
 	 * - reference `brand` — indexed, with a filterable `code` and a {@link ReferencedEntityPredecessor} `order`
 	 * (that type is valid only on a reference, so it must live here rather than at entity level)
 	 */
@@ -134,6 +148,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		.withAttribute(ATTRIBUTE_LOCALE_UNIQUE_NAME, String.class, thatIs -> thatIs.localized().uniqueWithinLocale())
 		.withAttribute(ATTRIBUTE_PRIORITY, Integer.class, AttributeSchemaEditor::sortable)
 		.withAttribute(ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable)
+		.withAttribute(ATTRIBUTE_RANGE, IntegerNumberRange.class, AttributeSchemaEditor::filterable)
 		.withReferenceToEntity(
 			REFERENCE_NAME, REFERENCE_NAME, Cardinality.ZERO_OR_ONE,
 			ref -> {
@@ -175,6 +190,11 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	 * Sortable `order` of a {@link Predecessor} type — routed to the chain index.
 	 */
 	private static final EntityAttributeSchemaContract CHAIN_ORDER = entityAttr(ATTRIBUTE_ORDER);
+	/**
+	 * Filterable `range` of an {@link IntegerNumberRange} type — the only attribute shape that builds BOTH the filter
+	 * value (inverted) axis AND the range companion, so it exercises the dual-axis paging / reclaim paths.
+	 */
+	private static final EntityAttributeSchemaContract FILTERABLE_RANGE = entityAttr(ATTRIBUTE_RANGE);
 	/**
 	 * The real `brand` {@link ReferenceSchemaContract}.
 	 */
@@ -1271,16 +1291,16 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 	}
 
 	/**
-	 * Landmine G: a PAGED {@link ChainIndex} that is emptied and dropped from the sub-index map must still have its
+	 * Empty-drop reclaim: a PAGED {@link ChainIndex} that is emptied and dropped from the sub-index map must still have its
 	 * on-disk leaf pages reclaimed. The dropped chain's own {@link ChainIndex#appendStorageParts} never runs again, so
 	 * {@link AttributeIndex#getModifiedStorageParts} diffs the last durable per-chain leaf-page snapshot against the
 	 * surviving chain key set and emits a {@link ChainIndexLeafPageRemoval} for every leaf page of a vanished key — else
 	 * those pages leak forever in the append-only OffsetIndex.
 	 */
 	@Nested
-	@DisplayName("landmine G: an empty-dropped PAGED chain reclaims its orphaned leaf pages")
+	@DisplayName("an empty-dropped PAGED chain reclaims its orphaned leaf pages")
 	@Tag(STORAGE)
-	class LandmineGEmptyDropReclaimTest {
+	class EmptyDropLeafPageReclaimTest {
 
 		/** Owning entity index pk used for the flush emission (arbitrary; only the CHAIN sub-index identity matters). */
 		private static final int ENTITY_INDEX_PK = 7;
@@ -1299,7 +1319,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				);
 			}
 
-			// first flush: the chain persists PAGED, staging its live leaf pages and refreshing the landmine-G snapshot
+			// first flush: the chain persists PAGED, staging its live leaf pages and refreshing the empty-drop-reclaim snapshot
 			final List<StoragePart> firstFlush = flush(index);
 			final ChainIndexStoragePart root = chainRoot(firstFlush);
 			assertTrue(root.isPaged(), "a >1024-element chain must persist PAGED");
@@ -1402,6 +1422,398 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				}
 			}
 			return false;
+		}
+	}
+
+	/**
+	 * Empty-drop reclaim, sibling families: a PAGED owner UNIQUE, owner SORT or FILTER (value) sub-index that is emptied and
+	 * dropped from its map must have its on-disk leaf pages reclaimed exactly as {@link EmptyDropLeafPageReclaimTest}
+	 * proves for CHAIN. The dropped index's own {@code appendStorageParts} never runs again, so
+	 * {@link AttributeIndex#getModifiedStorageParts} diffs the pre-drop per-family leaf-page snapshot against the
+	 * surviving keys and emits the matching leaf-page removal for every orphaned page — else those pages leak forever in
+	 * the append-only OffsetIndex. The FILTER range companion shares the identical mechanism (a
+	 * {@link io.evitadb.spi.store.catalog.persistence.storageParts.index.RangeIndexLeafPageRemoval} per orphaned range
+	 * leaf), driven by the same {@code persistedFilterRangeLeafPages} snapshot.
+	 */
+	@Nested
+	@DisplayName("an empty-dropped PAGED sibling sub-index reclaims its orphaned leaf pages")
+	@Tag(STORAGE)
+	class SiblingEmptyDropLeafPageReclaimTest {
+
+		/** Owning entity index pk used for the flush emission (arbitrary; only the sub-index identity matters). */
+		private static final int ENTITY_INDEX_PK = 9;
+		/** Enough distinct keys to split every family's leaf block (256) into several leaves, so each index is PAGED. */
+		private static final int KEY_COUNT = 1200;
+
+		@Test
+		@DisplayName("dropping an emptied PAGED owner unique index removes every previously-live leaf page")
+		void shouldReclaimOwnerUniqueLeafPagesOnEmptyDrop() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.insertUniqueAttribute(
+					null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "u" + pk, pk
+				);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			final int livePageCount = countParts(firstFlush, UniqueIndexLeafPagePart.class);
+			assertTrue(livePageCount >= 2, "the owner unique index must span multiple leaf pages (PAGED)");
+			assertEquals(0, countParts(firstFlush, UniqueIndexLeafPageRemoval.class), "a first PAGED flush frees no pages");
+			index.resetDirty();
+
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.removeUniqueAttribute(
+					null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "u" + pk, pk
+				);
+			}
+			assertTrue(index.getUniqueIndexes().isEmpty(), "the emptied owner unique index must be dropped from its map");
+
+			final List<StoragePart> secondFlush = flush(index);
+			assertEquals(
+				livePageCount, countParts(secondFlush, UniqueIndexLeafPageRemoval.class),
+				"every previously-live leaf page of the dropped owner unique index must be removed (no leak)"
+			);
+			assertEquals(
+				0, countParts(secondFlush, UniqueIndexStoragePart.class), "a dropped unique index emits no root part"
+			);
+		}
+
+		@Test
+		@DisplayName("dropping an emptied PAGED owner sort index removes every previously-live leaf page")
+		void shouldReclaimOwnerSortLeafPagesOnEmptyDrop() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, pk, pk);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			final int livePageCount = countParts(firstFlush, SortIndexLeafPagePart.class);
+			assertTrue(livePageCount >= 2, "the owner sort index must span multiple leaf pages (PAGED)");
+			index.resetDirty();
+
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.removeSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, pk, pk);
+			}
+			assertTrue(index.getSortIndexes().isEmpty(), "the emptied owner sort index must be dropped from its map");
+
+			final List<StoragePart> secondFlush = flush(index);
+			assertEquals(
+				livePageCount, countParts(secondFlush, SortIndexLeafPageRemoval.class),
+				"every previously-live leaf page of the dropped owner sort index must be removed (no leak)"
+			);
+			assertEquals(
+				0, countParts(secondFlush, SortIndexStoragePart.class), "a dropped sort index emits no root part"
+			);
+		}
+
+		@Test
+		@DisplayName("dropping an emptied PAGED filter (value) index removes every previously-live leaf page")
+		void shouldReclaimFilterValueLeafPagesOnEmptyDrop() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "f" + pk, pk, false);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			final int livePageCount = countParts(firstFlush, FilterIndexLeafPagePart.class);
+			assertTrue(livePageCount >= 2, "the filter value index must span multiple leaf pages (PAGED)");
+			index.resetDirty();
+
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.removeFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "f" + pk, pk);
+			}
+			assertTrue(index.getFilterIndexes().isEmpty(), "the emptied filter index must be dropped from its map");
+
+			final List<StoragePart> secondFlush = flush(index);
+			assertEquals(
+				livePageCount, countParts(secondFlush, FilterIndexLeafPageRemoval.class),
+				"every previously-live leaf page of the dropped filter value index must be removed (no leak)"
+			);
+			assertEquals(
+				0, countParts(secondFlush, FilterIndexStoragePart.class), "a dropped filter index emits no root part"
+			);
+		}
+
+		@Test
+		@DisplayName("dropping an emptied PAGED range filter reclaims BOTH the value and the range companion leaf pages")
+		void shouldReclaimFilterRangeLeafPagesOnEmptyDrop() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk, false);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			// a range attribute builds two paged axes: the inverted (bucket) value tree AND the range companion tree
+			final int liveBucketPageCount = countParts(firstFlush, FilterIndexLeafPagePart.class);
+			final int liveRangePageCount = countParts(firstFlush, RangeIndexLeafPagePart.class);
+			assertTrue(liveBucketPageCount >= 2, "the range filter value axis must span multiple leaf pages (PAGED)");
+			assertTrue(liveRangePageCount >= 2, "the range companion must span multiple leaf pages (PAGED)");
+			assertEquals(0, countParts(firstFlush, RangeIndexLeafPageRemoval.class), "a first PAGED flush frees no pages");
+			index.resetDirty();
+
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.removeFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk);
+			}
+			assertTrue(index.getFilterIndexes().isEmpty(), "the emptied range filter must be dropped from its map");
+
+			final List<StoragePart> secondFlush = flush(index);
+			assertEquals(
+				liveBucketPageCount, countParts(secondFlush, FilterIndexLeafPageRemoval.class),
+				"every previously-live value leaf page of the dropped range filter must be removed (no leak)"
+			);
+			assertEquals(
+				liveRangePageCount, countParts(secondFlush, RangeIndexLeafPageRemoval.class),
+				"every previously-live range-companion leaf page of the dropped range filter must be removed (no leak)"
+			);
+			assertEquals(
+				0, countParts(secondFlush, FilterIndexStoragePart.class), "a dropped range filter emits no root part"
+			);
+		}
+
+		@Test
+		@DisplayName("dropping emptied inline SINGLE sibling indexes emits no leaf-page removals (they never had pages)")
+		void shouldEmitNoRemovalsWhenSingleShapeSiblingIndexesAreEmptyDropped() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			// a handful of keys per family keeps every sub-index within a single leaf (the inline SINGLE shape - no pages)
+			for (int pk = 1; pk <= 5; pk++) {
+				index.insertUniqueAttribute(
+					null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "u" + pk, pk
+				);
+				index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, pk, pk);
+				index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "f" + pk, pk, false);
+				index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk, false);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			assertEquals(0, countParts(firstFlush, UniqueIndexLeafPagePart.class), "the unique index must stay SINGLE");
+			assertEquals(0, countParts(firstFlush, SortIndexLeafPagePart.class), "the sort index must stay SINGLE");
+			assertEquals(0, countParts(firstFlush, FilterIndexLeafPagePart.class), "the filter value index must stay SINGLE");
+			assertEquals(0, countParts(firstFlush, RangeIndexLeafPagePart.class), "the range companion must stay SINGLE");
+			index.resetDirty();
+
+			for (int pk = 1; pk <= 5; pk++) {
+				index.removeUniqueAttribute(
+					null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "u" + pk, pk
+				);
+				index.removeSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, pk, pk);
+				index.removeFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "f" + pk, pk);
+				index.removeFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk);
+			}
+			assertTrue(index.getUniqueIndexes().isEmpty(), "the emptied owner unique index must be dropped");
+			assertTrue(index.getSortIndexes().isEmpty(), "the emptied owner sort index must be dropped");
+			assertTrue(index.getFilterIndexes().isEmpty(), "the emptied filter indexes must be dropped");
+
+			// a dropped SINGLE sub-index never owned leaf pages, so its currentLeafPageSequences() is empty and the parent
+			// must not fabricate a single spurious removal for any family
+			final List<StoragePart> secondFlush = flush(index);
+			assertEquals(
+				0, countParts(secondFlush, UniqueIndexLeafPageRemoval.class),
+				"a dropped SINGLE owner unique index emits no leaf-page removals"
+			);
+			assertEquals(
+				0, countParts(secondFlush, SortIndexLeafPageRemoval.class),
+				"a dropped SINGLE owner sort index emits no leaf-page removals"
+			);
+			assertEquals(
+				0, countParts(secondFlush, FilterIndexLeafPageRemoval.class),
+				"a dropped SINGLE filter value index emits no leaf-page removals"
+			);
+			assertEquals(
+				0, countParts(secondFlush, RangeIndexLeafPageRemoval.class),
+				"a dropped SINGLE range companion emits no leaf-page removals"
+			);
+		}
+
+		/**
+		 * Builds a distinct, non-overlapping integer range for the given key: `[pk*1000, pk*1000+500]`. Consecutive
+		 * ranges are separated by a 500-wide gap, so `KEY_COUNT` keys yield `KEY_COUNT` distinct value buckets and
+		 * `2 * KEY_COUNT` range thresholds — enough to page both filter axes at the chosen count.
+		 */
+		@Nonnull
+		private static IntegerNumberRange rangeValue(int pk) {
+			return IntegerNumberRange.between(pk * 1000, pk * 1000 + 500);
+		}
+
+		/**
+		 * Drains {@link AttributeIndex#getModifiedStorageParts} into a list keeping every emitted part.
+		 */
+		@Nonnull
+		private static List<StoragePart> flush(@Nonnull AttributeIndex index) {
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			index.getModifiedStorageParts(ENTITY_INDEX_PK, trappedChanges);
+			final List<StoragePart> parts = new ArrayList<>();
+			final Iterator<StoragePart> iterator = trappedChanges.getTrappedChangesIterator();
+			while (iterator.hasNext()) {
+				parts.add(iterator.next());
+			}
+			return parts;
+		}
+
+		/**
+		 * Counts the emitted parts assignable to `type` (leaf pages, removals or roots of one family).
+		 */
+		private static int countParts(@Nonnull List<StoragePart> parts, @Nonnull Class<? extends StoragePart> type) {
+			int count = 0;
+			for (final StoragePart part : parts) {
+				if (type.isInstance(part)) {
+					count++;
+				}
+			}
+			return count;
+		}
+	}
+
+	/**
+	 * A commit that only mutates leaf CONTENT — no leaf allocated or freed, so the
+	 * live leaf-page list is byte-identical to the persisted root — must NOT re-emit the pure page-list root of a
+	 * skip-safe family (CHAIN / owner UNIQUE / owner SORT / FILTER). The changed leaf page is still emitted; only the
+	 * redundant root write is skipped, collapsing the steady-state root cost from O(live pages) to O(1). Families whose
+	 * root fuses per-commit state (GlobalUnique / RefTypeCardinality / PriceSuper) always re-emit and are out of scope.
+	 */
+	@Nested
+	@DisplayName("a content-only commit skips the redundant PAGED root re-emit (steady-state O(1))")
+	@Tag(STORAGE)
+	class RootReEmitSkipTest {
+
+		/** Owning entity index pk used for the flush emission (arbitrary; only the sub-index identity matters). */
+		private static final int ENTITY_INDEX_PK = 11;
+		/** Enough distinct keys to split every family's leaf block (256) into several leaves, so each index is PAGED. */
+		private static final int KEY_COUNT = 1200;
+
+		@Test
+		@DisplayName("adding a record to an existing filter value re-emits the touched leaf but not the root")
+		void shouldSkipFilterRootWhenOnlyLeafContentChanges() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "f" + pk, pk, false);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			assertEquals(1, countParts(firstFlush, FilterIndexStoragePart.class), "the first PAGED flush emits the root");
+			assertTrue(countParts(firstFlush, FilterIndexLeafPagePart.class) >= 2, "the filter index must be PAGED");
+			index.resetDirty();
+
+			// add a NEW record to an EXISTING value: the value's bucket grows (content) but no tree key is added, so no
+			// leaf splits or merges — the live page list is unchanged and the root re-emit must be skipped
+			index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "f1", KEY_COUNT + 1, false);
+			final List<StoragePart> secondFlush = flush(index);
+			assertTrue(
+				countParts(secondFlush, FilterIndexLeafPagePart.class) >= 1,
+				"the leaf whose content changed must still be re-emitted"
+			);
+			assertEquals(
+				0, countParts(secondFlush, FilterIndexStoragePart.class),
+				"the page list is unchanged, so the redundant PAGED root must be skipped (O(1) steady state)"
+			);
+		}
+
+		@Test
+		@DisplayName("adding a record to an existing sort value re-emits the touched leaf but not the root")
+		void shouldSkipSortRootWhenOnlyLeafContentChanges() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, pk, pk);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			assertEquals(1, countParts(firstFlush, SortIndexStoragePart.class), "the first PAGED flush emits the root");
+			assertTrue(countParts(firstFlush, SortIndexLeafPagePart.class) >= 2, "the sort index must be PAGED");
+			index.resetDirty();
+
+			// add a new record under an EXISTING priority value: the value's cardinality bucket grows (content) with no
+			// new tree key, so no leaf splits/merges — the live page list is unchanged and the root re-emit must be skipped
+			index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 1, KEY_COUNT + 1);
+			final List<StoragePart> secondFlush = flush(index);
+			assertTrue(
+				countParts(secondFlush, SortIndexLeafPagePart.class) >= 1,
+				"the leaf whose content changed must still be re-emitted"
+			);
+			assertEquals(
+				0, countParts(secondFlush, SortIndexStoragePart.class),
+				"the page list is unchanged, so the redundant PAGED root must be skipped (O(1) steady state)"
+			);
+		}
+
+		@Test
+		@DisplayName("a content-only change to a range filter skips the fused root only when BOTH axes are unchanged")
+		void shouldSkipFilterRootWhenBothAxesArePagedAndUnchanged() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk, false);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			assertEquals(1, countParts(firstFlush, FilterIndexStoragePart.class), "the first PAGED flush emits the root");
+			assertTrue(countParts(firstFlush, FilterIndexLeafPagePart.class) >= 2, "the value axis must be PAGED");
+			assertTrue(countParts(firstFlush, RangeIndexLeafPagePart.class) >= 2, "the range companion must be PAGED");
+			index.resetDirty();
+
+			// add a NEW record under an EXISTING range value: the value's bucket and the range point bitmap grow (content)
+			// but no new tree key is added to either axis, so neither page list changes - the fused root re-emit is skipped
+			index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(1), KEY_COUNT + 1, false);
+			final List<StoragePart> secondFlush = flush(index);
+			assertTrue(
+				countParts(secondFlush, FilterIndexLeafPagePart.class) >= 1,
+				"the value leaf whose content changed must still be re-emitted"
+			);
+			assertEquals(
+				0, countParts(secondFlush, FilterIndexStoragePart.class),
+				"both axis page lists are unchanged, so the fused PAGED root must be skipped (dual-axis O(1))"
+			);
+		}
+
+		@Test
+		@DisplayName("a range-filter leaf split re-emits the fused root even though it is a pure page-list root")
+		void shouldReEmitFilterRootWhenPageListChangesWithBothAxesPaged() {
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			for (int pk = 1; pk <= KEY_COUNT; pk++) {
+				index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk, false);
+			}
+			final List<StoragePart> firstFlush = flush(index);
+			assertEquals(1, countParts(firstFlush, FilterIndexStoragePart.class), "the first PAGED flush emits the root");
+			assertTrue(countParts(firstFlush, FilterIndexLeafPagePart.class) >= 2, "the value axis must be PAGED");
+			assertTrue(countParts(firstFlush, RangeIndexLeafPagePart.class) >= 2, "the range companion must be PAGED");
+			index.resetDirty();
+
+			// add a fresh block of NEW distinct range values (> one leaf block): a new tree key cannot fit without a leaf
+			// split on both axes, so at least one leaf is freshly allocated -> the page list changed -> root re-emitted
+			for (int pk = KEY_COUNT + 1; pk <= KEY_COUNT + 300; pk++) {
+				index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk, false);
+			}
+			final List<StoragePart> secondFlush = flush(index);
+			assertEquals(
+				1, countParts(secondFlush, FilterIndexStoragePart.class),
+				"a leaf split changes the page list, so the fused PAGED root must be re-emitted (skip not taken)"
+			);
+		}
+
+		/**
+		 * Builds a distinct, non-overlapping integer range for the given key: `[pk*1000, pk*1000+500]`, so distinct keys
+		 * yield distinct value buckets and distinct range thresholds on both filter axes.
+		 */
+		@Nonnull
+		private static IntegerNumberRange rangeValue(int pk) {
+			return IntegerNumberRange.between(pk * 1000, pk * 1000 + 500);
+		}
+
+		/**
+		 * Drains {@link AttributeIndex#getModifiedStorageParts} into a list keeping every emitted part.
+		 */
+		@Nonnull
+		private static List<StoragePart> flush(@Nonnull AttributeIndex index) {
+			final TrappedChanges trappedChanges = new TrappedChanges();
+			index.getModifiedStorageParts(ENTITY_INDEX_PK, trappedChanges);
+			final List<StoragePart> parts = new ArrayList<>();
+			final Iterator<StoragePart> iterator = trappedChanges.getTrappedChangesIterator();
+			while (iterator.hasNext()) {
+				parts.add(iterator.next());
+			}
+			return parts;
+		}
+
+		/**
+		 * Counts the emitted parts assignable to `type` (leaf pages, removals or roots of one family).
+		 */
+		private static int countParts(@Nonnull List<StoragePart> parts, @Nonnull Class<? extends StoragePart> type) {
+			int count = 0;
+			for (final StoragePart part : parts) {
+				if (type.isInstance(part)) {
+					count++;
+				}
+			}
+			return count;
 		}
 	}
 }

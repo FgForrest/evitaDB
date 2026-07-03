@@ -743,6 +743,21 @@ public class RangeIndex implements VoidTransactionMemoryProducer<RangeIndex>, Se
 	}
 
 	/**
+	 * Returns the leaf-page sequences this range index WILL have on disk once the in-flight commit is durable (the
+	 * staged set mid-flush, else the published live set), or an empty array when it is inline (SINGLE) / never paged.
+	 * Unlike {@link #livePageSequences()} (always the published set), this reflects the CURRENT tree shape at any point
+	 * of the flush, so the owning {@link io.evitadb.index.attribute.AttributeIndex} can snapshot "what disk holds after
+	 * this commit" and, when the range companion is later dropped with its emptied filter — after which this index's own
+	 * flush never runs again — still reclaim the now-orphaned leaf pages instead of leaking them forever.
+	 *
+	 * @return the current on-disk leaf-page sequences, or an empty array for a SINGLE / never-paged index
+	 */
+	@Nonnull
+	public int[] currentLeafPageSequences() {
+		return this.pageStreamRegistry.pendingLivePageSequences(RANGE_PAGE_STREAM);
+	}
+
+	/**
 	 * Rebuilds a `PAGED` range index from its persisted leaf pages, preserving the original leaf boundaries and page
 	 * identities. Unlike the point-replaying constructor, this builds one leaf per persisted page (so
 	 * in-memory leaf *i* is byte-identical to persisted page *i*), stamps each leaf with its persisted page sequence, and

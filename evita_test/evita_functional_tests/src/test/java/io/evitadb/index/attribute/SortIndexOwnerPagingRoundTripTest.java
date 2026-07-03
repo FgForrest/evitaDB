@@ -566,7 +566,13 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 
 			final List<StoragePart> reEmission = emit(restored);
 			assertTrue(removals(reEmission).isEmpty(), "a non-splitting in-place add frees no leaf page");
-			assertTrue(root(reEmission).isPaged(), "the owner must stay paged after the in-place add");
+			// the value's bucket grew in place — no leaf split or merge, so the live page list is byte-identical to the
+			// persisted root: the redundant PAGED root re-emit is skipped (steady-state O(1)). A reload still
+			// resolves the unchanged root from its prior version, so only the touched leaf page needs to be written.
+			assertTrue(
+				reEmission.stream().noneMatch(SortIndexStoragePart.class::isInstance),
+				"a content-only in-place add leaves the page list unchanged, so the PAGED root must not be re-emitted"
+			);
 			final int changedLeafCount = leafPages(reEmission).size();
 			assertTrue(
 				changedLeafCount >= 1 && changedLeafCount < totalLeafCount,

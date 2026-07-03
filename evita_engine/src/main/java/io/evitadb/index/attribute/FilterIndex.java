@@ -1111,7 +1111,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * Emits this filter index's modified storage parts into `sink`. A clean index emits nothing. A
 	 * dirty index whose bucket tree spans a single leaf emits the inline `SINGLE` root (today's whole-index part); a
 	 * dirty index whose tree spans multiple leaves emits the granular `PAGED` shape: one {@link FilterIndexLeafPagePart}
-	 * per CHANGED leaf plus the `PAGED` root carrying the high-water and the ordered live leaf-page list. The leaf pages
+	 * per CHANGED leaf plus the fused `PAGED` root carrying each axis's high-water and ordered live leaf-page list —
+	 * re-emitted only when an axis's page list changed (or a non-paged axis carries varying inline data); when both
+	 * axes are page-stable the root is byte-identical to disk and skipped. The leaf pages
 	 * carry the sub-index identity so their stream id (and primary key) is resolved store-side at write time.
 	 *
 	 * @param entityIndexPrimaryKey the owning entity index pk
@@ -1128,6 +1130,19 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 		// emission order), then the bucket axis, then fuse both descriptors into the single FilterIndexStoragePart root
 		final RangeAxis range = appendRangeAxis(entityIndexPrimaryKey, streamKey, sink);
 		final BucketAxis bucket = appendBucketAxis(entityIndexPrimaryKey, streamKey, sink);
+
+		// the fused root carries per-commit-varying inline data only for an axis that is NOT paged (an inline histogram
+		// for a SINGLE bucket tree, an inline RangeIndex for a SINGLE range). When BOTH axes are externalized to leaf
+		// pages the root is nothing but two page-lists + immutable schema, so it can be skipped whenever NEITHER list
+		// changed this commit (a leaf allocated/freed) — collapsing the steady-state root cost to O(1) instead of
+		// O(live pages). An absent range (no companion) contributes nothing that varies, so it is root-stable too.
+		final boolean bucketRootStable = bucket.paged() && !bucket.listChanged();
+		final boolean rangeRootStable = range.rangePaged()
+			? !range.listChanged()
+			: range.inlineRangeIndex() == null;
+		if (bucketRootStable && rangeRootStable) {
+			return;
+		}
 
 		sink.addChangeToStore(
 			new FilterIndexStoragePart(
@@ -1167,7 +1182,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			for (final int freedPageSequence : emission.freedPageSequences()) {
 				sink.addChangeToStore(new FilterIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 			}
-			return new BucketAxis(EMPTY_HISTOGRAM_POINTS, true, emission.highWaterPageSequence(), emission.orderedPageSequences());
+			return new BucketAxis(
+				EMPTY_HISTOGRAM_POINTS, true, emission.highWaterPageSequence(), emission.orderedPageSequences(),
+				emission.pageListChanged()
+			);
 		}
 		// SINGLE shape: the index collapsed back to a single leaf. Remove every leaf page from its prior PAGED life
 		// (the SINGLE root no longer references them) BEFORE dropping the page bookkeeping, then forget the stream so a
@@ -1176,7 +1194,11 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			sink.addChangeToStore(new FilterIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 		}
 		this.invertedIndex.forgetPageStream();
-		return new BucketAxis(this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY);
+		// SINGLE: the inline histogram rides the root and can change every commit, so force the root re-emit
+		// (listChanged=true)
+		return new BucketAxis(
+			this.invertedIndex.getValueToRecordBitmap(), false, -1, ArrayUtils.EMPTY_INT_ARRAY, true
+		);
 	}
 
 	/**
@@ -1205,7 +1227,10 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			for (final int freedPageSequence : emission.freedPageSequences()) {
 				sink.addChangeToStore(new RangeIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 			}
-			return new RangeAxis(null, true, emission.highWaterPageSequence(), emission.orderedPageSequences());
+			return new RangeAxis(
+				null, true, emission.highWaterPageSequence(), emission.orderedPageSequences(),
+				emission.pageListChanged()
+			);
 		}
 		if (this.rangeIndex != null) {
 			// SINGLE range that may have just collapsed from PAGED: remove every prior leaf page (the inline root no
@@ -1216,7 +1241,9 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 			}
 			this.rangeIndex.forgetPageStream();
 		}
-		return new RangeAxis(this.rangeIndex, false, -1, ArrayUtils.EMPTY_INT_ARRAY);
+		// non-paged range: either absent (`null`) or carried inline; the skip test keys off `inlineRangeIndex == null`,
+		// so `listChanged` is irrelevant here — pass `true` to avoid implying the (unwritten) page-list is stable
+		return new RangeAxis(this.rangeIndex, false, -1, ArrayUtils.EMPTY_INT_ARRAY, true);
 	}
 
 	/**
@@ -1228,12 +1255,16 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @param paged            true when the bucket tree is persisted as leaf pages
 	 * @param highWaterPageSequence the bucket stream high-water for a `PAGED` part; `-1` otherwise
 	 * @param leafPageSequences     the ordered live leaf-page sequences for a `PAGED` part; empty otherwise
+	 * @param listChanged      for a `PAGED` part, whether the live leaf-page list changed this commit (a leaf was
+	 *                         allocated or freed); meaningless (and forced `true`) for a `SINGLE` part whose inline
+	 *                         histogram always rides the root
 	 */
 	private record BucketAxis(
 		@Nonnull ValueToRecordBitmap[] histogramPoints,
 		boolean paged,
 		int highWaterPageSequence,
-		@Nonnull int[] leafPageSequences
+		@Nonnull int[] leafPageSequences,
+		boolean listChanged
 	) {
 	}
 
@@ -1246,12 +1277,16 @@ public abstract sealed class FilterIndex implements IndexDataStructure, Serializ
 	 * @param rangePaged            true when the range tree is persisted as leaf pages
 	 * @param rangeHighWaterPageSequence the range stream high-water for a `PAGED` range; `-1` otherwise
 	 * @param rangeLeafPageSequences     the ordered live range leaf-page sequences for a `PAGED` range; empty otherwise
+	 * @param listChanged           for a `PAGED` range, whether the live leaf-page list changed this commit (a leaf was
+	 *                              allocated or freed); meaningless for a non-paged range (the skip test uses the
+	 *                              `null`-inline check instead)
 	 */
 	private record RangeAxis(
 		@Nullable RangeIndex inlineRangeIndex,
 		boolean rangePaged,
 		int rangeHighWaterPageSequence,
-		@Nonnull int[] rangeLeafPageSequences
+		@Nonnull int[] rangeLeafPageSequences,
+		boolean listChanged
 	) {
 	}
 

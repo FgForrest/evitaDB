@@ -187,7 +187,7 @@ public class PageStreamRegistry implements Serializable {
 	 * page-less stream). Unlike {@link #livePageSequences(int)} (which always reads the published set and so lags behind
 	 * a flush that has staged but not yet published), this reflects the CURRENT tree shape at any point of the flush, so
 	 * an owner can snapshot "what disk holds after this commit" for a sub-index whose pages it must reclaim if the
-	 * sub-index is later dropped (landmine G).
+	 * sub-index is later dropped.
 	 *
 	 * @param streamId the stream to inspect
 	 * @return the staged set when staged this commit, else the published live set, else an empty array
@@ -328,6 +328,7 @@ public class PageStreamRegistry implements Serializable {
 		final int[] orderedPageSequences = new int[handles.size()];
 		final List<P> changedPages = new ArrayList<>(handles.size());
 		final Set<Integer> nextLive = new HashSet<>(handles.size());
+		boolean anyFreshLeaf = false;
 		int idx = 0;
 		for (final H handle : handles) {
 			int pageSequence = handle.getPageSequence();
@@ -336,6 +337,7 @@ public class PageStreamRegistry implements Serializable {
 				// split-born / fresh leaf: allocate a page and stamp it onto the live node (the merge carries it forward)
 				pageSequence = allocate(streamId);
 				handle.setPageSequence(pageSequence);
+				anyFreshLeaf = true;
 			}
 			orderedPageSequences[idx++] = pageSequence;
 			nextLive.add(pageSequence);
@@ -352,7 +354,12 @@ public class PageStreamRegistry implements Serializable {
 		// that is neither superseded (page ids are advance-only, never re-keyed) nor explicitly removed
 		final int[] freedPageSequences = freedPageSequences(streamId, nextLive);
 		stage(streamId, nextLive);
-		return new PageEmission<>(changedPages, orderedPageSequences, highWater(streamId), freedPageSequences);
+		// the ordered live-page list is byte-identical to the persisted root iff no leaf was allocated (split/first page)
+		// and none was freed (merge); when unchanged a caller with a pure page-list root can skip re-emitting it (O(1))
+		final boolean pageListChanged = anyFreshLeaf || freedPageSequences.length > 0;
+		return new PageEmission<>(
+			changedPages, orderedPageSequences, highWater(streamId), freedPageSequences, pageListChanged
+		);
 	}
 
 	/**

@@ -250,7 +250,9 @@ class OwnerUniqueIndexPagingTest {
 		final int rewrittenLeaves = (int) secondFlush.stream()
 			.filter(UniqueIndexLeafPagePart.class::isInstance).count();
 
-		assertEquals(1, rootCount, "a PAGED flush always re-emits the root");
+		// the new value lands in one existing leaf without splitting it, so the live page list is unchanged: the
+		// redundant PAGED root re-emit is skipped. Only a leaf split/merge (a page-list change) re-emits it.
+		assertEquals(0, rootCount, "a content-only leaf change leaves the page list unchanged, so the root is not re-emitted");
 		assertTrue(rewrittenLeaves >= 1, "the mutated leaf (and any split sibling) must be rewritten");
 		assertTrue(
 			rewrittenLeaves < totalLeaves,
@@ -651,14 +653,16 @@ class OwnerUniqueIndexPagingTest {
 			committed.registerUniqueKey(slug(newRecord + 1), newRecord + 1);
 
 			final List<StoragePart> postCommitFlush = flush(committed);
-			final UniqueIndexStoragePart root = postCommitFlush.stream()
-				.filter(UniqueIndexStoragePart.class::isInstance)
-				.map(UniqueIndexStoragePart.class::cast)
-				.findFirst()
-				.orElseThrow();
 			final int rewrittenLeaves = (int) postCommitFlush.stream()
 				.filter(UniqueIndexLeafPagePart.class::isInstance).count();
-			assertTrue(root.isPaged(), "the post-commit flush still emits a PAGED root");
+			// the new value lands in one existing leaf without splitting it, so the live page list is unchanged and the
+			// redundant PAGED root re-emit is skipped. That the flush stayed incremental (one leaf, no root, no
+			// re-pagination to SINGLE) is exactly what proves the page-stream bookkeeping survived the commit.
+			assertTrue(
+				postCommitFlush.stream().noneMatch(UniqueIndexStoragePart.class::isInstance),
+				"a content-only change leaves the page list unchanged, so the PAGED root re-emit is skipped"
+			);
+			assertTrue(committed.isPaged(), "the committed copy stays PAGED after the incremental flush");
 			assertTrue(rewrittenLeaves >= 1, "the mutated leaf must be rewritten");
 			assertTrue(
 				rewrittenLeaves < totalLeaves,

@@ -608,6 +608,10 @@ public class GlobalUniqueIndex implements
 			for (final int freedPageSequence : emission.freedPageSequences()) {
 				sink.addChangeToStore(new GlobalUniqueIndexLeafPageRemoval(this.scope, attribute, freedPageSequence));
 			}
+			// NOTE: unlike the pure page-list roots (Chain / OwnerUnique / OwnerSort / FilterIndex), this root also
+			// carries the inline idToLocaleIndex, which moves in lockstep with the tree — so it is re-emitted every
+			// dirty commit and CANNOT use the PageEmission.pageListChanged() skip. Making it O(1) would need the locale
+			// map split into its own sibling storage part (follow-up).
 			sink.addChangeToStore(
 				GlobalUniqueIndexStoragePart.paged(
 					this.scope, attribute, this.type,
