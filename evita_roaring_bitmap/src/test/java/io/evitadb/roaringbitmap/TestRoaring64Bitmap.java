@@ -1,13 +1,13 @@
-package io.evitadb.roaringbitmap.longlong;
+package io.evitadb.roaringbitmap;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.roaringbitmap.Util.toUnsignedLong;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.ABSENT;
 import static io.evitadb.roaringbitmap.ValidationRangeConsumer.Value.PRESENT;
 
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.ValidationRangeConsumer;
 import io.evitadb.roaringbitmap.art.LeafNode;
+import io.evitadb.roaringbitmap.longlong.RoaringIntPacking;
 import io.evitadb.roaringbitmap.art.LeafNodeIterator;
 
 import com.google.common.primitives.Ints;

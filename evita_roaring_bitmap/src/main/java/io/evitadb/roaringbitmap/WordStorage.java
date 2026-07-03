@@ -1,6 +1,6 @@
 package io.evitadb.roaringbitmap;
 
-public interface WordStorage<T> {
+interface WordStorage<T> {
 
   T add(char value);
 

@@ -12,8 +12,16 @@
  * commit {@code f27cd538}). See the module {@code LICENSE}, {@code AUTHORS} and
  * {@code NOTICE} files.
  *
- * The public entry point is {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap} - a single,
- * mutable bitmap that uses structural sharing in binary operations and copy-on-write for
- * mutations (originally prototyped as {@code CopyOnWriteRoaringBitmapV2}, now folded in).
+ * This is the sole package exported by the module - the logical public API surface. The two
+ * public entry points are {@link io.evitadb.roaringbitmap.PersistentRoaringBitmap} (32-bit) and
+ * {@link io.evitadb.roaringbitmap.PersistentLongRoaringBitmap} (64-bit, originally
+ * {@code Roaring64Bitmap}). The 32-bit bitmap is a single, mutable bitmap that uses structural
+ * sharing in binary operations and copy-on-write for mutations (originally prototyped as
+ * {@code CopyOnWriteRoaringBitmapV2}, now folded in).
+ *
+ * Implementation-detail classes that must remain {@code public} for cross-package use within the
+ * module (the container hierarchy, {@code Util}, etc.) are intentionally kept here but are not part
+ * of the supported API; truly internal helpers are package-private, and the {@code longlong} and
+ * {@code art} packages are not exported.
  */
 package io.evitadb.roaringbitmap;

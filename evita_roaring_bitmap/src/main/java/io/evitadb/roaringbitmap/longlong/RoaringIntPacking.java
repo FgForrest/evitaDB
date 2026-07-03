@@ -13,7 +13,7 @@ import java.util.Comparator;
  * @author Benoit Lacelle
  *
  */
-class RoaringIntPacking {
+public class RoaringIntPacking {
 
   /**
    *

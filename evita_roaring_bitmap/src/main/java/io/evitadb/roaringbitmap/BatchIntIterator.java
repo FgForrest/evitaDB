@@ -3,7 +3,7 @@ package io.evitadb.roaringbitmap;
 /**
  * Wraps a batch iterator for use as an IntIterator
  */
-public class BatchIntIterator implements IntIterator {
+class BatchIntIterator implements IntIterator {
   private int i;
   private int mark;
   private int[] buffer;

@@ -11,6 +11,4 @@
  */
 module evita.roaringbitmap {
 	exports io.evitadb.roaringbitmap;
-	exports io.evitadb.roaringbitmap.longlong;
-	exports io.evitadb.roaringbitmap.art;
 }

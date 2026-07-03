@@ -4,7 +4,7 @@ package io.evitadb.roaringbitmap;
  * Key-value storage of 16 bit containers
  * @param <T> the type of stored container
  */
-public interface AppendableStorage<T> {
+interface AppendableStorage<T> {
 
   /**
    * Appends the key and container to the storage, throws if the key is less

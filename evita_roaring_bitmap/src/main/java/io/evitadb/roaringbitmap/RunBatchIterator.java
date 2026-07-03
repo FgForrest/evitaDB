@@ -1,6 +1,6 @@
 package io.evitadb.roaringbitmap;
 
-public final class RunBatchIterator implements ContainerBatchIterator {
+final class RunBatchIterator implements ContainerBatchIterator {
 
   private RunContainer runs;
   private int run = 0;

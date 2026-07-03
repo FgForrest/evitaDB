@@ -7,7 +7,9 @@ Apache License, Version 2.0. See the LICENSE and AUTHORS files in this
 module for the original copyright and contributor list.
 
 Synced from fork github.com/novoj/RoaringBitmap, commit f27cd538,
-which corresponds to upstream RoaringBitmap v1.6.12 (merge-base 952f8ce7).
+which corresponds to upstream RoaringBitmap v1.6.12 (base commit 952f8ce7).
+Upstream master has been reviewed through commit 2863e96d (effective
+coverage v1.6.14); see UPSTREAM_SYNC.md for the per-commit sync ledger.
 
 Modifications by FG Forrest, a.s. for evitaDB:
   - Vendored only the subset of classes required by evitaDB (see CLOSURE.md).

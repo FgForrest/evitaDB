@@ -2,7 +2,7 @@ package io.evitadb.roaringbitmap;
 
 import static java.lang.Long.numberOfTrailingZeros;
 
-public final class BitmapBatchIterator implements ContainerBatchIterator {
+final class BitmapBatchIterator implements ContainerBatchIterator {
 
   private int wordIndex = 0;
   private long word;

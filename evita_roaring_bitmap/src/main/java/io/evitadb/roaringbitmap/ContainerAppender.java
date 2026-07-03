@@ -30,7 +30,7 @@ import java.util.function.Supplier;
  * }
  * </pre>
  */
-public class ContainerAppender<
+class ContainerAppender<
         C extends WordStorage<C>, T extends BitmapDataProvider & AppendableStorage<C>>
     implements RoaringBitmapWriter<T> {
 

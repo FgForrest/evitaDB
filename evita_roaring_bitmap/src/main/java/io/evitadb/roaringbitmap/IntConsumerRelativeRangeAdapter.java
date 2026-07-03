@@ -3,7 +3,7 @@ package io.evitadb.roaringbitmap;
 /**
  * Wrapper to use an IntConsumer where a RelativeRangeConsumer is expected.
  */
-public class IntConsumerRelativeRangeAdapter implements RelativeRangeConsumer {
+class IntConsumerRelativeRangeAdapter implements RelativeRangeConsumer {
   final int start;
   final IntConsumer absolutePositionConsumer;
 

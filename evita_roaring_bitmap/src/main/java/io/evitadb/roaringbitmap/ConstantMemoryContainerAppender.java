@@ -32,7 +32,7 @@ import java.util.function.Supplier;
  * }
  * </pre>
  */
-public class ConstantMemoryContainerAppender<
+class ConstantMemoryContainerAppender<
         T extends BitmapDataProvider & AppendableStorage<Container>>
     implements RoaringBitmapWriter<T> {
 

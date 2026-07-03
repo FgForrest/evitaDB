@@ -3,7 +3,7 @@ package io.evitadb.roaringbitmap;
 /**
  * PeekableCharIterator that calculates the next value rank during iteration
  */
-public interface PeekableCharRankIterator extends PeekableCharIterator {
+interface PeekableCharRankIterator extends PeekableCharIterator {
 
   /**
    * peek in-container rank of the next value

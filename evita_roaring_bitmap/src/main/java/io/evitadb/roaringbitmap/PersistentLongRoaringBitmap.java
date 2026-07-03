@@ -1,16 +1,13 @@
-package io.evitadb.roaringbitmap.longlong;
+package io.evitadb.roaringbitmap;
 
-import io.evitadb.roaringbitmap.ArrayContainer;
-import io.evitadb.roaringbitmap.BitmapContainer;
-import io.evitadb.roaringbitmap.Container;
-import io.evitadb.roaringbitmap.PeekableCharIterator;
-import io.evitadb.roaringbitmap.RelativeRangeConsumer;
-import io.evitadb.roaringbitmap.RunContainer;
-import io.evitadb.roaringbitmap.Util;
 import io.evitadb.roaringbitmap.art.ContainerIterator;
 import io.evitadb.roaringbitmap.art.KeyIterator;
 import io.evitadb.roaringbitmap.art.LeafNode;
 import io.evitadb.roaringbitmap.art.LeafNodeIterator;
+import io.evitadb.roaringbitmap.longlong.ContainerWithIndex;
+import io.evitadb.roaringbitmap.longlong.HighLowContainer;
+import io.evitadb.roaringbitmap.longlong.LongConsumerRelativeRangeAdapter;
+import io.evitadb.roaringbitmap.longlong.LongUtils;
 
 import java.io.DataInput;
 import java.io.DataOutput;

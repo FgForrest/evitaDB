@@ -1,5 +1,6 @@
 package io.evitadb.roaringbitmap.longlong;
 
+import io.evitadb.roaringbitmap.LongConsumer;
 import io.evitadb.roaringbitmap.RelativeRangeConsumer;
 
 /**

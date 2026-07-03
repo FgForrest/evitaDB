@@ -2,7 +2,7 @@ package io.evitadb.roaringbitmap;
 
 import static io.evitadb.roaringbitmap.Util.unsignedBinarySearch;
 
-public final class ArrayBatchIterator implements ContainerBatchIterator {
+final class ArrayBatchIterator implements ContainerBatchIterator {
 
   private int index = 0;
   private ArrayContainer array;

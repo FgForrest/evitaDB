@@ -1,7 +1,7 @@
 /*
  * (c) the authors Licensed under the Apache License, Version 2.0.
  */
-package io.evitadb.roaringbitmap.longlong;
+package io.evitadb.roaringbitmap;
 
 /**
  * An LongConsumer receives the long values contained in a data structure. Each value is visited

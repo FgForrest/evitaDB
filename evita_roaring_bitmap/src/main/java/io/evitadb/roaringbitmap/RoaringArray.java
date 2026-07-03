@@ -22,7 +22,7 @@ import java.util.NoSuchElementException;
  * Specialized array to store the containers used by a PersistentRoaringBitmap. This is not meant to be used
  * by end users.
  */
-public final class RoaringArray implements Cloneable, Externalizable, AppendableStorage<Container> {
+final class RoaringArray implements Cloneable, Externalizable, AppendableStorage<Container> {
   private static final char SERIAL_COOKIE_NO_RUNCONTAINER = 12346;
   private static final char SERIAL_COOKIE = 12347;
   private static final int NO_OFFSET_THRESHOLD = 4;
@@ -630,7 +630,7 @@ public final class RoaringArray implements Cloneable, Externalizable, Appendable
       if (srb.size != this.size) {
         return false;
       }
-      if (ArraysShim.equals(keys, 0, size, srb.keys, 0, srb.size)) {
+      if (Arrays.equals(keys, 0, size, srb.keys, 0, srb.size)) {
         for (int i = 0; i < size; ++i) {
           if (!values[i].equals(srb.values[i])) {
             return false;

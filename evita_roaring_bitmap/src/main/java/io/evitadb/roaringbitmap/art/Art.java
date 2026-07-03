@@ -1,6 +1,5 @@
 package io.evitadb.roaringbitmap.art;
 
-import io.evitadb.roaringbitmap.ArraysShim;
 import io.evitadb.roaringbitmap.longlong.LongUtils;
 
 import java.io.DataInput;
@@ -86,7 +85,7 @@ public class Art {
           return leafNode;
         }
         int mismatchIndex =
-            ArraysShim.mismatch(
+            Arrays.mismatch(
                 leafNodeKeyBytes,
                 depth,
                 LeafNode.LEAF_NODE_KEY_LENGTH_IN_BYTES,
@@ -253,7 +252,7 @@ public class Art {
   private boolean leafMatch(LeafNode leafNode, byte[] key, int dep) {
     byte[] leafNodeKeyBytes = leafNode.getKeyBytes();
     int mismatchIndex =
-        ArraysShim.mismatch(
+        Arrays.mismatch(
             leafNodeKeyBytes,
             dep,
             LeafNode.LEAF_NODE_KEY_LENGTH_IN_BYTES,
@@ -293,7 +292,7 @@ public class Art {
     if (branchNodePrefixLength > 0) {
       // find the mismatch position
       int mismatchPos =
-          ArraysShim.mismatch(branchNode.prefix, 0, branchNodePrefixLength, key, depth, key.length);
+          Arrays.mismatch(branchNode.prefix, 0, branchNodePrefixLength, key, depth, key.length);
       if (mismatchPos != branchNodePrefixLength) {
         Node4 node4 = new Node4(mismatchPos);
         // copy prefix
@@ -333,7 +332,7 @@ public class Art {
     int aLength = aToIndex - aFromIndex;
     int bLength = bToIndex - bFromIndex;
     int minLength = Math.min(aLength, bLength);
-    int mismatchIndex = ArraysShim.mismatch(key1, aFromIndex, aToIndex, key2, bFromIndex, bToIndex);
+    int mismatchIndex = Arrays.mismatch(key1, aFromIndex, aToIndex, key2, bFromIndex, bToIndex);
 
     if (aLength != bLength && mismatchIndex >= minLength) {
       return minLength;

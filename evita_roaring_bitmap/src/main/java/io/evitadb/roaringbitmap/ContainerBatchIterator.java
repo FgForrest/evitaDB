@@ -1,6 +1,6 @@
 package io.evitadb.roaringbitmap;
 
-public interface ContainerBatchIterator extends Cloneable {
+interface ContainerBatchIterator extends Cloneable {
 
   /**
    * Fills the buffer with values prefixed by the key,
