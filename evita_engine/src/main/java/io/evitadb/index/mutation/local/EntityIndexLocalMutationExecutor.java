@@ -338,6 +338,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Returns the scope of the current entity. If the scope has already been retrieved and memoized, it returns the
 	 * memoized value. Otherwise, it fetches the scope from the main entity storage part, memoizes it, and returns it.
 	 *
+	 * During a `SetEntityScopeMutation` the memoized value is intentionally flipped to the target scope mid-transition
+	 * (after removal from the source scope, before insertion into the target) so scope-sensitive gates consulted while
+	 * re-indexing observe the target scope.
+	 *
 	 * @return The scope of the current entity.
 	 */
 	@Nonnull
@@ -354,10 +358,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Re-points the memoized scope of the active entity. Precondition: the caller has just
-	 * relocated the entity from the old scope's indexes to the new scope's indexes — calling this
-	 * without performing the relocation first leaves the executor pointing at the wrong indexes
-	 * for the remainder of the batch.
+	 * Re-points the memoized scope of the active entity. Must be called during a scope transition after the entity has
+	 * been removed from the old scope's indexes and before it is re-added to the new scope's indexes, so that
+	 * scope-sensitive gates consulted while re-indexing into the target scope observe the target scope. Calling this at
+	 * the wrong moment leaves the executor pointing at the wrong indexes for the remainder of the batch.
 	 *
 	 * @param scope the new scope of the active entity
 	 */

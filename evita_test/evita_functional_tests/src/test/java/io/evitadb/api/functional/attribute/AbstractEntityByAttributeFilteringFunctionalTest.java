@@ -4300,6 +4300,113 @@ public abstract class AbstractEntityByAttributeFilteringFunctionalTest {
 		assertArrayAreDifferent(results[0], results[1]);
 	}
 
+	@DisplayName("Should paginate seeded random order through all pages without gaps, duplicates or reordering")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldSortEntitiesRandomlyUsingProvidedSeedAndRespectOffset(Evita evita) {
+		// independent oracle: the complete, unordered set of matching primary keys
+		final int[] naturalOrder = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, Integer.MAX_VALUE)
+						)
+					),
+					EntityReference.class
+				);
+				return extractPrimaryKeys(result);
+			}
+		);
+		Arrays.sort(naturalOrder);
+		final int totalRecordCount = naturalOrder.length;
+
+		// the single, stable seeded permutation of the whole result set, fetched in one go
+		final int[] fullOrder = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						orderBy(
+							randomWithSeed(42)
+						),
+						require(
+							page(1, Integer.MAX_VALUE)
+						)
+					),
+					EntityReference.class
+				);
+				assertEquals(totalRecordCount, result.getTotalRecordCount());
+				return extractPrimaryKeys(result);
+			}
+		);
+
+		// page size deliberately doesn't divide totalRecordCount evenly, to also exercise the last, partial page
+		final int pageSize = 7;
+		final List<Integer> pagedOrder = new ArrayList<>(totalRecordCount);
+		for (int offset = 0; offset < totalRecordCount; offset += pageSize) {
+			final int currentOffset = offset;
+			final int[] page = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaResponse<EntityReference> result = session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								randomWithSeed(42)
+							),
+							require(
+								strip(currentOffset, pageSize)
+							)
+						),
+						EntityReference.class
+					);
+					assertEquals(totalRecordCount, result.getTotalRecordCount());
+					return extractPrimaryKeys(result);
+				}
+			);
+			final int expectedPageLength = Math.min(pageSize, totalRecordCount - currentOffset);
+			assertEquals(expectedPageLength, page.length, "Page at offset " + currentOffset + " has unexpected length.");
+			for (final int primaryKey : page) {
+				pagedOrder.add(primaryKey);
+			}
+		}
+
+		final int[] pagedOrderArray = pagedOrder.stream().mapToInt(Integer::intValue).toArray();
+		// paging through the whole result set must reconstruct the exact same stable permutation, without gaps
+		assertArrayEquals(fullOrder, pagedOrderArray, "Paging through all pages doesn't reconstruct the same stable seeded order.");
+
+		// no record may be repeated across pages
+		final Set<Integer> distinctPrimaryKeys = new HashSet<>(pagedOrder);
+		assertEquals(totalRecordCount, distinctPrimaryKeys.size(), "Some records were repeated across pages.");
+
+		// the collected pages must contain exactly the same set of records as the unordered result, just shuffled
+		final int[] collectedSorted = pagedOrderArray.clone();
+		Arrays.sort(collectedSorted);
+		assertArrayEquals(naturalOrder, collectedSorted, "Paged records don't form the same complete set as the unordered result.");
+
+		// the random order must actually differ from the natural (ascending) order
+		assertArrayAreDifferent(fullOrder, naturalOrder);
+	}
+
+	/**
+	 * Extracts the primary keys of the entity references contained in the given response into a plain int array.
+	 *
+	 * @param response the response whose record data primary keys should be extracted
+	 * @return the primary keys in the response order
+	 */
+	@Nonnull
+	private static int[] extractPrimaryKeys(@Nonnull EvitaResponse<EntityReference> response) {
+		return response
+			.getRecordData()
+			.stream()
+			.mapToInt(EntityReference::getPrimaryKeyOrThrowException)
+			.toArray();
+	}
+
 	@DisplayName("Should return entities sorted by String attribute (combined with filtering)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
