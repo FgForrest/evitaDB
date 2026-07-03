@@ -869,6 +869,11 @@ public class ChainIndex implements
 			for (final int freedPageSequence : emission.freedPageSequences()) {
 				sink.addChangeToStore(new ChainIndexLeafPageRemoval(entityIndexPrimaryKey, streamKey, freedPageSequence));
 			}
+			// NOTE: the PAGED root re-emits the full ordered live leaf-page list on every commit, so the root write is
+			// O(live pages) — ~40 KB at 10M elements with ~1 K-record leaves — not strictly O(1). It is still ~1000-2700x
+			// cheaper than the monolithic flush it replaces, and the leaf-page parts above are already granular (dirty
+			// leaves only). Headroom / follow-up: skip this root re-emit when the leaf-page LIST is structurally unchanged
+			// (leaf contents may still have changed), which would collapse the steady-state root cost to O(1).
 			sink.addChangeToStore(
 				ChainIndexStoragePart.paged(
 					entityIndexPrimaryKey, this.attributeIndexKey,
